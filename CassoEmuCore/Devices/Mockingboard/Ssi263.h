@@ -220,6 +220,10 @@ private:
     double     m_tickClockHz = 0.0;
     uint32_t   m_sampleRate  = 0;
 
+    // The glottal source's break, as a one-pole coefficient for the current
+    // device rate (see s_kSourceBreakHz). Set by SetSampleRate.
+    float      m_sourcePole   = 0.0065f;
+
     Byte       m_reg[kRegCount] = {};
 
     // Mode latched on the CTL one-to-zero transition, from the DR bits as they

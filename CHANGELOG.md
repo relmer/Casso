@@ -55,6 +55,14 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **The synthesized voice was missing its fundamental.** The glottal source broke at
+  805 Hz, inside the pitch range instead of well below it, so lip radiation tilted the
+  output upward across the whole F1 region. Measured against a recording of a real
+  SSI-263: the chip's voiced spectrum falls monotonically from the fundamental at about
+  -8 dB/octave, ours was flat. The break now sits at 50 Hz and follows the device rate
+  rather than being a fixed coefficient, which also stops timbre depending on the
+  listener's audio hardware. Mean band error against that recording falls from 10.0 dB
+  to 3.8 dB.
 - **The voice chip's request line reaches the second 6522, not the first.** Each speech
   socket interrupts through the other channel's VIA, so the chip at $Cn40 latches CA1 on
   the VIA at $Cn80-$CnFF. Casso raised it on the first one, where an interrupt-driven

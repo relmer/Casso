@@ -94,8 +94,8 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // tilt at the output costs F1-dominant voiced energy 20+ dB while barely
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
-static constexpr float   s_kfVoicedGain   = 60.00f;
-static constexpr float   s_kfNoiseGain    = 0.21f;
+static constexpr float   s_kfVoicedGain   = 966.00f;
+static constexpr float   s_kfNoiseGain    = 0.060f;
 
 // Noise-shaping high-pass on the fricative source (one-pole, ~2.5 kHz).
 // The die carries a dedicated noise shaping filter between the noise
@@ -114,14 +114,23 @@ static constexpr float   s_kfNoiseHpCoef  = 0.50f;
 // the chip and the card's mixer.
 static constexpr float   s_kfOutputLpCoef = 0.54f;
 
-// Two-pole smoothing on the glottal impulse train. A bare impulse opened
-// every pitch period with a step -- an audible click at the fundamental
-// rate -- while a wide shaped pulse rolled off the upper formants and
-// muffled the voice. Two cascaded one-pole sections start each pulse from
-// zero (click-free) yet keep a -12 dB/oct tail that still excites F2/F3.
-// The pole sets where that tail starts: higher was audibly buzzy against
-// the radiation tilt, lower muffles F2.
-static constexpr float   s_kfSourcePole   = 0.10f;
+// Two cascaded one-pole sections smooth the glottal impulse train: each pulse
+// starts from zero rather than opening with a step, and the -12 dB/oct tail
+// still excites F2 and F3.
+//
+// Where that tail STARTS decides the voice's whole character, and it belongs
+// well below the pitch range. Measured against a recording of a real SSI-263
+// speaking at 88.7 Hz, the chip's voiced spectrum falls monotonically from the
+// fundamental at about -8 dB/oct -- a source rolling off at -12 plus the +6 of
+// lip radiation. This was a bare 0.10, which breaks at 805 Hz at a 48 kHz
+// device: flat underneath, so radiation tilted the output UPWARD across the
+// whole F1 region. Against that same recording our spectrum was 21 dB short at
+// 80-200 Hz and 9-10 dB heavy from 400 Hz up, which is the thin, buzzy voice.
+//
+// It is also derived from the device rate now. As a bare coefficient the break
+// moved with whatever the host was running at, making timbre a property of the
+// listener's DAC.
+static constexpr double  s_kSourceBreakHz = 50.0;
 static constexpr float   s_kfOutputGain   = 3.00f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 
@@ -178,6 +187,12 @@ Ssi263::Ssi263 (double xckHz)
 void Ssi263::SetSampleRate (uint32_t sampleRate)
 {
     m_sampleRate = sampleRate;
+
+    if (m_sampleRate > 0)
+    {
+        m_sourcePole = static_cast<float> (1.0 - std::exp (-2.0 * std::numbers::pi *
+                                                           s_kSourceBreakHz / m_sampleRate));
+    }
 }
 
 
@@ -794,8 +809,8 @@ float Ssi263::GenerateExcitation()
         // Two cascaded one-pole sections: the pulse rises from zero rather
         // than opening with a step, and its tail keeps enough energy at the
         // upper formants to excite them.
-        m_excLp1 += s_kfSourcePole * (impulse - m_excLp1);
-        m_excLp2 += s_kfSourcePole * (m_excLp1 - m_excLp2);
+        m_excLp1 += m_sourcePole * (impulse - m_excLp1);
+        m_excLp2 += m_sourcePole * (m_excLp1 - m_excLp2);
 
         src = m_excLp2 * s_kfVoicedGain * spec.voicedLevel;
 
