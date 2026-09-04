@@ -94,7 +94,7 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // tilt at the output costs F1-dominant voiced energy 20+ dB while barely
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
-static constexpr float   s_kfVoicedGain   = 1608.00f;
+static constexpr float   s_kfVoicedGain   = 966.00f;
 static constexpr float   s_kfNoiseGain    = 0.030f;
 
 // How fast the noise source is smoothed. The LFSR delivers a rail-to-rail bit
@@ -136,7 +136,7 @@ static constexpr float   s_kfOutputLpCoef = 0.23f;
 // It is also derived from the device rate now. As a bare coefficient the break
 // moved with whatever the host was running at, making timbre a property of the
 // listener's DAC.
-static constexpr double  s_kSourceBreakHz = 30.0;
+static constexpr double  s_kSourceBreakHz = 50.0;
 static constexpr float   s_kfOutputGain   = 3.00f;
 static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 
@@ -981,19 +981,19 @@ void Ssi263::LatchMode()
 
 void Ssi263::BeginPhoneme (Byte outgoing)
 {
-    double                      seconds = GetPhonemeDurationSec();
-    const Ssi263PhonemeSpec *   table   = (m_formants != nullptr) ? m_formants : s_kPhonemes;
-    int                         i       = 0;
+    double   seconds = GetPhonemeDurationSec();
 
 
 
-    if (!HasAnySource (table[outgoing & kPhonemeMask]))
-    {
-        for (i = 0; i < 3; i++)
-        {
-            m_fCur[i] = 0.0;   // GlideFormants snaps to the new targets
-        }
-    }
+    // The tract is NOT reset here. Zeroing the current formants at a pause
+    // defeated the hold GlideFormants performs for a phoneme with no targets
+    // of its own: the zero made the next real phoneme take the cold-start
+    // path and SNAP its resonators to their targets, stepping three filter
+    // centers at once while those filters were carrying state. That step is a
+    // pop, and the demo puts a pause inside consonant clusters as well as
+    // between words, which is why the popping tracked phoneme edges. Holding
+    // the position instead means the phoneme after a pause glides in from
+    // wherever the tract was, which is also what the mouth does.
 
     // The datasheet formula gives seconds against XCK; the countdown Tick
     // drains is in the machine's cycles, so the tick clock is what converts.
