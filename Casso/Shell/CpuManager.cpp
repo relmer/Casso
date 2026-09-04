@@ -347,7 +347,23 @@ bool CpuManager::HasPendingCommands()
 
 void CpuManager::ThreadProc()
 {
+    //  kFramePeriod100Ns is one frame in 100 ns units. The pacing below
+    //  advances an ABSOLUTE deadline by exactly that much per pass, so a late
+    //  wake-up is caught up on the next one instead of being added to the
+    //  period. Re-arming a RELATIVE timer after each wait, as this did, spends
+    //  period + wake latency every frame, and that latency accumulates: about
+    //  1 ms of it on a 16.7 ms frame ran the machine 5% slow. Audio is
+    //  generated from emulated cycles, so the render queue starved by the same
+    //  5% and the endpoint got filler spliced in on a regular cadence -- an
+    //  audible beating under every sound.
+    //
+    //  kRebaseSlack100Ns is how far behind the deadline may fall before it is
+    //  re-based rather than chased, so a pause, a breakpoint or a long stall
+    //  is not repaid as a burst of frames at full tilt.
     constexpr LONGLONG  kHundredNsPerSecond = 10000000LL;
+    constexpr LONGLONG  kFramePeriod100Ns   = kHundredNsPerSecond *
+                                              kAppleCyclesPerFrame / kAppleCpuClock;
+    constexpr LONGLONG  kRebaseSlack100Ns   = kFramePeriod100Ns * 4;
 
 
 
@@ -357,6 +373,9 @@ void CpuManager::ThreadProc()
     SpeedMode      speed           = SpeedMode::Authentic;
     bool           fComInitialized = false;
     BOOL           fSuccess        = FALSE;
+    FILETIME       nowFt           = {};
+    LONGLONG       nowNs           = 0;
+    LONGLONG       deadline        = 0;
 
 
     hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
@@ -397,7 +416,18 @@ void CpuManager::ThreadProc()
             continue;
         }
 
-        dueTime.QuadPart = -(kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
+        GetSystemTimeAsFileTime (&nowFt);
+        nowNs = (static_cast<LONGLONG> (nowFt.dwHighDateTime) << 32) | nowFt.dwLowDateTime;
+
+        deadline += kFramePeriod100Ns;
+
+        if (deadline < nowNs - kRebaseSlack100Ns)
+        {
+            deadline = nowNs + kFramePeriod100Ns;
+        }
+
+        //  Positive is an absolute FILETIME, negative a relative interval.
+        dueTime.QuadPart = deadline;
         fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
         CWRA (fSuccess);
 
@@ -411,6 +441,12 @@ void CpuManager::ThreadProc()
         if (speed != SpeedMode::Maximum)
         {
             WaitForSingleObject (hTimer, INFINITE);
+        }
+        else
+        {
+            //  Maximum speed does not pace at all, so the deadline is
+            //  meaningless while it is engaged; re-base when pacing resumes.
+            deadline = 0;
         }
     }
 
