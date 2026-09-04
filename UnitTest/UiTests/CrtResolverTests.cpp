@@ -374,7 +374,7 @@ public:
 
         for (m = 0; m < _countof (monitors); m++)
         {
-            for (mode = 0; mode < CrtResolver::kModeCount; mode++)
+            for (mode = 0; mode < kCrtModeCount; mode++)
             {
                 keys.insert (CrtResolver::MakeKey (monitors[m], mode));
                 total++;
@@ -394,7 +394,7 @@ public:
         std::vector<std::string>         ordered;
         size_t                           mode = 0;
 
-        for (mode = 0; mode < CrtResolver::kModeCount; mode++)
+        for (mode = 0; mode < kCrtModeCount; mode++)
         {
             keys.insert (CrtResolver::MakeKey ("AppleMonitorII", mode));
         }
@@ -416,7 +416,7 @@ public:
         std::vector<std::string>  ordered;
         size_t                    mode = 0;
 
-        for (mode = 0; mode < CrtResolver::kModeCount; mode++)
+        for (mode = 0; mode < kCrtModeCount; mode++)
         {
             keys.insert (CrtResolver::MakeKey ("AppleMonitorII",  mode));
             keys.insert (CrtResolver::MakeKey ("AppleMonitorIIc", mode));

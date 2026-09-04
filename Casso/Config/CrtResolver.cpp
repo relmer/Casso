@@ -16,7 +16,7 @@
 // are the same four tokens v1 files already carry as their crt sub-object
 // keys, reused rather than re-invented so a migrated key reads the way the
 // old one did.
-static constexpr std::string_view  s_kModeTokens[CrtResolver::kModeCount] = {
+static constexpr std::string_view  s_kModeTokens[kCrtModeCount] = {
     "color", "green", "amber", "white"
 };
 
@@ -40,7 +40,7 @@ static constexpr char  s_kKeySeparator = '/';
 
 std::string_view CrtResolver::ModeToken (size_t modeIndex)
 {
-    size_t  clamped = (modeIndex < kModeCount) ? modeIndex : 0;
+    size_t  clamped = (modeIndex < kCrtModeCount) ? modeIndex : 0;
 
 
 

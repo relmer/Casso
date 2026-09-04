@@ -37,10 +37,6 @@
 
 namespace CrtResolver
 {
-    // The number of color modes a monitor offers. Matches the four keys
-    // already on disk and the four preset rows.
-    inline constexpr size_t  kModeCount = 4;
-
 
     // Resolve one monitor and mode's picture, reporting where each value
     // came from. `themeDefaults` may be null, which reads as a theme that

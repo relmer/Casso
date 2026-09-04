@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Config/GlobalUserPrefs.h"
+#include "Config/CrtTypes.h"
 #include "Ui/ThemeLoader.h"  // ThemeCrtDefaults
 
 
@@ -78,32 +79,26 @@ struct CrtParams
 //
 //  MakeCrtParams
 //
-//  Resolves the CRT shader parameters for one monitor mode from three layered
-//  sources.
+//  Projects already-resolved CRT values into the shader parameter block.
 //
-//  The layering is the whole job: a user override wins, otherwise the active
-//  theme's crtDefaults apply, otherwise the built-in defaults. That is what
-//  lets a theme ship a distinctive look while a user who has customized
-//  anything keeps their settings across a theme change -- the per-mode
-//  userOverride flag is what decides which side of that line a value falls on.
+//  The layering itself is NOT done here. CrtResolver::Resolve owns it, and
+//  this takes its output. That split is deliberate: the rules used to be
+//  restated at each consumer and the copies drifted, so the resolver is the
+//  one place they live and this is one of its consumers.
 //
-//  Parameters are resolved PER MODE, since color and the three monochrome
-//  phosphors want different scanline and bloom strengths.
+//  What this adds is the part the resolver has no business knowing: the
+//  enabled toggles folded into their magnitudes, since a shader reads a zero
+//  rather than a flag, and the output dimensions the blur kernels step in.
 //
 //  Output dimensions are taken because the blur kernels step in units of the
 //  render target's texels, so they have to know how big one is. What a radius
 //  MEANS is settled separately, by the pixel scale below.
 //
-//  Declared as a free function so the resolution rules can be unit-tested
-//  without a device, a window, or a theme manager.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
-CrtParams  MakeCrtParams      (const GlobalUserPrefs::Crt & prefsCrt,
-                               size_t                       modeIndex,
-                               const ThemeCrtDefaults     * themeDefaults,
-                               float                        outputW,
-                               float                        outputH);
+CrtParams  MakeCrtParams      (const CrtResolved & resolved,
+                               float               outputW,
+                               float               outputH);
 
 
 
