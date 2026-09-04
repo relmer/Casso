@@ -278,4 +278,5 @@ private:
     // octave off the differentiated signal.
     float      m_radPrev      = 0.0f;
     float      m_outLp        = 0.0f;
+    float      m_outLp2       = 0.0f;
 };

@@ -95,15 +95,20 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
 static constexpr float   s_kfVoicedGain   = 966.00f;
-static constexpr float   s_kfNoiseGain    = 0.030f;
+static constexpr float   s_kfNoiseGain    = 0.075f;
 
 // How fast the noise source is smoothed. The LFSR delivers a rail-to-rail bit
 // per sample; at 0.65 that smoothing broke at 8 kHz, so the source was very
 // nearly white and read as harsh static rather than as breath. The real chip's
 // frication is dark -- measured against a recording, its 1600-3200 band sits
 // 21 dB under the voice -- because on the die the noise goes through the same
-// switched-capacitor sections as everything else. 0.35 breaks near 3.3 kHz,
-// which the parallel fricative resonators then shape.
+// switched-capacitor sections as everything else.
+//
+// Measured on that recording, the chip's frication peaks at 1.5-2 kHz and is
+// 28 dB down by 3-4 kHz. Ours peaked an octave higher and carried 16 dB too
+// much up there, which is what made it read as noise laid over the voice
+// rather than part of it. 0.12 breaks near 1 kHz and leaves the shaping to the
+// fricative resonators.
 // The die carries a dedicated noise shaping filter between the noise
 // generator and the tract, which this model omitted: frication went into
 // the formant cascade raw and came out bandlimited by F2 and F3. That is
@@ -112,13 +117,18 @@ static constexpr float   s_kfNoiseGain    = 0.030f;
 // are nearly the same sound and "Daisy" comes out closer to "Dailey".
 // Tilting the noise up before it enters the tract restores the sibilance
 // the formants cannot carry, and leaves the resonators to color it.
-static constexpr float   s_kfNoiseLpCoef  = 0.35f;
+static constexpr float   s_kfNoiseLpCoef  = 0.12f;
 
 // Output low-pass (one-pole, ~5.5 kHz at 44.1 kHz): rounds off the top
+// TWO cascaded sections, not one. Above its top resonance the real chip falls
+// about 28 dB in the octave from 2 kHz to 4 kHz, which no single pole can do:
+// one pole gives 6 dB there, and against the radiation tilt the excess read as
+// hiss laid over the voice. Two give a -12 dB/oct skirt.
+//
 // octave the radiation tilt would otherwise push to Nyquist -- the digital
 // sheen on fricatives -- standing in for the analog output stage between
 // the chip and the card's mixer.
-static constexpr float   s_kfOutputLpCoef = 0.23f;
+static constexpr float   s_kfOutputLpCoef = 0.32f;
 
 // Two cascaded one-pole sections smooth the glottal impulse train: each pulse
 // starts from zero rather than opening with a step, and the -12 dB/oct tail
@@ -146,7 +156,13 @@ static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 // cascading put a low-pass in front of its own hiss and buried it 17 dB below
 // S's, when the chip's stored amplitudes differ by only 3.5 dB. Summed
 // resonators contribute without attenuating each other.
-static constexpr double  s_kFricBandwidthHz = 140.0;
+static constexpr double  s_kFricBandwidthHz = 300.0;
+
+// The two fricative resonators are not equals. Measured on a real SSI-263, its
+// frication peaks at F2 -- 1.5-2 kHz for an S -- while ours summed F2 and F3
+// evenly and so peaked at F3 instead, an octave high. F3 contributes; it does
+// not lead.
+static constexpr float   s_kfFricF3Weight = 0.40f;
 
 // Amplitude envelope rates: a fast attack and a slightly longer release,
 // expressed as time constants the per-sample coefficient is derived from.
@@ -156,8 +172,10 @@ static constexpr double  s_kFricBandwidthHz = 140.0;
 // a vowel's 0.40 of voicing became a stop's 0.27 of frication instantly. That
 // step is what popped, and it fired at every boundary, which is why the
 // popping followed the phoneme rate. 6 ms is short enough to leave a stop its
-// attack and long enough that the step is no longer a click.
-static constexpr double  s_kLevelTauSec   = 0.006;
+// attack and long enough that the step is no longer a click. 6 ms cost the B
+// in "mockingboard" its burst, so this is as short as it can be while still
+// measuring as smooth as the real chip.
+static constexpr double  s_kLevelTauSec   = 0.0025;
 static constexpr double  s_kAttackTauSec  = 0.002;
 static constexpr double  s_kReleaseTauSec = 0.004;
 
@@ -402,6 +420,7 @@ void Ssi263::Reset()
     m_envLevel     = 0.0f;
     m_radPrev      = 0.0f;
     m_outLp        = 0.0f;
+    m_outLp2       = 0.0f;
     m_glottalPhase = 0.0;
     m_excLp1       = 0.0f;
     m_excLp2       = 0.0f;
@@ -654,7 +673,8 @@ float Ssi263::GenerateSample()
         float   noise = GenerateNoiseSample();
 
         sample += (ResonateFricative (0, noise, m_fCur[1] * scale) +
-                   ResonateFricative (1, noise, m_fCur[2] * scale)) *
+                   ResonateFricative (1, noise, m_fCur[2] * scale) *
+                   s_kfFricF3Weight) *
                   s_kfNoiseGain * m_faCur;
     }
 
@@ -669,7 +689,8 @@ float Ssi263::GenerateSample()
     sample    = diffed;
 
     m_outLp  += s_kfOutputLpCoef * (sample - m_outLp);
-    sample    = m_outLp;
+    m_outLp2 += s_kfOutputLpCoef * (m_outLp - m_outLp2);
+    sample    = m_outLp2;
 
     // The amplitude envelope: eases toward the active level while sounding
     // and toward zero once the phoneme has finished, so every boundary is a
