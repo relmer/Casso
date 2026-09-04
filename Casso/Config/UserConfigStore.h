@@ -54,9 +54,16 @@ public:
     // parse, in which case it carries a human-readable location ("line 12,
     // column 5: ...") so the caller can tell the user WHERE their JSON
     // broke rather than silently discarding their settings.
+    //
+    // outPreservedPath is empty unless the file was set aside. A non-empty
+    // path holds every byte the file had and the original is gone, so saving
+    // works normally from here and the caller should report where the copy
+    // went. Empty alongside a failed HRESULT means the file is still where it
+    // was, and every save refuses until it reads.
     HRESULT      LoadAll           (GlobalUserPrefs  & prefs,
                                     IFileSystem      & fs,
-                                    std::wstring     & outParseDetail);
+                                    std::wstring     & outParseDetail,
+                                    std::wstring     & outPreservedPath);
     HRESULT      SaveAll           (const GlobalUserPrefs & prefs,
                                     IFileSystem           & fs) const;
     HRESULT      Load              (const std::string & machineName,
@@ -74,6 +81,20 @@ public:
                                     IFileSystem       & fs) const;
     std::wstring GetUserFilePath      (const std::string & machineName) const;
     std::wstring GetUserPrefsFilePath () const;
+
+    // The clock the preserved copy's filename is stamped from. Tests install a
+    // fixed source so the name is deterministic; unset, the wall clock.
+    void  SetTimestampSource (std::function<time_t ()> source)
+    {
+        m_timestamp = std::move (source);
+    }
+
+    // What to tell the user when LoadAll failed. Lives here rather than in the
+    // shell because the shell is not compiled into the test project, and the
+    // two outcomes it distinguishes are exactly what a test should pin.
+    static std::wstring ComposeLoadFailureMessage (const std::wstring & prefsPath,
+                                                   const std::wstring & preservedPath,
+                                                   const std::wstring & parseDetail);
 
     // Pure helpers (exposed for testing)
 
@@ -106,6 +127,13 @@ private:
     static std::wstring  GetUserPrefsFilename         ();
     static std::wstring  GetLegacyGlobalPrefsFilename ();
     static std::wstring  GetLegacyUserSuffix          ();
+
+    // `UserPrefs.20260903-141530.original.json`. The stamp keeps one launch's
+    // rescue from overwriting another's, and the trailing `.json` is what the
+    // user double-clicks to go repair it. The name must not end in the legacy
+    // `_user.json` suffix: MigrateLegacyFiles adopts every file that does,
+    // fails the whole migration on one that will not parse, and deletes it.
+    static std::wstring  GetPreservedPrefsFilename (time_t when);
 
     static bool  EndsWith (
         const std::wstring & text,
@@ -183,8 +211,16 @@ private:
     // A null `prefs` preserves the on-disk global section instead of writing one.
     HRESULT      SaveCombinedJson    (const GlobalUserPrefs * prefs,
                                       IFileSystem           & fs) const;
-    JsonValue    BuildCombinedJson   (const GlobalUserPrefs * prefs,
-                                      IFileSystem           & fs) const;
+    HRESULT      BuildCombinedJson   (const GlobalUserPrefs * prefs,
+                                      IFileSystem           & fs,
+                                      JsonValue             & outRoot) const;
+
+    // Moves an unreadable prefs file aside under a stamped name. The copy is
+    // written before the original is removed, so a copy that did not land
+    // costs nothing.
+    HRESULT      PreserveUnreadableFile (const std::string & text,
+                                         IFileSystem       & fs,
+                                         std::wstring      & outPreservedPath) const;
     HRESULT      LoadCombinedJson    (const JsonValue & root,
                                       GlobalUserPrefs & prefs) const;
 
@@ -199,4 +235,6 @@ private:
     mutable std::set<std::string>               m_erasedMachines;
 
     GlobalUserPrefs                           * m_prefs        = nullptr;
+
+    std::function<time_t ()>                    m_timestamp;
 };

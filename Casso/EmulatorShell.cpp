@@ -1115,6 +1115,8 @@ void EmulatorShell::PrimeChromeThemeEarly()
 {
     HRESULT       hr = S_OK;
     std::wstring  parseDetail;
+    std::wstring  preservedPath;
+    std::wstring  message;
 
 
 
@@ -1122,6 +1124,12 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // with defaults. A corrupt one is the user's file being unreadable, so we
     // tell them where it broke and reset to defaults so Casso still boots --
     // silently starting over just reads as "Casso lost my settings".
+    //
+    // Two outcomes to report, and the difference matters to the reader. With a
+    // preserved path, LoadAll moved every byte to that file and settings save
+    // normally from here. Without one, the file is still where it was and
+    // saving is refused until it reads, so the message must not suggest the
+    // session will keep anything.
     //
     // Non-asserting on purpose. A malformed prefs file is bad DATA, not a
     // coding error: there is no bug for a developer to break into, and it
@@ -1132,11 +1140,11 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // and the -N family is CHRF with its action fixed to one EhmNotifyUser
     // call. EhmNotifyUser rather than a themed dialog: this runs before the
     // chrome theme or main window exist, and it auto-detects GUI vs console.
-    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, parseDetail);
+    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, parseDetail, preservedPath);
     CHRF (hr,
-          EhmNotifyUser ((L"Casso could not read your settings and has started "
-                          L"with defaults. Your file was left untouched.\n\n" +
-                          parseDetail).c_str());
+          message = UserConfigStore::ComposeLoadFailureMessage (
+                        m_userConfigStore->GetUserPrefsFilePath(), preservedPath, parseDetail);
+          EhmNotifyUser (message.c_str());
           m_globalPrefs = GlobalUserPrefs {});
 
 Error:

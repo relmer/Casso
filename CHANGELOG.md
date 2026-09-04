@@ -55,6 +55,12 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
+- **A settings file Casso could not read was overwritten anyway.** Startup said the
+  file had been left untouched and then the next save replaced it with defaults,
+  which cost the user everything a hand-edited stray comma had made unreadable.
+  Casso now saves the file as `UserPrefs.<date-time>.original.json` and starts a
+  fresh one, so the original is still there to repair. If it cannot be set aside,
+  settings are not saved over it at all.
 - **Resetting a machine's settings did nothing.** The entry was dropped from memory
   and then restored from the file before it was written, so the machine kept its
   overrides. Resetting now removes the entry from the file, leaves every other
