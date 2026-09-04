@@ -50,16 +50,19 @@ RATE_QUESTION = 0x60      # rate 6: 40/80/120/160 ms -- the question, unhurried
 RATE_SLOW   = 0x50        # rate 5: 44/88/132/176 ms -- the Sarah interjection
 RATE_HAL    = 0x40        # rate 4: 48/96/144/192 ms -- deliberate, not sluggish
 BASE_HZ     = 112.0       # speaking pitch; well clear of the 54.6 Hz floor
-#  Measured off the film rather than guessed. Two separate HAL lines from the
-#  pod bay scene -- "I'm sorry, Dave" and "This mission is too important" --
-#  both give a median of 171 Hz, and Dave in the same clip gives 125, which
-#  says the tracker is telling the two apart rather than following the mix.
+#  Not measured, though not for want of trying. The pod bay scene carries a
+#  steady drone in the same range as a speaking voice, and HAL is quiet and
+#  smooth on top of it. Three pitch trackers -- autocorrelation, harmonic sum
+#  over a subtracted background, and cepstrum -- each returned a CONFIDENT
+#  pitch for a window of that scene in which nobody speaks at all: 173, 72
+#  and 167 Hz. Their answers for HAL himself spanned 75 to 171 Hz, a factor
+#  of two, which is not a measurement. Dave's louder line came out at 115 to
+#  125 Hz on all three, so the method works where a voice dominates its
+#  background; it cannot do this one.
 #
-#  HAL is HIGHER than the man he is refusing, which is the opposite of the
-#  deep-computer-voice stereotype and the opposite of what this file assumed
-#  twice: it was 90 Hz, then 105 on my own estimate of a calm male range.
-#  Douglas Rain is light and level, and the menace is in the evenness.
-HAL_HZ      = 171.0
+#  So this stays a judgement. 90 was the original and read as too big a
+#  machine; 171 came off the bad measurement and was far too high by ear.
+HAL_HZ      = 105.0
 
 CAP  = 0xFB               # caption escape: $FB len <high-ASCII bytes>, len 0 = clear
 FILT = 0xFE
