@@ -207,7 +207,7 @@ private:
     float   GenerateExcitation  ();
     float   GenerateNoiseSample ();
     float   Resonate            (int stage, float input, double centerHz);
-    float   ResonateFricative   (int stage, float input, double centerHz);
+    float   ResonateFricative   (float input, double centerHz);
 
     static bool  HasAnySource   (const Ssi263PhonemeSpec & spec);
 
@@ -269,11 +269,12 @@ private:
     float      m_vaCur        = 0.0f;
     float      m_faCur        = 0.0f;
 
-    // Parallel fricative branch state, one pair per resonator (F2, F3).
+    // Parallel fricative branch state: its low-pass and its F2 resonator.
     float      m_fricLp       = 0.0f;
     float      m_fricLp2      = 0.0f;
-    float      m_fricY1[2]    = { 0.0f, 0.0f };
-    float      m_fricY2[2]    = { 0.0f, 0.0f };
+    float      m_fricLp3      = 0.0f;
+    float      m_fricY1       = 0.0f;
+    float      m_fricY2       = 0.0f;
 
     // Radiation-characteristic differentiator history (previous cascade
     // output sample) and the output low-pass state that rounds the top

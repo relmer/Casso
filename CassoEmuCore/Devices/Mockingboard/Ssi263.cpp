@@ -95,7 +95,7 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
 // touching the fricatives' F2-region noise; these two together set the
 // vowel-to-sibilant balance heard in connected speech.
 static constexpr float   s_kfVoicedGain   = 966.00f;
-static constexpr float   s_kfNoiseGain    = 0.130f;
+static constexpr float   s_kfNoiseGain    = 0.165f;
 
 // How fast the noise source is smoothed. The LFSR delivers a rail-to-rail bit
 // per sample; at 0.65 that smoothing broke at 8 kHz, so the source was very
@@ -158,11 +158,12 @@ static constexpr double  s_kBandwidthHz[3] = { 60.0, 90.0, 120.0 };
 // resonators contribute without attenuating each other.
 static constexpr double  s_kFricBandwidthHz = 450.0;
 
-// The two fricative resonators are not equals. Measured on a real SSI-263, its
-// frication peaks at F2 -- 1.5-2 kHz for an S -- while ours summed F2 and F3
-// evenly and so peaked at F3 instead, an octave high. F3 contributes; it does
-// not lead.
-static constexpr float   s_kfFricF3Weight = 0.22f;
+// One fricative resonator, at F2. Measured on a real SSI-263, frication peaks
+// at F2 -- 1.5-2 kHz for an S -- and is 12 dB down by 2.5-3 kHz. A second
+// resonator at F3 sat exactly there (2598 Hz for S) and filled in the region
+// the chip empties, which read as hiss laid over the voice; it bought nothing
+// for telling S from SCH, whose F2s differ by 370 Hz while their F3s differ by
+// 160. Removing it took the shape error from 4.3 dB to 3.2.
 
 // Two more poles, on the fricative branch alone. Above its peak the real chip
 // falls about 28 dB across the octave from 1.75 to 3.5 kHz; the parallel
@@ -438,10 +439,9 @@ void Ssi263::Reset()
     m_faCur        = 0.0f;
     m_fricLp       = 0.0f;
     m_fricLp2      = 0.0f;
-    m_fricY1[0]    = 0.0f;
-    m_fricY1[1]    = 0.0f;
-    m_fricY2[0]    = 0.0f;
-    m_fricY2[1]    = 0.0f;
+    m_fricLp3      = 0.0f;
+    m_fricY1       = 0.0f;
+    m_fricY2       = 0.0f;
     m_lfsr         = 0xACE1u;
 }
 
@@ -682,7 +682,7 @@ float Ssi263::GenerateSample()
     }
 
     // Frication runs beside the tract, not through it: the noise is shaped by
-    // its own broad resonators at F2 and F3 and summed in.
+    // its own broad resonator at F2 and summed in.
     // Driven by the glided level, not the spec's, so frication fades in and
     // out rather than switching on. The branch stays live while that level is
     // still decaying, which is why it tests m_faCur and not spec.fricative.
@@ -690,14 +690,13 @@ float Ssi263::GenerateSample()
     {
         float   noise = GenerateNoiseSample();
 
-        float   fric = ResonateFricative (0, noise, m_fCur[1] * scale) +
-                       ResonateFricative (1, noise, m_fCur[2] * scale) *
-                       s_kfFricF3Weight;
+        float   fric = ResonateFricative (noise, m_fCur[1] * scale);
 
         m_fricLp  += s_kfFricLpCoef * (fric - m_fricLp);
         m_fricLp2 += s_kfFricLpCoef * (m_fricLp - m_fricLp2);
+        m_fricLp3 += s_kfFricLpCoef * (m_fricLp2 - m_fricLp3);
 
-        sample += m_fricLp2 * s_kfNoiseGain * m_faCur;
+        sample += m_fricLp3 * s_kfNoiseGain * m_faCur;
     }
 
     // Radiation characteristic: the lips differentiate the volume flow,
@@ -1003,13 +1002,13 @@ float Ssi263::Resonate (int stage, float input, double centerHz)
 //
 //  ResonateFricative
 //
-//  One resonator of the PARALLEL fricative branch. Same two-pole form as the
-//  tract sections but much broader, and summed with its sibling rather than
-//  cascaded, so a low resonance colors the hiss instead of removing it.
+//  The PARALLEL fricative branch's resonator. Same two-pole form as the tract
+//  sections but much broader, and beside the tract rather than in it, so a low
+//  F2 colors the hiss instead of low-passing it away.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Ssi263::ResonateFricative (int stage, float input, double centerHz)
+float Ssi263::ResonateFricative (float input, double centerHz)
 {
     double   fs = static_cast<double> (m_sampleRate);
     double   fc = std::clamp (centerHz, 50.0, fs * 0.45);
@@ -1021,11 +1020,11 @@ float Ssi263::ResonateFricative (int stage, float input, double centerHz)
 
 
     y = static_cast<float> ((1.0 - b - c) * input +
-                            b * m_fricY1[stage] +
-                            c * m_fricY2[stage]);
+                            b * m_fricY1 +
+                            c * m_fricY2);
 
-    m_fricY2[stage] = m_fricY1[stage];
-    m_fricY1[stage] = y;
+    m_fricY2 = m_fricY1;
+    m_fricY1 = y;
 
     return y;
 }
