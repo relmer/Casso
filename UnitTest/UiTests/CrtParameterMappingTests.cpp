@@ -4,6 +4,8 @@
 
 #include "CrtPostProcess.h"
 #include "Config/GlobalUserPrefs.h"
+#include "Config/CrtPresets.h"
+#include "Config/CrtResolver.h"
 #include "Ui/ThemeLoader.h"
 
 #include "Core/JsonParser.h"
@@ -31,7 +33,6 @@ public:
 
     TEST_METHOD (Load_ClampsOutOfRangeValuesToDocumentedBounds)
     {
-        InMemoryFileSystem  fs;
         GlobalUserPrefs     prefs;
         JsonValue           parsed;
         JsonParseError      err;
@@ -40,15 +41,16 @@ public:
 
 
         // Hand-built JSON with values outside every documented range. The
-        // FromJson clamp logic should pull each one back to its bound so
-        // a manually-edited prefs file can't drive the shaders into
-        // garbage (NaN multiplies, negative blur radii, etc.).
+        // clamp logic should pull each one back to its bound so a manually
+        // edited prefs file can't drive the shaders into garbage (NaN
+        // multiplies, negative blur radii, etc.). The file is meant to be
+        // editable, so an out-of-range value is corrected rather than
+        // refused.
         constexpr const char *  json =
             "{\n"
             "  \"$cassoGlobalPrefsVersion\": 1,\n"
-            "  \"crt\": {\n"
-            "    \"color\": {\n"
-            "      \"userOverride\": true,\n"
+            "  \"crtOverrides\": {\n"
+            "    \"AppleMonitorII/color\": {\n"
             "      \"brightness\": 5.5,\n"
             "      \"scanlines\":  { \"enabled\": true,  \"intensity\": 2.0 },\n"
             "      \"bloom\":      { \"enabled\": true,  \"radius\": 99.0, \"strength\": -1.0 },\n"
@@ -64,27 +66,26 @@ public:
         hr = prefs.FromJson (parsed);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (2.0f,  prefs.crtByMode[0].brightness);
-        Assert::AreEqual (1.0f,  prefs.crtByMode[0].scanlinesIntensity);
-        Assert::AreEqual (4.0f,  prefs.crtByMode[0].bloomRadius);    // clamp 0..4 px
-        Assert::AreEqual (0.0f,  prefs.crtByMode[0].bloomStrength);
-        Assert::AreEqual (0.0f,  prefs.crtByMode[0].colorBleedWidth);
-        Assert::IsTrue   (prefs.crtByMode[0].userOverride);
+        const CrtOverrides &  o = prefs.crtOverrides["AppleMonitorII/color"];
+
+        Assert::AreEqual (2.0f,  o.brightness.value());
+        Assert::AreEqual (1.0f,  o.scanlinesIntensity.value());
+        Assert::AreEqual (4.0f,  o.bloomRadius.value());    // clamp 0..4 emulated px
+        Assert::AreEqual (0.0f,  o.bloomStrength.value());
+        Assert::AreEqual (0.0f,  o.colorBleedWidth.value());
     }
 
 
     TEST_METHOD (MakeCrtParams_FromDefaultPrefs_HasExpectedShape)
     {
-        GlobalUserPrefs  prefs;
+        CrtResolved  resolved = CrtResolver::Resolve (CrtPresets::GetPreset (0), nullptr, CrtOverrides {});
+        CrtParams    params   = MakeCrtParams (resolved, 1920.0f, 1080.0f);
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1920.0f, 1080.0f);
-
-        // With userOverride=false and no theme override, MakeCrtParams
-        // pulls from the Color monitor preset (CrtPresets::GetPreset(0)).
-        // That preset has bloom on (radius 2 / strength 0.30) and color
-        // bleed on (width 3) by design -- those are the defining color
-        // CRT looks. Scanlines on at 0.20 for subtle TV-line texture;
-        // persistence off (P22 phosphors decay in ~30us).
+        // With no theme and no user overrides, the Color monitor preset
+        // reaches the shader unchanged. That preset has bloom on and color
+        // bleed on by design, since those are the defining color CRT looks.
+        // Scanlines on at 0.20 for subtle TV-line texture; persistence off,
+        // because P22 phosphors decay in about 30us.
         Assert::AreEqual (1.0f,    params.brightness);
         Assert::AreEqual (1.0f,    params.contrast);
         Assert::AreEqual (0.20f,   params.scanlineIntensity);
@@ -100,51 +101,65 @@ public:
 
     TEST_METHOD (MakeCrtParams_DisabledEffectsZeroOutMagnitudes)
     {
-        CrtParams  params = {};
+        CrtOverrides  user;
+        CrtResolved   resolved;
+        CrtParams     params = {};
 
 
 
-        // Even with the effect *sliders* set to non-defaults, an effect
-        // whose `enabled` toggle is false must contribute zero to the
-        // shader uniforms; that's how `CrtPostProcess::Process` keeps a
-        // single fixed pipeline regardless of which subset is enabled.
-        GlobalUserPrefs  prefs;
-        prefs.crtByMode[0].userOverride        = true;
-        prefs.crtByMode[0].brightness          = 1.5f;
-        prefs.crtByMode[0].scanlinesEnabled    = false;
-        prefs.crtByMode[0].scanlinesIntensity  = 0.9f;
-        prefs.crtByMode[0].bloomEnabled        = false;
-        prefs.crtByMode[0].bloomRadius         = 3.0f;
-        prefs.crtByMode[0].bloomStrength       = 0.8f;
-        prefs.crtByMode[0].colorBleedEnabled   = false;
-        prefs.crtByMode[0].colorBleedWidth     = 2.5f;
+        // Even with the effect sliders set to non-defaults, an effect whose
+        // enabled toggle is false must contribute zero to the shader
+        // uniforms. That is how CrtPostProcess::Process keeps one fixed
+        // pipeline regardless of which subset is on.
+        //
+        // The resolver deliberately keeps the toggle and the magnitude
+        // apart, so that the Display page can report each one's own source.
+        // Folding them together is this projection's job.
+        user.brightness         = 1.5f;
+        user.scanlinesEnabled   = false;
+        user.scanlinesIntensity = 0.9f;
+        user.bloomEnabled       = false;
+        user.bloomRadius        = 3.0f;
+        user.bloomStrength      = 0.8f;
+        user.colorBleedEnabled  = false;
+        user.colorBleedWidth    = 2.5f;
 
-        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 800.0f, 600.0f);
+        resolved = CrtResolver::Resolve (CrtPresets::GetPreset (0), nullptr, user);
+        params   = MakeCrtParams (resolved, 800.0f, 600.0f);
 
         Assert::AreEqual (1.5f, params.brightness);
         Assert::AreEqual (0.0f, params.scanlineIntensity);
         Assert::AreEqual (0.0f, params.bloomRadius);
         Assert::AreEqual (0.0f, params.bloomStrength);
         Assert::AreEqual (0.0f, params.colorBleedWidth);
+
+        // The values themselves survive: only the projection zeroes them,
+        // so re-enabling the toggle brings the user's numbers straight back.
+        Assert::AreEqual (3.0f, resolved.values.bloomRadius);
+        Assert::AreEqual (2.5f, resolved.values.colorBleedWidth);
     }
 
 
     TEST_METHOD (MakeCrtParams_EnabledEffectsPropagateSliderValues)
     {
-        GlobalUserPrefs  prefs;
-        CrtParams        params = {};
-        prefs.crtByMode[0].userOverride        = true;
-        prefs.crtByMode[0].brightness          = 1.2f;
-        prefs.crtByMode[0].contrast            = 1.6f;
-        prefs.crtByMode[0].scanlinesEnabled    = true;
-        prefs.crtByMode[0].scanlinesIntensity  = 0.7f;
-        prefs.crtByMode[0].bloomEnabled        = true;
-        prefs.crtByMode[0].bloomRadius         = 2.0f;
-        prefs.crtByMode[0].bloomStrength       = 0.4f;
-        prefs.crtByMode[0].colorBleedEnabled   = true;
-        prefs.crtByMode[0].colorBleedWidth     = 1.5f;
+        CrtOverrides  user;
+        CrtResolved   resolved;
+        CrtParams     params = {};
 
-        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1024.0f, 768.0f);
+
+
+        user.brightness         = 1.2f;
+        user.contrast           = 1.6f;
+        user.scanlinesEnabled   = true;
+        user.scanlinesIntensity = 0.7f;
+        user.bloomEnabled       = true;
+        user.bloomRadius        = 2.0f;
+        user.bloomStrength      = 0.4f;
+        user.colorBleedEnabled  = true;
+        user.colorBleedWidth    = 1.5f;
+
+        resolved = CrtResolver::Resolve (CrtPresets::GetPreset (0), nullptr, user);
+        params   = MakeCrtParams (resolved, 1024.0f, 768.0f);
 
         Assert::AreEqual (1.2f, params.brightness);
         Assert::AreEqual (1.6f, params.contrast);
@@ -155,69 +170,22 @@ public:
     }
 
 
-    TEST_METHOD (MakeCrtParams_ThemeOverride_OnlyAppliesWhenUserHasNoOverride)
+    // The guard has never had coverage, and the signature was changing
+    // anyway, so this is the cheap moment to pin it.
+    TEST_METHOD (MakeCrtParams_NonPositiveOutputSizeFallsBackToUnity)
     {
-        ThemeCrtDefaults  theme;
-        theme.brightness          = 0.85f;
-        theme.contrast            = 1.15f;
-        theme.scanlinesEnabled    = true;
-        theme.scanlinesIntensity  = 0.8f;
-        theme.bloomEnabled        = true;
-        theme.bloomRadius         = 3.0f;
-        theme.bloomStrength       = 0.55f;
-        theme.colorBleedEnabled   = false;
-        theme.colorBleedWidth     = 1.0f;
-        // Mark all field groups as theme-declared so the layering
-        // logic in MakeCrtParams applies them (mirrors what
-        // ThemeLoader does when the JSON has every block).
-        theme.hasBrightness       = true;
-        theme.hasContrast         = true;
-        theme.hasScanlines        = true;
-        theme.hasBloom            = true;
-        theme.hasColorBleed       = true;
+        CrtResolved  resolved = CrtResolver::Resolve (CrtPresets::GetPreset (0), nullptr, CrtOverrides {});
+        CrtParams    zero     = MakeCrtParams (resolved,  0.0f,  0.0f);
+        CrtParams    negative = MakeCrtParams (resolved, -8.0f, -4.0f);
 
-        // Case 1 -- no user override; theme wins.
-        {
-            GlobalUserPrefs  prefs;   // userOverride == false
-            CrtParams        params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
-
-            Assert::AreEqual (0.85f, params.brightness);
-            Assert::AreEqual (1.15f, params.contrast);
-            Assert::AreEqual (0.8f,  params.scanlineIntensity);
-            Assert::AreEqual (3.0f,  params.bloomRadius);
-            Assert::AreEqual (0.55f, params.bloomStrength);
-            Assert::AreEqual (0.0f,  params.colorBleedWidth);
-        }
-
-        // Case 2 -- user override; prefs win even when theme has different
-        // values for the same fields.
-        {
-            GlobalUserPrefs  prefs;
-            CrtParams        params = {};
-            prefs.crtByMode[0].userOverride       = true;
-            prefs.crtByMode[0].brightness         = 1.4f;
-            prefs.crtByMode[0].contrast           = 0.7f;
-            prefs.crtByMode[0].scanlinesEnabled   = false;
-            prefs.crtByMode[0].scanlinesIntensity = 0.2f;
-            prefs.crtByMode[0].bloomEnabled       = false;
-            prefs.crtByMode[0].bloomRadius        = 1.0f;
-            prefs.crtByMode[0].bloomStrength      = 0.1f;
-            prefs.crtByMode[0].colorBleedEnabled  = false;
-            prefs.crtByMode[0].colorBleedWidth    = 0.5f;
-
-            params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
-
-            Assert::AreEqual (1.4f, params.brightness);
-            Assert::AreEqual (0.7f, params.contrast);
-            Assert::AreEqual (0.0f, params.scanlineIntensity);  // disabled
-            Assert::AreEqual (0.0f, params.bloomRadius);        // disabled
-            Assert::AreEqual (0.0f, params.bloomStrength);      // disabled
-            Assert::AreEqual (0.0f, params.colorBleedWidth);    // disabled
-        }
+        Assert::AreEqual (1.0f, zero.outputW);
+        Assert::AreEqual (1.0f, zero.outputH);
+        Assert::AreEqual (1.0f, negative.outputW);
+        Assert::AreEqual (1.0f, negative.outputH);
     }
 
 
-    TEST_METHOD (FromJson_WithoutCrtSection_LeavesUserOverrideFalseAndDefaults)
+    TEST_METHOD (FromJson_WithoutAnyCrtSection_LeavesNoOverrides)
     {
         GlobalUserPrefs     prefs;
         JsonValue           parsed;
@@ -226,10 +194,9 @@ public:
 
 
 
-        // Document containing every top-level field EXCEPT `crt`. The
-        // user-override flag must stay false so the theme defaults path
-        // can win on first run, and every CRT field must equal its
-        // struct default.
+        // A document carrying neither the legacy block nor the new key. No
+        // overrides exist, so every field follows the preset and theme
+        // chain and the theme has somewhere to win on first run.
         constexpr const char *  json =
             "{\n"
             "  \"$cassoGlobalPrefsVersion\": 1,\n"
@@ -244,22 +211,14 @@ public:
         hr = prefs.FromJson (parsed);
         AssertSucceeded (hr);
 
-        Assert::IsFalse  (prefs.crtByMode[0].userOverride);
-        Assert::AreEqual (1.0f,  prefs.crtByMode[0].brightness);
-        Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
-        Assert::AreEqual (0.5f,  prefs.crtByMode[0].scanlinesIntensity);
-        Assert::AreEqual (false, prefs.crtByMode[0].bloomEnabled);
-        Assert::AreEqual (1.0f,  prefs.crtByMode[0].bloomRadius);
-        Assert::AreEqual (0.5f,  prefs.crtByMode[0].bloomStrength);
-        Assert::AreEqual (false, prefs.crtByMode[0].colorBleedEnabled);
-        Assert::AreEqual (1.0f,  prefs.crtByMode[0].colorBleedWidth);
+        Assert::AreEqual ((size_t) 0, prefs.crtOverrides.size());
     }
 
 
     TEST_METHOD (MakeCrtParams_CarriesABloomThresholdThroughEveryLayer)
     {
-        GlobalUserPrefs   prefs;
         ThemeCrtDefaults  theme;
+        CrtOverrides      user;
         CrtParams         params = {};
 
 
@@ -269,21 +228,23 @@ public:
         // prefs field, so a user override and a theme override must both
         // leave it alone rather than zeroing it back to a bloom that lifts
         // every dark pixel next to a lit one.
-        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 640.0f, 480.0f);
+        params = MakeCrtParams (CrtResolver::Resolve (CrtPresets::GetPreset (0), nullptr, CrtOverrides {}),
+                                640.0f, 480.0f);
         Assert::IsTrue (params.bloomThreshold > 0.0f);
 
         theme.hasBloom       = true;
         theme.bloomEnabled   = true;
         theme.bloomRadius    = 2.0f;
         theme.bloomStrength  = 0.4f;
-        params = MakeCrtParams (prefs.crtByMode[0], 0, &theme, 640.0f, 480.0f);
+        params = MakeCrtParams (CrtResolver::Resolve (CrtPresets::GetPreset (0), &theme, CrtOverrides {}),
+                                640.0f, 480.0f);
         Assert::IsTrue (params.bloomThreshold > 0.0f);
 
-        prefs.crtByMode[0].userOverride  = true;
-        prefs.crtByMode[0].bloomEnabled  = true;
-        prefs.crtByMode[0].bloomRadius   = 2.0f;
-        prefs.crtByMode[0].bloomStrength = 0.7f;
-        params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 640.0f, 480.0f);
+        user.bloomEnabled  = true;
+        user.bloomRadius   = 2.0f;
+        user.bloomStrength = 0.7f;
+        params = MakeCrtParams (CrtResolver::Resolve (CrtPresets::GetPreset (0), nullptr, user),
+                                640.0f, 480.0f);
         Assert::IsTrue (params.bloomThreshold > 0.0f);
 
         // Below full scale, or nothing would ever clear it and the bloom
@@ -308,9 +269,8 @@ public:
         constexpr const char *  json =
             "{\n"
             "  \"$cassoGlobalPrefsVersion\": 1,\n"
-            "  \"crt\": {\n"
-            "    \"green\": {\n"
-            "      \"userOverride\": true,\n"
+            "  \"crtOverrides\": {\n"
+            "    \"AppleMonitorII/green\": {\n"
             "      \"bloom\": { \"enabled\": true, \"radius\": 9.0, \"strength\": 0.5 }\n"
             "    }\n"
             "  }\n"
@@ -323,17 +283,16 @@ public:
         hr = prefs.FromJson (parsed);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (4.0f, prefs.crtByMode[1].bloomRadius);
+        Assert::AreEqual (4.0f, prefs.crtOverrides["AppleMonitorII/green"].bloomRadius.value());
     }
 
 
     TEST_METHOD (MakeCrtParams_LeavesPixelScaleAtUnity)
     {
-        GlobalUserPrefs  prefs;
+        CrtResolved  resolved = CrtResolver::Resolve (CrtPresets::GetPreset (0), nullptr, CrtOverrides {});
+        CrtParams    params   = MakeCrtParams (resolved, 1920.0f, 1080.0f);
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1920.0f, 1080.0f);
-
-        // MakeCrtParams resolves what the effects are worth, not how big a
+        // MakeCrtParams projects what the effects are worth, not how big a
         // picture they land on; CrtPostProcess::Process fills the scale in
         // from the fitted rect. Unity here means a radius still counts
         // target texels for anyone who never sets it.
@@ -470,7 +429,7 @@ public:
     {
         GlobalUserPrefs  prefs;
 
-        CrtParams  params = MakeCrtParams (prefs.crtByMode[0], 0, nullptr, 1920.0f, 1080.0f);
+        CrtParams  params = MakeCrtParams (CrtResolver::Resolve (CrtPresets::GetPreset (0), nullptr, CrtOverrides {}), 1920.0f, 1080.0f);
 
         // Same reasoning as the pixel scale: geometry is settled by
         // CrtPostProcess::Process, not by the resolution rules. The full
