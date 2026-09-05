@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiColor.h"
 #include "Theme/DxuiTheme.h"
 
 #include "CassoTheme.h"
@@ -57,6 +58,10 @@ static constexpr int      s_kSegGapDp         = 2;
 static constexpr int      s_kInputLabelGapDp  = 8;    // label -> first segment
 
 static constexpr const wchar_t * s_kInputLabel = L"Input";
+
+// Contrast an unlit segment LED keeps against the strip -- the ratio
+// DxuiTreeView tints a locked checkbox's fill with, so the two read alike.
+static constexpr float    s_kOffLedContrast   = 1.6f;
 
 static constexpr const wchar_t * s_kTipInput = L"Input devices";
 
@@ -1642,9 +1647,10 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 //  The shared "Input" label (it names the group, it is not a button) and the
 //  LED + glyph segments. Hover chrome matches the buttons'; the LED is the
-//  state: an outline would read as focus, a lit LED reads as ON. The core
-//  tracks the theme's LED tokens, so the dot matches the drive widgets'
-//  lights under every preset.
+//  state: an outline would read as focus, a lit LED reads as ON. Lit takes
+//  the theme's LED color, so it matches the drive widgets' lights under every
+//  preset; unlit does NOT take the drive bar's ledIdle, which is that color
+//  darkened and reads as a black dot on the strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1657,6 +1663,7 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
     int       ledGap   = MulDiv (s_kSegLedGapDp, (int) m_dpi, s_kBaseDpi);
     int       segPad   = MulDiv (s_kSegPadXDp,   (int) m_dpi, s_kBaseDpi);
     int       iconD    = MulDiv (s_kSegIconDp,   (int) m_dpi, s_kBaseDpi);
+    uint32_t  offLed   = DxuiColor::ComputeTintForContrast (theme.navStrip, s_kOffLedContrast);
     uint32_t  labelInk = theme.navItemText;   // same ink as the button labels
 
 
@@ -1697,8 +1704,11 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
             float  ledCy = st + sh * 0.5f;
             bool   on    = InputSegSelected (i);
 
+            // Unlit is an option not taken, not a dead bulb, so it carries
+            // the tint a disabled checkbox fills with -- the same rule Dxui
+            // applies, against the surface these actually sit on.
             painter.FillCircleApprox (ledCx, ledCy, (float) ledD * 0.5f,
-                                      on ? theme.ledActive : theme.ledIdle);
+                                      on ? theme.ledActive : offLed);
         }
 
         {
