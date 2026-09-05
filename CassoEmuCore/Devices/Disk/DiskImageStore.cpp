@@ -2751,7 +2751,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskImageStore::RepointBayToFile
@@ -3004,7 +3003,6 @@ HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> 
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskImageStore::SaveLoadedImage
@@ -3045,7 +3043,6 @@ Error:
     //  here left that notice with nothing to show but an error code.
     return hr;
 }
-
 
 
 

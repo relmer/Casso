@@ -164,10 +164,10 @@ public:
 private:
     ImageIdentity  m_identity;
     PendingChange  m_pending;
-    bool           m_mounted        = false;
-    bool           m_watching       = false;
-    bool           m_askOutstanding = false;
-    ChangeAction   m_askedAction    = ChangeAction::Ignore;
+    bool           m_mounted          = false;
+    bool           m_watching         = false;
+    bool           m_askOutstanding   = false;
+    ChangeAction   m_askedAction      = ChangeAction::Ignore;
     std::string    m_preservedPath;
     bool           m_preservedWritten = false;
 };
