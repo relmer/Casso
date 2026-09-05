@@ -135,6 +135,17 @@ public:
     bool  IsPreservedWritten  () const         { return m_preservedWritten; }
     void  SetPreservedWritten (bool written)    { m_preservedWritten = written; }
 
+    //  Whether the question standing over this bay was raised by an eject
+    //  that has not happened yet.
+    //
+    //  THE EJECT WAITS FOR THE ANSWER RATHER THAN GOING AHEAD WITHOUT ONE. A
+    //  bay whose rescue copy cannot be written has its disk only in memory,
+    //  and emptying it is what destroys that disk -- so the one moment the
+    //  user must be asked is the moment it was about to happen anyway. The
+    //  answer finishes the eject, whichever answer it is.
+    bool  IsEjectWhenAnswered  () const        { return m_ejectWhenAnswered; }
+    void  SetEjectWhenAnswered (bool ejecting)  { m_ejectWhenAnswered = ejecting; }
+
     //  A copy under this name is no longer this bay's concern.
     void  ClearPreserved ();
 
@@ -146,9 +157,9 @@ public:
     //  stands -- so the next copy, whenever it came, went out under the old
     //  question's timestamp.
     //
-    //  A COPY THAT EXISTS KEEPS ITS NAME. `m_preservedWritten` says a file is
-    //  there, and forgetting where would write the same disk out a second time
-    //  beside it.
+    //  A COPY THAT EXISTS KEEPS ITS NAME. `m_preservedWritten` indicates that
+    //  a file is there, and forgetting where would write the same disk out a
+    //  second time beside it.
     void  ReleaseUnwrittenReservation ();
 
     //  Whether two spellings of a path name the same file.
@@ -164,10 +175,11 @@ public:
 private:
     ImageIdentity  m_identity;
     PendingChange  m_pending;
-    bool           m_mounted          = false;
-    bool           m_watching         = false;
-    bool           m_askOutstanding   = false;
-    ChangeAction   m_askedAction      = ChangeAction::Ignore;
+    bool           m_mounted           = false;
+    bool           m_watching          = false;
+    bool           m_askOutstanding    = false;
+    ChangeAction   m_askedAction       = ChangeAction::Ignore;
     std::string    m_preservedPath;
-    bool           m_preservedWritten = false;
+    bool           m_preservedWritten  = false;
+    bool           m_ejectWhenAnswered = false;
 };

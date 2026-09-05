@@ -47,6 +47,15 @@ enum class SaveFailureCause
 
     //  The file is gone, or is no longer readable as a disk.
     FileLost,
+
+    //  The same as ExternalChange, found as the disk was coming out of the
+    //  drive.
+    //
+    //  IT NEEDS ITS OWN ANSWERS. Everywhere else the disk stays in the drive
+    //  and dismissing costs nothing, because a later flush can try again.
+    //  Here the bay is about to be emptied, so declining is the end of that
+    //  disk -- and the offer has to say so rather than reading as "not now".
+    Ejecting,
 };
 
 
@@ -138,8 +147,8 @@ struct ChangePrompt
     //  it discards exists in memory and nowhere else. Enter, or the close box,
     //  threw it away.
     //
-    //  EACH COMPOSER NAMES ITS OWN, so a new prompt has to decide rather than
-    //  inherit a rule written for a different one.
+    //  EVERY COMPOSER SETS IT, so a new prompt has to decide which of its
+    //  answers is safe rather than inherit a rule written for a different one.
     size_t                     safeAnswer = 0;
 
     //  Whether there is anything to show at all. An action that needs no answer

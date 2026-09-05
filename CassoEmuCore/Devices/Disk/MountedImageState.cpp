@@ -18,8 +18,9 @@ void MountedImageState::Mount (const ImageIdentity & identity)
     m_pending        = PendingChange();
     m_mounted        = true;
     m_watching       = false;
-    m_askOutstanding = false;
-    m_askedAction    = ChangeAction::Ignore;
+    m_askOutstanding    = false;
+    m_askedAction       = ChangeAction::Ignore;
+    m_ejectWhenAnswered = false;
 
     ClearPreserved();
 
@@ -45,8 +46,9 @@ void MountedImageState::Eject()
     m_pending        = PendingChange();
     m_mounted        = false;
     m_watching       = false;
-    m_askOutstanding = false;
-    m_askedAction    = ChangeAction::Ignore;
+    m_askOutstanding    = false;
+    m_askedAction       = ChangeAction::Ignore;
+    m_ejectWhenAnswered = false;
 
     ClearPreserved();
 

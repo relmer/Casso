@@ -26,7 +26,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiOrbitControl.h"
@@ -195,6 +194,12 @@ public:
     // --no-image-watch and read by the two places that install notification.
     void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
     bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
+
+    // Text put in front of the window caption, so one of several open windows
+    // can be told from the others at a glance. Undocumented; set from --title
+    // and read by UpdateWindowTitle. Set before the window exists, so it does
+    // not refresh the caption itself.
+    void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void DumpTrace        (const wstring & reason);
 
@@ -323,6 +328,12 @@ private:
     void RunCpuThreadFrame();
     void ExecuteCpuSlices();
     void RenderFramebuffer();
+
+    // Hands the //e keyboard the real time that has passed since the previous
+    // CPU-thread frame, which is what its auto-repeat cadence runs on. Not
+    // driven off the guest clock: Double would then repeat twice as fast and
+    // Maximum, which is uncapped, faster than anyone can type against.
+    void TickKeyboardAutoRepeat();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
 
     // Presentation pacing + render-skip gate (rationale in the .cpp).
@@ -931,7 +942,7 @@ private:
     // //c switch strip -- so the glass-fill scene owns the whole client.
     void    SetChromeHiddenForFullscreenScene (bool hidden);
 
-    // The pointer-capture banner and the fullscreen top-edge toolbar reveal,
+    // The pointer-capture banner and the fullscreen top-edge chrome reveal,
     // both driven from the per-frame UI upkeep.
     void    SyncCaptureBanner    ();
     void    SyncFrameRateReadout ();
@@ -939,7 +950,7 @@ private:
     // The scene pose across the middle of the picture, so a screenshot of a
     // render fault carries the angle it was taken from.
     void    SyncSceneViewReadout ();
-    void    TickFullscreenToolbar();
+    void    TickFullscreenTopChrome();
 
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
@@ -1240,6 +1251,7 @@ private:
     unique_ptr<class Prng>  m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
+    wstring                m_titlePrefix;                 // --title (undocumented)
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
     D3DRenderer            m_d3dRenderer;
@@ -1260,10 +1272,20 @@ private:
     std::array<DriveWidget, 2>  m_driveChrome;
 
     // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
-    // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
-    // Reset / Power. Its printer button carries the status light (the old
-    // standalone PrinterIndicator is deleted).
+    // Settings / theme + monitor-color pickers / Printer (+status LED) /
+    // master Volume + Mute / Input / Fullscreen / Screenshot / Reset / Power.
+    // Its printer button carries the status light (the old standalone
+    // PrinterIndicator is deleted).
     CommandToolbar      m_toolbar;
+
+    // Theme ids in the toolbar picker's row order, so a picked row resolves
+    // to the id ThemeManager wants. Rebuilt whenever the catalog is.
+    std::vector<std::string>  m_toolbarThemeIds;
+
+    void  WireToolbarPickers          ();
+    void  RefreshToolbarThemeList     ();
+    void  SyncToolbarState            ();
+    void  PersistColorModeForMachine  (int settingsColorModeIndex);
 
     // The pure model deriving the printer LED state from the worker's live
     // signals, plus the last state pushed to the toolbar so a transition
@@ -1455,12 +1477,12 @@ private:
 
     void  LayoutSceneCompass ();
 
-    // The fullscreen toolbar reveal, the drive strip's bargain mirrored
-    // along the top edge: shown while the pointer is up there, hidden once
-    // it leaves and the grace expires.
-    bool                       m_fsToolbarShown    = false;
-    int64_t                    m_fsToolbarLeftMs   = 0;
-    int64_t                    m_fsToolbarAnimMs   = 0;   // slide start
+    // The fullscreen menu-bar-and-toolbar reveal, the drive strip's bargain
+    // mirrored along the top edge: shown while the pointer is up there,
+    // hidden once it leaves and the grace expires.
+    bool                       m_fsTopChromeShown  = false;
+    int64_t                    m_fsTopChromeLeftMs = 0;
+    int64_t                    m_fsTopChromeAnimMs = 0;   // slide start
 
     // Chrome layout via DxuiDockLayout. The three bands carry the title
     // bar, nav strip, and drive bar pixel thicknesses in their GetBounds();
@@ -1864,6 +1886,12 @@ private:
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;
+
+    // When the //e keyboard's auto-repeat cadence was last advanced, and the
+    // sub-microsecond remainder that advance left behind. Zero before the
+    // first CPU-thread frame, which starts the interval rather than reporting
+    // one. CPU-thread-only.
+    chrono::steady_clock::time_point  m_lastKeyRepeatSteady = {};
 
     // Host sample rate the loaded sounds were decoded at, 0 before the first
     // load. Compared against the live device rate each frame so a reopen onto

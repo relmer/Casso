@@ -358,6 +358,22 @@ struct CommandLineOptions
         //  where the watcher is built rather than bolted on later, which is how
         //  a developer switch ends up in the interface.
         bool         noImageWatch = false;             // --no-image-watch
+
+        //  Text put in front of the window caption, so one window out of
+        //  several can be told from the others at a glance.
+        //
+        //  UNDOCUMENTED AND NOT IN THE HELP, for the same reason as the switch
+        //  above: it answers a question nobody running the emulator has. It
+        //  exists for the case where several instances are open at once on
+        //  behalf of different agent sessions or worktrees, and every caption
+        //  reads "Casso - Apple //e" -- the launcher knows which is which and
+        //  is the only thing that can say so.
+        //
+        //  A PREFIX RATHER THAN A REPLACEMENT. The caption's own contents --
+        //  the machine, [Paused], the debug build stamp -- are what makes the
+        //  window readable while it runs, and a label that took the whole
+        //  caption would buy identity at the cost of all of it.
+        std::string  titlePrefix;                       // --title <text>
     };
 
     DiskOptions   disk;
