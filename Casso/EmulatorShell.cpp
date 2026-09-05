@@ -11559,50 +11559,63 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MapVkToAppleControlCode
+//  TryMapVkToSpecialKey
 //
-//  Translate a host arrow/Escape/Delete virtual key into its //e control
-//  code. Returns 0 for keys that have no direct //e control-code mapping.
+//  Name the Apple key a host virtual key stands for, reporting false when it
+//  stands for none. Which code that key sends -- and whether the running
+//  machine even has it -- is the keyboard device's to answer, not the
+//  shell's, so this stops at the key's identity.
+//
+//  TAB is deliberately here rather than left to its WM_CHAR. Routed as a key
+//  it can be refused on a ][+, which has no TAB; routed as the character $09
+//  it would be indistinguishable from Ctrl+I, which that keyboard does send.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte EmulatorShell::MapVkToAppleControlCode (WPARAM vk)
+bool EmulatorShell::TryMapVkToSpecialKey (WPARAM vk, AppleSpecialKey & outKey)
 {
-    Byte  appleCode = 0;
+    bool  mapped = true;
 
 
 
     switch (vk)
     {
-        case VK_LEFT:
-            appleCode = kAppleKeyLeft;
-            break;
-
-        case VK_RIGHT:
-            appleCode = kAppleKeyRight;
-            break;
-
-        case VK_UP:
-            appleCode = kAppleKeyUp;
-            break;
-
-        case VK_DOWN:
-            appleCode = kAppleKeyDown;
-            break;
-
-        case VK_ESCAPE:
-            appleCode = kAppleKeyEscape;
-            break;
-
-        case VK_DELETE:
-            appleCode = kAppleKeyDelete;
-            break;
+        case VK_LEFT:   outKey = AppleSpecialKey::Left;   break;
+        case VK_RIGHT:  outKey = AppleSpecialKey::Right;  break;
+        case VK_UP:     outKey = AppleSpecialKey::Up;     break;
+        case VK_DOWN:   outKey = AppleSpecialKey::Down;   break;
+        case VK_TAB:    outKey = AppleSpecialKey::Tab;    break;
+        case VK_ESCAPE: outKey = AppleSpecialKey::Escape; break;
+        case VK_DELETE: outKey = AppleSpecialKey::Delete; break;
 
         default:
+            mapped = false;
             break;
     }
 
-    return appleCode;
+    return mapped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DoesSpecialKeySynthesizeChar
+//
+//  Whether Windows also manufactures a WM_CHAR for this key, which then has
+//  to be swallowed so the key is not delivered twice -- or, on a machine that
+//  refused the key, delivered after all.
+//
+//  Only TAB ($09) and Escape ($1B) are character keys in Windows' eyes; the
+//  arrows and DELETE produce a keydown and nothing else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::DoesSpecialKeySynthesizeChar (AppleSpecialKey key)
+{
+    return key == AppleSpecialKey::Tab || key == AppleSpecialKey::Escape;
 }
 
 
@@ -11865,31 +11878,50 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 
     if (hasKeyboard && ev.kind == DxuiKeyEventKind::Down)
     {
-        WPARAM  vk        = ev.vk;
-        Byte    appleCode = 0;
+        WPARAM           vk         = ev.vk;
+        Byte             appleCode  = 0;
+        AppleSpecialKey  specialKey = AppleSpecialKey::Left;
+        bool             isSpecial  = TryMapVkToSpecialKey (vk, specialKey);
+        bool             hasTheKey  = !isSpecial ||
+                                      m_refs.keyboard->MapSpecialKey (specialKey) != 0;
 
-        m_refs.keyboard->SetKeyDown (true);
+        // A named key the running machine's keyboard does not have was never
+        // pressed as far as the guest is concerned, so it must not raise
+        // any-key-down either -- $C010 reporting a key held while $C000 holds
+        // nothing is a state the hardware cannot be in.
+        if (hasTheKey)
+        {
+            m_refs.keyboard->SetKeyDown (true);
+        }
+
         ApplyAppleModifierKeys (vk, true);
 
-        // Arrow / Escape / Delete map to //e control codes. Gated on the
-        // auto-repeat bit so the host OS repeat never reaches the latch; a
-        // fresh press arms the $C000 strobe once and registers the key for
-        // the emulator's own authentic //e auto-repeat cadence (Tick). With
-        // "Map Arrows to Joystick" on (and a game-port paddle bank present),
-        // arrow keys are withheld from the keyboard latch so a held
-        // direction cannot flood $C000 and starve a joystick game's reads.
-        if (!ev.repeat)
+        // TAB and Escape reach us twice: once as this keydown, and again as
+        // the WM_CHAR Windows manufactures from it. The key route below is
+        // the authoritative one -- it is the only one that can tell the TAB
+        // key from Ctrl+I, which sends the same $09 -- so the character is
+        // swallowed. Set on repeats too, since each repeated keydown brings
+        // its own character along, and the flag is consumed one for one.
+        if (isSpecial && DoesSpecialKeySynthesizeChar (specialKey))
         {
-            appleCode = MapVkToAppleControlCode (vk);
+            m_swallowMetaChar = true;
+        }
 
-            if (driveJoystick && IsArrowVk (vk))
-            {
-                appleCode = 0;
-            }
+        // Arrows / TAB / Escape / DELETE are delivered as KEYS, and the
+        // device decides both which code each sends and whether this machine
+        // has it at all. Gated on the auto-repeat bit so the host OS repeat
+        // never reaches the latch; a fresh press arms the $C000 strobe once
+        // and registers the key for the emulator's own authentic //e
+        // auto-repeat cadence (Tick). With "Map Arrows to Joystick" on (and a
+        // game-port paddle bank present), arrow keys are withheld from the
+        // keyboard latch so a held direction cannot flood $C000 and starve a
+        // joystick game's reads.
+        if (!ev.repeat && isSpecial && !(driveJoystick && IsArrowVk (vk)))
+        {
+            appleCode = m_refs.keyboard->PressSpecialKey (specialKey);
 
             if (appleCode != 0)
             {
-                m_refs.keyboard->PressKey (appleCode);
                 m_refs.keyboard->BeginKeyRepeat (appleCode);
             }
         }
@@ -12825,9 +12857,10 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 
 
-    // A host-meta shortcut (Ctrl+V paste) claimed the keydown, but Windows
+    // A host-meta shortcut (Ctrl+V paste), or a special key already
+    // delivered by name (TAB, Escape), claimed the keydown, but Windows
     // synthesized its control character anyway; swallow exactly that one
-    // char so it never types into the guest.
+    // char so it never reaches the guest a second time.
     if (m_swallowMetaChar)
     {
         m_swallowMetaChar = false;

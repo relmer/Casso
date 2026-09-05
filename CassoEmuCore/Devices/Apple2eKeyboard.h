@@ -130,8 +130,10 @@ public:
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
+    Byte MapSpecialKey (AppleSpecialKey key) const override;
+
 protected:
-    Byte TranslateHostKey (Byte ch) const override;
+    Byte TranslateTypedChar (Byte ch) const override;
 
 private:
     static constexpr Word kFirstButtonAddress = 0xC061;

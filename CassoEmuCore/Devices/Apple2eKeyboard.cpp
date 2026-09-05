@@ -214,22 +214,69 @@ void Apple2eKeyboard::EmitHostButton (int index, bool pressed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TranslateHostKey
+//  TranslateTypedChar
 //
-//  The //e keyboard adds everything the base class drops: lowercase, the
-//  up and down arrows, TAB and DELETE. Every host character it is handed
-//  is one the hardware can send, so it passes through untouched.
+//  The //e keyboard types lowercase, so a typed character passes through in
+//  the case it arrived in. Folding it would make ProDOS and AppleWorks
+//  unusable on the machines whose keyboard advance was lowercase.
 //
 //  The //c keyboard-layout switch is NOT applied here. It remaps the encoder
-//  rather than the key set, it must not touch injected text, and it needs the
+//  rather than the case, it must not touch injected text, and it needs the
 //  host layout for context, so the shell applies MapTypedChar to physical
 //  keystrokes before they ever reach the latch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Apple2eKeyboard::TranslateHostKey (Byte ch) const
+Byte Apple2eKeyboard::TranslateTypedChar (Byte ch) const
 {
     return ch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MapSpecialKey
+//
+//  The //e keyboard has every key the base class lacks: four-way cursor
+//  control, TAB and DELETE, all of which arrived with this model. The //c
+//  inherits the same key set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eKeyboard::MapSpecialKey (AppleSpecialKey key) const
+{
+    Byte  code = AppleKeyboard::MapSpecialKey (key);
+
+
+
+    switch (key)
+    {
+        case AppleSpecialKey::Up:
+            code = kAppleKeyUp;
+            break;
+
+        case AppleSpecialKey::Down:
+            code = kAppleKeyDown;
+            break;
+
+        case AppleSpecialKey::Tab:
+            code = kAppleKeyTab;
+            break;
+
+        case AppleSpecialKey::Delete:
+            code = kAppleKeyDelete;
+            break;
+
+        default:
+            // Left, Right and Escape are shared with the ][ / ][+, so the
+            // base class already resolved them.
+            break;
+    }
+
+    return code;
 }
 
 

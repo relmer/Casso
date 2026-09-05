@@ -155,17 +155,9 @@ void AppleKeyboard::SoftReset()
 
 void AppleKeyboard::PressKey (Byte asciiChar)
 {
-    Byte  code = TranslateHostKey (asciiChar);
-
-
-
-    // A key this machine's keyboard cannot produce never reaches the latch,
-    // so the guest sees exactly what the hardware could have delivered.
-    if (code != 0)
-    {
-        // Store key with bit 7 set (strobe) in a single atomic write
-        m_latchedKey.store (code | 0x80, memory_order_release);
-    }
+    // Store key with bit 7 set (strobe) in a single atomic write
+    m_latchedKey.store (
+        TranslateTypedChar (asciiChar) | 0x80, memory_order_release);
 }
 
 
@@ -188,27 +180,23 @@ void AppleKeyboard::PressKey (Byte asciiChar)
 void AppleKeyboard::BeginKeyRepeat (Byte asciiChar)
 {
     Byte  released = 0;
-    Byte  code     = TranslateHostKey (asciiChar);
 
 
 
-    // A key the machine cannot produce translates to 0, which is the disarm
-    // value: it neither repeats nor reports a host key-down, matching the
-    // latch, which never saw it either.
-    m_repeatKey.store (code, memory_order_release);
+    m_repeatKey.store (asciiChar, memory_order_release);
 
     if (m_inputSink == nullptr)
     {
         // Nothing to notify; the repeat arming above is the whole job.
     }
-    else if (code != 0)
+    else if (asciiChar != 0)
     {
         // Coalesce a host OS repeat that slipped through: the same key
         // arriving twice is still one key-down.
-        if (code != m_lastHostKeyDownAscii)
+        if (asciiChar != m_lastHostKeyDownAscii)
         {
-            m_lastHostKeyDownAscii = code;
-            m_inputSink->OnHostKeyDown (code);
+            m_lastHostKeyDownAscii = asciiChar;
+            m_inputSink->OnHostKeyDown (asciiChar);
         }
     }
     else if (m_lastHostKeyDownAscii != 0)
@@ -339,47 +327,95 @@ void AppleKeyboard::Tick (uint32_t cpuCycles)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TranslateHostKey
+//  TranslateTypedChar
 //
-//  Reduce one host character to what the ][ / ][+ keyboard could actually
-//  have produced, returning 0 for a key it has no way to send.
+//  The ][ / ][+ keyboard is uppercase only, so a typed letter latches in
+//  upper case whatever the host sent.
 //
-//  That keyboard is uppercase-only, and its cursor control is left and right
-//  ONLY -- four-way arrows, DELETE and TAB all arrived with the //e. The host
-//  keyboard has all of them, so without this the guest receives codes no ][+
-//  could ever put on the bus. Dropping them here rather than in the shell
-//  covers every route into the latch at once: typed keys, the shell's
-//  arrow / Escape / Delete translation, and clipboard paste.
-//
-//  Punctuation the ][+ keyboard also lacks is deliberately NOT dropped. Those
-//  are a character-set question rather than a key, they reach the latch only
-//  by paste, and refusing them would break pasting text the machine can
-//  display perfectly well.
+//  This route NEVER drops a character, and the distinction is load-bearing.
+//  A typed character is whatever the encoder produced, and on this keyboard
+//  Ctrl+letter reaches $01-$1A: Ctrl+I sends $09, Ctrl+J $0A, Ctrl+K $0B --
+//  the same codes as the //e's TAB and up / down arrows, from keys the ][+
+//  really does have. Judging by the code would swallow them, so which keys a
+//  machine HAS is answered by MapSpecialKey, against the key, never here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleKeyboard::TranslateHostKey (Byte ch) const
+Byte AppleKeyboard::TranslateTypedChar (Byte ch) const
 {
-    Byte  code = ch;
+    return (ch >= 'a' && ch <= 'z') ? (Byte) (ch - ('a' - 'A')) : ch;
+}
 
 
 
-    switch (ch)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MapSpecialKey
+//
+//  The code the ][ / ][+ keyboard sends for a named key, or 0 when the
+//  keyboard has no such key.
+//
+//  Its cursor control is left and right ONLY. Four-way arrows, TAB and
+//  DELETE all arrived with the //e, so a host pressing one of those is
+//  pressing a key this machine does not have, and nothing should reach the
+//  guest -- not the latch, and not any-key-down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleKeyboard::MapSpecialKey (AppleSpecialKey key) const
+{
+    Byte  code = 0;
+
+
+
+    switch (key)
     {
-        case kAppleKeyUp:
-        case kAppleKeyDown:
-        case kAppleKeyTab:
-        case kAppleKeyDelete:
-            code = 0;
+        case AppleSpecialKey::Left:
+            code = kAppleKeyLeft;
+            break;
+
+        case AppleSpecialKey::Right:
+            code = kAppleKeyRight;
+            break;
+
+        case AppleSpecialKey::Escape:
+            code = kAppleKeyEscape;
             break;
 
         default:
-            if (ch >= 'a' && ch <= 'z')
-            {
-                code = (Byte) (ch - ('a' - 'A'));
-            }
-
+            // Up, Down, Tab and Delete are //e keys; this keyboard has none
+            // of them, so they stay 0.
             break;
+    }
+
+    return code;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PressSpecialKey
+//
+//  Latch a named key, doing nothing at all when this machine's keyboard has
+//  no such key. Returns the code latched, or 0, so the caller can tell the
+//  two apart and skip arming auto-repeat for a key that was never pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleKeyboard::PressSpecialKey (AppleSpecialKey key)
+{
+    Byte  code = MapSpecialKey (key);
+
+
+
+    if (code != 0)
+    {
+        PressKey (code);
     }
 
     return code;

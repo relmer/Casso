@@ -33,6 +33,32 @@ static constexpr Byte kAppleKeyDelete  = 0x7F;   // Delete
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleSpecialKey
+//
+//  A key on the Apple keyboard identified by the key itself rather than by
+//  the character it sends. Which of these a machine physically has differs by
+//  model, and that question cannot be asked of the code alone: a ][+ has no
+//  TAB key, yet Ctrl+I on that same keyboard still sends $09.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class AppleSpecialKey
+{
+    Left,
+    Right,
+    Up,
+    Down,
+    Tab,
+    Escape,
+    Delete,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleKeyboard
 //
 //  Apple II/II+ uppercase-only keyboard mapped at $C000/$C010.
@@ -55,6 +81,12 @@ public:
 
     // Called from EmulatorShell when a key event arrives (UI thread)
     void PressKey (Byte asciiChar);
+
+    // Which code this machine's keyboard sends for a named key, or 0 when it
+    // has no such key. PressSpecialKey latches it and returns the same, so a
+    // caller can tell an absent key from a pressed one.
+    virtual Byte MapSpecialKey   (AppleSpecialKey key) const;
+    Byte         PressSpecialKey (AppleSpecialKey key);
 
     // Check if the strobe is clear (CPU has consumed the previous key)
     bool IsStrobeClear () const { return (m_latchedKey.load (memory_order_acquire) & 0x80) == 0; }
@@ -106,9 +138,10 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 protected:
-    // Fold one host character to what this keyboard can actually latch;
-    // 0 means the machine has no such key. See the .cpp for the rationale.
-    virtual Byte TranslateHostKey (Byte ch) const;
+    // Fold one TYPED character to the case this keyboard can send. Never
+    // drops: what a key sends is a separate question from which keys exist,
+    // and only MapSpecialKey answers the latter.
+    virtual Byte TranslateTypedChar (Byte ch) const;
 
 private:
     // Producer-side coalesced emit helpers (CPU thread). Each fires the

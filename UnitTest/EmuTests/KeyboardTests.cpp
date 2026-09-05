@@ -113,36 +113,156 @@ public:
         }
     }
 
-    //  A ][ / ][+ keyboard has left and right arrows only, no DELETE and no
-    //  TAB -- all three arrived with the //e -- so those host keys must not
-    //  reach the latch at all. The strobe staying clear is the assertion that
-    //  matters: a dropped key leaves the guest exactly as it was.
-    TEST_METHOD (KeysTheTwoPlusLacks_NeverLatch)
-    {
-        const Byte  absent[] = { kAppleKeyUp, kAppleKeyDown,
-                                 kAppleKeyTab, kAppleKeyDelete };
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Per-machine key set. Two questions, kept separate on purpose:
+    //  which KEYS a keyboard has (MapSpecialKey / PressSpecialKey), and
+    //  what a TYPED character becomes once it has it (PressKey). Conflating
+    //  them silently eats Ctrl+I / Ctrl+J / Ctrl+K on a ][+, which send the
+    //  same $09 / $0A / $0B as the //e's TAB and up / down arrows.
+    //
+    //  Every enumerator is listed in both machines' expectation tables, so
+    //  adding one to AppleSpecialKey fails to compile here until both
+    //  machines say what it does.
+    //
+    ////////////////////////////////////////////////////////////////////////
 
-        for (Byte ch : absent)
+    struct SpecialKeyCase
+    {
+        AppleSpecialKey  key;
+        Byte             code;      // 0 = this machine has no such key
+        const wchar_t *  name;
+    };
+
+    static constexpr SpecialKeyCase  kTwoPlusKeys[] =
+    {
+        { AppleSpecialKey::Left,   kAppleKeyLeft,   L"Left"   },
+        { AppleSpecialKey::Right,  kAppleKeyRight,  L"Right"  },
+        { AppleSpecialKey::Escape, kAppleKeyEscape, L"Escape" },
+        { AppleSpecialKey::Up,     0,               L"Up"     },
+        { AppleSpecialKey::Down,   0,               L"Down"   },
+        { AppleSpecialKey::Tab,    0,               L"Tab"    },
+        { AppleSpecialKey::Delete, 0,               L"Delete" },
+    };
+
+    static constexpr SpecialKeyCase  kTwoeKeys[] =
+    {
+        { AppleSpecialKey::Left,   kAppleKeyLeft,   L"Left"   },
+        { AppleSpecialKey::Right,  kAppleKeyRight,  L"Right"  },
+        { AppleSpecialKey::Escape, kAppleKeyEscape, L"Escape" },
+        { AppleSpecialKey::Up,     kAppleKeyUp,     L"Up"     },
+        { AppleSpecialKey::Down,   kAppleKeyDown,   L"Down"   },
+        { AppleSpecialKey::Tab,    kAppleKeyTab,    L"Tab"    },
+        { AppleSpecialKey::Delete, kAppleKeyDelete, L"Delete" },
+    };
+
+    //  Drives one machine's whole key set through PressSpecialKey: every key
+    //  it has must latch its code, and every key it lacks must leave the
+    //  latch untouched -- strobe still clear, no data.
+    template <typename TKeyboard, size_t N>
+    static void AssertSpecialKeySet (const SpecialKeyCase (& cases)[N],
+                                     const wchar_t * machine)
+    {
+        for (const SpecialKeyCase & c : cases)
+        {
+            TKeyboard  kbd;
+            Byte       latched = 0;
+            Byte       val     = 0;
+
+            latched = kbd.PressSpecialKey (c.key);
+            val     = kbd.Read (0xC000);
+
+            Assert::AreEqual (c.code, latched,
+                std::format (L"{}: PressSpecialKey({}) must report ${:02X}",
+                    machine, c.name, c.code).c_str());
+            Assert::AreEqual (c.code, kbd.MapSpecialKey (c.key),
+                std::format (L"{}: MapSpecialKey({}) must agree with the press",
+                    machine, c.name).c_str());
+
+            if (c.code == 0)
+            {
+                Assert::AreEqual (static_cast<Byte> (0x00), val,
+                    std::format (L"{}: {} is not one of its keys, so nothing "
+                                 L"may reach the latch", machine, c.name).c_str());
+            }
+            else
+            {
+                Assert::AreEqual (c.code, static_cast<Byte> (val & 0x7F),
+                    std::format (L"{}: {} must latch ${:02X}",
+                        machine, c.name, c.code).c_str());
+                Assert::IsTrue ((val & 0x80) != 0,
+                    std::format (L"{}: {} must arm the strobe",
+                        machine, c.name).c_str());
+            }
+        }
+    }
+
+    TEST_METHOD (SpecialKeySet_TwoPlus_AcceptsItsOwnAndRefusesTheRest)
+    {
+        AssertSpecialKeySet<AppleKeyboard> (kTwoPlusKeys, L"][+");
+    }
+
+    TEST_METHOD (SpecialKeySet_Twoe_AcceptsEveryKey)
+    {
+        AssertSpecialKeySet<Apple2eKeyboard> (kTwoeKeys, L"//e");
+    }
+
+    //  The typed-character route, swept across the whole 7-bit range so no
+    //  code is silently special-cased. The ][+ folds letters and passes
+    //  everything else; nothing is ever dropped, which is what keeps Ctrl+I
+    //  ($09), Ctrl+J ($0A) and Ctrl+K ($0B) working on a keyboard that has
+    //  the Ctrl and letter keys but no TAB or vertical arrows.
+    TEST_METHOD (TypedChars_TwoPlus_FoldCaseAndDropNothing)
+    {
+        for (Byte ch = 0x01; ch <= 0x7F; ch++)
         {
             AppleKeyboard  kbd;
-            Byte           val = 0;
+            Byte           expected = (ch >= 'a' && ch <= 'z')
+                                          ? static_cast<Byte> (ch - ('a' - 'A'))
+                                          : ch;
+            Byte           val      = 0;
 
             kbd.PressKey (ch);
 
             val = kbd.Read (0xC000);
 
-            Assert::IsTrue ((val & 0x80) == 0,
-                std::format (L"${:02X} is not a ][+ key and must leave the strobe clear", ch).c_str());
+            Assert::AreEqual (expected, static_cast<Byte> (val & 0x7F),
+                std::format (L"][+: typing ${:02X} must latch ${:02X}",
+                    ch, expected).c_str());
+            Assert::IsTrue ((val & 0x80) != 0,
+                std::format (L"][+: typing ${:02X} must arm the strobe", ch).c_str());
         }
     }
 
-    //  Left / right arrows and Escape DO exist on the ][+, so the same drop
-    //  rule must not swallow them.
-    TEST_METHOD (KeysTheTwoPlusHas_StillLatch)
+    //  The //e types the same range with no folding at all.
+    TEST_METHOD (TypedChars_Twoe_PassThroughUnchanged)
     {
-        const Byte  present[] = { kAppleKeyLeft, kAppleKeyRight, kAppleKeyEscape };
+        for (Byte ch = 0x01; ch <= 0x7F; ch++)
+        {
+            Apple2eKeyboard  kbd;
+            Byte             val = 0;
 
-        for (Byte ch : present)
+            kbd.PressKey (ch);
+
+            val = kbd.Read (0xC000);
+
+            Assert::AreEqual (ch, static_cast<Byte> (val & 0x7F),
+                std::format (L"//e: typing ${:02X} must latch it unchanged", ch).c_str());
+            Assert::IsTrue ((val & 0x80) != 0,
+                std::format (L"//e: typing ${:02X} must arm the strobe", ch).c_str());
+        }
+    }
+
+    //  The regression the split exists to prevent. On a ][+ these are Ctrl
+    //  plus a letter the keyboard really has, and they collide with codes the
+    //  //e sends from keys the ][+ lacks. Gating on the CODE would eat them.
+    TEST_METHOD (ControlLetters_CollidingWithTwoeKeys_StillTypeOnTwoPlus)
+    {
+        const Byte  chords[] = { kAppleKeyTab,     // Ctrl+I
+                                 kAppleKeyDown,    // Ctrl+J
+                                 kAppleKeyUp };    // Ctrl+K
+
+        for (Byte ch : chords)
         {
             AppleKeyboard  kbd;
             Byte           val = 0;
@@ -152,7 +272,8 @@ public:
             val = kbd.Read (0xC000);
 
             Assert::AreEqual (ch, static_cast<Byte> (val & 0x7F),
-                std::format (L"${:02X} is a ][+ key and must latch", ch).c_str());
+                std::format (L"][+: Ctrl+letter sending ${:02X} must still type, "
+                             L"even though the //e key sending it is absent", ch).c_str());
         }
     }
 
@@ -366,29 +487,6 @@ public:
     //  source and bits 0-6 from the keyboard latch (read-only).
     //
     ////////////////////////////////////////////////////////////////////////
-
-    //  Everything the ][+ keyboard drops, the //e keyboard sends: the up and
-    //  down arrows, TAB, DELETE, and lowercase. Lowercase is the one with
-    //  teeth -- the //e is a lowercase machine, and folding it to uppercase
-    //  would make AppleWorks and ProDOS unusable.
-    TEST_METHOD (KeysTheTwoeAdds_AllLatch)
-    {
-        const Byte  added[] = { kAppleKeyUp, kAppleKeyDown,
-                                kAppleKeyTab, kAppleKeyDelete };
-
-        for (Byte ch : added)
-        {
-            Apple2eKeyboard  kbd;
-            Byte             val = 0;
-
-            kbd.PressKey (ch);
-
-            val = kbd.Read (0xC000);
-
-            Assert::AreEqual (ch, static_cast<Byte> (val & 0x7F),
-                std::format (L"${:02X} is a //e key and must latch", ch).c_str());
-        }
-    }
 
     TEST_METHOD (LowercaseSurvives_OnTwoe)
     {

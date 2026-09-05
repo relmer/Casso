@@ -93,8 +93,11 @@ Entries before versioning was introduced use dates only.
   advance was lowercase. Pasted text was folded the same way.
 - **The ][ and ][+ received keys their keyboard has no way to send.** Up and
   down arrows, TAB and DELETE all arrived with the //e, but the host has them
-  and Casso passed them straight through. A machine now drops the keys it does
-  not have, whether they are typed, translated from a host key, or pasted.
+  and Casso passed them straight through. Pressing one on those machines is
+  now a no-op: nothing latches, and $C010 no longer reports a key held. Which
+  keys a machine has is asked of the key itself, so Ctrl+I, Ctrl+J and Ctrl+K
+  keep working on a ][+ even though they send the same codes as the //e keys
+  it lacks.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,
