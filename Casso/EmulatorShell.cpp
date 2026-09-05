@@ -4313,6 +4313,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         RECT                  full     = { 0, 0, widthPx, heightPx };
 
         hrLayout = DeskSceneLayout::ComputeGlassFill (full, m_scaler.GetDpi(),
+                                                      kFramebufferWidth, kFramebufferHeight,
                                                       m_deskScene.Metrics(), comp);
         BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 

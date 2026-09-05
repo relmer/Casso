@@ -100,6 +100,9 @@ public:
                   const std::wstring & themesBaseDir);
 
     HRESULT                          Discover                  ();
+
+    // Discovered themes in presentation order -- what the Settings dropdown
+    // shows, top to bottom.
     const std::vector<LoadedTheme> & GetAvailableThemes        () const { return m_available; }
     HRESULT                          Activate                  (const std::string & themeName);
     HRESULT                          ActivateByFamilyVariant   (const std::string & familyId,
@@ -139,6 +142,10 @@ public:
     void                             AddChangeListener         (ChangeListener listener);
 
 private:
+    // Sort key that puts the built-in themes in presentation order; see the
+    // definition for the order and what happens to a name it doesn't carry.
+    static size_t  PresentationRank (const std::string & themeName);
+
     void    NotifyListeners (const LoadedTheme & theme);
 
 
