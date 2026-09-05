@@ -2333,6 +2333,10 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
                 entry.sharedState.ClearPending();
             }
 
+            //  Dismissed rather than answered, so the name this store had
+            //  picked goes back with the question that offered it.
+            ReleaseUnwrittenReservation (entry);
+
             return;
         }
 
@@ -2520,6 +2524,16 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     case ChangeAction::Defer:
         //  Leave it pending. Nothing to say and nothing to clear.
         return;
+
+    case ChangeAction::Ignore:
+        //  THE NAME GOES BACK WHEN THE QUESTION DOES. It was reserved to put
+        //  the question, and it carries the moment the question was put, so
+        //  holding it after the user waves the question away labels the next
+        //  copy with a timestamp from whenever this happened to be -- and
+        //  hands it a name another file may have taken since.
+        ReleaseUnwrittenReservation (entry);
+
+        break;
 
     default:
         break;
@@ -2940,6 +2954,37 @@ HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> 
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ReleaseUnwrittenReservation
+//
+//  Gives back a preserved name that was reserved and never used.
+//
+//  A NAME IS RESERVED WHEN A QUESTION IS PUT, so that whoever writes the copy
+//  writes the name the user was shown. A question that ends without a copy
+//  leaves it held, and `SaveLoadedImage` uses a name it is given as it stands
+//  -- so the next copy, whenever it came, went out under the old question's
+//  timestamp.
+//
+//  A COPY THAT EXISTS KEEPS ITS NAME. `preservedWritten` says a file is there,
+//  and forgetting where would write the same disk out a second time beside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ReleaseUnwrittenReservation (Entry & entry)
+{
+    if (!entry.preservedWritten)
+    {
+        entry.preservedPath.clear();
+    }
+
+    return;
 }
 
 

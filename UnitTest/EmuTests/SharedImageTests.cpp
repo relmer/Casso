@@ -407,6 +407,115 @@ public:
                         L"and the insertion stays theirs");
     }
 
+    //  A QUESTION WAVED AWAY GIVES ITS NAME BACK. Putting the question reserves
+    //  a preserved name stamped with that moment, and a copy written under a
+    //  name it is handed uses it as it stands. Holding the reservation through
+    //  a dismissal meant a genuine conflict an hour later filed the guest's
+    //  disk under an hour-old timestamp.
+    TEST_METHOD (AnIgnoredQuestionDoesNotNameTheNextCopyAfterIt)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  Something rewrote the file and said nothing about why, so it asks.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"which reserves a name without writing anything to it");
+
+        //  "Leave it alone."
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Ignore);
+
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"and dismissing it writes nothing either");
+
+        //  An hour goes by. The guest writes, and the file changes underneath
+        //  it -- a real conflict this time, with a copy to make.
+        rig.wallClock += 3600;
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
+                          L"the guest's version goes to a file of its own");
+
+        {
+            const std::string  stale = PreservedCopy::MakePath (
+                                           kImagePath,
+                                           PreservedCopy::MakeStamp (rig.wallClock - 3600), 0);
+            const std::string  fresh = PreservedCopy::MakePath (
+                                           kImagePath,
+                                           PreservedCopy::MakeStamp (rig.wallClock), 0);
+
+            Assert::AreNotEqual (stale, rig.PreservedPaths()[0],
+                                 L"not under the name the dismissed question had reserved");
+            Assert::AreEqual (fresh, rig.PreservedPaths()[0],
+                              L"but under one stamped with the moment the copy was made");
+        }
+    }
+
+    //  The other question that reserves a name and can end without a copy: the
+    //  one raised when the copy could not be written. Dismissing it leaves the
+    //  name it tried standing, and the next copy inherited it.
+    TEST_METHOD (ADismissedSaveFailureDoesNotNameTheNextCopyAfterIt)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  The guest has written, the file changed underneath it, and the copy
+        //  that would settle the conflict cannot be written.
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"a copy that cannot be written is a question, not a notice");
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"and nothing reached the disk under the name it tried");
+
+        //  "Leave it alone" rather than "Save as...".
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Ignore);
+
+        //  An hour later the conflict is real again, and this time it can write.
+        rig.wallClock     += 3600;
+        rig.refusePreserve = false;
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
+
+        {
+            const std::string  stale = PreservedCopy::MakePath (
+                                           kImagePath,
+                                           PreservedCopy::MakeStamp (rig.wallClock - 3600), 0);
+
+            Assert::AreNotEqual (stale, rig.PreservedPaths()[0],
+                                 L"not under the name the failed write had tried");
+            Assert::AreEqual (PreservedCopy::MakePath (
+                                  kImagePath,
+                                  PreservedCopy::MakeStamp (rig.wallClock), 0),
+                              rig.PreservedPaths()[0],
+                              L"but under one stamped with the moment the copy was made");
+        }
+    }
+
 
 
 

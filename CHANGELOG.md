@@ -79,6 +79,12 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **A dismissed "disk modified outside Casso" question dated the next copy
+  after it.** Putting the question reserves the name the preserved copy
+  would take, stamped with that moment. Waving the question away left the
+  name held, so a genuine conflict hours later filed the guest's disk under
+  the old timestamp -- and under a name another file may have taken since.
+  The same went for the question raised when a copy could not be written.
 - **The startup download dialog broke "OpenEmulator (GitHub)" across two lines.**
   Its source column was a fixed width that stood a few pixels short of the
   drive-audio origin. The column is now measured from the labels the list

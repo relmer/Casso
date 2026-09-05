@@ -489,6 +489,11 @@ private:
     void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
                                          const vector<Byte> & bytes, ChangeAuthor author);
 
+    //  Gives back a preserved name that was reserved and never written to, so
+    //  the next copy is named for its own moment rather than an old question's.
+    //  A name a copy actually occupies is left alone.
+    static void    ReleaseUnwrittenReservation (Entry & entry);
+
     //  Writes what the bay currently holds to a preserved copy beside the
     //  original, and reports where it went.
     //
