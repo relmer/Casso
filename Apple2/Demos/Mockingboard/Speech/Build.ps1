@@ -63,7 +63,28 @@ if ($Force -or ($incs | Where-Object { Test-Stale $_ @($gen) }))
 {
     Write-Host "Generating the data tables" -ForegroundColor Cyan
     Push-Location $here
-    try { python $gen } finally { Pop-Location }
+
+    try
+    {
+        python $gen
+
+        #  A NATIVE COMMAND'S EXIT CODE HAS TO BE READ. It does not throw on
+        #  failure whatever $ErrorActionPreference says, and without this the
+        #  generator could fail, print its traceback, and leave the build to
+        #  carry on from the PREVIOUS .inc files -- producing disks made from
+        #  stale data, and a freshness check that compared them against those
+        #  same stale files and saw nothing wrong. Verified by breaking the
+        #  generator's syntax on purpose: it exits 1, and this is what turns
+        #  that into a failed build.
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "gen-speech-demo-data.py failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally
+    {
+        Pop-Location
+    }
 }
 
 $engine = Join-Path $here 'mockingboard-speech-engine.inc'

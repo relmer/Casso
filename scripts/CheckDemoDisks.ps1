@@ -78,12 +78,19 @@ try
     #  explicit exit rather than letting the last tool's code leak out.
     foreach ($b in $builders)
     {
+        $log = $null
+
         try
         {
             $log = & $b.FullName -Force -Configuration $Configuration 2>&1
         }
         catch
         {
+            #  Restored by the finally below, which is why this may simply
+            #  leave. Exiting from here without one left every disk built
+            #  before the failing one sitting modified in the tree, and CI's
+            #  working-tree check then failed for that instead of for the
+            #  build, which buried the error that actually mattered.
             Write-Host "CheckDemoDisks: $($b.FullName) failed." -ForegroundColor Red
             $log | ForEach-Object { Write-Host "  $_" }
             Write-Host "  $_" -ForegroundColor Red
@@ -91,8 +98,8 @@ try
         }
     }
 
-    #  Compare, then restore, then report. Restoring before reporting means an
-    #  early exit cannot skip it.
+    #  Compare here, restore in the finally. Every way out of this script --
+    #  a stale disk, a failed build, Ctrl+C -- passes through there.
     $stale = @()
 
     foreach ($rel in $snapshot.Keys)
@@ -112,11 +119,6 @@ try
         {
             $stale += $rel
         }
-    }
-
-    foreach ($rel in $snapshot.Keys)
-    {
-        [IO.File]::WriteAllBytes((Join-Path $repoRoot $rel), $snapshot[$rel])
     }
 
     if ($stale)
@@ -140,5 +142,16 @@ try
 }
 finally
 {
+    #  Whatever happened, the tree goes back exactly as it was found. $snapshot
+    #  is empty until it has been filled, so an early exit before that restores
+    #  nothing, which is correct: nothing had been built yet either.
+    if ($snapshot)
+    {
+        foreach ($rel in $snapshot.Keys)
+        {
+            [IO.File]::WriteAllBytes((Join-Path $repoRoot $rel), $snapshot[$rel])
+        }
+    }
+
     Pop-Location
 }
