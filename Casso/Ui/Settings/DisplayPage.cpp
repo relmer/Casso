@@ -163,27 +163,26 @@ void DisplayPage::SetInitialCrt (const GlobalUserPrefsCrtSnapshot & snap)
 //
 //  DisplayPage::LabelForSource
 //
-//  The badge text for the tier that supplied a row's value.
+//  The badge text for the tier that supplied a row's value, or null for a
+//  row the user has adjusted.
 //
-//  Preset reads as the monitor's own default, theme as the active theme's,
-//  and user as a deliberate adjustment. Three labels rather than the old
-//  two, because "(custom)" is the state that previously showed as no badge
-//  at all, which is how a user could tune bloom months ago and never work
-//  out why a new theme's bloom stopped arriving.
+//  Only defaults are labeled. A row carrying neither badge is one the user
+//  set, and saying so a third time would add a label to every row on the
+//  page to convey what the absence of one already does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * DisplayPage::LabelForSource (CrtSource source)
 {
-    const wchar_t *  label = L"(monitor default)";
+    const wchar_t *  label = nullptr;
 
 
 
     switch (source)
     {
-        case CrtSource::Theme:  label = L"(theme default)";   break;
-        case CrtSource::User:   label = L"(custom)";          break;
-        default:                                              break;
+        case CrtSource::Preset:  label = L"(monitor default)";  break;
+        case CrtSource::Theme:   label = L"(theme default)";    break;
+        default:                                                break;
     }
 
     return label;
@@ -874,6 +873,13 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
         const wchar_t *  label   = LabelForSource (m_hint.source[(size_t) field]);
 
 
+
+        // No label means the user set this row. The empty indicator column
+        // is what says so.
+        if (label == nullptr)
+        {
+            return;
+        }
 
         hrLocal = text.DrawString (label,
                                    (float) m_indicatorX,

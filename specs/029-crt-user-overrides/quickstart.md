@@ -83,14 +83,14 @@ reaches the picture.
 1. Launch on Apple //e with Retro Terminal active.
 2. Settings, Display. Note the bloom radius and scanline intensity, and that
    every row reads as a monitor or theme default.
-3. Drag bloom strength down. That row now reads custom. No other row changes
-   its label.
+3. Drag bloom strength down. That row's default label disappears. No other
+   row changes.
 4. Settings, Theme. Switch to Skeuomorphic. Apply.
 5. Back on Display: bloom radius, color bleed and brightness have all moved to
-   Skeuomorphic's values, and bloom strength still holds yours and still reads
-   custom.
+   Skeuomorphic's values, and bloom strength still holds yours and still shows
+   no default label.
 
-**Expected**: exactly one row custom, ten rows following the new theme.
+**Expected**: exactly one row unlabeled, ten rows following the new theme.
 
 **Today's behavior, for contrast**: all eleven rows keep Retro Terminal's
 values, including color bleed at 1.2 where Skeuomorphic deliberately turns it

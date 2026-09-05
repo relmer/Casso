@@ -15,10 +15,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  The badge a row shows for each tier.
 //
 //  The page used to work this out by comparing the widget's value against a
-//  resolved default with an epsilon, which got the interesting case wrong:
-//  a value the user deliberately set to match a default reported itself as
-//  a default. It now reads the tier that supplied the value, so the mapping
-//  is a lookup and can be pinned without a device or a window.
+//  resolved default with an epsilon, which got the interesting case wrong: a
+//  value the user deliberately set to match a default was labeled as that
+//  default. It now reads the tier that supplied the value, so the mapping is
+//  a lookup and can be pinned without a device or a window.
+//
+//  Only defaults are labeled. A row the user adjusted carries no badge, and
+//  the empty indicator column is what marks it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,40 +29,29 @@ TEST_CLASS (DisplayPageTests)
 {
 public:
 
-    TEST_METHOD (LabelForSource_GivesTheTextForEachTier)
+    TEST_METHOD (LabelForSource_GivesTheTextForEachDefault)
     {
         Assert::AreEqual (L"(monitor default)", DisplayPage::LabelForSource (CrtSource::Preset));
         Assert::AreEqual (L"(theme default)",   DisplayPage::LabelForSource (CrtSource::Theme));
-        Assert::AreEqual (L"(custom)",          DisplayPage::LabelForSource (CrtSource::User));
     }
 
 
-    // Every row carries a badge now. Under the old comparison a row whose
-    // value differed from the default drew nothing at all, which is how an
-    // override stayed invisible.
-    TEST_METHOD (LabelForSource_EveryTierHasText)
+    // The absence of a badge is the signal, so an adjusted row must produce
+    // no text at all rather than a third label.
+    TEST_METHOD (LabelForSource_AnAdjustedRowHasNoBadge)
     {
-        const CrtSource  tiers[] = { CrtSource::Preset, CrtSource::Theme, CrtSource::User };
-
-        for (const CrtSource & tier : tiers)
-        {
-            const wchar_t *  label = DisplayPage::LabelForSource (tier);
-
-            Assert::IsNotNull (label);
-            Assert::IsTrue    (wcslen (label) > 0);
-        }
+        Assert::IsNull (DisplayPage::LabelForSource (CrtSource::User));
     }
 
 
-    TEST_METHOD (LabelForSource_TiersAreDistinct)
+    TEST_METHOD (LabelForSource_TheTwoDefaultsAreDistinct)
     {
         const wchar_t *  preset = DisplayPage::LabelForSource (CrtSource::Preset);
         const wchar_t *  theme  = DisplayPage::LabelForSource (CrtSource::Theme);
-        const wchar_t *  user   = DisplayPage::LabelForSource (CrtSource::User);
 
+        Assert::IsNotNull   (preset);
+        Assert::IsNotNull   (theme);
         Assert::AreNotEqual (preset, theme);
-        Assert::AreNotEqual (theme,  user);
-        Assert::AreNotEqual (preset, user);
     }
 
 
@@ -80,8 +72,8 @@ public:
 
     // Gamma and persistence have no theme group, so a page that offered them
     // a theme-default label would describe a tier that cannot supply them.
-    // The resolver enforces that; this pins the two field slots exist and are
-    // addressable, since the page indexes its rows by them.
+    // The resolver enforces that; this pins that the two field slots exist
+    // and are addressable, since the page indexes its rows by them.
     TEST_METHOD (GammaAndPersistenceAreAddressableFields)
     {
         DisplayDefaultsHint  hint;
@@ -89,9 +81,9 @@ public:
         hint.source[(size_t) CrtField::Gamma]       = CrtSource::User;
         hint.source[(size_t) CrtField::Persistence] = CrtSource::User;
 
-        Assert::AreEqual (L"(custom)", DisplayPage::LabelForSource (hint.source[(size_t) CrtField::Gamma]));
-        Assert::AreEqual (L"(custom)", DisplayPage::LabelForSource (hint.source[(size_t) CrtField::Persistence]));
-        Assert::IsTrue   (hint.source[(size_t) CrtField::Brightness] == CrtSource::Preset);
+        Assert::IsNull (DisplayPage::LabelForSource (hint.source[(size_t) CrtField::Gamma]));
+        Assert::IsNull (DisplayPage::LabelForSource (hint.source[(size_t) CrtField::Persistence]));
+        Assert::IsTrue (hint.source[(size_t) CrtField::Brightness] == CrtSource::Preset);
     }
 
 };

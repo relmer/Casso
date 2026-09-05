@@ -102,13 +102,13 @@ Reset a single row and confirm only that row changed.
 2. **Given** a row whose value comes from the active theme, **When** the user
    views the page, **Then** the row is labeled as showing a theme default.
 3. **Given** a row the user has changed, **When** the user views the page,
-   **Then** the row is labeled as custom.
+   **Then** the row carries no default label at all.
 4. **Given** three changed rows, **When** the user returns one control to the
    value it already resolves to, **Then** that row returns to the preset and
    theme chain and the other two keep the user's values.
-5. **Given** any row, **When** the user resets it and its resolved value happens
-   to equal what they had set, **Then** the row still reports itself as a
-   default rather than as custom.
+5. **Given** any row, **When** the user returns it to the value it already
+   resolves to, **Then** the row shows its default label again rather than
+   staying blank.
 
 ---
 
@@ -188,8 +188,8 @@ against what the old build produced.
   current monitor and color mode and MUST NOT record any new state to express
   that they were removed.
 - **FR-007**: The Display page MUST show, for each adjustable row, whether the
-  displayed value originates from the monitor, from the theme, or from the
-  user's own adjustment.
+  displayed value originates from the monitor or from the theme. A row the
+  user has adjusted carries neither label, which is what identifies it.
 - **FR-008**: WITHDRAWN. Users were to reset a single row without affecting
   other rows. Returning a control to the value it already resolves to now
   clears that field on its own, so the case this covered no longer needs a

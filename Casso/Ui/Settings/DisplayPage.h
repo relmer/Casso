@@ -53,12 +53,13 @@ struct GlobalUserPrefsCrtSnapshot
 
 
 // Where each displayed value came from, per field, so DisplayPage can
-// label a row "(monitor default)", "(theme default)" or "(custom)".
+// label a row "(monitor default)" or "(theme default)". A row the user
+// adjusted carries no badge, and the empty column is what marks it.
 //
 // This is the tier that SUPPLIED the value, never a comparison of
 // numbers. The page used to infer it by comparing the widget against a
-// resolved default with an epsilon, which reported "(monitor default)"
-// for a value the user had deliberately set to match one.
+// resolved default with an epsilon, which labeled a value the user had
+// deliberately set to match a default as that default.
 //
 // No theme group carries gamma or persistence, so those two never
 // report a theme source.
@@ -103,8 +104,9 @@ public:
     static constexpr int  kControlGamma          = 8;
     static constexpr int  kControlPersistence    = 9;
 
-    // The badge text for a tier. A class static so a test can pin the
-    // strings without a device, a window or a painter.
+    // The badge text for a tier, or null for a row the user adjusted. A
+    // class static so a test can pin the strings without a device, a
+    // window or a painter.
     static const wchar_t *  LabelForSource (CrtSource source);
 
     void  SetState              (SettingsPanelState * state);

@@ -59,8 +59,8 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
-- **Changing one CRT setting no longer freezes the others.** Each Display row
-  shows whether its value comes from the monitor, the theme or an adjustment.
+- **Changing one CRT setting no longer freezes the others.** Every setting left
+  alone keeps following the monitor preset and the active theme.
 - **The preferences file grew a duplicate monitor-tilt entry on every save.** The
   key was both read directly and swept up as an unknown key, so each save wrote
   one more copy than the last. Existing files repair themselves on the next save.
