@@ -3067,7 +3067,7 @@ void DiskCommandRunner::AnnounceIntent (const CommandLineOptions & options,
 {
     bool  wrote  = WritesTheImage (options.disk.command);
     bool  clean  = (result.exitStatus == DiskCommandResult::kClean);
-    bool  stated = (options.disk.pickUpIntent != PickUpIntent::Unstated);
+    bool  stated = (options.disk.pickUpIntent != ExternalChangeIntent::Unstated);
 
 
 

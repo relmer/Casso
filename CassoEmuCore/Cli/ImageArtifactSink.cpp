@@ -255,7 +255,7 @@ HRESULT ImageArtifactSink::WriteBinary (const AssemblyResult & result,
     //  IT CANNOT FAIL THE ASSEMBLY. The channel returns nothing and an
     //  emulator that misses the hint falls back to asking, so a build broken
     //  by an undelivered courtesy would be worse than the problem it solves.
-    if (m_intentChannel != nullptr && options.pickUpIntent != PickUpIntent::Unstated)
+    if (m_intentChannel != nullptr && options.pickUpIntent != ExternalChangeIntent::Unstated)
     {
         m_intentChannel->StateIntent (options.imagePath, options.pickUpIntent);
     }

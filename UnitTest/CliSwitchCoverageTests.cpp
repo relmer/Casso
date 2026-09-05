@@ -223,7 +223,7 @@ namespace CliSwitchCoverageTests
 
             { "as65", "on-change", { "CassoCli", "as65", "p.a65", "--disk", "work.dsk",
                                      "--on-change", "reboot" },
-              [] (const CommandLineOptions & o) { return o.pickUpIntent == PickUpIntent::Restart; },
+              [] (const CommandLineOptions & o) { return o.pickUpIntent == ExternalChangeIntent::Restart; },
               "--on-change specifies what a running Casso does with the modified disk" },
 
             //
@@ -283,7 +283,7 @@ namespace CliSwitchCoverageTests
             { "merlin", "on-change", { "CassoCli", "merlin", "p.s", "--disk", "work.dsk",
                                        "--on-change", "reload" },
               [] (const CommandLineOptions & o)
-              { return o.pickUpIntent == PickUpIntent::TakeUpInPlace; },
+              { return o.pickUpIntent == ExternalChangeIntent::ReloadInPlace; },
               "--on-change specifies what a running Casso does with the modified disk" },
 
             //
@@ -363,7 +363,7 @@ namespace CliSwitchCoverageTests
 
             { "disk", "on-change", { "CassoCli", "disk", "put", "d.dsk", "p.bin", "--on-change", "reboot" },
               [] (const CommandLineOptions & o)
-              { return o.disk.pickUpIntent == PickUpIntent::Restart; },
+              { return o.disk.pickUpIntent == ExternalChangeIntent::Restart; },
               "--on-change says what a write means to a running emulator" },
 
             { "disk", "format", { "CassoCli", "disk", "create", "d.dsk", "--format", "prodos" },

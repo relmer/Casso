@@ -193,7 +193,7 @@ namespace AssemblerToDiskTests
             Fixture::SeedImage (quiet,   Fixture::MakeDos33Image());
             Fixture::SeedImage (stating, Fixture::MakeDos33Image());
 
-            statingOptions.pickUpIntent = PickUpIntent::Restart;
+            statingOptions.pickUpIntent = ExternalChangeIntent::Restart;
 
             {
                 ImageArtifactSink  sink (quiet);
@@ -216,7 +216,7 @@ namespace AssemblerToDiskTests
             //  because the flag was quietly ignored.
             Assert::AreEqual (size_t (1), channel.stated.size(),
                               L"the intent is stated once");
-            Assert::IsTrue (channel.stated[0].intent == PickUpIntent::Restart,
+            Assert::IsTrue (channel.stated[0].intent == ExternalChangeIntent::Restart,
                             L"and it is the intent the command line gave");
             Assert::AreEqual (std::string (kImagePath), channel.stated[0].imagePath,
                               L"about the image that was written");
@@ -224,7 +224,7 @@ namespace AssemblerToDiskTests
 
 
 
-        //  A write that never landed leaves nothing to pick up, so saying it
+        //  A write that never landed leaves nothing to reload, so saying it
         //  changed would send a running emulator to re-read bytes nobody
         //  replaced.
         TEST_METHOD (AFailedWriteStatesNoIntent)
@@ -236,7 +236,7 @@ namespace AssemblerToDiskTests
             HRESULT             written = S_OK;
 
             //  No image seeded, so the write is refused before it begins.
-            options.pickUpIntent = PickUpIntent::Restart;
+            options.pickUpIntent = ExternalChangeIntent::Restart;
 
             ImageArtifactSink  sink (io);
 

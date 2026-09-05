@@ -27,7 +27,7 @@ class FakeImageWatcher : public IImageWatcher
 {
 public:
 
-    //  Directories currently watched, in the order they were taken up.
+    //  Directories currently watched, in the order they were added.
     std::vector<std::string>                            watched;
 
     //  Directories Unwatch was called for, so a test can assert the lifecycle

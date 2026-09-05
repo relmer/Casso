@@ -1933,7 +1933,7 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent intent)
+void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeIntent intent)
 {
     std::lock_guard<std::mutex>  held (m_pendingMutex);
     int64_t  now   = GetNowMs();
@@ -1964,7 +1964,7 @@ void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent inten
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::ApplyPendingPickUp
+//  DiskImageStore::ApplyPendingReload
 //
 //  Act on whatever has settled, on the thread that owns disk writes.
 //
@@ -1974,7 +1974,7 @@ void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent inten
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::ApplyPendingPickUp()
+void DiskImageStore::ApplyPendingReload()
 {
     int      readySlot[kSlotCount * kDriveCount]  = {};
     int      readyDrive[kSlotCount * kDriveCount] = {};
@@ -2012,12 +2012,12 @@ void DiskImageStore::ApplyPendingPickUp()
         }
     }
 
-    //  ACTED ON OUTSIDE THE LOCK. Taking up an image reads a file and swaps a
+    //  ACTED ON OUTSIDE THE LOCK. Reloading an image reads a file and swaps a
     //  disk; holding the pending mutex across that would block the watcher
     //  thread for the length of a read.
     for (i = 0; i < readyCount; i++)
     {
-        ApplyPendingPickUpToBay (readySlot[i], readyDrive[i]);
+        ApplyPendingReloadToBay (readySlot[i], readyDrive[i]);
     }
 
     return;
@@ -2029,7 +2029,7 @@ void DiskImageStore::ApplyPendingPickUp()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::ApplyPendingPickUpToBay
+//  DiskImageStore::ApplyPendingReloadToBay
 //
 //  One bay's settled change, from noticing it to acting on it.
 //
@@ -2045,7 +2045,7 @@ void DiskImageStore::ApplyPendingPickUp()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
+void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 {
     HRESULT                            hr        = S_OK;
     Entry                            & entry     = GetEntry (slot, drive);
@@ -2053,7 +2053,7 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
     bool                               held      = false;
     bool                               usable    = false;
     bool                               unchanged = false;
-    PickUpIntent                       intent    = PickUpIntent::Unstated;
+    ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
     ChangeAction                       action    = ChangeAction::Ignore;
     ImageIdentity                      current;
     vector<Byte>                       bytes;
@@ -2419,7 +2419,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 //
 //  A REPORT IS RAISED ONCE AND ABSORBS WHAT FOLLOWS. Three builds before the
 //  developer turns back to the emulator are three pick-ups and one report: the
-//  contents taken up are always the most recent, and three reports about one
+//  contents reloaded are always the most recent, and three reports about one
 //  disk say nothing three times.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2443,7 +2443,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
     switch (action)
     {
-    case ChangeAction::TakeUpInPlace:
+    case ChangeAction::ReloadInPlace:
     case ChangeAction::Restart:
         hr = MountExternallyModifiedDisk (slot, drive, bytes);
 
@@ -2562,12 +2562,12 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     {
         ChangePrompt  report;
 
-        //  TAKING UP IS REPORTED AHEAD OF PRESERVING, because a conflict that
-        //  was taken up did both and the pick-up is the headline; the copy is a
+        //  THE RELOAD IS REPORTED AHEAD OF PRESERVING, because a conflict that
+        //  reloaded did both and the reload is the headline; the copy is a
         //  clause on the end of it.
         if (tookUp)
         {
-            report = ChangePrompt::ComposePickUpReport (original, drive, restarted,
+            report = ChangePrompt::ComposeReloadReport (original, drive, restarted,
                                                         m_machineName, preservedPath);
         }
         else if (preserved)
@@ -2628,7 +2628,7 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     //  THE CONTENTS MOVE, THE OBJECT STAYS. The controller holds a raw pointer
     //  to this DiskImage -- SetExternalDisk hands one over at mount -- so
     //  replacing the unique_ptr would leave the drive reading freed memory the
-    //  instant a disk was picked up. Assigning through keeps the address the
+    //  instant a disk was reloaded. Assigning through keeps the address the
     //  drive was given.
     *entry.image = std::move (*loaded);
 
@@ -2731,7 +2731,7 @@ Error:
 //
 //  DiskImageStore::BeginWatching
 //
-//  Takes up a watch on the directory holding a bay's image.
+//  Starts a watch on the directory holding a bay's image.
 //
 //  A DIRECTORY THAT CANNOT BE WATCHED IS RECORDED, NOT REPORTED. A network
 //  share or a synchronizing folder is exactly the case that produces one, and
@@ -2753,7 +2753,7 @@ void DiskImageStore::BeginWatching (int slot, int drive)
         watching = m_watcher->Watch (directory,
                                      [this] (const string & path)
                                      {
-                                         NoteExternalChange (path, PickUpIntent::Unstated);
+                                         NoteExternalChange (path, ExternalChangeIntent::Unstated);
                                      });
     }
 
@@ -2980,7 +2980,7 @@ Error:
 //  Writes bytes that came off the file to a file of their own.
 //
 //  THE OTHER DIRECTION. Here the emulator is about to write its own version
-//  over an external change it never picked up, so the version being displaced
+//  over an external change it never reloaded, so the version being displaced
 //  is the one on disk.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -1277,7 +1277,7 @@ void CommandLineParser::ParseDiskOptions (
         {
             std::string  value = argv[++i];
 
-            if (!TryReadPickUpIntent (value, options.disk.pickUpIntent))
+            if (!TryReadExternalChangeIntent (value, options.disk.pickUpIntent))
             {
                 //  Named rather than approximated, and the accepted set listed,
                 //  because a value outside a known set is a typo the reader
@@ -1629,11 +1629,11 @@ std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageT
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineParser::TryReadPickUpIntent
+//  CommandLineParser::TryReadExternalChangeIntent
 //
 //  Reads an --on-change value into an intent.
 //
-//  `reload` AND `reboot` ARE THE SURFACE SPELLINGS of TakeUpInPlace and
+//  `reload` AND `reboot` ARE THE SURFACE SPELLINGS of ReloadInPlace and
 //  Restart. The internal names describe what happens to the machine; the
 //  flag values match the words the notices use, so one word means one
 //  thing across the tool and the emulator.
@@ -1647,7 +1647,7 @@ std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageT
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandLineParser::TryReadPickUpIntent (const std::string & value, PickUpIntent & outIntent)
+bool CommandLineParser::TryReadExternalChangeIntent (const std::string & value, ExternalChangeIntent & outIntent)
 {
     bool  known = true;
 
@@ -1655,11 +1655,11 @@ bool CommandLineParser::TryReadPickUpIntent (const std::string & value, PickUpIn
 
     if (value == "reload")
     {
-        outIntent = PickUpIntent::TakeUpInPlace;
+        outIntent = ExternalChangeIntent::ReloadInPlace;
     }
     else if (value == "reboot")
     {
-        outIntent = PickUpIntent::Restart;
+        outIntent = ExternalChangeIntent::Restart;
     }
     else
     {
@@ -1698,7 +1698,7 @@ void CommandLineParser::RefuseImageOptionsWithoutAnImage (CommandLineOptions & o
     bool  named    = !options.onDiskName.empty();
     bool  typed    = !options.imageTypeName.empty();
     bool  starts   = options.setStartupProgram;
-    bool  states   = options.pickUpIntent != PickUpIntent::Unstated;
+    bool  states   = options.pickUpIntent != ExternalChangeIntent::Unstated;
     bool  stray    = !hasImage && (named || typed || starts || states);
 
 
@@ -2642,7 +2642,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
 
         if (TryLongOptionValue (arg, "--on-change", argc, argv, argIndex, attachedValue, options))
         {
-            if (!TryReadPickUpIntent (attachedValue, options.pickUpIntent))
+            if (!TryReadExternalChangeIntent (attachedValue, options.pickUpIntent))
             {
                 Refusal (options) << "Error: unknown value for "
                                   << FormatLongOption ("--on-change", options.flagPrefix) << "\n"
@@ -3483,7 +3483,7 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
         if (TryLongOptionValue (arg, "--on-change", argc, argv, argIndex, attachedValue, options))
         {
-            if (!TryReadPickUpIntent (attachedValue, options.pickUpIntent))
+            if (!TryReadExternalChangeIntent (attachedValue, options.pickUpIntent))
             {
                 Refusal (options) << "Error: unknown value for "
                                   << FormatLongOption ("--on-change", options.flagPrefix) << "\n"

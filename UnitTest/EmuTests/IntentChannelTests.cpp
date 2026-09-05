@@ -45,13 +45,13 @@ public:
 
     TEST_METHOD (APayloadRoundTripsThroughTheWire)
     {
-        const PickUpIntent  intents[] = { PickUpIntent::Unstated,
-                                          PickUpIntent::TakeUpInPlace,
-                                          PickUpIntent::Restart };
+        const ExternalChangeIntent  intents[] = { ExternalChangeIntent::Unstated,
+                                          ExternalChangeIntent::ReloadInPlace,
+                                          ExternalChangeIntent::Restart };
 
 
 
-        for (PickUpIntent intent : intents)
+        for (ExternalChangeIntent intent : intents)
         {
             std::vector<Byte>            bytes = Win32IntentChannel::Encode (kImagePath, intent);
             Win32IntentChannel::Payload  payload;
@@ -67,7 +67,7 @@ public:
     TEST_METHOD (ATruncatedPayloadIsRefusedRatherThanReadPast)
     {
         std::vector<Byte>            bytes = Win32IntentChannel::Encode (kImagePath,
-                                                                         PickUpIntent::Restart);
+                                                                         ExternalChangeIntent::Restart);
         Win32IntentChannel::Payload  payload;
 
 
@@ -89,7 +89,7 @@ public:
 
 
 
-        bytes[0] = (Byte) PickUpIntent::Restart;
+        bytes[0] = (Byte) ExternalChangeIntent::Restart;
 
         //  A length no path could have is a message this channel did not send,
         //  and reading it would mean trusting a stranger's count.
@@ -101,7 +101,7 @@ public:
     TEST_METHOD (AnIntentValueThisBuildDoesNotKnowIsRefused)
     {
         std::vector<Byte>            bytes = Win32IntentChannel::Encode (kImagePath,
-                                                                         PickUpIntent::Restart);
+                                                                         ExternalChangeIntent::Restart);
         Win32IntentChannel::Payload  payload;
 
 
@@ -118,7 +118,7 @@ public:
     TEST_METHOD (ARefusedPayloadLeavesNothingBehindInTheOutput)
     {
         std::vector<Byte>            bytes = Win32IntentChannel::Encode (kImagePath,
-                                                                         PickUpIntent::Restart);
+                                                                         ExternalChangeIntent::Restart);
         Win32IntentChannel::Payload  payload;
 
 
@@ -133,7 +133,7 @@ public:
         //  A caller that ignored the return must not find last message's path
         //  sitting in it.
         Assert::IsTrue (payload.imagePath.empty());
-        Assert::IsTrue (payload.intent == PickUpIntent::Unstated);
+        Assert::IsTrue (payload.intent == ExternalChangeIntent::Unstated);
     }
 
 
@@ -141,7 +141,7 @@ public:
     TEST_METHOD (APathOfNothingButSpacesIsNotAPath)
     {
         std::vector<Byte>            bytes = Win32IntentChannel::Encode ("   ",
-                                                                         PickUpIntent::Restart);
+                                                                         ExternalChangeIntent::Restart);
         Win32IntentChannel::Payload  payload;
 
 
@@ -157,7 +157,7 @@ public:
     //  ------------------------------------------------------------------
     //
 
-    static CommandLineOptions  MakePut (PickUpIntent intent)
+    static CommandLineOptions  MakePut (ExternalChangeIntent intent)
     {
         CommandLineOptions  options;
 
@@ -218,13 +218,13 @@ public:
             DiskCommandRunner  runner (io);
 
             runner.SetIntentChannel (&channel);
-            result = runner.Run (MakePut (PickUpIntent::Restart));
+            result = runner.Run (MakePut (ExternalChangeIntent::Restart));
         }
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::AreEqual ((size_t) 1, channel.stated.size());
         Assert::AreEqual (std::string (kImagePath), channel.stated[0].imagePath);
-        Assert::IsTrue (channel.stated[0].intent == PickUpIntent::Restart);
+        Assert::IsTrue (channel.stated[0].intent == ExternalChangeIntent::Restart);
     }
 
 
@@ -243,7 +243,7 @@ public:
             DiskCommandRunner  runner (io);
 
             runner.SetIntentChannel (&channel);
-            result = runner.Run (MakePut (PickUpIntent::Unstated));
+            result = runner.Run (MakePut (ExternalChangeIntent::Unstated));
         }
 
         //  Every invocation without the flag takes this path, and an emulator
@@ -260,7 +260,7 @@ public:
         FakeDiskFileIo     io;
         FakeIntentChannel  channel;
         DiskCommandResult  result;
-        CommandLineOptions options = MakePut (PickUpIntent::Restart);
+        CommandLineOptions options = MakePut (ExternalChangeIntent::Restart);
 
 
 
@@ -298,7 +298,7 @@ public:
         options.subcommand        = CommandLineOptions::Subcommand::Disk;
         options.disk.command      = CommandLineOptions::DiskOptions::Command::List;
         options.disk.imagePath    = kImagePath;
-        options.disk.pickUpIntent = PickUpIntent::Restart;
+        options.disk.pickUpIntent = ExternalChangeIntent::Restart;
 
         {
             DiskCommandRunner  runner (io);
@@ -327,7 +327,7 @@ public:
             //  cannot know, and a build script must behave the same either way.
             DiskCommandRunner  runner (io);
 
-            result = runner.Run (MakePut (PickUpIntent::Restart));
+            result = runner.Run (MakePut (ExternalChangeIntent::Restart));
         }
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
@@ -351,13 +351,13 @@ public:
             DiskCommandRunner  runner (withIntent);
 
             runner.SetIntentChannel (&channel);
-            AssertSucceededStatus (runner.Run (MakePut (PickUpIntent::Restart)));
+            AssertSucceededStatus (runner.Run (MakePut (ExternalChangeIntent::Restart)));
         }
 
         {
             DiskCommandRunner  runner (without);
 
-            AssertSucceededStatus (runner.Run (MakePut (PickUpIntent::Unstated)));
+            AssertSucceededStatus (runner.Run (MakePut (ExternalChangeIntent::Unstated)));
         }
 
         //  The flag says what a change MEANS. It must not be able to change

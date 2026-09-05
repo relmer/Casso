@@ -6,7 +6,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PickUpIntent
+//  ExternalChangeIntent
 //
 //  What a change to a mounted disk image should do to the machine running it.
 //
@@ -23,13 +23,13 @@
 //  editor, a copy, or a second emulator carries no intent, and that is the
 //  ordinary case for everything except this project's own command line.
 //  Holding it as a distinct value is what keeps "nobody said" from being
-//  confused with "somebody said carry on".
+//  confused with "somebody said reload it".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class PickUpIntent
+enum class ExternalChangeIntent
 {
     Unstated,
-    TakeUpInPlace,
+    ReloadInPlace,
     Restart,
 };

@@ -284,11 +284,11 @@ public:
     //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
     //  runs on its own thread and the message channel on the UI thread, while
     //  acting on a change belongs to the thread that owns disk writes.
-    void          NoteExternalChange (const string & path, PickUpIntent intent);
+    void          NoteExternalChange (const string & path, ExternalChangeIntent intent);
 
     //  Act on whatever has settled. Called on the CPU thread at a moment with
     //  no disk operation in flight.
-    void          ApplyPendingPickUp ();
+    void          ApplyPendingReload ();
 
     //  The user dismissed the standing report for a bay.
     void          ClearChangeReport (int slot, int drive);
@@ -477,7 +477,7 @@ private:
     static wstring FormatExternalChangeMessage (const string & path);
 
     //  Everything one bay's settled change leads to.
-    void           ApplyPendingPickUpToBay (int slot, int drive);
+    void           ApplyPendingReloadToBay (int slot, int drive);
 
     //  Carries out what was decided. Split from deciding so the decision has
     //  one shape whether it came from the policy or from the user.

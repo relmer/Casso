@@ -16,7 +16,7 @@
 //            external change. It reads as the door opening and closing where a
 //            plain insert only closes.
 //
-//  ITS OWN HEADER, LIKE PickUpIntent, so the shell can name it without pulling
+//  ITS OWN HEADER, LIKE ExternalChangeIntent, so the shell can name it without pulling
 //  in the whole DiskImageStore definition. DiskManager holds the store by
 //  reference behind a forward declaration; the bay-change sink it reacts to
 //  crosses that boundary, and a nested enum cannot.

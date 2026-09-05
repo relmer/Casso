@@ -1,6 +1,6 @@
 #pragma once
 
-#include "PickUpIntent.h"
+#include "ExternalChangeIntent.h"
 
 #include "AssemblerTypes.h"
 
@@ -138,8 +138,8 @@ struct CommandLineOptions
         //
         //  `Unstated` is what every invocation without the flag carries, and it
         //  is a real value: the emulator asks about a change nobody explained.
-        PickUpIntent  pickUpIntent = PickUpIntent::Unstated;
-        Encoding      encoding     = Encoding::Verbatim;
+        ExternalChangeIntent  pickUpIntent = ExternalChangeIntent::Unstated;
+        Encoding              encoding     = Encoding::Verbatim;
         //  The command as it was typed, kept so a refusal can quote it. The
         //  enum above cannot: every word this grammar does not have maps
         //  to the same None, so "unknown disk command" could not say which.
@@ -386,7 +386,7 @@ struct CommandLineOptions
     //  answered by the same `imagePath` question above: an assembly that writes
     //  onto an image may state an intent, and one that does not has nothing to
     //  state it about.
-    PickUpIntent  pickUpIntent = PickUpIntent::Unstated;   // --on-change <what>
+    ExternalChangeIntent  pickUpIntent = ExternalChangeIntent::Unstated;   // --on-change <what>
 
     //  Whether a prefixed argument has been seen yet, which is what makes the
     //  FIRST one the one that counts. Without it a mixed command line would be

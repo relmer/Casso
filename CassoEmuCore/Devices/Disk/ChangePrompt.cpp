@@ -184,7 +184,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         }
 
         prompt.answers.push_back (PromptAnswer { L"Insert the modified disk",
-                                                 ChangeAction::TakeUpInPlace });
+                                                 ChangeAction::ReloadInPlace });
         prompt.answers.push_back (PromptAnswer { L"Keep your current version",
                                                  ChangeAction::KeepHeld });
         break;
@@ -209,7 +209,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChangePrompt::ComposePickUpReport
+//  ChangePrompt::ComposeReloadReport
 //
 //  What is shown after contents went in without a question.
 //
@@ -223,7 +223,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, int drive,
+ChangePrompt ChangePrompt::ComposeReloadReport (const std::string & imagePath, int drive,
                                                 bool machineRebooted,
                                                 const std::string & machineName,
                                                 const std::string & copyPath)

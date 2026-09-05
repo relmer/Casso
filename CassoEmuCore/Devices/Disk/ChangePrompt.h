@@ -123,7 +123,7 @@ struct ChangePrompt
                                   const std::string & copyPath   = std::string(),
                                   bool copyAlreadyWritten        = false);
 
-    //  The notice shown once contents were taken up without a question, which
+    //  The notice shown once contents were reloaded without a question, which
     //  only happens when the write stated what it was for.
     //
     //  IT ATTRIBUTES THE WRITE TO CassoCli, and can, because this notice is
@@ -133,7 +133,7 @@ struct ChangePrompt
     //
     //  `machineName` IS THE MACHINE AS THE USER KNOWS IT -- "Apple //e" --
     //  because "the Apple" is not what is in front of them.
-    static ChangePrompt  ComposePickUpReport (const std::string & imagePath, int drive,
+    static ChangePrompt  ComposeReloadReport (const std::string & imagePath, int drive,
                                               bool machineRebooted,
                                               const std::string & machineName,
                                               const std::string & copyPath = std::string());

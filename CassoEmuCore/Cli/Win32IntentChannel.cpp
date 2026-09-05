@@ -43,7 +43,7 @@ ULONG_PTR Win32IntentChannel::GetMessageId()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Byte> Win32IntentChannel::Encode (const std::string & imagePath, PickUpIntent intent)
+std::vector<Byte> Win32IntentChannel::Encode (const std::string & imagePath, ExternalChangeIntent intent)
 {
     std::vector<Byte>  bytes;
 
@@ -91,12 +91,12 @@ bool Win32IntentChannel::Decode (const Byte * bytes, size_t byteCount, Payload &
         return false;
     }
 
-    switch ((PickUpIntent) bytes[0])
+    switch ((ExternalChangeIntent) bytes[0])
     {
-    case PickUpIntent::Unstated:
-    case PickUpIntent::TakeUpInPlace:
-    case PickUpIntent::Restart:
-        outPayload.intent = (PickUpIntent) bytes[0];
+    case ExternalChangeIntent::Unstated:
+    case ExternalChangeIntent::ReloadInPlace:
+    case ExternalChangeIntent::Restart:
+        outPayload.intent = (ExternalChangeIntent) bytes[0];
         wellFormed        = true;
         break;
 
@@ -196,7 +196,7 @@ static BOOL CALLBACK SendToOneWindow (HWND window, LPARAM context)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32IntentChannel::StateIntent (const std::string & imagePath, PickUpIntent intent)
+void Win32IntentChannel::StateIntent (const std::string & imagePath, ExternalChangeIntent intent)
 {
     std::vector<Byte>  bytes      = Encode (imagePath, intent);
     COPYDATASTRUCT     data       = {};
