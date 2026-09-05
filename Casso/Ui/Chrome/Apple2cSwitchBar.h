@@ -32,11 +32,11 @@ class IDxuiTheme;
 //  key) when in and proud (a raised, highlit key) when out. The disk-use LED
 //  lights on drive activity, the power LED is lit whenever the machine is on.
 //
-//  Like the other Casso chrome (DriveWidget, CommandToolbar), this control is
-//  manually hit-tested and actioned by EmulatorShell rather than through the
-//  Dxui auto-input path; it exposes GetPartAt/HitTest for that routing. It reads
-//  CassoTheme only for text color fallbacks; the case palette is fixed so the
-//  strip always reads as the //c case regardless of the active UI theme.
+//  Like the drive widgets, this control is manually hit-tested and actioned
+//  by EmulatorShell rather than through the Dxui auto-input path; it exposes
+//  GetPartAt/HitTest for that routing. It reads CassoTheme only for text color
+//  fallbacks; the case palette is fixed so the strip always reads as the //c
+//  case regardless of the active UI theme.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
