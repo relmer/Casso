@@ -97,6 +97,13 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The input device icons were drawn larger than the rest of the command
+  bar's.** They now match the other icons' size and stroke weight, and the
+  mouse uses MDL2's own glyph.
+- **Switching to an Apple //c through Settings left the mouse out of the input
+  devices.** The bar lays out again whenever mouse availability changes.
+- **Unlit input LEDs were too dark to make out.** They now use the tint a
+  disabled checkbox fills with.
 - **The fullscreen top edge revealed only the command toolbar, leaving the menu
   bar unreachable.** The menu bar now rides down with the toolbar, above it, in
   the order the windowed chrome stacks them.
