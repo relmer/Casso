@@ -134,6 +134,13 @@ struct DeskSceneComposition
     float  monitorWorld[16] = {};
     float  driveWorld[2][16] = {};
     int    driveCount       = 0;
+
+    // The fullscreen presentation: draw the tube and nothing else, on black.
+    // An int rather than a bool because compositions are compared whole with
+    // memcmp -- the plate cache keys off one -- and a bool would add three
+    // bytes of padding to that comparison that nothing writes.
+    int    glassOnly        = 0;
+
     float  sceneScale       = 0.0f;   // glass px height / (384 dp at dpi)
     RECT   glassRectPx      = {};     // projected glass bounds -- the CRT target rect
     RECT   sceneRectPx      = {};     // projected scene bounds -- what the composition occupies
@@ -182,12 +189,19 @@ public:
     // show you a differently-shaped part than the composition does.
     static void     ApplyViewTransform (const DeskSceneView & view, float proj[16]);
 
-    // The fullscreen presentation: a straight-on camera whose frustum the
-    // GLASS fills (cover, not contain -- the monitor body crops offscreen),
-    // no drives in the composition (the overlay strip presents those
-    // separately). Same S_FALSE contract for an empty viewport.
+    // The fullscreen presentation: a straight-on camera at the closest
+    // distance that does not crop the picture, showing the tube alone on
+    // black (the composition sets `glassOnly`, and the drives come from the
+    // overlay strip). Closest means the glass covers the viewport; on a
+    // viewport wide enough that covering would crop the raster, the picture's
+    // own containment distance applies instead and black fills what that
+    // leaves beside the tube. `displayW` x `displayH` is the emulated grid,
+    // which determines the picture's band on the glass. Same S_FALSE contract
+    // for an empty viewport.
     static HRESULT  ComputeGlassFill (const RECT             & viewportPx,
                                       UINT                     dpi,
+                                      int                      displayW,
+                                      int                      displayH,
                                       const DeskSceneMetrics & metrics,
                                       DeskSceneComposition   & out);
 
@@ -343,6 +357,17 @@ private:
                                          float                   tanHalfY,
                                          float                   tanHalfX,
                                          float                 & outDist);
+
+    // The distance at which the WHOLE picture is on screen. Sampled over the
+    // picture band's boundary rather than solved from its flat rect, because
+    // the band lies on a curved sheet: the sag places each edge's midpoint
+    // nearer the camera, and a nearer point projects further off-axis than
+    // the corners on either side of it.
+    static float    SolvePictureStandoff (const DeskSceneMetrics & metrics,
+                                          const float              monitorWorld[16],
+                                          int                      displayW,
+                                          int                      displayH,
+                                          float                    aspect);
 
     // One full composition solve at a specific drive drop; Compute wraps it
     // with the gap-reserving correction.

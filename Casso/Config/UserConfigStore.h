@@ -144,9 +144,12 @@ private:
     static bool  TryGetIntField    (const JsonValue & obj, const std::string & key, int & out);
     static bool  TryGetStringField (const JsonValue & obj, const std::string & key, std::string & out);
 
-    static JsonValue  BuildObjectWithEnabled (
+    // `ports` is null when the user entry declares no connector list, in
+    // which case the default's own list (if any) passes through untouched.
+    static JsonValue  BuildObjectWithOverrides (
         const JsonValue & src,
-        bool              enabled);
+        bool              enabled,
+        const JsonValue * ports);
 
     static JsonValue  BuildUiPrefsDefaults ();
 

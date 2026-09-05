@@ -570,6 +570,164 @@ public:
     }
 
 
+    // Detaching the second Disk ][ drive changes a slot's `ports` and nothing
+    // else, so a delta keyed on `enabled` alone wrote an empty user file and
+    // the drive came back on the next load.
+    TEST_METHOD (Diff_DetachedDrive_EmitsPortsWhenEnabledStillMatches)
+    {
+        const JsonValue  * slots = nullptr;
+        const JsonValue  * ports = nullptr;
+        JsonValue          diff;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom", "enabled": true,
+                  "ports": ["disk-ii-drive", "disk-ii-drive"] }
+            ]
+        })JSON");
+
+        JsonValue c = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom", "enabled": true,
+                  "ports": ["disk-ii-drive", ""] }
+            ]
+        })JSON");
+
+        diff = UserConfigStore::DiffJson (c, d);
+
+        AssertSucceeded (diff.GetArray ("slots", slots));
+        Assert::AreEqual<size_t> (1u, slots->GetArraySize());
+
+        const JsonValue & slot0 = slots->GetArrayElement (0);
+
+        AssertSucceeded (slot0.GetArray ("ports", ports));
+        Assert::AreEqual<size_t> (2u, ports->GetArraySize());
+        Assert::AreEqual (std::string ("disk-ii-drive"), ports->GetArrayElement (0).GetString());
+        Assert::AreEqual (std::string (""),              ports->GetArrayElement (1).GetString());
+    }
+
+
+    // A card's connector list survives the overlay that rebuilds each slot
+    // from the default, while `device` and `rom` still come from the default.
+    TEST_METHOD (Merge_DetachedDrive_OverridesDefaultPorts)
+    {
+        JsonValue  m;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom", "enabled": true,
+                  "ports": ["disk-ii-drive", "disk-ii-drive"] }
+            ]
+        })JSON");
+
+        JsonValue u = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "enabled": true, "ports": ["disk-ii-drive", ""] }
+            ]
+        })JSON");
+
+        m = UserConfigStore::MergeJson (d, u);
+        JsonValue expected = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom", "enabled": true,
+                  "ports": ["disk-ii-drive", ""] }
+            ]
+        })JSON");
+
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (expected, m));
+    }
+
+
+    // A user file that says nothing about connectors leaves the card
+    // describing the two drives it shipped with.
+    TEST_METHOD (Merge_SilentUserEntry_KeepsDefaultPorts)
+    {
+        JsonValue  m;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": true,
+                  "ports": ["disk-ii-drive", "disk-ii-drive"] }
+            ]
+        })JSON");
+
+        JsonValue u = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "enabled": false }
+            ]
+        })JSON");
+
+        m = UserConfigStore::MergeJson (d, u);
+        JsonValue expected = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "enabled": false,
+                  "ports": ["disk-ii-drive", "disk-ii-drive"] }
+            ]
+        })JSON");
+
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (expected, m));
+    }
+
+
+    // The whole trip the settings dialog takes: stage a detach, write the
+    // delta, load it back. What comes out is what the dialog will show.
+    TEST_METHOD (RoundTrip_DetachedDrive_SurvivesDiffThenMerge)
+    {
+        const JsonValue  * slots = nullptr;
+        const JsonValue  * ports = nullptr;
+        std::string        rom;
+        JsonValue          delta;
+        JsonValue          merged;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom", "enabled": true,
+                  "ports": ["disk-ii-drive", "disk-ii-drive"] }
+            ]
+        })JSON");
+
+        JsonValue c = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom", "enabled": true,
+                  "ports": ["disk-ii-drive", ""] }
+            ]
+        })JSON");
+
+        delta  = UserConfigStore::DiffJson (c, d);
+        merged = UserConfigStore::MergeJson (d, delta);
+
+        AssertSucceeded (merged.GetArray ("slots", slots));
+        Assert::AreEqual<size_t> (1u, slots->GetArraySize());
+
+        const JsonValue & slot0 = slots->GetArrayElement (0);
+
+        AssertSucceeded (slot0.GetArray ("ports", ports));
+        Assert::AreEqual<size_t> (2u, ports->GetArraySize());
+        Assert::AreEqual (std::string (""), ports->GetArrayElement (1).GetString());
+
+        AssertSucceeded (slot0.GetString ("rom", rom));
+        Assert::AreEqual (std::string ("Disk2.rom"), rom);
+    }
+
+
     TEST_METHOD (Diff_UiPrefs_UsesImplicitDefaultsForSpeedShadowing)
     {
         const JsonValue  * ui   = nullptr;

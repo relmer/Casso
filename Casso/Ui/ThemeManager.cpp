@@ -114,12 +114,45 @@ ThemeManager::ThemeManager (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PresentationRank
+//
+//  Where a built-in theme sits in the order the Settings dropdown offers
+//  the catalog: Skeuomorphic, then RetroTerminal, then DarkModern -- most
+//  period-authentic to least. A theme the table does not name (anything
+//  user-authored) ranks after all of them and keeps its discovery order
+//  among its peers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ThemeManager::PresentationRank (const std::string & themeName)
+{
+    static const char * const  kOrder[] = { "Skeuomorphic", "RetroTerminal", "DarkModern" };
+
+
+
+    for (size_t i = 0; i < std::size (kOrder); i++)
+    {
+        if (themeName == kOrder[i])
+        {
+            return i;
+        }
+    }
+
+    return std::size (kOrder);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Discover
 //
 //  Enumerates every theme directory beneath `m_themesBaseDir` and
 //  parses each `theme.json` via `ThemeLoader::Load`. Themes whose
 //  metadata fails to validate are silently excluded; the remainder
-//  populate `m_available`.
+//  populate `m_available` in presentation order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +181,16 @@ HRESULT ThemeManager::Discover()
             m_available.push_back (std::move (theme));
         }
     }
+
+    // Discovery hands them back in directory order, which is alphabetical and
+    // says nothing about how they should be presented. Ordering here rather
+    // than in the dropdown keeps every reader of GetAvailableThemes agreeing
+    // on one order.
+    std::stable_sort (m_available.begin(), m_available.end(),
+                      [] (const LoadedTheme & a, const LoadedTheme & b)
+                      {
+                          return PresentationRank (a.name) < PresentationRank (b.name);
+                      });
 
 Error:
     return hr;

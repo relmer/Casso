@@ -57,8 +57,30 @@ Entries before versioning was introduced use dates only.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
 - **Window placement is saved only when the user moves or resizes the window.**
+- **Themes are listed most skeuomorphic first** in Settings -- Skeuomorphic,
+  RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
+- **A window with no client area buried the screen in assertion dialogs.**
+  Every control laid out against a minimized window came out zero DIPs wide,
+  and a text field insetting that by its own padding passed a NEGATIVE width to
+  DirectWrite, which refuses one. Being a paint, it failed again every frame:
+  launching Casso minimized with the boot-disk picker due stacked some thirty
+  modal assertion boxes within seconds, and minimizing the picker while it was
+  open did the same. Text is no longer drawn into a box with no area, and a
+  failed assertion is now shown once per run and never on top of another one --
+  the task-modal box was pumping the very paint whose failure raised it.
+- **Unchecking a second drive was not correctly persisted.** The drive left the
+  desk as it should, but came back the next time Settings opened, and on the
+  next launch.
+- **Full-screen mode hid the top and bottom of the picture on a widescreen
+  display.** The camera was placed so the monitor's glass covered the screen,
+  and the glass is about 1.4:1, so on 16:9 the top and bottom of the glass were
+  cropped and the picture with them -- about a dozen scanlines at each end, in
+  text mode as well as graphics. The camera now moves back far enough to fit
+  the whole picture. Up to about 3:2 the glass still covers the screen as
+  before; beyond that only the tube is drawn, against black, without the case,
+  bezel or power lamp.
 - **Double hi-res colors now match the hardware.** The color clock runs one dot
   ahead of the byte boundary, so the last dot of a cell is the color's low bit;
   reading the dots as a plain binary number showed magenta as brown and orange
@@ -99,6 +121,7 @@ Entries before versioning was introduced use dates only.
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are
   re-decoded when the new device runs at a different sample rate.
+- **The Settings dialog now opens adjacent to the main window.**
 - **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
   pending-audio backlog from the rate the endpoint reports, and that calculation
   overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
@@ -120,6 +143,12 @@ Entries before versioning was introduced use dates only.
   keeps the size it reads at from every pose, which is why it was taken out of the
   scene the first time. The fullscreen overlay strip has nothing in front of its
   drives and keeps the chrome label it had.
+- **Casso started up regardless of what was on its command line.** A mistyped flag,
+  a misspaced one, a stray disk image path and `--help` were all discarded in
+  silence and the emulator booted as though nothing had been asked, so
+  `Casso --machine Apple2e --dsik1 work.dsk` ran whatever disk was mounted last.
+  An argument Casso cannot read now stops startup and shows the reason above the
+  full usage text, and every form of `--help` shows that text and exits.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the

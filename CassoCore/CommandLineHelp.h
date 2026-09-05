@@ -79,4 +79,33 @@ public:
 
     //  The whole general page, banner included.
     static std::string  BuildGeneralHelp (const std::string & banner, char flagPrefix);
+
+    //  The widest line BuildEmulatorHelp will produce.
+    //
+    //  A PROMISE WITH A REASON BEHIND IT, and a test that measures it. The
+    //  emulator's usage text is shown in a themed message box rather than
+    //  printed to a console: the box is a fixed width in a proportional font,
+    //  and a line past this budget wraps somewhere the author did not choose,
+    //  which turns an indented description into two ragged ones. Descriptions
+    //  are stored as sentences and wrapped to this here, so the table stays a
+    //  table and only one place knows the width.
+    //
+    //  44 IS THE BOX'S OWN NUMBER, not a guess: DxuiMessageBox sizes itself by
+    //  dividing what is left of its 400 DIP after the margins and the icon
+    //  column by an average advance, and lands on 44. Budgeting wider than that
+    //  does not clip -- the box has room -- but every line over it counts as
+    //  two in the height estimate, and the dialog comes out with a band of
+    //  empty space under the text.
+    static constexpr size_t  kEmulatorLineColumns = 44;
+
+    //  The emulator GUI's usage text: how the command line is written, then
+    //  every option it takes, composed from the parser's own table.
+    static std::string  BuildEmulatorHelp (char flagPrefix);
+
+    //  `text` broken at spaces so no line exceeds `columns`, each continuation
+    //  carrying `indent`. A word longer than the budget takes a line of its own
+    //  rather than being cut.
+    static std::string  WrapToColumns (const std::string & text,
+                                       const std::string & indent,
+                                       size_t              columns);
 };
