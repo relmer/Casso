@@ -86,7 +86,6 @@ int SettingsDisplayCrtBridge::GetActiveModeIdx() const
 void SettingsDisplayCrtBridge::ReseedFromActiveMode()
 {
     GlobalUserPrefsCrtSnapshot  snap;
-    int                         idx = GetActiveModeIdx();
 
 
 

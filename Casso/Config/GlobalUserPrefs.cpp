@@ -614,7 +614,6 @@ void GlobalUserPrefs::ReadCrtOverrides (const JsonValue & v, std::map<std::strin
     const JsonValue *  overridesVal = nullptr;
     const JsonValue *  overridesObj = nullptr;
     const JsonValue *  crtSub       = nullptr;
-    HRESULT            hr           = S_OK;
     size_t             i            = 0;
     size_t             m            = 0;
 
@@ -1234,7 +1233,6 @@ JsonValue GlobalUserPrefs::ToJson() const
 HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 {
     HRESULT             hr            = S_OK;
-    const JsonValue *   crtSub        = nullptr;
     const JsonValue *   windowSub     = nullptr;
     const JsonValue *   placementsObj = nullptr;
     const JsonValue *   recentArr     = nullptr;
@@ -1242,7 +1240,6 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     std::string         inputModeStr;
     std::string         textModeStr;
     bool                legacyArrows  = false;
-    size_t              i             = 0;
 
 
 
