@@ -448,7 +448,18 @@ void CpuManager::ThreadProc()
         }
 
         QueryPerformanceCounter (&qpcNow);
-        nowNs = qpcNow.QuadPart * kHundredNsPerSecond / qpcFreq.QuadPart;
+
+        //  Whole seconds first, then the remainder, rather than scaling the
+        //  raw count. The counter runs from boot, and Windows reports 10 MHz
+        //  on current hardware, so a single multiply by kHundredNsPerSecond
+        //  passes LLONG_MAX after 25.6 hours of uptime and wraps. nowNs then
+        //  steps backward, the clamp below bounds the wait, and that frame
+        //  hands its samples over out of step -- the jitter the absolute
+        //  deadline exists to remove. Split this way the seconds term stays
+        //  small and the remainder is below the frequency, so neither term
+        //  can overflow.
+        nowNs = (qpcNow.QuadPart / qpcFreq.QuadPart) * kHundredNsPerSecond +
+                (qpcNow.QuadPart % qpcFreq.QuadPart) * kHundredNsPerSecond / qpcFreq.QuadPart;
 
         deadline += kFramePeriod100Ns;
 

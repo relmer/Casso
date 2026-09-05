@@ -133,8 +133,6 @@ public:
     static constexpr Byte    kInflect11      = 0x08;
     static constexpr Byte    kInflectLowMask = 0x07;
 
-    // D7 on a read carries the inverted A/R level.
-
     // Duration-bit mode encodings, latched on a CTL one-to-zero transition.
     static constexpr Byte    kModePhonemeTransitioned = 3;
     static constexpr Byte    kModePhonemeImmediate    = 2;
@@ -201,7 +199,7 @@ private:
     double  GetTickClockHz      () const { return (m_tickClockHz > 0.0) ? m_tickClockHz : m_xckHz; }
 
     void    LatchMode           ();
-    void    BeginPhoneme        (Byte outgoing);
+    void    BeginPhoneme        ();
     void    GlideFormants       ();
     void    GlideLevels         ();
     float   GenerateExcitation  ();
