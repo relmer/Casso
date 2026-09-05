@@ -42,15 +42,20 @@ halData
     .byte $D4,$AE,$F5,$0C,$C0,$E8,$00,$FC
     .byte $07,$FF
 
-; "By your command." -- a Centurion, low and level
+; "By your command, Imperious Leader." -- a Centurion, low and level
 cylonData
     .byte $FB,$00,$FD,$7B,$55,$FB,$02,$C2
     .byte $D9,$E4,$0F,$87,$FB,$04,$D9,$CF
     .byte $D5,$D2,$83,$53,$9E,$FD,$90,$50
     .byte $FB,$08,$C3,$CF,$CD,$CD,$C1,$CE
-    .byte $C4,$AE,$E9,$9B,$B7,$FD,$D6,$54
-    .byte $0C,$4C,$FD,$AB,$50,$78,$E5,$00
-    .byte $FC,$08,$FF
+    .byte $C4,$AC,$E9,$9B,$B7,$FD,$D6,$54
+    .byte $0C,$4C,$FD,$AB,$50,$78,$E5,$40
+    .byte $FD,$86,$51,$FB,$09,$C9,$CD,$D0
+    .byte $C5,$D2,$C9,$CF,$D5,$D3,$87,$B7
+    .byte $E7,$01,$9E,$81,$9A,$B0,$FD,$70
+    .byte $54,$FB,$07,$CC,$C5,$C1,$C4,$C5
+    .byte $D2,$AE,$A1,$01,$E5,$5C,$00,$FC
+    .byte $08,$FF
 
 ; HAL's eye, run-length coded: (count, byte) pairs over the 160 x 40 bytes
 ; of the mixed-mode picture, row-major; a count of 0 ends it. 1415 bytes.

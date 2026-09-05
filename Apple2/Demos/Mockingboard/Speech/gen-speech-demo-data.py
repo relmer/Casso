@@ -210,15 +210,26 @@ CYLON_HZ   = 72.0         # a Centurion: low, level, and not in a hurry
 RATE_CYLON = 0x50
 
 def cylon():
-    """A Centurion line from the 1978 pilot. The stress in "command" is
-    the show's own: the pitch climbs into the last syllable and settles."""
+    """A Centurion line from the 1978 pilot. The stress in "command" is the
+    show's own: the pitch climbs into the last syllable and settles.
+
+    The address that follows is a subordinate naming his superior, so it goes
+    the other way -- below where the line started and level, with none of the
+    climb. "Imperious" carries its stress on the second syllable, ih-PEER-ee-us,
+    and the diphthong is spelled the way "greetings" spells the same vowel.
+    """
     c = lambda f: setp(f, RATE_CYLON)
     s = clear_caption()
     s += c(CYLON_HZ) + cap("BY") + [P("B", QUICK), P("AH1", LONG), P("I", SHORT)]
     s += cap("YOUR")             + [P("Y", SHORT), P("OO", MED), P("R1", SHORT)]
-    s += c(76.0) + cap("COMMAND.") + [P("K", QUICK), P("UH3", SHORT), P("M", SHORT)]
+    s += c(76.0) + cap("COMMAND,") + [P("K", QUICK), P("UH3", SHORT), P("M", SHORT)]
     s += c(94.0)                 + [P("AE", LONG), P("AE", MED)]
-    s += c(82.0)                 + [P("N", MED), P("D", QUICK), P("PA", LONG)]
+    s += c(82.0)                 + [P("N", MED), P("D", QUICK), P("PA", MED)]
+    s += c(74.0) + cap("IMPERIOUS") + [P("I", SHORT), P("M", SHORT), P("P", QUICK),
+                                       P("E", LONG), P("R1", SHORT), P("E", SHORT),
+                                       P("UH2", SHORT), P("S", SHORT)]
+    s += c(70.0) + cap("LEADER.") + [P("L1", SHORT), P("E", LONG), P("D", QUICK),
+                                     P("ER", MED), P("PA", LONG)]
     return s
 
 
@@ -577,7 +588,8 @@ def emit_all(path, emit_eye, screen):
             emit("halData", HAL,
                  '"I\'m sorry Mark. I\'m afraid I can\'t do that." -- slow and level', tail = 7)
             emit("cylonData", cylon(),
-                 '"By your command." -- a Centurion, low and level', tail = 8)
+                 '"By your command, Imperious Leader." -- a Centurion, low and level',
+                 tail = 8)
             emit_eye()
 
             print("; Daisy Bell chorus. Caption escapes carry the syllable; records are")
