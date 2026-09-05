@@ -46,20 +46,56 @@ public:
     void  ResetActiveToDefaults   ();
 
     // The override key and the resolved picture for whichever monitor and
-    // mode the page is showing.
-    std::string   ActiveOverrideKey () const;
-    CrtResolved   ResolveActive     () const;
+    // mode the page is showing. ResolveWithoutUser answers what the field
+    // would show if the user had never touched it.
+    std::string   ActiveOverrideKey  () const;
+    CrtResolved   ResolveActive      () const;
+    CrtResolved   ResolveWithoutUser () const;
 
     // Record one field as the user's. Never seeds a sibling: that is the
     // whole difference from the flag this replaced, which snapshotted all
     // eleven values before it latched.
+    //
+    // Setting a field to the value it already resolves to is NOT an
+    // adjustment, so it clears the override instead of storing one. Without
+    // that, dragging a slider away and back would leave the field pinned
+    // against every later theme change, and the user has no way to tell that
+    // state apart from having never touched it. A pair left holding nothing
+    // is erased so an empty entry never reaches the file.
     template <typename T>
-    void  SetOverride (std::optional<T> CrtOverrides::* member, T value)
+    void  SetOverride (std::optional<T> CrtOverrides::* slot,
+                       T CrtValues::*                   valueSlot,
+                       T                                value)
     {
-        if (m_prefs != nullptr)
+        std::string  key;
+
+
+
+        if (m_prefs == nullptr)
         {
-            m_prefs->crtOverrides[ActiveOverrideKey()].*member = value;
+            return;
         }
+
+        key = ActiveOverrideKey();
+
+        if (ResolveWithoutUser().values.*valueSlot == value)
+        {
+            auto  found = m_prefs->crtOverrides.find (key);
+
+            if (found != m_prefs->crtOverrides.end())
+            {
+                (found->second.*slot).reset();
+
+                if (found->second.IsEmpty())
+                {
+                    m_prefs->crtOverrides.erase (found);
+                }
+            }
+
+            return;
+        }
+
+        m_prefs->crtOverrides[key].*slot = value;
     }
 
     // A theme carries CRT defaults, so adopting a theme adopts them --

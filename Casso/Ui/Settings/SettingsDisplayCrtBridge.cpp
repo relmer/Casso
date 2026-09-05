@@ -231,6 +231,7 @@ std::string SettingsDisplayCrtBridge::ActiveOverrideKey() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ResolveActive
@@ -265,6 +266,39 @@ CrtResolved SettingsDisplayCrtBridge::ResolveActive() const
     }
 
     return CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) idx), themeDefaults, overrides);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveWithoutUser
+//
+//  What the active monitor and mode would show if the user had never
+//  adjusted anything: the preset with the active theme's groups over it.
+//
+//  Used to decide whether an edit is an edit. A slider dragged back to the
+//  value it already had leaves nothing to record, and storing an override
+//  there would pin the field against later theme changes for no reason the
+//  user could see or undo.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtResolved SettingsDisplayCrtBridge::ResolveWithoutUser() const
+{
+    const ThemeCrtDefaults *  themeDefaults = nullptr;
+    int                       idx           = GetActiveModeIdx();
+
+
+
+    if (m_themes != nullptr && m_themes->GetActiveTheme() != nullptr)
+    {
+        themeDefaults = &m_themes->ActiveCrtDefaults();
+    }
+
+    return CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) idx), themeDefaults, CrtOverrides {});
 }
 
 
@@ -325,19 +359,19 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
     // monitor type the user has selected in the dropdown.
     m_displayPage->SetOnBrightnessChange ([this] (float pct)
     {
-        SetOverride (&CrtOverrides::brightness, pct / 100.0f);     // slider 0..200% -> shader 0..2.0
+        SetOverride (&CrtOverrides::brightness, &CrtValues::brightness, pct / 100.0f);     // slider 0..200% -> shader 0..2.0
     });
     m_displayPage->SetOnContrastChange ([this] (float pct)
     {
-        SetOverride (&CrtOverrides::contrast, pct / 100.0f);
+        SetOverride (&CrtOverrides::contrast, &CrtValues::contrast, pct / 100.0f);
     });
     m_displayPage->SetOnGammaChange ([this] (float g)
     {
-        SetOverride (&CrtOverrides::gamma, g);
+        SetOverride (&CrtOverrides::gamma, &CrtValues::gamma, g);
     });
     m_displayPage->SetOnPersistenceChange ([this] (float pct)
     {
-        SetOverride (&CrtOverrides::persistence, pct / 100.0f);
+        SetOverride (&CrtOverrides::persistence, &CrtValues::persistence, pct / 100.0f);
     });
 
     // Monitor dropdown updates both palette AND active mode index so
@@ -364,31 +398,31 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
     // monitor's CRT block.
     m_displayPage->SetOnScanlinesEnChange ([this] (bool on)
     {
-        SetOverride (&CrtOverrides::scanlinesEnabled, on);
+        SetOverride (&CrtOverrides::scanlinesEnabled, &CrtValues::scanlinesEnabled, on);
     });
     m_displayPage->SetOnScanlinesIntChange ([this] (float pct)
     {
-        SetOverride (&CrtOverrides::scanlinesIntensity, pct / 100.0f);
+        SetOverride (&CrtOverrides::scanlinesIntensity, &CrtValues::scanlinesIntensity, pct / 100.0f);
     });
     m_displayPage->SetOnBloomEnChange ([this] (bool on)
     {
-        SetOverride (&CrtOverrides::bloomEnabled, on);
+        SetOverride (&CrtOverrides::bloomEnabled, &CrtValues::bloomEnabled, on);
     });
     m_displayPage->SetOnBloomRadiusChange ([this] (float px)
     {
-        SetOverride (&CrtOverrides::bloomRadius, px);
+        SetOverride (&CrtOverrides::bloomRadius, &CrtValues::bloomRadius, px);
     });
     m_displayPage->SetOnBloomStrengthChange ([this] (float pct)
     {
-        SetOverride (&CrtOverrides::bloomStrength, pct / 100.0f);
+        SetOverride (&CrtOverrides::bloomStrength, &CrtValues::bloomStrength, pct / 100.0f);
     });
     m_displayPage->SetOnColorBleedEnChange ([this] (bool on)
     {
-        SetOverride (&CrtOverrides::colorBleedEnabled, on);
+        SetOverride (&CrtOverrides::colorBleedEnabled, &CrtValues::colorBleedEnabled, on);
     });
     m_displayPage->SetOnColorBleedWChange ([this] (float px)
     {
-        SetOverride (&CrtOverrides::colorBleedWidth, px);
+        SetOverride (&CrtOverrides::colorBleedWidth, &CrtValues::colorBleedWidth, px);
     });
 
     // Restore Defaults gives the user the RESOLVED defaults (theme

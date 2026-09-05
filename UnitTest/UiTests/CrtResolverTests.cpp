@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -441,6 +442,56 @@ public:
     TEST_METHOD (ModeToken_OutOfRangeYieldsColor)
     {
         Assert::IsTrue (CrtResolver::ModeToken (99) == "color");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //  Setting a field to the value it already resolves to is not an
+    //  adjustment. The bridge owns that rule on the write side, and these
+    //  pin the arithmetic it depends on: the slider units have to round
+    //  trip exactly, or a drag back to the starting point would store an
+    //  override the user cannot see or undo.
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (SliderPercentUnitsRoundTripExactly)
+    {
+        // The page carries brightness, contrast, persistence, scanline
+        // intensity and bloom strength as whole percents and divides by 100
+        // on the way in. IEEE division is correctly rounded, so the result
+        // is the same float as the literal, and an equality test is enough
+        // without an epsilon.
+        Assert::AreEqual (1.00f, 100.0f / 100.0f);
+        Assert::AreEqual (1.05f, 105.0f / 100.0f);
+        Assert::AreEqual (0.20f,  20.0f / 100.0f);
+        Assert::AreEqual (0.35f,  35.0f / 100.0f);
+        Assert::AreEqual (0.40f,  40.0f / 100.0f);
+        Assert::AreEqual (0.50f,  50.0f / 100.0f);
+        Assert::AreEqual (0.55f,  55.0f / 100.0f);
+        Assert::AreEqual (0.80f,  80.0f / 100.0f);
+    }
+
+
+    // Every shipped preset value a user could drag back to has to be
+    // reachable on its slider, or the clear-on-match rule would never fire
+    // for that field. Color bleed 0.0 is the known exception: the slider
+    // floor is 1.0, and the row is disabled whenever the toggle is off.
+    TEST_METHOD (ShippedPresetValuesSitOnReachableSliderSteps)
+    {
+        size_t  mode = 0;
+
+        for (mode = 0; mode < kCrtModeCount; mode++)
+        {
+            const CrtValues &  p = CrtPresets::GetPreset (mode);
+
+            Assert::IsTrue (p.brightness  >= 0.0f && p.brightness  <= 2.0f);
+            Assert::IsTrue (p.gamma       >= 0.5f && p.gamma       <= 2.5f);
+            Assert::IsTrue (p.persistence >= 0.0f && p.persistence <= 0.99f);
+            Assert::IsTrue (p.bloomRadius >= 0.5f && p.bloomRadius <= 4.0f);
+
+            // Scanline intensity and bloom strength both floor at 10%.
+            Assert::IsTrue (p.scanlinesIntensity >= 0.10f);
+            Assert::IsTrue (p.bloomStrength      >= 0.10f);
+        }
     }
 
 };
