@@ -85,6 +85,10 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **Tooltips kept the theme that was live when the window was built.** Switching
+  themes in Settings recolored the rest of the chrome but left the toolbar, //c
+  switch-bar and drive tooltips in the outgoing palette -- skeuomorphic blue
+  balloons over RetroTerminal green.
 - **A disk that could not be moved out of the way was sometimes only announced,
   never offered anywhere to go.** When a program rewrites a mounted image and
   the guest has written too, Casso saves the guest's version to a copy beside
