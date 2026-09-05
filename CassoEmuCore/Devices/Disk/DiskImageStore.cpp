@@ -262,7 +262,7 @@ HRESULT DiskImageStore::MountFromBytes (
 
         if (entry.mounted)
         {
-            hr = FlushEntry (entry);
+            hr = FlushEntry (entry, FlushMoment::Running);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
@@ -321,6 +321,60 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 
 
     return Mount (slot, drive, path, ignored);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ReportPreserveFailure
+//
+//  The guest's version could not be written beside the file that displaced it.
+//
+//  IT IS THE SAME FAILURE THE WATCHER SIDE ALREADY ASKS ABOUT, so it is asked
+//  the same way. Which of the two ends notices a collision first is a matter of
+//  timing the user cannot see, and it used to decide whether they were offered
+//  somewhere else to put the disk or merely told the write had not happened.
+//
+//  A CLOSING BAY IS TOLD RATHER THAN ASKED. A question is posted to the shell
+//  and answered later on this thread, so it needs a bay still holding the disk,
+//  a pump still running and a store still alive. An eject releases the image
+//  whatever the flush did, and a shutdown has left its message loop, so an
+//  offer made at either would be answered by nobody -- and the notice, which
+//  blocks, is the only thing that still reaches the user there.
+//
+//  NEITHER ONE LOSES ANYTHING. The write is refused either way and the image
+//  keeps its dirty bit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
+                                            const string & attemptedPath, HRESULT hrKeep,
+                                            const string & original)
+{
+    bool  canAsk = (moment == FlushMoment::Running)
+                && m_askSink
+                && !entry.sharedState.IsAskOutstanding();
+
+
+
+    if (!canAsk)
+    {
+        EhmNotifyUser (FormatExternalChangeMessage (original).c_str());
+
+        return;
+    }
+
+    entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+
+    entry.sharedState.SetAskOutstanding (
+        m_askSink (entry.slot, entry.drive,
+                   ChangePrompt::ComposeSaveFailure (original, entry.drive, attemptedPath,
+                                                     hrKeep, SaveFailureCause::ExternalChange)));
+
+    return;
 }
 
 
@@ -812,7 +866,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::FlushEntry (Entry & entry)
+HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
 {
     HRESULT        hr           = S_OK;
     HRESULT        hrRecovery   = S_OK;
@@ -902,8 +956,12 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
             //  it was last read.
             keptExternal = SUCCEEDED (hrKeep);
 
+            //  The name it tried is held whether or not the write landed, so a
+            //  retry goes to the file the user was told about.
+            entry.sharedState.SetPreservedPath (preservedPath);
+
             CBRFEx (keptExternal, STG_E_NOTCURRENT,
-                    EhmNotifyUser (FormatExternalChangeMessage (original).c_str()));
+                    ReportPreserveFailure (entry, moment, preservedPath, hrKeep, original));
 
             //  On disk under its own name, so the bay carries nothing unsaved.
             entry.sharedState.SetPreservedPath (preservedPath);
@@ -1124,7 +1182,7 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
 
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
-    hr = FlushEntry (GetEntry (slot, drive));
+    hr = FlushEntry (GetEntry (slot, drive), FlushMoment::Running);
 
 Error:
     return hr;
@@ -1191,7 +1249,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         // Patching the flag byte afterwards edits a file that already holds
         // them; doing it the other way round would strand them behind the
         // gate this call is about to close.
-        hr = FlushEntry (entry);
+        hr = FlushEntry (entry, FlushMoment::Running);
         CHR (hr);
 
         hr = ReadImageFile (entry.path, bytes);
@@ -1574,11 +1632,40 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FlushAll
+//  FlushAll / FlushAllForClosing
+//
+//  MOST FLUSHES HAPPEN WITH THE MACHINE RUNNING. A drive spinning down, a
+//  machine switch, a power cycle and a soft reset all keep every bay and every
+//  pump, so a failure among them can be put as a question. Only the process
+//  shutting down cannot, and it says so by name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::FlushAll()
+{
+    return FlushEveryBay (FlushMoment::Running);
+}
+
+
+
+HRESULT DiskImageStore::FlushAllForClosing()
+{
+    return FlushEveryBay (FlushMoment::Closing);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlushEveryBay
+//
+//  What both of the above are, once the moment is decided.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::FlushEveryBay (FlushMoment moment)
 {
     HRESULT   hr      = S_OK;
     HRESULT   hrFirst = S_OK;
@@ -1591,7 +1678,7 @@ HRESULT DiskImageStore::FlushAll()
     {
         for (drive = 0; drive < kDriveCount; drive++)
         {
-            hr = FlushEntry (m_entries[slot][drive]);
+            hr = FlushEntry (m_entries[slot][drive], moment);
 
             if (FAILED (hr) && SUCCEEDED (hrFirst))
             {
@@ -1629,7 +1716,11 @@ void DiskImageStore::Eject (int slot, int drive)
         // Flush failures are reported to the user by FlushEntry itself; the
         // eject proceeds either way, because refusing to unmount would leave
         // the user with no way to get the disk out.
-        hr = FlushEntry (entry);
+        //
+        // AND THAT IS WHY IT CANNOT BE A QUESTION HERE. The image is released
+        // three lines down whatever happened, so an offer to save it would be
+        // answered against a bay holding nothing.
+        hr = FlushEntry (entry, FlushMoment::Closing);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         //  Before the path goes: the watch is keyed by the directory the

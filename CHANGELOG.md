@@ -85,6 +85,14 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **A disk that could not be moved out of the way was sometimes only announced,
+  never offered anywhere to go.** When a program rewrites a mounted image and
+  the guest has written too, Casso saves the guest's version to a copy beside
+  the original -- and if that copy cannot be written, it asks where to put it
+  instead. It only asked when the change was noticed by the file watcher;
+  noticed instead by the guest's own write, the same failure was a message with
+  no way to act on it. Both now ask. The two moments that cannot ask, because
+  the disk or the program is on its way out, still say so plainly.
 - **The same disk image could be put in both drives at once.** Each drive held
   its own copy of it from that moment, so whichever wrote last overwrote the
   other's changes, and one change from outside Casso raised the conflict twice.
