@@ -306,10 +306,11 @@ HRESULT SettingsSheet::OpenModeless (
     });
 
     // Per-monitor CRT plumbing for the Display page. Bind funnels the slider /
-    // toggle / monitor / restore-defaults edits through the crtByMode block so
-    // the shader picks them up next frame; ReseedFromActiveMode (after the
-    // Rebuild below) seeds the widgets from the active mode so the sliders
-    // show real values instead of sitting zeroed at the left.
+    // toggle / monitor / restore-defaults edits into the override map, one
+    // field per edit, so the shader picks them up next frame;
+    // ReseedFromActiveMode (after the Rebuild below) seeds the widgets from
+    // the active mode so the sliders show real values instead of sitting
+    // zeroed at the left.
     m_crt.Bind (&prefs, &themes, &m_state, m_displayPage, &emuShell);
     m_crt.WireDisplayPageCallbacks();
 

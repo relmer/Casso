@@ -47,6 +47,11 @@ Entries before versioning was introduced use dates only.
   drive lead on a line of their own instead of appearing in every sentence, and
   all four notices report the copy the same way: your disk is renamed, and the
   new name is given once.
+- **A machine's `monitor` key takes a vendor-qualified identifier.** `MonitorII`
+  and `MonitorIIc` are now `AppleMonitorII` and `AppleMonitorIIc`. The catalog
+  will hold tubes from more than one maker, so each identifier carries whose it
+  is. A machine JSON carrying an old identifier falls back to the default
+  monitor.
 - **Massively faster startup.** Reduced startup time from ~20s (debug build) to 
   under 1s, and the executable is ~80% smaller by prebuilding object meshes, 
   optimizing tesselation, and precompiling shaders. 
@@ -81,6 +86,14 @@ Entries before versioning was introduced use dates only.
   the whole picture. Up to about 3:2 the glass still covers the screen as
   before; beyond that only the tube is drawn, against black, without the case,
   bezel or power lamp.
+- **Changing one CRT setting no longer freezes the others.** Every setting left
+  alone keeps following the monitor preset and the active theme.
+- **The color bleed width now shows the width in effect.** It rounded to whole
+  pixels, which put every theme's width at 1 px and left the setting stuck
+  there once dragged. It reads and drags to a tenth of a pixel.
+- **The preferences file grew a duplicate monitor-tilt entry on every save.** The
+  key was both read directly and swept up as an unknown key, so each save wrote
+  one more copy than the last. Existing files repair themselves on the next save.
 - **GH #137: audio follows a change of the default output device.** The output
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are
@@ -126,6 +139,10 @@ Entries before versioning was introduced use dates only.
 - **Global settings could be reset to defaults on launch.** A remembered disk whose
   file was gone made startup rewrite the preferences file to clear the stale path,
   and that write replaced the whole global section with built-in defaults.
+- **Restore defaults ignored a theme's per-machine values.** It read the theme's base
+  CRT defaults and skipped the machine overrides merged on top. On an Apple //e running
+  Retro Terminal it seeded the base numbers instead of the //e variant's. Those wrong
+  values then stuck, because Restore defaults also marks the monitor as user-set.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the

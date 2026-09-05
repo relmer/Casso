@@ -3,6 +3,8 @@
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
+#include "Config/CrtPresets.h"
+#include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Devices/Printer/PrinterCard.h"
@@ -1550,6 +1552,83 @@ void EmulatorShell::PersistBezelTilt()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::RefreshCrtOverrideKeys
+//
+//  Rebuilds the four override keys for the monitor now on the desk.
+//
+//  Resolving the monitor costs a path lookup, a file read and a JSON parse,
+//  so it cannot happen on the render path. Caching all four modes rather
+//  than the active one means a color-mode change needs no invalidation at
+//  all, and the per-frame lookup does not build a string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefreshCrtOverrideKeys()
+{
+    const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
+    size_t               mode    = 0;
+
+
+
+    for (mode = 0; mode < kCrtModeCount; mode++)
+    {
+        m_crtOverrideKeys[mode] = CrtResolver::MakeKey (monitor.configName, mode);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ResolveCrtForCurrentMode
+//
+//  The picture for the monitor and mode showing right now.
+//
+//  The color mode is loaded ONCE. Reading it twice would let a preemption
+//  between the reads pair one mode preset with another mode overrides, which
+//  is a race the previous two-load call sites carried.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
+{
+    const ThemeCrtDefaults *  themeDefaults = nullptr;
+    size_t                    mode          = (size_t) m_colorMode.load (std::memory_order_acquire);
+    CrtOverrides              overrides;
+    auto                      found         = m_globalPrefs.crtOverrides.end();
+
+
+
+    if (mode >= kCrtModeCount)
+    {
+        mode = 0;
+    }
+
+    found = m_globalPrefs.crtOverrides.find (m_crtOverrideKeys[mode]);
+    if (found != m_globalPrefs.crtOverrides.end())
+    {
+        overrides = found->second;
+    }
+
+    // Resolved defaults, never the base theme: the base drops the machine
+    // variant overrides, which is what made the picture change brightness
+    // depending on which caller set the parameters last.
+    if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
+    {
+        themeDefaults = &m_themeManager->ActiveCrtDefaults();
+    }
+
+    return CrtResolver::Resolve (CrtPresets::GetPreset (mode), themeDefaults, overrides);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ResolveMonitorForCurrentMachine
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3055,6 +3134,12 @@ HRESULT EmulatorShell::InitializeUiShell()
     SubscribeAndActivateTheme();
 
     ApplyPersistedChromePrefs();
+
+    // Seed the CRT override keys once the machine is settled. Done here
+    // rather than inside ApplyPersistedChromePrefs, which returns early for
+    // a machine carrying no $cassoUiPrefs object and would leave the keys
+    // empty for it.
+    RefreshCrtOverrideKeys();
 
     hr = FinishUiShellLayout();
     CHR (hr);
@@ -7416,6 +7501,12 @@ int EmulatorShell::RunMessageLoop()
                 UpdateWindowTitle();
                 ReflowChromeForMachineChange();
 
+                // The machine may now sit in front of a different monitor,
+                // which changes every override key. This is the UI-thread
+                // side of the switch; SwitchMachine runs on the CPU thread
+                // and must not do file work or race the render path.
+                RefreshCrtOverrideKeys();
+
                 // A switch may have changed the default pointer mode on the CPU
                 // thread (ApplyDefaultPointerForMachine defers its UI reflection
                 // here to stay off the CPU thread). Sync the selector state on
@@ -7543,15 +7634,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // overrides, so the picture changed brightness whenever a resize let
     // the other caller set the parameters instead.
     {
-        const ThemeCrtDefaults *  themeDefaults = nullptr;
-        if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
-        {
-            themeDefaults = &m_themeManager->ActiveCrtDefaults();
-        }
-
-        CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
-                                           (size_t) m_colorMode.load(std::memory_order_acquire),
-                                           themeDefaults,
+        CrtParams  params = MakeCrtParams (ResolveCrtForCurrentMode(),
                                            (float) m_d3dRenderer.GetBackBufferWidth(),
                                            (float) m_d3dRenderer.GetBackBufferHeight());
         m_d3dRenderer.SetCrtParams (params);
@@ -12734,17 +12817,9 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         if (!m_uiFramebuffer.empty())
         {
-            const ThemeCrtDefaults  * themeDefaults = nullptr;
-            CrtParams                 params        = {};
+            CrtParams  params = {};
 
-            if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
-            {
-                themeDefaults = &m_themeManager->ActiveCrtDefaults();
-            }
-
-            params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
-                                    (size_t) m_colorMode.load(std::memory_order_acquire),
-                                    themeDefaults,
+            params = MakeCrtParams (ResolveCrtForCurrentMode(),
                                     (float) m_d3dRenderer.GetBackBufferWidth(),
                                     (float) m_d3dRenderer.GetBackBufferHeight());
             m_d3dRenderer.SetCrtParams (params);
