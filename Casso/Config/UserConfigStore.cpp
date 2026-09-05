@@ -1995,7 +1995,18 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
 
         if (SUCCEEDED (hrGlobal))
         {
-            legacyGlobalJson = parsed;
+            // What FromJson made of the document, not the document. The two
+            // differ whenever loading converts something -- a v1 CRT block
+            // becoming the sparse override map, most recently -- and passing
+            // the original through would write the pre-conversion form into
+            // the file that replaces it, then delete the only other copy.
+            // Unknown keys still survive: FromJson keeps them and ToJson
+            // emits them again.
+            //
+            // The branch below already does exactly this for a first run, so
+            // agreeing with it is also what makes the two paths produce the
+            // same document from the same preferences.
+            legacyGlobalJson = prefs.ToJson();
         }
     }
 
