@@ -131,10 +131,13 @@ static constexpr int     kFramebufferWidth       = ChromeMetrics::kFramebufferWi
 static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHeightPx;
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
-// Gap between the two drive rows. Wide, because the compact presentation puts
-// each drive's caption on the same line as the other's rail, and a narrow gap
-// left "DRIVE 2" reading as a label on drive 1's bar.
-static constexpr int     s_kDriveWidgetGapDp    = 44;
+// Gap between the two drives. The compact presentation needs a wide one,
+// because it puts each drive's caption on the same line as the other's rail
+// and a narrow gap left "DRIVE 2" reading as a label on drive 1's bar. The
+// modeled drives have no caption beside them and keep the close spacing:
+// standing them 44 dp apart would push the pair out to the window's edges.
+static constexpr int     s_kDriveWidgetGapDp        = 16;
+static constexpr int     s_kCompactDriveWidgetGapDp = 44;
 
 //  How long the change band stands before closing itself. Long enough to read
 //  twice without hurrying, short enough that a build loop does not leave a
@@ -359,7 +362,8 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
 
     bottomInset = bottomInsetPx;
     commandBarTop = std::max (0, clientH - bottomInset);
-    gap = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+    gap = MulDiv (driveChrome[0].IsCompact() ? s_kCompactDriveWidgetGapDp : s_kDriveWidgetGapDp,
+                  static_cast<int> (dpi), s_kBaseDpi);
 
 
 
