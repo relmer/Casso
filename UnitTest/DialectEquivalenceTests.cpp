@@ -50,7 +50,7 @@ namespace DialectEquivalenceTests
     struct EquivalentPair
     {
         const char *  name;
-        const char *  as65Path;     // relative to Apple2/Demos
+        const char *  as65Path;     // relative to Apple2/Demos/CassoRocks
         const char *  merlinPath;
 
         //  Whether the Merlin source is Merlin's ALONE. Equality between two
@@ -158,8 +158,8 @@ namespace DialectEquivalenceTests
 
     private:
 
-        //  Apple2/Demos, found from this file rather than from the working
-        //  directory, which the test host does not promise.
+        //  Apple2/Demos/CassoRocks, found from this file rather than from the
+        //  working directory, which the test host does not promise.
         static std::string DemoDir()
         {
             std::string  thisFile = __FILE__;
@@ -168,7 +168,7 @@ namespace DialectEquivalenceTests
 
             lastSep = unitDir.find_last_of ("\\/");
 
-            return unitDir.substr (0, lastSep) + "\\Apple2\\Demos";
+            return unitDir.substr (0, lastSep) + "\\Apple2\\Demos\\CassoRocks";
         }
 
 

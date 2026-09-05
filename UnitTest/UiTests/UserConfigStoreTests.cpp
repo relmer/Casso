@@ -1090,6 +1090,92 @@ public:
     }
 
 
+    // The upgrade used to copy the legacy document straight into the new
+    // file's global section while its sibling branch wrote prefs.ToJson(),
+    // so whatever loading had normalized or converted was thrown away -- and
+    // the legacy file is deleted right after, leaving no other copy.
+    TEST_METHOD (UnifiedPrefs_Migration_WritesWhatWasLoadedNotWhatWasRead)
+    {
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        HRESULT                      hr      = S_OK;
+        UserConfigStore::LoadReport  report;
+        JsonWriter::Options          opts;
+        std::string                  expected;
+        std::wstring                 baseDir = L"C:\\Casso";
+        UserConfigStore              store (baseDir);
+
+
+        hr = fs.WriteAllText (LegacyGlobalPathForTest (baseDir),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\","
+                              "\"crt\":{\"green\":{\"userOverride\":true,\"brightness\":1.42}}}");
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, report);
+        AssertSucceeded (hr);
+
+        opts.fPretty = true;
+        hr = JsonWriter::Write (prefs.ToJson(), opts, expected);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (expected, GlobalTextOrFail (fs, store));
+    }
+
+
+    // The conversion runs inside FromJson, so it reaches the file only if the
+    // upgrade writes what FromJson produced. This is the concrete case the
+    // previous test generalizes.
+    TEST_METHOD (UnifiedPrefs_Migration_CarriesALegacyCrtBlockAcrossAsOverrides)
+    {
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        HRESULT                      hr      = S_OK;
+        UserConfigStore::LoadReport  report;
+        std::string                  global;
+        std::wstring                 baseDir = L"C:\\Casso";
+        UserConfigStore              store (baseDir);
+
+
+        hr = fs.WriteAllText (LegacyGlobalPathForTest (baseDir),
+                              "{\"$cassoGlobalPrefsVersion\":1,"
+                              "\"crt\":{\"green\":{\"userOverride\":true,\"brightness\":1.42}}}");
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, report);
+        AssertSucceeded (hr);
+
+        global = GlobalTextOrFail (fs, store);
+
+        Assert::IsTrue  (global.find ("crtOverrides")         != std::string::npos);
+        Assert::IsTrue  (global.find ("AppleMonitorII/green") != std::string::npos);
+        Assert::IsFalse (global.find ("userOverride")         != std::string::npos);
+    }
+
+
+    // ToJson has to round-trip what it did not recognize, or agreeing with the
+    // sibling branch would trade one kind of loss for another.
+    TEST_METHOD (UnifiedPrefs_Migration_KeepsAnUnknownTopLevelKey)
+    {
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        HRESULT                      hr      = S_OK;
+        UserConfigStore::LoadReport  report;
+        std::wstring                 baseDir = L"C:\\Casso";
+        UserConfigStore              store (baseDir);
+
+
+        hr = fs.WriteAllText (LegacyGlobalPathForTest (baseDir),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\","
+                              "\"futureKey\":\"keep me\"}");
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, report);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (GlobalTextOrFail (fs, store).find ("keep me") != std::string::npos);
+    }
+
+
     TEST_METHOD (UnifiedPrefs_MigrationIsIdempotent)
     {
         InMemoryFileSystem           fs;
