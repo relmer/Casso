@@ -120,7 +120,7 @@ struct ChangePrompt
 
     //  Whether this one closes itself after a while.
     //
-    //  ONLY THE PICK-UP NOTICE DOES, because it is the only one confirming
+    //  ONLY THE RELOAD NOTICE DOES, because it is the only one confirming
     //  something the user asked for -- with a switch on the write, or by
     //  answering the question -- and making them dismiss it charges them twice
     //  for the same decision. The notices about a copy being written, or
@@ -143,15 +143,20 @@ struct ChangePrompt
     //
     //  `copyPath` IS WHERE THE VERSION IN THE DRIVE GOES IF IT IS KEPT, and
     //  `copyAlreadyWritten` says whether it is there yet. A conflict writes it
-    //  before asking anything, so the two cases differ by one tense: "we'll
-    //  rename it to" against "it's already saved as".
+    //  before asking anything, so the two cases differ by one tense: "it will
+    //  be renamed to" against "we've renamed your disk to".
+    //
+    //  IT IS ALWAYS PUT AS A RENAME, never as a save. The user's disk is a
+    //  file to them, and what happened to it is that it has a new name.
+    //  Telling them their writes "hadn't been saved yet" describes a write
+    //  cache they have no view of and reads as though work had been at risk.
     static ChangePrompt  Compose (const std::string & imagePath, int drive,
                                   ChangeAction action,
                                   const std::string & copyPath   = std::string(),
                                   bool copyAlreadyWritten        = false);
 
-    //  The notice shown once contents went into a drive, whether the write
-    //  said what it was for or the user answered the question above.
+    //  The notice shown once contents were reloaded, whether the write said
+    //  what it was for or the user answered the question above.
     //
     //  IT ATTRIBUTES THE WRITE ONLY WHEN `author` SAYS SO. It used to name
     //  CassoCli unconditionally, on the belief that no other route reached it;
@@ -166,8 +171,8 @@ struct ChangePrompt
     //  for the same reason: a path is where a copy would go, never evidence
     //  that one is there. A bay reserves the name when the question is put and
     //  keeps holding it when a write fails, so reading a non-empty `copyPath`
-    //  as a save reported files that were never created.
-    static ChangePrompt  ComposePickUpReport (const std::string & imagePath, int drive,
+    //  as a rename reported files that were never created.
+    static ChangePrompt  ComposeReloadReport (const std::string & imagePath, int drive,
                                               bool machineRebooted,
                                               const std::string & machineName,
                                               ChangeAuthor author,

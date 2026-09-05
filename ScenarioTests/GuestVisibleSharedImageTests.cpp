@@ -98,7 +98,7 @@ public:
         }
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
-            L"the build step must succeed, or there is nothing to pick up");
+            L"the build step must succeed, or there is nothing to reload");
 
         return io.files[kImagePath];
     }
@@ -187,13 +187,13 @@ public:
 
         //  Stated by the writer, which is what a `--on-change reload` build
         //  step says: take the new contents, leave the machine running.
-        core.diskStore->NoteExternalChange (kImagePath, PickUpIntent::TakeUpInPlace);
+        core.diskStore->NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         //  Time passes and the machine reaches a quiet moment -- the two things
         //  the emulator's own clock and idle callback supply in a real session.
         nowMs += MountedImageState::kQuietPeriodMs;
 
-        core.diskStore->ApplyPendingPickUp();
+        core.diskStore->ApplyPendingReload();
 
         //  SC-001: the guest can run the new program, with no eject and no
         //  re-insert by hand. Nothing below the disk layer was told anything --

@@ -1093,6 +1093,12 @@ private:
     // thread: a flush that fails on the CPU thread reports through here.
     void         ShowNotification (const std::wstring & message);
 
+    // Hands a notification to the message pump instead of showing it here.
+    // For callers that are themselves inside a message being handled -- a
+    // dialog's OK handler, say -- where a modal opened inline would run a
+    // nested loop against a window still mid-commit.
+    void         PostNotification (const std::wstring & message);
+
     // Replays notifications raised before the window existed. Startup reports
     // a bad prefs file before there is anything to parent a dialog to, and a
     // queued message that appears a moment later beats a bare Win32 box.

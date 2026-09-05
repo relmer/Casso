@@ -43,6 +43,10 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **The "disk modified outside Casso" notices were rewritten.** The disk and its
+  drive lead on a line of their own instead of appearing in every sentence, and
+  all four notices report the copy the same way: your disk is renamed, and the
+  new name is given once.
 - **Massively faster startup.** Reduced startup time from ~20s (debug build) to 
   under 1s, and the executable is ~80% smaller by prebuilding object meshes, 
   optimizing tesselation, and precompiling shaders. 
@@ -57,9 +61,18 @@ Entries before versioning was introduced use dates only.
   RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
-- **Two false claims in the notice shown after a changed disk was taken up.**
-  It reported a preserved copy that was never written, and named CassoCli
+- **Two false claims in the notice shown after a changed disk was reloaded.**
+  It reported a renamed copy that was never written, and named CassoCli
   whatever program had changed the file.
+- **A window with no client area buried the screen in assertion dialogs.**
+  Every control laid out against a minimized window came out zero DIPs wide,
+  and a text field insetting that by its own padding passed a NEGATIVE width to
+  DirectWrite, which refuses one. Being a paint, it failed again every frame:
+  launching Casso minimized with the boot-disk picker due stacked some thirty
+  modal assertion boxes within seconds, and minimizing the picker while it was
+  open did the same. Text is no longer drawn into a box with no area, and a
+  failed assertion is now shown once per run and never on top of another one --
+  the task-modal box was pumping the very paint whose failure raised it.
 - **Unchecking a second drive was not correctly persisted.** The drive left the
   desk as it should, but came back the next time Settings opened, and on the
   next launch.
@@ -103,6 +116,19 @@ Entries before versioning was introduced use dates only.
   `Casso --machine Apple2e --dsik1 work.dsk` ran whatever disk was mounted last.
   An argument Casso cannot read now stops startup and shows the reason above the
   full usage text, and every form of `--help` shows that text and exits.
+- **A settings file Casso could not read was overwritten anyway.** It is now saved
+  as `UserPrefs.<date-time>.original.json` and a fresh one started, so the original
+  is still there to repair. If it cannot be set aside, nothing is written over it.
+- **Settings changes that could not be saved reported success.** The Settings sheet
+  closed as though it had written them, and Cancel had nothing left to revert to.
+  A save that cannot go through now says so and leaves the sheet where it was.
+- **Old settings files that could not be read cost you the ones that could.** One
+  unreadable file failed the whole upgrade, and every readable file beside it was
+  then left unread for good. Casso now carries across what it can and reports what
+  it left behind.
+- **Global settings could be reset to defaults on launch.** A remembered disk whose
+  file was gone made startup rewrite the preferences file to clear the stale path,
+  and that write replaced the whole global section with built-in defaults.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the

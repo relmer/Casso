@@ -574,7 +574,7 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
     {
         message += L" Your session was preserved here instead:\n\n" + wideRecovery +
                    L"\n\nThat copy is complete. It keeps the track that could not "
-                   L"be written back. Mount it to carry on from where you were.";
+                   L"be written back. Mount it to pick up where you left off.";
     }
     else
     {
@@ -818,7 +818,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
             //  question. Reserving happens once, wherever it happens first.
             preservedPath = entry.preservedPath;
 
-            hrKeep = PreserveHeldVersion (entry, preservedPath);
+            hrKeep = SaveLoadedImage (entry, preservedPath);
 
             //  A preserve that did not happen stops the write. The image KEEPS
             //  ITS DIRTY BIT, which is the difference between refusing and
@@ -1933,7 +1933,7 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent intent)
+void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeIntent intent)
 {
     std::lock_guard<std::mutex>  held (m_pendingMutex);
     int64_t  now   = GetNowMs();
@@ -1964,7 +1964,7 @@ void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent inten
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::ApplyPendingPickUp
+//  DiskImageStore::ApplyPendingReload
 //
 //  Act on whatever has settled, on the thread that owns disk writes.
 //
@@ -1974,7 +1974,7 @@ void DiskImageStore::NoteExternalChange (const string & path, PickUpIntent inten
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::ApplyPendingPickUp()
+void DiskImageStore::ApplyPendingReload()
 {
     int      readySlot[kSlotCount * kDriveCount]  = {};
     int      readyDrive[kSlotCount * kDriveCount] = {};
@@ -2012,12 +2012,12 @@ void DiskImageStore::ApplyPendingPickUp()
         }
     }
 
-    //  ACTED ON OUTSIDE THE LOCK. Taking up an image reads a file and swaps a
+    //  ACTED ON OUTSIDE THE LOCK. Reloading an image reads a file and swaps a
     //  disk; holding the pending mutex across that would block the watcher
     //  thread for the length of a read.
     for (i = 0; i < readyCount; i++)
     {
-        ApplyPendingPickUpToBay (readySlot[i], readyDrive[i]);
+        ApplyPendingReloadToBay (readySlot[i], readyDrive[i]);
     }
 
     return;
@@ -2029,7 +2029,7 @@ void DiskImageStore::ApplyPendingPickUp()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::ApplyPendingPickUpToBay
+//  DiskImageStore::ApplyPendingReloadToBay
 //
 //  One bay's settled change, from noticing it to acting on it.
 //
@@ -2045,7 +2045,7 @@ void DiskImageStore::ApplyPendingPickUp()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
+void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 {
     HRESULT                            hr        = S_OK;
     Entry                            & entry     = GetEntry (slot, drive);
@@ -2053,7 +2053,7 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
     bool                               held      = false;
     bool                               usable    = false;
     bool                               unchanged = false;
-    PickUpIntent                       intent    = PickUpIntent::Unstated;
+    ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
     ChangeAction                       action    = ChangeAction::Ignore;
     ImageIdentity                      current;
     vector<Byte>                       bytes;
@@ -2141,7 +2141,7 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
     //  side happened to be quicker.
     if (action == ChangeAction::Conflict)
     {
-        hr = PreserveHeldVersion (entry, entry.preservedPath);
+        hr = SaveLoadedImage (entry, entry.preservedPath);
 
         if (FAILED (hr))
         {
@@ -2419,7 +2419,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 //
 //  A REPORT IS RAISED ONCE AND ABSORBS WHAT FOLLOWS. Three builds before the
 //  developer turns back to the emulator are three pick-ups and one report: the
-//  contents taken up are always the most recent, and three reports about one
+//  contents reloaded are always the most recent, and three reports about one
 //  disk say nothing three times.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2427,19 +2427,19 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction action,
                                            const vector<Byte> & bytes)
 {
-    HRESULT       hr           = S_OK;
-    Entry       & entry        = GetEntry (slot, drive);
-    bool          restarted    = false;
-    bool          tookUp       = false;
-    bool          preserved    = false;
-    bool          preserveFail = false;
-    PickUpIntent  intent       = PickUpIntent::Unstated;
-    ChangeAuthor  author       = ChangeAuthor::AnotherProgram;
-    string        preservedPath;
+    HRESULT               hr           = S_OK;
+    Entry               & entry        = GetEntry (slot, drive);
+    bool                  restarted    = false;
+    bool                  tookUp       = false;
+    bool                  preserved    = false;
+    bool                  preserveFail = false;
+    ExternalChangeIntent  intent       = ExternalChangeIntent::Unstated;
+    ChangeAuthor          author       = ChangeAuthor::AnotherProgram;
+    string                preservedPath;
     //  KEEPING MOVES THE BAY ONTO THE COPY, so entry.path is no longer the file
     //  any of these messages are about by the time they are composed. Captured
     //  before anything can move it.
-    string        original     = entry.path;
+    string                original     = entry.path;
 
 
 
@@ -2454,16 +2454,16 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         intent = entry.sharedState.GetPending().intent;
     }
 
-    if (intent != PickUpIntent::Unstated)
+    if (intent != ExternalChangeIntent::Unstated)
     {
         author = ChangeAuthor::CassoCli;
     }
 
     switch (action)
     {
-    case ChangeAction::TakeUpInPlace:
+    case ChangeAction::ReloadInPlace:
     case ChangeAction::Restart:
-        hr = TakeUpContents (slot, drive, bytes);
+        hr = MountExternallyModifiedDisk (slot, drive, bytes);
 
         if (SUCCEEDED (hr))
         {
@@ -2495,7 +2495,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         //  disk and leave the first orphaned.
         if (!entry.preservedWritten)
         {
-            hr = PreserveHeldVersion (entry, entry.preservedPath);
+            hr = SaveLoadedImage (entry, entry.preservedPath);
 
             if (FAILED (hr))
             {
@@ -2585,12 +2585,12 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     {
         ChangePrompt  report;
 
-        //  TAKING UP IS REPORTED AHEAD OF PRESERVING, because a conflict that
-        //  was taken up did both and the pick-up is the headline; the copy is a
+        //  THE RELOAD IS REPORTED AHEAD OF PRESERVING, because a conflict that
+        //  reloaded did both and the reload is the headline; the copy is a
         //  clause on the end of it.
         if (tookUp)
         {
-            report = ChangePrompt::ComposePickUpReport (original, drive, restarted,
+            report = ChangePrompt::ComposeReloadReport (original, drive, restarted,
                                                         m_machineName, author,
                                                         preservedPath, preserved);
         }
@@ -2619,7 +2619,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::TakeUpContents
+//  DiskImageStore::MountExternallyModifiedDisk
 //
 //  Swaps a mounted image's contents for the ones on disk.
 //
@@ -2633,7 +2633,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::TakeUpContents (int slot, int drive, const vector<Byte> & bytes)
+HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes)
 {
     HRESULT                  hr         = S_OK;
     Entry                  & entry      = GetEntry (slot, drive);
@@ -2652,7 +2652,7 @@ HRESULT DiskImageStore::TakeUpContents (int slot, int drive, const vector<Byte> 
     //  THE CONTENTS MOVE, THE OBJECT STAYS. The controller holds a raw pointer
     //  to this DiskImage -- SetExternalDisk hands one over at mount -- so
     //  replacing the unique_ptr would leave the drive reading freed memory the
-    //  instant a disk was picked up. Assigning through keeps the address the
+    //  instant a disk was reloaded. Assigning through keeps the address the
     //  drive was given.
     *entry.image = std::move (*loaded);
 
@@ -2755,7 +2755,7 @@ Error:
 //
 //  DiskImageStore::BeginWatching
 //
-//  Takes up a watch on the directory holding a bay's image.
+//  Starts a watch on the directory holding a bay's image.
 //
 //  A DIRECTORY THAT CANNOT BE WATCHED IS RECORDED, NOT REPORTED. A network
 //  share or a synchronizing folder is exactly the case that produces one, and
@@ -2777,7 +2777,7 @@ void DiskImageStore::BeginWatching (int slot, int drive)
         watching = m_watcher->Watch (directory,
                                      [this] (const string & path)
                                      {
-                                         NoteExternalChange (path, PickUpIntent::Unstated);
+                                         NoteExternalChange (path, ExternalChangeIntent::Unstated);
                                      });
     }
 
@@ -2954,7 +2954,7 @@ HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::PreserveHeldVersion
+//  DiskImageStore::SaveLoadedImage
 //
 //  Writes what the bay is holding to a file of its own.
 //
@@ -2963,7 +2963,7 @@ HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::PreserveHeldVersion (Entry & entry, string & outPath)
+HRESULT DiskImageStore::SaveLoadedImage (Entry & entry, string & outPath)
 {
     HRESULT       hr = S_OK;
     vector<Byte>  bytes;
@@ -3004,7 +3004,7 @@ Error:
 //  Writes bytes that came off the file to a file of their own.
 //
 //  THE OTHER DIRECTION. Here the emulator is about to write its own version
-//  over an external change it never picked up, so the version being displaced
+//  over an external change it never reloaded, so the version being displaced
 //  is the one on disk.
 //
 ////////////////////////////////////////////////////////////////////////////////

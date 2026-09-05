@@ -1113,8 +1113,10 @@ void EmulatorShell::AllocateFramebuffers()
 
 void EmulatorShell::PrimeChromeThemeEarly()
 {
-    HRESULT       hr = S_OK;
-    std::wstring  parseDetail;
+    HRESULT                      hr = S_OK;
+    UserConfigStore::LoadReport  report;
+    std::wstring                 message;
+    std::wstring                 skipped;
 
 
 
@@ -1122,6 +1124,12 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // with defaults. A corrupt one is the user's file being unreadable, so we
     // tell them where it broke and reset to defaults so Casso still boots --
     // silently starting over just reads as "Casso lost my settings".
+    //
+    // Two outcomes to report, and the difference matters to the reader. With a
+    // preserved path, LoadAll moved every byte to that file and settings save
+    // normally from here. Without one, the file is still where it was and
+    // saving is refused until it reads, so the message must not suggest the
+    // session will keep anything.
     //
     // Non-asserting on purpose. A malformed prefs file is bad DATA, not a
     // coding error: there is no bug for a developer to break into, and it
@@ -1132,12 +1140,23 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // and the -N family is CHRF with its action fixed to one EhmNotifyUser
     // call. EhmNotifyUser rather than a themed dialog: this runs before the
     // chrome theme or main window exist, and it auto-detects GUI vs console.
-    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, parseDetail);
+    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, report);
     CHRF (hr,
-          EhmNotifyUser ((L"Casso could not read your settings and has started "
-                          L"with defaults. Your file was left untouched.\n\n" +
-                          parseDetail).c_str());
+          message = UserConfigStore::ComposeLoadFailureMessage (
+                        m_assetBaseDir, m_userConfigStore->GetUserPrefsFilePath(), report);
+          EhmNotifyUser (message.c_str());
           m_globalPrefs = GlobalUserPrefs {});
+
+    // A migration that carried forward what it could and left the rest is the
+    // one degraded outcome that reports SUCCESS, so nothing else will mention
+    // it. The unified file exists from here on, which closes the gate that
+    // would have retried those files, so this is the only chance to say so.
+    skipped = UserConfigStore::ComposeSkippedLegacyMessage (m_assetBaseDir, report);
+
+    if (!skipped.empty())
+    {
+        EhmNotifyUser (skipped.c_str());
+    }
 
 Error:
     m_chromeTheme = CassoTheme::MakeByName (m_globalPrefs.activeTheme);
@@ -2967,10 +2986,15 @@ void EmulatorShell::LoadMachineUiPrefs (
 
     // A missing file, or a missing "$cassoUiPrefs" key, is normal (first run
     // for this machine): recover to null so the caller keeps defaults, no
-    // assert. Content that exists but is corrupt -- unparseable JSON or a
-    // failed override merge -- means something is wrong, so CHRA asserts (a
-    // debug build breaks for a dev to dig in) and then bails to that same
-    // null-prefs recovery.
+    // assert. A machine's own config failing to parse IS a coding error -- it
+    // is a shipped asset, not something a user edits -- so that one asserts.
+    //
+    // The store's Load is a different matter and must NOT assert. It reads the
+    // user's prefs file, and PrimeChromeThemeEarly's banner already settles
+    // what that means: a malformed prefs file is bad DATA, there is no bug for
+    // a developer to break into, and it would stop the debugger every time
+    // someone hand-edits their JSON. An unreadable file that could not be set
+    // aside reaches here on the very next machine load.
     BAIL_OUT_IF (configPath.empty(), S_OK);
     configFile.open (configPath);
     BAIL_OUT_IF (!configFile.good(), S_OK);
@@ -2982,7 +3006,7 @@ void EmulatorShell::LoadMachineUiPrefs (
     CHRA (hr);
 
     hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, outDoc);
-    CHRA (hr);
+    CHR (hr);
 
     BAIL_OUT_IF (outDoc.GetType() != JsonType::Object, S_OK);
 
@@ -5520,6 +5544,48 @@ void EmulatorShell::ShowNotification (const std::wstring & message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::PostNotification
+//
+//  Hands the report to the message pump rather than opening a dialog here.
+//
+//  ShowNotification ends in a modal, which is wrong for a caller that is
+//  itself inside a message being handled: the Settings sheet's OK handler
+//  reaches one, and a modal opened there runs a nested loop against a sheet
+//  that has neither finished committing nor closed. Posting lets the click
+//  finish first, so the dialog arrives over a settled window.
+//
+//  Falls back to the pre-window queue for the same reason ShowNotification
+//  does -- a report raised before there is a window must not vanish.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PostNotification (const std::wstring & message)
+{
+    wstring *  carried = nullptr;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        EmulatorShell::QueueNotification (message);
+        return;
+    }
+
+    carried = new (std::nothrow) wstring (message);
+
+    if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_NOTIFY_USER, 0,
+                                             reinterpret_cast<LPARAM> (carried)))
+    {
+        delete carried;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::FlushPendingNotifications
 //
 //  Replays anything reported before the window existed. The queue is drained
@@ -5999,11 +6065,11 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     }
 
     //  WIDE ENOUGH FOR ITS OWN BUTTONS. The width was a hard 440 while the
-    //  height already grew with the text, so a dialog whose buttons carry a
-    //  filename -- "Insert the modified work.dsk" -- pushed the row past the
-    //  left margin and hard against the frame with no gap at all. Measured
-    //  with the same estimate the row lays itself out with, so the two cannot
-    //  come to disagree.
+    //  height already grew with the text, so a dialog whose buttons carried a
+    //  filename pushed the row past the left margin and hard against the
+    //  frame with no gap at all. No label carries a filename any more, but a
+    //  measured row is what keeps that from mattering: measured with the same
+    //  estimate the row lays itself out with, so the two cannot disagree.
     widthDip = DxuiButtonRow::kEdgePadDip * 2;
 
     for (const DialogButton & button : def.buttons)

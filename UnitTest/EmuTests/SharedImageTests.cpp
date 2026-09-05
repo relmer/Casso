@@ -211,17 +211,17 @@ public:
         //  says what it meant by one, and a real session that gets both gets
         //  them in this order.
         void  FireAndSettle (const std::string & path,
-                             PickUpIntent        intent = PickUpIntent::Unstated)
+                             ExternalChangeIntent        intent = ExternalChangeIntent::Unstated)
         {
             watcher.Fire (kDirectory, path);
 
-            if (intent != PickUpIntent::Unstated)
+            if (intent != ExternalChangeIntent::Unstated)
             {
                 store.NoteExternalChange (path, intent);
             }
 
             nowMs += MountedImageState::kQuietPeriodMs;
-            store.ApplyPendingPickUp();
+            store.ApplyPendingReload();
         }
 
         std::vector<std::string>  preserved;
@@ -307,7 +307,7 @@ public:
 
 
     //  A CHANGE NOBODY EXPLAINED IS A QUESTION, AND ANSWERING IT IS NOT A
-    //  PICK-UP BY WHOEVER WROTE. The notice raised afterwards claimed CassoCli
+    //  RELOAD BY WHOEVER WROTE. The notice raised afterwards claimed CassoCli
     //  had modified the file and inserted it -- on a change the watcher found
     //  and an insertion the user asked for -- and claimed a preserved copy
     //  under the name the question had merely reserved. A disk the guest never
@@ -334,14 +334,14 @@ public:
                           L"putting the question reserves a name, it does not write a file");
 
         //  "Insert the modified <file>."
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::TakeUpInPlace);
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
 
         Assert::AreEqual ((size_t) 1, rig.reports.size());
         Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
                           L"and answering it does not write one either");
 
-        Assert::IsTrue (rig.reports[0].message.find (L"saved them as") == std::wstring::npos,
-                        L"so the notice must not report a copy that was only ever named");
+        Assert::IsTrue (rig.reports[0].message.find (L"renamed") == std::wstring::npos,
+                        L"so the notice must not report a rename that never happened");
         Assert::IsTrue (rig.reports[0].message.find (L"CassoCli") == std::wstring::npos,
                         L"and nothing said who wrote, so it must not name a program");
     }
@@ -360,7 +360,7 @@ public:
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         Assert::AreEqual ((size_t) 0, rig.questions.size(),
                           L"a stated intent is acted on rather than asked about");
@@ -381,7 +381,7 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                          L"the change was dealt with");
@@ -514,7 +514,7 @@ public:
 
 
 
-    TEST_METHOD (ThreeChangesInsideTheQuietPeriodProduceOnePickUp)
+    TEST_METHOD (ThreeChangesInsideTheQuietPeriodProduceOneReload)
     {
         Rig  rig;
 
@@ -528,20 +528,20 @@ public:
         rig.watcher.Fire (kDirectory, kImagePath);
 
         rig.nowMs += MountedImageState::kQuietPeriodMs / 2;
-        rig.store.ApplyPendingPickUp();
+        rig.store.ApplyPendingReload();
         Assert::AreEqual ((size_t) 0, rig.reports.size(), L"still being written");
 
         rig.WriteImage (kImagePath, 0x33);
         rig.watcher.Fire (kDirectory, kImagePath);
 
         rig.nowMs += MountedImageState::kQuietPeriodMs / 2;
-        rig.store.ApplyPendingPickUp();
+        rig.store.ApplyPendingReload();
         Assert::AreEqual ((size_t) 0, rig.reports.size(),
                           L"the third change resets the timer -- the period is "
                           L"measured from the LAST change, not the first");
 
         rig.WriteImage (kImagePath, 0x44);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         Assert::AreEqual ((size_t) 1, rig.reports.size(), L"one build, one pick-up");
     }
@@ -559,14 +559,14 @@ public:
 
         //  What a watcher reports and what a mount recorded rarely match as
         //  strings.
-        rig.store.NoteExternalChange ("c:/WORK/loader.dsk", PickUpIntent::Unstated);
+        rig.store.NoteExternalChange ("c:/WORK/loader.dsk", ExternalChangeIntent::Unstated);
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
 
         rig.store.GetSharedState (kSlot, kDrive);
         rig.store.Eject (kSlot, kDrive);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        rig.store.NoteExternalChange ("C:\\work\\Something Else.dsk", PickUpIntent::Unstated);
+        rig.store.NoteExternalChange ("C:\\work\\Something Else.dsk", ExternalChangeIntent::Unstated);
         Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                          L"a directory watch reports every file under it");
     }
@@ -583,10 +583,10 @@ public:
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
         rig.WriteImage (kImagePath, 0x22);
-        rig.store.NoteExternalChange (kImagePath, PickUpIntent::Restart);
+        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::Restart);
 
         rig.nowMs += MountedImageState::kQuietPeriodMs;
-        rig.store.ApplyPendingPickUp();
+        rig.store.ApplyPendingReload();
 
         Assert::AreEqual (1, rig.restarts);
         Assert::AreEqual ((size_t) 0, rig.questions.size(),
@@ -604,12 +604,12 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        rig.store.NoteExternalChange (kImagePath, PickUpIntent::Restart);
+        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::Restart);
         rig.WriteImage (kImagePath, 0x22);
-        rig.store.NoteExternalChange (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         rig.nowMs += MountedImageState::kQuietPeriodMs;
-        rig.store.ApplyPendingPickUp();
+        rig.store.ApplyPendingReload();
 
         //  The last writer is the one whose bytes are on the disk, so a stale
         //  intent describes contents that are gone.
@@ -638,8 +638,8 @@ public:
         //  Without the outstanding flag the user would be asked again sixty
         //  times a second while reading the first one.
         rig.nowMs += MountedImageState::kQuietPeriodMs;
-        rig.store.ApplyPendingPickUp();
-        rig.store.ApplyPendingPickUp();
+        rig.store.ApplyPendingReload();
+        rig.store.ApplyPendingReload();
 
         Assert::AreEqual ((size_t) 1, rig.questions.size());
     }
@@ -660,7 +660,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, rig.questions.size());
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::TakeUpInPlace);
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
 
         Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity()
@@ -779,7 +779,7 @@ public:
             AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
 
             rig->WriteImage (kImagePath, 0x22);
-            rig->FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+            rig->FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
             Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
             Assert::IsTrue (rig->bayChanges[1] == BayChange::Swapped);
@@ -919,7 +919,7 @@ public:
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
 
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         //  The external version is mounted, because it is the newest thing and
         //  the developer just made it.
@@ -965,7 +965,7 @@ public:
         rig.refusePreserve = true;
 
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         //  This is the decision most worth asserting: a preserve that silently
         //  did not happen would break the promise exactly where it matters.
@@ -992,7 +992,7 @@ public:
             for (i = 0; i < 100; i++)
             {
                 rig.nowMs += MountedImageState::kQuietPeriodMs;
-                rig.store.ApplyPendingPickUp();
+                rig.store.ApplyPendingReload();
             }
         }
 
@@ -1018,7 +1018,7 @@ public:
             rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
 
             rig.WriteImage (kImagePath, (Byte) (0x20 + round));
-            rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+            rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
             rig.store.ClearChangeReport (kSlot, kDrive);
         }
@@ -1258,18 +1258,18 @@ public:
             if (rig.reports.size() == 1)
             {
                 rig.WriteImage (kImagePath, 0x44);
-                rig.store.NoteExternalChange (kImagePath, PickUpIntent::TakeUpInPlace);
+                rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
             }
         });
 
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                         L"the change that arrived mid-apply is still there");
 
         rig.nowMs += MountedImageState::kQuietPeriodMs;
-        rig.store.ApplyPendingPickUp();
+        rig.store.ApplyPendingReload();
 
         Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
     }
@@ -1285,13 +1285,13 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         rig.WriteImage (kImagePath, 0x33);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         rig.WriteImage (kImagePath, 0x44);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         //  THE NOTICE STAYS STANDING, which is what tells the shell to re-word
         //  the one already up rather than raise a second. Three builds before
@@ -1305,7 +1305,7 @@ public:
         //  left it advising a reboot that had already been done.
         Assert::AreEqual ((size_t) 3, rig.reports.size());
 
-        //  And the contents taken up are the most recent, not those current
+        //  And the contents reloaded are the most recent, not those current
         //  when the report first appeared.
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity()
                             .Matches (rig.identities[kImagePath]));
@@ -1325,9 +1325,9 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        //  Taken up with the machine left running.
+        //  Reloaded with the machine left running.
         rig.WriteImage (kImagePath, 0x22);
-        rig.FireAndSettle (kImagePath, PickUpIntent::TakeUpInPlace);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         Assert::AreEqual ((size_t) 1, rig.reports.size());
         Assert::IsTrue (rig.reports[0].message.find (L"rebooted") == std::wstring::npos,
@@ -1336,7 +1336,7 @@ public:
         //  Then one that reboots. The notice standing from the first change is
         //  re-worded in place rather than left saying what stopped being true.
         rig.WriteImage (kImagePath, 0x33);
-        rig.FireAndSettle (kImagePath, PickUpIntent::Restart);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::Restart);
 
         Assert::AreEqual (1, rig.restarts);
         Assert::AreEqual ((size_t) 2, rig.reports.size());
@@ -1385,8 +1385,8 @@ public:
 
         //  The writer cannot know whether anything is running, and a build
         //  script must behave the same either way.
-        rig.store.NoteExternalChange ("C:\\elsewhere\\Nothing.dsk", PickUpIntent::Restart);
-        rig.store.ApplyPendingPickUp();
+        rig.store.NoteExternalChange ("C:\\elsewhere\\Nothing.dsk", ExternalChangeIntent::Restart);
+        rig.store.ApplyPendingReload();
 
         Assert::AreEqual (0, rig.restarts);
         Assert::AreEqual ((size_t) 0, rig.reports.size());

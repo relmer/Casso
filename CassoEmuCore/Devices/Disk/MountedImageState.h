@@ -24,8 +24,8 @@
 
 struct PendingChange
 {
-    bool          seen       = false;
-    PickUpIntent  intent     = PickUpIntent::Unstated;
+    bool                  seen   = false;
+    ExternalChangeIntent  intent = ExternalChangeIntent::Unstated;
 
     //  When the most recent change arrived. The quiet period is measured from
     //  HERE and not from the first, which is what lets a burst settle once.
@@ -85,7 +85,7 @@ public:
     //
     //  A LATER STATED INTENT REPLACES AN EARLIER ONE, because the last writer
     //  is the one whose bytes are on disk.
-    void  NoteChange (int64_t nowMs, PickUpIntent intent);
+    void  NoteChange (int64_t nowMs, ExternalChangeIntent intent);
 
     //  Whether a noticed change has settled and may be acted on.
     bool  IsSettled  (int64_t nowMs) const;

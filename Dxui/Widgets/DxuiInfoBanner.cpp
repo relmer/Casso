@@ -25,20 +25,55 @@ static constexpr uint32_t   s_kBadgeInkArgb = 0xFFF7F9FCu;   // near-white "i" o
 //  average) so the count rounds up and the caller never sizes the banner too
 //  short to show every line.
 //
+//  MEASURED PER PARAGRAPH, BECAUSE A FORCED BREAK ENDS A LINE WHEREVER IT
+//  FALLS. Dividing the whole string by the characters that fit assumes every
+//  line is full, which undercounts by one for each partly-filled line a break
+//  leaves behind -- so a two-paragraph notice was sized as though it were one
+//  flowing sentence and lost its last lines off the bottom. GetMeasuredHeightPx
+//  does not share the fault, having a real renderer to ask, but the change
+//  banner over the machine is laid out without one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const
 {
     float   glyphPx = scaler.ToPxf (s_kFontDip) * s_kEstGlyphEm;
     float   perLine = (glyphPx > 0.0f) ? (textWidthPx / glyphPx) : 1.0f;
-    int     chars   = (int) m_text.size();
-    int     lines   = 1;
+    size_t  start   = 0;
+    size_t  breakAt = 0;
+    int     lines   = 0;
 
 
 
-    if (perLine >= 1.0f)
+    //  NARROWER THAN A SINGLE GLYPH ESTIMATES NOTHING, and must not fall
+    //  through to one line per character: the printer page sizes its banner
+    //  from a page rect that is briefly tiny, and a 250-character notice
+    //  would ask for 250 lines of height. One line, which is what this
+    //  returned before it counted paragraphs.
+    if (perLine < 1.0f)
     {
-        lines = (int) std::ceil ((float) chars / perLine);
+        return 1;
+    }
+
+    for (start = 0; start <= m_text.size(); start = breakAt + 1)
+    {
+        breakAt = m_text.find (L'\n', start);
+
+        if (breakAt == std::wstring::npos)
+        {
+            breakAt = m_text.size();
+        }
+
+        //  An empty paragraph is the blank line between two others, and takes
+        //  a line of its own.
+        lines += (breakAt > start)
+                     ? (int) std::ceil ((float) (breakAt - start) / perLine)
+                     : 1;
+
+        if (breakAt == m_text.size())
+        {
+            break;
+        }
     }
 
     if (lines < 1)
