@@ -111,6 +111,13 @@ Entries before versioning was introduced use dates only.
   themes in Settings recolored the rest of the chrome but left the toolbar, //c
   switch-bar and drive tooltips in the outgoing palette -- skeuomorphic blue
   balloons over RetroTerminal green.
+- **Ejecting or quitting could throw away writes while saying they were safe.**
+  If another program had rewritten a mounted image and Casso could not save
+  your version beside it, the message said your writes were still in memory --
+  and then the drive was emptied, or the program exited. Ejecting now asks
+  first, offering to save the disk wherever you choose, and quitting asks the
+  same thing through its own dialog. Decline, and the message says plainly that
+  the changes are going.
 - **A disk that could not be moved out of the way was sometimes only announced,
   never offered anywhere to go.** When a program rewrites a mounted image and
   the guest has written too, Casso saves the guest's version to a copy beside

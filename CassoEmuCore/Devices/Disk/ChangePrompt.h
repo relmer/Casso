@@ -47,6 +47,15 @@ enum class SaveFailureCause
 
     //  The file is gone, or is no longer readable as a disk.
     FileLost,
+
+    //  The same as ExternalChange, found as the disk was coming out of the
+    //  drive.
+    //
+    //  IT NEEDS ITS OWN ANSWERS. Everywhere else the disk stays in the drive
+    //  and dismissing costs nothing, because a later flush can try again.
+    //  Here the bay is about to be emptied, so declining is the end of that
+    //  disk -- and the offer has to say so rather than reading as "not now".
+    Ejecting,
 };
 
 
