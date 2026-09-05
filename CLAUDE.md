@@ -68,4 +68,15 @@ origin/<branch> origin/master` answers no for work that shipped. Ask whether the
 merge commit or the code is on master instead.
 
 <!-- SPECKIT START -->
+## Active feature
+
+**030-screenshot-capture** -- screenshot capture modes, file output, and metadata.
+Closes GH #132.
+
+- Plan: `specs/030-screenshot-capture/plan.md`
+- Spec: `specs/030-screenshot-capture/spec.md`
+- Research: `specs/030-screenshot-capture/research.md`
+- Data model: `specs/030-screenshot-capture/data-model.md`
+- Metadata contract: `specs/030-screenshot-capture/contracts/screenshot-metadata.md`
+- Validation: `specs/030-screenshot-capture/quickstart.md`
 <!-- SPECKIT END -->
