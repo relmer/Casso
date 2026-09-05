@@ -486,6 +486,11 @@ HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer, 
     hr = RenderCrtFrame (m_sceneRtv.Get(), pictureRect, pictureW, pictureH);
     CHRA (hr);
 
+    // Remembered for the screenshot readback: a Crt capture wants exactly the
+    // region the picture was just rendered into, and recomputing it there
+    // would be a second copy of this path's geometry to keep in step.
+    m_scenePictureRectPx  = pictureRect;
+
     m_redrawForced        = false;
     m_lastPresentedParams = m_crtParams;
 

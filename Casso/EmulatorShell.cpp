@@ -9572,8 +9572,29 @@ void EmulatorShell::TakeScreenshot()
     inputs.mode            = ScreenshotModeToken::Parse (m_globalPrefs.screenshotMode);
     inputs.saveFile        = m_globalPrefs.screenshotSaveFile;
     inputs.folder          = fs::path (m_globalPrefs.screenshotFolder);
-    inputs.viewportPx      = m_viewportBoundsPx;
-    inputs.picturePx       = m_d3dRenderer.GetTargetBounds();
+    //  THE TWO RECTS ARE NOT THE SAME THING, and m_viewportBoundsPx is not
+    //  either of them under a desk scene. That member is the DxuiViewport
+    //  panel's bounds, which the scene layout puts on the GLASS -- measured,
+    //  594x378 inside a 1582x1116 client. Feeding it to both inputs made Scene
+    //  and Crt capture one identical crop of the monitor's face.
+    //
+    //  Scene   the whole area the scene is drawn into, which the composition
+    //          owns; the same rect the compass is inset from.
+    //  Crt     where the picture actually landed. With a desk scene that is a
+    //          sub-rect of the offscreen target, recorded by the renderer as
+    //          it drew; without one the chain composited straight into the
+    //          back buffer at its target bounds.
+    if (DeskSceneActive())
+    {
+        inputs.viewportPx = m_deskScene.Composition().viewportPx;
+        inputs.picturePx  = m_d3dRenderer.GetScenePictureRect();
+    }
+    else
+    {
+        inputs.viewportPx = m_viewportBoundsPx;
+        inputs.picturePx  = m_d3dRenderer.GetTargetBounds();
+    }
+
     inputs.framebufferSize = { kFramebufferWidth, kFramebufferHeight };
     inputs.deskSceneActive = DeskSceneActive();
     inputs.windowMinimized = (IsIconic (m_hwnd) != FALSE);
@@ -9581,6 +9602,7 @@ void EmulatorShell::TakeScreenshot()
 
     plan = ScreenshotPlan::Resolve (inputs,
                [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
+
 
     sources.hwnd             = m_hwnd;
     sources.renderer         = &m_d3dRenderer;

@@ -83,6 +83,13 @@ public:
     // has run). Non-owning; valid until Shutdown or the next resize.
     ID3D11ShaderResourceView * GetSceneContentSrv () const { return m_sceneSrv.Get(); }
 
+    // Where the picture actually landed inside that offscreen target on the
+    // last UploadAndCompositeOffscreen. The scene samples this sub-rect onto
+    // the glass, and a Crt capture reads the same region -- so it is recorded
+    // rather than recomputed, which is how the two would drift apart.
+    // Empty until the offscreen path has run.
+    RECT GetScenePictureRect () const { return m_scenePictureRectPx; }
+
     // Screenshot readback. Both bring a rectangle of already-rendered pixels
     // back to the CPU; the caller has driven the frame and has NOT presented
     // yet, because a presented flip-model back buffer's contents are
@@ -212,8 +219,9 @@ private:
     ComPtr<ID3D11Texture2D>          m_sceneTex;
     ComPtr<ID3D11RenderTargetView>   m_sceneRtv;
     ComPtr<ID3D11ShaderResourceView> m_sceneSrv;
-    int                              m_sceneTexW = 0;
-    int                              m_sceneTexH = 0;
+    int                              m_sceneTexW          = 0;
+    int                              m_sceneTexH          = 0;
+    RECT                             m_scenePictureRectPx = {};
     ComPtr<ID3D11SamplerState>       m_sampler;
     ComPtr<ID3D11VertexShader>       m_vertexShader;
     ComPtr<ID3D11PixelShader>        m_pixelShader;
