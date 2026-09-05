@@ -112,7 +112,12 @@ struct ChangePrompt
     //  `copyPath` IS WHERE THE VERSION IN THE DRIVE GOES IF IT IS KEPT, and
     //  `copyAlreadyWritten` says whether it is there yet. A conflict writes it
     //  before asking anything, so the two cases differ by one tense: "it will
-    //  be renamed to" against "it's already saved as".
+    //  be renamed to" against "we've renamed your disk to".
+    //
+    //  IT IS ALWAYS PUT AS A RENAME, never as a save. The user's disk is a
+    //  file to them, and what happened to it is that it has a new name.
+    //  Telling them their writes "hadn't been saved yet" describes a write
+    //  cache they have no view of and reads as though work had been at risk.
     static ChangePrompt  Compose (const std::string & imagePath, int drive,
                                   ChangeAction action,
                                   const std::string & copyPath   = std::string(),

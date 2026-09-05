@@ -157,14 +157,15 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         prompt.message = L"Another program modified this disk while it was mounted in Casso:"
                          L"\n\n" + file + L" (" + where + L")";
 
-        //  A conflict wrote the copy before anything was asked, so the guest's
-        //  writes are already safe and the reader is told so up front. Where
-        //  they went waits for the sentence about keeping them, so the copy is
-        //  named once.
+        //  A conflict renamed the disk before anything was asked, and the
+        //  reader is told that and nothing else. It used to say their writes
+        //  "hadn't been saved yet", which describes a write cache they cannot
+        //  see and reads as though work had been at risk. What they expect is
+        //  that their disk is a file and that it is still there under a new
+        //  name, which is exactly what happened.
         if (copyAlreadyWritten && !copy.empty())
         {
-            prompt.message += L"\n\nYour writes to it hadn't been saved yet, so we've "
-                              L"saved them.";
+            prompt.message += L"\n\nWe've renamed your disk to " + copy + L".";
         }
 
         prompt.message += L"\n\nInsert the modified disk to use the other program's "
@@ -173,13 +174,13 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         prompt.message += L"\n\nKeep your current version to go on using the disk as "
                           L"it is.";
 
-        if (!copy.empty())
+        //  ONLY WHERE THE RENAME IS STILL AHEAD. Once it has happened the
+        //  paragraph above has already said so, and repeating the new name
+        //  here put it on the screen twice.
+        if (!copy.empty() && !copyAlreadyWritten)
         {
-            prompt.message += copyAlreadyWritten
-                                  ? (L" It's already saved as " + copy + L".")
-                                  : (L" It will be renamed to " + copy
-                                     + L" so that it doesn't conflict with the modified "
-                                       L"file.");
+            prompt.message += L" It will be renamed to " + copy
+                            + L" so that it doesn't conflict with the modified file.";
         }
 
         prompt.answers.push_back (PromptAnswer { L"Insert the modified disk",
@@ -249,10 +250,12 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
         prompt.message = L"CassoCli modified " + file + L" and inserted it into " + where + L".";
     }
 
+    //  THE SAME SENTENCE THE QUESTION USES. What became of the disk that was
+    //  in the drive is one fact, and it reads the same way wherever it is
+    //  reported: it has a new name, and here it is.
     if (!copy.empty())
     {
-        prompt.message += L" Your writes to it hadn't been saved yet, so we saved them as "
-                        + copy + L".";
+        prompt.message += L" We've renamed your disk to " + copy + L".";
     }
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
@@ -291,9 +294,12 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
 
     prompt.title   = L"Disk modified outside Casso";
 
-    prompt.message = L"Another program modified " + file + L", so we saved your changes as "
-                   + copy + L". " + where + L" now uses that file, and " + file
-                   + L" keeps the other program's changes.";
+    prompt.message = L"Another program modified this disk while it was mounted in Casso:"
+                     L"\n\n" + file + L" (" + where + L")";
+
+    prompt.message += L"\n\nWe've renamed your disk to " + copy
+                    + L" and the drive now uses it. The modified file is left as the "
+                      L"other program wrote it.";
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
 

@@ -39,6 +39,27 @@ public:
 
 
 
+    //  How many times a message prints something. The interesting property
+    //  of these strings is repetition, so counting is what the tests assert
+    //  on rather than presence.
+    static size_t  CountOf (const std::wstring & text, const std::wstring & what)
+    {
+        size_t  found = 0;
+        size_t  at    = 0;
+
+
+
+        for (at = text.find (what); at != std::wstring::npos;
+             at = text.find (what, at + 1))
+        {
+            found++;
+        }
+
+        return found;
+    }
+
+
+
     static const wchar_t *  NameOf (ChangeAction action)
     {
         switch (action)
@@ -386,6 +407,20 @@ public:
         Assert::IsTrue (report.message.find (L"Loader.20260830-014233-01.dsk")
                             != std::wstring::npos);
 
+        //  IT IS LAID OUT LIKE THE QUESTION, because it reports the same event
+        //  and a reader who has seen one should not have to re-learn the other:
+        //  the disk and its drive on a line of their own, then what happened to
+        //  it, in the words the question uses.
+        Assert::IsTrue (report.message.find (L"\n\nLoader.dsk (Drive 1)")
+                            != std::wstring::npos,
+                        (L"the identifying line is missing: " + report.message).c_str());
+        Assert::IsTrue (report.message.find (L"We've renamed your disk to")
+                            != std::wstring::npos);
+
+        //  Once each, as everywhere else.
+        Assert::AreEqual ((size_t) 1, CountOf (report.message, L"Loader.dsk"));
+        Assert::AreEqual ((size_t) 1, CountOf (report.message, L"Drive 1"));
+
         //  The folder is not repeated into the sentence; the file is enough,
         //  and the path buries it.
         Assert::IsTrue (report.message.find (L"C:\\work") == std::wstring::npos);
@@ -505,27 +540,14 @@ public:
         ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0,
                                                       ChangeAction::Ask,
                                                       "C:\\work\\Loader.20260830-014233-01.dsk");
-        std::wstring  whole  = prompt.message;
-        size_t        files  = 0;
-        size_t        drives = 0;
-        size_t        at     = 0;
+        std::wstring  whole = prompt.message;
 
 
 
-        for (at = whole.find (L"Loader.dsk"); at != std::wstring::npos;
-             at = whole.find (L"Loader.dsk", at + 1))
-        {
-            files++;
-        }
-
-        for (at = whole.find (L"Drive 1"); at != std::wstring::npos;
-             at = whole.find (L"Drive 1", at + 1))
-        {
-            drives++;
-        }
-
-        Assert::AreEqual ((size_t) 1, files,  L"the file is named once");
-        Assert::AreEqual ((size_t) 1, drives, L"the drive is named once");
+        Assert::AreEqual ((size_t) 1, CountOf (whole, L"Loader.dsk"),
+                          L"the file is named once");
+        Assert::AreEqual ((size_t) 1, CountOf (whole, L"Drive 1"),
+                          L"the drive is named once");
 
         //  Together, on their own line, where the eye finds them without
         //  reading a sentence.
@@ -539,8 +561,8 @@ public:
 
 
     //  KEEPING IS A SAVE-AS AND THE MESSAGE HAS TO SAY WHICH TENSE. A conflict
-    //  writes the copy before anything is put to the user, so by then it
-    //  already exists; with no conflict there is nothing on disk yet.
+    //  renames the disk before anything is put to the user, so by then it has
+    //  happened; with no conflict it is still ahead.
     TEST_METHOD (TheQuestionSaysWhetherTheCopyExistsYet)
     {
         ChangePrompt  before = ChangePrompt::Compose ("Loader.dsk", 0, ChangeAction::Ask,
@@ -551,12 +573,25 @@ public:
 
 
         Assert::IsTrue (before.message.find (L"It will be renamed") != std::wstring::npos);
-        Assert::IsTrue (after.message.find  (L"already saved as") != std::wstring::npos);
+        Assert::IsTrue (after.message.find  (L"We've renamed your disk") != std::wstring::npos);
 
-        //  And the one that already happened says so up front, because the
-        //  reader's first question is whether their work survived.
-        Assert::IsTrue (after.message.find (L"hadn't been saved yet") != std::wstring::npos);
-        Assert::IsTrue (before.message.find (L"hadn't been saved yet") == std::wstring::npos);
+        //  And neither one says the other's sentence. The rename is reported
+        //  once, in the tense it actually happened in.
+        Assert::IsTrue (after.message.find  (L"It will be renamed") == std::wstring::npos);
+        Assert::IsTrue (before.message.find (L"We've renamed your disk") == std::wstring::npos);
+
+        //  NOTHING MENTIONS UNSAVED WRITES. It used to open with "your writes
+        //  to it hadn't been saved yet", which describes a write cache the
+        //  user cannot see and reads as though their work had been at risk.
+        for (const ChangePrompt * p : { &before, &after })
+        {
+            Assert::IsTrue (p->message.find (L"saved yet") == std::wstring::npos,
+                            (L"the cache leaked into the message: " + p->message).c_str());
+        }
+
+        //  The new name is on the screen once either way.
+        Assert::AreEqual ((size_t) 1, CountOf (after.message,  L"Loader.20260830-014233-01.dsk"));
+        Assert::AreEqual ((size_t) 1, CountOf (before.message, L"Loader.20260830-014233-01.dsk"));
     }
 
 
