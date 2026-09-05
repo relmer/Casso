@@ -247,7 +247,9 @@
     <ClCompile Include="Devices\Disk\WozLoader.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskBuilder.cpp" />
     <ClCompile Include="Devices\Disk\StockBootDisks.cpp" />
+    <ClCompile Include="Capture\CaptureOutcome.cpp" />
     <ClCompile Include="Capture\ScreenshotMode.cpp" />
+    <ClCompile Include="Capture\ScreenshotPlan.cpp" />
     <ClCompile Include="Cli\CommandLine.cpp" />
     <ClCompile Include="Cli\Win32DiskFileIo.cpp" />
     <ClCompile Include="Cli\DiskCommand.cpp" />
@@ -371,7 +373,9 @@
     <ClInclude Include="Devices\Disk\WozMetadata.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\StockBootDisks.h" />
+    <ClInclude Include="Capture\CaptureOutcome.h" />
     <ClInclude Include="Capture\ScreenshotMode.h" />
+    <ClInclude Include="Capture\ScreenshotPlan.h" />
     <ClInclude Include="Cli\CommandLine.h" />
     <ClInclude Include="Cli\Win32DiskFileIo.h" />
     <ClInclude Include="Cli\DiskCommand.h" />
