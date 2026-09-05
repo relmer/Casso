@@ -117,12 +117,12 @@ std::wstring ChangePrompt::DescribeError (HRESULT reason)
 //  The question put when something else changed a mounted file.
 //
 //  THE BUTTONS SAY WHAT THEY DO. They were "Accept the changes" and "Ignore the
-//  changes", which named the external edit twice and said nothing about the
-//  disk in the drive; a reader could reasonably take "ignore" for "throw the
-//  new file away". Each label now states the action, and the body states its
+//  changes", which described the external edit twice and said nothing about
+//  the disk in the drive; a reader could reasonably take "ignore" for "throw
+//  the new file away". Each label states the action, and the body states its
 //  consequence.
 //
-//  THE FILE AND THE DRIVE ARE NAMED ONCE, ON A LINE OF THEIR OWN. Every
+//  THE FILE AND THE DRIVE APPEAR ONCE, ON A LINE OF THEIR OWN. Every
 //  sentence used to carry both, so a name of any length appeared six times in
 //  one dialog and the sentences around it were unreadable. Hoisting them to a
 //  line of their own lets the rest say "this disk" and "it", which is how

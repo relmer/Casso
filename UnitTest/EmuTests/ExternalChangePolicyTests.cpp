@@ -545,7 +545,7 @@ public:
     //  sentences around it could not be read. The name and the drive now lead
     //  on a line of their own, drive in parentheses after the file, and the
     //  prose says "this disk" and "it".
-    TEST_METHOD (TheQuestionNamesTheFileOnceAndTheDriveOnce)
+    TEST_METHOD (TheQuestionPrintsTheFileOnceAndTheDriveOnce)
     {
         ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0,
                                                       ChangeAction::Ask,
@@ -555,9 +555,9 @@ public:
 
 
         Assert::AreEqual ((size_t) 1, CountOf (whole, L"Loader.dsk"),
-                          L"the file is named once");
+                          L"the file is printed once");
         Assert::AreEqual ((size_t) 1, CountOf (whole, L"Drive 1"),
-                          L"the drive is named once");
+                          L"the drive is printed once");
 
         //  Together, on their own line, where the eye finds them without
         //  reading a sentence.
