@@ -97,15 +97,10 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
-- **The paddle-capture notice covered the drive widgets.** "Press Esc to
-  release the mouse and exit paddle mode" was shadowed text laid over the
-  viewport, hung above the //c's switch strip -- which collapses to nothing
-  on every other machine, so it fell back to the window's bottom edge and sat
-  on the drives. It is a message bar docked under the command strip now --
-  the picture gives up the height while the pointer is held, the same as the
-  external-change notice does -- and the same bar in every theme. In
-  fullscreen, where there are no bands, it rides down with the top chrome
-  the top edge reveals.
+- **The paddle-capture notice covered the drive widgets.** Shadowed text over
+  the picture, placed above the //c's switch strip, fell to the bottom edge of
+  the window on every other machine, where the drives are. It is a message bar
+  under the command bar now, in every theme.
 - **The input device icons were drawn larger than the rest of the command
   bar's.** They now match the other icons' size and stroke weight, and the
   mouse uses MDL2's own glyph.
