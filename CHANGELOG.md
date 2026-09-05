@@ -61,6 +61,15 @@ Entries before versioning was introduced use dates only.
   RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
+- **A window with no client area buried the screen in assertion dialogs.**
+  Every control laid out against a minimized window came out zero DIPs wide,
+  and a text field insetting that by its own padding passed a NEGATIVE width to
+  DirectWrite, which refuses one. Being a paint, it failed again every frame:
+  launching Casso minimized with the boot-disk picker due stacked some thirty
+  modal assertion boxes within seconds, and minimizing the picker while it was
+  open did the same. Text is no longer drawn into a box with no area, and a
+  failed assertion is now shown once per run and never on top of another one --
+  the task-modal box was pumping the very paint whose failure raised it.
 - **Unchecking a second drive was not correctly persisted.** The drive left the
   desk as it should, but came back the next time Settings opened, and on the
   next launch.

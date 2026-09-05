@@ -396,7 +396,10 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float        padL      = m_scaler.ToPxf (s_kPadLeftDip);
     float        padR      = m_scaler.ToPxf (s_kPadRightDip);
     float        fontPx    = m_scaler.ToPxf (s_kFontDip);
-    float        innerW    = w - padL - padR;
+    // Floored at zero: a control laid out against a window with no client
+    // area yet is zero DIPs wide, and the padding inset would otherwise take
+    // that below zero -- a width no clip rect or text box can mean.
+    float        innerW    = std::max (w - padL - padR, 0.0f);
     uint32_t     bgArgb    = s_kFallbackBg;
     uint32_t     fgArgb    = s_kFallbackFg;
     uint32_t     selArgb   = s_kFallbackSel;
