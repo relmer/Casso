@@ -62,6 +62,9 @@ Entries before versioning was introduced use dates only.
 ### Fixed
 - **Changing one CRT setting no longer freezes the others.** Every setting left
   alone keeps following the monitor preset and the active theme.
+- **The color bleed width now shows the width in effect.** It rounded to whole
+  pixels, which put every theme's width at 1 px and left the setting stuck
+  there once dragged. It reads and drags to a tenth of a pixel.
 - **The preferences file grew a duplicate monitor-tilt entry on every save.** The
   key was both read directly and swept up as an unknown key, so each save wrote
   one more copy than the last. Existing files repair themselves on the next save.

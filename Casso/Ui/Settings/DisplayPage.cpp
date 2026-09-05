@@ -402,11 +402,19 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_colorBleedWLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_colorBleedWLabel.SetText (L"Width:");
-    m_colorBleedW.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
-    m_colorBleedW.SetRange     (1.0f, 8.0f);
-    m_colorBleedW.SetStep      (1.0f);
-    m_colorBleedW.SetSuffix    (L" px");
-    m_colorBleedW.SetShowTicks (true);
+    // Every width the tiers can resolve to is fractional: the shipped themes
+    // declare 1.2 through 1.8 and the color preset asks for 3.0. At a whole
+    // pixel this slider quantized all four theme widths to the same 1 and
+    // printed no decimal, so the row showed a number no tier had asked for
+    // and could never be dragged back to the one it started on. A tenth, as
+    // bloom radius uses.
+    m_colorBleedW.SetRect          (MakeRect (controlsX, y, sliderWidth, rowHeight));
+    m_colorBleedW.SetRange         (1.0f, 8.0f);
+    m_colorBleedW.SetStep          (1.0f);
+    m_colorBleedW.SetDragStep      (0.1f);
+    m_colorBleedW.SetDecimalPlaces (1);
+    m_colorBleedW.SetSuffix        (L" px");
+    m_colorBleedW.SetShowTicks     (true);
     m_colorBleedWRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
     y += rowHeight + bigGap;
 

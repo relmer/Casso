@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/DxuiDpiScaler.h"
 #include "Ui/Settings/DisplayPage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -84,6 +85,99 @@ public:
         Assert::IsNull (DisplayPage::LabelForSource (hint.source[(size_t) CrtField::Gamma]));
         Assert::IsNull (DisplayPage::LabelForSource (hint.source[(size_t) CrtField::Persistence]));
         Assert::IsTrue (hint.source[(size_t) CrtField::Brightness] == CrtSource::Preset);
+    }
+
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplaySliderResolutionTests
+//
+//  That a slider can hold the value the tiers resolved for it.
+//
+//  A slider quantizes on the way in, so one whose granularity is coarser than
+//  the values a theme or preset may declare silently shows a different number
+//  than the one behind the picture -- and, because a user's adjustment is
+//  dropped when it matches the resolved default, can never be dragged back to
+//  where it started. The color bleed width row did both: it rounded all four
+//  shipped theme widths to the same 1.
+//
+//  Layout is where the granularity is set, and it needs no device, so the
+//  round trip pins here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DisplaySliderResolutionTests)
+{
+public:
+
+    // Every width the shipped themes declare, plus the color preset's 3.0.
+    TEST_METHOD (ColorBleedWidth_HoldsTheWidthsTheTiersDeclare)
+    {
+        const float  widths[] = { 1.2f, 1.5f, 1.7f, 1.8f, 3.0f };
+        DisplayPage  page;
+        size_t       i        = 0;
+
+        LayOut (page);
+
+        for (i = 0; i < _countof (widths); i++)
+        {
+            page.GetColorBleedSlider().SetValue (widths[i]);
+
+            Assert::AreEqual (widths[i], page.GetColorBleedSlider().GetValue(), 0.0001f);
+        }
+    }
+
+
+    // Dragging a control away and back is what returns a row to its default
+    // badge, so the value has to survive the excursion exactly.
+    TEST_METHOD (ColorBleedWidth_SurvivesAnExcursionAndBack)
+    {
+        DisplayPage  page;
+
+        LayOut (page);
+
+        page.GetColorBleedSlider().SetValue (1.2f);
+        page.GetColorBleedSlider().SetValue (4.0f);
+        page.GetColorBleedSlider().SetValue (1.2f);
+
+        Assert::AreEqual (1.2f, page.GetColorBleedSlider().GetValue(), 0.0001f);
+    }
+
+
+    // Bloom radius already resolved at a tenth; this guards the two from
+    // drifting apart, since they carry the same kind of value.
+    TEST_METHOD (BloomRadius_HoldsTheRadiiTheTiersDeclare)
+    {
+        const float  radii[] = { 0.6f, 0.8f, 1.8f, 2.4f };
+        DisplayPage  page;
+        size_t       i       = 0;
+
+        LayOut (page);
+
+        for (i = 0; i < _countof (radii); i++)
+        {
+            page.GetBloomRadiusSlider().SetValue (radii[i]);
+
+            Assert::AreEqual (radii[i], page.GetBloomRadiusSlider().GetValue(), 0.0001f);
+        }
+    }
+
+
+private:
+
+    // Slider ranges and granularity are set in Layout, so nothing below is
+    // meaningful until it has run once.
+    static void  LayOut (DisplayPage & page)
+    {
+        DxuiDpiScaler  scaler;
+        RECT           rect = { 0, 0, 600, 900 };
+
+        page.Layout (rect, scaler);
     }
 
 };
