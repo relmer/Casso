@@ -2139,10 +2139,9 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         usable = trial.IsLoaded();
     }
 
-    situation.changeSeen  = true;
-    situation.usable      = usable;
-    situation.heldByOther = false;
-    situation.intent      = intent;
+    situation.changeSeen = true;
+    situation.usable     = usable;
+    situation.intent     = intent;
 
     //  The guest's unsaved writes are what turns a pick-up into a conflict.
     //  They were deferred outright while there was nowhere to preserve them;
@@ -2575,10 +2574,6 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         entry.sharedState.ClearPreserved();
 
         break;
-
-    case ChangeAction::Defer:
-        //  Leave it pending. Nothing to say and nothing to clear.
-        return;
 
     case ChangeAction::Ignore:
         //  THE NAME GOES BACK WHEN THE QUESTION DOES. It was reserved to put

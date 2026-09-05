@@ -70,7 +70,6 @@ public:
         case ChangeAction::Ask:           return L"Ask";
         case ChangeAction::Conflict:      return L"Conflict";
         case ChangeAction::Unusable:      return L"Unusable";
-        case ChangeAction::Defer:         return L"Defer";
         case ChangeAction::KeepHeld:      return L"KeepHeld";
         case ChangeAction::Discard:       return L"Discard";
         case ChangeAction::PreserveCopy:  return L"PreserveCopy";
@@ -186,25 +185,6 @@ public:
 
 
 
-    TEST_METHOD (AFileSomebodyElseHoldsOutranksEverything)
-    {
-        Situation  situation = Seen();
-
-
-
-        situation.heldByOther = true;
-        situation.usable      = false;
-        situation.guestDirty  = true;
-        situation.intent      = ExternalChangeIntent::Restart;
-
-        //  Acting on a file still being written would read a half-written
-        //  disk, and everything below this test is a judgement about contents
-        //  that are not final yet.
-        AssertDecides (situation, ChangeAction::Defer);
-    }
-
-
-
     TEST_METHOD (EveryOutcomeThePolicyCanReachIsReachedByAKnownSituation)
     {
         //  The reverse sweep. For each outcome the policy is capable of
@@ -222,10 +202,6 @@ public:
 
 
         reaches.push_back (Reach { ChangeAction::Ignore, Situation() });
-
-        situation             = Seen();
-        situation.heldByOther = true;
-        reaches.push_back (Reach { ChangeAction::Defer, situation });
 
         situation        = Seen();
         situation.usable = false;
@@ -279,7 +255,6 @@ public:
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Ignore));
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::ReloadInPlace));
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Restart));
-        Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Defer));
     }
 
 
@@ -875,7 +850,6 @@ public:
         const ChangeAction  notQuestions[] = { ChangeAction::Ignore,
                                                ChangeAction::ReloadInPlace,
                                                ChangeAction::Restart,
-                                               ChangeAction::Defer,
                                                ChangeAction::Conflict,
                                                ChangeAction::KeepHeld,
                                                ChangeAction::Discard };
