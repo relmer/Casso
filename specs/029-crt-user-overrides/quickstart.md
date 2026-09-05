@@ -113,12 +113,14 @@ affects the other.
 Select-String -Path "$env:LOCALAPPDATA\Casso\UserPrefs.json" -Pattern "crtOverrides" -Context 0,12
 ```
 
-## Manual scenario 3: per-row reset and Restore Defaults
+## Manual scenario 3: undoing one adjustment, and Restore Defaults
 
 1. Override three rows in different groups, for example brightness, bloom
-   radius and scanline intensity.
-2. Reset one row. Only that row returns to a default label. The other two keep
-   their values.
+   radius and scanline intensity. Note what each read before you changed it.
+2. Drag one control back to the value it had. That row returns to a default
+   label on its own, with no reset control involved, and the other two keep
+   their values. This is the case that replaced the per-row reset buttons, so
+   it is the one worth checking carefully.
 3. Press Restore Defaults. All three return, and nothing is written to express
    that they were removed.
 

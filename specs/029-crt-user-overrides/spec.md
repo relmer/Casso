@@ -103,9 +103,9 @@ Reset a single row and confirm only that row changed.
    views the page, **Then** the row is labeled as showing a theme default.
 3. **Given** a row the user has changed, **When** the user views the page,
    **Then** the row is labeled as custom.
-4. **Given** three changed rows, **When** the user resets one of them, **Then**
-   that row returns to the preset and theme chain and the other two keep the
-   user's values.
+4. **Given** three changed rows, **When** the user returns one control to the
+   value it already resolves to, **Then** that row returns to the preset and
+   theme chain and the other two keep the user's values.
 5. **Given** any row, **When** the user resets it and its resolved value happens
    to equal what they had set, **Then** the row still reports itself as a
    default rather than as custom.
@@ -190,8 +190,10 @@ against what the old build produced.
 - **FR-007**: The Display page MUST show, for each adjustable row, whether the
   displayed value originates from the monitor, from the theme, or from the
   user's own adjustment.
-- **FR-008**: Users MUST be able to reset a single row without affecting other
-  rows.
+- **FR-008**: WITHDRAWN. Users were to reset a single row without affecting
+  other rows. Returning a control to the value it already resolves to now
+  clears that field on its own, so the case this covered no longer needs a
+  control of its own. Restore Defaults resets a whole monitor and mode.
 - **FR-009**: The system MUST convert settings files written by earlier releases
   so that every value the user could previously see applied is still applied.
 - **FR-010**: The conversion MUST run at most once for a given settings file and
@@ -250,8 +252,9 @@ against what the old build produced.
   produces an unchanged file after the first save.
 - **SC-005**: A settings file that has been round-tripped through an earlier
   release still yields the same resolved picture values in this release.
-- **SC-006**: Every one of the eleven settings can be individually reset, and
-  each reset changes exactly one row's reported source.
+- **SC-006**: WITHDRAWN with FR-008. In its place: setting any of the eleven
+  settings to the value it already shows leaves no adjustment recorded, and
+  the row keeps reporting the tier it was following.
 - **SC-007**: For each of the eleven settings, the source reported on the
   Display page matches the tier that actually supplied the value, across all
   combinations of theme-declares and user-adjusts.

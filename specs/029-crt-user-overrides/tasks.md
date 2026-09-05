@@ -106,7 +106,24 @@ or per small group. Each phase says which it is.
 
 - [ ] T019 [US3] Add `DisplayPage.cpp` to `UnitTest/UnitTest.vcxproj` under the same four-line entry shape as `HardwarePage.cpp` at `:490`. This pulls in nothing new: `SettingsPanelState.cpp` and `ColorUtil.cpp` are already project entries, `CassoTheme.h` is header-only, and `Dxui` is already linked. Expose the row-to-field mapping and the badge strings as class statics so they are reachable.
 - [ ] T020 [US3] In `Casso/Ui/Settings/DisplayPage.cpp`, replace the value-comparison badge with a source lookup. This DELETES code: the early return at `:850-853`, the `FloatMatches` lambda at `:868-871`, `s_kFloatEpsilon` at `:810`, eight float comparisons with their `/100.0f` rescaling, three bool comparisons, and `DisplayDefaultsHint::values` with all five `*FromTheme` bools at `DisplayPage.h:63-68`. Three labels rather than two: monitor default, theme default, custom. Gamma and persistence must never show a theme default, because no theme group carries them.
-- [ ] T021 [US3] Add eleven per-row reset controls to `Casso/Ui/Settings/DisplayPage.cpp`. They fit in the 28 DIP gap that already exists between each slider's right edge and the badge column at `:400`; placing them anywhere else forces a sheet widening. Add a SECOND control-id enum rather than extending `kControl*` at `DisplayPage.h:97-105`, which is pinned by a direct cast to `SettingsPreviewController::Focus`. Add each button explicitly to `DisplayPage::Paint` at `:877-991`, because this page hand-paints its children and never calls `DxuiPanel::Paint`, so the buttons would otherwise be invisible while their clicks worked. Add eleven `SetAccessibleName` calls following `DiskPage.cpp:97-101`, since no control on this page has one today and a bare glyph button announces as an unnamed Button. Rebuild the focus ring when override state changes, because `CollectFocusables` prunes disabled subtrees.
+- [~] T021 [US3] DROPPED, not deferred. Eleven per-row reset controls in
+  `Casso/Ui/Settings/DisplayPage.cpp`. The problem they solved went away.
+
+  They were load-bearing only because an override, once recorded, could not
+  be undone except by Restore Defaults across the whole monitor and mode.
+  The write-side rule removed that: setting a field to the value it already
+  resolves to clears the override rather than storing one, so a slider
+  dragged away and back leaves nothing behind. What remained was a
+  convenience weighed against eleven widgets, a second control-id enum,
+  explicit paint calls on a page that hand-paints its children, eleven
+  accessible names, and a focus ring rebuilt whenever override state
+  changes, almost none of it reachable by a test.
+
+  FR-008 and SC-006 are withdrawn with it. Restore Defaults remains the
+  reset, at monitor-and-mode granularity.
+
+  Revisit only if the manual pass finds a user stuck with an override they
+  cannot clear by returning the control to where it was.
 - [ ] T022 [P] [US3] Create `UnitTest/UiTests/DisplayPageTests.cpp` and add its project entry, covering the row-to-field mapping and the three badge strings for every field, including that gamma and persistence never map to the theme-default string.
 - [ ] T023 [P] [US3] Rename the `L"Monitor:"` label at `Casso/Ui/Settings/DisplayPage.cpp:240`. That row lists phosphors, and this feature introduces a real monitor axis that makes the existing mislabel actively wrong.
 

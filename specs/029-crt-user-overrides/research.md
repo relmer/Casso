@@ -259,6 +259,48 @@ worth recording.
 
 ---
 
+## D9. Setting a value it already has is not an adjustment
+
+**Decision**: The bridge clears a field's override when the incoming value
+equals what that field resolves to without a user layer, and erases a pair
+left holding nothing. The eleven per-row reset controls planned as T021 are
+dropped, along with FR-008 and SC-006.
+
+**Rationale**: The review panel had ruled the other way, on the argument that
+an override is a fact about what the user did rather than about the number,
+so one that happens to match a default should be kept and reported as custom.
+The owner rejected that and was right.
+
+There are only two ways a stored value equal to its default can arise. A user
+drags a slider away and back, having expressed no wish to pin anything. Or a
+user deliberately sets a value that happens to match, in order to hold it
+against later theme changes. The second is hypothetical, because nothing in
+the interface distinguishes setting a control to 1.10 from its already being
+1.10. The system cannot tell the two apart, and when two actions are
+indistinguishable, treating them differently is guesswork.
+
+The panel's own wording gave it away: an override that matches "is kept, and
+the row reports itself as custom" describes a state the user cannot tell from
+having done nothing at all.
+
+**Why the write side**: the resolver still reports User whenever an override
+is present, so it stays a pure function of its three tiers and the comparison
+stays off the per-frame path. Only the moment of a user action consults it.
+
+**Why an exact comparison rather than an epsilon**: the page carries
+percentages as whole numbers and divides by 100, and IEEE division is
+correctly rounded, so the quotient is the same float as the preset literal.
+One documented limit: the color bleed slider floors at 1.0 while three presets
+carry 0.0, so that default is unreachable by dragging. The row is disabled
+whenever its toggle is off, so it cannot be dragged there in that state.
+
+**What this cost**: without a per-row control, an override that cannot be
+undone by returning the control to its previous position needs Restore
+Defaults across the whole monitor and mode. The manual pass should watch for
+that; nothing found so far reaches it.
+
+---
+
 ## Findings that changed the plan after the design was settled
 
 These came from the inventory pass and were verified directly.
