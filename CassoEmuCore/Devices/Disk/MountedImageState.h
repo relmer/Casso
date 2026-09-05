@@ -95,15 +95,6 @@ public:
     //  The change has been dealt with.
     void  ClearPending ();
 
-    //  Whether a report is standing that the user has not acted on.
-    //
-    //  IT OUTLIVES THE PENDING CHANGE. Acting on a change consumes the pending
-    //  record, but the report stays up until dismissed, absorbs later changes
-    //  while it stands, and keeps the restart reachable. Without a field for it
-    //  the state would have to live in the shell, which no test can reach.
-    bool  IsReportStanding () const        { return m_reportStanding; }
-    void  SetReportStanding (bool standing) { m_reportStanding = standing; }
-
     //  Whether a question has been put to the user and not yet answered.
     //
     //  WITHOUT IT THE QUESTION WOULD BE ASKED AGAIN EVERY IDLE TICK. Asking
@@ -175,7 +166,6 @@ private:
     PendingChange  m_pending;
     bool           m_mounted        = false;
     bool           m_watching       = false;
-    bool           m_reportStanding = false;
     bool           m_askOutstanding = false;
     ChangeAction   m_askedAction    = ChangeAction::Ignore;
     std::string    m_preservedPath;

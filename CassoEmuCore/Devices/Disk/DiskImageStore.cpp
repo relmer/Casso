@@ -2686,7 +2686,6 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
         if (!report.title.empty())
         {
-            entry.sharedState.SetReportStanding (true);
             m_reportSink (slot, drive, report);
         }
     }
@@ -2753,27 +2752,6 @@ Error:
     return hr;
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::ClearChangeReport
-//
-//  The user dismissed the report for a bay.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskImageStore::ClearChangeReport (int slot, int drive)
-{
-    if (IsValidBay (slot, drive))
-    {
-        GetEntry (slot, drive).sharedState.SetReportStanding (false);
-    }
-
-    return;
-}
 
 
 

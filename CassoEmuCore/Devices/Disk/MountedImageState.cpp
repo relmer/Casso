@@ -18,7 +18,6 @@ void MountedImageState::Mount (const ImageIdentity & identity)
     m_pending        = PendingChange();
     m_mounted        = true;
     m_watching       = false;
-    m_reportStanding = false;
     m_askOutstanding = false;
     m_askedAction    = ChangeAction::Ignore;
 
@@ -35,8 +34,8 @@ void MountedImageState::Mount (const ImageIdentity & identity)
 //
 //  MountedImageState::Eject
 //
-//  Everything goes, including any standing report. A report about a disk that
-//  is no longer in the drive has nothing to offer and no image to name.
+//  Everything goes. Nothing recorded about a disk survives it leaving the
+//  drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +45,6 @@ void MountedImageState::Eject()
     m_pending        = PendingChange();
     m_mounted        = false;
     m_watching       = false;
-    m_reportStanding = false;
     m_askOutstanding = false;
     m_askedAction    = ChangeAction::Ignore;
 

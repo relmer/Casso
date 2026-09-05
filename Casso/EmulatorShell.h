@@ -1298,7 +1298,6 @@ private:
     // reaches for once the program starts misbehaving, and a notice that faded
     // would take that action with it.
     DxuiActionBanner            m_changeBanner;
-    int                         m_changeBannerDrive = -1;
 
     //  When the change band closes itself, and the frame that last looked.
     //  Zero means it stands until dismissed. Hovering does not extend the

@@ -13873,8 +13873,6 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
     m_changeBanner.SetText    (notice.prompt.message);
     m_changeBanner.SetActions (labels);
 
-    m_changeBannerDrive = notice.drive;
-
     //  RE-ARMED ON EVERY CHANGE, not only the first. A later change re-words
     //  the strip already on screen, and a countdown left running from the
     //  previous one would take the new wording away early.
@@ -13886,12 +13884,6 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
     //  Replaced rather than stacked: a standing report absorbs later changes,
     //  so a second one re-words the strip already on screen.
     m_changeBanner.SetVisible (!labels.empty());
-
-    if (labels.empty())
-    {
-        m_diskStore.ClearChangeReport (notice.slot, notice.drive);
-        m_changeBannerDrive = -1;
-    }
 
     //  The band just changed height, so everything below it moves and the
     //  picture is rescaled into what is left. Nothing here positions the
@@ -14313,12 +14305,6 @@ void EmulatorShell::HideChangeBanner()
 {
     m_changeBanner.SetVisible (false);
     m_changeBannerHideAtMs = 0;
-
-    if (m_changeBannerDrive >= 0)
-    {
-        m_diskStore.ClearChangeReport (6, m_changeBannerDrive);
-        m_changeBannerDrive = -1;
-    }
 
     ReflowChromeForChangeBand();
 

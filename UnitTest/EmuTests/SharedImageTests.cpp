@@ -1350,8 +1350,6 @@ public:
 
             rig.WriteImage (kImagePath, (Byte) (0x20 + round));
             rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
-
-            rig.store.ClearChangeReport (kSlot, kDrive);
         }
 
         //  A one-second stamp cannot keep the accumulate-rather-than-overwrite
@@ -1662,13 +1660,7 @@ public:
         rig.WriteImage (kImagePath, 0x44);
         rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
-        //  THE NOTICE STAYS STANDING, which is what tells the shell to re-word
-        //  the one already up rather than raise a second. Three builds before
-        //  the developer looks back at the emulator are three pick-ups and one
-        //  notice.
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->IsReportStanding());
-
-        //  AND EVERY ONE OF THEM IS REPORTED, so the wording can follow what
+        //  EVERY ONE OF THEM IS REPORTED, so the wording can follow what
         //  actually happened. Emitting only the first kept one notice at the
         //  cost of it going stale -- measured, a reload followed by a restart
         //  left it advising a reboot that had already been done.
@@ -1678,9 +1670,6 @@ public:
         //  when the report first appeared.
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity()
                             .Matches (rig.identities[kImagePath]));
-
-        rig.store.ClearChangeReport (kSlot, kDrive);
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->IsReportStanding());
     }
 
 

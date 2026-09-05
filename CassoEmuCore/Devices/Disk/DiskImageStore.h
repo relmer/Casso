@@ -290,9 +290,6 @@ public:
     //  no disk operation in flight.
     void          ApplyPendingReload ();
 
-    //  The user dismissed the standing report for a bay.
-    void          ClearChangeReport (int slot, int drive);
-
     //  What a bay knows about its image beyond the bytes: the identity read at
     //  mount, any change noticed since, and whether a report stands. Null for
     //  an out-of-range bay.
