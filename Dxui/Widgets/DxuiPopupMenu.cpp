@@ -266,6 +266,12 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
 //  be forgotten on one of the four paths that move it (pointer in the
 //  in-window menu, pointer in the hosted popup, and the two arrow keys).
 //
+//  THE NOTIFICATION GOES FIRST AND THE RE-RENDER SECOND. MarkDirty is
+//  synchronous, and a listener that previews a THEME changes the palette this
+//  menu is about to paint itself in. Rendering ahead of it drew every row in
+//  the palette of the row highlighted before -- correct on the first open and
+//  one behind for the rest of the walk.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPopupMenu::SetHover (int index)
@@ -277,14 +283,16 @@ void DxuiPopupMenu::SetHover (int index)
 
     m_hover = index;
 
-    if (m_activePopup != nullptr)
-    {
-        m_activePopup->MarkDirty();
-    }
-
     if (index >= 0 && m_onHighlight)
     {
         m_onHighlight (index);
+    }
+
+    // Re-read: a listener that resized or reskinned the owner can have taken
+    // the popup down, which leaves nothing to render.
+    if (m_activePopup != nullptr)
+    {
+        m_activePopup->MarkDirty();
     }
 }
 
