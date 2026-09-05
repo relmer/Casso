@@ -371,6 +371,44 @@ public:
 
 
 
+    //  A WRITE THAT LANDS UNDER THE QUESTION DOES NOT RE-LABEL THE ANSWER. A
+    //  bay keeps only the newest change, so a build finishing while the dialog
+    //  is on screen replaces the intent the question was raised for. Reading
+    //  the record when the answer came back credited the user's own insertion
+    //  to CassoCli -- the very sentence saying somebody else pressed the button
+    //  they had just pressed.
+    TEST_METHOD (AStatedIntentArrivingUnderTheQuestionDoesNotReattributeTheAnswer)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  Something rewrote the file and said nothing about why, so it asks.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        //  A build finishes while the user is still reading it.
+        rig.WriteImage (kImagePath, 0x33);
+        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+        //  "Insert the modified <file>."
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        Assert::IsTrue (rig.reports[0].message.find (L"CassoCli") == std::wstring::npos,
+                        L"the user pressed the button, whoever wrote last");
+        Assert::IsTrue (rig.reports[0].message.find (L"inserted it") == std::wstring::npos,
+                        L"and the insertion stays theirs");
+    }
+
+
+
 
     TEST_METHOD (AChangedImageIsPickedUpAndTheIdentityRefreshed)
     {

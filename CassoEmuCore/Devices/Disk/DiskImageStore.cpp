@@ -2054,6 +2054,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     bool                               usable    = false;
     bool                               unchanged = false;
     ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
+    ChangeAuthor                       author    = ChangeAuthor::AnotherProgram;
     ChangeAction                       action    = ChangeAction::Ignore;
     ImageIdentity                      current;
     vector<Byte>                       bytes;
@@ -2231,7 +2232,14 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         return;
     }
 
-    CarryOutChangeAction (slot, drive, action, bytes);
+    //  THE INTENT THAT DECIDED IS THE INTENT THAT ATTRIBUTES. `intent` was read
+    //  at the top of this function, and the record it came from is refreshed by
+    //  every later write -- a read taken now would credit this reload to
+    //  whoever wrote most recently rather than to whoever asked for it.
+    author = (intent == ExternalChangeIntent::Unstated) ? ChangeAuthor::AnotherProgram
+                                                        : ChangeAuthor::CassoCli;
+
+    CarryOutChangeAction (slot, drive, action, bytes, author);
 
     return;
 }
@@ -2397,7 +2405,11 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
         }
     }
 
-    CarryOutChangeAction (slot, drive, chosen, bytes);
+    //  THE USER DID THE INSERTING, so no program is named. A question is only
+    //  ever put when nothing stated an intent -- that is what `Ask` means --
+    //  and one arriving while the question stood on screen does not turn the
+    //  answer into somebody else's reload.
+    CarryOutChangeAction (slot, drive, chosen, bytes, ChangeAuthor::AnotherProgram);
 
     return;
 }
@@ -2425,39 +2437,21 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction action,
-                                           const vector<Byte> & bytes)
+                                           const vector<Byte> & bytes, ChangeAuthor author)
 {
-    HRESULT               hr           = S_OK;
-    Entry               & entry        = GetEntry (slot, drive);
-    bool                  restarted    = false;
-    bool                  tookUp       = false;
-    bool                  preserved    = false;
-    bool                  preserveFail = false;
-    ExternalChangeIntent  intent       = ExternalChangeIntent::Unstated;
-    ChangeAuthor          author       = ChangeAuthor::AnotherProgram;
-    string                preservedPath;
+    HRESULT  hr           = S_OK;
+    Entry &  entry        = GetEntry (slot, drive);
+    bool     restarted    = false;
+    bool     tookUp       = false;
+    bool     preserved    = false;
+    bool     preserveFail = false;
+    string   preservedPath;
     //  KEEPING MOVES THE BAY ONTO THE COPY, so entry.path is no longer the file
     //  any of these messages are about by the time they are composed. Captured
     //  before anything can move it.
-    string                original     = entry.path;
+    string   original     = entry.path;
 
 
-
-    //  WHO WROTE, READ BEFORE THE PENDING RECORD IS CLEARED BELOW. Only a
-    //  stated intent identifies the writer, and only CassoCli states one, so a
-    //  change that arrived without one came from a program this store cannot
-    //  put a name to. Both routes into this function reach it with the record
-    //  still standing: the watcher's, and the user's answer.
-    {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
-
-        intent = entry.sharedState.GetPending().intent;
-    }
-
-    if (intent != ExternalChangeIntent::Unstated)
-    {
-        author = ChangeAuthor::CassoCli;
-    }
 
     switch (action)
     {
