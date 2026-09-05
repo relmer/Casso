@@ -203,8 +203,18 @@ static constexpr float   s_kLampPanelBandMm = 4.0f;
 // DiskII interactive regions, model space (mm). The eject region wraps the
 // slot + door bar + latch; the body box wraps the whole case including the
 // proud front furniture.
+//
+// AND THE NOTCH COLUMN, which is the recess the door lies in -- WHOLE, not
+// the stretch of it the shut door happens to cover. The door reaches from
+// the frame's bottom edge at z 44.1 to z 78.8, and the notch runs on down
+// past it to the lamp's line at 25.4: that lower stretch is the finger
+// recess, the part a hand actually goes into, and no eject box reached it.
+// Taken off DiskII.mesh's notch_liner less its 1 mm lining, so the box is
+// the opening rather than the lining's outside.
 static constexpr float   s_kDiskIiEjectMin[3] = {   8.0f, -5.0f, 45.81f };
 static constexpr float   s_kDiskIiEjectMax[3] = { 145.08f,  3.0f, 65.60f };
+static constexpr float   s_kDiskIiNotchMin[3] = {  56.54f, -5.0f, 25.42f };
+static constexpr float   s_kDiskIiNotchMax[3] = {  96.54f,  3.0f, 78.75f };
 static constexpr float   s_kDiskIiBodyMin[3]  = {   0.0f, -5.0f,  0.0f };
 static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceHmm };
 
@@ -219,10 +229,14 @@ static constexpr float   s_kDiskIiBodyMax[3]  = { s_kFaceWmm, 217.325f, s_kFaceH
 // into, the latch above it, and the latch's top out over the lid. Boxing the
 // two as one rectangle would claim the entire face -- including the plain
 // corners, where the padlock lives and a click means browse.
+//
+// The column's floor is the notch's own, cad_disk2c.py's SLOT_Z0 - 12: the
+// 16 it carried stopped two millimeters short of the recess, so the bottom
+// of the very hollow a finger goes into was not a target.
 static constexpr float   s_kDisk2cEjectMin[3] = {  16.0f, -8.0f, 26.5f };
 static constexpr float   s_kDisk2cEjectMax[3] = { 136.0f,  3.0f, 34.0f };
-static constexpr float   s_kDisk2cLatchMin[3] = {  52.0f, -8.0f, 16.0f };
-static constexpr float   s_kDisk2cLatchMax[3] = { 100.0f,  3.0f, 46.0f };
+static constexpr float   s_kDisk2cNotchMin[3] = {  52.0f, -8.0f, 13.9f };
+static constexpr float   s_kDisk2cNotchMax[3] = { 100.0f,  3.0f, 46.0f };
 static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -8.0f,  0.0f };
 static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 216.0f, 46.0f };
 
@@ -2297,9 +2311,14 @@ void DeskSceneModel::StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out,
 //
 //  DeskSceneModel::AddRegionBoxes
 //
-//  Declaration order is precedence: the eject region sits inside the body
+//  Declaration order is precedence: the eject regions sit inside the body
 //  box and must list first, mirroring DriveWidget::HitTest checking the
 //  eject rect before the body rect.
+//
+//  EJECT IS AN L ON BOTH DRIVES, in two boxes: the slot band across the
+//  face, and the finger notch running down the middle of it. One rectangle
+//  around the pair would swallow the plain corners as well, where a click
+//  means browse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2315,8 +2334,8 @@ void DeskSceneModel::AddRegionBoxes()
     }
 
     // Per drive, because the two faces are laid out differently and a box
-    // measured against the wrong one is a click that lands nowhere. The
-    // //c's eject zone wraps its slot and the open notch beneath it.
+    // measured against the wrong one is a click that lands nowhere. This one
+    // is the slot band, running the face's width.
     if (m_kind == DeskDeviceKind::Disk2c)
     {
         memcpy (box.boxMin, s_kDisk2cEjectMin, sizeof (box.boxMin));
@@ -2331,16 +2350,24 @@ void DeskSceneModel::AddRegionBoxes()
     box.region = DriveWidgetRegion::Eject;
     m_regions.push_back (box);
 
-    // The //c's second eject box: the notch column, which is the finger
-    // recess and the latch and the latch's top all in one line.
+    // THE SECOND EJECT BOX IS THE FINGER NOTCH, and both drives have one: the
+    // recess the door lies in, all of it, rather than the part of it the shut
+    // door covers. The notch is what a hand reaches for -- it is the feature
+    // the eye finds on the face -- and it is nearly all of what is left to aim
+    // at once the door has opened and drawn its own silhouette down to a bar.
     if (m_kind == DeskDeviceKind::Disk2c)
     {
-        memcpy (box.boxMin, s_kDisk2cLatchMin, sizeof (box.boxMin));
-        memcpy (box.boxMax, s_kDisk2cLatchMax, sizeof (box.boxMax));
-
-        box.region = DriveWidgetRegion::Eject;
-        m_regions.push_back (box);
+        memcpy (box.boxMin, s_kDisk2cNotchMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDisk2cNotchMax, sizeof (box.boxMax));
     }
+    else
+    {
+        memcpy (box.boxMin, s_kDiskIiNotchMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDiskIiNotchMax, sizeof (box.boxMax));
+    }
+
+    box.region = DriveWidgetRegion::Eject;
+    m_regions.push_back (box);
 
     // The padlock's box, IF THERE IS A PADLOCK. There is not, on either drive,
     // now that the badge hangs beside the disk's name instead of being stamped
