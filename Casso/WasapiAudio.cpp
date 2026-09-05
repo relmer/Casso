@@ -290,13 +290,17 @@ void WasapiAudio::Shutdown()
     //  Beside its producer-side twin above. Left open, the tail of a capture
     //  sat in the stdio buffer and never reached the file -- and the end of
     //  the stream is exactly what this tap is opened to look at.
+    //
+    //  m_devDumpChecked stays set, exactly as m_dumpChecked does. A machine
+    //  change stops the CPU thread and lands here, and re-arming this one
+    //  alone reopened the device file with "wb" while the producer tap stayed
+    //  shut: one capture truncated to what came after the change, the other
+    //  ending at it. The two exist to be differenced, so they retire together.
     if (m_devDumpFile != nullptr)
     {
         fclose (m_devDumpFile);
         m_devDumpFile = nullptr;
     }
-
-    m_devDumpChecked = false;
 
     m_initialized = false;
 }

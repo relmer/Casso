@@ -138,6 +138,8 @@ Entries before versioning was introduced use dates only.
   and the output low-pass is tightened to match the real chip, whose 3-6 kHz energy sits
   36 dB under its voice band where ours sat 28 dB under. Across six bands, mean error
   against that recording falls from 9.9 dB to 4.9 dB.
+- **Powering the voice chip down clicked.** Its output was cut mid-cycle rather
+  than falling over the release, so every spoken line ended on a click.
 - **Changing one CRT setting no longer freezes the others.** Every setting left
   alone keeps following the monitor preset and the active theme.
 - **The color bleed width now shows the width in effect.** It rounded to whole
