@@ -32,11 +32,11 @@ class IDxuiTheme;
 //  key) when in and proud (a raised, highlit key) when out. The disk-use LED
 //  lights on drive activity, the power LED is lit whenever the machine is on.
 //
-//  Like the other Casso chrome (DriveWidget, InputDeviceSelector), this control
-//  is manually hit-tested and actioned by EmulatorShell rather than through the
-//  Dxui auto-input path; it exposes GetPartAt/HitTest for that routing. It reads
-//  CassoTheme only for text color fallbacks; the case palette is fixed so the
-//  strip always reads as the //c case regardless of the active UI theme.
+//  Like the drive widgets, this control is manually hit-tested and actioned
+//  by EmulatorShell rather than through the Dxui auto-input path; it exposes
+//  GetPartAt/HitTest for that routing. It reads CassoTheme only for text color
+//  fallbacks; the case palette is fixed so the strip always reads as the //c
+//  case regardless of the active UI theme.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +72,7 @@ public:
     bool  IsEightyFortyIn  () const { return m_eightyFortyIn; }
     bool  IsKeyboardIn     () const { return m_keyboardIn; }
 
-    // Interaction state (mirrors InputDeviceSelector's owner-driven model).
+    // Interaction state: the owner drives it (see the class comment).
     void  SetHovered    (bool hovered)   { m_hovered = hovered; if (!hovered) { m_hoverPart = Part::None; } }
     void  SetHoverPoint (int x, int y)   { m_hoverPart = GetPartAt (x, y); }
     void  SetPressedPart (Part part)     { m_pressedPart = part; }
@@ -83,9 +83,9 @@ public:
 
     const wchar_t * GetTooltipTextAt (int x, int y) const;
 
-    // IDxuiControl. boundsDip is the FULL band rect (left..right x top..bottom),
-    // unlike InputDeviceSelector's center-anchor contract — the strip fills the
-    // whole band and anchors its two groups to the left and right edges.
+    // IDxuiControl. boundsDip is the FULL band rect (left..right x top..bottom)
+    // rather than a center anchor: the strip fills the whole band and anchors
+    // its two groups to the left and right edges.
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 

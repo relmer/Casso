@@ -145,8 +145,8 @@ void Apple2cSwitchBar::ShearGradH (
 //  MeasureLabel
 //
 //  Width of a silk-screen label in pixels. Uses the text renderer when one is
-//  wired; before it exists (early layout) falls back to a fixed-pitch estimate,
-//  matching the InputDeviceSelector contract.
+//  wired; before it exists (early layout) falls back to a fixed-pitch
+//  estimate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
