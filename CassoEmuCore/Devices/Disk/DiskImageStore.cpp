@@ -338,15 +338,18 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 //  timing the user cannot see, and it used to decide whether they were offered
 //  somewhere else to put the disk or merely told the write had not happened.
 //
-//  A CLOSING BAY IS TOLD RATHER THAN ASKED. A question is posted to the shell
-//  and answered later on this thread, so it needs a bay still holding the disk,
-//  a pump still running and a store still alive. An eject releases the image
-//  whatever the flush did, and a shutdown has left its message loop, so an
-//  offer made at either would be answered by nobody -- and the notice, which
-//  blocks, is the only thing that still reaches the user there.
+//  THE ROUTE DIFFERS BY WHAT IS STILL STANDING. While the machine runs the
+//  question is posted and answered later, and nothing is lost while it stands
+//  -- the image keeps its dirty bit and a later flush retries. An eject is
+//  asked the same way but does not go ahead until the answer comes, because
+//  emptying the bay is what would destroy a disk that has nowhere else to be.
+//  A shutdown has no pump to deliver a posted question and no CPU thread to act
+//  on the answer, but it runs on the UI thread with its apartment still up, so
+//  it asks through a blocking dialog instead and writes the copy itself.
 //
-//  NEITHER ONE LOSES ANYTHING. The write is refused either way and the image
-//  keeps its dirty bit.
+//  ONLY A REFUSED OR IMPOSSIBLE RESCUE IS ANNOUNCED. Saying "your writes are
+//  still in memory" is true while the machine runs and a lie as the drive
+//  empties, so the sentence the user gets says which of the two happened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -354,15 +357,40 @@ void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
                                             const string & attemptedPath, HRESULT hrKeep,
                                             const string & original)
 {
-    bool  canAsk = (moment == FlushMoment::Running)
-                && m_askSink
-                && !entry.sharedState.IsAskOutstanding();
+    SaveFailureCause  cause = (moment == FlushMoment::Ejecting)
+                                  ? SaveFailureCause::Ejecting
+                                  : SaveFailureCause::ExternalChange;
 
 
 
-    if (!canAsk)
+    if (moment == FlushMoment::ShuttingDown)
     {
-        EhmNotifyUser (FormatExternalChangeMessage (original).c_str());
+        //  The last chance there is. A copy written here is written by this
+        //  call rather than by an answer that will never arrive.
+        if (RescueOnTheWayOut (entry, original))
+        {
+            return;
+        }
+
+        EhmNotifyUser (FormatDiscardedWritesMessage (original, attemptedPath, hrKeep).c_str());
+
+        return;
+    }
+
+    if (!m_askSink || entry.sharedState.IsAskOutstanding())
+    {
+        //  Nothing can ask. An eject still empties the bay, so it gets the
+        //  sentence that says the writes are going rather than the one that
+        //  says they are waiting.
+        if (moment == FlushMoment::Ejecting)
+        {
+            EhmNotifyUser (FormatDiscardedWritesMessage (original, attemptedPath,
+                                                         hrKeep).c_str());
+        }
+        else
+        {
+            EhmNotifyUser (FormatExternalChangeMessage (original).c_str());
+        }
 
         return;
     }
@@ -372,9 +400,110 @@ void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
     entry.sharedState.SetAskOutstanding (
         m_askSink (entry.slot, entry.drive,
                    ChangePrompt::ComposeSaveFailure (original, entry.drive, attemptedPath,
-                                                     hrKeep, SaveFailureCause::ExternalChange)));
+                                                     hrKeep, cause)));
+
+    //  THE EJECT WAITS ON THE ANSWER, but only when the question actually went
+    //  up. One that could not be delivered must not leave a disk nobody can get
+    //  out of the drive.
+    if (moment == FlushMoment::Ejecting && entry.sharedState.IsAskOutstanding())
+    {
+        entry.sharedState.SetEjectWhenAnswered (true);
+    }
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::RescueOnTheWayOut
+//
+//  Asks where to put a disk that is about to go, and puts it there.
+//
+//  SYNCHRONOUS, BECAUSE IT IS THE LAST THING THAT RUNS. No answer is coming
+//  back later at this point -- the pump has gone and so has the thread that
+//  would act on one -- so the asking and the writing both happen here, inside
+//  the call that found the problem.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
+{
+    HRESULT       hr = S_OK;
+    string        chosen;
+    vector<Byte>  held;
+
+
+
+    if (!m_rescueSink)
+    {
+        return false;
+    }
+
+    if (!m_rescueSink (original, chosen) || chosen.empty())
+    {
+        return false;
+    }
+
+    hr = entry.image->Serialize (held);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = WritePreserved (chosen, held);
+    }
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    entry.image->ClearDirty();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::FormatDiscardedWritesMessage
+//
+//  What is said when a disk's last chance to be written has gone.
+//
+//  IT DOES NOT CLAIM THE WRITES ARE SAFE. The message for a running machine
+//  says they are still in memory and still flushable, which is true there and
+//  is why a later attempt can succeed. Said as the drive empties or the process
+//  exits it was simply false: the memory it pointed at is released a few lines
+//  later.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatDiscardedWritesMessage (const string & path,
+                                                      const string & attemptedPath,
+                                                      HRESULT        reason)
+{
+    wstring  widePath  = fs::path (path).wstring();
+    wstring  wideTried = fs::path (attemptedPath).wstring();
+
+
+
+    if (widePath.empty())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso could not save your changes to the disk image:\n\n" + widePath +
+           L"\n\nThe file was changed by something else since it was mounted, so your "
+           L"version could not be written over it. Casso tried to save it here "
+           L"instead:\n\n" + wideTried +
+           L"\n\nError: " + ChangePrompt::DescribeError (reason) +
+           L"\n\nThe disk is leaving the drive, so these changes cannot be recovered. "
+           L"The file on disk keeps the other program's version.";
 }
 
 
@@ -964,7 +1093,6 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
                     ReportPreserveFailure (entry, moment, preservedPath, hrKeep, original));
 
             //  On disk under its own name, so the bay carries nothing unsaved.
-            entry.sharedState.SetPreservedPath (preservedPath);
             entry.sharedState.SetPreservedWritten (true);
 
             entry.image->SetSourceCrcMismatch (false);
@@ -1632,12 +1760,12 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FlushAll / FlushAllForClosing
+//  FlushAll / FlushAllForShutdown
 //
 //  MOST FLUSHES HAPPEN WITH THE MACHINE RUNNING. A drive spinning down, a
-//  machine switch, a power cycle and a soft reset all keep every bay and every
-//  pump, so a failure among them can be put as a question. Only the process
-//  shutting down cannot, and it says so by name.
+//  machine switch and a soft reset all keep every bay and every pump, so a
+//  failure among them is a question like any other. Only the last flush of the
+//  process is different, and it says so by name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1648,9 +1776,9 @@ HRESULT DiskImageStore::FlushAll()
 
 
 
-HRESULT DiskImageStore::FlushAllForClosing()
+HRESULT DiskImageStore::FlushAllForShutdown()
 {
-    return FlushEveryBay (FlushMoment::Closing);
+    return FlushEveryBay (FlushMoment::ShuttingDown);
 }
 
 
@@ -1716,12 +1844,18 @@ void DiskImageStore::Eject (int slot, int drive)
         // Flush failures are reported to the user by FlushEntry itself; the
         // eject proceeds either way, because refusing to unmount would leave
         // the user with no way to get the disk out.
-        //
-        // AND THAT IS WHY IT CANNOT BE A QUESTION HERE. The image is released
-        // three lines down whatever happened, so an offer to save it would be
-        // answered against a bay holding nothing.
-        hr = FlushEntry (entry, FlushMoment::Closing);
+        hr = FlushEntry (entry, FlushMoment::Ejecting);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  EXCEPT WHEN THE FLUSH PUT A QUESTION UP, which it does only when
+        //  the guest's version has nowhere to go and this eject is what would
+        //  destroy it. The disk stays until the answer comes, and the answer
+        //  finishes what this call started -- both of the answers it offers
+        //  end with the drive empty, so nothing is stuck.
+        if (entry.sharedState.IsEjectWhenAnswered())
+        {
+            return;
+        }
 
         //  Before the path goes: the watch is keyed by the directory the
         //  image sits in, and there is no finding that from a cleared path.
@@ -2496,6 +2630,8 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
         //  folder is theirs rather than ours.
         if (entry.sharedState.GetAskedAction() == ChangeAction::Conflict)
         {
+            bool  finishEject = entry.sharedState.IsEjectWhenAnswered();
+
             entry.sharedState.SetAskedAction (ChangeAction::Ignore);
 
             if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
@@ -2531,6 +2667,14 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
                 hr = RepointBayToFile (slot, drive, savePath);
                 IGNORE_RETURN_VALUE (hr, S_OK);
             }
+            else if (finishEject)
+            {
+                //  THE USER CHOSE TO LET IT GO, so the dirty bit goes with it.
+                //  Left standing, the eject below would find the same collision
+                //  and put the same question up again, and the disk they just
+                //  discarded would be undiscardable.
+                entry.image->ClearDirty();
+            }
 
             {
                 std::lock_guard<std::mutex>  guard (m_pendingMutex);
@@ -2541,6 +2685,16 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
             //  Dismissed rather than answered, so the name this store had
             //  picked goes back with the question that offered it.
             entry.sharedState.ReleaseUnwrittenReservation();
+
+            //  The eject that raised this question, now that it has an answer.
+            //  Either answer leaves nothing for the flush inside it to do: the
+            //  copy landed and cleared the dirty bit, or the discard did.
+            if (finishEject)
+            {
+                entry.sharedState.SetEjectWhenAnswered (false);
+
+                Eject (slot, drive);
+            }
 
             return;
         }

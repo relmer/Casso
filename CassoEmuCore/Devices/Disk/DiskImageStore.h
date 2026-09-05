@@ -120,9 +120,9 @@ public:
     HRESULT       Flush             (int slot, int drive);
     HRESULT       FlushAll          ();
 
-    //  The same, for the two moments that cannot ask: a bay being emptied and
-    //  a process on its way out.
-    HRESULT       FlushAllForClosing ();
+    //  The same, for the last flush of the process, which can only ask through
+    //  a blocking dialog.
+    HRESULT       FlushAllForShutdown ();
 
     //  Sets a mounted WOZ's write-protect flag in its backing file by patching
     //  the single byte that carries it -- read the file, set INFO's flag byte,
@@ -247,6 +247,20 @@ public:
     using AskSink = std::function<bool (int slot, int drive, const ChangePrompt &)>;
 
     void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
+
+    //  Asking where to put a disk, and not returning until it is answered.
+    //
+    //  THE ONE ROUTE LEFT AT SHUTDOWN, and the reason it is separate from
+    //  AskSink. That one posts a message and reads the answer later, which
+    //  needs a pump and a CPU thread; by the time the last flush runs there is
+    //  neither. A file dialog is a blocking modal with a pump of its own, so
+    //  it still works -- but only from a thread whose apartment suits it,
+    //  which is why the store never calls this anywhere but ShuttingDown.
+    //
+    //  Returns false when the user declined or nothing could ask.
+    using RescueSink = std::function<bool (const string & imagePath, string & outPath)>;
+
+    void          SetRescueSink (RescueSink sink) { m_rescueSink = std::move (sink); }
 
     //  A bay's disk changed, and the shell should react: re-point the
     //  controller, re-apply write protection, log the debug event, and drive
@@ -412,22 +426,33 @@ private:
     //  sees nothing at all.
     HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath);
 
-    //  Whether a flush failure can still be put as a question.
+    //  How a flush failure can be put to the user, which differs by what is
+    //  still standing when it happens.
     //
-    //  THE DISCRIMINATOR IS NOT WHICH FUNCTION FLUSHED, IT IS WHETHER ANYBODY
-    //  WILL BE THERE FOR THE ANSWER. A question is posted to the shell's window
-    //  and answered later on the thread that owns disk writes, so it needs a
-    //  bay still holding the disk, a pump still running and a store still
-    //  alive. Most flushes have all three; two do not.
+    //  THE DISCRIMINATOR IS NOT WHICH FUNCTION FLUSHED. What matters is
+    //  whether there is a bay still holding the disk, a pump still running,
+    //  and a thread that can raise a file dialog -- and the three moments
+    //  below have different answers to those.
     enum class FlushMoment
     {
         //  The machine is running and the bay stays: a spindown, an explicit
-        //  flush, a write-protect change, a machine switch, a power cycle.
+        //  flush, a write-protect change, a machine switch, a soft reset. The
+        //  question goes to the shell and is answered later, and nothing is
+        //  lost while it stands.
         Running,
 
-        //  The disk is leaving the drive, or the process is leaving. Whatever
-        //  is said has to be said now and cannot be answered.
-        Closing,
+        //  The disk is coming out. The question goes the same way, but the
+        //  eject waits for it: emptying the bay is what would destroy a disk
+        //  whose copy could not be written, so it does not happen until the
+        //  user has said which way they want it.
+        Ejecting,
+
+        //  The process is on its way out. There is no pump left to deliver a
+        //  posted question and no CPU thread to act on the answer -- but this
+        //  runs on the UI thread with its apartment still up, so a blocking
+        //  file dialog still works. That is the one route left, and asking
+        //  through it is synchronous.
+        ShuttingDown,
     };
 
     Entry &       GetEntry          (int slot, int drive);
@@ -441,6 +466,16 @@ private:
     void          ReportPreserveFailure (Entry & entry, FlushMoment moment,
                                          const string & attemptedPath, HRESULT hrKeep,
                                          const string & original);
+
+    //  Asks the shell where to put a disk on the way out and writes it there,
+    //  without returning until it is done. Only ever called at ShuttingDown.
+    bool          RescueOnTheWayOut (Entry & entry, const string & original);
+
+    //  Why a disk's changes are going, said where claiming they are safe would
+    //  be false.
+    static wstring FormatDiscardedWritesMessage (const string & path,
+                                                 const string & attemptedPath,
+                                                 HRESULT        reason);
 
     //  Whether some other bay already reads and writes this file, and which
     //  drive has it. The bay being mounted into is excluded, because putting
@@ -580,6 +615,7 @@ private:
     string                   m_machineName;
     ReportSink               m_reportSink;
     AskSink                  m_askSink;
+    RescueSink               m_rescueSink;
     BayChangeSink            m_bayChangeSink;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;

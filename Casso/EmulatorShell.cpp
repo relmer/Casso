@@ -804,11 +804,12 @@ EmulatorShell::~EmulatorShell()
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
     //
-    // THE CLOSING VARIANT, because this runs after the message loop has
-    // exited. A question raised here would be posted to a window nothing is
-    // pumping and answered on a thread that is being torn down; the blocking
-    // notice is the only thing that still reaches the user.
-    hrFlush = m_diskStore.FlushAllForClosing();
+    // THE SHUTDOWN VARIANT, because this runs after the message loop has
+    // exited and the CPU thread has stopped, so a posted question would never
+    // be delivered and its answer would never be acted on. It runs on this
+    // thread with OLE still initialized -- OleUninitialize is below -- so the
+    // store asks through a blocking file dialog instead.
+    hrFlush = m_diskStore.FlushAllForShutdown();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:
@@ -13989,6 +13990,25 @@ void EmulatorShell::InstallChangeReporting()
 
             return false;
         }
+
+        return true;
+    });
+
+    //  THE LAST-CHANCE ROUTE, and the only one the store has once the message
+    //  loop has gone. It runs on this thread, inside the apartment OleInitialize
+    //  set up, so the picker works exactly as it does from a question -- and
+    //  unlike a question, this returns the answer rather than posting for it.
+    m_diskStore.SetRescueSink ([this] (const std::string & imagePath,
+                                       std::string & outPath) -> bool
+    {
+        std::wstring  chosen;
+
+        if (!AskWhereToSaveLostDisk (imagePath, chosen))
+        {
+            return false;
+        }
+
+        outPath = fs::path (chosen).string();
 
         return true;
     });
