@@ -14,14 +14,15 @@
     Boot it with:  Casso.exe --disk1 <output.dsk>
 
 .PARAMETER Source
-    The .a65 source under Apple2/Demos. Default: mockingboard-speech-test.a65.
+    The .a65 source, as a path under Apple2/Demos. Default:
+    Mockingboard/Speech/mockingboard-speech-test.a65.
 
 .PARAMETER Configuration
     Which CassoCli build to use. Default: Debug.
 #>
 [CmdletBinding()]
 param(
-    [string]$Source = 'mockingboard-speech-test.a65',
+    [string]$Source = 'Mockingboard/Speech/mockingboard-speech-test.a65',
 
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug'
@@ -31,6 +32,14 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $demoDir  = Join-Path $repoRoot 'Apple2\Demos'
+
+#  A source may name a subfolder of Apple2\Demos -- the demos are grouped by
+#  the hardware they exercise -- so it is resolved against that root. The .dsk
+#  goes to Apple2\Demos whatever folder its source came from: that is the path
+#  machine profiles, documents and launch commands already name, and the point
+#  of grouping the sources was never to move the disks.
+$srcPath  = Join-Path $demoDir $Source
+$srcDir   = Split-Path -Parent $srcPath
 $cli      = Join-Path $repoRoot "x64\$Configuration\CassoCli.exe"
 
 if (-not (Test-Path $cli)) {
@@ -41,12 +50,11 @@ $kBytesPerSector = 256
 $kImageSize      = 143360     # 35 tracks x 16 sectors x 256 bytes
 $kBootOrg        = 0x0800     # boot ROM loads the sector here; .a65 .org $0801
 
-$srcPath = Join-Path $demoDir $Source
 if (-not (Test-Path $srcPath)) {
     throw "Source not found: $srcPath"
 }
 
-$outDsk = [System.IO.Path]::ChangeExtension($srcPath, '.dsk')
+$outDsk = Join-Path $demoDir ([System.IO.Path]::GetFileNameWithoutExtension($srcPath) + '.dsk')
 $outBin = [System.IO.Path]::ChangeExtension($srcPath, '.bin')
 
 # CassoCli exits non-zero on warnings (e.g. unused labels) but still writes

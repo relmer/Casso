@@ -1200,14 +1200,18 @@ void MachineManager::CreateVideoModes()
         text80->SetAuxMemory          (auxBuf);
         doubleHiResMode->SetAuxMemory (auxBuf);
 
-        // DHR needs BOTH banks at once, so it takes main RAM directly too.
-        // The bus cannot serve the main half: its $2000-$3FFF pages follow
-        // live banking and point at aux under 80STORE+HIRES+PAGE2, which
-        // made DHR render the aux bytes into both halves of every pair.
-        // This is the same buffer the MMU treats as main.
+        // DHR and 80-column text need BOTH banks at once, so they take main
+        // RAM directly too. The bus cannot serve the main half: its pages
+        // follow live banking and point at aux under 80STORE+PAGE2 ($2000-
+        // $3FFF with HIRES, $0400-$07FF always), which made DHR render the
+        // aux bytes into both halves of every pair, and the mixed-mode text
+        // overlay show aux in both columns whenever a frame was scanned while
+        // a program had PAGE2 on. This is the same buffer the MMU treats as
+        // main.
         if (m_shell.m_refs.mainRamDev != nullptr)
         {
             doubleHiResMode->SetMainMemory (m_shell.m_refs.mainRamDev->GetData());
+            text80->SetMainMemory          (m_shell.m_refs.mainRamDev->GetData());
         }
     }
 

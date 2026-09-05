@@ -333,24 +333,98 @@ public:
         Assert::AreEqual ( 3.0f, model.Lamps()[0].radiusX, 0.01f);
         Assert::AreEqual ( 3.0f, model.Lamps()[0].radiusZ, 0.01f);
 
-        // TWO boxes, and no padlock among them: the write-protect badge is
-        // not stamped on a faceplate any more, it hangs beside the mounted
-        // disk's NAME. The region only exists for a model that carries the
-        // stamp, so a drive that does not carry it must not contribute a
-        // degenerate box at the model's origin -- which, padded by the badge's
-        // hit slack, would be a live target sitting on the case's bottom-left
-        // corner, quietly taking clicks that mean browse.
+        // THREE boxes -- the slot band, the finger notch, the body -- and no
+        // padlock among them: the write-protect badge is not stamped on a
+        // faceplate any more, it hangs beside the mounted disk's NAME. The
+        // region only exists for a model that carries the stamp, so a drive
+        // that does not carry it must not contribute a degenerate box at the
+        // model's origin -- which, padded by the badge's hit slack, would be a
+        // live target sitting on the case's bottom-left corner, quietly taking
+        // clicks that mean browse.
         Assert::IsTrue (model.PadlockVerts().empty());
-        Assert::AreEqual ((size_t) 2, model.RegionBoxes().size());
+        Assert::AreEqual ((size_t) 3, model.RegionBoxes().size());
         Assert::IsTrue (model.RegionBoxes()[0].region == DriveWidgetRegion::Eject);
-        Assert::IsTrue (model.RegionBoxes()[1].region == DriveWidgetRegion::Body);
+        Assert::IsTrue (model.RegionBoxes()[1].region == DriveWidgetRegion::Eject);
+        Assert::IsTrue (model.RegionBoxes()[2].region == DriveWidgetRegion::Body);
 
-        // Eject sits inside the body box -- precedence by declaration order,
-        // like the 2D widget's eject-inside-body rects.
-        for (int axis = 0; axis < 3; axis++)
+        // Both eject boxes sit inside the body box -- precedence by
+        // declaration order, like the 2D widget's eject-inside-body rects.
+        for (size_t eject = 0; eject < 2; eject++)
         {
-            Assert::IsTrue (model.RegionBoxes()[0].boxMin[axis] >= model.RegionBoxes()[1].boxMin[axis]);
-            Assert::IsTrue (model.RegionBoxes()[0].boxMax[axis] <= model.RegionBoxes()[1].boxMax[axis]);
+            for (int axis = 0; axis < 3; axis++)
+            {
+                Assert::IsTrue (model.RegionBoxes()[eject].boxMin[axis] >= model.RegionBoxes()[2].boxMin[axis]);
+                Assert::IsTrue (model.RegionBoxes()[eject].boxMax[axis] <= model.RegionBoxes()[2].boxMax[axis]);
+            }
+        }
+    }
+
+    //
+    //  A DOOR IS A SMALL THING TO HIT, and an open one is smaller still: it
+    //  has swung up into the case, or -- on the //c -- travelled out over the
+    //  lid as a bar a few millimeters tall. What does not move, and what the
+    //  eye finds on the face anyway, is the notch it lies in. So the notch is
+    //  the target, all of it.
+    //
+    //  The check that matters is that eject reaches BELOW the shut door's
+    //  bottom edge, in each drive's own model space. That lower stretch of the
+    //  recess is the part a hand actually goes into, and a box that merely
+    //  wrapped the door would leave it exactly as dead as it was.
+    //
+    TEST_METHOD (Eject_Reaches_The_Whole_Finger_Notch_Not_Just_Behind_The_Door)
+    {
+        // Off the shipping meshes: the shut door's bottom edge, then the floor
+        // and the ceiling of the recess it lies in. DiskII.mesh's door begins
+        // at z 44.1 over a notch_liner open down to 25.4; Disk2c.mesh's lever
+        // begins at 25.9 over a notch whose floor is cad_disk2c.py's
+        // SLOT_Z0 - 12.
+        const DeskDeviceKind  kinds[]       = { DeskDeviceKind::DiskII, DeskDeviceKind::Disk2c };
+        constexpr float       doorBottomZ[] = { 44.14f, 25.90f };
+        constexpr float       notchFloorZ[] = { 25.42f, 13.90f };
+        constexpr float       notchTopZ[]   = { 78.75f, 46.00f };
+
+
+
+        for (size_t i = 0; i < std::size (kinds); i++)
+        {
+            DeskSceneModel   model;
+            float            lowestEjectZ  = FLT_MAX;
+            float            highestEjectZ = -FLT_MAX;
+            float            columnWidth   = 0.0f;
+            float            caseWidth     = 0.0f;
+
+            AssertSucceeded (LoadFromText (model, kinds[i], DriveObj(), Mtl()));
+
+            for (const DeskRegionBox & box : model.RegionBoxes())
+            {
+                if (box.region != DriveWidgetRegion::Eject)
+                {
+                    continue;
+                }
+
+                // The lowest eject box IS the notch column: nothing else on
+                // either face reaches under the slot.
+                if (box.boxMin[2] < lowestEjectZ)
+                {
+                    lowestEjectZ = box.boxMin[2];
+                    columnWidth  = box.boxMax[0] - box.boxMin[0];
+                }
+
+                highestEjectZ = std::max (highestEjectZ, box.boxMax[2]);
+            }
+
+            // The body box lists last, and it is the whole case.
+            caseWidth = model.RegionBoxes().back().boxMax[0] -
+                        model.RegionBoxes().back().boxMin[0];
+
+            Assert::IsTrue (lowestEjectZ  <= notchFloorZ[i], L"eject stops above the notch's floor");
+            Assert::IsTrue (highestEjectZ >= notchTopZ[i],   L"eject stops below the notch's top");
+            Assert::IsTrue (lowestEjectZ  <  doorBottomZ[i], L"eject reaches no further down than the door");
+
+            // Still a COLUMN, though. Reaching the recess by dropping the
+            // full-width slot band instead would take the face's plain corners
+            // with it, where a click means browse rather than eject.
+            Assert::IsTrue (columnWidth < caseWidth * 0.5f, L"the notch box claims half the face");
         }
     }
 

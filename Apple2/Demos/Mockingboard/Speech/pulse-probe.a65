@@ -1,0 +1,100 @@
+; Diagnostic: hold ONE vowel, unchanging, for several seconds. If the rhythmic
+; pulsing heard in connected speech is there too, it is inherent to the voiced
+; path; if it is not, it needs phoneme changes to provoke it.
+;
+; Two sections, differing only in the chip's frame rate, so the phoneme has to
+; be re-written at two different cadences to stay alive:
+;
+;   section 1  rate 8, a 32 frame phoneme, re-written about every 73 ms
+;   section 2  rate 0, a 64 frame phoneme, re-written about every 146 ms
+;
+; If the pulse rate follows the re-write cadence it is the re-writing; if it
+; sits at the same rate in both, the re-writing is innocent.
+;
+; Not a shipped demo.
+    .org $6000
+
+SPHON   = $C440
+SINF    = $C441
+SRATE   = $C442
+SCTL    = $C443
+SFILT   = $C444
+
+UNITS   = $08              ; frames left in the current hold
+REPS    = $09              ; phonemes left in the current section
+
+VOWEL   = $0A              ; EH at DR = 00, the chip's longest duration
+
+start
+    lda #$C0                    ; DR = 11 staged while still powered down
+    sta SPHON
+    lda #$80
+    sta SCTL
+    lda #$5C                    ; CTL down, articulation 5, amplitude $C
+    sta SCTL
+    lda #$06                    ; I10-I3 for about 112 Hz
+    sta SINF
+    lda #$D3
+    sta SFILT
+
+    ; ---- section 1: rate 8 -------------------------------------------------
+    lda #$8A
+    sta SRATE
+    lda #$37                    ; 55 phonemes at 73 ms is about 4 seconds
+    sta REPS
+s1
+    lda #VOWEL
+    sta SPHON
+    lda #$20                    ; 32 frames
+    jsr Hold
+    dec REPS
+    bne s1
+
+    jsr Gap
+
+    ; ---- section 2: rate 0 -------------------------------------------------
+    lda #$0A
+    sta SRATE
+    lda #$1B                    ; 27 phonemes at 146 ms is about 4 seconds
+    sta REPS
+s2
+    lda #VOWEL
+    sta SPHON
+    lda #$40                    ; 64 frames
+    jsr Hold
+    dec REPS
+    bne s2
+
+    lda #$80                    ; Power Down
+    sta SCTL
+halt
+    jmp halt
+
+
+; Let the chip run out and stay quiet for about a second, so the two sections
+; are easy to separate in a capture.
+Gap
+    ldx #$08
+g_lap
+    lda #$40
+    jsr Hold
+    dex
+    bne g_lap
+    rts
+
+
+; Hold A frames. A frame is 4096 chip ticks, 2.289 ms, which is 2335 machine
+; cycles; the pass below is nop-nop-dey-bne, nine cycles, and 256 of them come
+; to 2304 -- a little short, so a re-write lands on a chip still sounding.
+Hold
+    sta UNITS
+h_unit
+    ldy #$00
+h_in
+    nop
+    nop
+    dey
+    bne h_in
+    dec UNITS
+    bne h_unit
+    rts

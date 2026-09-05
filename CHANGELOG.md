@@ -9,6 +9,9 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
+- **A speech demo disk**, in hi-res and double hi-res: three film lines and Daisy
+  Bell through the SSI 263A, with HAL's eye pulsing on each syllable. Boot
+  `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk`.
 - **The assembler can now write a binary directly into a disk image.** `--disk <image>` places
   the binary onto a volume instead of to a file on the host, and the binary can be run
   automatically at boot with `--startup`. The binary's origin comes directly
@@ -43,6 +46,10 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **Direct-boot disks load about six times faster.** `disk create --boot` laid the
+  payload down in ascending sector order, and the loader lost a whole revolution
+  waiting for each one; it now reads every other sector, so a track costs two
+  revolutions instead of sixteen. A 38-sector demo boots in 4.2s rather than 10.7s.
 - **The "disk modified outside Casso" notices were rewritten.** The disk and its
   drive lead on a line of their own instead of appearing in every sentence, and
   all four notices report the copy the same way: your disk is renamed, and the
@@ -66,6 +73,12 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 - **Themes are listed most skeuomorphic first** in Settings -- Skeuomorphic,
   RetroTerminal, then DarkModern -- rather than alphabetically.
+- **A drive's door opens from anywhere in the finger notch.** In the 3D themes
+  the whole recess the door lies in takes the click, on the Disk ][ and the
+  Disk //c alike, rather than only the stretch of it the door covers. The
+  notch is the feature the eye finds on the face, and it stays put and stays
+  large -- where an open door has swung up into the case, or travelled out
+  over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
 - **The volume and mute settings were not saved**, so both came back at their
@@ -92,6 +105,42 @@ Entries before versioning was introduced use dates only.
   the whole picture. Up to about 3:2 the glass still covers the screen as
   before; beyond that only the tube is drawn, against black, without the case,
   bezel or power lamp.
+- **Double hi-res colors now match the hardware.** The color clock runs one dot
+  ahead of the byte boundary, so the last dot of a cell is the color's low bit;
+  reading the dots as a plain binary number showed magenta as brown and orange
+  as green, on every real double hi-res picture.
+- **80-column text under mixed mode no longer doubles the aux column** while a
+  program has PAGE2 on for its own aux writes. The overlay read main through
+  the bus, which 80STORE bends to aux; it now reads the bank directly.
+- **The synthesized voice was missing its fundamental.** The glottal source broke at
+  805 Hz, inside the pitch range instead of well below it, so lip radiation tilted the
+  output upward across the whole F1 region. Measured against a recording of a real
+  SSI-263: the chip's voiced spectrum falls monotonically from the fundamental at about
+  -8 dB/octave, ours was flat. The break now sits below the pitch range and follows the
+  device rate rather than being a fixed coefficient, which also stops timbre depending on
+  the listener's audio hardware.
+- **The voice chip's request line reaches the second 6522, not the first.** Each speech
+  socket interrupts through the other channel's VIA, so the chip at $Cn40 latches CA1 on
+  the VIA at $Cn80-$CnFF. Casso raised it on the first one, where an interrupt-driven
+  speech driver never looks -- and where the speech writes, which alias onto that same
+  VIA, would have clobbered the register it was watching.
+- **The Mockingboard's speech registers no longer read back the voice chip.** $Cn40-$Cn44
+  are decoded for writes only; a read returns the first 6522, which answers across the
+  whole of $Cn00-$Cn7F. Casso spliced the chip's request bit into D7, so software that
+  polled for it worked here and hung on a real board. Reading it back is a Phasor
+  facility. The speech demo and smoke test, which polled exactly that way, now count
+  each phoneme's duration out instead.
+- **Voiced fricatives came out as sonorants -- Z sounded like L.** The phoneme table
+  collapsed the chip's two source amplitudes into one, and frication was cascaded through
+  the vowel formants, so Z's own F2 stood as a low-pass in front of its own hiss.
+  Frication now runs in a parallel branch with the two amplitudes kept apart, putting
+  33 dB between Z and L where there had been none.
+- **Fricatives were harsh, and the voice was too bright throughout.** The noise source
+  was smoothed only to 8 kHz, so it was very nearly white, and it was then run through a
+  high-pass that brightened it further. That high-pass is gone, the source is band-limited,
+  and the output low-pass is tightened to match the real chip, whose 3-6 kHz energy sits
+  36 dB under its voice band where ours sat 28 dB under. Across six bands, mean error
+  against that recording falls from 9.9 dB to 4.9 dB.
 - **Changing one CRT setting no longer freezes the others.** Every setting left
   alone keeps following the monitor preset and the active theme.
 - **The color bleed width now shows the width in effect.** It rounded to whole
