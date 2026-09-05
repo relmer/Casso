@@ -1697,6 +1697,17 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
                     m_shell.m_mouseConnected = mouseConn;
 
+                    // The input mapping travels with the machine, so the
+                    // switched-to machine's own mapping replaces the one the
+                    // machine being left was using. A machine that has never
+                    // stored one falls back to the legacy global setting.
+                    //
+                    // State only -- this runs on the CPU thread, and the
+                    // selector sync asserts the UI thread. The post-switch
+                    // reflow (WM_APP_DXUI_UPDATE_TITLE) puts it on the
+                    // chrome.
+                    m_shell.AdoptInputModeForMachine (extPrefs);
+
                     // //c: default Pointer -> Mouse when connected and no
                     // pointer mapping is active. Runtime nudge.
                     m_shell.ApplyDefaultPointerForMachine();

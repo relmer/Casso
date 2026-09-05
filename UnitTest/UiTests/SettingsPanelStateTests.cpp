@@ -1060,6 +1060,66 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
+    //  BuildJson_PreservesUiPrefsItDoesNotManage
+    //
+    //  The $cassoUiPrefs block holds more than this dialog edits: the //c
+    //  case-switch latches, and the per-machine input mapping. BuildJson
+    //  REPLACES that block rather than editing it, so before the carry-over
+    //  every one of those was reset by pressing OK on a page that never
+    //  mentioned them.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (BuildJson_PreservesUiPrefsItDoesNotManage)
+    {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+
+
+
+        const char * j = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "$cassoUiPrefs": {
+                "colorMode": "green",
+                "arrowsToJoystick": true,
+                "pointerMapping": "mouse",
+                "eightyColumnSwitch": true
+            },
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 6, "device": "disk-ii" } ]
+        })JSON";
+
+        v = ParseOrFail (j);
+        st.LoadFromMachine ("X", v, v);
+
+        st.SetSpeedMode (SettingsSpeedMode::Double);
+
+        st.Apply (sink, outJson);
+
+        opts.fPretty = false;
+        JsonWriter::Write (outJson, opts, text);
+
+        Assert::IsTrue (text.find ("\"arrowsToJoystick\":true") != std::string::npos,
+            L"the input mapping must survive a settings save");
+        Assert::IsTrue (text.find ("\"pointerMapping\":\"mouse\"") != std::string::npos,
+            L"the input mapping must survive a settings save");
+        Assert::IsTrue (text.find ("\"eightyColumnSwitch\":true") != std::string::npos,
+            L"the //c case-switch latches must survive a settings save");
+
+        // A key the dialog DOES own is written from the dialog, not carried
+        // over from the stale copy -- and exactly once.
+        Assert::IsTrue (text.find ("\"speedMode\":\"double\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"speedMode\":\"authentic\"") == std::string::npos);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
     //  MockingboardVariants_FriendlyNames_And_RoundTrip
     //
     //  The Hardware tab names the card MODEL, the way a buyer knew it --

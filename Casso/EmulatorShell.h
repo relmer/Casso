@@ -380,7 +380,7 @@ private:
     HRESULT InitializeRenderer              ();
     HRESULT InitializeUiShell               ();
     HRESULT WireUiShellChromeAndThemes      ();
-    void    RestoreInputAndColorPrefs       ();
+    void    RestoreColorTextPref            ();
     void    RecordActiveMachineSelection    ();
     void    SubscribeAndActivateTheme       ();
     HRESULT FinishUiShellLayout             ();
@@ -536,6 +536,18 @@ private:
     // Persist one case-switch latch ("eightyColumnSwitch" / "keyboardDvorak")
     // into the current machine's $cassoUiPrefs so it survives across runs.
     void    PersistSwitchState     (const char * key, bool value);
+
+    // The input mapping, per machine. Adopt seeds the live state from a
+    // machine's $cassoUiPrefs block (null for a machine with none, which
+    // falls back to the legacy global setting); Persist writes the live
+    // state back into the current machine's block.
+    //
+    // Adopt touches STATE ONLY -- no chrome -- because the machine-switch
+    // path runs it on the CPU thread, and the selector sync measures text
+    // through Dxui, which asserts the UI thread. Both callers sync the
+    // chrome on the UI thread afterwards.
+    void    AdoptInputModeForMachine   (const JsonValue * uiPrefs);
+    void    PersistInputModeForMachine ();
 public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
@@ -950,6 +962,15 @@ private:
     // path lets the in-class WindowManager initializer not race the
     // shell's Initialize sequence.
     void    SaveGlobalPrefs      ();
+
+    // Marks GlobalUserPrefs dirty and arms the coalescing timer instead of
+    // writing now. For a control that reports every intermediate value --
+    // the volume slider fires on each drag tick -- where a write per tick
+    // would put a file rewrite in the middle of a drag. The pending write
+    // is flushed by the timer, by any SaveGlobalPrefs that beats it, and on
+    // shutdown, so a quit taken mid-debounce still lands.
+    void    SaveGlobalPrefsDeferred   ();
+    void    FlushDeferredGlobalPrefs  ();
 
     // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
     // shown via ShowModalDialog). Returns the resultCode of the chosen button,
@@ -1513,6 +1534,14 @@ private:
     std::unique_ptr<ThemeManager>        m_themeManager;
     std::unique_ptr<UserConfigStore>     m_userConfigStore;
     GlobalUserPrefs                      m_globalPrefs;
+
+    // A global-prefs write asked for but not yet made. See
+    // SaveGlobalPrefsDeferred. The delay is long enough that a slider drag
+    // writes once when it settles, short enough that it is over before the
+    // user reaches for the window's close button.
+    static constexpr UINT_PTR            kPrefsSaveTimerId  = 0xCA55;
+    static constexpr UINT                kPrefsSaveDelayMs  = 750;
+    bool                                 m_globalPrefsDirty = false;
 
     // The Settings dialog, shown modeless so the emulator keeps running behind
     // it (FR-041). Heap-owned + null when closed; OpenSettings creates it and

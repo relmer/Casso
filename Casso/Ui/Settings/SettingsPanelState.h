@@ -341,6 +341,13 @@ private:
         std::vector<SettingsMachinePort>  machinePorts;
     };
 
+    // Appends every $cassoUiPrefs entry of `mergedJson` that `uiObj` does not
+    // already carry, so a preference this dialog knows nothing about survives
+    // a save.
+    static void CarryUnmanagedUiPrefs (
+        std::vector<std::pair<std::string, JsonValue>> & uiObj,
+        const JsonValue                               & mergedJson);
+
     static bool ArePrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
     static bool AreHardwareEqual (const std::vector<HardwareEntry> & a,
                                   const std::vector<HardwareEntry> & b);

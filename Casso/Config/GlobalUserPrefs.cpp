@@ -3,6 +3,7 @@
 #include "GlobalUserPrefs.h"
 
 
+#include "MachineInputPrefs.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 
@@ -66,12 +67,6 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "masterMuted"
 };
 
-
-// Serialized string tokens for InputMappingMode.
-static constexpr const char *  s_kpszInputModeOff      = "off";
-static constexpr const char *  s_kpszInputModeJoystick = "joystick";
-static constexpr const char *  s_kpszInputModePaddle   = "paddle";
-static constexpr const char *  s_kpszInputModeMouse    = "mouse";
 
 // Serialized string tokens for ColorMonitorTextMode.
 static constexpr const char *  s_kpszTextModeWhite  = "white";
@@ -306,67 +301,6 @@ JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
     }
 
     return JsonValue (std::move (modeObj));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GlobalUserPrefs::InputMappingModeToString
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
-{
-    // "off" is both the Off mode and the safe spelling for a mode this build
-    // does not know -- writing an unknown token back out would strand it.
-    const char *  token = s_kpszInputModeOff;
-
-
-
-    switch (mode)
-    {
-        case InputMappingMode::Joystick:  token = s_kpszInputModeJoystick; break;
-        case InputMappingMode::Paddle:    token = s_kpszInputModePaddle;   break;
-        case InputMappingMode::Mouse:     token = s_kpszInputModeMouse;    break;
-
-        case InputMappingMode::Off:
-        default:                                                           break;
-    }
-
-    return token;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GlobalUserPrefs::InputMappingModeFromString
-//
-//  Parses a serialized mode token, returning `fallback` for an empty or
-//  unrecognized string so an unknown future value degrades gracefully.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string & s, InputMappingMode fallback)
-{
-    // The inverse of InputMappingModeToString. `fallback` (not Off) is the
-    // miss result so a prefs file written by a newer build keeps whatever the
-    // caller was already using rather than silently disabling input mapping.
-    InputMappingMode  mode = fallback;
-
-
-
-    if      (s == s_kpszInputModeJoystick) { mode = InputMappingMode::Joystick; }
-    else if (s == s_kpszInputModePaddle)   { mode = InputMappingMode::Paddle;   }
-    else if (s == s_kpszInputModeMouse)    { mode = InputMappingMode::Mouse;    }
-    else if (s == s_kpszInputModeOff)      { mode = InputMappingMode::Off;      }
-
-    return mode;
 }
 
 
@@ -951,9 +885,9 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("lastDiskCreateFolder", JsonValue (lastDiskCreateFolder));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
-    root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
+    root.emplace_back ("inputMappingMode",     JsonValue (std::string (MachineInputPrefs::ModeToToken (inputMappingMode))));
     root.emplace_back ("arrowsToJoystick",     JsonValue (arrowsToJoystick));
-    root.emplace_back ("pointerMapping",       JsonValue (std::string (InputMappingModeToString (pointerMapping))));
+    root.emplace_back ("pointerMapping",       JsonValue (std::string (MachineInputPrefs::ModeToToken (pointerMapping))));
     root.emplace_back ("colorMonitorTextMode", JsonValue (std::string (ColorTextModeToString (colorMonitorTextMode))));
     root.emplace_back ("colorMonitorTextCustom", JsonValue ((double) (colorMonitorTextCustomArgb & 0x00FFFFFFu)));
 
@@ -1105,7 +1039,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     if (!inputModeStr.empty())
     {
-        inputMappingMode = InputMappingModeFromString (inputModeStr, inputMappingMode);
+        inputMappingMode = MachineInputPrefs::ModeFromToken (inputModeStr, inputMappingMode);
     }
     else if (legacyArrows)
     {
@@ -1121,7 +1055,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
         if (!pointerStr.empty())
         {
-            pointerMapping = InputMappingModeFromString (pointerStr, InputMappingMode::Off);
+            pointerMapping = MachineInputPrefs::ModeFromToken (pointerStr, InputMappingMode::Off);
             if (pointerMapping == InputMappingMode::Joystick)
             {
                 pointerMapping = InputMappingMode::Off;    // not a pointer mode

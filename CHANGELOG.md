@@ -49,6 +49,8 @@ Entries before versioning was introduced use dates only.
 - **Merlin's `-l` listing flag supports multiple files.** Listings are named 
   the same as the binaries they generate. Removed support for writing listings
   to stdout.
+- **The input mapping is now remembered per machine** rather than globally, so a
+  //e set up for a joystick and a //c using its mouse each keep their own.
 - **Ctrl-0 now also resets the bezel tilt** with the view.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
@@ -57,6 +59,10 @@ Entries before versioning was introduced use dates only.
   RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
+- **The volume and mute settings were not saved**, so both came back at their
+  old values on the next launch.
+- **Pressing OK in Settings reset preferences that its pages do not show**,
+  including the //c case-switch positions.
 - **Unchecking a second drive was not correctly persisted.** The drive left the
   desk as it should, but came back the next time Settings opened, and on the
   next launch.

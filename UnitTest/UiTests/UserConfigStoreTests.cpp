@@ -971,4 +971,151 @@ public:
         Assert::AreEqual (firstText, secondText);
         Assert::IsFalse (fs.Exists (LegacyMachinePathForTest (baseDir, "Foo")));
     }
+
+
+    // ------------------------------------------------------------------
+    //  SpliceUiPrefs
+    //
+    //  The read-modify-write every per-machine setting goes through. What it
+    //  must never do is drop a key it was not asked about: a save that
+    //  rewrote the block from scratch would take the user's color mode and
+    //  mounted disks with it.
+    // ------------------------------------------------------------------
+
+    static const JsonValue * GetUiPrefsOrFail (const JsonValue & doc)
+    {
+        const JsonValue *  uiPrefs = nullptr;
+        bool               found   = doc.HasObject ("$cassoUiPrefs", uiPrefs);
+
+        Assert::IsTrue (found && uiPrefs != nullptr, L"no $cassoUiPrefs block");
+        return uiPrefs;
+    }
+
+
+    TEST_METHOD (SpliceUiPrefs_ReplacesExistingKey_AndKeepsTheRest)
+    {
+        JsonValue                                       doc = ParseOrFail (
+            "{\"name\":\"Apple2e\",\"$cassoUiPrefs\":"
+            "{\"colorMode\":\"green\",\"speedMode\":\"maximum\"}}");
+        std::vector<std::pair<std::string, JsonValue>>  values;
+        JsonValue                                       updated;
+        const JsonValue                               * uiPrefs = nullptr;
+        std::string                                     colorMode;
+        std::string                                     speedMode;
+        std::string                                     name;
+
+
+        values.emplace_back ("colorMode", JsonValue (std::string ("amber")));
+
+        updated = UserConfigStore::SpliceUiPrefs (doc, values);
+        uiPrefs = GetUiPrefsOrFail (updated);
+
+        Assert::IsTrue (uiPrefs->HasString ("colorMode", colorMode));
+        Assert::AreEqual (std::string ("amber"), colorMode);
+
+        // Untouched neighbors survive -- the whole point of a splice.
+        Assert::IsTrue (uiPrefs->HasString ("speedMode", speedMode));
+        Assert::AreEqual (std::string ("maximum"), speedMode);
+
+        Assert::IsTrue (updated.HasString ("name", name));
+        Assert::AreEqual (std::string ("Apple2e"), name);
+    }
+
+
+    TEST_METHOD (SpliceUiPrefs_AppendsUnknownKeys_AndWritesABatchAtOnce)
+    {
+        JsonValue                                       doc = ParseOrFail (
+            "{\"$cassoUiPrefs\":{\"colorMode\":\"green\"}}");
+        std::vector<std::pair<std::string, JsonValue>>  values;
+        JsonValue                                       updated;
+        const JsonValue                               * uiPrefs = nullptr;
+        std::string                                     pointer;
+        bool                                            arrows  = false;
+        std::string                                     colorMode;
+
+
+        values.emplace_back ("arrowsToJoystick", JsonValue (true));
+        values.emplace_back ("pointerMapping",   JsonValue (std::string ("mouse")));
+
+        updated = UserConfigStore::SpliceUiPrefs (doc, values);
+        uiPrefs = GetUiPrefsOrFail (updated);
+
+        Assert::IsTrue (uiPrefs->HasBool ("arrowsToJoystick", arrows));
+        Assert::IsTrue (arrows);
+
+        Assert::IsTrue (uiPrefs->HasString ("pointerMapping", pointer));
+        Assert::AreEqual (std::string ("mouse"), pointer);
+
+        Assert::IsTrue (uiPrefs->HasString ("colorMode", colorMode));
+        Assert::AreEqual (std::string ("green"), colorMode);
+    }
+
+
+    TEST_METHOD (SpliceUiPrefs_CreatesTheBlock_WhenTheDocumentHasNone)
+    {
+        JsonValue                                       doc = ParseOrFail ("{\"name\":\"Apple2c\"}");
+        std::vector<std::pair<std::string, JsonValue>>  values;
+        JsonValue                                       updated;
+        const JsonValue                               * uiPrefs = nullptr;
+        bool                                            arrows  = false;
+
+
+        values.emplace_back ("arrowsToJoystick", JsonValue (true));
+
+        updated = UserConfigStore::SpliceUiPrefs (doc, values);
+        uiPrefs = GetUiPrefsOrFail (updated);
+
+        Assert::IsTrue (uiPrefs->HasBool ("arrowsToJoystick", arrows));
+        Assert::IsTrue (arrows);
+    }
+
+
+    TEST_METHOD (SpliceUiPrefs_NonObjectDocument_IsReturnedUnchanged)
+    {
+        JsonValue                                       doc = ParseOrFail ("[1,2,3]");
+        std::vector<std::pair<std::string, JsonValue>>  values;
+        JsonValue                                       updated;
+
+
+        values.emplace_back ("arrowsToJoystick", JsonValue (true));
+
+        updated = UserConfigStore::SpliceUiPrefs (doc, values);
+
+        Assert::IsTrue (updated.GetType() == JsonType::Array);
+        Assert::AreEqual (size_t (3), updated.GetArraySize());
+    }
+
+
+    // The keys the input mapping uses must NOT be in the UI-prefs default
+    // table, or the delta would drop them whenever they matched -- and an
+    // absent key means "fall back to the old global setting", not "off". A
+    // user who turned the mapping off on one machine would get it back.
+    TEST_METHOD (SaveDelta_KeepsInputMappingKeys_EvenAtTheirDefaultValues)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        UserConfigStore     store (L"C:\\Casso");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"name\":\"Apple2e\"}");
+        JsonValue           current     = ParseOrFail (
+            "{\"$cassoMachineVersion\":1,\"name\":\"Apple2e\",\"$cassoUiPrefs\":"
+            "{\"arrowsToJoystick\":false,\"pointerMapping\":\"off\"}}");
+        JsonValue           stored;
+        const JsonValue   * uiPrefs     = nullptr;
+        std::string         pointer;
+        bool                arrows      = true;
+        HRESULT             hr          = S_OK;
+
+
+        hr = store.SaveDelta ("Apple2e", current, defaultJson, fs);
+        AssertSucceeded (hr);
+
+        stored  = ReadMachineOrFail (fs, store, "Apple2e");
+        uiPrefs = GetUiPrefsOrFail (stored);
+
+        Assert::IsTrue (uiPrefs->HasBool ("arrowsToJoystick", arrows));
+        Assert::IsFalse (arrows);
+
+        Assert::IsTrue (uiPrefs->HasString ("pointerMapping", pointer));
+        Assert::AreEqual (std::string ("off"), pointer);
+    }
 };
