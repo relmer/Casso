@@ -28,7 +28,6 @@
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
-#include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
@@ -788,22 +787,6 @@ private:
         return DeskSceneActive() && m_globalPrefs.crtMonitor;
     }
 
-    // WHICH OF THE TWO CAPTURE NOTICES IS UP, and never both. The shadowed
-    // line lies on the picture, which only reads as a notice over the desk
-    // scene's photographic surface -- on a flat theme it is text floating on
-    // a black field, and in fullscreen it sits over whatever the game is
-    // drawing there. Everywhere else the same words go into a bar under the
-    // command strip.
-    bool    CaptureHudWanted     () const
-    {
-        return m_paddleCaptured && DeskSceneActive() && !m_d3dRenderer.IsFullscreen();
-    }
-
-    bool    CaptureBarWanted     () const
-    {
-        return m_paddleCaptured && !CaptureHudWanted();
-    }
-
     // A left-button orbit that has not yet travelled far enough to BE one.
     // The press arms it over anything the scene shows; only movement past
     // the slop turns it into a rotation, and a release before that lets the
@@ -1437,15 +1420,16 @@ private:
     // as the capture holds. The joystick button carries the same words, but
     // it is chrome: fullscreen hides it, and a captured pointer with the
     // cursor gone and no way out shown is how a user ends up killing the
-    // process. This one lies on the picture, and only over the desk scene --
-    // see CaptureHudWanted.
-    DxuiHudNotice              m_captureBanner;
-
-    // The same words as a bar under the command strip, for every presentation
-    // the shadowed line does not suit. A message bar rather than a second
-    // shadowed run: it is chrome, it says something and asks nothing, and the
-    // widget that already means exactly that is the info banner.
+    // process. A message bar rather than a caption over the picture: it says
+    // something and asks nothing, which is what an info banner is, and the
+    // chrome under the command strip is the one place it covers nothing.
     DxuiInfoBanner             m_captureBar;
+
+    // An opaque panel behind it, the way the drive bar has one. The banner's
+    // own fill is a tint meant to sit on chrome, and the bar does not: it
+    // hangs over the picture, and over the desk scene the monitor read
+    // straight through the words.
+    DxuiSurface                m_captureBarSurface;
 
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.

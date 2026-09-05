@@ -86,12 +86,11 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 - **The "Paddle Mode -- press Esc to release the mouse" notice covered the
-  drive widgets.** It was hung above the //c's switch strip, which collapses
-  to nothing on every other machine, so it fell back to the window's bottom
-  edge and sat on the drives. The notice now goes where the presentation can
-  carry it: a message bar under the command strip in the flat themes and in
-  fullscreen, and over the desk scene the caption it always was -- low on the
-  CRT picture, clear of the drives and their name strips.
+  drive widgets.** It was shadowed text laid over the viewport and hung above
+  the //c's switch strip, which collapses to nothing on every other machine,
+  so it fell back to the window's bottom edge and sat on the drives. It is a
+  message bar under the command strip now -- the same in every theme, and in
+  fullscreen, where it rides down with the toolbar reveal.
 - **Answering the "disk modified outside Casso" question could act on the wrong
   disk.** The answer was carried out against whatever was in the drive, so
   taking the disk out and putting another in while the question stood moved the
