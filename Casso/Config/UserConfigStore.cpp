@@ -153,22 +153,34 @@ std::wstring UserConfigStore::GetPreservedPrefsFilename (time_t when)
 
 std::wstring UserConfigStore::ComposeLoadFailureMessage (
     const std::wstring  & prefsPath,
-    const std::wstring  & preservedPath,
-    const std::wstring  & parseDetail)
+    const LoadReport    & report)
 {
     std::wstring  message;
-    bool          wasPreserved = !preservedPath.empty();
-    bool          hasDetail    = !parseDetail.empty();
+    bool          wasPreserved = !report.preservedPath.empty();
+    bool          hasDetail    = !report.parseDetail.empty();
 
 
 
     message = std::wstring (L"Settings file unreadable\n\n");
 
-    if (wasPreserved)
+    if (!report.hadPrefsFile)
+    {
+        // No unified file, so the failure came from the migration that would
+        // have written one. Pointing the user at UserPrefs.json here would
+        // send them after a file that does not exist, and saving is not
+        // refused either, since the gate only guards a file that is present.
+        message = std::wstring (L"Settings could not be carried forward\n\n")
+                + L"Casso could not move your settings from an older layout "
+                  L"and has started with defaults. Your old settings files are "
+                  L"still in:\n\n"
+                + prefsPath
+                + L"\n\nCasso will try again the next time it starts.";
+    }
+    else if (wasPreserved)
     {
         message += L"Casso could not read your settings and has started with "
                    L"defaults. Your file was saved as:\n\n"
-                 + preservedPath
+                 + report.preservedPath
                  + L"\n\nRepair that copy, close Casso, and rename it to "
                    L"UserPrefs.json to get your settings back.";
     }
@@ -183,9 +195,58 @@ std::wstring UserConfigStore::ComposeLoadFailureMessage (
 
     if (hasDetail)
     {
-        message += L"\n\n" + parseDetail;
+        message += L"\n\n" + report.parseDetail;
     }
 
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::ComposeSkippedLegacyMessage
+//
+//  What to say when the migration carried forward what it could and left the
+//  rest alone.
+//
+//  This is the SUCCESS path, which is why it needs saying at all. The load
+//  worked, Casso is running, and nothing else will ever mention the files that
+//  did not come across: the unified file now exists, so the migration gate
+//  never opens again and those files sit unread forever. Reporting them once
+//  is the difference between settings the user knows did not survive and
+//  settings that silently reverted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring UserConfigStore::ComposeSkippedLegacyMessage (
+    const std::wstring  & userDir,
+    const LoadReport    & report)
+{
+    HRESULT       hr         = S_OK;
+    std::wstring  message;
+    bool          hasSkipped = !report.skippedLegacyFiles.empty();
+
+
+
+    BAIL_OUT_IF (!hasSkipped, S_OK);
+
+    message = std::wstring (L"Some settings could not be carried forward\n\n")
+            + L"Casso moved your settings from an older layout, but could not "
+              L"read these files and has left them in place:\n";
+
+    for (const auto & filename : report.skippedLegacyFiles)
+    {
+        message += L"\n    " + filename;
+    }
+
+    message += L"\n\nThey are in:\n\n"
+             + userDir
+             + L"\n\nWhatever was in them has been reset to defaults.";
+
+Error:
     return message;
 }
 
@@ -1032,8 +1093,7 @@ std::wstring UserConfigStore::GetUserFilePath (const std::string & machineName) 
 HRESULT UserConfigStore::LoadAll (
     GlobalUserPrefs  & prefs,
     IFileSystem      & fs,
-    std::wstring     & outParseDetail,
-    std::wstring     & outPreservedPath)
+    LoadReport       & outReport)
 {
     HRESULT          hr         = S_OK;
     HRESULT          hrPreserve = S_OK;
@@ -1047,14 +1107,19 @@ HRESULT UserConfigStore::LoadAll (
 
     m_prefs = &prefs;
     m_machinePrefs.clear();
-    outParseDetail.clear();
-    outPreservedPath.clear();
+    m_hasReadFile = true;
+    outReport = LoadReport {};
 
-    if (!fs.Exists (path))
+    // Recorded before anything can change it, because a failure past this
+    // point moves or replaces the file and the caller still has to say which
+    // of the two states it started from.
+    outReport.hadPrefsFile = fs.Exists (path);
+
+    if (!outReport.hadPrefsFile)
     {
         bool  fFoundLegacy = false;
 
-        hr = MigrateLegacyFiles (prefs, fs, fFoundLegacy);
+        hr = MigrateLegacyFiles (prefs, fs, fFoundLegacy, outReport.skippedLegacyFiles);
         CHR (hr);
 
         // No unified file and nothing legacy to carry forward: a genuine
@@ -1077,11 +1142,11 @@ HRESULT UserConfigStore::LoadAll (
     // the parse broke so the caller can say so instead of quietly starting
     // over with defaults.
     hr = JsonParser::Parse (text, root, err);
-    CHRF (hr, outParseDetail = std::format (L"{}\n\nline {}, column {}: {}",
-                                            path,
-                                            err.line,
-                                            err.column,
-                                            std::wstring (err.message.begin(), err.message.end())));
+    CHRF (hr, outReport.parseDetail = std::format (L"{}\n\nline {}, column {}: {}",
+                                                   path,
+                                                   err.line,
+                                                   err.column,
+                                                   std::wstring (err.message.begin(), err.message.end())));
 
     hr = LoadCombinedJson (root, prefs);
     CHR (hr);
@@ -1099,9 +1164,15 @@ Error:
     // refusal lifts exactly when the unreadable file stops being present.
     if (FAILED (hr) && hasText)
     {
-        hrPreserve = PreserveUnreadableFile (text, fs, outPreservedPath);
+        hrPreserve = PreserveUnreadableFile (text, fs, outReport.preservedPath);
         IGNORE_RETURN_VALUE (hrPreserve, S_OK);
     }
+
+    // A load that failed and left the file where it was means this store's
+    // prefs are not a continuation of that file. Saves stay refused until a
+    // later load succeeds, because the alternative is writing the caller's
+    // fallback defaults over settings that were only ever unreachable.
+    m_loadUnresolved = FAILED (hr) && outReport.preservedPath.empty();
 
     return hr;
 }
@@ -1131,8 +1202,10 @@ HRESULT UserConfigStore::PreserveUnreadableFile (
     std::wstring       & outPreservedPath) const
 {
     HRESULT       hr        = S_OK;
+    HRESULT       hrCleanup = S_OK;
     std::wstring  preserved;
     time_t        when      = 0;
+    bool          wroteCopy = false;
 
 
 
@@ -1144,12 +1217,24 @@ HRESULT UserConfigStore::PreserveUnreadableFile (
     hr = fs.WriteAllText (preserved, text);
     CHR (hr);
 
+    wroteCopy = true;
+
     hr = fs.Delete (GetUserPrefsFilePath());
     CHR (hr);
 
     outPreservedPath = preserved;
 
 Error:
+    // The copy exists to make removing the original safe. An original that
+    // could not be removed is still intact, so the copy now protects nothing,
+    // and leaving it would stack up one more every launch for as long as the
+    // file stays both unreadable and undeletable.
+    if (FAILED (hr) && wroteCopy)
+    {
+        hrCleanup = fs.Delete (preserved);
+        IGNORE_RETURN_VALUE (hrCleanup, S_OK);
+    }
+
     return hr;
 }
 
@@ -1167,7 +1252,7 @@ HRESULT UserConfigStore::SaveAll (
     const GlobalUserPrefs & prefs,
     IFileSystem           & fs) const
 {
-    return SaveCombinedJson (&prefs, fs);
+    return SaveCombinedJson (&prefs, fs, nullptr);
 }
 
 
@@ -1231,11 +1316,13 @@ HRESULT UserConfigStore::Load (
 
 
 
-    if (found == m_machinePrefs.end() && m_machinePrefs.empty() && fs.Exists (GetUserPrefsFilePath()))
+    if (found == m_machinePrefs.end() && !m_hasReadFile && fs.Exists (GetUserPrefsFilePath()))
     {
         GlobalUserPrefs  fallbackPrefs;
         JsonValue        root;
 
+
+        m_hasReadFile = true;
 
         hr = fs.ReadAllText (GetUserPrefsFilePath(), userContent);
         CHR (hr);
@@ -1246,7 +1333,14 @@ HRESULT UserConfigStore::Load (
         if (FindObjectValue (root, kpszMachinesKey) != nullptr)
         {
             hr = LoadCombinedJson (root, fallbackPrefs);
-            CHR (hr);
+
+            // The machines are cached by the time this returns, and the only
+            // thing it can fail on here is the global section -- which this
+            // path parses into a local and throws away. Failing over it would
+            // cost a caller that came for one machine's delta the delta it
+            // came for, and every such caller treats the failure as "nothing
+            // saved for this machine" rather than "read the file again".
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
         else if (root.GetType() == JsonType::Object)
         {
@@ -1316,7 +1410,7 @@ HRESULT UserConfigStore::Load (
         // idempotent, so a write that could not land settles on the next run.
         // Failing here instead would turn an unreadable prefs file into a
         // failed machine load, which EmulatorShell answers with an assert.
-        hr = SaveCombinedJson (m_prefs, fs);
+        hr = SaveCombinedJson (m_prefs, fs, nullptr);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -1342,18 +1436,44 @@ HRESULT UserConfigStore::SaveDelta (
     const JsonValue    & defaultJson,
     IFileSystem        & fs) const
 {
-    HRESULT      hr = S_OK;
+    HRESULT      hr       = S_OK;
     JsonValue    delta;
+    JsonValue    saved;
+    auto         found    = m_machinePrefs.find (machineName);
+    bool         hasEntry = false;
 
 
+
+    hasEntry = (found != m_machinePrefs.end());
+
+    if (hasEntry)
+    {
+        saved = found->second;
+    }
 
     delta = DiffJson (currentJson, defaultJson);
     m_machinePrefs[machineName] = delta;
 
-    hr = SaveCombinedJson (m_prefs, fs);
+    hr = SaveCombinedJson (m_prefs, fs, nullptr);
     CHR (hr);
 
 Error:
+    // A refused write leaves the old delta on disk, so the cache has to hold
+    // the old delta too. Keeping the new one makes every later read answer
+    // with a value that was never saved, and makes the next successful save
+    // write it without the user asking again.
+    if (FAILED (hr))
+    {
+        if (hasEntry)
+        {
+            m_machinePrefs[machineName] = saved;
+        }
+        else
+        {
+            m_machinePrefs.erase (machineName);
+        }
+    }
+
     return hr;
 }
 
@@ -1420,14 +1540,10 @@ HRESULT UserConfigStore::Reset (
     hasFile = fs.Exists (GetUserPrefsFilePath());
     BAIL_OUT_IF (!hasFile, S_OK);
 
-    m_erasedMachines.insert (machineName);
-
-    hr = SaveCombinedJson (m_prefs, fs);
+    hr = SaveCombinedJson (m_prefs, fs, &machineName);
     CHR (hr);
 
 Error:
-    m_erasedMachines.clear();
-
     // The write is what removes the entry from the file, so a write that
     // failed leaves it there and the cache has to agree. Dropping it anyway
     // makes Load answer with the shipped defaults for the rest of the session
@@ -1470,11 +1586,11 @@ Error:
 //  nothing on disk the key is omitted, which LoadCombinedJson already reads as
 //  constructed defaults.
 //
-//  Reset is the one caller that needs an on-disk entry NOT carried forward,
-//  and m_erasedMachines is how it says so. The skip belongs to the on-disk
-//  pass alone: applying it after the in-memory overlay below would let a
-//  Reset followed by a SaveDelta of the same machine write the new delta and
-//  then drop it again, which is the same silent loss in the other direction.
+//  Reset is the one caller that needs an on-disk entry left out, which is what
+//  `omitMachine` is for. The skip belongs to the on-disk pass alone: applying
+//  it after the in-memory overlay below would let a Reset followed by a
+//  SaveDelta of the same machine write the new delta and then drop it again,
+//  which is the same silent loss in the other direction.
 //
 //  A read or parse failure REFUSES THE SAVE. This function reads the file back
 //  precisely because nothing here records what was never loaded, so concluding
@@ -1498,6 +1614,7 @@ Error:
 HRESULT UserConfigStore::BuildCombinedJson (
     const GlobalUserPrefs * prefs,
     IFileSystem           & fs,
+    const std::string     * omitMachine,
     JsonValue             & outRoot) const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
@@ -1535,7 +1652,7 @@ HRESULT UserConfigStore::BuildCombinedJson (
         {
             for (const auto & kv : existingMachines->GetObjectEntries())
             {
-                if (m_erasedMachines.contains (kv.first))
+                if (omitMachine != nullptr && kv.first == *omitMachine)
                 {
                     continue;
                 }
@@ -1665,16 +1782,24 @@ Error:
 
 HRESULT UserConfigStore::SaveCombinedJson (
     const GlobalUserPrefs * prefs,
-    IFileSystem           & fs) const
+    IFileSystem           & fs,
+    const std::string     * omitMachine) const
 {
-    HRESULT              hr   = S_OK;
+    HRESULT              hr         = S_OK;
     JsonWriter::Options  opts;
     JsonValue            root;
     std::string          text;
+    bool                 canAccount = !m_loadUnresolved;
 
 
 
-    hr = BuildCombinedJson (prefs, fs, root);
+    // A store whose load failed over a file it could not move aside holds
+    // nothing it can honestly write. The file is intact and the caller has
+    // since reset its prefs to defaults, so the document this would build is
+    // those defaults over settings that were never actually lost.
+    CBREx (canAccount, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    hr = BuildCombinedJson (prefs, fs, omitMachine, root);
     CHR (hr);
 
     opts.fPretty = true;
@@ -1725,9 +1850,10 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::MigrateLegacyFiles (
-    GlobalUserPrefs & prefs,
-    IFileSystem     & fs,
-    bool            & outFoundLegacy) const
+    GlobalUserPrefs           & prefs,
+    IFileSystem               & fs,
+    bool                      & outFoundLegacy,
+    std::vector<std::wstring> & outSkipped) const
 {
     HRESULT                   hr                = S_OK;
     HRESULT                   hrGlobal          = S_OK;
@@ -1736,7 +1862,6 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     std::vector<std::wstring> filenames;
     std::vector<std::wstring> legacyUserFiles;
     std::vector<std::wstring> migratedFiles;
-    std::vector<std::wstring> skippedFiles;
     std::string               text;
     std::string               combinedText;
     JsonValue                 parsed;
@@ -1756,6 +1881,7 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
 
 
     outFoundLegacy    = false;
+    outSkipped.clear();
     fHaveLegacyGlobal = fs.Exists (legacyGlobalPath);
 
     hr = fs.EnumerateFiles (m_userDir, filenames);
@@ -1808,6 +1934,11 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
         }
     }
 
+    if (fHaveLegacyGlobal && FAILED (hrGlobal))
+    {
+        outSkipped.push_back (GetLegacyGlobalPrefsFilename());
+    }
+
     if (!fHaveLegacyGlobal || FAILED (hrGlobal))
     {
         prefs = GlobalUserPrefs {};
@@ -1828,7 +1959,7 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
 
         if (FAILED (hrFile))
         {
-            skippedFiles.push_back (filename);
+            outSkipped.push_back (filename);
             continue;
         }
 
@@ -1881,16 +2012,11 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
         trace += filename;
     }
 
-    if (!skippedFiles.empty() || FAILED (hrGlobal))
+    if (!outSkipped.empty())
     {
         trace += L" -- left in place, unreadable:";
 
-        if (FAILED (hrGlobal))
-        {
-            trace += L" global";
-        }
-
-        for (const auto & filename : skippedFiles)
+        for (const auto & filename : outSkipped)
         {
             trace += L" ";
             trace += filename;

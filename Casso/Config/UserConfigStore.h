@@ -50,20 +50,36 @@ class UserConfigStore
 public:
     explicit UserConfigStore (const std::wstring & userDir);
 
-    // outParseDetail is empty unless the prefs file exists but does not
-    // parse, in which case it carries a human-readable location ("line 12,
-    // column 5: ...") so the caller can tell the user WHERE their JSON
-    // broke rather than silently discarding their settings.
-    //
-    // outPreservedPath is empty unless the file was set aside. A non-empty
-    // path holds every byte the file had and the original is gone, so saving
-    // works normally from here and the caller should report where the copy
-    // went. Empty alongside a failed HRESULT means the file is still where it
-    // was, and every save refuses until it reads.
+    // What a load left behind. Four outcomes have to be told apart before the
+    // caller can say anything true about the user's file, and a bare HRESULT
+    // tells them apart from nothing: the file parsed; it did not parse and was
+    // moved aside; it did not parse and could not be moved; there was no file
+    // and the migration that would have made one did not finish.
+    struct LoadReport
+    {
+        // Where the parse broke ("line 12, column 5: ..."). Empty unless the
+        // file exists and will not parse.
+        std::wstring                 parseDetail;
+
+        // Where the unreadable file was moved to. A non-empty path holds every
+        // byte the file had and the original is gone, so saving works normally
+        // from here. Empty beside a failed load means the file was not moved.
+        std::wstring                 preservedPath;
+
+        // Legacy files the migration could not read and deliberately left on
+        // disk. Non-empty beside a SUCCEEDED load: what came across came
+        // across, and these did not.
+        std::vector<std::wstring>    skippedLegacyFiles;
+
+        // Whether a unified prefs file was on disk when the load began. False
+        // means any failure came from the legacy migration, so there is no
+        // file for the caller to point the user at.
+        bool                         hadPrefsFile = false;
+    };
+
     HRESULT      LoadAll           (GlobalUserPrefs  & prefs,
                                     IFileSystem      & fs,
-                                    std::wstring     & outParseDetail,
-                                    std::wstring     & outPreservedPath);
+                                    LoadReport       & outReport);
     HRESULT      SaveAll           (const GlobalUserPrefs & prefs,
                                     IFileSystem           & fs) const;
     HRESULT      Load              (const std::string & machineName,
@@ -91,10 +107,14 @@ public:
 
     // What to tell the user when LoadAll failed. Lives here rather than in the
     // shell because the shell is not compiled into the test project, and the
-    // two outcomes it distinguishes are exactly what a test should pin.
+    // outcomes it tells apart are exactly what a test should pin.
     static std::wstring ComposeLoadFailureMessage (const std::wstring & prefsPath,
-                                                   const std::wstring & preservedPath,
-                                                   const std::wstring & parseDetail);
+                                                   const LoadReport   & report);
+
+    // What to tell the user when a load SUCCEEDED but the migration left files
+    // behind. Empty when nothing was skipped, so the caller shows nothing.
+    static std::wstring ComposeSkippedLegacyMessage (const std::wstring & userDir,
+                                                     const LoadReport   & report);
 
     // Pure helpers (exposed for testing)
 
@@ -205,14 +225,20 @@ private:
 
     // `outFoundLegacy` is false when there was nothing from an older
     // layout to pull forward -- a first run, not a migration failure.
-    HRESULT      MigrateLegacyFiles  (GlobalUserPrefs & prefs,
-                                      IFileSystem     & fs,
-                                      bool            & outFoundLegacy) const;
-    // A null `prefs` preserves the on-disk global section instead of writing one.
+    HRESULT      MigrateLegacyFiles  (GlobalUserPrefs           & prefs,
+                                      IFileSystem               & fs,
+                                      bool                      & outFoundLegacy,
+                                      std::vector<std::wstring> & outSkipped) const;
+    // A null `prefs` preserves the on-disk global section instead of writing
+    // one. A non-null `omitMachine` leaves that machine out of the document,
+    // which is how Reset removes an entry the on-disk read-back would
+    // otherwise carry straight back in.
     HRESULT      SaveCombinedJson    (const GlobalUserPrefs * prefs,
-                                      IFileSystem           & fs) const;
+                                      IFileSystem           & fs,
+                                      const std::string     * omitMachine) const;
     HRESULT      BuildCombinedJson   (const GlobalUserPrefs * prefs,
                                       IFileSystem           & fs,
+                                      const std::string     * omitMachine,
                                       JsonValue             & outRoot) const;
 
     // Moves an unreadable prefs file aside under a stamped name. The copy is
@@ -227,14 +253,22 @@ private:
     std::wstring                                m_userDir;
     mutable std::map<std::string, JsonValue>    m_machinePrefs;
 
-    // Machines the save currently in flight must not carry forward from the
-    // on-disk file. Non-empty only for the length of Reset's own save: once
-    // the document has been written without the entry there is nothing left
-    // to suppress, and a tombstone outliving that write would delete the
-    // machine again out of a later save that legitimately put it back.
-    mutable std::set<std::string>               m_erasedMachines;
+    // Whether this store has established what the document on disk holds,
+    // either through LoadAll or through Load's first-touch read. The cache
+    // being EMPTY is not the same question and was the wrong one to ask: it
+    // made a re-read depend on how many machines happened to be cached rather
+    // than on whether anything had been read at all.
+    mutable bool                                m_hasReadFile    = false;
 
-    GlobalUserPrefs                           * m_prefs        = nullptr;
+    // Set when a load failed and the file could NOT be moved aside, so what
+    // this store holds is not a faithful continuation of what is on disk.
+    // Every save is refused while it is set. Without it the refusal lasts only
+    // as long as the file stays unreadable: a lock that clears mid-session
+    // leaves the store holding whatever the caller reset it to, and the next
+    // save writes that over settings that were intact the whole time.
+    bool                                        m_loadUnresolved = false;
+
+    GlobalUserPrefs                           * m_prefs          = nullptr;
 
     std::function<time_t ()>                    m_timestamp;
 };

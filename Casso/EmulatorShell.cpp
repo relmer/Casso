@@ -1113,10 +1113,10 @@ void EmulatorShell::AllocateFramebuffers()
 
 void EmulatorShell::PrimeChromeThemeEarly()
 {
-    HRESULT       hr = S_OK;
-    std::wstring  parseDetail;
-    std::wstring  preservedPath;
-    std::wstring  message;
+    HRESULT                      hr = S_OK;
+    UserConfigStore::LoadReport  report;
+    std::wstring                 message;
+    std::wstring                 skipped;
 
 
 
@@ -1140,12 +1140,23 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // and the -N family is CHRF with its action fixed to one EhmNotifyUser
     // call. EhmNotifyUser rather than a themed dialog: this runs before the
     // chrome theme or main window exist, and it auto-detects GUI vs console.
-    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, parseDetail, preservedPath);
+    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, report);
     CHRF (hr,
           message = UserConfigStore::ComposeLoadFailureMessage (
-                        m_userConfigStore->GetUserPrefsFilePath(), preservedPath, parseDetail);
+                        m_userConfigStore->GetUserPrefsFilePath(), report);
           EhmNotifyUser (message.c_str());
           m_globalPrefs = GlobalUserPrefs {});
+
+    // A migration that carried forward what it could and left the rest is the
+    // one degraded outcome that reports SUCCESS, so nothing else will mention
+    // it. The unified file exists from here on, which closes the gate that
+    // would have retried those files, so this is the only chance to say so.
+    skipped = UserConfigStore::ComposeSkippedLegacyMessage (m_assetBaseDir, report);
+
+    if (!skipped.empty())
+    {
+        EhmNotifyUser (skipped.c_str());
+    }
 
 Error:
     m_chromeTheme = CassoTheme::MakeByName (m_globalPrefs.activeTheme);
@@ -2763,10 +2774,15 @@ void EmulatorShell::LoadMachineUiPrefs (
 
     // A missing file, or a missing "$cassoUiPrefs" key, is normal (first run
     // for this machine): recover to null so the caller keeps defaults, no
-    // assert. Content that exists but is corrupt -- unparseable JSON or a
-    // failed override merge -- means something is wrong, so CHRA asserts (a
-    // debug build breaks for a dev to dig in) and then bails to that same
-    // null-prefs recovery.
+    // assert. A machine's own config failing to parse IS a coding error -- it
+    // is a shipped asset, not something a user edits -- so that one asserts.
+    //
+    // The store's Load is a different matter and must NOT assert. It reads the
+    // user's prefs file, and PrimeChromeThemeEarly's banner already settles
+    // what that means: a malformed prefs file is bad DATA, there is no bug for
+    // a developer to break into, and it would stop the debugger every time
+    // someone hand-edits their JSON. An unreadable file that could not be set
+    // aside reaches here on the very next machine load.
     BAIL_OUT_IF (configPath.empty(), S_OK);
     configFile.open (configPath);
     BAIL_OUT_IF (!configFile.good(), S_OK);
@@ -2778,7 +2794,7 @@ void EmulatorShell::LoadMachineUiPrefs (
     CHRA (hr);
 
     hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, outDoc);
-    CHRA (hr);
+    CHR (hr);
 
     BAIL_OUT_IF (outDoc.GetType() != JsonType::Object, S_OK);
 

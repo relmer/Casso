@@ -55,22 +55,19 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 
 ### Fixed
-- **A settings file Casso could not read was overwritten anyway.** Startup said the
-  file had been left untouched and then the next save replaced it with defaults,
-  which cost the user everything a hand-edited stray comma had made unreadable.
-  Casso now saves the file as `UserPrefs.<date-time>.original.json` and starts a
-  fresh one, so the original is still there to repair. If it cannot be set aside,
-  settings are not saved over it at all.
-- **Resetting a machine's settings did nothing.** The entry was dropped from memory
-  and then restored from the file before it was written, so the machine kept its
-  overrides. Resetting now removes the entry from the file, leaves every other
-  machine and the global settings alone, and does not create a preferences file
-  where there was none.
+- **A settings file Casso could not read was overwritten anyway.** It is now saved
+  as `UserPrefs.<date-time>.original.json` and a fresh one started, so the original
+  is still there to repair. If it cannot be set aside, nothing is written over it.
+- **Settings changes that could not be saved reported success.** The Settings sheet
+  closed as though it had written them, and Cancel had nothing left to revert to.
+  A save that cannot go through now says so and leaves the sheet where it was.
+- **Old settings files that could not be read cost you the ones that could.** One
+  unreadable file failed the whole upgrade, and every readable file beside it was
+  then left unread for good. Casso now carries across what it can and reports what
+  it left behind.
 - **Global settings could be reset to defaults on launch.** A remembered disk whose
   file was gone made startup rewrite the preferences file to clear the stale path,
-  and that write replaced the whole global section with built-in defaults. The
-  theme, the CRT settings, the recent-disk list and everything else global went
-  back to factory state, once per launch, until the disk came back.
+  and that write replaced the whole global section with built-in defaults.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the

@@ -252,6 +252,7 @@ void SettingsApplyController::CommitApply()
 {
     JsonValue             currentJson;
     HRESULT               hr             = S_OK;
+    bool                  savesRefused   = false;
     std::string           pendingMachine;
     std::wstring          currentMachine;
     std::string           currentMachineNarrow;
@@ -279,6 +280,12 @@ void SettingsApplyController::CommitApply()
                                 currentJson,
                                 m_state->GetDefaultJson(),
                                 *m_fs);
+
+        if (FAILED (hr))
+        {
+            savesRefused = true;
+        }
+
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -338,23 +345,48 @@ void SettingsApplyController::CommitApply()
                 hrSave = m_prefs->Save (m_emuShell->GetAssetBaseDir(), *m_fs);
             }
 
+            if (FAILED (hrSave))
+            {
+                savesRefused = true;
+            }
+
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 
         // Re-snapshot baselines so subsequent Cancel after another
         // round of edits reverts to THIS committed state, not the
         // pre-commit one.
-        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+        //
+        // NOT when a save was refused, though. The baselines are what Cancel
+        // reverts to, so advancing them to values that never reached disk
+        // leaves the sheet with nothing to go back to and the next launch
+        // showing settings the user watched take effect and then lose.
+        if (!savesRefused)
         {
-            m_baselineCrt[i] = m_prefs->crtByMode[i];
-        }
+            for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+            {
+                m_baselineCrt[i] = m_prefs->crtByMode[i];
+            }
 
-        m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
-        m_baselinePrintDotStyle    = m_prefs->printDotStyle;
-        m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
-        m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
-        m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
-        m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
+            m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
+            m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+            m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
+            m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
+            m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
+            m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
+        }
+    }
+
+    // Every save on this path is fire-and-forget by design, so a refusal would
+    // otherwise close the sheet looking like it worked. The file is intact and
+    // the startup message already explained why, but that was minutes ago and
+    // said nothing about the change the user just made.
+    if (savesRefused)
+    {
+        EhmNotifyUser (L"Settings not saved\n\n"
+                       L"Casso could not read your settings file, so these "
+                       L"changes were applied to this session but not written "
+                       L"to disk. Repair or move the file, then restart Casso.");
     }
 
     m_baselineColorMode = (int) m_state->GetPrefs().colorMode;

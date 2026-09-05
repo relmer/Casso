@@ -49,8 +49,12 @@ public:
     class FaultyFileSystem : public InMemoryFileSystem
     {
     public:
-        bool  fFailRead   = false;
-        bool  fFailDelete = false;
+        bool          fFailRead = false;
+
+        // The ONE path whose delete fails. A blanket switch would fail the
+        // cleanup delete too, which is a different file and would hide whether
+        // the cleanup happened at all.
+        std::wstring  blockedDeletePath;
 
         HRESULT ReadAllText (const std::wstring & path,
                              std::string        & outContent) override
@@ -66,7 +70,7 @@ public:
 
         HRESULT Delete (const std::wstring & path) override
         {
-            if (fFailDelete)
+            if (!blockedDeletePath.empty() && path == blockedDeletePath)
             {
                 return E_ACCESSDENIED;
             }
@@ -805,11 +809,10 @@ public:
 
     TEST_METHOD (LoadAll_CorruptPrefs_ReportsWhereTheParseBroke)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        HRESULT             hr = S_OK;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        HRESULT                      hr     = S_OK;
+        UserConfigStore::LoadReport  report;
         UserConfigStore     store (L"C:\\Casso");
 
 
@@ -822,36 +825,35 @@ public:
                               "}\n");
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
 
         AssertFailed (hr,
             L"A prefs file that exists but does not parse must fail, not "
             L"silently fall back to defaults");
-        Assert::IsFalse (parseDetail.empty(),
+        Assert::IsFalse (report.parseDetail.empty(),
             L"The caller needs somewhere to point the user -- an empty detail "
             L"leaves them with 'Casso lost my settings' and no reason");
-        Assert::IsTrue (parseDetail.find (L"line 3") != std::wstring::npos,
+        Assert::IsTrue (report.parseDetail.find (L"line 3") != std::wstring::npos,
             L"The detail must identify the line the parse broke on");
-        Assert::IsTrue (parseDetail.find (store.GetUserPrefsFilePath()) != std::wstring::npos,
+        Assert::IsTrue (report.parseDetail.find (store.GetUserPrefsFilePath()) != std::wstring::npos,
             L"The detail must identify the file, so the user can go fix it");
     }
 
 
     TEST_METHOD (LoadAll_MissingPrefs_ReportsNoParseDetail)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        HRESULT             hr = S_OK;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        HRESULT                      hr     = S_OK;
+        UserConfigStore::LoadReport  report;
         UserConfigStore     store (L"C:\\Casso");
 
 
 
         // First run: no file at all is normal, not a corruption to report.
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
 
-        Assert::IsTrue (parseDetail.empty(),
+        Assert::IsTrue (report.parseDetail.empty(),
             L"A missing file is a first run, not a broken one -- warning the "
             L"user here would be crying wolf");
         UNREFERENCED_PARAMETER (hr);
@@ -860,13 +862,12 @@ public:
 
     TEST_METHOD (UnifiedPrefs_RoundTrip_GlobalAndMachineValuesStick)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        GlobalUserPrefs     reloadedPrefs;
-        JsonValue           merged;
-        HRESULT             hr = S_OK;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        GlobalUserPrefs              reloadedPrefs;
+        JsonValue                    merged;
+        HRESULT                      hr            = S_OK;
+        UserConfigStore::LoadReport  report;
         UserConfigStore     store (L"C:\\Casso");
         UserConfigStore     reloadedStore (L"C:\\Casso");
         JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":2,\"speedMode\":\"authentic\"}");
@@ -874,7 +875,7 @@ public:
 
 
         // Nothing on disk yet: a first run succeeds with struct defaults.
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertSucceeded (hr);
 
         prefs.activeTheme = "Retro Terminal";
@@ -883,7 +884,7 @@ public:
         hr = store.SaveAll (prefs, fs);
         AssertSucceeded (hr);
 
-        hr = reloadedStore.LoadAll (reloadedPrefs, fs, parseDetail, preservedPath);
+        hr = reloadedStore.LoadAll (reloadedPrefs, fs, report);
         AssertSucceeded (hr);
         Assert::AreEqual (std::string ("Retro Terminal"), reloadedPrefs.activeTheme);
 
@@ -895,13 +896,12 @@ public:
 
     TEST_METHOD (UnifiedPrefs_MigratesLegacyFilesAndDeletesOldFiles)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        HRESULT             hr = S_OK;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        JsonValue           foo;
-        JsonValue           bar;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        HRESULT                      hr     = S_OK;
+        UserConfigStore::LoadReport  report;
+        JsonValue                    foo;
+        JsonValue                    bar;
         std::wstring        baseDir = L"C:\\Casso";
         UserConfigStore     store (baseDir);
 
@@ -916,7 +916,7 @@ public:
                               "{\"colorMode\":\"green\"}");
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertSucceeded (hr);
         Assert::AreEqual (std::string ("DarkModern"), prefs.activeTheme);
         Assert::IsTrue (fs.Exists (store.GetUserPrefsFilePath()));
@@ -934,14 +934,13 @@ public:
 
     TEST_METHOD (UnifiedPrefs_MigrationIsIdempotent)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        GlobalUserPrefs     secondPrefs;
-        HRESULT             hr = S_OK;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        std::string         firstText;
-        std::string         secondText;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        GlobalUserPrefs              secondPrefs;
+        HRESULT                      hr          = S_OK;
+        UserConfigStore::LoadReport  report;
+        std::string                  firstText;
+        std::string                  secondText;
         std::wstring        baseDir = L"C:\\Casso";
         UserConfigStore     store (baseDir);
         UserConfigStore     secondStore (baseDir);
@@ -951,11 +950,11 @@ public:
                               "{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertSucceeded (hr);
         firstText = fs.PeekContent (store.GetUserPrefsFilePath());
 
-        hr = secondStore.LoadAll (secondPrefs, fs, parseDetail, preservedPath);
+        hr = secondStore.LoadAll (secondPrefs, fs, report);
         AssertSucceeded (hr);
         secondText = fs.PeekContent (secondStore.GetUserPrefsFilePath());
 
@@ -1051,12 +1050,11 @@ public:
 
     TEST_METHOD (SaveDelta_AfterLoadAll_WritesLivePrefs)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        JsonValue           savedGlobal;
-        HRESULT             hr          = S_OK;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    savedGlobal;
+        HRESULT                      hr          = S_OK;
+        UserConfigStore::LoadReport  report;
         UserConfigStore     store (L"C:\\Casso");
         JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
         JsonValue           currentJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
@@ -1065,7 +1063,7 @@ public:
         hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertSucceeded (hr);
         Assert::AreEqual (std::string ("Retro Terminal"), prefs.activeTheme);
 
@@ -1166,12 +1164,11 @@ public:
 
     TEST_METHOD (Reset_FailedWrite_KeepsTheMachineInTheCache)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        JsonValue           merged;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        HRESULT             hr          = S_OK;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    merged;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr     = S_OK;
         UserConfigStore     store (L"C:\\Casso");
         JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
 
@@ -1179,7 +1176,7 @@ public:
         hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszTwoMachinePrefs);
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertSucceeded (hr);
 
         hr = fs.SetReadOnlyAttribute (store.GetUserPrefsFilePath(), true);
@@ -1208,12 +1205,11 @@ public:
 
     TEST_METHOD (LoadAll_CorruptPrefs_MovesTheFileAsideAndKeepsEveryByte)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        std::string         preservedText;
-        HRESULT             hr       = S_OK;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        UserConfigStore::LoadReport  report;
+        std::string                  preservedText;
+        HRESULT                      hr            = S_OK;
         UserConfigStore     store (L"C:\\Casso");
         std::string         original = "{\"global\":{\"activeTheme\":\"Retro Terminal\"},}";
 
@@ -1223,16 +1219,16 @@ public:
         hr = fs.WriteAllText (store.GetUserPrefsFilePath(), original);
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertFailed (hr);
 
         // Every byte survived, under a name that ends in .json so the user can
         // open it, and the unreadable original is gone.
-        Assert::IsFalse (preservedPath.empty());
-        Assert::IsTrue (preservedPath.ends_with (L".original.json"));
+        Assert::IsFalse (report.preservedPath.empty());
+        Assert::IsTrue (report.preservedPath.ends_with (L".original.json"));
         Assert::IsFalse (fs.Exists (store.GetUserPrefsFilePath()));
 
-        hr = fs.ReadAllText (preservedPath, preservedText);
+        hr = fs.ReadAllText (report.preservedPath, preservedText);
         AssertSucceeded (hr);
         Assert::AreEqual (original, preservedText);
     }
@@ -1240,12 +1236,11 @@ public:
 
     TEST_METHOD (SaveAll_AfterCorruptPrefsWereMovedAside_WritesNormally)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        std::string         preservedText;
-        HRESULT             hr = S_OK;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        UserConfigStore::LoadReport  report;
+        std::string                  preservedText;
+        HRESULT                      hr            = S_OK;
         UserConfigStore     store (L"C:\\Casso");
 
 
@@ -1254,7 +1249,7 @@ public:
         hr = fs.WriteAllText (store.GetUserPrefsFilePath(), "{not json at all");
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertFailed (hr);
 
         // Moving the file aside is what buys back the right to write: the
@@ -1266,74 +1261,90 @@ public:
         hr = store.SaveAll (prefs, fs);
         AssertSucceeded (hr);
 
-        hr = fs.ReadAllText (preservedPath, preservedText);
+        hr = fs.ReadAllText (report.preservedPath, preservedText);
         AssertSucceeded (hr);
         Assert::AreEqual (std::string ("{not json at all"), preservedText);
     }
 
 
-    TEST_METHOD (SaveAll_OverAnUnreadableFileThatCouldNotBeMoved_IsRefused)
+    TEST_METHOD (SaveAll_AfterALoadThatCouldNotMoveTheFileAside_StaysRefused)
     {
-        FaultyFileSystem  fs;
-        GlobalUserPrefs   prefs;
-        std::wstring      parseDetail;
-        std::wstring      preservedPath;
-        std::string       onDisk;
-        HRESULT           hr       = S_OK;
-        UserConfigStore   store (L"C:\\Casso");
-        std::string       original = "{\"global\":{}}";
+        FaultyFileSystem             fs;
+        GlobalUserPrefs              prefs;
+        GlobalUserPrefs              reloaded;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr       = S_OK;
+        UserConfigStore              store (L"C:\\Casso");
+        std::string                  original = "{\"global\":{\"activeTheme\":\"Retro Terminal\"}}";
 
 
         hr = fs.WriteAllText (store.GetUserPrefsFilePath(), original);
         AssertSucceeded (hr);
 
-        // A read that fails leaves no bytes to copy, so there is nothing to
-        // move aside and the original stays put. This is the transient case --
-        // another Casso holding the file open, since ReadAllText opens it
-        // FILE_SHARE_READ.
+        // A read that fails leaves no bytes to copy, so nothing can be moved
+        // aside and the original -- which is perfectly good JSON -- stays put.
+        // An editor, a backup tool or a virus scanner holding the file is
+        // enough, and it lets go again a moment later.
         fs.fFailRead = true;
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertFailed (hr);
-        Assert::IsTrue (preservedPath.empty());
+        Assert::IsTrue (report.preservedPath.empty());
 
         hr = store.SaveAll (prefs, fs);
         AssertFailed (hr);
 
-        // The refusal is what protects the file, and it is evaluated per save
-        // rather than latched: once the file reads again, saving resumes.
+        // The lock clears. The store still holds nothing it read from that
+        // file: the caller has since reset prefs to defaults, exactly as
+        // EmulatorShell does. Resuming saves here would write those defaults
+        // over a global section that was intact the whole time, so the refusal
+        // has to outlive the condition that caused it.
         fs.fFailRead = false;
+        prefs = GlobalUserPrefs {};
+
+        hr = store.SaveAll (prefs, fs);
+        AssertFailed (hr);
         Assert::AreEqual (original, fs.PeekContent (store.GetUserPrefsFilePath()));
 
-        hr = store.SaveAll (prefs, fs);
+        // A load that succeeds is what clears it, because that is the point at
+        // which the store holds the file's own contents again.
+        hr = store.LoadAll (reloaded, fs, report);
+        AssertSucceeded (hr);
+        Assert::AreEqual (std::string ("Retro Terminal"), reloaded.activeTheme);
+
+        hr = store.SaveAll (reloaded, fs);
         AssertSucceeded (hr);
     }
 
 
     TEST_METHOD (LoadAll_WhenTheOriginalCannotBeDeleted_ReportsNoPreservedPath)
     {
-        FaultyFileSystem  fs;
-        GlobalUserPrefs   prefs;
-        std::wstring      parseDetail;
-        std::wstring      preservedPath;
-        HRESULT           hr = S_OK;
+        FaultyFileSystem             fs;
+        GlobalUserPrefs              prefs;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr     = S_OK;
         UserConfigStore   store (L"C:\\Casso");
 
 
         store.SetTimestampSource ([] { return kFixedStamp; });
-        fs.fFailDelete = true;
+        fs.blockedDeletePath = store.GetUserPrefsFilePath();
 
         hr = fs.WriteAllText (store.GetUserPrefsFilePath(), "{broken");
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertFailed (hr);
 
         // The copy landed but the original stayed, so the move did not finish.
         // Reporting a path here would tell the caller the file is safe to
         // overwrite when it is exactly the file still at risk.
-        Assert::IsTrue (preservedPath.empty());
+        Assert::IsTrue (report.preservedPath.empty());
         Assert::IsTrue (fs.Exists (store.GetUserPrefsFilePath()));
+
+        // And the copy is taken back out. The original is intact, so the copy
+        // protects nothing, and leaving it would stack up one more on every
+        // launch for as long as the file stays unreadable and undeletable.
+        Assert::AreEqual (size_t (1), fs.FileCount());
 
         hr = store.SaveAll (prefs, fs);
         AssertFailed (hr);
@@ -1364,14 +1375,20 @@ public:
 
     TEST_METHOD (ComposeLoadFailureMessage_SaysWhereTheCopyWentOrThatSavingIsRefused)
     {
-        std::wstring  moved;
-        std::wstring  stayed;
+        UserConfigStore::LoadReport  movedReport;
+        UserConfigStore::LoadReport  stayedReport;
+        UserConfigStore::LoadReport  neverWrittenReport;
+        std::wstring                 moved;
+        std::wstring                 stayed;
+        std::wstring                 neverWritten;
 
+
+        movedReport.hadPrefsFile  = true;
+        movedReport.preservedPath = L"C:\\Casso\\UserPrefs.20260903-141530.original.json";
+        movedReport.parseDetail   = L"line 2, column 1: trailing comma";
 
         moved = UserConfigStore::ComposeLoadFailureMessage (
-                    L"C:\\Casso\\UserPrefs.json",
-                    L"C:\\Casso\\UserPrefs.20260903-141530.original.json",
-                    L"line 2, column 1: trailing comma");
+                    L"C:\\Casso\\UserPrefs.json", movedReport);
 
         Assert::IsTrue (moved.find (L"UserPrefs.20260903-141530.original.json") != std::wstring::npos);
         Assert::IsTrue (moved.find (L"line 2, column 1") != std::wstring::npos);
@@ -1380,24 +1397,35 @@ public:
         // now, so the words that said otherwise must be gone.
         Assert::IsTrue (moved.find (L"left untouched") == std::wstring::npos);
 
+        stayedReport.hadPrefsFile = true;
+
         stayed = UserConfigStore::ComposeLoadFailureMessage (
-                     L"C:\\Casso\\UserPrefs.json", L"", L"");
+                     L"C:\\Casso\\UserPrefs.json", stayedReport);
 
         // Nothing was moved, so the message reports the original and says
         // saving is refused rather than implying the session keeps anything.
         Assert::IsTrue (stayed.find (L"UserPrefs.json") != std::wstring::npos);
         Assert::IsTrue (stayed.find (L"not be saved") != std::wstring::npos);
+
+        // No prefs file at all: the failure came from the legacy migration, so
+        // pointing at UserPrefs.json would send the user after a file that is
+        // not there, and saving is not refused either.
+        neverWritten = UserConfigStore::ComposeLoadFailureMessage (
+                           L"C:\\Casso", neverWrittenReport);
+
+        Assert::IsTrue (neverWritten.find (L"older layout") != std::wstring::npos);
+        Assert::IsTrue (neverWritten.find (L"not be saved") == std::wstring::npos);
+        Assert::IsTrue (neverWritten.find (L"still where it was") == std::wstring::npos);
     }
 
 
     TEST_METHOD (Load_WhenMigrationCannotSaveOverACorruptFile_StillSucceeds)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        JsonValue           merged;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        HRESULT             hr          = S_OK;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    merged;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr     = S_OK;
         UserConfigStore     store (L"C:\\Casso");
         JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":2,\"speedMode\":\"Authentic\"}");
         std::string         corrupt     = "{\"global\":{},}";
@@ -1406,7 +1434,7 @@ public:
         hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertSucceeded (hr);
 
         // The file read cleanly at startup and was hand-edited into garbage
@@ -1431,12 +1459,11 @@ public:
 
     TEST_METHOD (LoadAll_WhenOnlyTheGlobalSectionIsBad_KeepsTheMachineDeltas)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        JsonValue           machine;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        HRESULT             hr       = S_OK;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    machine;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr      = S_OK;
         UserConfigStore     store (L"C:\\Casso");
         std::string         original = "{\"global\":42,\"machines\":{\"Apple2e\":{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"}}}";
 
@@ -1452,9 +1479,9 @@ public:
         // readable, so they must survive into the file that replaces it. Losing
         // them costs the user their slot configuration and remembered disks
         // over a fault in a different section.
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertFailed (hr);
-        Assert::IsFalse (preservedPath.empty());
+        Assert::IsFalse (report.preservedPath.empty());
 
         hr = store.SaveAll (prefs, fs);
         AssertSucceeded (hr);
@@ -1472,12 +1499,11 @@ public:
 
     TEST_METHOD (LoadAll_WhenOneLegacyFileIsUnreadable_MigratesTheRest)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        JsonValue           foo;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        HRESULT             hr      = S_OK;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    foo;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr     = S_OK;
         std::wstring        baseDir = L"C:\\Casso";
         UserConfigStore     store (baseDir);
 
@@ -1491,7 +1517,7 @@ public:
         hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Bar"), "{ truncated");
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertSucceeded (hr);
 
         // The readable files came across and are gone from disk.
@@ -1515,12 +1541,11 @@ public:
 
     TEST_METHOD (LoadAll_WhenTheLegacyGlobalIsUnreadable_StillMigratesTheMachines)
     {
-        InMemoryFileSystem  fs;
-        GlobalUserPrefs     prefs;
-        JsonValue           foo;
-        std::wstring        parseDetail;
-        std::wstring        preservedPath;
-        HRESULT             hr      = S_OK;
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    foo;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr     = S_OK;
         std::wstring        baseDir = L"C:\\Casso";
         UserConfigStore     store (baseDir);
 
@@ -1531,7 +1556,7 @@ public:
                               "{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
         AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs, parseDetail, preservedPath);
+        hr = store.LoadAll (prefs, fs, report);
         AssertSucceeded (hr);
 
         foo = ReadMachineOrFail (fs, store, "foo");
@@ -1540,5 +1565,112 @@ public:
 
         Assert::AreEqual (std::string ("Skeuomorphic"), prefs.activeTheme);
         Assert::IsTrue (fs.Exists (LegacyGlobalPathForTest (baseDir)));
+    }
+
+
+    // The review that produced these found the branch's own gate covered only
+    // one of two writers, and that three of the paths around it left the store
+    // or the sheet out of step with disk. Each test below pins one of those.
+
+    TEST_METHOD (SaveDelta_WhenTheWriteIsRefused_KeepsTheOldDelta)
+    {
+        FaultyFileSystem             fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    merged;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr          = S_OK;
+        UserConfigStore              store (L"C:\\Casso");
+        JsonValue                    defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        JsonValue                    currentJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, report);
+        AssertSucceeded (hr);
+
+        // The file becomes unreadable behind the store's back, so the save is
+        // refused. The cache has to fall back with it: keeping the new delta
+        // makes every later read answer with a value that never reached disk.
+        fs.fFailRead = true;
+
+        hr = store.SaveDelta ("Apple2e", currentJson, defaultJson, fs);
+        AssertFailed (hr);
+
+        fs.fFailRead = false;
+
+        hr = store.Load ("Apple2e", defaultJson, fs, merged);
+        AssertSucceeded (hr);
+        Assert::AreEqual (std::string ("Maximum"),
+                          FindObjectValueForTest (merged, "speedMode")->GetString());
+    }
+
+
+    TEST_METHOD (Load_WhenOnlyTheGlobalIsBad_StillAnswersAHelperStore)
+    {
+        InMemoryFileSystem  fs;
+        JsonValue           merged;
+        HRESULT             hr          = S_OK;
+        UserConfigStore     store (L"C:\\Casso");
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        std::string         original    = "{\"global\":42,\"machines\":{\"Apple2e\":{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"}}}";
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), original);
+        AssertSucceeded (hr);
+
+        // A store that never ran LoadAll -- Casso builds several during
+        // startup to read a remembered disk or fold a machine delta. The
+        // global section is the only thing wrong here, and it is not what this
+        // caller came for, so failing over it would cost the machine's
+        // overrides for the whole launch.
+        hr = store.Load ("Apple2e", defaultJson, fs, merged);
+        AssertSucceeded (hr);
+        Assert::AreEqual (std::string ("Maximum"),
+                          FindObjectValueForTest (merged, "speedMode")->GetString());
+    }
+
+
+    TEST_METHOD (LoadAll_WhenALegacyFileIsSkipped_ReportsItForTheUser)
+    {
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        UserConfigStore::LoadReport  report;
+        std::wstring                 message;
+        HRESULT                      hr      = S_OK;
+        std::wstring                 baseDir = L"C:\\Casso";
+        UserConfigStore              store (baseDir);
+
+
+        hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Foo"),
+                              "{\"$cassoMachineVersion\":2}");
+        AssertSucceeded (hr);
+        hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Bar"), "{ truncated");
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, report);
+        AssertSucceeded (hr);
+
+        // Reporting success while one file did not come across is the whole
+        // hazard: the unified file now exists, so the migration gate never
+        // opens again and nothing would ever mention Bar.
+        Assert::AreEqual (size_t (1), report.skippedLegacyFiles.size());
+
+        message = UserConfigStore::ComposeSkippedLegacyMessage (baseDir, report);
+        Assert::IsFalse (message.empty());
+        Assert::IsTrue (message.find (report.skippedLegacyFiles[0]) != std::wstring::npos);
+    }
+
+
+    TEST_METHOD (ComposeSkippedLegacyMessage_IsEmptyWhenNothingWasSkipped)
+    {
+        UserConfigStore::LoadReport  report;
+
+
+        // The caller shows whatever comes back, so a clean migration has to
+        // produce nothing rather than a message about no files.
+        Assert::IsTrue (UserConfigStore::ComposeSkippedLegacyMessage (
+                            L"C:\\Casso", report).empty());
     }
 };
