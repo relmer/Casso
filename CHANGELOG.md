@@ -113,6 +113,19 @@ Entries before versioning was introduced use dates only.
   `Casso --machine Apple2e --dsik1 work.dsk` ran whatever disk was mounted last.
   An argument Casso cannot read now stops startup and shows the reason above the
   full usage text, and every form of `--help` shows that text and exits.
+- **A settings file Casso could not read was overwritten anyway.** It is now saved
+  as `UserPrefs.<date-time>.original.json` and a fresh one started, so the original
+  is still there to repair. If it cannot be set aside, nothing is written over it.
+- **Settings changes that could not be saved reported success.** The Settings sheet
+  closed as though it had written them, and Cancel had nothing left to revert to.
+  A save that cannot go through now says so and leaves the sheet where it was.
+- **Old settings files that could not be read cost you the ones that could.** One
+  unreadable file failed the whole upgrade, and every readable file beside it was
+  then left unread for good. Casso now carries across what it can and reports what
+  it left behind.
+- **Global settings could be reset to defaults on launch.** A remembered disk whose
+  file was gone made startup rewrite the preferences file to clear the stale path,
+  and that write replaced the whole global section with built-in defaults.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the
