@@ -177,7 +177,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         {
             prompt.message += copyAlreadyWritten
                                   ? (L" It's already saved as " + copy + L".")
-                                  : (L" We'll rename it to " + copy
+                                  : (L" It will be renamed to " + copy
                                      + L" so that it doesn't conflict with the modified "
                                        L"file.");
         }

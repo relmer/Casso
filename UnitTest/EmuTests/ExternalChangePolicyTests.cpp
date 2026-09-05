@@ -550,7 +550,7 @@ public:
 
 
 
-        Assert::IsTrue (before.message.find (L"We'll rename it") != std::wstring::npos);
+        Assert::IsTrue (before.message.find (L"It will be renamed") != std::wstring::npos);
         Assert::IsTrue (after.message.find  (L"already saved as") != std::wstring::npos);
 
         //  And the one that already happened says so up front, because the

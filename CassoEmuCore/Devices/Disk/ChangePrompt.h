@@ -111,8 +111,8 @@ struct ChangePrompt
     //
     //  `copyPath` IS WHERE THE VERSION IN THE DRIVE GOES IF IT IS KEPT, and
     //  `copyAlreadyWritten` says whether it is there yet. A conflict writes it
-    //  before asking anything, so the two cases differ by one tense: "we'll
-    //  rename it to" against "it's already saved as".
+    //  before asking anything, so the two cases differ by one tense: "it will
+    //  be renamed to" against "it's already saved as".
     static ChangePrompt  Compose (const std::string & imagePath, int drive,
                                   ChangeAction action,
                                   const std::string & copyPath   = std::string(),
