@@ -523,7 +523,15 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
 
     {
         float  span = (float) kMaxQuarterTrack;
-        float  t    = (float) quarter / ((span > 0.0f) ? span : 1.0f);
+        float  t    = 0.0f;
+
+        // Held to the rail's own last track first. The engine clamps to ITS
+        // maximum, quarter-track 159, which is past the 140 this rail spans,
+        // so a disk that steps the head outward beyond track 35 arrives with
+        // a position the scale below has no room for and would put the lit
+        // core clean off the end of the bar.
+        quarter = std::min (quarter, kMaxQuarterTrack);
+        t       = (float) quarter / ((span > 0.0f) ? span : 1.0f);
 
         // Inset by the core's own half-width so the lit spot stays whole at
         // track 0 and at the last track instead of being clipped by the rail.
