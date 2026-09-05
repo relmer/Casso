@@ -13175,6 +13175,9 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 //  still sitting on screen. It uses the same " - " separator as the machine
 //  name so the whole caption reads as one list rather than two grammars.
 //
+//  An undocumented --title puts a launcher's own label in front of all of it,
+//  which is what lets several windows running the same machine be told apart.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::UpdateWindowTitle()
@@ -13200,7 +13203,18 @@ void EmulatorShell::UpdateWindowTitle()
 
     BAIL_OUT_IF (isOffThread, S_OK);
 
-    title = L"Casso";
+    //  The launcher's label, ahead of everything the emulator has to say about
+    //  itself. FIRST because that is the half of a caption a taskbar button or
+    //  an Alt+Tab thumbnail still has room for once it truncates, and the whole
+    //  reason the label was passed in is to tell one window from several
+    //  identical ones.
+    if (!m_titlePrefix.empty())
+    {
+        title += m_titlePrefix;
+        title += L" - ";
+    }
+
+    title += L"Casso";
 
     if (!m_config.name.empty())
     {
