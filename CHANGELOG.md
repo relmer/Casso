@@ -97,6 +97,9 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **Tooltips could lose their last glyph.** A balloon sized a hair too narrow
+  wrapped the tail onto a second line it had no room to show, so a tip ending
+  in something short and breakable came up looking truncated.
 - **The command bar's Reset and Power tooltips said only what the button said.**
   They now specify the machine they act on, and Reset gives the open-apple
   chord for a cold boot -- the only place the chord is shown.
