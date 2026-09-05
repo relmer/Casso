@@ -71,6 +71,12 @@ Entries before versioning was introduced use dates only.
 - **Window placement is saved only when the user moves or resizes the window.**
 - **Themes are listed most skeuomorphic first** in Settings -- Skeuomorphic,
   RetroTerminal, then DarkModern -- rather than alphabetically.
+- **A drive's door opens from anywhere in the finger notch.** In the 3D themes
+  the whole recess the door lies in takes the click, on the Disk ][ and the
+  Disk //c alike, rather than only the stretch of it the door covers. The
+  notch is the feature the eye finds on the face, and it stays put and stays
+  large -- where an open door has swung up into the case, or travelled out
+  over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
 - **The startup download dialog broke "OpenEmulator (GitHub)" across two lines.**
