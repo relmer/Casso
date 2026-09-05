@@ -331,9 +331,41 @@ public:
 
     //  The emulator GUI's grammar, over the SAME option table mechanism the
     //  tool's own modes use. Starts at argv[0] because a GUI command line has
-    //  no subcommand word ahead of its flags. See EmulatorOptions for why an
-    //  argument this grammar does not know is skipped rather than refused.
+    //  no subcommand word ahead of its flags. See EmulatorOptions for which
+    //  arguments it tolerates, which it reads as a disk, and which it refuses.
     static CommandLineOptions::EmulatorOptions  ParseEmulator (int argc, char * argv[]);
+
+    //  One documented option of the emulator GUI, as data. The usage text is
+    //  composed from these, so the program cannot describe an option it does
+    //  not take or take one it does not describe.
+    struct EmulatorFlag
+    {
+        const char *  option;
+        const char *  valueName;
+        const char *  description;
+    };
+
+    //  The emulator's documented options, and the long names its parser
+    //  canonicalizes a `/` form against. Two tables because they answer
+    //  different questions -- one is what a reader is shown, the other is what
+    //  `/machine` is rewritten through -- and a sweep holds them together.
+    static std::span<const EmulatorFlag>     GetEmulatorFlags();
+    static std::span<const char * const>     GetEmulatorLongOptions();
+
+    //  What Windows may put on a GUI program's command line unbidden, without
+    //  a prefix and in lower case. Tolerated by name, which is what lets every
+    //  other unknown flag be refused.
+    static std::span<const char * const>     GetShellSuppliedArguments();
+
+    //  Whether one argument is one of those, under either prefix and in any
+    //  case. The shell writes `-Embedding` and `/Embedding` and nothing
+    //  promises which.
+    static bool  IsShellSuppliedArgument (const std::string & arg);
+
+    //  Whether an argument was WRITTEN as an option -- a prefix and at least
+    //  one character after it -- which is what separates a typo worth
+    //  reporting from a path worth mounting.
+    static bool  IsFlagShaped (const std::string & arg);
 
     //  A --trace size like "20M", "500000" or "2G" as a ring-entry count.
     //  Suffixes K/M/G multiply by 1e3/1e6/1e9; an unrecognized suffix leaves
@@ -391,7 +423,7 @@ public:
     // that is not one. One function rather than one per grammar: `disk put`
     // and both assembler grammars take the same flag, and three copies of a
     // two-word mapping is three places for them to drift apart.
-    static bool         TryReadPickUpIntent (const std::string & value, PickUpIntent & outIntent);
+    static bool         TryReadExternalChangeIntent (const std::string & value, ExternalChangeIntent & outIntent);
 
     // Refuses the options that describe a placement on a volume when no volume
     // was named. Both assembler grammars ask, the options being the
@@ -508,6 +540,13 @@ public:
                                                std::string & value, CommandLineOptions & options);
 
 private:
+    //  Words the refusal for one emulator argument, and records the verdict.
+    //  `canonical` is the argument after `/name` was rewritten, so a value left
+    //  off `/disk1` is told apart from a flag nothing has.
+    static void  RefuseEmulatorArgument (const std::string & raw,
+                                         const std::string & canonical,
+                                         CommandLineOptions::EmulatorOptions & parsed);
+
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);
     static HRESULT  ParseDecimal    (const char * text, uint32_t & value);

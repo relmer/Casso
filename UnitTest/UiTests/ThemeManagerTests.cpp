@@ -61,6 +61,18 @@ public:
         "useMicaBackdrop":    true
     })";
 
+    static constexpr const char * kRetroJson = R"({
+        "$cassoThemeVersion": 1,
+        "$cassoBuiltIn":      true,
+        "name":               "RetroTerminal",
+        "familyId":           "apple2",
+        "variantId":          "iic",
+        "uiTokens":           {},
+        "driveVisualProfile": { "style":"disk2", "colorway":"platinum", "doorAnimation":"x", "syncChannel":"drive-door" },
+        "author":             "Casso",
+        "useMicaBackdrop":    false
+    })";
+
     static constexpr const char * kBadJson  = R"({ "name": "no version", "familyId":"apple2", "variantId":"ii", "uiTokens":{}, "driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })";
 
 
@@ -93,6 +105,54 @@ public:
 
         AssertSucceeded (hr);
         Assert::AreEqual (size_t (2), mgr.GetAvailableThemes().size());
+    }
+
+
+    TEST_METHOD (Discover_OrdersBuiltInsForPresentation)
+    {
+        InMemoryFileSystem  fs;
+        HRESULT             hr;
+        ThemeManager        mgr (fs, kThemesBase);
+
+        // Written in an order the dropdown must NOT show, and stored under
+        // directory names that sort the wrong way alphabetically too.
+        WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",    kDarkJson);
+        WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\RetroTerminal", kRetroJson);
+        WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Skeuomorphic",  kSkeuoJson);
+
+        hr = mgr.Discover();
+
+        AssertSucceeded (hr);
+        Assert::AreEqual (size_t (3), mgr.GetAvailableThemes().size());
+        Assert::AreEqual (string ("Skeuomorphic"),  mgr.GetAvailableThemes()[0].name);
+        Assert::AreEqual (string ("RetroTerminal"), mgr.GetAvailableThemes()[1].name);
+        Assert::AreEqual (string ("DarkModern"),    mgr.GetAvailableThemes()[2].name);
+    }
+
+
+    TEST_METHOD (Discover_UserThemeSortsAfterTheBuiltIns)
+    {
+        InMemoryFileSystem  fs;
+        std::string         userJson = R"({
+            "$cassoThemeVersion": 1,
+            "name":               "AardvarkCustom",
+            "familyId":           "apple2",
+            "variantId":          "ii",
+            "uiTokens":           {},
+            "driveVisualProfile": { "style":"disk2", "colorway":"beige", "doorAnimation":"x", "syncChannel":"drive-door" },
+            "author":             "Someone"
+        })";
+        ThemeManager        mgr (fs, kThemesBase);
+
+        WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\AardvarkCustom", userJson.c_str());
+        WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",     kDarkJson);
+
+        AssertSucceeded (mgr.Discover());
+
+        Assert::AreEqual (size_t (2), mgr.GetAvailableThemes().size());
+        Assert::AreEqual (string ("DarkModern"),     mgr.GetAvailableThemes()[0].name,
+            L"A named built-in outranks a user theme however the directory sorts");
+        Assert::AreEqual (string ("AardvarkCustom"), mgr.GetAvailableThemes()[1].name);
     }
 
 

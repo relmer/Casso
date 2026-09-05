@@ -5,17 +5,17 @@
 //
 //  It exists to add what the platform edge needs -- atomic replacement, file
 //  stamps, the standard-output mode, and the console's width -- on top of the
-//  core library's header. Those belong to this project alone: putting
-//  <windows.h> into CassoCore's Pch would drag the platform into the assembler,
-//  which is deliberately free of it.
+//  core library's header. Those belong to this project alone.
 //
 //  WHERE <windows.h> IS INCLUDED IS NOT A DETAIL. Ehm chooses its platform from
 //  `_WINDOWS_` at its own include point, so pulling Windows in AFTER
-//  CassoCore/Pch.h leaves Ehm having already defined `S_OK` and friends
-//  portably, and every one of them is then redefined by <winerror.h>. Including
-//  it here, ahead of the core header, is what the other Windows projects in the
-//  solution do, and it settles the question for EVERY translation unit in this
-//  one rather than for whichever file happened to need a console API.
+//  CassoCore/Pch.h would leave Ehm having already defined `S_OK` and friends
+//  portably, and every one of them then redefined by <winerror.h>. CassoCore's
+//  own Pch now includes <windows.h> ahead of Ehm.h and settles that for every
+//  project, this one included -- it had to, because Ehm.cpp is compiled THERE
+//  and was picking the portable path for its definitions. Keeping the include
+//  here as well costs nothing (the header is guarded) and keeps the order
+//  obvious to a reader of this file.
 //
 //  Everything else comes from the core header below, so a translation unit here
 //  sees exactly what one in CassoCore does, plus the platform.

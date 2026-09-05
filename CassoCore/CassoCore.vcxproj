@@ -219,7 +219,7 @@
     <ClInclude Include="AssemblySession.h" />
     <ClInclude Include="AssemblerTypes.h" />
     <ClInclude Include="CommandLineOptions.h" />
-    <ClInclude Include="PickUpIntent.h" />
+    <ClInclude Include="ExternalChangeIntent.h" />
     <ClInclude Include="CommandLineHelp.h" />
     <ClInclude Include="CommandLineParser.h" />
     <ClInclude Include="UsageText.h" />

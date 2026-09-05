@@ -191,6 +191,16 @@ public:
         // so it behaves like any normal window from then on; a caller
         // that wants it focused shows it with an activating Show().
         bool                     createNoActivate         = false;
+
+        // When true (and ownerHwnd is set), the window opens flush
+        // against the owner's right edge, or its left edge when the
+        // right does not fit on the owner's monitor, instead of taking
+        // the OS cascade position. A composited (WS_POPUP) window gets
+        // no cascade at all -- CW_USEDEFAULT means 0,0 for a popup --
+        // so without this the Settings sheet opened in the top-left
+        // corner of the primary monitor. Ignored when
+        // useInitialWindowRectPx supplies a placement outright.
+        bool                     placeBesideOwner         = false;
     };
 
 
@@ -211,6 +221,19 @@ public:
     //  leaves the bottom button row under the taskbar.
     //
     static POINT  ClampToWorkArea  (const RECT & windowRect, const RECT & work);
+
+    //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Returns the top-left for a window of `windowSizePx`
+    //  placed beside `ownerRect`: flush against the owner's right edge
+    //  when the whole frame then fits in `work`, else flush against its
+    //  left edge, else overlapping the owner on whichever side has more
+    //  room, pinned to that edge of `work` so the overlap is as small as
+    //  the monitor allows. `work` is the OWNER's monitor work area, so
+    //  the result never lands on a second monitor or under the taskbar.
+    //  Tops align with the owner, then clamp.
+    //
+    static POINT  PlaceBesideOwner (const RECT & ownerRect, const SIZE & windowSizePx, const RECT & work);
 
     //
     //  Adopt mode — wrap an existing HWND that the caller continues
@@ -574,6 +597,11 @@ private:
     // it (position only, no re-centering over the owner). rcWork already
     // excludes the taskbar.
     static void           NudgeWindowOnScreen (HWND hwnd);
+
+    // Win32 half of the beside-the-owner placement: owner frame + owner
+    // monitor work area in, PlaceBesideOwner's answer out. False when
+    // there is no owner or the system will not say where it is.
+    static bool           TryGetOwnerSidePlacement (HWND ownerHwnd, const SIZE & windowSizePx, POINT & outTopLeft);
 
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();

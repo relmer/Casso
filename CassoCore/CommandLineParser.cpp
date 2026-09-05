@@ -307,6 +307,42 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
 };
 
 
+//  The emulator GUI's documented options, as data, so the usage text is
+//  composed from the grammar rather than written beside it. The table above is
+//  what canonicalizes a `/` form; this one is what the reader is shown, and a
+//  sweep holds the two together.
+//
+//  `no-image-watch` IS ABSENT ON PURPOSE, being a developer switch rather than
+//  an option a user has a reason to find. `--help` is here and is NOT in the
+//  table above, because IsHelpRequest matches its six forms exactly and has no
+//  `/` name to rewrite.
+static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
+{
+    { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
+    { "--disk1",   " <image>", "Insert this image into drive 1." },
+    { "--disk2",   " <image>", "Insert this image into drive 2." },
+    { "--trace",   " [size]",  "Record a CPU execution trace and write it out on "
+                              "exit or on a crash. A size takes a K, M or G suffix." },
+    { "--help",    "",         "Show this message and exit." },
+};
+
+
+//  What Windows itself may put on a GUI program's command line, which is the
+//  whole reason unrecognized arguments were once dropped wholesale.
+//
+//  MATCHED WITHOUT CASE AND UNDER EITHER PREFIX, because the shell writes
+//  `-Embedding` and `/Embedding` and nothing promises which. `-Embedding` is
+//  COM/DDE activation; `/Automation` is the automation-client form of the same
+//  idea. Listing them is what lets everything else be refused: a switch nobody
+//  typed is tolerated by name now rather than by giving up on the whole
+//  question.
+static constexpr const char *  s_kpszShellSuppliedArguments[] =
+{
+    "embedding",
+    "automation",
+};
+
+
 //  `--load` AND `--exec` MEAN THE SAME THING IN EVERY MODE THAT HAS THEM.
 //  Where the bytes go, and where the machine starts running. `run` called the
 //  second one `--entry` and `disk create` called the pair `--addr`/`--entry`,
@@ -1241,7 +1277,7 @@ void CommandLineParser::ParseDiskOptions (
         {
             std::string  value = argv[++i];
 
-            if (!TryReadPickUpIntent (value, options.disk.pickUpIntent))
+            if (!TryReadExternalChangeIntent (value, options.disk.changeIntent))
             {
                 //  Named rather than approximated, and the accepted set listed,
                 //  because a value outside a known set is a typo the reader
@@ -1593,11 +1629,11 @@ std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageT
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandLineParser::TryReadPickUpIntent
+//  CommandLineParser::TryReadExternalChangeIntent
 //
 //  Reads an --on-change value into an intent.
 //
-//  `reload` AND `reboot` ARE THE SURFACE SPELLINGS of TakeUpInPlace and
+//  `reload` AND `reboot` ARE THE SURFACE SPELLINGS of ReloadInPlace and
 //  Restart. The internal names describe what happens to the machine; the
 //  flag values match the words the notices use, so one word means one
 //  thing across the tool and the emulator.
@@ -1611,7 +1647,7 @@ std::span<const CommandLineParser::ImageTargetFlag> CommandLineParser::GetImageT
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommandLineParser::TryReadPickUpIntent (const std::string & value, PickUpIntent & outIntent)
+bool CommandLineParser::TryReadExternalChangeIntent (const std::string & value, ExternalChangeIntent & outIntent)
 {
     bool  known = true;
 
@@ -1619,11 +1655,11 @@ bool CommandLineParser::TryReadPickUpIntent (const std::string & value, PickUpIn
 
     if (value == "reload")
     {
-        outIntent = PickUpIntent::TakeUpInPlace;
+        outIntent = ExternalChangeIntent::ReloadInPlace;
     }
     else if (value == "reboot")
     {
-        outIntent = PickUpIntent::Restart;
+        outIntent = ExternalChangeIntent::Restart;
     }
     else
     {
@@ -1662,7 +1698,7 @@ void CommandLineParser::RefuseImageOptionsWithoutAnImage (CommandLineOptions & o
     bool  named    = !options.onDiskName.empty();
     bool  typed    = !options.imageTypeName.empty();
     bool  starts   = options.setStartupProgram;
-    bool  states   = options.pickUpIntent != PickUpIntent::Unstated;
+    bool  states   = options.changeIntent != ExternalChangeIntent::Unstated;
     bool  stray    = !hasImage && (named || typed || starts || states);
 
 
@@ -2606,7 +2642,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
 
         if (TryLongOptionValue (arg, "--on-change", argc, argv, argIndex, attachedValue, options))
         {
-            if (!TryReadPickUpIntent (attachedValue, options.pickUpIntent))
+            if (!TryReadExternalChangeIntent (attachedValue, options.changeIntent))
             {
                 Refusal (options) << "Error: unknown value for "
                                   << FormatLongOption ("--on-change", options.flagPrefix) << "\n"
@@ -3447,7 +3483,7 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
         if (TryLongOptionValue (arg, "--on-change", argc, argv, argIndex, attachedValue, options))
         {
-            if (!TryReadPickUpIntent (attachedValue, options.pickUpIntent))
+            if (!TryReadExternalChangeIntent (attachedValue, options.changeIntent))
             {
                 Refusal (options) << "Error: unknown value for "
                                   << FormatLongOption ("--on-change", options.flagPrefix) << "\n"
@@ -4183,23 +4219,87 @@ std::string CommandLineParser::ApplyListingExtension (const std::string & name)
 //
 //  This replaced a hand-rolled loop in Casso.exe's Main.cpp that compared
 //  wide literals, took only the `--` form for everything but `--trace`, and
-//  could not be reached by a test. An argument the table does not know is
-//  SKIPPED rather than refused -- see EmulatorOptions for why a GUI program
-//  must not fail to start over a shell-supplied argument.
+//  could not be reached by a test.
+//
+//  THREE KINDS OF ARGUMENT, and the whole point of this function is that they
+//  are no longer one. A known flag is read. One of the shell's own arguments
+//  is tolerated in silence, which is what the wholesale tolerance was ever for.
+//  Anything else stops startup with a reason, because a flag nobody can read is
+//  a typo, and answering a typo by booting the last disk is how a session
+//  spends an afternoon capturing audio from the wrong image.
+//
+//  THERE IS NO OPERAND. A drive is filled by --disk1 or --disk2 and by nothing
+//  else, so a bare image path is refused rather than taken as either. It was
+//  read as drive 1 for one revision, on the reasoning that dragging a disk onto
+//  the executable should boot it -- but no file association is registered
+//  anywhere, dropping a disk on the RUNNING window already works, and the whole
+//  of what it bought was a second way to say --disk1. The assembler grammars
+//  gave up a bare source file for the same reason: an operand makes the tool
+//  guess at what the caller can state.
+//
+//  THE FIRST REFUSAL IS THE ONE REPORTED. The walk runs to the end regardless,
+//  since a refused command line starts nothing and what it reads afterward is
+//  never used, and the guard below keeps the first message rather than the
+//  last. A command line has one thing wrong with it far more often than three,
+//  and a reader fixing the first will retype the rest anyway.
+//
+//  HELP IS LOOKED FOR OVER THE WHOLE TAIL AND BEFORE THE WALK, which is what
+//  the `run` and `disk` grammars do and for the reason ParseRunOptions gives: a
+//  reader asks for help after typing the thing they wanted help with at least
+//  as often as before it. It scanned inside the walk for one revision, where a
+//  value-taking flag reached its argument first -- `--machine --help` set the
+//  machine to `--help`, fell back to the default machine and booted, which is
+//  exactly the silence this function exists to end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, char * argv[])
 {
     CommandLineOptions::EmulatorOptions  parsed;
+    bool                                 wantsHelp = false;
+    int                                  probe     = 0;
+    int                                  i         = 0;
 
 
 
-    for (int i = 0; i < argc; i++)
+    //  The first prefixed argument sets the prefix everything written back to
+    //  this reader uses, matching the top-level grammar's rule. Ahead of the
+    //  walk because the help page needs it on a line the walk never reaches.
+    for (probe = 0; probe < argc; probe++)
     {
-        std::string  arg      = GetCanonicalLongFlag (argv[i],
+        if (IsFlagShaped (argv[probe]))
+        {
+            parsed.flagPrefix = argv[probe][0];
+            break;
+        }
+    }
+
+    for (probe = 0; probe < argc; probe++)
+    {
+        if (IsHelpRequest (argv[probe]))
+        {
+            wantsHelp = true;
+            break;
+        }
+    }
+
+    if (wantsHelp)
+    {
+        parsed.verdict = CommandLineOptions::EmulatorOptions::Verdict::Help;
+        return parsed;
+    }
+
+    for (i = 0; i < argc; i++)
+    {
+        std::string  raw      = argv[i];
+        std::string  arg      = GetCanonicalLongFlag (raw,
                                     std::span<const char * const> (s_kpszEmulatorOptions));
         bool         hasValue = (i + 1) < argc;
+
+        if (IsShellSuppliedArgument (raw))
+        {
+            continue;
+        }
 
         if      (arg == "--machine" && hasValue) { parsed.machine = argv[++i]; }
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
@@ -4222,9 +4322,183 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             parsed.noImageWatch = true;
         }
+        else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
+        {
+            RefuseEmulatorArgument (raw, arg, parsed);
+        }
     }
 
     return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::RefuseEmulatorArgument
+//
+//  Why one argument stopped the emulator starting, in the words the user reads.
+//
+//  THREE REASONS, AND THEY ARE DIFFERENT MISTAKES. A flag the grammar does not
+//  have is a typo. A flag it does have, standing last with nothing after it, is
+//  a value left off. Something written as neither is a reader expecting this
+//  grammar to take an operand, which it does not. Answering all three with
+//  "unknown option" would tell the first reader what to fix and leave the other
+//  two rereading something they wrote correctly.
+//
+//  ONE LINE, AND NO ROUTE TO THE HELP AT THE END OF IT. An error here usually
+//  runs to two, a label with the rule under it, and it earns the second at a
+//  console, where the reader has the message and nothing else. Here the message
+//  is the first line of a box whose remainder IS the options, so a rule
+//  restating one of them is read twice and "run --help for the options" points
+//  at what the reader is already looking at.
+//
+//  The argument is quoted as TYPED, which is what keeps the refusal written in
+//  the reader's own prefix now that no part of it is composed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::RefuseEmulatorArgument (const std::string                   & raw,
+                                                const std::string                   & canonical,
+                                                CommandLineOptions::EmulatorOptions & parsed)
+{
+    bool  isFlag = IsFlagShaped (raw);
+
+
+
+    parsed.verdict = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+
+    if (!isFlag)
+    {
+        //  A disk goes in a drive by being put there, so an image path with no
+        //  option in front of it is a reader assuming an operand this grammar
+        //  has never had. The options beside this message show the two that
+        //  take one.
+        parsed.refusalMessage = "Error: unexpected argument " + raw;
+    }
+    else if (canonical == "--machine" || canonical == "--disk1" || canonical == "--disk2")
+    {
+        parsed.refusalMessage = "Error: missing value for " + raw;
+    }
+    else
+    {
+        parsed.refusalMessage = "Error: unknown option " + raw;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsFlagShaped
+//
+//  Whether an argument was WRITTEN as an option, which is a different question
+//  from whether the grammar has it.
+//
+//  Two characters at least, so a lone `-` and a lone `/` stay operands. A
+//  single slash is a legal ProDOS root and a single dash is the conventional
+//  stand-in for a stream; neither is a mistyped flag, and refusing to start
+//  over one would be the same overreach in the other direction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsFlagShaped (const std::string & arg)
+{
+    return arg.size() >= 2 && (arg[0] == '-' || arg[0] == '/');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsShellSuppliedArgument
+//
+//  Whether Windows put this argument there rather than a person.
+//
+//  Matched WITHOUT its prefix and WITHOUT case, because the shell writes
+//  `-Embedding` where the documentation writes `/Embedding` and a program that
+//  took only one of them would refuse to start on the other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsShellSuppliedArgument (const std::string & arg)
+{
+    std::string  bare  = arg;
+    size_t       c     = 0;
+    bool         found = false;
+
+
+
+    if (bare.empty() || (bare[0] != '-' && bare[0] != '/'))
+    {
+        return false;
+    }
+
+    while (!bare.empty() && (bare[0] == '-' || bare[0] == '/'))
+    {
+        bare.erase (0, 1);
+    }
+
+    for (c = 0; c < bare.size(); c++)
+    {
+        bare[c] = (char) tolower ((unsigned char) bare[c]);
+    }
+
+    for (const char * name : s_kpszShellSuppliedArguments)
+    {
+        if (bare == name)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetEmulatorFlags / GetEmulatorLongOptions
+//
+//  Exposed so the usage text and the sweep that checks it ask the grammar
+//  rather than a list somebody remembered to update.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const CommandLineParser::EmulatorFlag> CommandLineParser::GetEmulatorFlags()
+{
+    return std::span<const EmulatorFlag> (s_kEmulatorFlags);
+}
+
+
+std::span<const char * const> CommandLineParser::GetEmulatorLongOptions()
+{
+    return std::span<const char * const> (s_kpszEmulatorOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetShellSuppliedArguments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const char * const> CommandLineParser::GetShellSuppliedArguments()
+{
+    return std::span<const char * const> (s_kpszShellSuppliedArguments);
 }
 
 

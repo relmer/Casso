@@ -180,7 +180,7 @@ private:
     std::array<bool, 2>                             & m_userWriteProtect;
 
     //  Both outlive every mount, because the store holds bare pointers to them
-    //  and a watch may be taken up at any mount.
+    //  and a watch may be started at any mount.
     std::unique_ptr<IImageWatcher>  m_imageWatcher;
     std::unique_ptr<IDiskFileIo>    m_imageFileIo;
 

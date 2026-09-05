@@ -1,6 +1,6 @@
 #pragma once
 
-#include "PickUpIntent.h"
+#include "ExternalChangeIntent.h"
 
 #include "AssemblerTypes.h"
 
@@ -138,8 +138,8 @@ struct CommandLineOptions
         //
         //  `Unstated` is what every invocation without the flag carries, and it
         //  is a real value: the emulator asks about a change nobody explained.
-        PickUpIntent  pickUpIntent = PickUpIntent::Unstated;
-        Encoding      encoding     = Encoding::Verbatim;
+        ExternalChangeIntent  changeIntent = ExternalChangeIntent::Unstated;
+        Encoding              encoding     = Encoding::Verbatim;
         //  The command as it was typed, kept so a refusal can quote it. The
         //  enum above cannot: every word this grammar does not have maps
         //  to the same None, so "unknown disk command" could not say which.
@@ -298,13 +298,31 @@ struct CommandLineOptions
     //  grammar as everything else so both prefixes work at both executables
     //  and the help can write them with the reader's own prefix.
     //
-    //  Unrecognized arguments are IGNORED under this grammar rather than
-    //  refused: Casso.exe is a GUI program that Windows may launch with a
-    //  shell-supplied argument, and refusing to start over one nobody asked
-    //  about is worse than skipping it.
+    //  AN ARGUMENT THIS GRAMMAR DOES NOT HAVE IS REFUSED. Every unmatched
+    //  argument used to be dropped without a word, on the reasoning that a GUI
+    //  program Windows may launch with a shell-supplied argument must not fail
+    //  to start over one nobody asked about. That reasoning covers the shell's
+    //  own arguments and nothing else: a mistyped --dsik1 is a person's doing,
+    //  and discarding it in silence is how `--machine Apple2e --dsik1 work.dsk`
+    //  booted whatever was mounted last while looking like it had done as it
+    //  was told.
+    //
+    //  So the two cases are separated. The shell's arguments are listed and
+    //  still tolerated, and everything else stops startup with the usage text
+    //  and the reason. There is no operand: a drive is filled by --disk1 or
+    //  --disk2, and a bare image path is refused rather than guessed at.
     //
     struct EmulatorOptions
     {
+        //  What the parser made of the command line, which is what decides
+        //  whether the emulator starts at all.
+        //
+        //  Clean starts the machine. Help prints the usage text and exits 0,
+        //  the request having been answered. Refused prints the reason above
+        //  that text and exits without starting anything, on the same status 2
+        //  CassoCli spends on a command line it could not take.
+        enum class Verdict  { Clean, Help, Refused };
+
         //  ~1 minute of emulated 6502 time (~340K instructions/sec). Each
         //  ring entry is ~10 bytes, so the default ring is ~200 MB. A trace
         //  too short to contain the fault is worth nothing, and anyone
@@ -315,6 +333,20 @@ struct CommandLineOptions
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
+
+        Verdict      verdict      = Verdict::Clean;
+
+        //  Why the command line was refused, in the words a user reads. Empty
+        //  when it was not. Composed here rather than at the window that shows
+        //  it, for the reason CommandLineOptions::refusalMessage already gives:
+        //  the test assembly reads what the parser RETURNS, and a message
+        //  written at the printing edge is a message nothing can check.
+        std::string  refusalMessage;
+
+        //  Which prefix the USER typed, so the refusal and the usage come back
+        //  written the way they invoked the program. The first prefixed
+        //  argument is the one that counts, matching the top-level grammar.
+        char         flagPrefix   = '-';
 
         //  Runs with change notification deliberately broken, so the check
         //  made before every write can be measured on its own.
@@ -354,7 +386,7 @@ struct CommandLineOptions
     //  answered by the same `imagePath` question above: an assembly that writes
     //  onto an image may state an intent, and one that does not has nothing to
     //  state it about.
-    PickUpIntent  pickUpIntent = PickUpIntent::Unstated;   // --on-change <what>
+    ExternalChangeIntent  changeIntent = ExternalChangeIntent::Unstated;   // --on-change <what>
 
     //  Whether a prefixed argument has been seen yet, which is what makes the
     //  FIRST one the one that counts. Without it a mixed command line would be

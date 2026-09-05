@@ -43,6 +43,10 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **The "disk modified outside Casso" notices were rewritten.** The disk and its
+  drive lead on a line of their own instead of appearing in every sentence, and
+  all four notices report the copy the same way: your disk is renamed, and the
+  new name is given once.
 - **A machine's `monitor` key takes a vendor-qualified identifier.** `MonitorII`
   and `MonitorIIc` are now `AppleMonitorII` and `AppleMonitorIIc`. The catalog
   will hold tubes from more than one maker, so each identifier carries whose it
@@ -58,8 +62,30 @@ Entries before versioning was introduced use dates only.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
 - **Window placement is saved only when the user moves or resizes the window.**
+- **Themes are listed most skeuomorphic first** in Settings -- Skeuomorphic,
+  RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
+- **A window with no client area buried the screen in assertion dialogs.**
+  Every control laid out against a minimized window came out zero DIPs wide,
+  and a text field insetting that by its own padding passed a NEGATIVE width to
+  DirectWrite, which refuses one. Being a paint, it failed again every frame:
+  launching Casso minimized with the boot-disk picker due stacked some thirty
+  modal assertion boxes within seconds, and minimizing the picker while it was
+  open did the same. Text is no longer drawn into a box with no area, and a
+  failed assertion is now shown once per run and never on top of another one --
+  the task-modal box was pumping the very paint whose failure raised it.
+- **Unchecking a second drive was not correctly persisted.** The drive left the
+  desk as it should, but came back the next time Settings opened, and on the
+  next launch.
+- **Full-screen mode hid the top and bottom of the picture on a widescreen
+  display.** The camera was placed so the monitor's glass covered the screen,
+  and the glass is about 1.4:1, so on 16:9 the top and bottom of the glass were
+  cropped and the picture with them -- about a dozen scanlines at each end, in
+  text mode as well as graphics. The camera now moves back far enough to fit
+  the whole picture. Up to about 3:2 the glass still covers the screen as
+  before; beyond that only the tube is drawn, against black, without the case,
+  bezel or power lamp.
 - **Changing one CRT setting no longer freezes the others.** Every setting left
   alone keeps following the monitor preset and the active theme.
 - **The color bleed width now shows the width in effect.** It rounded to whole
@@ -72,6 +98,7 @@ Entries before versioning was introduced use dates only.
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are
   re-decoded when the new device runs at a different sample rate.
+- **The Settings dialog now opens adjacent to the main window.**
 - **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
   pending-audio backlog from the rate the endpoint reports, and that calculation
   overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
@@ -93,6 +120,25 @@ Entries before versioning was introduced use dates only.
   keeps the size it reads at from every pose, which is why it was taken out of the
   scene the first time. The fullscreen overlay strip has nothing in front of its
   drives and keeps the chrome label it had.
+- **Casso started up regardless of what was on its command line.** A mistyped flag,
+  a misspaced one, a stray disk image path and `--help` were all discarded in
+  silence and the emulator booted as though nothing had been asked, so
+  `Casso --machine Apple2e --dsik1 work.dsk` ran whatever disk was mounted last.
+  An argument Casso cannot read now stops startup and shows the reason above the
+  full usage text, and every form of `--help` shows that text and exits.
+- **A settings file Casso could not read was overwritten anyway.** It is now saved
+  as `UserPrefs.<date-time>.original.json` and a fresh one started, so the original
+  is still there to repair. If it cannot be set aside, nothing is written over it.
+- **Settings changes that could not be saved reported success.** The Settings sheet
+  closed as though it had written them, and Cancel had nothing left to revert to.
+  A save that cannot go through now says so and leaves the sheet where it was.
+- **Old settings files that could not be read cost you the ones that could.** One
+  unreadable file failed the whole upgrade, and every readable file beside it was
+  then left unread for good. Casso now carries across what it can and reports what
+  it left behind.
+- **Global settings could be reset to defaults on launch.** A remembered disk whose
+  file was gone made startup rewrite the preferences file to clear the stale path,
+  and that write replaced the whole global section with built-in defaults.
 - **Restore defaults ignored a theme's per-machine values.** It read the theme's base
   CRT defaults and skipped the machine overrides merged on top. On an Apple //e running
   Retro Terminal it seeded the base numbers instead of the //e variant's. Those wrong
