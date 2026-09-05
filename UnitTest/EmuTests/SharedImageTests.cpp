@@ -97,6 +97,11 @@ public:
         std::vector<ChangePrompt>                      questions;
         int                                            restarts = 0;
 
+        //  How many times the store has read an image file. Reading is the
+        //  expensive half of noticing a change, so a test can hold this still
+        //  to prove nothing is being re-read on every tick.
+        int                                            reads = 0;
+
         //  Every bay change the store announced, in order, so a test can prove
         //  the one signal the shell reacts to fires on each path.
         std::vector<BayChange>         bayChanges;
@@ -110,6 +115,8 @@ public:
             store.SetImageReader ([this] (const string & path, vector<Byte> & bytes) -> HRESULT
             {
                 auto  found = files.find (path);
+
+                reads++;
 
                 if (found == files.end())
                 {
@@ -515,6 +522,133 @@ public:
                               L"but under one stamped with the moment the copy was made");
         }
     }
+
+    //  A QUESTION ON SCREEN OWNS THE BAY UNTIL IT IS ANSWERED. Mount and eject
+    //  both clear the outstanding-question flag, so a disk that leaves the
+    //  drive takes its question with it and the answer has nothing left to
+    //  apply. Acting anyway carried the answer onto whatever went in next:
+    //  "keep the one I have" moved the new bay onto the departed disk's rescue
+    //  copy, which the next flush then wrote over.
+    TEST_METHOD (AnAnswerToAQuestionAboutADiskThatHasLeftIsDropped)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        //  The user takes the disk out and puts one back, and only then
+        //  reaches for the dialog that is still on screen.
+        rig.store.Eject (kSlot, kDrive);
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld, "");
+
+        Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                          L"nothing is reported about a disk that is gone");
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"and nothing is written on its behalf");
+        Assert::AreEqual (std::string (kImagePath), rig.store.GetSourcePath (kSlot, kDrive),
+                          L"the disk now in the drive keeps its own file");
+    }
+
+
+
+    //  AND A LATER CHANGE WAITS BEHIND THE ANSWER, however it arrived. A
+    //  stated intent used to skip the question entirely -- it needs no answer
+    //  of its own -- and swapped the disk out from under the dialog, so
+    //  "keep your current version" came to mean the other program's version.
+    TEST_METHOD (AStatedIntentWaitsWhileAQuestionStands)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        {
+            const Byte  held = FirstTrackByte (rig.store);
+
+            rig.WriteImage (kImagePath, 0x33);
+            rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+            Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                              L"and it is not asked a second time");
+            Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                              L"nor reported over the top of the question");
+            Assert::AreEqual ((int) held, (int) FirstTrackByte (rig.store),
+                              L"the disk under the dialog is the one it asked about");
+        }
+
+        //  Answering lands the newest bytes, not the ones the question was
+        //  composed from. Nibblization makes a fill byte unrecognizable on the
+        //  track, so what each fill looks like there is measured rather than
+        //  written down.
+        {
+            Rig  reference;
+
+            reference.WriteImage (kImagePath, 0x33);
+            AssertSucceeded (reference.store.Mount (kSlot, kDrive, kImagePath));
+
+            rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace, "");
+
+            Assert::AreEqual ((int) FirstTrackByte (reference.store),
+                              (int) FirstTrackByte (rig.store),
+                              L"the answer takes up whatever is on disk when it comes");
+        }
+    }
+
+
+
+    //  AND THE FILE IS NOT RE-READ WHILE THE USER READS THE QUESTION. The
+    //  change stays pending by design until an answer arrives, so every idle
+    //  tick used to read the whole image and nibblize it before reaching the
+    //  point where an outstanding question was noticed.
+    TEST_METHOD (AStandingQuestionDoesNotReReadTheImage)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        {
+            const int  before = rig.reads;
+
+            rig.nowMs += 5000;
+            rig.store.ApplyPendingReload();
+            rig.store.ApplyPendingReload();
+            rig.store.ApplyPendingReload();
+
+            Assert::AreEqual (before, rig.reads,
+                              L"an idle tick under a standing question reads nothing");
+        }
+    }
+
+
 
     //  AND A RESERVATION DOES NOT OUTLIVE THE DISK IT WAS MADE FOR. Neither
     //  eject clears one, which costs nothing while the bay stands empty --

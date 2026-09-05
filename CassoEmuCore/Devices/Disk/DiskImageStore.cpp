@@ -2078,6 +2078,28 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         return;
     }
 
+    //  WHILE A QUESTION STANDS THE USER OWNS THE BAY, and every later change
+    //  waits behind their answer -- a stated intent included. Applying one
+    //  underneath an open dialog swapped the disk out from under it, so
+    //  "keep your current version" came to mean the other program's version.
+    //
+    //  NOTHING IS LOST BY WAITING. `NoteChange` keeps refreshing the pending
+    //  record, and the answer re-reads the file when it arrives, so what
+    //  lands is the newest bytes rather than whatever stood when the question
+    //  went up. One consequence: a restart requested while a question is on
+    //  screen reloads without restarting, because the answer consumes the
+    //  record that carried the request.
+    //
+    //  IT ALSO STOPS THE READING. The rest of this function reads the whole
+    //  image and trial-loads it before it reaches the point where an
+    //  outstanding question is noticed, and the change stays pending by
+    //  design for as long as the user reads -- sixty full reads and
+    //  nibblizations a second until they answer.
+    if (entry.sharedState.IsAskOutstanding())
+    {
+        return;
+    }
+
     //  Deferred rather than refused, indefinitely and silently: the pick-up
     //  simply happens once the hold is released. Both writers in this system
     //  commit atomically, but a text editor or a copy tool need not, and the
@@ -2285,6 +2307,17 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 
     {
         Entry &  entry = GetEntry (slot, drive);
+
+        //  AN ANSWER TO A QUESTION NOBODY IS ASKING ANY MORE IS DROPPED. Mount
+        //  and eject both clear this flag, so a disk that left the drive while
+        //  the dialog stood takes its question with it. Acting anyway carried
+        //  the answer onto whatever disk went in next: "keep the one I have"
+        //  moved that bay onto the departed disk's rescue copy, which the next
+        //  flush then wrote over.
+        if (!entry.sharedState.IsAskOutstanding())
+        {
+            return;
+        }
 
         entry.sharedState.SetAskOutstanding (false);
 
