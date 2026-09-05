@@ -710,11 +710,9 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::SetInputState / InputSegSelected
+//  CommandToolbar::SetInputState
 //
-//  The joystick segment lights from the arrows mapping, paddle / mouse from
-//  the pointer mode, and the mouse segment exists only when the machine has
-//  a mouse.
+//  The mouse segment exists only when the machine has a mouse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -745,6 +743,18 @@ void CommandToolbar::SetInputState (bool arrowsJoystick, InputMappingMode pointe
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::InputSegSelected
+//
+//  The joystick segment lights from the arrows mapping, paddle and mouse from
+//  the pointer mode.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool CommandToolbar::InputSegSelected (int index) const
 {
@@ -1772,6 +1782,25 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandToolbar::GetGlyphStroke
+//
+//  The pen every drawn device glyph uses. MDL2 draws roughly a fifteenth of
+//  its em as stroke; the floor keeps the pen visible once the box is small
+//  enough for that ratio to fall under a pixel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float CommandToolbar::GetGlyphStroke (float w)
+{
+    return (std::max) (1.15f, w / 15.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandToolbar::StrokeCircle + the monoline glyph painters
 //
 //  Monoline device glyphs in the Segoe MDL2 language the bar's other icons
@@ -1782,17 +1811,6 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
 //  so the set scales together.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-float CommandToolbar::GetGlyphStroke (float w)
-{
-    // MDL2 draws roughly a fifteenth of its em as stroke; the floor keeps the
-    // pen visible once the box is small enough for the ratio to fall under a
-    // pixel.
-    return (std::max) (1.15f, w / 15.0f);
-}
-
-
-
 
 void CommandToolbar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
                                    float r, float stroke, uint32_t ink)
