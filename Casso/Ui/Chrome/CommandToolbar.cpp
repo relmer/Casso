@@ -59,9 +59,7 @@ static constexpr uint32_t s_kLedOffCore = 0xFF06121A;
 
 static constexpr const wchar_t * s_kInputLabel = L"Input";
 
-static constexpr const wchar_t * s_kTipTheme        = L"Theme";
-static constexpr const wchar_t * s_kTipMonitorColor = L"Monitor color";
-static constexpr const wchar_t * s_kTipInput        = L"Input devices";
+static constexpr const wchar_t * s_kTipInput = L"Input devices";
 
 // The monitor-color rows. Settings spells the monochrome ones out in full;
 // on a strip this narrow the phosphor name alone carries it, and the button
@@ -136,8 +134,6 @@ CommandToolbar::CommandToolbar()
     GetEntry (Entry::Power)      = Button { Entry::Power,      IDM_MACHINE_POWERCYCLE,   s_kGlyphPower,      L"Power"      };
 
     GetEntry (Entry::Printer).statusLed = true;
-    GetEntry (Entry::Theme).tip         = s_kTipTheme;
-    GetEntry (Entry::Color).tip         = s_kTipMonitorColor;
 
     m_volumeSlider.SetVertical      (true);
     m_volumeSlider.SetRange         (0.0f, 100.0f);
@@ -169,7 +165,6 @@ CommandToolbar::CommandToolbar()
     });
 
     WireMenus();
-    RefreshPickerLabels();
     RebuildActionTips();
 }
 
@@ -211,7 +206,6 @@ void CommandToolbar::WireMenus()
     {
         m_themeIndex     = index;
         m_themePreviewed = false;
-        RefreshPickerLabels();
 
         if (m_themeCommit)
         {
@@ -244,7 +238,6 @@ void CommandToolbar::WireMenus()
     {
         m_colorIndex     = index;
         m_colorPreviewed = false;
-        RefreshPickerLabels();
 
         if (m_monitorCommit)
         {
@@ -277,32 +270,6 @@ void CommandToolbar::WireMenus()
 
         m_menuClosedMs = GetTickCount64();
     });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::RefreshPickerLabels
-//
-//  The two picker buttons carry their VALUE rather than their purpose, since
-//  the value is the thing worth reading at a glance and the tooltip supplies
-//  the purpose. A theme index that names nothing falls back to the fixed
-//  label so the button is never blank.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::RefreshPickerLabels()
-{
-    bool  haveTheme = m_themeIndex >= 0 && m_themeIndex < (int) m_themeNames.size();
-    bool  haveColor = m_colorIndex >= 0 && m_colorIndex < (int) _countof (s_kMonitorColorRows);
-
-
-
-    GetEntry (Entry::Theme).value = haveTheme ? m_themeNames[(size_t) m_themeIndex] : std::wstring();
-    GetEntry (Entry::Color).value = haveColor ? s_kMonitorColorRows[m_colorIndex]   : std::wstring();
 }
 
 
@@ -387,7 +354,6 @@ void CommandToolbar::SetThemes (const std::vector<std::wstring> & displayNames, 
 {
     m_themeNames = displayNames;
     m_themeIndex = activeIndex;
-    RefreshPickerLabels();
 }
 
 
@@ -406,20 +372,18 @@ void CommandToolbar::SetThemes (const std::vector<std::wstring> & displayNames, 
 
 void CommandToolbar::SetThemeIndex (int index)
 {
-    if (!m_themeMenu.IsVisible() && index != m_themeIndex)
+    if (!m_themeMenu.IsVisible())
     {
         m_themeIndex = index;
-        RefreshPickerLabels();
     }
 }
 
 
 void CommandToolbar::SetMonitorColorIndex (int index)
 {
-    if (!m_colorMenu.IsVisible() && index != m_colorIndex)
+    if (!m_colorMenu.IsVisible())
     {
         m_colorIndex = index;
-        RefreshPickerLabels();
     }
 }
 
@@ -852,32 +816,12 @@ int CommandToolbar::MeasureLabelPx (const wchar_t * text, float fontPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::GetEntryLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * CommandToolbar::GetEntryLabel (const Button & btn) const
-{
-    return btn.value.empty() ? btn.label : btn.value.c_str();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CommandToolbar::GetEntryWidthPx
 //
 //  One entry costs its icon plus padding, and its label when it can still
 //  afford one. The input devices are the exception in both directions: their
 //  full form is a shared label over a row of LED segments, and their
 //  collapsed form is a single icon like everything else.
-//
-//  GetTotalWidthPx has to agree with Layout exactly, or the strip decides it
-//  fits and then draws past its own right edge. The two walk the same entry
-//  list, add the same gaps, and take the group gap after the same three
-//  entries; the only difference is that this one sums where Layout places.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -908,7 +852,7 @@ int CommandToolbar::GetEntryWidthPx (const Button & btn, bool labeled, UINT dpi)
 
     if (labeled)
     {
-        width += iconGap + MeasureLabelPx (GetEntryLabel (btn), fontPx);
+        width += iconGap + MeasureLabelPx (btn.label, fontPx);
     }
 
     return width;
@@ -1182,7 +1126,7 @@ const wchar_t * CommandToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
         else if (!btn.labeled)
         {
             anchor = btn.rc;
-            tip    = GetEntryLabel (btn);
+            tip    = btn.label;
         }
     }
 
@@ -1541,7 +1485,7 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
     uint32_t          ink       = theme.navItemText;
     float             iconX     = 0.0f;
     float             textX     = 0.0f;
-    const wchar_t *   labelText = GetEntryLabel (btn);
+    const wchar_t *   labelText = btn.label;
 
 
 

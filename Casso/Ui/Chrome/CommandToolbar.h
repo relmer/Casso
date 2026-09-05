@@ -169,16 +169,16 @@ private:
     };
 
     // One entry on the strip. `glyph` is a Segoe MDL2 codepoint, or 0 when
-    // the icon is drawn instead (the monitor and the input devices). `value`
-    // is a label that changes with what the entry shows -- the theme name,
-    // the color name -- and wins over the fixed `label`.
+    // the icon is drawn instead (the input devices). The pickers label
+    // themselves with their PURPOSE, not with the value they hold: the value
+    // is one click away in the menu, and a label that changes with it moves
+    // every button to its right whenever the setting changes.
     struct Button
     {
         Entry            entry     = Entry::Settings;
         WORD             id        = 0;         // 0 => not a dispatch
         wchar_t          glyph     = 0;         // 0 => drawn, see PaintEntryIcon
         const wchar_t *  label     = nullptr;
-        std::wstring     value;
         std::wstring     tip;                   // shown in EVERY form; see GetTooltipAt
         bool             statusLed = false;
         RECT             rc        = {};
@@ -207,12 +207,9 @@ private:
     int   GetEntryWidthPx (const Button & btn, bool labeled, UINT dpi) const;
     int   GetTotalWidthPx (int labeledCount, UINT dpi) const;
 
-    const wchar_t *  GetEntryLabel (const Button & btn) const;
-
     void  WireMenus           ();
     void  RebuildActionTips   ();
     void  OpenMenuFor         (Entry entry);
-    void  RefreshPickerLabels ();
     void  HideMenus           ();
     bool  IsReopenSuppressed  () const;
 
