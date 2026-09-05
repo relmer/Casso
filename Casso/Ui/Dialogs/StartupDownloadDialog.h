@@ -127,6 +127,9 @@ private:
     static void                JoinAllWorkers     (DialogState & state);
     static void                RemovePartialFiles (DialogState & state);
     static std::wstring        FormatStatusText   (const EntryRuntime & rt, std::uint64_t expected);
+    static float               MeasureSourceColumnPx (DialogPaintContext        & ctx,
+                                                      const StartupDownloadSet  & set,
+                                                      const RowMetrics          & m);
     static void                PaintGroupHeader   (DialogPaintContext  & ctx,
                                                       DxuiLabel               & hdrLabel,
                                                       const std::wstring  & groupLabel,

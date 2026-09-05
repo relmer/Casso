@@ -79,6 +79,10 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The startup download dialog broke "OpenEmulator (GitHub)" across two lines.**
+  Its source column was a fixed width that stood a few pixels short of the
+  drive-audio origin. The column is now measured from the labels the list
+  carries, growing only into room the asset names do not need.
 - **A window with no client area buried the screen in assertion dialogs.**
   Every control laid out against a minimized window came out zero DIPs wide,
   and a text field insetting that by its own padding passed a NEGATIVE width to
