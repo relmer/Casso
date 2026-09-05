@@ -354,9 +354,8 @@ Byte Ssi263::SelectRegister (Byte address)
 
 void Ssi263::WriteRegister (Byte reg, Byte value)
 {
-    Byte   sel      = SelectRegister (reg);
-    bool   wasDown  = IsPoweredDown();
-    Byte   outgoing = GetPhoneme();
+    Byte   sel     = SelectRegister (reg);
+    bool   wasDown = IsPoweredDown();
 
 
 
@@ -370,17 +369,19 @@ void Ssi263::WriteRegister (Byte reg, Byte value)
         }
         else if (!wasDown && IsPoweredDown())
         {
-            // Power Down silences the output and disables A/R without
-            // disturbing the register contents.
+            // Power Down ends the phoneme and disables A/R without disturbing
+            // the register contents. The envelope is NOT zeroed: clearing it
+            // here cut the waveform mid-cycle, which is the pop IsSilent's
+            // release exists to avoid. Left alone it decays over the release
+            // tail like the end of any other phoneme.
             m_sounding      = false;
             m_phonemeCycles = 0.0;
             m_request       = false;
-            m_envLevel      = 0.0f;
         }
     }
     else if (sel == kRegDurationPhoneme && !IsPoweredDown())
     {
-        BeginPhoneme (outgoing);
+        BeginPhoneme();
     }
 }
 
@@ -1069,7 +1070,7 @@ void Ssi263::LatchMode()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ssi263::BeginPhoneme (Byte outgoing)
+void Ssi263::BeginPhoneme()
 {
     double   seconds = GetPhonemeDurationSec();
 

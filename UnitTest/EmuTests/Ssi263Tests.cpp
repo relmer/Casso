@@ -97,10 +97,52 @@ namespace Ssi263TestNs
             // datasheet is explicit that register contents survive.
             chip.WriteRegister (Ssi263::kRegCtlArtAmp, Ssi263::kCtl);
 
+            // Silent here because nothing has been rendered, so there is no
+            // envelope to fall. PowerDownReleasesRatherThanCuttingTheWaveform
+            // covers the chip that is actually mid-utterance.
             Assert::IsTrue (chip.IsSilent());
             Assert::IsFalse (chip.IsRequesting());
             Assert::AreEqual<Byte> (phoneme, chip.GetPhoneme(),
                                     L"Power Down must not disturb register contents");
+        }
+
+
+        // Power Down ends the phoneme, but the envelope still has to fall over
+        // the release. Zeroing it at the write cut the waveform mid-cycle, and
+        // the speech demo ends on exactly this write, so that was an audible
+        // click at the end of every run.
+        TEST_METHOD (PowerDownReleasesRatherThanCuttingTheWaveform)
+        {
+            constexpr uint32_t   kRate         = 48000;
+            constexpr int        kRaiseSamples = 100;
+            constexpr int        kDrainSamples = 4000;
+
+            Ssi263   chip;
+            int      i    = 0;
+
+
+
+            chip.SetSampleRate (kRate);
+            StartSpeaking (chip, 0x15);
+
+            for (i = 0; i < kRaiseSamples; i++)
+            {
+                chip.GenerateSample();
+            }
+
+            Assert::IsFalse (chip.IsSilent(), L"Precondition: the envelope is open");
+
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp, Ssi263::kCtl);
+
+            Assert::IsFalse (chip.IsSilent(),
+                             L"Power Down must leave a release tail, not cut the waveform");
+
+            for (i = 0; i < kDrainSamples; i++)
+            {
+                chip.GenerateSample();
+            }
+
+            Assert::IsTrue (chip.IsSilent(), L"and that tail must then reach silence");
         }
 
 
