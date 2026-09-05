@@ -956,6 +956,83 @@ public:
 
 
 
+    //  AND THE REFUSAL IS PUT AS A QUESTION, the same one the watcher side
+    //  puts. Which end notices the collision first is timing the user cannot
+    //  see, and it used to decide whether they were offered somewhere else to
+    //  put the disk or merely told the write had not happened.
+    TEST_METHOD (AFlushThatCannotKeepTheDisplacedVersionAsksWhereToPutIt)
+    {
+        Rig          rig;
+        HRESULT      hrFlush = S_OK;
+        std::string  chosen  = "C:\\elsewhere\\Rescued.dsk";
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+
+        hrFlush = rig.store.Flush (kSlot, kDrive);
+
+        Assert::IsTrue (FAILED (hrFlush));
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"asked, not merely announced");
+        Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                          L"and not put where no answer can be given");
+
+        //  "Save as..." and nothing else destructive.
+        Assert::AreEqual ((size_t) 2, rig.questions[0].answers.size());
+        Assert::IsTrue (rig.questions[0].answers[0].action == ChangeAction::PreserveCopy);
+        Assert::IsTrue (rig.questions[0].answers[rig.questions[0].safeAnswer].action
+                            == ChangeAction::Ignore);
+
+        //  And answering it puts the disk where the user chose, with the drive
+        //  still running on it.
+        rig.refusePreserve = false;
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+
+        Assert::AreEqual (chosen, rig.store.GetSourcePath (kSlot, kDrive),
+                          L"the drive reads and writes the rescued file now");
+        Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0],
+                          L"and the original still holds the external version");
+    }
+
+
+
+    //  AND A BAY THAT IS CLOSING IS TOLD RATHER THAN ASKED. The eject releases
+    //  the image whatever the flush did, so an offer to save it would be
+    //  answered against a bay holding nothing.
+    TEST_METHOD (AnEjectThatCannotKeepTheDisplacedVersionDoesNotAsk)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+
+        rig.store.Eject (kSlot, kDrive);
+
+        Assert::AreEqual ((size_t) 0, rig.questions.size(),
+                          L"nothing is asked about a bay being emptied");
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
+                         L"and the eject goes through either way");
+    }
+
+
+
     TEST_METHOD (ThreeChangesInsideTheQuietPeriodProduceOneReload)
     {
         Rig  rig;

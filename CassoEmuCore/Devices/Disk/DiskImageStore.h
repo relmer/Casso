@@ -120,6 +120,10 @@ public:
     HRESULT       Flush             (int slot, int drive);
     HRESULT       FlushAll          ();
 
+    //  The same, for the two moments that cannot ask: a bay being emptied and
+    //  a process on its way out.
+    HRESULT       FlushAllForClosing ();
+
     //  Sets a mounted WOZ's write-protect flag in its backing file by patching
     //  the single byte that carries it -- read the file, set INFO's flag byte,
     //  recompute the header CRC, write it back atomically -- rather than
@@ -408,9 +412,35 @@ private:
     //  sees nothing at all.
     HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath);
 
+    //  Whether a flush failure can still be put as a question.
+    //
+    //  THE DISCRIMINATOR IS NOT WHICH FUNCTION FLUSHED, IT IS WHETHER ANYBODY
+    //  WILL BE THERE FOR THE ANSWER. A question is posted to the shell's window
+    //  and answered later on the thread that owns disk writes, so it needs a
+    //  bay still holding the disk, a pump still running and a store still
+    //  alive. Most flushes have all three; two do not.
+    enum class FlushMoment
+    {
+        //  The machine is running and the bay stays: a spindown, an explicit
+        //  flush, a write-protect change, a machine switch, a power cycle.
+        Running,
+
+        //  The disk is leaving the drive, or the process is leaving. Whatever
+        //  is said has to be said now and cannot be answered.
+        Closing,
+    };
+
     Entry &       GetEntry          (int slot, int drive);
     const Entry & GetEntry          (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry);
+    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
+    HRESULT       FlushEveryBay     (FlushMoment moment);
+
+    //  Says the guest's version could not be written beside the file that
+    //  displaced it -- as a question where one can still be answered, and as a
+    //  notice where it cannot.
+    void          ReportPreserveFailure (Entry & entry, FlushMoment moment,
+                                         const string & attemptedPath, HRESULT hrKeep,
+                                         const string & original);
 
     //  Whether some other bay already reads and writes this file, and which
     //  drive has it. The bay being mounted into is excluded, because putting

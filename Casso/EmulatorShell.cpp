@@ -803,7 +803,12 @@ EmulatorShell::~EmulatorShell()
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
-    hrFlush = m_diskStore.FlushAll();
+    //
+    // THE CLOSING VARIANT, because this runs after the message loop has
+    // exited. A question raised here would be posted to a window nothing is
+    // pumping and answered on a thread that is being torn down; the blocking
+    // notice is the only thing that still reaches the user.
+    hrFlush = m_diskStore.FlushAllForClosing();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:
