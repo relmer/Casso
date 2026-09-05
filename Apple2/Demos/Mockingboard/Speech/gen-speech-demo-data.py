@@ -119,8 +119,11 @@ def wargames():
     """
     q = lambda f: setp(f, RATE_QUESTION)
     s = clear_caption()
-    # The greeting is a statement: it falls, pauses, and then the question
-    # starts fresh with its own caption.
+    # The greeting is a statement: it falls, and pauses. The question that
+    # follows keeps the same caption area rather than clearing it, so the two
+    # sentences are read together the way they are heard. That fits one
+    # 80-column row and wraps onto a second at 40, which the word wrap already
+    # handles and which three caption rows leave room for.
     s += q(112.0) + cap("GREETINGS,") + [P("KV", QUICK), P("R1", SHORT), P("E", LONG), P("T", QUICK),
                                         P("I", SHORT), P("NG", SHORT), P("Z", SHORT), P("PA", MED)]
     s += q(108.0) + cap("PROFESSOR") + [P("P", QUICK), P("R1", SHORT), P("UH3", SHORT), P("F", SHORT),
@@ -128,7 +131,6 @@ def wargames():
     s += q(101.0) + cap("FALKEN.") + [P("F", SHORT), P("AW", MED), P("L", SHORT), P("K", QUICK),
                                       P("UH3", SHORT), P("N", MED), P("PA", LONG)]
     s += hold(7)
-    s += clear_caption()
     # Declination across the run-up.
     s += q(106.0) + cap("SHALL") + [P("SCH", SHORT), P("AE", MED), P("LF", SHORT)]
     s += q(102.0) + cap("WE") + [P("W", SHORT), P("E", MED)]

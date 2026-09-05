@@ -12,19 +12,19 @@ wargData
     .byte $9E,$9B,$B4,$4A,$B0,$5C,$FD,$EB
     .byte $61,$FB,$07,$C6,$C1,$CC,$CB,$C5
     .byte $CE,$AE,$B4,$50,$A0,$E9,$9B,$78
-    .byte $00,$FC,$07,$FB,$00,$FD,$F8,$61
-    .byte $FB,$05,$D3,$C8,$C1,$CC,$CC,$B2
-    .byte $4C,$A2,$FD,$ED,$67,$FB,$02,$D7
-    .byte $C5,$A3,$41,$FD,$E2,$65,$FB,$04
-    .byte $D0,$CC,$C1,$D9,$E7,$A1,$48,$85
-    .byte $FD,$D0,$60,$FB,$01,$C1,$DB,$FB
-    .byte $05,$C7,$C1,$CD,$C5,$BF,$FD,$C2
-    .byte $62,$E6,$FD,$D2,$62,$C8,$FD,$E1
-    .byte $63,$C8,$FD,$EF,$66,$C8,$FD,$FD
-    .byte $64,$C8,$FD,$0A,$6C,$C5,$FD,$16
-    .byte $6F,$C5,$FD,$22,$6C,$F7,$FD,$2D
-    .byte $6D,$F7,$FD,$38,$6A,$F7,$FD,$06
-    .byte $8A,$00,$FC,$07,$FF
+    .byte $00,$FC,$07,$FD,$F8,$61,$FB,$05
+    .byte $D3,$C8,$C1,$CC,$CC,$B2,$4C,$A2
+    .byte $FD,$ED,$67,$FB,$02,$D7,$C5,$A3
+    .byte $41,$FD,$E2,$65,$FB,$04,$D0,$CC
+    .byte $C1,$D9,$E7,$A1,$48,$85,$FD,$D0
+    .byte $60,$FB,$01,$C1,$DB,$FB,$05,$C7
+    .byte $C1,$CD,$C5,$BF,$FD,$C2,$62,$E6
+    .byte $FD,$D2,$62,$C8,$FD,$E1,$63,$C8
+    .byte $FD,$EF,$66,$C8,$FD,$FD,$64,$C8
+    .byte $FD,$0A,$6C,$C5,$FD,$16,$6F,$C5
+    .byte $FD,$22,$6C,$F7,$FD,$2D,$6D,$F7
+    .byte $FD,$38,$6A,$F7,$FD,$06,$8A,$00
+    .byte $FC,$07,$FF
 
 ; "I'm sorry Mark. I'm afraid I can't do that." -- slow and level
 halData
