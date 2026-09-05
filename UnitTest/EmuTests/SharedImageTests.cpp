@@ -1475,6 +1475,44 @@ public:
 
 
 
+    //  A FILE FOUND GONE WHILE ACTING IS ASKED ABOUT, NOT REPORTED. The user
+    //  answers "take up the new version", the re-read finds the file has since
+    //  been deleted, and what is left to offer is the same pair the watcher
+    //  would have offered. Sent to the notice bar instead, both buttons did
+    //  nothing: the bar routes no answers.
+    TEST_METHOD (ALostFileFoundWhileActingIsAskedNotReported)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        //  Gone between the question and the answer.
+        rig.files.erase (kImagePath);
+        rig.Stamp (kImagePath);
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 2, rig.questions.size(),
+                          L"asked again, about the file that has gone");
+        Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                          L"and not put where no answer can be given");
+
+        Assert::AreEqual ((size_t) 2, rig.questions[1].answers.size());
+        Assert::IsTrue (rig.questions[1].answers[0].action == ChangeAction::PreserveCopy);
+        Assert::IsTrue (rig.questions[1].answers[1].action == ChangeAction::Discard);
+    }
+
+
+
     TEST_METHOD (DecliningToSaveStillEmptiesTheDrive)
     {
         Rig  rig;

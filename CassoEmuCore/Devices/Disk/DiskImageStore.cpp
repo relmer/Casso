@@ -2639,6 +2639,25 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         return;
     }
 
+    //  A FILE FOUND MISSING WHILE ACTING IS A QUESTION TOO. The bytes passed a
+    //  trial load and failed the real one, or the re-read behind an answer
+    //  found the file gone -- either way what is left is the same offer the
+    //  watcher would have made: save the disk somewhere, or let it go. Sent to
+    //  the notice bar instead, its buttons did nothing at all; the bar routes
+    //  no answers.
+    //
+    //  THE PENDING RECORD IS ALREADY CLEARED ABOVE, so nothing re-asks behind
+    //  this.
+    if (ExternalChangePolicy::IsFileLost (action) && m_askSink)
+    {
+        entry.sharedState.SetAskOutstanding (true);
+        entry.sharedState.SetAskedAction (action);
+
+        m_askSink (slot, drive, ChangePrompt::Compose (original, drive, action));
+
+        return;
+    }
+
     //  EVERY TIME, NOT ONLY THE FIRST. The sink re-words a notice already up
     //  for this bay rather than raising a second, so absorbing further changes
     //  costs nothing -- and reporting only the first left the bar saying
