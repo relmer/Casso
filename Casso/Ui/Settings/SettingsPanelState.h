@@ -251,6 +251,14 @@ public:
                              const JsonValue   & mergedJson);
     void    Cancel          ();
 
+    // Re-points the document the save is rooted on. The sheet is modeless, so
+    // the machine's prefs can change on disk while it is open -- the input
+    // mapping and the //c case switches are written the moment the user touches
+    // them -- and BuildJson carries forward every $cassoUiPrefs key its pages do
+    // not write. Carried from the snapshot taken when the sheet opened, those
+    // changes are reverted on OK.
+    void    RefreshMergedJson (const JsonValue & mergedJson);
+
     bool IsDirty       () const;
     bool RequiresReset () const;          // true iff any hardware enable changed
 
@@ -340,6 +348,13 @@ private:
         std::vector<HardwareEntry>        hardware;
         std::vector<SettingsMachinePort>  machinePorts;
     };
+
+    // Appends every $cassoUiPrefs entry of `mergedJson` that `uiObj` does not
+    // already carry, so a preference this dialog knows nothing about survives
+    // a save.
+    static void CarryUnmanagedUiPrefs (
+        std::vector<std::pair<std::string, JsonValue>> & uiObj,
+        const JsonValue                               & mergedJson);
 
     static bool ArePrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
     static bool AreHardwareEqual (const std::vector<HardwareEntry> & a,

@@ -1559,6 +1559,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     HRESULT                hrMerge           = S_OK;
     std::string            carryDisk1;
     std::string            carryDisk2;
+    const JsonValue *      inputUiPrefs      = nullptr;
 
 
 
@@ -1701,9 +1702,12 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
                     m_shell.m_mouseConnected = mouseConn;
 
-                    // //c: default Pointer -> Mouse when connected and no
-                    // pointer mapping is active. Runtime nudge.
-                    m_shell.ApplyDefaultPointerForMachine();
+                    // The block the switched-to machine's input mapping is
+                    // restored from. HELD, not applied: the config loader
+                    // below can still refuse the switch, and the mapping
+                    // belongs to whichever machine ends up running. It points
+                    // into mergedJson, which outlives the adopt.
+                    inputUiPrefs = extPrefs;
                 }
             }
         }
@@ -1737,6 +1741,25 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                                     error);
     CHRN (hr, std::format (L"Failed to load machine config:\n{}",
                            std::wstring (error.begin(), error.end())).c_str());
+
+    // The mapping and the //c pointer nudge are applied HERE, past the last
+    // refusal. The loader above can still reject the config, and until it has
+    // not, the machine that keeps running is the one being left: applying them
+    // earlier handed IT the mapping of a machine it never became.
+    //
+    // A null block -- no prefs, no store, a merge that failed, a merged
+    // document that is not an object -- seeds from the legacy global setting,
+    // the same fallback a machine that has never stored a mapping gets, rather
+    // than leaving the mapping of the machine being left in place. This is the
+    // launch path's rule (AdoptInputModeForMachine runs ahead of the bail in
+    // ApplyPersistedAudioPrefs) applied to switching.
+    //
+    // State only -- this runs on the CPU thread, and the selector sync asserts
+    // the UI thread. The post-switch reflow (WM_APP_DXUI_UPDATE_TITLE) puts it
+    // on the chrome. The nudge follows the adopt, so the //c mouse default
+    // sees the restored mapping rather than being overwritten by it.
+    m_shell.AdoptInputModeForMachine (inputUiPrefs);
+    m_shell.ApplyDefaultPointerForMachine();
 
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.

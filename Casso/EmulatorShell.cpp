@@ -3,6 +3,7 @@
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
+#include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -804,6 +805,10 @@ EmulatorShell::~EmulatorShell()
     // audit §7 so a crash-free quit never loses user writes.
     hrFlush = m_diskStore.FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
+
+    // Same idea for a preference change still inside its debounce window:
+    // quitting right after a volume nudge would otherwise lose it.
+    FlushDeferredGlobalPrefs();
 
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
@@ -3160,7 +3165,7 @@ HRESULT EmulatorShell::InitializeUiShell()
     hr = WireUiShellChromeAndThemes();
     CHR (hr);
 
-    RestoreInputAndColorPrefs();
+    RestoreColorTextPref();
     RecordActiveMachineSelection();
 
     SubscribeAndActivateTheme();
@@ -3251,28 +3256,86 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RestoreInputAndColorPrefs
+//  RestoreColorTextPref
+//
+//  The Color monitor's text tint is global -- it describes how the user wants
+//  text to read, not anything about the machine -- so it is restored here, off
+//  GlobalUserPrefs, rather than with the per-machine block. The input mapping
+//  that used to be restored alongside it moved to ApplyPersistedChromePrefs
+//  when it became per machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RestoreInputAndColorPrefs()
+void EmulatorShell::RestoreColorTextPref()
 {
-    // Restore the split input mappings. Keys (arrows->
-    // joystick) is a passive remap, safe to restore. Pointer: Paddle is
-    // an active mouse-capture mode, never restored on launch (it would
-    // light the LED while the mouse is NOT captured) -- falls back to
-    // Off; Mouse is non-capturing and restores safely.
-    m_arrowsJoystick = m_globalPrefs.arrowsToJoystick;
-    m_pointerMode    = (m_globalPrefs.pointerMapping == InputMappingMode::Paddle)
-                           ? InputMappingMode::Off
-                           : m_globalPrefs.pointerMapping;
-    m_globalPrefs.pointerMapping   = m_pointerMode;
-    m_globalPrefs.inputMappingMode = GetDisplayInputMode();
-    SyncSelectorState();
-
     SetColorMonitorTextArgbLive (
         ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
                                                 m_globalPrefs.colorMonitorTextCustomArgb));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdoptInputModeForMachine
+//
+//  Seeds the live input mapping from a machine's $cassoUiPrefs block. A
+//  machine that has never stored one falls back to the legacy global setting,
+//  so upgrading from a build where the mapping was global keeps it.
+//
+//  STATE ONLY, no chrome. The machine-switch path calls this on the CPU
+//  thread, and SyncSelectorState measures text through Dxui, which asserts
+//  the UI thread; both callers reflect the state on the UI thread afterwards
+//  (the switch through the post-switch reflow, launch through the layout that
+//  follows). This is the same rule ApplyDefaultPointerForMachine follows, and
+//  it runs before that one so the //c mouse nudge sees the restored value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
+{
+    MachineInputPrefs::ReadFromUiPrefs (uiPrefs,
+                                        m_globalPrefs.arrowsToJoystick,
+                                        m_globalPrefs.pointerMapping,
+                                        m_arrowsJoystick,
+                                        m_pointerMode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PersistInputModeForMachine
+//
+//  Writes the live mapping into the current machine's $cassoUiPrefs block.
+//  Both keys go in one call, so a change that moves both axes -- picking
+//  Paddle drops arrows-to-joystick -- costs one read-modify-write.
+//
+//  Best-effort: a missing store or machine name, or a write failure, just
+//  leaves the on-disk state as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistInputModeForMachine()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_userConfigStore == nullptr || m_currentMachineName.empty())
+    {
+        return;
+    }
+
+    hr = DiskSettings::WriteSavedUiPrefs (
+             *m_userConfigStore, m_uiFs, m_currentMachineName,
+             MachineInputPrefs::BuildUiPrefEntries (m_arrowsJoystick, m_pointerMode));
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -3673,9 +3736,10 @@ void EmulatorShell::InstallDragDropTarget()
 //
 //  ApplyPersistedAudioPrefs
 //
-//  Seeds the drive-audio mixer + //c default pointer from the per-machine
-//  $cassoUiPrefs JSON before the audio thread first calls SetEnabled /
-//  SetMechanism. Default is enabled + Shugart when nothing is persisted.
+//  Seeds the drive-audio mixer, the input mapping, and the //c default
+//  pointer from the per-machine $cassoUiPrefs JSON before the audio thread
+//  first calls SetEnabled / SetMechanism. Default is enabled + Shugart when
+//  nothing is persisted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3696,6 +3760,20 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
 
 
     LoadMachineUiPrefs (doc, uiPrefs);
+
+    // The input mapping and the //c pointer default are settled whether or
+    // not this machine has a prefs block, so they come BEFORE the bail. A
+    // machine with no block is exactly the one that needs the fallback to
+    // the pre-1.23 global mapping, and skipping it would leave the mapping
+    // wherever the previously-booted machine had left it.
+    //
+    // Here rather than with the chrome prefs because both read state that is
+    // seeded earlier: the mouse device exists by now, and
+    // ApplyPersistedChromePrefs has already applied mouseConnected.
+    AdoptInputModeForMachine (uiPrefs);
+    ApplyDefaultPointerForMachine();
+    SyncSelectorState();
+
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
     hrOpt = uiPrefs->GetBool ("floppySoundEnabled", enabled);
@@ -3761,12 +3839,6 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
             }
         }
     }
-
-    // //c: default Pointer -> Mouse when connected and nothing else was
-    // chosen. (The external-drive + mouse connected-states are seeded in
-    // ApplyPersistedChromePrefs, before the drive-chrome layout, so the
-    // first paint reflects the saved setup rather than the defaults.)
-    ApplyDefaultPointerForMachine();
 
 Error:
     return;
@@ -4223,7 +4295,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     // Command toolbar (DCR-2): commands route through the same HandleCommand
     // path as the menu; the volume group drives the master output gain and
-    // persists in GlobalUserPrefs (saved with the rest on exit).
+    // persists in GlobalUserPrefs through the coalescing save below.
     m_toolbar.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
 
     // Input-mode segments route through the same toggle the band selector
@@ -4235,6 +4307,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_globalPrefs.masterVolume = volume01;
         m_globalPrefs.masterMuted  = muted;
         m_wasapiAudio.SetMasterGain (muted ? 0.0f : volume01);
+
+        // Deferred, not immediate: the slider reports every intermediate
+        // value, so a save here would rewrite the prefs file on each tick of
+        // a drag.
+        SaveGlobalPrefsDeferred();
     });
     m_toolbar.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
     m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
@@ -5523,7 +5600,9 @@ Error:
 
 void EmulatorShell::SaveGlobalPrefs()
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     offUiThread = (m_hwnd != nullptr) &&
+                           (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
 
 
 
@@ -5533,7 +5612,90 @@ void EmulatorShell::SaveGlobalPrefs()
     }
 
     hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+
+    // A deferred request is consumed only by a write that LANDED and that ran
+    // on the thread the request was made from. Clearing it up front dropped the
+    // change outright: a save that failed, or one skipped for want of a store,
+    // still ate the request, and the shutdown flush writes nothing when the flag
+    // is clear. Clearing it from the CPU thread -- SwitchMachine reaches here --
+    // ate a request for a value that thread has no happens-before edge to, so
+    // the file could be written with the old volume while the pending write that
+    // would have corrected it was cancelled.
+    //
+    // The timer is deliberately NOT killed here: the Dxui timer calls assert the
+    // UI thread. It fires once more and either finds nothing dirty and stops
+    // itself in OnTimer, or writes the value a failed or off-thread save missed.
+    if (SUCCEEDED (hr) && !offUiThread)
+    {
+        m_globalPrefsDirty = false;
+    }
+
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SaveGlobalPrefsDeferred
+//
+//  Records that GlobalUserPrefs needs writing and (re)arms the timer that
+//  writes it, so a burst of changes costs one file write instead of one per
+//  change.
+//
+//  RE-ARMING ON EACH CALL is what makes it a debounce rather than a period:
+//  the write happens once the changes stop, not on a fixed cadence through
+//  the middle of a drag.
+//
+//  Before there is a window there is no timer to arm, so the request stands
+//  as a dirty flag until something flushes it -- an ordinary SaveGlobalPrefs
+//  from another setting, or shutdown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveGlobalPrefsDeferred()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_globalPrefsDirty = true;
+
+    // No window to hang a timer on -- before Initialize built one, or after
+    // teardown destroyed it. The flag stands, and the shutdown flush writes
+    // it. Tested against the HWND rather than the host because the Dxui timer
+    // calls assert on a host without one.
+    if (m_hwnd == nullptr || m_host == nullptr)
+    {
+        return;
+    }
+
+    hr = m_host->SetTimer (kPrefsSaveTimerId, kPrefsSaveDelayMs);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FlushDeferredGlobalPrefs
+//
+//  Writes a pending deferred save now, if there is one. Called from the timer
+//  and again at shutdown, so a quit taken inside the debounce window still
+//  lands the user's last change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FlushDeferredGlobalPrefs()
+{
+    if (m_globalPrefsDirty)
+    {
+        SaveGlobalPrefs();
+    }
 }
 
 
@@ -7540,10 +7702,11 @@ int EmulatorShell::RunMessageLoop()
                 // and must not do file work or race the render path.
                 RefreshCrtOverrideKeys();
 
-                // A switch may have changed the default pointer mode on the CPU
-                // thread (ApplyDefaultPointerForMachine defers its UI reflection
-                // here to stay off the CPU thread). Sync the selector state on
-                // the UI thread; it is idempotent when nothing changed.
+                // A switch adopts the machine's own input mapping and may
+                // change the default pointer mode, both on the CPU thread,
+                // which defers their UI reflection here. Sync the selector
+                // state on the UI thread; it is idempotent when nothing
+                // changed.
                 SyncSelectorState();
                 continue;
             }
@@ -12073,8 +12236,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
         SetPointerMapping (InputMappingMode::Off);
     }
 
-    m_arrowsJoystick               = on;
-    m_globalPrefs.arrowsToJoystick = on;
+    m_arrowsJoystick = on;
     SyncInputModeUi();
 
     if (on)
@@ -12165,8 +12327,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         m_mouse->ClearHostTarget();
     }
 
-    m_pointerMode                = pointer;
-    m_globalPrefs.pointerMapping = pointer;
+    m_pointerMode = pointer;
     SyncInputModeUi();
 
     if (pointer == InputMappingMode::Paddle)
@@ -12213,15 +12374,18 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 //  SyncInputModeUi
 //
 //  Common tail for the axis setters: refresh the toggle button's displayed
-//  mode, keep the legacy combined pref in sync (downgrade compat), persist.
+//  mode, then persist the pair into the current machine's prefs.
+//
+//  The two setters call each other to enforce paddle-vs-joystick exclusivity,
+//  so one user action can land here twice. Both passes write the same live
+//  state, and the second is what ends up on disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncInputModeUi()
 {
-    m_globalPrefs.inputMappingMode = GetDisplayInputMode();
     SyncSelectorState();
-    SaveGlobalPrefs();
+    PersistInputModeForMachine();
 }
 
 
@@ -12967,18 +13131,32 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 //
 //  OnTimer
 //
-//  Periodic refresh of the drive-activity indicators. Motor on/off and
-//  drive-select events are bursty (millisecond timescales); a 50 ms
-//  refresh is plenty for visible activity feedback without consuming
-//  noticeable UI cycles.
+//  The coalescing global-prefs write. It is a one-shot: the timer is armed by
+//  SaveGlobalPrefsDeferred, re-armed by each further change, and killed here
+//  once the changes have stopped long enough for it to fire.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 {
-    UNREFERENCED_PARAMETER (timerId);
+    HRESULT  hr = S_OK;
 
-    return DxuiMessageResult::NotHandled;
+
+
+    if (timerId != kPrefsSaveTimerId)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (m_hwnd != nullptr && m_host != nullptr)
+    {
+        hr = m_host->KillTimer (kPrefsSaveTimerId);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    FlushDeferredGlobalPrefs();
+
+    return DxuiMessageResult::Handled;
 }
 
 

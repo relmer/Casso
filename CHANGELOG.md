@@ -69,6 +69,8 @@ Entries before versioning was introduced use dates only.
 - **Merlin's `-l` listing flag supports multiple files.** Listings are named 
   the same as the binaries they generate. Removed support for writing listings
   to stdout.
+- **The input mapping is now remembered per machine** rather than globally, so a
+  //e set up for a joystick and a //c using its mouse each keep their own.
 - **Ctrl-0 now also resets the bezel tilt** with the view.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
@@ -83,6 +85,10 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The volume and mute settings were not saved**, so both came back at their
+  old values on the next launch.
+- **Pressing OK in Settings reset preferences that its pages do not show**,
+  including the //c case-switch positions.
 - **The startup download dialog broke "OpenEmulator (GitHub)" across two lines.**
   Its source column was a fixed width that stood a few pixels short of the
   drive-audio origin. The column is now measured from the labels the list

@@ -241,6 +241,7 @@
     <ClCompile Include="Config\WindowPlacementProfile.cpp" />
     <ClCompile Include="Config\UserConfigStore.cpp" />
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
+    <ClCompile Include="Config\MachineInputPrefs.cpp" />
     <ClCompile Include="Config\CrtResolver.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
@@ -328,6 +329,7 @@
     <ClInclude Include="Config\WindowPlacementProfile.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
+    <ClInclude Include="Config\MachineInputPrefs.h" />
     <ClInclude Include="Config\CrtTypes.h" />
     <ClInclude Include="Config\CrtResolver.h" />
     <ClInclude Include="Config\MonitorCatalog.h" />
