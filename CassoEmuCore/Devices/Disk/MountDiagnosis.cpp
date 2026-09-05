@@ -102,6 +102,22 @@ string MountDiagnosis::Describe() const
                    "kind of file";
             break;
 
+        case MountFailure::AlreadyMounted:
+            //  ONE FILE, ONE DRIVE. Two bays reading and writing one file are
+            //  two independent copies of the disk from the moment the guest
+            //  writes to either: each flush lands the whole image, so each
+            //  overwrites whatever the other saved, and one external change
+            //  raises the conflict twice.
+            snprintf (note, sizeof (note),
+                      "is already in drive %d. A disk image can only be in one "
+                      "drive at a time -- the two drives would hold separate "
+                      "copies of it, and each would overwrite the other's "
+                      "changes",
+                      occupiedDrive + 1);
+
+            text = note;
+            break;
+
         case MountFailure::Unrecognized:
             text = "could not be read as a disk image. Its contents are not a "
                    "layout this loader accepts";
