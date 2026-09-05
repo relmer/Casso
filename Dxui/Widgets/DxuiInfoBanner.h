@@ -120,8 +120,31 @@ private:
     // ring and the "i", which is what makes the mark read as monoline.
     static constexpr float  s_kBadgeStrokeEm = 0.085f;
 
+    // The widest a centered line is allowed to get, whatever the bar's width.
+    // A message bar is as wide as the window, and a single line run out to
+    // 2000 px is read by sweeping the head, not the eye. Past this the text
+    // wraps -- see ResolveCenteredLinePx.
+    static constexpr float  s_kMaxLineDip = 1024.0f;
+
+    // Widening the wrapped box when the real word breaks need one line more
+    // than the even split allowed: how far each step goes, and how many are
+    // tried before the paint gives up and uses the full width instead.
+    static constexpr float  s_kCenterFitWiden = 1.12f;
+    static constexpr int    s_kCenterFitSteps = 6;
+
     // Estimated wrapped-line count for the text laid out at `textWidthPx`.
     int    EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const;
+
+    // The box a CENTERED banner lays its text in, given the width available to
+    // it and how wide that text wants to be on one line.
+    //
+    // EVENLY SPLIT WHEN IT WRAPS. Filling each line to the cap and letting the
+    // remainder fall onto the last one leaves a word or two stranded under a
+    // full-width block, which reads as a mistake. Dividing the text's own
+    // width by the number of lines it needs gives every line the same share,
+    // so the last one is as full as the rest.
+    float  ResolveCenteredLinePx (float availableTextPx, float wantedWidthPx,
+                                  const DxuiDpiScaler & scaler) const;
 
     // A circle drawn as a ring rather than filled: short chords around the
     // circumference, the way the toolbar's monoline glyphs are stroked. The

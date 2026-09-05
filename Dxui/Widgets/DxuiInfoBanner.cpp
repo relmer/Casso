@@ -87,6 +87,57 @@ int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scal
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoBanner::ResolveCenteredLinePx
+//
+//  How wide one line of a centered banner is allowed to be.
+//
+//  TWO REASONS TO WRAP, and the cap is the one a bar has that a dialog box
+//  does not: the banner is as wide as the window, so text that fits on one
+//  line can still be a line nobody wants to read. Past s_kMaxLineDip it wraps
+//  even though there was room.
+//
+//  EVENLY, so the last line is as full as the others. Filling each line to the
+//  cap and letting what is left fall onto the last one strands a word or two
+//  under a full-width block; dividing the text's own width by the number of
+//  lines it needs gives each the same share. The result is never wider than
+//  the cap, because dividing by a count that came from the cap cannot be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::ResolveCenteredLinePx (float availableTextPx, float wantedWidthPx,
+                                             const DxuiDpiScaler & scaler) const
+{
+    float  cap   = scaler.ToPxf (s_kMaxLineDip);
+    int    lines = 0;
+
+
+
+    if (cap > availableTextPx)
+    {
+        cap = availableTextPx;
+    }
+
+    if (cap < 1.0f)
+    {
+        cap = 1.0f;
+    }
+
+    if (wantedWidthPx <= cap)
+    {
+        return (wantedWidthPx > 1.0f) ? wantedWidthPx : 1.0f;
+    }
+
+    lines = (int) std::ceil (wantedWidthPx / cap);
+
+    return wantedWidthPx / (float) lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoBanner::GetPreferredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,9 +149,28 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
     float   iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
     float   textWidth = widthPx - padX * 2.0f - iconCol - m_trailingReservePx;
     float   lineH     = scaler.ToPxf (s_kFontDip) * s_kLineHeightEm;
-    int     lines     = EstimateLines ((textWidth > 1.0f) ? textWidth : 1.0f, scaler);
-    float   textH     = lineH * (float) lines;
+    float   lineBox   = (textWidth > 1.0f) ? textWidth : 1.0f;
+    int     lines     = 0;
+    float   textH     = 0.0f;
     float   iconH     = scaler.ToPxf (s_kIconBoxDip);
+
+
+
+    //  A CENTERED BANNER IS MEASURED IN THE BOX IT WILL ACTUALLY USE, not the
+    //  whole width: it caps and evenly splits its lines (see
+    //  ResolveCenteredLinePx), so a height taken from the full width would be
+    //  a line short of what the paint needs. The estimate that feeds the split
+    //  is the generous one this class already uses, which is what keeps the
+    //  count at or above what the real text turns out to need.
+    if (m_centered)
+    {
+        float  glyphPx = scaler.ToPxf (s_kFontDip) * s_kEstGlyphEm;
+
+        lineBox = ResolveCenteredLinePx (lineBox, (float) m_text.size() * glyphPx, scaler);
+    }
+
+    lines = EstimateLines (lineBox, scaler);
+    textH = lineH * (float) lines;
 
 
 
@@ -136,6 +206,21 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
     if (textWidth < 1.0f)
     {
         textWidth = 1.0f;
+    }
+
+    //  Same box the centered paint will use -- capped and evenly split -- so
+    //  the height a caller reserves and the height the text takes agree.
+    if (m_centered)
+    {
+        float  outSingleW = 0.0f;
+        float  outSingleH = 0.0f;
+        HRESULT  hrSingle = text.MeasureString (m_text.c_str(), scaler.ToPxf (s_kFontDip),
+                                                DxuiTheme::kBodyFace, outSingleW, outSingleH);
+
+        if (SUCCEEDED (hrSingle) && outSingleW > 0.0f)
+        {
+            textWidth = ResolveCenteredLinePx (textWidth, outSingleW, scaler);
+        }
     }
 
     hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
@@ -213,22 +298,23 @@ void DxuiInfoBanner::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
 
 void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT  hr       = S_OK;
-    float    left     = (float) m_boundsDip.left;
-    float    top      = (float) m_boundsDip.top;
-    float    width    = (float) (m_boundsDip.right  - m_boundsDip.left);
-    float    height   = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float    padX     = m_scaler.ToPxf (s_kPadXDip);
-    float    padY     = m_scaler.ToPxf (s_kPadYDip);
-    float    borderPx = m_scaler.ToPxf (s_kBorderDip);
-    float    iconBox  = m_scaler.ToPxf (s_kIconBoxDip);
-    float    iconGap  = m_scaler.ToPxf (s_kIconGapDip);
-    float    fontPx   = m_scaler.ToPxf (s_kFontDip);
-    float    textX    = left + padX + iconBox + iconGap;
-    float    textW    = width - padX * 2.0f - iconBox - iconGap - m_trailingReservePx;
-    float    iconR    = iconBox * 0.5f;
-    float    iconCx   = left + padX + iconR;
-    float    iconCy   = top + height * 0.5f;   // vertically centered in the bordered area
+    HRESULT         hr       = S_OK;
+    float           left     = (float) m_boundsDip.left;
+    float           top      = (float) m_boundsDip.top;
+    float           width    = (float) (m_boundsDip.right  - m_boundsDip.left);
+    float           height   = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    float           padX     = m_scaler.ToPxf (s_kPadXDip);
+    float           padY     = m_scaler.ToPxf (s_kPadYDip);
+    float           borderPx = m_scaler.ToPxf (s_kBorderDip);
+    float           iconBox  = m_scaler.ToPxf (s_kIconBoxDip);
+    float           iconGap  = m_scaler.ToPxf (s_kIconGapDip);
+    float           fontPx   = m_scaler.ToPxf (s_kFontDip);
+    float           textX    = left + padX + iconBox + iconGap;
+    float           textW    = width - padX * 2.0f - iconBox - iconGap - m_trailingReservePx;
+    float           iconR    = iconBox * 0.5f;
+    float           iconCx   = left + padX + iconR;
+    float           iconCy   = top + height * 0.5f;   // vertically centered in the bordered area
+    DxuiTextHAlign  hAlign   = DxuiTextHAlign::Left;
 
 
 
@@ -237,11 +323,16 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         return;
     }
 
-    //  CENTERED AS A GROUP when the caller asked for it: the badge, the gap
-    //  and the text measured together and slid to the middle. Measured, not
-    //  estimated -- Paint has the renderer that Layout does not -- and only
-    //  when the line actually fits, so a long notice keeps the wrapping
-    //  layout it needs rather than being pushed off the leading edge.
+    //  CENTERED AS A GROUP when the caller asked for it: the badge, the gap and
+    //  the text measured together and slid to the middle. Measured rather than
+    //  estimated -- Paint has the renderer that Layout does not.
+    //
+    //  THE LINE BOX IS THE ONE THE HEIGHT WAS RESERVED FOR: capped at
+    //  s_kMaxLineDip and split evenly when the text has to wrap, exactly as
+    //  GetPreferredHeightPx assumed when it counted lines. It is then widened
+    //  a step at a time if the real word breaks need one more line than the
+    //  reserved height holds, and falls back to the full width -- the fewest
+    //  lines possible -- rather than let a line be clipped.
     if (m_centered)
     {
         float  measuredW = 0.0f;
@@ -250,19 +341,50 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                                  DxuiTheme::kBodyFace,
                                                  measuredW, measuredH);
 
-        if (SUCCEEDED (hrMeasure) && measuredW > 0.0f && measuredW <= textW)
+        if (SUCCEEDED (hrMeasure) && measuredW > 0.0f && textW > 1.0f)
         {
-            float  groupW = iconBox + iconGap + measuredW;
-            float  startX = left + (width - m_trailingReservePx - groupW) * 0.5f;
+            float  lineH   = fontPx * s_kLineHeightEm;
+            float  textH   = height - padY * 2.0f;
+            float  lineBox = ResolveCenteredLinePx (textW, measuredW, m_scaler);
+            float  groupW  = 0.0f;
+            float  startX  = 0.0f;
+            int    step    = 0;
+
+            //  Only a wrapped box can come out a line short; a single line is
+            //  its own measurement and cannot.
+            for (step = 0; step < s_kCenterFitSteps && lineBox < textW; step++)
+            {
+                float  fitW = 0.0f;
+                float  fitH = 0.0f;
+                HRESULT  hrFit = text.MeasureStringWrapped (m_text.c_str(), fontPx,
+                                                            DxuiTheme::kBodyFace,
+                                                            lineBox, fitW, fitH);
+
+                if (FAILED (hrFit) || fitH <= textH + lineH * 0.1f)
+                {
+                    break;
+                }
+
+                lineBox *= s_kCenterFitWiden;
+
+                if (lineBox > textW)
+                {
+                    lineBox = textW;
+                }
+            }
+
+            groupW = iconBox + iconGap + lineBox;
+            startX = left + (width - m_trailingReservePx - groupW) * 0.5f;
 
             if (startX < left + padX)
             {
                 startX = left + padX;
             }
 
-            iconCx = startX + iconR;
-            textX  = startX + iconBox + iconGap;
-            textW  = measuredW;
+            iconCx  = startX + iconR;
+            textX   = startX + iconBox + iconGap;
+            textW   = lineBox;
+            hAlign  = DxuiTextHAlign::Center;
         }
     }
 
@@ -301,15 +423,21 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         // Inset by half the stroke so the pen's outer edge lands on the icon
         // box rather than straddling it, and the "i" is proportioned off the
         // ring's inner space so it stays centered at any size.
+        //  The pen is clamped FIRST: the ring's inset and the dot are both
+        //  proportions of it, and sizing them from a hairline the painter
+        //  would then draw a pixel wide pushes the ring past the icon box.
         float  stroke = iconBox * s_kBadgeStrokeEm;
-        float  ringR  = iconR - stroke * 0.5f;
-        float  dotR   = stroke * 0.55f;
+        float  ringR  = 0.0f;
+        float  dotR   = 0.0f;
         float  stemH  = iconR * 0.58f;
 
         if (stroke < 1.0f)
         {
             stroke = 1.0f;
         }
+
+        ringR = iconR - stroke * 0.5f;
+        dotR  = stroke * 0.55f;
 
         StrokeCircle     (painter, iconCx, iconCy, ringR, stroke, theme.Accent());
         painter.FillCircleApprox (iconCx, iconCy - iconR * 0.42f, dotR, theme.Accent());
@@ -333,7 +461,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           theme.InfoBannerForeground(),
                           fontPx,
                           DxuiTheme::kBodyFace,
-                          DxuiTextHAlign::Left,
+                          hAlign,
                           DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,
                           true);

@@ -2341,6 +2341,21 @@ void EmulatorShell::SyncCaptureBanner()
     {
         m_captureBar.SetVisible        (false);
         m_captureBarSurface.SetVisible (false);
+
+        //  A BAND LEFT BEHIND, GIVEN BACK. The height is claimed and released
+        //  where the capture starts and ends, but the capture is also dropped
+        //  from OnCancelMode / OnKillFocus, which can fire from INSIDE a
+        //  layout pass -- and a re-dock asked for from in there is refused,
+        //  because the pass would be calling itself. Without this the picture
+        //  would stay short, under an empty strip, until some unrelated resize
+        //  came along. Safe to run from here and nowhere else: with no capture
+        //  held there is none for the resize to cancel.
+        if (m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen()
+            && m_captureBand.GetBounds().bottom > m_captureBand.GetBounds().top)
+        {
+            ReflowChromeForChangeBand();
+        }
+
         return;
     }
 
@@ -4971,7 +4986,13 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 SIZE EmulatorShell::GetClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
 {
-    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_switchBand };
+    //  THE SAME BANDS ComputeViewportRect DOCKS, or this is not its inverse.
+    //  The two notice bands were missing: with either one up, every client
+    //  size answered here -- the minimum tracking size, the window a machine
+    //  or theme change resizes to -- came out short by the notice's height,
+    //  and the viewport it was supposed to preserve shrank by exactly that.
+    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_changeBand,
+                               &m_captureBand, &m_driveBand, &m_switchBand };
 
 
 
@@ -7811,10 +7832,14 @@ bool EmulatorShell::TryPresentUiFrame()
 
     // The capture bar and the fullscreen toolbar reveal, both per-frame
     // because both answer where the pointer is right now.
+    //
+    // THE TOOLBAR FIRST: in fullscreen the capture bar hangs under it, and
+    // reading bounds the tick has not written yet hung the bar off where the
+    // strip was last frame -- visibly trailing it through the reveal.
+    TickFullscreenToolbar();
     SyncCaptureBanner();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
-    TickFullscreenToolbar();
 
 
     for (const DriveWidgetState & st : m_driveWidgetState)
@@ -12603,8 +12628,19 @@ void EmulatorShell::StartPaddleCapture()
     //  is no grab to lose, and the grab is taken once it has settled. Traced
     //  in that order, no cancel arrives at all; the two guards below exist for
     //  the case where one does anyway.
-    ReflowChromeForChangeBand();
-    m_captureReflowMs = ChangeBannerNowMs();
+    //
+    //  NOT IN FULLSCREEN, where the band is zero however this ends: the bar
+    //  hangs off the top edge there instead. A layout pass would be a settle
+    //  of the whole scene plus a synchronous repaint for no change at all --
+    //  and one caller of this grab is the fullscreen strip's own tick, which
+    //  runs inside the frame the repaint would re-enter.
+    m_captureReflowMs = 0;
+
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        ReflowChromeForChangeBand();
+        m_captureReflowMs = ChangeBannerNowMs();
+    }
 
     SetCapture (m_hwnd);
 
@@ -12660,8 +12696,12 @@ void EmulatorShell::StopPaddleCapture()
     PushPaddleButton (0, false);
     PushPaddleButton (1, false);
 
-    //  ...and the picture takes the height back.
-    ReflowChromeForChangeBand();
+    //  ...and the picture takes the height back -- windowed, where it gave any
+    //  up. See StartPaddleCapture for why fullscreen is left alone.
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        ReflowChromeForChangeBand();
+    }
 
 Error:
     return;

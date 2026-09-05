@@ -3,6 +3,8 @@
 #include "Widgets/DxuiInfoBanner.h"
 #include "Core/DxuiDpiScaler.h"
 #include "MockDxuiTextRenderer.h"
+#include "MockDxuiPainter.h"
+#include "MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -225,6 +227,139 @@ namespace DxuiInfoBannerTests
             Assert::AreEqual (banner.GetPreferredHeightPx (200.0f, scaler),
                               banner.GetMeasuredHeightPx (text, 200.0f, scaler),
                               L"a zero measurement must fall back to the estimate");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////
+        //  Centering: the cap, the even split, and what is left alone
+        ////////////////////////////////////////////////////////////////////
+
+        //  A LINE AS WIDE AS THE WINDOW IS NOT A LINE ANYONE READS. A message
+        //  bar spans the client, so a centered banner caps its line and wraps
+        //  past that even though there was room to keep going.
+        TEST_METHOD (Centered_CapsTheLineOnAVeryWideBar)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            std::wstring    words (400, L'x');       // 400 * 7 dip = 2800 dip wide
+            DxuiInfoBanner  plain  (words);
+            DxuiInfoBanner  center (words);
+
+            center.SetCentered (true);
+
+            Assert::IsTrue (center.GetPreferredHeightPx (4000.0f, scaler)
+                              > plain.GetPreferredHeightPx (4000.0f, scaler),
+                            L"the centered banner wraps where the plain one runs on");
+        }
+
+
+        //  Short text is under the cap, so centering changes nothing about
+        //  the height -- only where the line sits.
+        TEST_METHOD (Centered_ShortLineKeepsItsHeight)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  plain  (L"Press Esc to release the mouse and exit paddle mode");
+            DxuiInfoBanner  center (L"Press Esc to release the mouse and exit paddle mode");
+
+            center.SetCentered (true);
+
+            Assert::AreEqual (plain.GetPreferredHeightPx (1400.0f, scaler),
+                              center.GetPreferredHeightPx (1400.0f, scaler),
+                              L"a line that fits under the cap is not wrapped by centering");
+        }
+
+
+        //  EVENLY, so the last line is as full as the others. Filling each
+        //  line to the cap leaves a stub under a full-width block; the split
+        //  gives every line the same share of the text's own width.
+        TEST_METHOD (Centered_WrapSplitsTheWidthEvenly)
+        {
+            DxuiDpiScaler         scaler  = Scaler96();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            std::wstring          words (400, L'x');   // 2800 dip on one line
+            DxuiInfoBanner        banner (words);
+            float                 drawnW  = 0.0f;
+            float                 height  = 0.0f;
+
+            banner.SetCentered (true);
+
+            //  Three lines: 2800 dip of text against a 1024 dip cap. Evenly
+            //  split that is ~933 each, NOT 1024 + 1024 + 752.
+            height = banner.GetPreferredHeightPx (4000.0f, scaler);
+            banner.Layout (RECT{ 0, 0, 4000, (LONG) height }, scaler);
+            static_cast<IDxuiControl &> (banner).Paint (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString)
+                {
+                    drawnW = call.width;
+                }
+            }
+
+            Assert::IsTrue (drawnW > 0.0f, L"the banner drew its text");
+            Assert::IsTrue (drawnW < 1000.0f, L"the line box is the even share, not the cap");
+            Assert::IsTrue (drawnW > 860.0f,  L"...and not narrower than the share either");
+        }
+
+
+        //  The badge belongs to the words: the group is centered, so the text
+        //  starts past the middle-left of the bar rather than at its edge.
+        TEST_METHOD (Centered_GroupSitsInTheMiddle)
+        {
+            DxuiDpiScaler         scaler = Scaler96();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiInfoBanner        banner (L"Press Esc to release the mouse");
+            float                 drawnX = 0.0f;
+            DxuiTextHAlign        align  = DxuiTextHAlign::Left;
+
+            banner.SetCentered (true);
+            banner.Layout (RECT{ 0, 0, 1000, 40 }, scaler);
+            static_cast<IDxuiControl &> (banner).Paint (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString)
+                {
+                    drawnX = call.x;
+                    align  = call.hAlign;
+                }
+            }
+
+            Assert::IsTrue (drawnX > 300.0f, L"the group is centered, not held at the leading edge");
+            Assert::IsTrue (align == DxuiTextHAlign::Center, L"centered banners center their lines");
+        }
+
+
+        //  OFF BY DEFAULT: a banner in a dialog is a box sized to its text and
+        //  reads from the leading edge, exactly as it always did.
+        TEST_METHOD (Uncentered_StillStartsAtTheLeadingEdge)
+        {
+            DxuiDpiScaler         scaler = Scaler96();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiInfoBanner        banner (L"Press Esc to release the mouse");
+            float                 drawnX = 1000.0f;
+            DxuiTextHAlign        align  = DxuiTextHAlign::Center;
+
+            banner.Layout (RECT{ 0, 0, 1000, 40 }, scaler);
+            static_cast<IDxuiControl &> (banner).Paint (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString)
+                {
+                    drawnX = call.x;
+                    align  = call.hAlign;
+                }
+            }
+
+            Assert::IsTrue (drawnX < 60.0f, L"an uncentered banner still starts at the leading edge");
+            Assert::IsTrue (align == DxuiTextHAlign::Left, L"...and still left-aligns its text");
         }
 
     };
