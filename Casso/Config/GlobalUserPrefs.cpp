@@ -590,7 +590,7 @@ JsonValue GlobalUserPrefs::RecentDiskTimesToJson (const std::vector<std::int64_t
 //
 //  The trigger is SHAPE, never $cassoGlobalPrefsVersion. Nothing branches on
 //  that stamp, and one UserPrefs.json is shared by builds of different ages,
-//  so an older build will happily read a stamped file, find no key it knows,
+//  so an older build reads a stamped file, finds no key it recognizes,
 //  and write its own defaults back over the top while leaving the stamp
 //  claiming otherwise.
 //

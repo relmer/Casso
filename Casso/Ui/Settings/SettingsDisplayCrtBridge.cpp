@@ -41,8 +41,8 @@ void SettingsDisplayCrtBridge::Bind (
 //
 //  GetActiveModeIdx
 //
-//  Returns the currently-selected monitor type as an index into
-//  GlobalUserPrefs::crtByMode. Reads SettingsPanelState because the
+//  Returns the currently-selected monitor type as the mode index used by
+//  the override map. Reads SettingsPanelState because the
 //  monitor dropdown writes there as the source of truth; the live
 //  shell state can lag by a frame.
 //
@@ -77,9 +77,9 @@ int SettingsDisplayCrtBridge::GetActiveModeIdx() const
 //  "Restore defaults" so the slider widgets reflect whatever
 //  MakeCrtParams will produce on the next frame.
 //
-//  When the active block has userOverride=false we read the resolved
-//  preset values (CrtPresets::GetPreset) so the user sees "what the
-//  defaults are" rather than the still-zero in-struct defaults.
+//  The sliders show the RESOLVED picture, so an untouched monitor shows
+//  what the preset and theme give rather than struct defaults, and a
+//  monitor with one adjustment shows that adjustment over the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,40 +150,16 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint()
     }
     else if (m_displayPage != nullptr)
     {
-        int                       idx           = GetActiveModeIdx();
-        const ThemeCrtDefaults *  themeDefaults = nullptr;
-        CrtResolved               r;
+        CrtResolved  r = ResolveActive();
+        size_t       i = 0;
 
-        if (m_themes != nullptr && m_themes->GetActiveTheme() != nullptr)
+        // The badges report the tier that supplied each value, so this
+        // resolves WITH the user layer. Resolving without it would label
+        // every row a default, including the ones the user set.
+        for (i = 0; i < (size_t) CrtField::Count; i++)
         {
-            // Resolved, like the renderer's: the base theme drops the
-            // machine variant, so the badges would name values the picture
-            // never used.
-            themeDefaults = &m_themes->ActiveCrtDefaults();
+            hint.source[i] = r.source[i];
         }
-
-        // Deliberately resolved with NO user layer. This hint describes what
-        // the user would get back by resetting, so it must not include what
-        // they have set.
-        r = CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) idx), themeDefaults, CrtOverrides {});
-
-        hint.values.brightness         = r.values.brightness;
-        hint.values.contrast           = r.values.contrast;
-        hint.values.gamma              = r.values.gamma;
-        hint.values.persistence        = r.values.persistence;
-        hint.values.scanlinesEnabled   = r.values.scanlinesEnabled;
-        hint.values.scanlinesIntensity = r.values.scanlinesIntensity;
-        hint.values.bloomEnabled       = r.values.bloomEnabled;
-        hint.values.bloomRadius        = r.values.bloomRadius;
-        hint.values.bloomStrength      = r.values.bloomStrength;
-        hint.values.colorBleedEnabled  = r.values.colorBleedEnabled;
-        hint.values.colorBleedWidth    = r.values.colorBleedWidth;
-
-        hint.brightnessFromTheme = (r.source[(size_t) CrtField::Brightness]         == CrtSource::Theme);
-        hint.contrastFromTheme   = (r.source[(size_t) CrtField::Contrast]           == CrtSource::Theme);
-        hint.scanlinesFromTheme  = (r.source[(size_t) CrtField::ScanlinesIntensity] == CrtSource::Theme);
-        hint.bloomFromTheme      = (r.source[(size_t) CrtField::BloomRadius]        == CrtSource::Theme);
-        hint.colorBleedFromTheme = (r.source[(size_t) CrtField::ColorBleedWidth]    == CrtSource::Theme);
 
         m_displayPage->SetDefaultsHint (hint);
     }
@@ -197,23 +173,15 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint()
 //
 //  AdoptThemeDefaults
 //
-//  A theme's `crtDefaults` are defaults, and picking a theme adopts them.
-//  Every monitor's override flag is cleared, which hands the whole chain
-//  back to MakeCrtParams: monitor preset, the new theme's layer on top.
-//  The Display page is then reseeded so its sliders and its "(theme
-//  default)" badges say what the picture is actually doing.
+//  A theme change reseeds the page and nothing more.
 //
-//  CLEARING THE FLAG, NOT COPYING VALUES. A block seeded by value would be
-//  a user override wearing the theme's numbers, and the NEXT theme change
-//  would find an override and decline to touch it -- which is the bug this
-//  fixes, one theme later. The stale values left in the block are harmless:
-//  PromoteActiveToOverride re-seeds from the resolved defaults before the
-//  first edit lands, so a slider touched after a theme change starts from
-//  the new theme, not from what the last one left behind.
+//  It USED TO clear a whole-block override flag on all four monitors, which
+//  discarded every adjustment the user had made. Under per-field overrides
+//  there is nothing to discard: their fields sit on top of whatever the new
+//  theme declares, and every field they never touched follows it.
 //
-//  Cancel gets this too, because reverting to the baseline theme raises the
-//  same hook -- the CRT settings go back with the chrome rather than
-//  stranding the reverted theme's picture under the abandoned one's numbers.
+//  Cancel reaches this too, because reverting to the baseline theme raises
+//  the same hook, so the page follows the chrome back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,23 +197,6 @@ void SettingsDisplayCrtBridge::AdoptThemeDefaults()
     ReseedFromActiveMode();
     PublishDefaultsHint();
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromoteActiveToOverride
-//
-//  First time the user touches any CRT control on an untouched monitor,
-//  copy the resolved preset values into the active block before flipping
-//  userOverride=true. Without this, the slider's lambda writes only the
-//  one changed field and leaves every other field at the default-
-//  constructed Crt{} zeros (scanlinesEnabled=false, bloomEnabled=false,
-//  brightness=1.0, etc.), which silently turns off whatever the preset
-//  had enabled the moment userOverride flips on.
-//
 
 
 
@@ -319,6 +270,7 @@ CrtResolved SettingsDisplayCrtBridge::ResolveActive() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ResetActiveToDefaults
@@ -348,16 +300,15 @@ void SettingsDisplayCrtBridge::ResetActiveToDefaults()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WireDisplayPageCallbacks
 //
-//  Installs the live-edit + restore-defaults callbacks on the bound
-//  DisplayPage. Every slider / toggle change funnels through
-//  PromoteActiveToOverride so the user's first edit on an untouched
-//  monitor inherits the resolved preset values; Restore Defaults
-//  short-circuits to ResetActiveToDefaults and re-seeds the slider
-//  widgets via ReseedFromActiveMode.
+//  Installs the live-edit and restore-defaults callbacks on the bound
+//  DisplayPage. Every slider and toggle records exactly the field it
+//  changed, and Restore Defaults erases the active pair entry and reseeds
+//  the widgets through ReseedFromActiveMode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -161,12 +161,41 @@ void DisplayPage::SetInitialCrt (const GlobalUserPrefsCrtSnapshot & snap)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DisplayPage::SetDefaultsHint
+//  DisplayPage::LabelForSource
 //
-//  SettingsPanel passes the resolved per-control defaults whenever the
-//  active monitor changes (or Restore Defaults is hit) so Paint can
-//  decorate each row with "(theme default)" or "(monitor default)"
-//  when the current control value matches the default.
+//  The badge text for the tier that supplied a row's value.
+//
+//  Preset reads as the monitor's own default, theme as the active theme's,
+//  and user as a deliberate adjustment. Three labels rather than the old
+//  two, because "(custom)" is the state that previously showed as no badge
+//  at all, which is how a user could tune bloom months ago and never work
+//  out why a new theme's bloom stopped arriving.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DisplayPage::LabelForSource (CrtSource source)
+{
+    const wchar_t *  label = L"(monitor default)";
+
+
+
+    switch (source)
+    {
+        case CrtSource::Theme:  label = L"(theme default)";   break;
+        case CrtSource::User:   label = L"(custom)";          break;
+        default:                                              break;
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::SetDefaultsHint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,7 +266,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // Monitor row + Restore defaults button (sharing this row so the
     // button doesn't break the "all sliders aligned" promise below).
     m_monitorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_monitorLabel.SetText (L"Monitor:");
+    m_monitorLabel.SetText (L"Picture:");
     m_monitor.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_monitor.SetItems ({ L"Color", L"Green monochrome", L"Amber monochrome", L"White monochrome" });
     m_monitorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
@@ -807,7 +836,6 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     constexpr int              s_kIndicatorFontDp    = 12;
     constexpr int              s_kIndicatorWidthDp   = 140;
     constexpr const wchar_t  * s_kFont               = DxuiTheme::kBodyFace;
-    constexpr float            s_kFloatEpsilon       = 0.001f;
 
 
 
@@ -840,17 +868,12 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     {
     };
 
-    auto  DrawIndicator = [&] (const RECT & rowRect, bool matchesDefault, bool themeOwned)
+    auto  DrawIndicator = [&] (const RECT & rowRect, CrtField field)
     {
         HRESULT          hrLocal = S_OK;
-        const wchar_t *  label   = themeOwned ? L"(theme default)" : L"(monitor default)";
+        const wchar_t *  label   = LabelForSource (m_hint.source[(size_t) field]);
 
 
-
-        if (! matchesDefault)
-        {
-            return;
-        }
 
         hrLocal = text.DrawString (label,
                                    (float) m_indicatorX,
@@ -865,10 +888,6 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
         IGNORE_RETURN_VALUE (hrLocal, S_OK);
     };
 
-    auto  FloatMatches = [&] (float a, float b)
-    {
-        return std::fabs (a - b) < s_kFloatEpsilon;
-    };
 
 
 
@@ -898,85 +917,63 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     PaintBackingIfFocused (kControlBrightness, m_brightnessRowRect);
     m_brightnessLabel.Paint (painter, text, theme);
     m_brightness.Paint      (painter, text, theme);
-    DrawIndicator (m_brightnessRowRect,
-                   FloatMatches (m_brightness.GetValue() / 100.0f, m_hint.values.brightness),
-                   m_hint.brightnessFromTheme);
+    DrawIndicator (m_brightnessRowRect, CrtField::Brightness);
 
     SetAlphaForRow (kControlContrast, m_contrastRowRect);
     PaintBackingIfFocused (kControlContrast, m_contrastRowRect);
     m_contrastLabel.Paint   (painter, text, theme);
     m_contrast.Paint        (painter, text, theme);
-    DrawIndicator (m_contrastRowRect,
-                   FloatMatches (m_contrast.GetValue() / 100.0f, m_hint.values.contrast),
-                   m_hint.contrastFromTheme);
+    DrawIndicator (m_contrastRowRect, CrtField::Contrast);
 
     SetAlphaForRow (kControlGamma, m_gammaRowRect);
     PaintBackingIfFocused (kControlGamma, m_gammaRowRect);
     m_gammaLabel.Paint      (painter, text, theme);
     m_gamma.Paint           (painter, text, theme);
-    DrawIndicator (m_gammaRowRect,
-                   FloatMatches (m_gamma.GetValue(), m_hint.values.gamma),
-                   false);  // gamma is never theme-owned
+    DrawIndicator (m_gammaRowRect, CrtField::Gamma);
 
     // Scanlines section: label in the left column, toggle in the value column.
     SetAlphaForRow (-1, m_scanlinesEnRowRect);
     m_scanlinesLabel.Paint (painter, text, theme);
     m_scanlinesEn.Paint    (painter, text, theme);
-    DrawIndicator (m_scanlinesEnRowRect,
-                   m_scanlinesEn.IsChecked() == m_hint.values.scanlinesEnabled,
-                   m_hint.scanlinesFromTheme);
+    DrawIndicator (m_scanlinesEnRowRect, CrtField::ScanlinesEnabled);
     SetAlphaForRow (kControlScanlinesInt, m_scanlinesIntRowRect);
     PaintBackingIfFocused (kControlScanlinesInt, m_scanlinesIntRowRect);
     m_scanlinesIntLabel.Paint (painter, text, theme);
     m_scanlinesInt.Paint      (painter, text, theme);
-    DrawIndicator (m_scanlinesIntRowRect,
-                   FloatMatches (m_scanlinesInt.GetValue() / 100.0f, m_hint.values.scanlinesIntensity),
-                   m_hint.scanlinesFromTheme);
+    DrawIndicator (m_scanlinesIntRowRect, CrtField::ScanlinesIntensity);
 
     // Bloom section
     SetAlphaForRow (-1, m_bloomEnRowRect);
     m_bloomLabel.Paint (painter, text, theme);
     m_bloomEn.Paint    (painter, text, theme);
-    DrawIndicator (m_bloomEnRowRect,
-                   m_bloomEn.IsChecked() == m_hint.values.bloomEnabled,
-                   m_hint.bloomFromTheme);
+    DrawIndicator (m_bloomEnRowRect, CrtField::BloomEnabled);
     SetAlphaForRow (kControlBloomRadius, m_bloomRadiusRowRect);
     PaintBackingIfFocused (kControlBloomRadius, m_bloomRadiusRowRect);
     m_bloomRadiusLabel.Paint (painter, text, theme);
     m_bloomRadius.Paint      (painter, text, theme);
-    DrawIndicator (m_bloomRadiusRowRect,
-                   FloatMatches (m_bloomRadius.GetValue(), m_hint.values.bloomRadius),
-                   m_hint.bloomFromTheme);
+    DrawIndicator (m_bloomRadiusRowRect, CrtField::BloomRadius);
     SetAlphaForRow (kControlBloomStrength, m_bloomStrengthRowRect);
     PaintBackingIfFocused (kControlBloomStrength, m_bloomStrengthRowRect);
     m_bloomStrengthLabel.Paint (painter, text, theme);
     m_bloomStrength.Paint      (painter, text, theme);
-    DrawIndicator (m_bloomStrengthRowRect,
-                   FloatMatches (m_bloomStrength.GetValue() / 100.0f, m_hint.values.bloomStrength),
-                   m_hint.bloomFromTheme);
+    DrawIndicator (m_bloomStrengthRowRect, CrtField::BloomStrength);
 
     // Color-bleed section
     SetAlphaForRow (-1, m_colorBleedEnRowRect);
     m_colorBleedLabel.Paint (painter, text, theme);
     m_colorBleedEn.Paint    (painter, text, theme);
-    DrawIndicator (m_colorBleedEnRowRect,
-                   m_colorBleedEn.IsChecked() == m_hint.values.colorBleedEnabled,
-                   m_hint.colorBleedFromTheme);
+    DrawIndicator (m_colorBleedEnRowRect, CrtField::ColorBleedEnabled);
     SetAlphaForRow (kControlColorBleedW, m_colorBleedWRowRect);
     PaintBackingIfFocused (kControlColorBleedW, m_colorBleedWRowRect);
     m_colorBleedWLabel.Paint (painter, text, theme);
     m_colorBleedW.Paint      (painter, text, theme);
-    DrawIndicator (m_colorBleedWRowRect,
-                   FloatMatches (m_colorBleedW.GetValue(), m_hint.values.colorBleedWidth),
-                   m_hint.colorBleedFromTheme);
+    DrawIndicator (m_colorBleedWRowRect, CrtField::ColorBleedWidth);
 
     SetAlphaForRow (kControlPersistence, m_persistenceRowRect);
     PaintBackingIfFocused (kControlPersistence, m_persistenceRowRect);
     m_persistenceLabel.Paint (painter, text, theme);
     m_persistence.Paint      (painter, text, theme);
-    DrawIndicator (m_persistenceRowRect,
-                   FloatMatches (m_persistence.GetValue() / 100.0f, m_hint.values.persistence),
-                   false);  // persistence is never theme-owned
+    DrawIndicator (m_persistenceRowRect, CrtField::Persistence);
 
     SetAlphaForRow (-1, m_restoreRowRect);
     m_restore.Paint (painter, text, theme);

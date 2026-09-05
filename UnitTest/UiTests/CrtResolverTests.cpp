@@ -129,7 +129,7 @@ public:
 
     //  A theme that omits a group leaves the preset alone. This is the
     //  defect the has* flags exist to prevent: without them a theme that
-    //  says nothing about scanlines wipes the preset with struct zeroes.
+    //  declares nothing for scanlines wipes the preset with struct zeroes.
     TEST_METHOD (ThemeOmittingAGroup_LeavesThatGroupOnThePreset)
     {
         CrtValues         preset = MakePreset();

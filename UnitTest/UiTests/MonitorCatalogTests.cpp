@@ -30,7 +30,7 @@ TEST_CLASS (MonitorCatalogTests)
 {
 public:
 
-    // Both shipped names, spelled out rather than derived, because deriving
+    // Both shipped names, written literally rather than derived, because deriving
     // them from the catalog would assert the catalog equals itself.
     TEST_METHOD (ShippedConfigNamesAreFrozen)
     {

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "SettingsPanelState.h"
+#include "../../Config/CrtTypes.h"
 #include "../ColorUtil.h"
 
 #include "Window/DxuiPropertyPage.h"
@@ -51,21 +52,19 @@ struct GlobalUserPrefsCrtSnapshot
 };
 
 
-// Per-control "what is the current default" snapshot. Each value is
-// the resolved default for this monitor (theme override if the active
-// theme defines that field-group, else the monitor preset). The
-// *FromTheme flags say which source won, so DisplayPage can render
-// "(theme default)" vs "(monitor default)" next to controls whose
-// current value matches the default. Theme schema does NOT carry
-// gamma or persistence -- those are always monitor-owned.
+// Where each displayed value came from, per field, so DisplayPage can
+// label a row "(monitor default)", "(theme default)" or "(custom)".
+//
+// This is the tier that SUPPLIED the value, never a comparison of
+// numbers. The page used to infer it by comparing the widget against a
+// resolved default with an epsilon, which reported "(monitor default)"
+// for a value the user had deliberately set to match one.
+//
+// No theme group carries gamma or persistence, so those two never
+// report a theme source.
 struct DisplayDefaultsHint
 {
-    GlobalUserPrefsCrtSnapshot  values;
-    bool                        brightnessFromTheme = false;
-    bool                        contrastFromTheme   = false;
-    bool                        scanlinesFromTheme  = false;
-    bool                        bloomFromTheme      = false;
-    bool                        colorBleedFromTheme = false;
+    CrtSource  source[(size_t) CrtField::Count] = {};
 };
 
 
@@ -103,6 +102,10 @@ public:
     static constexpr int  kControlColorBleedW    = 7;
     static constexpr int  kControlGamma          = 8;
     static constexpr int  kControlPersistence    = 9;
+
+    // The badge text for a tier. A class static so a test can pin the
+    // strings without a device, a window or a painter.
+    static const wchar_t *  LabelForSource (CrtSource source);
 
     void  SetState              (SettingsPanelState * state);
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
