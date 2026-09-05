@@ -190,6 +190,23 @@ struct GlobalUserPrefs
     bool         printerAudioPanOverride  = false;
     float        printerAudioPan          = 0.0f;   // -1 .. +1, used when override is on
 
+    // WHAT THE SCREENSHOT COMMAND CAPTURES, and where it puts the file
+    // (Settings > Printing and Screenshots). Global: they describe the host
+    // and the user's habits, nothing about the emulated hardware.
+    //
+    // The mode is stored as ScreenshotModeToken's spelling rather than an
+    // index, for the reason printDotStyle stores "ink": the radio order can
+    // change in a later release, and an index would silently repoint every
+    // existing user's setting with nothing to diagnose. An unrecognized value
+    // loads as the default and is re-emitted normalized -- unlike an unknown
+    // KEY, which round-trips untouched.
+    //
+    // An empty folder means "the default destination", so the default can move
+    // in a later release without stranding anyone on a stale path.
+    std::string  screenshotMode           = "scene";
+    bool         screenshotSaveFile       = true;
+    std::string  screenshotFolder;
+
     // Master output volume (the chrome toolbar's slider + mute): one gain over
     // the completed audio mix, so speaker, drives, printer, and Mockingboard
     // scale together. Mute keeps the slider value; the mix just gets gain 0.

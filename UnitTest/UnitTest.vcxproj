@@ -391,6 +391,7 @@
     <ClCompile Include="PrinterTests\PrinterHeadTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterEngineTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterPreviewModelTests.cpp" />
+    <ClCompile Include="CaptureTests\ScreenshotModeTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterPipelineTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterJobTests.cpp" />
     <ClCompile Include="PrinterTests\PngCodecTests.cpp" />

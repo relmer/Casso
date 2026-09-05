@@ -20,10 +20,12 @@ static constexpr int   s_kMaxOrdinal = 100000;   // guard against a pathological
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wstring PrintFileNaming::ComposeCandidateName (const wstring & base, int ordinal)
+wstring PrintFileNaming::ComposeCandidateName (const wstring & base,
+                                               const wstring & extension,
+                                               int             ordinal)
 {
-    return (ordinal <= 1) ? (base + L".png")
-                          : (base + L" (" + to_wstring (ordinal) + L").png");
+    return (ordinal <= 1) ? (base + extension)
+                          : (base + L" (" + to_wstring (ordinal) + L")" + extension);
 }
 
 
@@ -32,29 +34,36 @@ wstring PrintFileNaming::ComposeCandidateName (const wstring & base, int ordinal
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ComposePngPath
+//  ComposeTimestampedPath
+//
+//  The timestamp is LOCAL wall-clock, to the second, and deliberately not
+//  finer. A second is short enough that two files rarely share one, and the
+//  " (n)" suffix already covers the case when they do -- where sub-second
+//  digits would put noise in every name to spare the rare collision.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path PrintFileNaming::ComposePngPath (
+fs::path PrintFileNaming::ComposeTimestampedPath (
     const fs::path &                          folder,
+    const wstring &                           baseName,
+    const wstring &                           extension,
     const SYSTEMTIME &                        when,
     const function<bool (const fs::path &)> & taken)
 {
     fs::path  result;
+    wstring   base;
     int       ordinal = 0;
 
 
 
-    wstring    base    = std::format (L"Casso Print {:04}-{:02}-{:02} {:02}{:02}{:02}",
-                                      (int) when.wYear, (int) when.wMonth, (int) when.wDay,
-                                      (int) when.wHour, (int) when.wMinute, (int) when.wSecond);
-    result = folder / ComposeCandidateName (base, 1);
-    ordinal = 1;
+    base = std::format (L"{} {:04}-{:02}-{:02} {:02}{:02}{:02}",
+                        baseName,
+                        (int) when.wYear, (int) when.wMonth, (int) when.wDay,
+                        (int) when.wHour, (int) when.wMinute, (int) when.wSecond);
 
     for (ordinal = 1; ordinal <= s_kMaxOrdinal; ordinal++)
     {
-        result = folder / ComposeCandidateName (base, ordinal);
+        result = folder / ComposeCandidateName (base, extension, ordinal);
 
         if (!taken (result))
         {

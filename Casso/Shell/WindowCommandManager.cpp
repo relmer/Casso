@@ -1532,7 +1532,7 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     }
 
     GetLocalTime (&now);
-    suggested = PrintFileNaming::ComposePngPath (folder, now,
+    suggested = PrintFileNaming::ComposeTimestampedPath (folder, L"Casso Print", L".png", now,
                     [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
 
     hr = dialog->SetFileName (suggested.filename().c_str());
