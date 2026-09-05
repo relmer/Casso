@@ -283,7 +283,15 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
         m_faceRect  = m_bodyRect;
         m_slotRect  = {};
-        m_ejectRect = m_bodyRect;
+
+        // Reaching back over the caption column, so the whole stack really is
+        // the door rather than only the part right of "DRIVE N". The band
+        // alone left the caption inside GetOuterRect, and so inside the hover
+        // test that lights the button treatment, but outside every rect
+        // HitTest examines: the caption advertised a click and then swallowed
+        // it.
+        m_ejectRect      = m_bodyRect;
+        m_ejectRect.left = m_captionRect.left;
 
         // No LED in the compact presentation. Activity is the bar (Dark
         // Modern) or the name's own glow (Retro Terminal), so the indicator
