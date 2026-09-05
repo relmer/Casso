@@ -92,6 +92,48 @@ Entries before versioning was introduced use dates only.
   held key into hundreds of characters a second. It is timed in real seconds
   now, as the //e's own keyboard encoder is, so the ~0.5s delay and ~15
   characters a second hold at every speed.
+- **A disk that could not be moved out of the way was sometimes only announced,
+  never offered anywhere to go.** When a program rewrites a mounted image and
+  the guest has written too, Casso saves the guest's version to a copy beside
+  the original -- and if that copy cannot be written, it asks where to put it
+  instead. It only asked when the change was noticed by the file watcher;
+  noticed instead by the guest's own write, the same failure was a message with
+  no way to act on it. Both now ask. The two moments that cannot ask, because
+  the disk or the program is on its way out, still say so plainly.
+- **The same disk image could be put in both drives at once.** Each drive held
+  its own copy of it from that moment, so whichever wrote last overwrote the
+  other's changes, and one change from outside Casso raised the conflict twice.
+  The second drive now refuses it and says which drive has it.
+- **Answering the "disk modified outside Casso" question could act on the wrong
+  disk.** The answer was carried out against whatever was in the drive, so
+  taking the disk out and putting another in while the question stood moved the
+  new disk onto the departed one's timestamped copy -- which the next write
+  then overwrote. A change arriving from a build under the open question also
+  swapped the disk out from under it, leaving "keep your current version"
+  meaning the other program's version. A question now holds the drive until it
+  is answered, and the answer lands on whatever is on disk when it comes.
+- **The question never appeared if any dialog was open.** Settings, a file
+  picker or the About box swallowed it, and that drive was never asked about
+  again until the disk was ejected. Notifications and mount results went the
+  same way. The same held when the question was raised before the main window
+  existed.
+- **Pressing Enter on "mounted disk has been removed" discarded the disk.** So
+  did closing the dialog. With the file gone, the copy in the drive was the
+  only one left. Both now offer to save it, and only an explicit Discard lets
+  it go.
+- **A disk found missing partway through a reload offered buttons that did
+  nothing.** The offer to save it went to the notice strip, which routes no
+  answers. It is a question now, like the one raised when a change is first
+  noticed.
+- **A dismissed "disk modified outside Casso" question dated the next copy
+  after it.** Putting the question reserves the name the preserved copy
+  would take, stamped with that moment. Waving the question away left the
+  name held, so a genuine conflict hours later filed the guest's disk under
+  the old timestamp -- and under a name another file may have taken since.
+  The same went for the question raised when a copy could not be written,
+  and a reservation no longer outlives the disk it was made for: neither
+  eject cleared one, so the next disk into that drive filed its own copy
+  under the departed disk's name.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,

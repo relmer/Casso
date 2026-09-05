@@ -18,9 +18,10 @@ void MountedImageState::Mount (const ImageIdentity & identity)
     m_pending        = PendingChange();
     m_mounted        = true;
     m_watching       = false;
-    m_reportStanding = false;
     m_askOutstanding = false;
     m_askedAction    = ChangeAction::Ignore;
+
+    ClearPreserved();
 
     return;
 }
@@ -33,8 +34,8 @@ void MountedImageState::Mount (const ImageIdentity & identity)
 //
 //  MountedImageState::Eject
 //
-//  Everything goes, including any standing report. A report about a disk that
-//  is no longer in the drive has nothing to offer and no image to name.
+//  Everything goes. Nothing recorded about a disk survives it leaving the
+//  drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,9 +45,53 @@ void MountedImageState::Eject()
     m_pending        = PendingChange();
     m_mounted        = false;
     m_watching       = false;
-    m_reportStanding = false;
     m_askOutstanding = false;
     m_askedAction    = ChangeAction::Ignore;
+
+    ClearPreserved();
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::ClearPreserved
+//
+//  A DISK INHERITS NOTHING FROM THE ONE BEFORE IT. A preserved name is
+//  reserved for the file a question was asked about. The disk that follows is
+//  what would otherwise inherit it, and file its copy under the previous
+//  disk's name and moment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MountedImageState::ClearPreserved()
+{
+    m_preservedPath.clear();
+    m_preservedWritten = false;
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::ReleaseUnwrittenReservation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MountedImageState::ReleaseUnwrittenReservation()
+{
+    if (!m_preservedWritten)
+    {
+        m_preservedPath.clear();
+    }
 
     return;
 }
