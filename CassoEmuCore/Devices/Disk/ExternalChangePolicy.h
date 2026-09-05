@@ -65,6 +65,16 @@ enum class ChangeAction
     //  what the user picks when told the file behind a mounted disk is gone,
     //  where what the emulator holds may be the only copy left.
     PreserveCopy,
+
+    //  Let the disk in memory go.
+    //
+    //  ALSO AN ANSWER RATHER THAN A DECISION, and the other half of the offer
+    //  made when a file is lost: the user was told their disk exists nowhere
+    //  else and said to throw it away anyway. It used to be spelled KeepHeld,
+    //  which is the exact opposite everywhere else in this enum -- one word
+    //  meaning both "keep it" and "discard it" is how the wrong branch gets
+    //  taken by whoever reads it next.
+    Discard,
 };
 
 

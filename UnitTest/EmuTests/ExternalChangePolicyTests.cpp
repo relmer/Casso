@@ -72,6 +72,7 @@ public:
         case ChangeAction::Unusable:      return L"Unusable";
         case ChangeAction::Defer:         return L"Defer";
         case ChangeAction::KeepHeld:      return L"KeepHeld";
+        case ChangeAction::Discard:       return L"Discard";
         case ChangeAction::PreserveCopy:  return L"PreserveCopy";
         }
 
@@ -250,13 +251,15 @@ public:
             AssertDecides (reach.situation, reach.outcome);
         }
 
-        //  KeepHeld and PreserveCopy are answers a person gives, never
-        //  outcomes the policy reaches on its own. Asserted so that making
-        //  either one reachable from a rule has to be a deliberate edit here.
+        //  KeepHeld, PreserveCopy and Discard are answers a person gives,
+        //  never outcomes the policy reaches on its own. Asserted so that
+        //  making one of them reachable from a rule has to be a deliberate
+        //  edit here.
         for (const Reach & reach : reaches)
         {
             Assert::IsTrue (reach.outcome != ChangeAction::KeepHeld
-                         && reach.outcome != ChangeAction::PreserveCopy,
+                         && reach.outcome != ChangeAction::PreserveCopy
+                         && reach.outcome != ChangeAction::Discard,
                             L"these are answers, not decisions");
         }
     }
@@ -373,7 +376,7 @@ public:
         Assert::AreEqual ((size_t) 2, deleted.answers.size());
         Assert::AreEqual ((size_t) 2, unreadable.answers.size());
         Assert::IsTrue (deleted.answers[0].action == ChangeAction::PreserveCopy);
-        Assert::IsTrue (deleted.answers[1].action == ChangeAction::KeepHeld);
+        Assert::IsTrue (deleted.answers[1].action == ChangeAction::Discard);
 
         //  The path leads on its own line, then what the screen will not show
         //  for itself: the disk is still in memory and can be saved or
@@ -874,7 +877,8 @@ public:
                                                ChangeAction::Restart,
                                                ChangeAction::Defer,
                                                ChangeAction::Conflict,
-                                               ChangeAction::KeepHeld };
+                                               ChangeAction::KeepHeld,
+                                               ChangeAction::Discard };
 
 
 

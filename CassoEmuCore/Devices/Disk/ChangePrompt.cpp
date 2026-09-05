@@ -428,7 +428,7 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
                      L"You can save it to a new file or discard it.";
 
     prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
-    prompt.answers.push_back (PromptAnswer { L"Discard",    ChangeAction::KeepHeld });
+    prompt.answers.push_back (PromptAnswer { L"Discard",    ChangeAction::Discard });
 
     return prompt;
 }

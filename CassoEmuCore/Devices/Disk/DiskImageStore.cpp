@@ -2436,6 +2436,18 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
             }
 
             //  Nothing was saved, so there is nothing to point at.
+            //
+            //  THE SHELL CAN ONLY SEND BACK AN ANSWER THE PROMPT OFFERED, so a
+            //  third value is a coding error rather than a user choice -- and
+            //  one that would empty the drive of a disk existing nowhere else.
+            //  The disk stays put rather than paying for the mistake.
+            ASSERT (chosen == ChangeAction::Discard);
+
+            if (chosen != ChangeAction::Discard)
+            {
+                return;
+            }
+
             EjectLostImage (slot, drive);
 
             return;

@@ -1139,7 +1139,7 @@ public:
             rig->Stamp (kImagePath);
             rig->FireAndSettle (kImagePath);
 
-            rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+            rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
             Assert::IsTrue (!rig->bayChanges.empty());
             Assert::IsTrue (rig->bayChanges.back() == BayChange::Ejected);
@@ -1418,7 +1418,7 @@ public:
                         L"a user whose file was deleted needs to be told it is gone");
 
         //  Present, but not this disk any more.
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
@@ -1488,7 +1488,7 @@ public:
         rig.Stamp (kImagePath);
         rig.FireAndSettle (kImagePath);
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
         Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive));
         Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
