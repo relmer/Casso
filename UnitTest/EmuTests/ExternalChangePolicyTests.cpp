@@ -498,7 +498,8 @@ public:
     //  drive, so a dialog about "mockingboard-speech-demo-dhgr.dsk" said it in
     //  the first line, in both offers, in the rename, and on a button, and the
     //  sentences around it could not be read. The name and the drive now lead
-    //  on a labeled line and the prose says "this disk" and "it".
+    //  on a line of their own, drive in parentheses after the file, and the
+    //  prose says "this disk" and "it".
     TEST_METHOD (TheQuestionNamesTheFileOnceAndTheDriveOnce)
     {
         ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0,
@@ -528,7 +529,7 @@ public:
 
         //  Together, on their own line, where the eye finds them without
         //  reading a sentence.
-        Assert::IsTrue (whole.find (L"\n\nDrive 1: Loader.dsk") != std::wstring::npos,
+        Assert::IsTrue (whole.find (L"\n\nLoader.dsk (Drive 1)") != std::wstring::npos,
                         (L"the identifying line is missing: " + whole).c_str());
 
         //  The copy is the one other name here, and it appears once.

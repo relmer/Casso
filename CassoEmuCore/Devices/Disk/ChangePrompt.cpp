@@ -125,9 +125,11 @@ std::wstring ChangePrompt::DescribeError (HRESULT reason)
 //  THE FILE AND THE DRIVE ARE NAMED ONCE, ON A LINE OF THEIR OWN. Every
 //  sentence used to carry both, so a name of any length appeared six times in
 //  one dialog and the sentences around it were unreadable. Hoisting them to a
-//  labeled line lets the rest say "this disk" and "it", which is how anyone
-//  would say it out loud. The copy's name is the one other filename here, and
-//  it is printed once, where the rename is described.
+//  line of their own lets the rest say "this disk" and "it", which is how
+//  anyone would say it out loud. The drive follows the file in parentheses,
+//  because the file is the thing the reader is scanning for. The copy's name
+//  is the one other filename here, printed once, where the rename is
+//  described.
 //
 //  KEEPING IS A SAVE-AS, NOT A SWAP. The disk in the drive does not move, so
 //  the sentence about it is a rename and not an insertion. That is also what
@@ -153,7 +155,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         prompt.title   = L"Disk modified outside Casso";
 
         prompt.message = L"Another program modified this disk while it was mounted in Casso:"
-                         L"\n\n" + where + L": " + file;
+                         L"\n\n" + file + L" (" + where + L")";
 
         //  A conflict wrote the copy before anything was asked, so the guest's
         //  writes are already safe and the reader is told so up front. Where
