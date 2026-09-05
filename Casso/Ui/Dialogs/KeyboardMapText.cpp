@@ -59,8 +59,5 @@ std::vector<DialogTextRun> KeyboardMapText::BuildBody (const Machine & machine)
         body.push_back (row);
     }
 
-    body.push_back ({ L"", false, L"" });
-    body.push_back ({ L"Every other shortcut is shown beside its menu item.", false, L"" });
-
     return body;
 }
