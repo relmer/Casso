@@ -121,7 +121,8 @@ public:
     HRESULT       FlushAll          ();
 
     //  The same, for the last flush of the process, which can only ask through
-    //  a blocking dialog.
+    //  a blocking dialog. Separate from FlushAll so the moment is explicit at
+    //  the call site rather than inferred from where it happens to be called.
     HRESULT       FlushAllForShutdown ();
 
     //  Sets a mounted WOZ's write-protect flag in its backing file by patching
@@ -460,9 +461,9 @@ private:
     HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
     HRESULT       FlushEveryBay     (FlushMoment moment);
 
-    //  Says the guest's version could not be written beside the file that
-    //  displaced it -- as a question where one can still be answered, and as a
-    //  notice where it cannot.
+    //  Tells the user the guest's version could not be written beside the
+    //  file that displaced it -- as a question where one can still be
+    //  answered, and as a notice where it cannot.
     void          ReportPreserveFailure (Entry & entry, FlushMoment moment,
                                          const string & attemptedPath, HRESULT hrKeep,
                                          const string & original);

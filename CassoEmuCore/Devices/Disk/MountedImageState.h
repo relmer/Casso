@@ -157,9 +157,9 @@ public:
     //  stands -- so the next copy, whenever it came, went out under the old
     //  question's timestamp.
     //
-    //  A COPY THAT EXISTS KEEPS ITS NAME. `m_preservedWritten` says a file is
-    //  there, and forgetting where would write the same disk out a second time
-    //  beside it.
+    //  A COPY THAT EXISTS KEEPS ITS NAME. `m_preservedWritten` records that a
+    //  file is there, and forgetting where would write the same disk out a
+    //  second time beside it.
     void  ReleaseUnwrittenReservation ();
 
     //  Whether two spellings of a path name the same file.

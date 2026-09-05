@@ -93,12 +93,12 @@ public:
         bool                                           refusePreserve = false;
 
         //  Makes the ask sink report that the question never reached anywhere
-        //  it could be answered -- what the shell says when it has no window
-        //  yet, or when the post fails.
+        //  it could be answered -- what the shell reports when it has no
+        //  window yet, or when the post fails.
         bool                                           askSinkDelivers = true;
 
-        //  Where the shutdown rescue dialog says to put the disk, and how many
-        //  times it was raised. An empty path stands for the user declining.
+        //  The path the shutdown rescue dialog hands back, and how many times
+        //  it was raised. An empty path stands for the user declining.
         std::string                                    rescueChoice;
         int                                            rescuesAsked = 0;
 
@@ -578,11 +578,11 @@ public:
         Assert::IsTrue (FAILED (hr), L"the second drive refuses it");
         Assert::IsTrue (diagnosis.failure == MountFailure::AlreadyMounted);
         Assert::AreEqual (kDrive, diagnosis.occupiedDrive,
-                          L"and says which drive has it");
+                          L"and specifies which drive has it");
         Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive + 1));
 
-        //  The message names the drive rather than leaving the reader to look
-        //  in both.
+        //  The message specifies which drive has it rather than leaving the
+        //  reader to look in both.
         Assert::IsTrue (diagnosis.Describe().find ("drive 1") != std::string::npos);
     }
 

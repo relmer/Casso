@@ -14604,11 +14604,11 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
     {
         bool  isSafe = (i == notice.prompt.safeAnswer);
 
-        //  THE PROMPT NAMES ITS OWN SAFE ANSWER, and that is the default and
-        //  the close-box result: dismissing a question about a disk must not
-        //  cost the user anything. Which answer that is differs by question,
-        //  and taking it to be the last one threw away a disk that had no file
-        //  left to go back to.
+        //  THE PROMPT CARRIES THE INDEX OF ITS OWN SAFE ANSWER, and that is
+        //  the default and the close-box result: dismissing a question about a
+        //  disk must not cost the user anything. Which answer that is differs
+        //  by question, and taking it to be the last one threw away a disk that
+        //  had no file left to go back to.
         def.buttons.push_back (DialogButton { notice.prompt.answers[i].label,
                                               (int) i, isSafe, isSafe, false });
     }

@@ -147,8 +147,8 @@ struct ChangePrompt
     //  it discards exists in memory and nowhere else. Enter, or the close box,
     //  threw it away.
     //
-    //  EACH COMPOSER NAMES ITS OWN, so a new prompt has to decide rather than
-    //  inherit a rule written for a different one.
+    //  EVERY COMPOSER SETS IT, so a new prompt has to decide which of its
+    //  answers is safe rather than inherit a rule written for a different one.
     size_t                     safeAnswer = 0;
 
     //  Whether there is anything to show at all. An action that needs no answer

@@ -101,8 +101,8 @@ public:
     size_t        fileByteSize = 0;
 
     //  Which drive already has the file, zero-based, for AlreadyMounted alone.
-    //  Naming it is the whole use of the message: "already mounted" without
-    //  saying where sends the reader to look in both drives.
+    //  Specifying which one is the whole use of the message: "already mounted"
+    //  on its own sends the reader to look in both drives.
     int           occupiedDrive = -1;
 
     bool    HasFailure () const { return failure != MountFailure::None; }
