@@ -127,14 +127,14 @@ shippable increment on its own.
 **Independent test**: Capture once in each mode; three visibly different images with the
 documented content and dimensions. Resize and repeat: `raw` alone is unchanged.
 
-- [ ] T028 [P] [US2] Add an optional per-option description line to `DxuiRadioOption` and lay it out under the label in `Dxui/Widgets/DxuiRadio.h/.cpp` (research.md R-015); the page must not own the widget's internal geometry
-- [ ] T029 [P] [US2] Extend `UnitTest/UiTests/DxuiRadioGroupTests.cpp` for the description line: measurement, layout, and options without a description still laying out as before
+- [X] T028 [P] [US2] Add an optional per-option description line to `DxuiRadioOption` and lay it out under the label in `Dxui/Widgets/DxuiRadio.h/.cpp` (research.md R-015); the page must not own the widget's internal geometry
+- [X] T029 [P] [US2] Extend `UnitTest/UiTests/DxuiRadioGroupTests.cpp` for the description line: measurement, layout, and options without a description still laying out as before
 - [X] T030 [US2] Implement the `Crt` readback points in `Casso/EmulatorShell.cpp` and `Casso/D3DRenderer.cpp`: the back-buffer sub-rect at `m_targetBoundsPx` read **before** the chrome panel walk under flat themes, and `GetSceneContentSrv()` at `pictureRect` under scene themes
 - [X] T031 [US2] Implement the `Raw` path in `Casso/Shell/ScreenshotCapture.cpp`: read `m_uiFramebuffer` under its mutex and feed it through the same encode-and-write pipeline, with no capture paint and no overlay suppression
-- [ ] T032 [US2] Retitle `PrintingPage` and add the Screenshots section with the described radio group in `Casso/Ui/Settings/PrintingPage.h/.cpp`, keeping the Printing section first (FR-031)
-- [ ] T033 [US2] Change the tab title to `Printing and Screenshots` where `CreatePage<PrintingPage>` is called in `Casso/Ui/Settings/SettingsSheet.cpp` (near line 70)
-- [ ] T034 [P] [US2] Add `UnitTest/UiTests/PrintingPageTests.cpp` covering the Screenshots section: radio reflects the stored mode, selection writes the token back, and Printing controls are unaffected -- following the existing `DisplayPageTests.cpp` pattern
-- [ ] T035 [US2] Validate manually per [quickstart.md](quickstart.md) Scenarios 2 and 3, including the persistence-trail check that ruled out a one-shot offscreen render
+- [X] T032 [US2] Retitle `PrintingPage` and add the Screenshots section with the described radio group in `Casso/Ui/Settings/PrintingPage.h/.cpp`, keeping the Printing section first (FR-031)
+- [X] T033 [US2] Change the tab title to `Printing and Screenshots` where `CreatePage<PrintingPage>` is called in `Casso/Ui/Settings/SettingsSheet.cpp` (near line 70)
+- [X] T034 [P] [US2] Add `UnitTest/UiTests/PrintingPageTests.cpp` covering the Screenshots section: radio reflects the stored mode, selection writes the token back, and Printing controls are unaffected -- following the existing `DisplayPageTests.cpp` pattern
+- [X] T035 [US2] Validate manually per [quickstart.md](quickstart.md) Scenarios 2 and 3, including the persistence-trail check that ruled out a one-shot offscreen render
 
 **Checkpoint**: All three modes work and persist.
 
