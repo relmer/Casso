@@ -91,10 +91,12 @@ namespace DxuiInfoBannerTests
         }
 
 
-        //  THE REAL STRING THAT FOUND THIS. The conflict report gained the
-        //  question's layout, and it is the one banner-bound notice that
-        //  carries paragraphs.
-        TEST_METHOD (AConflictReportShapedNoticeIsSizedForEveryParagraph)
+        //  A NOTICE-SIZED STRING, not a toy one. No shipped banner carries
+        //  paragraphs today -- the disk notices that reach the bar were rewritten
+        //  to flow once it turned out they land in a strip -- but the estimate is
+        //  wrong for any that does, and the next one should not have to
+        //  rediscover it.
+        TEST_METHOD (AMultiParagraphNoticeIsSizedForEveryParagraph)
         {
             DxuiDpiScaler   scaler = Scaler96();
             DxuiInfoBanner  banner (L"Another program modified this disk while it was mounted "
@@ -115,6 +117,25 @@ namespace DxuiInfoBannerTests
             Assert::IsTrue (banner.GetPreferredHeightPx (700.0f, scaler)
                           > runOn.GetPreferredHeightPx (700.0f, scaler),
                             L"the paragraphs are not being counted");
+        }
+
+
+        //  NARROWER THAN A GLYPH IS NOT AN ESTIMATE. The printer page sizes its
+        //  banner from a page rect that is briefly tiny, and counting a line per
+        //  character there would ask for hundreds of lines of height.
+        TEST_METHOD (AWidthNarrowerThanOneGlyphStillAsksForOneLine)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  banner (L"A notice long enough that one line per character "
+                                    L"would be hundreds of lines of banner, which is what "
+                                    L"a degenerate width used to produce.");
+            DxuiInfoBanner  tiny   (L"Short.");
+
+
+
+            Assert::AreEqual (tiny.GetPreferredHeightPx   (1.0f, scaler),
+                              banner.GetPreferredHeightPx (1.0f, scaler),
+                              L"length must not matter once nothing can be estimated");
         }
 
 

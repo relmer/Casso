@@ -45,9 +45,14 @@ int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scal
 
 
 
+    //  NARROWER THAN A SINGLE GLYPH ESTIMATES NOTHING, and must not fall
+    //  through to one line per character: the printer page sizes its banner
+    //  from a page rect that is briefly tiny, and a 250-character notice
+    //  would ask for 250 lines of height. One line, which is what this
+    //  returned before it counted paragraphs.
     if (perLine < 1.0f)
     {
-        perLine = 1.0f;
+        return 1;
     }
 
     for (start = 0; start <= m_text.size(); start = breakAt + 1)

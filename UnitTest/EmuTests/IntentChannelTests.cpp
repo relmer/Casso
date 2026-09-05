@@ -169,7 +169,7 @@ public:
         options.disk.typeName       = "B";
         options.disk.loadAddress    = 0x6000;
         options.disk.hasLoadAddress = true;
-        options.disk.pickUpIntent   = intent;
+        options.disk.changeIntent   = intent;
 
         return options;
     }
@@ -298,7 +298,7 @@ public:
         options.subcommand        = CommandLineOptions::Subcommand::Disk;
         options.disk.command      = CommandLineOptions::DiskOptions::Command::List;
         options.disk.imagePath    = kImagePath;
-        options.disk.pickUpIntent = ExternalChangeIntent::Restart;
+        options.disk.changeIntent = ExternalChangeIntent::Restart;
 
         {
             DiskCommandRunner  runner (io);

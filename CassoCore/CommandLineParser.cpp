@@ -1277,7 +1277,7 @@ void CommandLineParser::ParseDiskOptions (
         {
             std::string  value = argv[++i];
 
-            if (!TryReadExternalChangeIntent (value, options.disk.pickUpIntent))
+            if (!TryReadExternalChangeIntent (value, options.disk.changeIntent))
             {
                 //  Named rather than approximated, and the accepted set listed,
                 //  because a value outside a known set is a typo the reader
@@ -1698,7 +1698,7 @@ void CommandLineParser::RefuseImageOptionsWithoutAnImage (CommandLineOptions & o
     bool  named    = !options.onDiskName.empty();
     bool  typed    = !options.imageTypeName.empty();
     bool  starts   = options.setStartupProgram;
-    bool  states   = options.pickUpIntent != ExternalChangeIntent::Unstated;
+    bool  states   = options.changeIntent != ExternalChangeIntent::Unstated;
     bool  stray    = !hasImage && (named || typed || starts || states);
 
 
@@ -2642,7 +2642,7 @@ void CommandLineParser::ParseAs65Flags (int argc, char * argv[], int startIndex,
 
         if (TryLongOptionValue (arg, "--on-change", argc, argv, argIndex, attachedValue, options))
         {
-            if (!TryReadExternalChangeIntent (attachedValue, options.pickUpIntent))
+            if (!TryReadExternalChangeIntent (attachedValue, options.changeIntent))
             {
                 Refusal (options) << "Error: unknown value for "
                                   << FormatLongOption ("--on-change", options.flagPrefix) << "\n"
@@ -3483,7 +3483,7 @@ void CommandLineParser::ParseMerlinFlags (int argc, char * argv[], int startInde
 
         if (TryLongOptionValue (arg, "--on-change", argc, argv, argIndex, attachedValue, options))
         {
-            if (!TryReadExternalChangeIntent (attachedValue, options.pickUpIntent))
+            if (!TryReadExternalChangeIntent (attachedValue, options.changeIntent))
             {
                 Refusal (options) << "Error: unknown value for "
                                   << FormatLongOption ("--on-change", options.flagPrefix) << "\n"

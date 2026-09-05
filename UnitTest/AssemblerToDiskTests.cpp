@@ -193,7 +193,7 @@ namespace AssemblerToDiskTests
             Fixture::SeedImage (quiet,   Fixture::MakeDos33Image());
             Fixture::SeedImage (stating, Fixture::MakeDos33Image());
 
-            statingOptions.pickUpIntent = ExternalChangeIntent::Restart;
+            statingOptions.changeIntent = ExternalChangeIntent::Restart;
 
             {
                 ImageArtifactSink  sink (quiet);
@@ -236,7 +236,7 @@ namespace AssemblerToDiskTests
             HRESULT             written = S_OK;
 
             //  No image seeded, so the write is refused before it begins.
-            options.pickUpIntent = ExternalChangeIntent::Restart;
+            options.changeIntent = ExternalChangeIntent::Restart;
 
             ImageArtifactSink  sink (io);
 

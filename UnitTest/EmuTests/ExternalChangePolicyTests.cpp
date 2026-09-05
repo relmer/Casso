@@ -407,13 +407,14 @@ public:
         Assert::IsTrue (report.message.find (L"Loader.20260830-014233-01.dsk")
                             != std::wstring::npos);
 
-        //  IT IS LAID OUT LIKE THE QUESTION, because it reports the same event
-        //  and a reader who has seen one should not have to re-learn the other:
-        //  the disk and its drive on a line of their own, then what happened to
-        //  it, in the words the question uses.
-        Assert::IsTrue (report.message.find (L"\n\nLoader.dsk (Drive 1)")
-                            != std::wstring::npos,
-                        (L"the identifying line is missing: " + report.message).c_str());
+        //  IT FLOWS, WHERE THE QUESTION BREAKS INTO PARAGRAPHS. The report sink
+        //  puts this one in the message bar across the machine rather than in a
+        //  dialog, and a strip that thin reads better as sentences than as a
+        //  stack of one-line paragraphs. A break here would be a layout meant
+        //  for a window this notice never gets.
+        Assert::IsTrue (report.message.find (L'\n') == std::wstring::npos,
+                        (L"the bar notice carries a line break: "
+                         + report.message).c_str());
         Assert::IsTrue (report.message.find (L"Your disk has been renamed to")
                             != std::wstring::npos);
 
@@ -652,6 +653,37 @@ public:
 
 
 
+    //  THE MESSAGE BAR GETS NO LINE BREAKS. Reports go to the report sink, which
+    //  draws them in a strip across the machine; the question goes to a dialog
+    //  and can afford paragraphs. Sending a dialog layout to the strip is what
+    //  put a three-paragraph notice in a one-line bar.
+    TEST_METHOD (TheNoticesDrawnInTheBarFlowRatherThanBreak)
+    {
+        const ChangePrompt  bar[] = {
+            ChangePrompt::ComposeConflictReport ("Work.dsk", 0, "Work.x.dsk"),
+            ChangePrompt::ComposeReloadReport ("Work.dsk", 0, false, "Apple //e",
+                                               "Work.x.dsk"),
+            ChangePrompt::ComposeReloadReport ("Work.dsk", 0, true, "Apple //e",
+                                               "Work.x.dsk"),
+        };
+
+
+
+        for (const ChangePrompt & prompt : bar)
+        {
+            Assert::IsTrue (prompt.message.find (L'\n') == std::wstring::npos,
+                            (L"a bar notice carries a line break: "
+                             + prompt.message).c_str());
+        }
+
+        //  And the question still breaks, because it has a dialog to itself.
+        Assert::IsTrue (ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask,
+                                               "Work.x.dsk").message.find (L'\n')
+                            != std::wstring::npos);
+    }
+
+
+
     //  "The Apple" is not what is in front of them.
     TEST_METHOD (TheRebootNoticeGivesTheMachineTheUserHas)
     {
@@ -694,7 +726,7 @@ public:
     //  something they did not ask for and stand until read.
     TEST_METHOD (OnlyTheReloadNoticeClosesItself)
     {
-        ChangePrompt  pickUp   = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
+        ChangePrompt  reload   = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
                                                                     "Apple //e");
         ChangePrompt  conflict = ChangePrompt::ComposeConflictReport ("Game.dsk", 0, "Game.x.dsk");
         ChangePrompt  failed   = ChangePrompt::ComposeSaveFailure ("Game.dsk", 0, "Game.x.dsk",
@@ -704,7 +736,7 @@ public:
 
 
 
-        Assert::IsTrue (pickUp.selfDismisses);
+        Assert::IsTrue (reload.selfDismisses);
 
         Assert::IsFalse (conflict.selfDismisses,
                          L"a copy was written and the user has to learn its name");

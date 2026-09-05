@@ -280,6 +280,12 @@ ChangePrompt ChangePrompt::ComposeReloadReport (const std::string & imagePath, i
 //  directions, so this says where the guest's version went rather than which
 //  version won.
 //
+//  IT FLOWS, WHERE THE QUESTION BREAKS INTO PARAGRAPHS. This one is not a
+//  dialog: the report sink puts it in the message bar across the machine, and
+//  a strip that thin reads better as two or three sentences than as a stack
+//  of one-line paragraphs. The question can afford the layout because it has
+//  a dialog to itself.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath, int drive,
@@ -294,14 +300,11 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
 
     prompt.title   = L"Disk modified outside Casso";
 
-    prompt.message = L"Another program modified this disk while it was mounted in Casso:"
-                     L"\n\n" + file + L" (" + where + L")";
-
-    prompt.message += L"\n\nYour disk has been renamed to " + copy
-                    + L" to avoid a conflict with the other program, and has been "
-                      L"remounted in " + where
-                    + L". No changes were made to the other program's modified version "
-                      L"of " + file + L".";
+    prompt.message = L"Another program modified " + file + L" while it was mounted in "
+                   + where + L". Your disk has been renamed to " + copy
+                   + L" and remounted in " + where
+                   + L". No changes were made to the other program's modified version "
+                     L"of " + file + L".";
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
 
