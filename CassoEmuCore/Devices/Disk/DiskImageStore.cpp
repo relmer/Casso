@@ -2918,8 +2918,8 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     //
     //  THE PATH AND THE FACT TRAVEL TOGETHER. A bay holds a reserved name from
     //  the moment a question is put, and holds the name it tried after a write
-    //  that failed, so the reserved path gives where a copy would go and only
-    //  `IsPreservedWritten` records whether one is there.
+    //  that failed, so the reserved path indicates where a copy would go and
+    //  only `IsPreservedWritten` indicates whether one is there.
     if (tookUp)
     {
         preservedPath = entry.sharedState.GetPreservedPath();

@@ -93,12 +93,12 @@ public:
         bool                                           refusePreserve = false;
 
         //  Makes the ask sink report that the question never reached anywhere
-        //  it could be answered -- what the shell reports when it has no
+        //  it could be answered -- what the shell returns when it has no
         //  window yet, or when the post fails.
         bool                                           askSinkDelivers = true;
 
-        //  The path the shutdown rescue dialog hands back, and how many times
-        //  it was raised. An empty path stands for the user declining.
+        //  The path the shutdown rescue dialog returns, and how many times it
+        //  was raised. An empty path stands for the user declining.
         std::string                                    rescueChoice;
         int                                            rescuesAsked = 0;
 
