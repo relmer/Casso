@@ -67,7 +67,7 @@ void SettingsSheet::OnBuildPages()
     m_diskPage     = CreatePage<DiskPage>     (L"Disk");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
-    m_printingPage = CreatePage<PrintingPage> (L"Printing");
+    m_printingPage = CreatePage<PrintingPage> (L"Printing and Screenshots");
 
     // Amber "press OK to reboot" notice that fills the bottom-bar space left of
     // the OK / Cancel buttons whenever committing would power-cycle the machine

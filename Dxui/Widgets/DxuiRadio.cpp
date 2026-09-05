@@ -248,6 +248,10 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     constexpr float  s_kFocusThickDip = 1.0f;
     constexpr float  s_kLabelGapDip   = 6.0f;
     constexpr float  s_kFontDip       = 13.0f;
+    // The first line of a described option. The label sits in this band and
+    // the description gets whatever the caller's rect has left over.
+    constexpr float  s_kLabelLineDip  = 20.0f;
+    constexpr float  s_kDescFontDip   = 11.0f;
 
 
 
@@ -300,17 +304,46 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                  theme.FocusRing());
         }
 
+        float   textLeft  = boxLeft + boxSize + labelGap;
+        float   textWidth = (float) (opt.rect.right - opt.rect.left) - boxSize - labelGap;
+        float   rowHeight = (float) (opt.rect.bottom - opt.rect.top);
+        float   labelH    = opt.description.empty() ? rowHeight : m_scaler.ToPxf (s_kLabelLineDip);
+
+        //  An undescribed option centers its label in the whole row, exactly
+        //  as before. A described one puts the label on the first line and
+        //  gives the rest to the description, so adding descriptions to one
+        //  option in a group does not shift the others.
         hr = text.DrawString (opt.label.c_str(),
-                              boxLeft + boxSize + labelGap,
+                              textLeft,
                               (float) opt.rect.top,
-                              (float) (opt.rect.right - opt.rect.left) - boxSize - labelGap,
-                              (float) (opt.rect.bottom - opt.rect.top),
+                              textWidth,
+                              labelH,
                               textColor,
                               fontDip,
                               DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (!opt.description.empty())
+        {
+            //  Muted, and disabled-muted when the group is: a description
+            //  that stayed sharp while its label dimmed would read as the
+            //  live part of a dead control.
+            uint32_t   descColor = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+
+            hr = text.DrawString (opt.description.c_str(),
+                                  textLeft,
+                                  (float) opt.rect.top + labelH,
+                                  textWidth,
+                                  rowHeight - labelH,
+                                  descColor,
+                                  m_scaler.ToPxf (s_kDescFontDip),
+                                  DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Left,
+                                  DxuiTextVAlign::Top);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 }
 
@@ -423,7 +456,13 @@ bool DxuiRadioGroup::OnKey (const DxuiKeyEvent & ev)
 //
 //  DxuiRadioGroup::GetAccessibleName  (IDxuiControl override)
 //
-//  Returns the label of the selected option (or empty if no selection).
+//  Returns the label of the selected option (or empty if no selection),
+//  followed by its description where it has one.
+//
+//  THE DESCRIPTION IS PART OF THE NAME, not decoration. It exists precisely
+//  because the label alone does not say what the option means -- so a reader
+//  given the label by itself is left with the same guess the description was
+//  added to remove, which is the one user who can least afford it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,7 +477,15 @@ std::wstring DxuiRadioGroup::GetAccessibleName() const
 
     if (hasSelection)
     {
-        name = m_options[(size_t) m_selected].label;
+        const DxuiRadioOption &  opt = m_options[(size_t) m_selected];
+
+        name = opt.label;
+
+        if (!opt.description.empty())
+        {
+            name += L". ";
+            name += opt.description;
+        }
     }
 
     return name;

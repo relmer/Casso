@@ -28,6 +28,17 @@ struct DxuiRadioOption
 {
     RECT          rect = {};
     std::wstring  label;
+
+    // Optional second line, drawn under the label in the muted foreground.
+    // For option sets whose labels cannot carry their own meaning -- where
+    // the choice is between things the user has no prior name for, and a
+    // one-word label would just be a token to guess at.
+    //
+    // Empty leaves the option exactly as it was: label alone, centered in
+    // the option's rect. A described option needs a taller rect, which the
+    // caller supplies; the widget splits what it is given rather than
+    // growing to fit, because the caller owns the layout.
+    std::wstring  description;
 };
 
 

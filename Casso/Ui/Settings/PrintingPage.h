@@ -10,6 +10,7 @@
 #include "Widgets/DxuiInfoBanner.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiRadio.h"
 #include "Widgets/DxuiToggle.h"
 #include "Widgets/DxuiSlider.h"
 
@@ -56,7 +57,7 @@ class DxuiHwndSource;
 class PrintingPage : public DxuiPropertyPage
 {
 public:
-    explicit PrintingPage (std::wstring title = L"Printing");
+    explicit PrintingPage (std::wstring title = L"Printing and Screenshots");
 
     // Backing store; seeds the controls and wires their change callbacks.
     void  SetPrefs             (GlobalUserPrefs * prefs);
@@ -81,6 +82,17 @@ public:
     DxuiCheckbox       & GetPanOverrideCheckbox ()       { return m_panOverride;  }
     DxuiSlider         & GetPanSlider           ()       { return m_pan;          }
     DxuiButton         & ResetButton            ()       { return m_reset;        }
+    DxuiRadioGroup     & GetCaptureModeRadios   ()       { return m_captureMode;  }
+
+    // Capture-mode token <-> radio index. The radio order is scene / crt /
+    // raw, default first; the mapping is explicit rather than a cast so that
+    // reordering the radios cannot silently repoint a stored setting.
+    //
+    // Public because it IS the logic on this page -- the rest is widget
+    // plumbing Dxui already tests -- and a mapping that cannot be pinned
+    // without a device and a window is a mapping nothing pins.
+    static int          CaptureModeToIndex (const std::string & token);
+    static const char * IndexToCaptureMode (int index);
 
 private:
     static RECT  MakeRect        (int l, int t, int w, int h);
@@ -117,4 +129,10 @@ private:
     DxuiSlider    m_pan;
 
     DxuiButton    m_reset;
+
+    //  Screenshots. Second section on the page: printing stays first so a
+    //  user navigating to printer settings still lands on them.
+    DxuiLabel       m_screenshotHeading;
+    DxuiLabel       m_captureModeLabel;
+    DxuiRadioGroup  m_captureMode;
 };

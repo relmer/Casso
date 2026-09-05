@@ -15,6 +15,10 @@ static constexpr int    s_kChildIndentDp   = 18;    // one nesting step (matches
 static constexpr int    s_kSectionGapDp    = 14;
 static constexpr int    s_kPagePadDp       = 16;
 
+// A described radio row: one line of label over one of description, which
+// needs roughly twice a plain row rather than the 28 an undescribed one takes.
+static constexpr int    s_kCaptureOptionHeightDp = 42;
+
 
 
 
@@ -32,6 +36,72 @@ RECT PrintingPage::MakeRect (int l, int t, int w, int h)
 
 
     return rc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::CaptureModeToIndex
+//
+//  Stored token -> radio index, in the radio order: scene / crt / raw.
+//
+//  Spelled out rather than cast from the enum. The enum's declaration order
+//  and the radio's display order are two different things that happen to
+//  agree today, and a cast would quietly turn a change to either one into a
+//  wrong setting rather than a compile error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PrintingPage::CaptureModeToIndex (const std::string & token)
+{
+    int   index = 0;
+
+
+
+    if (token == "crt")
+    {
+        index = 1;
+    }
+    else if (token == "raw")
+    {
+        index = 2;
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::IndexToCaptureMode
+//
+//  The inverse. An index outside the set resolves to the default rather than
+//  writing a token nothing can parse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * PrintingPage::IndexToCaptureMode (int index)
+{
+    const char *   token = "scene";
+
+
+
+    if (index == 1)
+    {
+        token = "crt";
+    }
+    else if (index == 2)
+    {
+        token = "raw";
+    }
+
+    return token;
 }
 
 
@@ -80,6 +150,9 @@ PrintingPage::PrintingPage (std::wstring title)
     Adopt (m_panLabel);
     Adopt (m_pan);
     Adopt (m_reset);
+    Adopt (m_screenshotHeading);
+    Adopt (m_captureModeLabel);
+    Adopt (m_captureMode);
 }
 
 
@@ -206,6 +279,50 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_reset.Layout   (MakeRect (controlsX, y, resetWidth, rowHeight));
     y += rowHeight + sectionGap;
 
+    //  SCREENSHOTS. Second section, below printing, on one page because both
+    //  answer the same question: where what Casso emits ends up on the host.
+    y += sectionGap;
+    m_screenshotHeading.SetRect (MakeRect (x, y, bannerWidth, rowHeight));
+    m_screenshotHeading.SetText (L"Screenshots");
+    y += rowHeight + sectionGap;
+
+    m_captureModeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_captureModeLabel.SetText (L"Capture:");
+
+    //  RADIOS, NOT A DROPDOWN, and described. The three modes are not
+    //  self-explanatory from a one-word label -- a user has no prior name for
+    //  the difference between the scene and the picture -- so each option
+    //  carries a line saying what it actually contains. Described options need
+    //  a taller row than a plain one, which the widget splits rather than
+    //  grows into.
+    {
+        int   optionH  = scaler.ToPx (s_kCaptureOptionHeightDp);
+        int   optionW  = (rect.right - rect.left) - (controlsX - rect.left) - pad;
+        int   optionY  = y;
+
+        std::vector<DxuiRadioOption>  options;
+
+        auto  addOption = [&] (const wchar_t * label, const wchar_t * description)
+        {
+            DxuiRadioOption   opt;
+
+            opt.rect        = MakeRect (controlsX, optionY, optionW, optionH);
+            opt.label       = label;
+            opt.description = description;
+            options.push_back (opt);
+            optionY += optionH;
+        };
+
+        addOption (L"Scene",   L"The desk as it looks: monitor, glass and drives.");
+        addOption (L"Picture", L"The screen with its CRT effects, nothing around it.");
+        addOption (L"Raw",     L"The unprocessed screen, always 560x384.");
+
+        m_captureMode.SetOptions (options);
+        m_captureMode.SetBounds  (MakeRect (controlsX, y, optionW, optionH * 3));
+
+        y = optionY + sectionGap;
+    }
+
     m_dpiLabel.SetDpi      (dpi);
     m_dpi.SetDpi           (dpi);
     m_styleLabel.SetDpi    (dpi);
@@ -218,6 +335,9 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_panLabel.SetDpi      (dpi);
     m_pan.SetDpi           (dpi);
     m_reset.SetDpi         (dpi);
+    m_screenshotHeading.SetDpi (dpi);
+    m_captureModeLabel.SetDpi  (dpi);
+    m_captureMode.SetDpi       (dpi);
 
     DxuiPanel::SetBounds (rect);
 }
@@ -252,7 +372,14 @@ void PrintingPage::Rebuild()
     m_volume.SetValue      (prefs->printerAudioVolume * 100.0f);
     m_panOverride.SetChecked (prefs->printerAudioPanOverride);
     m_pan.SetValue         (prefs->printerAudioPan * 100.0f);
+    m_captureMode.SetSelected (CaptureModeToIndex (prefs->screenshotMode));
     ApplyEnabledState      ();
+
+    m_captureMode.SetOnChange ([this, prefs] (int idx)
+    {
+        prefs->screenshotMode = IndexToCaptureMode (idx);
+        MarkDirty();
+    });
 
     m_dpi.SetSelect ([this, prefs] (int idx)
     {
