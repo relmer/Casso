@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiColor.h"
 #include "Theme/DxuiTheme.h"
 
 #include "CassoTheme.h"
@@ -38,6 +39,7 @@ static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline
 static constexpr wchar_t  s_kGlyphColor      = L'\uE790';   // artist's palette
 static constexpr wchar_t  s_kGlyphFullscreen = L'\uEE49';   // framed screen, arrow out
 static constexpr wchar_t  s_kGlyphRestore    = L'\uEE47';   // framed screen, arrow in
+static constexpr wchar_t  s_kGlyphMouse      = L'\uE962';   // mouse (the input cluster's one font glyph)
 
 // Volume flyout (vertical slider + readout under the track).
 static constexpr int      s_kFlyoutWidthDp    = 56;
@@ -45,8 +47,10 @@ static constexpr int      s_kFlyoutHeightDp   = 154;
 static constexpr int      s_kFlyoutPadDp      = 8;
 static constexpr int      s_kFlyoutDropDp     = 2;    // gap under the bar
 
-// Input cluster: LED + glyph segments under one shared label.
-static constexpr int      s_kSegIconDp        = 28;
+// Input cluster: LED + glyph segments under one shared label. The glyph box
+// is sized so its INK matches the MDL2 icons' (their 15 dip em draws about
+// 15 dp of ink); a drawn glyph filling its box needs the smaller number.
+static constexpr int      s_kSegIconDp        = 19;
 static constexpr int      s_kSegPadXDp        = 5;
 static constexpr int      s_kSegLedDp         = 7;    // LED diameter
 static constexpr int      s_kSegLedGapDp      = 4;
@@ -54,6 +58,10 @@ static constexpr int      s_kSegGapDp         = 2;
 static constexpr int      s_kInputLabelGapDp  = 8;    // label -> first segment
 
 static constexpr const wchar_t * s_kInputLabel = L"Input";
+
+// Contrast an unlit segment LED keeps against the strip -- the ratio
+// DxuiTreeView tints a locked checkbox's fill with, so the two read alike.
+static constexpr float    s_kOffLedContrast   = 1.6f;
 
 static constexpr const wchar_t * s_kTipInput = L"Input devices";
 
@@ -712,9 +720,29 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
 
 void CommandToolbar::SetInputState (bool arrowsJoystick, InputMappingMode pointer, bool mouseAvailable)
 {
+    bool  countChanged = (mouseAvailable != m_mouseAvailable);
+
+
+
     m_arrowsJoystick = arrowsJoystick;
     m_pointerMode    = pointer;
     m_mouseAvailable = mouseAvailable;
+
+    // Whether the mouse exists decides HOW MANY segments there are, and the
+    // segment rects belong to Layout -- so a state push that adds or drops the
+    // mouse has to re-lay the entry or the new segment keeps the empty rect it
+    // was left with and never paints. A machine switch does exactly that: it
+    // reflows the chrome first and syncs this state after, which is how a //c
+    // switched to at runtime showed the joystick and paddle but no mouse.
+    // Re-laying here rather than fixing that one order keeps every caller --
+    // the switch, the Hardware tab's mouse toggle -- from having to know.
+    if (countChanged && m_barRect.right > m_barRect.left)
+    {
+        DxuiDpiScaler  scaler;
+
+        scaler.SetDpi (m_dpi);
+        Layout (m_barRect, scaler);
+    }
 }
 
 
@@ -1619,9 +1647,10 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 //  The shared "Input" label (it names the group, it is not a button) and the
 //  LED + glyph segments. Hover chrome matches the buttons'; the LED is the
-//  state: an outline would read as focus, a lit LED reads as ON. The core
-//  tracks the theme's LED tokens, so the dot matches the drive widgets'
-//  lights under every preset.
+//  state: an outline would read as focus, a lit LED reads as ON. Lit takes
+//  the theme's LED color, so it matches the drive widgets' lights under every
+//  preset; unlit does NOT take the drive bar's ledIdle, which is that color
+//  darkened and reads as a black dot on the strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1634,6 +1663,7 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
     int       ledGap   = MulDiv (s_kSegLedGapDp, (int) m_dpi, s_kBaseDpi);
     int       segPad   = MulDiv (s_kSegPadXDp,   (int) m_dpi, s_kBaseDpi);
     int       iconD    = MulDiv (s_kSegIconDp,   (int) m_dpi, s_kBaseDpi);
+    uint32_t  offLed   = DxuiColor::ComputeTintForContrast (theme.navStrip, s_kOffLedContrast);
     uint32_t  labelInk = theme.navItemText;   // same ink as the button labels
 
 
@@ -1674,8 +1704,11 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
             float  ledCy = st + sh * 0.5f;
             bool   on    = InputSegSelected (i);
 
+            // Unlit is an option not taken, not a dead bulb, so it carries
+            // the tint a disabled checkbox fills with -- the same rule Dxui
+            // applies, against the surface these actually sit on.
             painter.FillCircleApprox (ledCx, ledCy, (float) ledD * 0.5f,
-                                      on ? theme.ledActive : theme.ledIdle);
+                                      on ? theme.ledActive : offLed);
         }
 
         {
@@ -1689,7 +1722,23 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
                 {
                     case 0:  PaintJoystickMono (painter, box, theme.navItemText); break;
                     case 1:  PaintPaddleMono   (painter, box, theme.navItemText); break;
-                    case 2:  PaintMouseMono    (painter, box, theme.navItemText); break;
+
+                    // The mouse is the one device MDL2 draws itself, and its
+                    // glyph beats the drawn one at this size; it renders at
+                    // the same em as every other icon on the bar.
+                    case 2:
+                    {
+                        wchar_t  glyph[2] = { s_kGlyphMouse, 0 };
+                        float    emDip    = s_kIconDip * (float) m_dpi / (float) s_kBaseDpi;
+
+                        hr = text.DrawString (glyph, (float) box.left, (float) box.top,
+                                              (float) iconD, (float) iconD,
+                                              theme.navItemText, emDip, s_kIconFamily,
+                                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+                        IGNORE_RETURN_VALUE (hr, S_OK);
+                        break;
+                    }
+
                     default: break;
                 }
             }
@@ -1734,6 +1783,17 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+float CommandToolbar::GetGlyphStroke (float w)
+{
+    // MDL2 draws roughly a fifteenth of its em as stroke; the floor keeps the
+    // pen visible once the box is small enough for the ratio to fall under a
+    // pixel.
+    return (std::max) (1.15f, w / 15.0f);
+}
+
+
+
+
 void CommandToolbar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
                                    float r, float stroke, uint32_t ink)
 {
@@ -1764,38 +1824,23 @@ void CommandToolbar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
 
 void CommandToolbar::PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
 {
-    float  w         = (float) (box.right  - box.left);
-    float  h         = (float) (box.bottom - box.top);
-    float  stroke    = (std::max) (1.0f, w / 26.0f);
-    float  cx        = (float) box.left + w * 0.5f;
-    float  capHalf   = w * 0.085f;
-    float  bodyHalf  = w * 0.155f;
-    float  waistHalf = w * 0.045f;
-    float  capY      = (float) box.top + h * 0.08f;
-    float  shoulderY = (float) box.top + h * 0.16f;
-    float  bodyY     = (float) box.top + h * 0.30f;
-    float  waistY    = (float) box.top + h * 0.52f;
-    float  baseT     = (float) box.top + h * 0.62f;
-    float  baseH     = h * 0.26f;
-    float  baseHalf  = w * 0.32f;
+    float  w        = (float) (box.right  - box.left);
+    float  h        = (float) (box.bottom - box.top);
+    float  stroke   = GetGlyphStroke (w);
+    float  cx       = (float) box.left + w * 0.5f;
+    float  knobR    = w * 0.16f;
+    float  knobY    = (float) box.top + h * 0.21f;
+    float  baseT    = (float) box.top + h * 0.66f;
+    float  baseH    = h * 0.20f;
+    float  baseHalf = w * 0.34f;
 
 
 
-    // The handle's half-profile, top to bottom, outline only and symmetric
-    // about the centerline: flat cap; shoulder angling out; the nearly-
-    // cylindrical upper body; the slow taper in to the narrow waist; the
-    // straight shaft down to the base; the base slab's border.
-    painter.DrawLineApprox (cx - capHalf, capY, cx + capHalf, capY, stroke, ink);
-
-    painter.DrawLineApprox (cx - capHalf,  capY,      cx - bodyHalf,  shoulderY, stroke, ink);
-    painter.DrawLineApprox (cx + capHalf,  capY,      cx + bodyHalf,  shoulderY, stroke, ink);
-    painter.DrawLineApprox (cx - bodyHalf, shoulderY, cx - bodyHalf,  bodyY,     stroke, ink);
-    painter.DrawLineApprox (cx + bodyHalf, shoulderY, cx + bodyHalf,  bodyY,     stroke, ink);
-    painter.DrawLineApprox (cx - bodyHalf, bodyY,     cx - waistHalf, waistY,    stroke, ink);
-    painter.DrawLineApprox (cx + bodyHalf, bodyY,     cx + waistHalf, waistY,    stroke, ink);
-    painter.DrawLineApprox (cx - waistHalf, waistY,   cx + waistHalf, waistY,    stroke, ink);
-
-    painter.DrawLineApprox (cx, waistY, cx, baseT, stroke, ink);
+    // Ball, stick, slab, all in outline. Drawn for this size rather than
+    // shrunk to it: the handle's turned profile (cap, shoulder, body, waist)
+    // that this replaced was a blob by the time the box reached 19 dp.
+    StrokeCircle           (painter, cx, knobY, knobR, stroke, ink);
+    painter.DrawLineApprox (cx, knobY + knobR, cx, baseT, stroke, ink);
     painter.OutlineRect    (cx - baseHalf, baseT, baseHalf * 2.0f, baseH, stroke, ink);
 }
 
@@ -1817,7 +1862,7 @@ void CommandToolbar::PaintPaddleMono (IDxuiPainter & painter, const RECT & box, 
 
     float  w       = (float) (box.right  - box.left);
     float  h       = (float) (box.bottom - box.top);
-    float  stroke  = (std::max) (1.0f, w / 26.0f);
+    float  stroke  = GetGlyphStroke (w);
     float  cx      = (float) box.left + w * 0.5f;
     float  cy      = (float) box.top + h * 0.34f;
     float  outerR  = w * 0.24f;
@@ -1849,37 +1894,6 @@ void CommandToolbar::PaintPaddleMono (IDxuiPainter & painter, const RECT & box, 
     painter.DrawLineApprox (cx - botHalf, botY, cx + botHalf, botY, stroke, ink);
 
     StrokeCircle (painter, cx, cy, w * 0.115f, stroke, ink);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::PaintMouseMono
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::PaintMouseMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
-{
-    float  w      = (float) (box.right  - box.left);
-    float  h      = (float) (box.bottom - box.top);
-    float  stroke = (std::max) (1.0f, w / 26.0f);
-    float  bodyL  = (float) box.left + w * 0.30f;
-    float  bodyT  = (float) box.top + h * 0.20f;
-    float  bodyW  = w * 0.40f;
-    float  bodyH  = h * 0.62f;
-
-
-
-    // The M0100 in outline: the box body's border, the single wide button's
-    // split a third down, and the cable stub off the top.
-    painter.OutlineRect    (bodyL, bodyT, bodyW, bodyH, stroke, ink);
-    painter.DrawLineApprox (bodyL, bodyT + bodyH * 0.32f,
-                            bodyL + bodyW, bodyT + bodyH * 0.32f, stroke, ink);
-    painter.DrawLineApprox (bodyL + bodyW * 0.5f, bodyT,
-                            bodyL + bodyW * 0.5f, bodyT - h * 0.10f, stroke, ink);
 }
 
 
