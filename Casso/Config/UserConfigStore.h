@@ -126,6 +126,12 @@ public:
     static bool      AreJsonEqual    (const JsonValue & a,
                                       const JsonValue & b);
 
+    // Returns `mergedJson` with `values` written into its $cassoUiPrefs
+    // block, replacing keys that are already there and appending the rest.
+    static JsonValue SpliceUiPrefs (
+        const JsonValue                                      & mergedJson,
+        const std::vector<std::pair<std::string, JsonValue>> & values);
+
 private:
     // Schema keys, string/path plumbing, and the JSON merge/delta helpers.
     // Every reader is a UserConfigStore method. These names in particular

@@ -46,6 +46,10 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **2D themes now use a richer drive widget.** The disk name is the control,
+  and its LED tracks where the head is sitting on the disk rather than only
+  showing that the drive is busy. Clicking the name ejects the disk and offers
+  a new one, which used to take a trip to the Disk menu.
 - **Direct-boot disks load about six times faster.** `disk create --boot` laid the
   payload down in ascending sector order, and the loader lost a whole revolution
   waiting for each one; it now reads every other sector, so a track costs two
@@ -65,6 +69,8 @@ Entries before versioning was introduced use dates only.
 - **Merlin's `-l` listing flag supports multiple files.** Listings are named 
   the same as the binaries they generate. Removed support for writing listings
   to stdout.
+- **The input mapping is now remembered per machine** rather than globally, so a
+  //e set up for a joystick and a //c using its mouse each keep their own.
 - **Ctrl-0 now also resets the bezel tilt** with the view.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
@@ -109,6 +115,10 @@ Entries before versioning was introduced use dates only.
   and a reservation no longer outlives the disk it was made for: neither
   eject cleared one, so the next disk into that drive filed its own copy
   under the departed disk's name.
+- **The volume and mute settings were not saved**, so both came back at their
+  old values on the next launch.
+- **Pressing OK in Settings reset preferences that its pages do not show**,
+  including the //c case-switch positions.
 - **The startup download dialog broke "OpenEmulator (GitHub)" across two lines.**
   Its source column was a fixed width that stood a few pixels short of the
   drive-audio origin. The column is now measured from the labels the list

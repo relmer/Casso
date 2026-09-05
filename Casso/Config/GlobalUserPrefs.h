@@ -86,17 +86,19 @@ struct GlobalUserPrefs
     // AssetBootstrap::CheckAndFetchDiskAudio reads + writes this.
     std::string  audioDownloadConsent  = "ask";
 
-    // How host arrow / pointer input maps onto the emulated game port:
-    // Off leaves the keys as ordinary //e keystrokes; Joystick maps the
-    // arrow keys (plus Z / X) onto the paddle axes / fire buttons with a
-    // spring return to center; Paddle captures the mouse for an absolute,
-    // held dial. Cycled via the Machine menu's "Cycle Input Mode" item,
-    // Ctrl+Shift+J, and the drive-bar widget; only meaningful on machines with a
-    // game port. Migrated from the legacy bool "mapArrowsToJoystick".
-    InputMappingMode  inputMappingMode = InputMappingMode::Off;   // legacy combined (kept in sync for downgrade compat)
-
-    // Split input model: Keys (arrows->joystick) x Pointer
-    // (Off/Paddle/Mouse). Migrated from the legacy single mode on load.
+    // THE INPUT MAPPING IS PER MACHINE NOW, in each machine's $cassoUiPrefs
+    // block (see MachineInputPrefs). These three are what 1.22 and earlier
+    // wrote here, and they stay for two reasons: a machine that has never had
+    // its own mapping stored falls back to them, so an upgrade does not drop
+    // the setting; and they round-trip untouched, so an older build reading
+    // this file still finds the value it left. Nothing updates them once a
+    // machine stores its own, so an older build sees the pre-upgrade setting
+    // rather than the current one.
+    //
+    // inputMappingMode is the pre-split combined value, itself migrated from
+    // the legacy bool "mapArrowsToJoystick"; arrowsToJoystick and
+    // pointerMapping are the split pair it migrated into on load.
+    InputMappingMode  inputMappingMode = InputMappingMode::Off;
     bool              arrowsToJoystick = false;
     InputMappingMode  pointerMapping   = InputMappingMode::Off;
 
@@ -234,9 +236,6 @@ private:
     static JsonValue    PlacementsToJson  (const std::map<std::string, WindowBounds> & placements);
     static JsonValue    RecentDisksToJson (const std::vector<std::string> & recentDisks);
     static JsonValue    RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix);
-
-    static const char *      InputMappingModeToString   (InputMappingMode mode);
-    static InputMappingMode  InputMappingModeFromString (const std::string & s, InputMappingMode fallback);
 
     static const char *           ColorTextModeToString   (ColorMonitorTextMode mode);
     static ColorMonitorTextMode   ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback);

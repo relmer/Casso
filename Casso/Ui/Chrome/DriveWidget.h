@@ -51,12 +51,14 @@ public:
     // clears the latch.
     void               Hide            ()
     {
-        m_bodyRect  = {};
-        m_faceRect  = {};
-        m_slotRect  = {};
-        m_ejectRect = {};
-        m_labelRect = {};
-        m_hidden    = true;
+        m_bodyRect    = {};
+        m_faceRect    = {};
+        m_slotRect    = {};
+        m_ejectRect   = {};
+        m_labelRect   = {};
+        m_barRect     = {};
+        m_captionRect = {};
+        m_hidden      = true;
     }
 
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
@@ -71,14 +73,27 @@ public:
     // one-shot basename scroll so the full filename can be re-read on
     // demand. Owns the enter-edge detection so a stationary hover doesn't
     // continuously re-trigger.
-    void               UpdateMarqueeHover (bool inside, int64_t nowMs)
+    // Returns whether the BAND-hover state changed. The compact widget draws
+    // a button treatment for it, and a state nothing repaints is a state
+    // nobody sees. The marquee never needed this: it is already animating, so
+    // frames were arriving anyway.
+    bool               UpdateMarqueeHover (bool inside, int64_t nowMs)
     {
+        bool  wasHovered = m_bandHovered;
+
         if (inside && !m_marqueeHovered)
         {
             m_marqueeStartMs = nowMs;
         }
 
+        // The compact band's button treatment rides this same signal rather
+        // than a second hit test, so the highlight and the marquee can never
+        // disagree about whether the pointer is on the control.
+        m_bandHovered = inside;
+
         m_marqueeHovered = inside;
+
+        return m_bandHovered != wasHovered;
     }
 
     void               Paint           (IDxuiPainter        & painter,
@@ -110,12 +125,49 @@ public:
     {
         RECT  r = m_bodyRect;
         if (m_labelRect.bottom > r.bottom) { r.bottom = m_labelRect.bottom; }
+
+        // The compact caption sits to the LEFT of the body, so the occupied
+        // region starts at the caption rather than at the click band. Without
+        // this the placement centers the band alone and every caption hangs
+        // off the left of where the row was meant to be. Skeuo leaves the
+        // caption rect empty, hence the guard.
+        if (m_captionRect.right > m_captionRect.left)
+        {
+            if (m_captionRect.left   < r.left)   { r.left   = m_captionRect.left;   }
+            if (m_captionRect.bottom > r.bottom) { r.bottom = m_captionRect.bottom; }
+        }
+
         return r;
+    }
+
+    // Compact only. Whether the name roll is mid-flight, so the shell can ask
+    // for the frames it needs. The door FSM covers this in the ordinary cases
+    // because the two start together, but an insert into an ALREADY CLOSED
+    // door animates no door at all, and the label still has to move.
+    bool               IsNameRolling (int64_t nowMs) const
+    {
+        int64_t  since = nowMs - m_rollStartMs;
+
+        return m_compact
+               && m_rollStartMs != 0
+               && since >= 0
+               && since < DriveWidgetState::kDoorAnimationMs;
     }
 
     RECT               GetEjectRect () const { return m_ejectRect; }
     LedState           GetLed       () const { return m_led.GetState(); }
     int                GetDrive     () const { return m_drive; }
+
+    // Where the lit core sits along the head bar, for a head at the given
+    // QUARTER-track. Pulled out of the painter and made public because it is
+    // the part of the readout that can be got wrong silently: the drive
+    // engine's range of positions is wider than the rail this scale draws, so
+    // an over-stepped head has to be brought back to the scale rather than
+    // running off the end of it, and nothing on screen says which happened.
+    static float       GetHeadCoreCenterX (int   quarterTrack,
+                                           int   barLeftPx,
+                                           int   barWidthPx,
+                                           float coreHalfPx);
 
 private:
     // Widget geometry, palette, and the primitive-drawing helpers that
@@ -159,16 +211,66 @@ private:
     static constexpr float   kMarqueeSpeedDipPerSec = 45.0f;
     static constexpr float   kMarqueeGapDip         = 25.0f;
 
-    // Compact paint-path dimensions. The compact widget is a flat
-    // rounded card with "DRIVE N" on the left and the status LED on
-    // the right -- no 3D case top, no door, no cassowary. Total
-    // height is sized so the drive bar can shrink the bottom inset
-    // dramatically when the active theme requests compact drives.
-    static constexpr int     kCompactBodyWidthPx  = 140;
-    static constexpr int     kCompactBodyHeightPx = 40;
-    static constexpr int     kCompactPadPx        = 10;
-    static constexpr int     kCompactCornerPx     = 4;
-    static constexpr float   kCompactFontDip      = 12.0f;
+    // Compact paint-path dimensions, used by the 2D themes. There is NO
+    // card: the mounted disk's name is the control, and clicking it is
+    // clicking the door. A card would be a picture of hardware, which is the
+    // one thing a flat theme is not trying to show.
+    //
+    //     DRIVE 1  [ casso-rocks.dsk ]   name, the control, marquees
+    //              [ ....(o).......... ]  head position, or the lamp
+    //
+    // The caption sits to the LEFT of the stack and is bottom aligned with
+    // the rail, so both drives' captions land on one line.
+    //
+    // The band is a FIXED width so the click target does not shrink with the
+    // filename. "(empty)" is the state where clicking matters most and would
+    // otherwise offer the smallest target on screen.
+    static constexpr int  kCompactBodyWidthPx     = 140;
+    static constexpr int  kCompactBodyHeightPx    = 36;
+    static constexpr int  kCompactNameHeightPx    = 20;
+    static constexpr int  kCompactBarGapPx        = 3;
+    static constexpr int  kCompactBarHeightPx     = 5;
+    static constexpr int  kCompactCaptionGapPx    = 2;
+    static constexpr int  kCompactCaptionHeightPx = 14;
+
+    // The caption's own column, left of the stack. Fixed rather than measured
+    // so drive 1 and drive 2 put their names at the same x and the two stacks
+    // line up. A measured column would drift with the font.
+    static constexpr int     kCompactCaptionWidthPx  = 44;
+    static constexpr int     kCompactCaptionGapXPx   = 6;
+
+    // Descent allowance under the caption. DxuiTextVAlign::Bottom aligns the
+    // layout BOX, which carries the font's descent below the baseline, so a
+    // box bottom sitting on the rail put the baseline a couple of DIP above
+    // it and the word read as floating in the middle of the rail. Dropping
+    // the box by roughly the descent lands the baseline on the rail instead.
+    static constexpr int     kCompactCaptionDescentPx = 2;
+
+    // The empty drive's label. A state, not a title, so it takes the muted
+    // role wherever it is drawn.
+    static constexpr const wchar_t *  kCompactEmptyLabel = L"(empty)";
+
+    // Dead space below the rail, inside the click band. The widget is bottom
+    // anchored in the drive bar with a 2 dp gap under it, so without this the
+    // rail sits on the window edge and the lit core is clipped in half. It is
+    // part of the band rather than a separate margin so the click target
+    // gains it too, which a target this thin can use.
+    static constexpr int    kCompactBottomPadPx    = 8;
+    static constexpr int    kCompactPadPx          = 10;
+    static constexpr int    kCompactCornerPx       = 4;
+    static constexpr float  kCompactFontDip        = 12.0f;
+    static constexpr float  kCompactCaptionFontDip = 9.0f;
+
+    // The head-position bar spans the disk's 140 quarter-tracks. The lit core
+    // is drawn as stacked ellipses of falling alpha rather than one shape,
+    // which is how the diffuse edge is built without a blur.
+    static constexpr int     kCompactBarCoreHalfPx  = 6;
+    static constexpr int     kCompactBarLayers      = 4;
+    static constexpr int     kMaxQuarterTrack       = 139;
+
+    // Alpha the lit core settles to once the drive has been quiet through the
+    // whole fade.
+    static constexpr float   kCompactBarIdleAlpha   = 0.35f;
 
     // Write-protect padlock badge. The lock glyph drawn beside the mounted
     // disk's BASENAME whenever that disk is write-protected by any source --
@@ -193,6 +295,9 @@ private:
     static constexpr uint32_t kDamageFillArgb      = 0xFFE8A317;   // amber body
     static constexpr uint32_t kDamageEdgeArgb      = 0xFF7A4E00;   // darker amber edge
     static constexpr uint32_t kDamageMarkArgb      = 0xFF241500;   // exclamation mark
+
+    // Compact only. The head-position bar under the disk name.
+    void  PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme & theme, UINT dpi);
 
     static bool  IsPointInRect (const RECT & rect, int x, int y);
     static int   Scale         (int value, UINT dpi);
@@ -236,6 +341,47 @@ private:
     RECT                 m_slotRect          = {};
     RECT                 m_ejectRect         = {};
     RECT                 m_labelRect         = {};
+
+    // Compact only. The head-position bar and the "DRIVE N" caption under it.
+    RECT                 m_barRect           = {};
+    RECT                 m_captionRect       = {};
+
+    // Compact only. True while the pointer is inside the hit band, which
+    // gives the name its button treatment. The shell already tells the widget
+    // about hover for the marquee, so this rides that same signal.
+    bool                 m_bandHovered       = false;
+
+    // Compact only. The name ROLL, which is how a mount and an eject read
+    // when there is no door to swing. The outgoing name slides out of the
+    // name row and the incoming one slides in behind it: up on an eject, down
+    // on a mount, so the direction says which way the disk went.
+    //
+    // The outgoing text has to be remembered here because BeginEject clears
+    // mountedImagePath the moment it starts, so by the time the animation
+    // runs the name it is rolling away is already gone from the state.
+    //
+    // Timed off the door FSM's own clock rather than a second one. A 2D theme
+    // has no door on screen, but the machine still runs it and the drive
+    // sounds are cut from it, so borrowing it keeps the three in step.
+    std::wstring         m_rollFromText;
+    std::wstring         m_rollToText;
+    int64_t              m_rollStartMs       = 0;
+    bool                 m_rollUp            = false;
+
+    // What the name row is showing, so a change can be noticed. Empty before
+    // the first sync, which is why the first label does not roll in.
+    std::wstring         m_shownText;
+    bool                 m_shownValid        = false;
+
+    // Compact only. The name row's current label, basename or the empty
+    // placeholder, without any of the marquee or badge machinery.
+    std::wstring  CompactDisplayName () const;
+
+    // Compact only. Cross-fade-free vertical roll between two labels.
+    void  PaintCompactNameRoll (IDxuiTextRenderer & text,
+                                const CassoTheme  & theme,
+                                UINT                dpi,
+                                float               t);
     LedIndicator         m_led;
     DriveWidgetState     m_state;
     UINT                 m_dpi               = 96;

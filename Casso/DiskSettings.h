@@ -2,9 +2,10 @@
 
 #include "Pch.h"
 
+#include "Core/JsonValue.h"
+
 class UserConfigStore;
 class IFileSystem;
-class JsonValue;
 
 
 
@@ -46,6 +47,13 @@ public:
                                           const std::string  & key,
                                           const std::wstring & machineName,
                                           bool                 value);
+
+    // Persist several $cassoUiPrefs keys for one machine in a single
+    // read-modify-write, for a setting that spans more than one key.
+    static HRESULT  WriteSavedUiPrefs    (UserConfigStore    & store,
+                                          IFileSystem        & fs,
+                                          const std::wstring & machineName,
+                                          const std::vector<std::pair<std::string, JsonValue>> & values);
 
 private:
     static HRESULT       LoadMachineDefaultJson (const std::wstring & machineName, JsonValue & outDefault);

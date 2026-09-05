@@ -880,6 +880,31 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RefreshMergedJson
+//
+//  Replaces the document BuildJson roots the save on. The caller re-reads it
+//  from the store just before applying, so a key written behind this modeless
+//  sheet's back -- the per-machine input mapping, a //c case switch, a disk
+//  mounted while it was open -- is carried forward as it stands on disk rather
+//  than as it stood when the sheet opened.
+//
+//  The staged edits live in m_current and the baselines in m_original, so
+//  re-pointing this changes what the save carries forward, not what the sheet
+//  believes the user chose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
+{
+    m_mergedJson = CloneJson (mergedJson);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Apply
 //
 //  Pushes the live-applicable diffs through `sink` and emits the
@@ -1822,12 +1847,70 @@ JsonValue SettingsPanelState::BuildJson (
     wpArr.emplace_back (JsonValue (prefs.writeProtect[1]));
     uiObj.emplace_back ("writeProtect", JsonValue (std::move (wpArr)));
 
+    CarryUnmanagedUiPrefs (uiObj, mergedJson);
+
     root.emplace_back (kpszUiPrefsKey, JsonValue (std::move (uiObj)));
 
     result = JsonValue (std::move (root));
 
 Error:
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CarryUnmanagedUiPrefs
+//
+//  Copies forward every $cassoUiPrefs entry the emitter above did not write.
+//
+//  BuildJson REPLACES the block rather than editing it, so any key it does not
+//  know about is dropped -- and the block holds more than this dialog manages:
+//  the //c case-switch latches, and the per-machine input mapping. Pressing OK
+//  in Settings reset those, from pages that never mentioned them.
+//
+//  Emitted keys win, so a preference the dialog does own is not resurrected
+//  from the stale copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::CarryUnmanagedUiPrefs (
+    std::vector<std::pair<std::string, JsonValue>> & uiObj,
+    const JsonValue                                & mergedJson)
+{
+    const JsonValue *  uiPrefs  = nullptr;
+    bool               hasBlock = mergedJson.HasObject (kpszUiPrefsKey, uiPrefs);
+    size_t             emitted  = uiObj.size();
+    size_t             i        = 0;
+    size_t             j        = 0;
+    bool               managed  = false;
+
+
+
+    if (!hasBlock || uiPrefs == nullptr)
+    {
+        return;
+    }
+
+    for (i = 0; i < uiPrefs->GetObjectEntries().size(); ++i)
+    {
+        const std::pair<std::string, JsonValue> &  entry = uiPrefs->GetObjectEntries()[i];
+
+        managed = false;
+
+        for (j = 0; j < emitted && !managed; ++j)
+        {
+            managed = uiObj[j].first == entry.first;
+        }
+
+        if (!managed)
+        {
+            uiObj.emplace_back (entry);
+        }
+    }
 }
 
 

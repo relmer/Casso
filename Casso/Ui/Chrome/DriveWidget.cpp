@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiColor.h"
 #include "DriveWidget.h"
 #include "CassoBranding.h"
 #include "../IDriveCommandSink.h"
@@ -236,34 +237,80 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
     if (m_compact)
     {
-        // Compact card: faceRect == bodyRect (no receding case top);
-        // the LED sits on the right edge with the label filling the
-        // remainder. Slot/eject rects collapse to zero since the
-        // compact widget has no door affordance.
-        int  cBodyW = Scale (kCompactBodyWidthPx,  dpi);
-        int  cBodyH = Scale (kCompactBodyHeightPx, dpi);
-        int  pad    = Scale (kCompactPadPx,        dpi);
+        // Compact: no card. The stack is name, head bar, caption, and the
+        // whole band is the click target.
+        int  cBandW   = Scale (kCompactBodyWidthPx,      dpi);
+        int  nameH    = Scale (kCompactNameHeightPx,     dpi);
+        int  barGap   = Scale (kCompactBarGapPx,         dpi);
+        int  barH     = Scale (kCompactBarHeightPx,      dpi);
+        int  capW     = Scale (kCompactCaptionWidthPx,   dpi);
+        int  capGapX  = Scale (kCompactCaptionGapXPx,    dpi);
+        int  capH     = Scale (kCompactCaptionHeightPx,  dpi);
+        int  bandX    = x + capW + capGapX;
 
-        m_bodyRect.left   = x;
+        // The name row IS m_labelRect, which is what PaintBasenameLabel
+        // marquees and hangs the padlock off. Moving that rect to the top of
+        // the stack brings the marquee, the clip and both badges with it, so
+        // none of that had to be rewritten for the new arrangement.
+        m_labelRect.left   = bandX;
+        m_labelRect.top    = y;
+        m_labelRect.right  = bandX + cBandW;
+        m_labelRect.bottom = y + nameH;
+
+        m_barRect.left     = bandX;
+        m_barRect.top      = m_labelRect.bottom + barGap;
+        m_barRect.right    = bandX + cBandW;
+        m_barRect.bottom   = m_barRect.top + barH;
+
+        // Caption column to the LEFT, its text bottom aligned with the rail
+        // so both drives' captions sit on one line no matter what the stack
+        // above them is doing.
+        m_captionRect.left   = x;
+        m_captionRect.right  = x + capW;
+        m_captionRect.bottom = m_barRect.bottom + Scale (kCompactCaptionDescentPx, dpi);
+        m_captionRect.top    = m_captionRect.bottom - capH;
+
+        // The band spans the whole stack and IS the door. HitTest checks the
+        // eject rect first, so making it the band means a click anywhere on
+        // the name, the bar or the caption ejects and browses, which is what
+        // the skeuo door click does. The compact widget offered no eject at
+        // all before this: it left m_ejectRect empty, so HitTest could only
+        // ever answer Body, and a 2D theme had no way to empty a drive.
+        m_bodyRect.left   = bandX;
         m_bodyRect.top    = y;
-        m_bodyRect.right  = x + cBodyW;
-        m_bodyRect.bottom = y + cBodyH;
+        m_bodyRect.right  = bandX + cBandW;
+        m_bodyRect.bottom = m_barRect.bottom + Scale (kCompactBottomPadPx, dpi);
 
         m_faceRect  = m_bodyRect;
         m_slotRect  = {};
-        m_ejectRect = {};
 
-        m_labelRect.left   = m_bodyRect.left;
-        m_labelRect.top    = m_bodyRect.bottom + Scale (kLabelStripGapPx, dpi);
-        m_labelRect.right  = m_bodyRect.right;
-        m_labelRect.bottom = m_labelRect.top + Scale (kLabelStripHeightPx, dpi);
+        // Reaching back over the caption column, so the whole stack really is
+        // the door rather than only the part right of "DRIVE N". The band
+        // alone left the caption inside GetOuterRect, and so inside the hover
+        // test that lights the button treatment, but outside every rect
+        // HitTest examines: the caption advertised a click and then swallowed
+        // it.
+        m_ejectRect      = m_bodyRect;
+        m_ejectRect.left = m_captionRect.left;
 
-        m_led.PositionAt (m_bodyRect.right - pad - Scale (10, dpi),
-                          m_bodyRect.top   + cBodyH / 2 - Scale (3, dpi),
-                          dpi);
+        // No LED in the compact presentation. Activity is the bar (Dark
+        // Modern) or the name's own glow (Retro Terminal), so the indicator
+        // is parked off-widget rather than drawn as a stray dot.
+        m_led.PositionAt (x, y, dpi);
+
         SetBounds (GetOuterRect());
         return;
     }
+
+    // The head bar and the caption belong to the compact branch above, and
+    // nothing below writes either one. A widget that was compact under the
+    // previous theme would carry both into this layout, and GetOuterRect
+    // folds a non-empty caption rect in, so the skeuomorphic drive's outer
+    // box would grow to cover a caption it no longer draws -- taking the
+    // widget's own bounds, the probe that sizes the drive row, and the hover
+    // test with it.
+    m_barRect     = {};
+    m_captionRect = {};
 
     m_bodyRect.left   = x;
     m_bodyRect.top    = y;
@@ -304,6 +351,271 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CompactDisplayName
+//
+//  What the name row says: the mounted image's basename, or the placeholder
+//  for an empty drive. An empty drive still needs a label, because the label
+//  IS the control and clicking it is how a disk gets in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DriveWidget::CompactDisplayName() const
+{
+    std::filesystem::path  imagePath;
+
+
+
+    if (m_state.mountedImagePath.empty())
+    {
+        return std::wstring (kCompactEmptyLabel);
+    }
+
+    imagePath = m_state.mountedImagePath;
+
+    return imagePath.filename().wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintCompactNameRoll
+//
+//  A mount and an eject with no door to swing.
+//
+//  The outgoing name slides out of the name row while the incoming one slides
+//  in behind it, both clipped to the row so neither is seen outside it. Up on
+//  an eject, down on a mount, so the direction carries which way the disk
+//  went rather than the motion being decoration.
+//
+//  A SLIDE rather than a rotation on purpose. DrawString takes a rectangle
+//  and nothing else, so a label cannot be foreshortened, and faking a
+//  rotation by fading one string into another reads as a cross-dissolve
+//  rather than as one thing replacing another. A clipped translate is the
+//  motion text can actually perform, so nothing about it looks approximated.
+//
+//  The marquee stands down for the duration. Both own this row and both would
+//  move the same string, so a long name arriving would try to travel sideways
+//  and vertically at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveWidget::PaintCompactNameRoll (IDxuiTextRenderer & text,
+                                        const CassoTheme  & theme,
+                                        UINT                dpi,
+                                        float               t)
+{
+    HRESULT  hr      = S_OK;
+    float    rowH    = (float) (m_labelRect.bottom - m_labelRect.top);
+    float    nameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
+    float    dir     = m_rollUp ? -1.0f : 1.0f;
+    float    outY    = (float) m_labelRect.top + dir * rowH * t;
+    float    inY     = outY - dir * rowH;
+
+
+
+    auto  Draw = [&] (const std::wstring & s, float y, bool muted)
+    {
+        if (s.empty())
+        {
+            return;
+        }
+
+        hr = text.DrawString (s.c_str(),
+                              (float) m_labelRect.left,
+                              y,
+                              (float) (m_labelRect.right - m_labelRect.left),
+                              rowH,
+                              muted ? theme.dropdownAccel : theme.driveLabel,
+                              nameDip,
+                              kFontFamily,
+                              DxuiTextRenderer::HAlign::Center,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    };
+
+
+
+    hr = text.PushClipRect ((float) m_labelRect.left,
+                            (float) m_labelRect.top,
+                            (float) (m_labelRect.right - m_labelRect.left),
+                            rowH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    Draw (m_rollFromText, outY, m_rollFromText == kCompactEmptyLabel);
+    Draw (m_rollToText,   inY,  m_rollToText   == kCompactEmptyLabel);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHeadCoreCenterX
+//
+//  Where the lit core sits along the rail for a head at a given quarter-track.
+//
+//  The position is held to the rail's own last track first. Disk2NibbleEngine
+//  clamps to ITS maximum, quarter-track 159, which is past the 140 this rail
+//  spans, so a disk that steps the head outward beyond track 35 arrives with a
+//  position the scale has no room for. Without the hold it produced a fraction
+//  above 1 and put the core clean off the end of the bar, over whatever stood
+//  to the right of it.
+//
+//  The span is inset by the core's own half-width at both ends so the lit spot
+//  stays whole at the first and last track instead of being clipped in half by
+//  the rail it rides on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DriveWidget::GetHeadCoreCenterX (int   quarterTrack,
+                                       int   barLeftPx,
+                                       int   barWidthPx,
+                                       float coreHalfPx)
+{
+    float  span = (float) kMaxQuarterTrack;
+    int    held = std::clamp (quarterTrack, 0, kMaxQuarterTrack);
+    float  t    = (float) held / ((span > 0.0f) ? span : 1.0f);
+
+
+
+    return (float) barLeftPx + coreHalfPx + t * ((float) barWidthPx - 2.0f * coreHalfPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintCompactHeadBar
+//
+//  The 2D themes' activity indicator, drawn under the disk name.
+//
+//  A lamp says "busy". This says WHERE, which is the thing the modeled 3D
+//  drive cannot show either: on a machine whose seeks are audible, watching
+//  the core travel while the drive grinds is information.
+//
+//  Both 2D themes track the head. Dark Modern was going to center the core
+//  and read as a plain lamp, on the reasoning that a sliding instrument suits
+//  a terminal and a lamp suits a flat modern shell. Seeing it move settled
+//  that: the position is worth more than the idiom, and a theme flag with one
+//  value everywhere is a branch pretending to be a decision. The two themes
+//  still differ, because each lights its core in its own accent.
+//
+//  The diffuse edge is built from stacked ellipses of falling alpha rather
+//  than a blur, since the painter has no blur and does not need one for a
+//  shape this small. FillEllipseApprox takes independent radii, so "very
+//  oblong and very short" is the shape it was already able to draw.
+//
+//  An empty drive draws the rail alone. A drive whose position is unknown --
+//  every drive on a machine with no Disk ][ controller -- draws no core at
+//  all rather than parking one at track zero, which would claim the head is
+//  at the outer edge of a drive that does not exist.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme & theme, UINT dpi)
+{
+    int    barW      = m_barRect.right  - m_barRect.left;
+    int    barH      = m_barRect.bottom - m_barRect.top;
+    float  cy        = (float) m_barRect.top + (float) barH * 0.5f;
+    int    quarter   = m_state.headQuarterTrack.load (std::memory_order_relaxed);
+    bool   mounted   = !m_state.mountedImagePath.empty();
+    bool   active    = m_state.diskActive.load (std::memory_order_relaxed);
+    int64_t nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                           std::chrono::steady_clock::now().time_since_epoch()).count();
+    float  coreHalf  = (float) Scale (kCompactBarCoreHalfPx, dpi);
+    float  cx        = 0.0f;
+    int    layer     = 0;
+
+
+
+    if (barW <= 0 || barH <= 0)
+    {
+        return;
+    }
+
+    // The rail. Always drawn, so the control keeps its shape when the drive
+    // is empty and the row does not collapse as disks come and go. It is the
+    // 35-track scale the core travels along, so it has to be visible as a
+    // span rather than only as a backing for the lit part -- ledIdle alone is
+    // near black and disappeared into the panel.
+    painter.FillRect ((float) m_barRect.left, (float) m_barRect.top,
+                      (float) barW, (float) barH, theme.ledIdle);
+    painter.FillRect ((float) m_barRect.left, (float) m_barRect.top,
+                      (float) barW, (float) barH,
+                      DxuiColor::ScaleAlpha (theme.driveLabel, 0.14f));
+
+    if (!mounted || quarter < 0)
+    {
+        return;
+    }
+
+    cx = GetHeadCoreCenterX (quarter, m_barRect.left, barW, coreHalf);
+
+    // Stacked ellipses, widest and faintest first, so the alpha accumulates
+    // toward the middle and the edge feathers out. Alpha is scaled rather
+    // than the color swapped, so the two states differ in intensity and not
+    // in hue -- a lamp that changes color reads as a different lamp.
+    //
+    // The falloff is deliberately shallow. Dividing alpha by the layer index
+    // was the first cut and it left the bright middle only a couple of DIP
+    // across at a seventh of full alpha, which read as a smudge rather than a
+    // lit spot. The inner layers now stay near full and only the outermost
+    // ones fade.
+    {
+        // Idle sits well down. A drive with a disk in it and the motor off is
+        // not doing anything, and at 0.75 it drew the eye as hard as a drive
+        // that was. The gap between the two is what makes activity readable
+        // across the room without looking at it directly.
+        //
+        // Getting there is a FADE, not a step. The decay is fast at first and
+        // then long tailed, the way a phosphor or a warm filament goes out,
+        // which reads as the light dying rather than a value changing. A
+        // linear ramp over the same duration looks mechanical.
+        int64_t  sinceMs = nowMs - m_state.lastActiveMs;
+        float    t       = (float) sinceMs / (float) DriveWidgetState::kActivityFadeMs;
+        float    fall    = 0.0f;
+        float    base    = kCompactBarIdleAlpha;
+        float    span    = (float) (kCompactBarLayers - 1);
+
+        if (active || sinceMs < 0)
+        {
+            base = 1.0f;
+        }
+        else if (t < 1.0f)
+        {
+            fall = (1.0f - t) * (1.0f - t);
+            base = kCompactBarIdleAlpha + (1.0f - kCompactBarIdleAlpha) * fall;
+        }
+
+        for (layer = kCompactBarLayers; layer >= 1; layer--)
+        {
+            float     f    = (float) layer / (float) kCompactBarLayers;
+            float     fade = (span > 0.0f) ? ((float) (layer - 1) / span) : 0.0f;
+            float     rx   = coreHalf * f * 2.0f;
+            float     ry   = (float) barH * 0.5f * (0.45f + 0.55f * f);
+            float     a    = base * (1.0f - 0.75f * fade);
+            uint32_t  argb = DxuiColor::ScaleAlpha (theme.ledActive, a);
+
+            painter.FillEllipseApprox (cx, cy, rx, ry, argb);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SyncFromState
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,6 +634,35 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     m_state.writeProtect          = state.writeProtect;
     m_state.motorOn.store (motorOn, std::memory_order_relaxed);
     m_state.diskActive.store (active, std::memory_order_relaxed);
+    m_state.headQuarterTrack.store (state.headQuarterTrack.load (std::memory_order_relaxed),
+                             std::memory_order_relaxed);
+    m_state.lastActiveMs = state.lastActiveMs;
+
+    // Notice a label change and start the roll. Done on SYNC rather than in
+    // paint because BeginEject has already cleared the path by the time the
+    // animation runs, so this is the last moment the outgoing name exists.
+    if (m_compact)
+    {
+        std::wstring  now = CompactDisplayName();
+
+        if (!m_shownValid)
+        {
+            m_shownText  = now;
+            m_shownValid = true;
+        }
+        else if (now != m_shownText)
+        {
+            m_rollFromText = m_shownText;
+            m_rollToText   = now;
+            m_shownText    = now;
+
+            // Up on an eject, down on a mount, so the direction says which
+            // way the disk went. An eject is the case that ends empty.
+            m_rollUp      = m_state.mountedImagePath.empty();
+            m_rollStartMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
+    }
 
     m_led.SetState (active ? LedState::Active : LedState::Idle);
 }
@@ -430,32 +771,83 @@ void DriveWidget::Paint (
 
         if (m_compact)
         {
-            int      bodyWcompact  = m_bodyRect.right  - m_bodyRect.left;
-            int      bodyHcompact  = m_bodyRect.bottom - m_bodyRect.top;
-            int      pad           = Scale (kCompactPadPx, dpi);
-            float    fontDip       = kCompactFontDip * (float) dpi / (float) kBaseDpi;
-            uint32_t bodyFill      = theme.driveBody;
-            uint32_t bezelEdge     = theme.driveBezel;
-            uint32_t labelArgb     = theme.driveLabel;
+            float    capFontDip = kCompactCaptionFontDip * (float) dpi / (float) kBaseDpi;
 
-            // Flat card body with a single bezel-colored outline.
-            painter.FillRect    ((float) m_bodyRect.left, (float) m_bodyRect.top,
-                                 (float) bodyWcompact, (float) bodyHcompact, bodyFill);
-            painter.OutlineRect ((float) m_bodyRect.left, (float) m_bodyRect.top,
-                                 (float) bodyWcompact, (float) bodyHcompact, 1.0f, bezelEdge);
-
-            swprintf_s (label, L"Drive %d", m_drive + 1);
-            hr = text.DrawString (label,
-                                  (float) (m_bodyRect.left + pad),
+            // Hover treatment. The band is the control, so it gets the button
+            // cue rather than the name's own ink box: a target that changed
+            // size with the filename would be a different control per disk.
+            if (m_bandHovered)
+            {
+                // Painted to the RAIL, not to the band's full height. The band
+                // carries dead space below the rail so the click target is not
+                // as thin as the ink, but a highlight over that space would
+                // read as a box hanging below the control.
+                painter.FillRect ((float) m_bodyRect.left,
                                   (float) m_bodyRect.top,
-                                  (float) (bodyWcompact - 2 * pad - Scale (16, dpi)),
-                                  (float) bodyHcompact,
-                                  labelArgb,
-                                  fontDip,
+                                  (float) (m_bodyRect.right - m_bodyRect.left),
+                                  (float) (m_barRect.bottom - m_bodyRect.top),
+                                  theme.buttonHover);
+            }
+
+            PaintCompactHeadBar (painter, theme, dpi);
+
+            swprintf_s (label, L"DRIVE %d", m_drive + 1);
+            // Bottom aligned so the caption sits on the rail's baseline
+            // rather than floating in the middle of a taller box. Centering
+            // it left the word riding above the bar it labels.
+            hr = text.DrawString (label,
+                                  (float) m_captionRect.left,
+                                  (float) m_captionRect.top,
+                                  (float) (m_captionRect.right  - m_captionRect.left),
+                                  (float) (m_captionRect.bottom - m_captionRect.top),
+                                  theme.dropdownAccel,
+                                  capFontDip,
                                   kFontFamily,
                                   DxuiTextRenderer::HAlign::Left,
-                                  DxuiTextRenderer::VAlign::Center);
+                                  DxuiTextRenderer::VAlign::Bottom);
             IGNORE_RETURN_VALUE (hr, S_OK);
+
+            // The name row. While a roll is running it owns the row outright:
+            // the marquee and the badges stand down, because both would move
+            // or pin the same string the roll is sliding.
+            {
+                int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                     std::chrono::steady_clock::now().time_since_epoch()).count();
+                int64_t  since = nowMs - m_rollStartMs;
+
+                if (m_rollStartMs != 0 && since >= 0 && since < DriveWidgetState::kDoorAnimationMs)
+                {
+                    float  t = (float) since / (float) DriveWidgetState::kDoorAnimationMs;
+
+                    // Ease out, so the label arrives rather than stopping.
+                    t = 1.0f - (1.0f - t) * (1.0f - t);
+
+                    PaintCompactNameRoll (text, theme, dpi, t);
+                }
+                else if (m_state.mountedImagePath.empty())
+                {
+                    // An empty drive still needs a name to click.
+                    // PaintBasenameLabel draws nothing without a mount.
+                    float  nameDip = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
+
+                    hr = text.DrawString (kCompactEmptyLabel,
+                                          (float) m_labelRect.left,
+                                          (float) m_labelRect.top,
+                                          (float) (m_labelRect.right  - m_labelRect.left),
+                                          (float) (m_labelRect.bottom - m_labelRect.top),
+                                          theme.dropdownAccel,
+                                          nameDip,
+                                          kFontFamily,
+                                          DxuiTextRenderer::HAlign::Center,
+                                          DxuiTextRenderer::VAlign::Center);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+                }
+                else
+                {
+                    PaintBasenameLabel (painter, text, theme, dpi);
+                }
+            }
+
 
             UNREFERENCED_PARAMETER (bodyW);
             UNREFERENCED_PARAMETER (faceW);
@@ -472,8 +864,6 @@ void DriveWidget::Paint (
             UNREFERENCED_PARAMETER (inUseFontDip);
             UNREFERENCED_PARAMETER (doorOffset);
 
-            m_led.Paint (painter, text, theme);
-            PaintBasenameLabel (painter, text, theme, dpi);
             return;
         }
 

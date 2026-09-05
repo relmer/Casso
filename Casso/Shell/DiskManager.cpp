@@ -763,13 +763,14 @@ void DiskManager::UpdateDriveWidgets()
 
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
     {
-        DriveWidgetState    & st      = m_driveWidgetState[drive];
-        const std::string   & src     = m_diskStore.GetSourcePath (6, drive);
-        std::wstring          wPath;
-        bool                  motorOn = false;
-        bool                  active  = false;
-        uint64_t              reads   = 0;
-        uint64_t              writes  = 0;
+        DriveWidgetState   & st               = m_driveWidgetState[drive];
+        const std::string  & src              = m_diskStore.GetSourcePath (6, drive);
+        std::wstring         wPath;
+        bool                 motorOn          = false;
+        int                  headQuarterTrack = -1;   // -1 == no controller, position unknown
+        bool                 active           = false;
+        uint64_t             reads            = 0;
+        uint64_t             writes           = 0;
 
         for (const auto & evt : syncEvents)
         {
@@ -831,6 +832,7 @@ void DiskManager::UpdateDriveWidgets()
             motorOn = engine.IsMotorOn();
             reads   = engine.GetReadNibbles();
             writes  = engine.GetWriteNibbles();
+            headQuarterTrack = engine.GetCurrentTrack();
 
             if (reads != m_lastReadNibbles[drive] ||
                 writes != m_lastWriteNibbles[drive])
@@ -842,8 +844,14 @@ void DiskManager::UpdateDriveWidgets()
         m_lastReadNibbles[drive]  = reads;
         m_lastWriteNibbles[drive] = writes;
 
-        st.motorOn.store    (motorOn, std::memory_order_relaxed);
-        st.diskActive.store (active,  std::memory_order_relaxed);
+        st.motorOn.store    (motorOn,   std::memory_order_relaxed);
+        st.diskActive.store (active,    std::memory_order_relaxed);
+        st.headQuarterTrack.store  (headQuarterTrack, std::memory_order_relaxed);
+
+        if (motorOn || active)
+        {
+            st.lastActiveMs = nowMs;
+        }
 
         // Sample the mounted image's write-protect breakdown for the
         // padlock cue + hover tooltip. Empty drive -> no protection.

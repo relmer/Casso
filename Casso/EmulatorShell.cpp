@@ -3,6 +3,7 @@
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
+#include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -133,7 +134,13 @@ static constexpr int     kFramebufferWidth       = ChromeMetrics::kFramebufferWi
 static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHeightPx;
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
-static constexpr int     s_kDriveWidgetGapDp    = 16;
+// Gap between the two drives. The compact presentation needs a wide one,
+// because it puts each drive's caption on the same line as the other's rail
+// and a narrow gap left "DRIVE 2" reading as a label on drive 1's bar. The
+// modeled drives have no caption beside them and keep the close spacing:
+// standing them 44 dp apart would push the pair out to the window's edges.
+static constexpr int     s_kDriveWidgetGapDp        = 16;
+static constexpr int     s_kCompactDriveWidgetGapDp = 44;
 
 //  How long the change band stands before closing itself. Long enough to read
 //  twice without hurrying, short enough that a build loop does not leave a
@@ -332,7 +339,8 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     int                           clientW,
     int                           clientH,
     UINT                          dpi,
-    float                         sceneScale)
+    float                         sceneScale,
+    int                           visibleCount)
 {
     int            bottomInset   = 0;
     int            commandBarTop = 0;
@@ -357,7 +365,8 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
 
     bottomInset = bottomInsetPx;
     commandBarTop = std::max (0, clientH - bottomInset);
-    gap = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+    gap = MulDiv (driveChrome[0].IsCompact() ? s_kCompactDriveWidgetGapDp : s_kDriveWidgetGapDp,
+                  static_cast<int> (dpi), s_kBaseDpi);
 
 
 
@@ -367,8 +376,32 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     probe   = driveChrome[0].GetOuterRect();
     widgetW = probe.right  - probe.left;
     widgetH = probe.bottom - probe.top;
-    totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
+    // Centered on the drives that will actually SHOW, not on the array. A //c
+    // with its external drive unconnected lays out both and hides the second
+    // right after this, so centering on two left the single visible drive
+    // sitting left of center by half a widget and a gap.
+    visibleCount = std::clamp (visibleCount, 1, static_cast<int> (driveChrome.size()));
+    totalW  = widgetW * visibleCount + gap * (visibleCount - 1);
     x       = std::max (0, (clientW - totalW) / 2);
+
+    // A LONE drive centers on the part that carries the weight -- the disk
+    // name and its head bar -- not on the whole widget. The 2D widget hangs
+    // its "DRIVE 1" caption off to the left, so centering the outer box put
+    // the name and bar half a caption column right of center and the row
+    // looked hung off to one side.
+    //
+    // The offset is measured off the widget rather than assumed, so the full
+    // skeuomorphic drive, whose body starts at its own left edge, subtracts
+    // nothing and is unaffected. Two drives keep centering on the pair: the
+    // caption then reads as part of a repeating unit rather than as a tail on
+    // a single object.
+    if (visibleCount == 1)
+    {
+        int  captionLead = driveChrome[0].GetBodyRect().left - probe.left;
+
+        x = std::max (0, x - captionLead / 2);
+    }
+
     // Anchor the widget to the bottom so the margin between the
     // basename label and the window edge mirrors the gap between
     // the drive body and the label (s_kLabelStripGapPx, scaled).
@@ -772,6 +805,10 @@ EmulatorShell::~EmulatorShell()
     // audit §7 so a crash-free quit never loses user writes.
     hrFlush = m_diskStore.FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
+
+    // Same idea for a preference change still inside its debounce window:
+    // quitting right after a volume nudge would otherwise lose it.
+    FlushDeferredGlobalPrefs();
 
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
@@ -3128,7 +3165,7 @@ HRESULT EmulatorShell::InitializeUiShell()
     hr = WireUiShellChromeAndThemes();
     CHR (hr);
 
-    RestoreInputAndColorPrefs();
+    RestoreColorTextPref();
     RecordActiveMachineSelection();
 
     SubscribeAndActivateTheme();
@@ -3219,28 +3256,86 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RestoreInputAndColorPrefs
+//  RestoreColorTextPref
+//
+//  The Color monitor's text tint is global -- it describes how the user wants
+//  text to read, not anything about the machine -- so it is restored here, off
+//  GlobalUserPrefs, rather than with the per-machine block. The input mapping
+//  that used to be restored alongside it moved to ApplyPersistedChromePrefs
+//  when it became per machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RestoreInputAndColorPrefs()
+void EmulatorShell::RestoreColorTextPref()
 {
-    // Restore the split input mappings. Keys (arrows->
-    // joystick) is a passive remap, safe to restore. Pointer: Paddle is
-    // an active mouse-capture mode, never restored on launch (it would
-    // light the LED while the mouse is NOT captured) -- falls back to
-    // Off; Mouse is non-capturing and restores safely.
-    m_arrowsJoystick = m_globalPrefs.arrowsToJoystick;
-    m_pointerMode    = (m_globalPrefs.pointerMapping == InputMappingMode::Paddle)
-                           ? InputMappingMode::Off
-                           : m_globalPrefs.pointerMapping;
-    m_globalPrefs.pointerMapping   = m_pointerMode;
-    m_globalPrefs.inputMappingMode = GetDisplayInputMode();
-    SyncSelectorState();
-
     SetColorMonitorTextArgbLive (
         ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
                                                 m_globalPrefs.colorMonitorTextCustomArgb));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdoptInputModeForMachine
+//
+//  Seeds the live input mapping from a machine's $cassoUiPrefs block. A
+//  machine that has never stored one falls back to the legacy global setting,
+//  so upgrading from a build where the mapping was global keeps it.
+//
+//  STATE ONLY, no chrome. The machine-switch path calls this on the CPU
+//  thread, and SyncSelectorState measures text through Dxui, which asserts
+//  the UI thread; both callers reflect the state on the UI thread afterwards
+//  (the switch through the post-switch reflow, launch through the layout that
+//  follows). This is the same rule ApplyDefaultPointerForMachine follows, and
+//  it runs before that one so the //c mouse nudge sees the restored value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
+{
+    MachineInputPrefs::ReadFromUiPrefs (uiPrefs,
+                                        m_globalPrefs.arrowsToJoystick,
+                                        m_globalPrefs.pointerMapping,
+                                        m_arrowsJoystick,
+                                        m_pointerMode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PersistInputModeForMachine
+//
+//  Writes the live mapping into the current machine's $cassoUiPrefs block.
+//  Both keys go in one call, so a change that moves both axes -- picking
+//  Paddle drops arrows-to-joystick -- costs one read-modify-write.
+//
+//  Best-effort: a missing store or machine name, or a write failure, just
+//  leaves the on-disk state as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistInputModeForMachine()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_userConfigStore == nullptr || m_currentMachineName.empty())
+    {
+        return;
+    }
+
+    hr = DiskSettings::WriteSavedUiPrefs (
+             *m_userConfigStore, m_uiFs, m_currentMachineName,
+             MachineInputPrefs::BuildUiPrefEntries (m_arrowsJoystick, m_pointerMode));
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -3641,9 +3736,10 @@ void EmulatorShell::InstallDragDropTarget()
 //
 //  ApplyPersistedAudioPrefs
 //
-//  Seeds the drive-audio mixer + //c default pointer from the per-machine
-//  $cassoUiPrefs JSON before the audio thread first calls SetEnabled /
-//  SetMechanism. Default is enabled + Shugart when nothing is persisted.
+//  Seeds the drive-audio mixer, the input mapping, and the //c default
+//  pointer from the per-machine $cassoUiPrefs JSON before the audio thread
+//  first calls SetEnabled / SetMechanism. Default is enabled + Shugart when
+//  nothing is persisted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3664,6 +3760,20 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
 
 
     LoadMachineUiPrefs (doc, uiPrefs);
+
+    // The input mapping and the //c pointer default are settled whether or
+    // not this machine has a prefs block, so they come BEFORE the bail. A
+    // machine with no block is exactly the one that needs the fallback to
+    // the pre-1.23 global mapping, and skipping it would leave the mapping
+    // wherever the previously-booted machine had left it.
+    //
+    // Here rather than with the chrome prefs because both read state that is
+    // seeded earlier: the mouse device exists by now, and
+    // ApplyPersistedChromePrefs has already applied mouseConnected.
+    AdoptInputModeForMachine (uiPrefs);
+    ApplyDefaultPointerForMachine();
+    SyncSelectorState();
+
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
     hrOpt = uiPrefs->GetBool ("floppySoundEnabled", enabled);
@@ -3729,12 +3839,6 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
             }
         }
     }
-
-    // //c: default Pointer -> Mouse when connected and nothing else was
-    // chosen. (The external-drive + mouse connected-states are seeded in
-    // ApplyPersistedChromePrefs, before the drive-chrome layout, so the
-    // first paint reflects the saved setup rather than the defaults.)
-    ApplyDefaultPointerForMachine();
 
 Error:
     return;
@@ -4191,7 +4295,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     // Command toolbar (DCR-2): commands route through the same HandleCommand
     // path as the menu; the volume group drives the master output gain and
-    // persists in GlobalUserPrefs (saved with the rest on exit).
+    // persists in GlobalUserPrefs through the coalescing save below.
     m_toolbar.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
 
     // Input-mode segments route through the same toggle the band selector
@@ -4203,6 +4307,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_globalPrefs.masterVolume = volume01;
         m_globalPrefs.masterMuted  = muted;
         m_wasapiAudio.SetMasterGain (muted ? 0.0f : volume01);
+
+        // Deferred, not immediate: the slider reports every intermediate
+        // value, so a save here would rewrite the prefs file on each tick of
+        // a drag.
+        SaveGlobalPrefsDeferred();
     });
     m_toolbar.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
     m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
@@ -4330,7 +4439,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
         else
         {
-            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
+            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale,
+                                            ShouldShowExternalDrive() ? 2 : 1);
         }
 
         m_driveBandSurface.SetVisible (!DeskSceneActive());
@@ -5490,7 +5600,9 @@ Error:
 
 void EmulatorShell::SaveGlobalPrefs()
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     offUiThread = (m_hwnd != nullptr) &&
+                           (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
 
 
 
@@ -5500,7 +5612,90 @@ void EmulatorShell::SaveGlobalPrefs()
     }
 
     hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+
+    // A deferred request is consumed only by a write that LANDED and that ran
+    // on the thread the request was made from. Clearing it up front dropped the
+    // change outright: a save that failed, or one skipped for want of a store,
+    // still ate the request, and the shutdown flush writes nothing when the flag
+    // is clear. Clearing it from the CPU thread -- SwitchMachine reaches here --
+    // ate a request for a value that thread has no happens-before edge to, so
+    // the file could be written with the old volume while the pending write that
+    // would have corrected it was cancelled.
+    //
+    // The timer is deliberately NOT killed here: the Dxui timer calls assert the
+    // UI thread. It fires once more and either finds nothing dirty and stops
+    // itself in OnTimer, or writes the value a failed or off-thread save missed.
+    if (SUCCEEDED (hr) && !offUiThread)
+    {
+        m_globalPrefsDirty = false;
+    }
+
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SaveGlobalPrefsDeferred
+//
+//  Records that GlobalUserPrefs needs writing and (re)arms the timer that
+//  writes it, so a burst of changes costs one file write instead of one per
+//  change.
+//
+//  RE-ARMING ON EACH CALL is what makes it a debounce rather than a period:
+//  the write happens once the changes stop, not on a fixed cadence through
+//  the middle of a drag.
+//
+//  Before there is a window there is no timer to arm, so the request stands
+//  as a dirty flag until something flushes it -- an ordinary SaveGlobalPrefs
+//  from another setting, or shutdown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveGlobalPrefsDeferred()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_globalPrefsDirty = true;
+
+    // No window to hang a timer on -- before Initialize built one, or after
+    // teardown destroyed it. The flag stands, and the shutdown flush writes
+    // it. Tested against the HWND rather than the host because the Dxui timer
+    // calls assert on a host without one.
+    if (m_hwnd == nullptr || m_host == nullptr)
+    {
+        return;
+    }
+
+    hr = m_host->SetTimer (kPrefsSaveTimerId, kPrefsSaveDelayMs);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FlushDeferredGlobalPrefs
+//
+//  Writes a pending deferred save now, if there is one. Called from the timer
+//  and again at shutdown, so a quit taken inside the debounce window still
+//  lands the user's last change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FlushDeferredGlobalPrefs()
+{
+    if (m_globalPrefsDirty)
+    {
+        SaveGlobalPrefs();
+    }
 }
 
 
@@ -7577,21 +7772,66 @@ bool EmulatorShell::TryPresentUiFrame()
     {
         bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
                             st.doorState == DriveWidgetState::Door::Closing);
-        bool  motorOn    = st.motorOn.load    (memory_order_relaxed);
-        bool  diskActive = st.diskActive.load (memory_order_relaxed);
+        bool  motorOn          = st.motorOn.load    (memory_order_relaxed);
+        bool  diskActive       = st.diskActive.load (memory_order_relaxed);
+        int   headQuarterTrack = st.headQuarterTrack.load  (memory_order_relaxed);
 
         anyDriveLive = anyDriveLive || motorOn || diskActive;
 
         // Everything about a drive that is VISIBLE, folded into one word so
         // the present vote below can ask whether it moved rather than whether
         // it is busy.
-        driveSig = (driveSig << 3) | (motorOn ? 1u : 0u)
-                                   | (diskActive ? 2u : 0u)
-                                   | (doorMoving ? 4u : 0u);
+        //
+        // The head position is in here because a 2D theme draws it: a seek
+        // with the motor already running changes no flag, so without this the
+        // readout would sit still until something else asked for a frame.
+        //
+        // EIGHT bits, because the value is in quarter-tracks and runs to 139.
+        // Six bits was the first cut and it aliased: quarter-track 64 folded
+        // onto 0, so a seek across the outer half of the disk moved the
+        // signature not at all. The unknown -1 folds to 0xFF, which is past
+        // the largest real position. Eleven bits per drive over two drives
+        // stays well inside the word.
+        driveSig = (driveSig << 11) | (motorOn ? 1u : 0u)
+                                    | (diskActive ? 2u : 0u)
+                                    | (doorMoving ? 4u : 0u)
+                                    | ((uint32_t) (headQuarterTrack & 0xFF) << 3);
 
         if (doorMoving)
         {
             m_d3dRenderer.MarkRedrawNeeded();
+        }
+
+        // A drive that has just gone quiet is FADING, and a fade nobody
+        // redraws is a step with a delay in front of it. Nothing else asks
+        // for these frames: the activity flags have already settled, the head
+        // is not moving, and a static emulator picture skips the present
+        // entirely. Ask for them until the fade is over.
+        {
+            int64_t  sinceMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                   std::chrono::steady_clock::now().time_since_epoch()).count()
+                               - st.lastActiveMs;
+
+            if (st.lastActiveMs != 0 && sinceMs >= 0 && sinceMs < DriveWidgetState::kActivityFadeMs)
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+        }
+    }
+
+    // A 2D drive's name roll wants frames for the same reason. Asked of the
+    // WIDGETS rather than the states, since the roll's clock lives with the
+    // label it is moving.
+    {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        for (const DriveWidget & drive : m_driveChrome)
+        {
+            if (drive.IsNameRolling (nowMs))
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
         }
     }
 
@@ -7760,7 +8000,8 @@ bool EmulatorShell::TryPresentUiFrame()
                     m_driveBandSurface.SetBounds (m_stripRectPx);
                     m_driveBandSurface.SetVisible (true);
                     LayoutDriveWidgetsInCommandBar (m_driveChrome, bandH, client.right,
-                                                    m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f);
+                                                    m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f,
+                                                    ShouldShowExternalDrive() ? 2 : 1);
 
                     if (!ShouldShowExternalDrive())
                     {
@@ -9455,7 +9696,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         bool  inside = x >= outer.left && x < outer.right &&
                        y >= outer.top  && y < outer.bottom;
 
-        drive.UpdateMarqueeHover (inside, nowMs);
+        if (drive.UpdateMarqueeHover (inside, nowMs))
+        {
+            // The band's button treatment appeared or went away. A static
+            // emulator picture presents no frames on its own, so without this
+            // the highlight would land on whatever frame happened next.
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
 
         if (inside && drive.IsWriteProtected())
         {
@@ -11894,8 +12141,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
         SetPointerMapping (InputMappingMode::Off);
     }
 
-    m_arrowsJoystick               = on;
-    m_globalPrefs.arrowsToJoystick = on;
+    m_arrowsJoystick = on;
     SyncInputModeUi();
 
     if (on)
@@ -11986,8 +12232,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         m_mouse->ClearHostTarget();
     }
 
-    m_pointerMode                = pointer;
-    m_globalPrefs.pointerMapping = pointer;
+    m_pointerMode = pointer;
     SyncInputModeUi();
 
     if (pointer == InputMappingMode::Paddle)
@@ -12034,15 +12279,18 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 //  SyncInputModeUi
 //
 //  Common tail for the axis setters: refresh the toggle button's displayed
-//  mode, keep the legacy combined pref in sync (downgrade compat), persist.
+//  mode, then persist the pair into the current machine's prefs.
+//
+//  The two setters call each other to enforce paddle-vs-joystick exclusivity,
+//  so one user action can land here twice. Both passes write the same live
+//  state, and the second is what ends up on disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncInputModeUi()
 {
-    m_globalPrefs.inputMappingMode = GetDisplayInputMode();
     SyncSelectorState();
-    SaveGlobalPrefs();
+    PersistInputModeForMachine();
 }
 
 
@@ -12660,7 +12908,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             }
             else if (fHasDisk)
             {
-                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi, m_chromeSceneScale);
+                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi,
+                                                m_chromeSceneScale, ShouldShowExternalDrive() ? 2 : 1);
 
                 // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
                 // widgets. Re-collapse the external one when it is an optional
@@ -12787,18 +13036,32 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 //
 //  OnTimer
 //
-//  Periodic refresh of the drive-activity indicators. Motor on/off and
-//  drive-select events are bursty (millisecond timescales); a 50 ms
-//  refresh is plenty for visible activity feedback without consuming
-//  noticeable UI cycles.
+//  The coalescing global-prefs write. It is a one-shot: the timer is armed by
+//  SaveGlobalPrefsDeferred, re-armed by each further change, and killed here
+//  once the changes have stopped long enough for it to fire.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 {
-    UNREFERENCED_PARAMETER (timerId);
+    HRESULT  hr = S_OK;
 
-    return DxuiMessageResult::NotHandled;
+
+
+    if (timerId != kPrefsSaveTimerId)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (m_hwnd != nullptr && m_host != nullptr)
+    {
+        hr = m_host->KillTimer (kPrefsSaveTimerId);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    FlushDeferredGlobalPrefs();
+
+    return DxuiMessageResult::Handled;
 }
 
 
@@ -14261,9 +14524,9 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         // work or race the render path.
         RefreshCrtOverrideKeys();
 
-        // A switch may have changed the default pointer mode on the CPU thread
-        // (ApplyDefaultPointerForMachine defers its UI reflection here to stay
-        // off the CPU thread). Sync the selector state on the UI thread; it is
+        // A switch adopts the machine's own input mapping and may change the
+        // default pointer mode, both on the CPU thread, which defers their UI
+        // reflection here. Sync the selector state on the UI thread; it is
         // idempotent when nothing changed.
         SyncSelectorState();
 

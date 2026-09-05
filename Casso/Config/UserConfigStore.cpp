@@ -2361,6 +2361,84 @@ void UserConfigStore::DiffMatchedKey (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UserConfigStore::SpliceUiPrefs
+//
+//  Read-modify-write of the $cassoUiPrefs block: every key in `values`
+//  either replaces the entry already under that name or is appended, and
+//  everything else in the document survives untouched. A document with no
+//  such block gains one.
+//
+//  THE SPLICE IS THE POINT. Writing a fresh block holding only the key being
+//  changed would discard the user's color mode, speed, mounted disks and
+//  peripheral settings on every save. Callers hand over a whole batch rather
+//  than calling once per key so a setting spread over two keys costs one
+//  read-modify-write instead of two.
+//
+//  The rebuild is verbose because the JsonValue API is read-mostly: there is
+//  no in-place mutation, so swap-and-replace is the available shape.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue UserConfigStore::SpliceUiPrefs (
+    const JsonValue                                      & mergedJson,
+    const std::vector<std::pair<std::string, JsonValue>> & values)
+{
+    HRESULT                                         hr         = S_OK;
+    JsonValue                                       result     = mergedJson;
+    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>  uiEntries;
+    int                                             uiPrefsIdx = -1;
+    int                                             existing   = 0;
+    size_t                                          i          = 0;
+    bool                                            isObject   = mergedJson.GetType() == JsonType::Object;
+
+
+
+    BAIL_OUT_IF (!isObject, S_OK);
+
+    rootEntries = mergedJson.GetObjectEntries();
+    uiPrefsIdx  = FindObjectKey (rootEntries, kpszUiPrefsKey);
+
+    if (uiPrefsIdx >= 0 && rootEntries[(size_t) uiPrefsIdx].second.GetType() == JsonType::Object)
+    {
+        uiEntries = rootEntries[(size_t) uiPrefsIdx].second.GetObjectEntries();
+    }
+
+    for (i = 0; i < values.size(); ++i)
+    {
+        existing = FindObjectKey (uiEntries, values[i].first);
+
+        if (existing >= 0)
+        {
+            uiEntries[(size_t) existing].second = values[i].second;
+        }
+        else
+        {
+            uiEntries.emplace_back (values[i]);
+        }
+    }
+
+    if (uiPrefsIdx < 0)
+    {
+        rootEntries.emplace_back (kpszUiPrefsKey, JsonValue (std::move (uiEntries)));
+    }
+    else
+    {
+        rootEntries[(size_t) uiPrefsIdx].second = JsonValue (std::move (uiEntries));
+    }
+
+    result = JsonValue (std::move (rootEntries));
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UserConfigStore::AreJsonEqual
 //
 //  Structural equality. Object key order is ignored.

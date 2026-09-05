@@ -235,18 +235,6 @@ Error:
 //  ReadSavedDiskPath resolves, so a Casso folder that is moved or copied keeps
 //  finding its disks.
 //
-//  The write is a SPLICE, not a rewrite. The merged document is decomposed
-//  into entries, one key inside $cassoUiPrefs is replaced or appended, and the
-//  whole is rebuilt -- so every other preference in that block survives
-//  untouched. Writing a fresh object with just this key would silently discard
-//  the user's color mode, speed, and peripheral settings.
-//
-//  The rebuild is verbose because the JsonValue API is read-mostly: there is
-//  no in-place mutation, so swap-and-replace is the available shape.
-//
-//  A machine with no config on disk is skipped rather than having one created,
-//  since there is nothing for the delta to be a delta against.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskSettings::WriteSavedDiskPath (
@@ -256,88 +244,20 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     const std::wstring & machineName,
     const std::wstring & path)
 {
-    HRESULT                                         hr             = S_OK;
-    JsonValue                                       defaultJson;
-    JsonValue                                       mergedJson;
-    JsonValue                                       updatedJson;
+    HRESULT                                         hr           = S_OK;
     std::wstring                                    stored;
-    std::string                                     storedNarrow;
-    std::vector<std::pair<std::string, JsonValue>>  rootEntries;
-    std::vector<std::pair<std::string, JsonValue>>  uiPrefsEntries;
-    int                                             uiPrefsIdx     = 0;
-    int                                             i              = 0;
-    bool                                            hasMachine     = false;
-    const char                                     * keyName        = (drive == 0) ? "disk1Path" : "disk2Path";
+    std::vector<std::pair<std::string, JsonValue>>  values;
+    bool                                            driveInRange = drive >= 0 && drive <= 1;
+    const char                                    * keyName      = (drive == 0) ? "disk1Path" : "disk2Path";
 
 
 
-    uiPrefsIdx = -1;
+    CBRAEx (driveInRange, E_INVALIDARG);
 
-    hasMachine = !machineName.empty();
-    CBRAEx (drive >= 0 && drive <= 1 && hasMachine, E_INVALIDARG);
+    stored = PathResolver::MakeExeRelativePath (path);
+    values.emplace_back (keyName, JsonValue (WideToUtf8 (stored)));
 
-    hr = LoadMachineDefaultJson (machineName, defaultJson);
-    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
-    CHR (hr);
-
-    hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
-    CHR (hr);
-
-    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
-
-    stored       = PathResolver::MakeExeRelativePath (path);
-    storedNarrow = WideToUtf8 (stored);
-
-    // Splice the new diskNPath into the merged JSON's $cassoUiPrefs
-    // block. The JsonValue API is read-mostly; we rebuild the relevant
-    // sub-objects via swap-and-replace.
-    rootEntries = mergedJson.GetObjectEntries();
-
-    for (i = 0; i < (int) rootEntries.size(); ++i)
-    {
-        if (rootEntries[(size_t) i].first == "$cassoUiPrefs")
-        {
-            uiPrefsIdx = i;
-            if (rootEntries[(size_t) i].second.GetType() == JsonType::Object)
-            {
-                uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
-            }
-
-            break;
-        }
-    }
-
-    // Replace or append the key inside the $cassoUiPrefs block.
-    {
-        bool  replaced = false;
-        for (i = 0; i < (int) uiPrefsEntries.size(); ++i)
-        {
-            if (uiPrefsEntries[(size_t) i].first == keyName)
-            {
-                uiPrefsEntries[(size_t) i].second = JsonValue (storedNarrow);
-                replaced = true;
-                break;
-            }
-        }
-
-        if (!replaced)
-        {
-            uiPrefsEntries.emplace_back (keyName, JsonValue (storedNarrow));
-        }
-    }
-
-    if (uiPrefsIdx < 0)
-    {
-        rootEntries.emplace_back ("$cassoUiPrefs", JsonValue (std::move (uiPrefsEntries)));
-    }
-    else
-    {
-        rootEntries[(size_t) uiPrefsIdx].second = JsonValue (std::move (uiPrefsEntries));
-    }
-
-    updatedJson = JsonValue (std::move (rootEntries));
-
-    hr = store.SaveDelta (WideToUtf8 (machineName), updatedJson, defaultJson, fs);
+    hr = WriteSavedUiPrefs (store, fs, machineName, values);
     CHR (hr);
 
 Error:
@@ -352,9 +272,7 @@ Error:
 //
 //  WriteSavedUiPrefBool
 //
-//  Splice a boolean into the merged config's $cassoUiPrefs block and persist
-//  the delta. Mirrors WriteSavedDiskPath's read-modify-write, keyed on an
-//  arbitrary $cassoUiPrefs field name rather than diskNPath.
+//  Persists one boolean UI preference for a machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -365,79 +283,79 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
     const std::wstring & machineName,
     bool                 value)
 {
-    HRESULT                                          hr             = S_OK;
-    JsonValue                                        defaultJson;
-    JsonValue                                        mergedJson;
-    JsonValue                                        updatedJson;
-    std::vector<std::pair<std::string, JsonValue>>   rootEntries;
-    std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
-    int                                              uiPrefsIdx     = -1;
-    int                                              i              = 0;
-    bool                                             hasKey         = false;
-    bool                                             hasMachine     = false;
+    HRESULT                                         hr     = S_OK;
+    std::vector<std::pair<std::string, JsonValue>>  values;
+    bool                                            hasKey = !key.empty();
 
 
 
-    hasKey     = !key.empty();
-    hasMachine = !machineName.empty();
+    CBRAEx (hasKey, E_INVALIDARG);
 
-    CBRAEx (hasKey && hasMachine, E_INVALIDARG);
+    values.emplace_back (key, JsonValue (value));
+
+    hr = WriteSavedUiPrefs (store, fs, machineName, values);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteSavedUiPrefs
+//
+//  Splices a batch of keys into the machine's $cassoUiPrefs block and persists
+//  the resulting delta. Every other preference in that block survives, because
+//  UserConfigStore::SpliceUiPrefs rewrites only the keys handed to it -- a
+//  fresh block holding just this setting would discard the user's color mode,
+//  speed and peripheral settings.
+//
+//  Taking a batch rather than a single key keeps a setting that spans two keys
+//  down to one read-modify-write.
+//
+//  A machine with no config on disk is skipped rather than having one created,
+//  since there is nothing for the delta to be a delta against. That is a
+//  first-run condition rather than a failure, so it reports success having
+//  written nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSettings::WriteSavedUiPrefs (
+    UserConfigStore    & store,
+    IFileSystem        & fs,
+    const std::wstring & machineName,
+    const std::vector<std::pair<std::string, JsonValue>> & values)
+{
+    HRESULT      hr            = S_OK;
+    JsonValue    defaultJson;
+    JsonValue    mergedJson;
+    JsonValue    updatedJson;
+    std::string  machineNarrow;
+    bool         hasMachine    = !machineName.empty();
+    bool         hasValues     = !values.empty();
+
+
+
+    CBRAEx (hasMachine && hasValues, E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
     BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
     CHR (hr);
 
-    hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
+    machineNarrow = WideToUtf8 (machineName);
+
+    hr = store.Load (machineNarrow, defaultJson, fs, mergedJson);
     CHR (hr);
 
     BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
 
-    rootEntries = mergedJson.GetObjectEntries();
+    updatedJson = UserConfigStore::SpliceUiPrefs (mergedJson, values);
 
-    for (i = 0; i < (int) rootEntries.size(); ++i)
-    {
-        if (rootEntries[(size_t) i].first == "$cassoUiPrefs")
-        {
-            uiPrefsIdx = i;
-            if (rootEntries[(size_t) i].second.GetType() == JsonType::Object)
-            {
-                uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
-            }
-
-            break;
-        }
-    }
-
-    {
-        bool  replaced = false;
-        for (i = 0; i < (int) uiPrefsEntries.size(); ++i)
-        {
-            if (uiPrefsEntries[(size_t) i].first == key)
-            {
-                uiPrefsEntries[(size_t) i].second = JsonValue (value);
-                replaced = true;
-                break;
-            }
-        }
-
-        if (!replaced)
-        {
-            uiPrefsEntries.emplace_back (key, JsonValue (value));
-        }
-    }
-
-    if (uiPrefsIdx < 0)
-    {
-        rootEntries.emplace_back ("$cassoUiPrefs", JsonValue (std::move (uiPrefsEntries)));
-    }
-    else
-    {
-        rootEntries[(size_t) uiPrefsIdx].second = JsonValue (std::move (uiPrefsEntries));
-    }
-
-    updatedJson = JsonValue (std::move (rootEntries));
-
-    hr = store.SaveDelta (WideToUtf8 (machineName), updatedJson, defaultJson, fs);
+    hr = store.SaveDelta (machineNarrow, updatedJson, defaultJson, fs);
     CHR (hr);
 
 Error:
