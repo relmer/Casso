@@ -9452,10 +9452,14 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
 {
     if (hidden)
     {
-        m_sceneCompass.SetVisible    (false);
-        m_fpsReadout.SetVisible      (false);
+        m_sceneCompass.SetVisible     (false);
+        m_fpsReadout.SetVisible       (false);
         m_sceneViewReadout.SetVisible (false);
-        m_captureBanner.SetVisible   (false);
+        m_captureBanner.SetVisible    (false);
+
+        //  Including this one. Two captures inside the notice's few seconds
+        //  would otherwise photograph the first one's filename.
+        m_screenshotNotice.SetVisible (false);
     }
     else
     {
@@ -9467,6 +9471,8 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
         LayoutSceneCompass();
         SyncFrameRateReadout();
         SyncSceneViewReadout();
+        SyncCaptureBanner();
+        SyncCaptureNotice();
     }
 }
 
