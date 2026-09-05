@@ -53,8 +53,62 @@ Entries before versioning was introduced use dates only.
 - **Casso uses the show state passed by its launcher**, so a background launch
   no longer takes the foreground.
 - **Window placement is saved only when the user moves or resizes the window.**
+- **Themes are listed most skeuomorphic first** in Settings -- Skeuomorphic,
+  RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
+- **A window with no client area buried the screen in assertion dialogs.**
+  Every control laid out against a minimized window came out zero DIPs wide,
+  and a text field insetting that by its own padding passed a NEGATIVE width to
+  DirectWrite, which refuses one. Being a paint, it failed again every frame:
+  launching Casso minimized with the boot-disk picker due stacked some thirty
+  modal assertion boxes within seconds, and minimizing the picker while it was
+  open did the same. Text is no longer drawn into a box with no area, and a
+  failed assertion is now shown once per run and never on top of another one --
+  the task-modal box was pumping the very paint whose failure raised it.
+- **Unchecking a second drive was not correctly persisted.** The drive left the
+  desk as it should, but came back the next time Settings opened, and on the
+  next launch.
+- **Full-screen mode hid the top and bottom of the picture on a widescreen
+  display.** The camera was placed so the monitor's glass covered the screen,
+  and the glass is about 1.4:1, so on 16:9 the top and bottom of the glass were
+  cropped and the picture with them -- about a dozen scanlines at each end, in
+  text mode as well as graphics. The camera now moves back far enough to fit
+  the whole picture. Up to about 3:2 the glass still covers the screen as
+  before; beyond that only the tube is drawn, against black, without the case,
+  bezel or power lamp.
+- **GH #137: audio follows a change of the default output device.** The output
+  device was resolved once at startup, so selecting a different speaker or
+  headset left the sound on the old one until the next launch. Sounds are
+  re-decoded when the new device runs at a different sample rate.
+- **The Settings dialog now opens adjacent to the main window.**
+- **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
+  pending-audio backlog from the rate the endpoint reports, and that calculation
+  overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
+  interfaces run at wrapped it to about a third of the intended depth, so the mixer
+  ran dry and the speaker and Mockingboard stuttered.
+- **Mockingboard speech ran 75% too slow.** Every phoneme sounded for 1.75x its
+  documented length, because the voice chip's duration countdown was measured
+  in the chip's own clock while being drained in CPU cycles. Speech now runs at
+  the rate the datasheet specifies, so any speech a title produces is faster
+  and higher in tempo than in earlier releases. The speech smoke-test disk moves
+  to the chip's slowest rate, which is as near its original pacing as the
+  hardware reaches.
+- **The mounted disk's name drew through the monitor's case.** The name under each
+  3D drive was chrome painted after the scene, so it had no depth and nothing could
+  stand in front of it. Orbiting until the monitor came between the camera and a
+  drive left the name floating over the case. It is a camera-facing quad in the
+  scene now, sized to a fixed number of screen pixels and depth tested like any
+  other surface, so the case cuts it exactly where the case crosses it. The name
+  keeps the size it reads at from every pose, which is why it was taken out of the
+  scene the first time. The fullscreen overlay strip has nothing in front of its
+  drives and keeps the chrome label it had.
+- **Casso started up regardless of what was on its command line.** A mistyped flag,
+  a misspaced one, a stray disk image path and `--help` were all discarded in
+  silence and the emulator booted as though nothing had been asked, so
+  `Casso --machine Apple2e --dsik1 work.dsk` ran whatever disk was mounted last.
+  An argument Casso cannot read now stops startup and shows the reason above the
+  full usage text, and every form of `--help` shows that text and exits.
 - **A settings file Casso could not read was overwritten anyway.** It is now saved
   as `UserPrefs.<date-time>.original.json` and a fresh one started, so the original
   is still there to repair. If it cannot be set aside, nothing is written over it.

@@ -3053,11 +3053,18 @@ namespace CommandLineTests
         //  Main.cpp comparing wide literals: only `--trace` took a slash, and
         //  no test could reach any of it. It parses in core now, and these are
         //  the tests that loop never had.
+        //
+        //  NO PROGRAM NAME LEADS THESE LINES, unlike every other test in this
+        //  file. wWinMain is handed `lpCmdLine`, which does not contain one, so
+        //  the first argument Windows gives this grammar is the first argument
+        //  the USER typed. The tests wrote a "Casso.exe" in front anyway, which
+        //  cost nothing while an unmatched argument was dropped and would have
+        //  become drive 1 the moment a bare path meant something.
         TEST_METHOD (Emulator_ParsesItsFlags_InEitherPrefix)
         {
-            ArgVector  dashes  = { "Casso.exe", "--machine", "Apple2e",
+            ArgVector  dashes  = { "--machine", "Apple2e",
                                    "--disk1", "a.dsk", "--disk2", "b.dsk" };
-            ArgVector  slashes = { "Casso.exe", "/machine", "Apple2c",
+            ArgVector  slashes = { "/machine", "Apple2c",
                                    "/disk1", "c.woz" };
 
             CommandLineOptions::EmulatorOptions  dashed  =
@@ -3078,9 +3085,9 @@ namespace CommandLineTests
         //  leaves the bare number rather than failing at startup.
         TEST_METHOD (Emulator_TraceTakesItsThreeSpellings)
         {
-            ArgVector  bare   = { "Casso.exe", "--trace" };
-            ArgVector  spaced = { "Casso.exe", "--trace", "50M" };
-            ArgVector  joined = { "Casso.exe", "/trace=2G" };
+            ArgVector  bare   = { "--trace" };
+            ArgVector  spaced = { "--trace", "50M" };
+            ArgVector  joined = { "/trace=2G" };
 
             Assert::AreEqual (CommandLineOptions::EmulatorOptions::kTraceDefaultEntries,
                 CommandLineParser::ParseEmulator (bare.Count(), bare.Data()).traceEntries,
@@ -3097,23 +3104,404 @@ namespace CommandLineTests
                 L"an unknown suffix leaves the bare number");
         }
 
-        //  A GUI program must not fail to start over an argument nobody asked
-        //  about, so the grammar SKIPS what it does not know -- including a
-        //  flag missing its value at the end of the line.
-        TEST_METHOD (Emulator_IgnoresWhatItDoesNotKnow_AndAValuelessTail)
+        //  A BARE IMAGE PATH IS REFUSED, NOT GUESSED AT. This grammar has no
+        //  operand: a drive is filled by --disk1 or --disk2 and by nothing else.
+        //
+        //  It WAS read as drive 1 for one revision, on the reasoning that
+        //  dragging an image onto Casso.exe should boot it. That bought a second
+        //  way to say --disk1 and a precedence rule to go with it, and the
+        //  assembler grammars gave up a bare source file rather than keep the
+        //  same bargain. Refusing is not the old silence: the reader is told,
+        //  and the two options that do take an image are on the screen with the
+        //  message.
+        TEST_METHOD (Emulator_RefusesABareImagePath)
         {
-            ArgVector  noisy = { "Casso.exe", "C:\\shell\\handed.this",
-                                 "--frobnicate", "--machine", "Apple2e",
-                                 "--disk1" };
+            ArgVector  alone   = { "C:\\Disks\\work.dsk" };
+            ArgVector  withRun = { "--machine", "Apple2e", "work.dsk" };
+
+            CommandLineOptions::EmulatorOptions  onlyPath =
+                CommandLineParser::ParseEmulator (alone.Count(), alone.Data());
+            CommandLineOptions::EmulatorOptions  after    =
+                CommandLineParser::ParseEmulator (withRun.Count(), withRun.Data());
+
+            Assert::AreEqual (std::string ("Error: unexpected argument C:\\Disks\\work.dsk"),
+                onlyPath.refusalMessage);
+
+            Assert::IsTrue (after.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused,
+                L"the invocation that sent a session chasing a speech bug on the wrong "
+                L"disk is now reported rather than half-obeyed");
+
+            Assert::AreEqual (std::string ("Error: unexpected argument work.dsk"),
+                after.refusalMessage);
+
+            Assert::IsTrue (after.disk1.empty(),
+                L"and nothing was mounted on the strength of a guess");
+        }
+
+
+        //  AND IT IS A DIFFERENT MESSAGE FROM A MISTYPED FLAG, because they are
+        //  different mistakes. A reader who wrote a path meant a path and needs
+        //  to be shown the option that takes one; a reader who wrote --dsik1
+        //  needs to see the word they got wrong.
+        TEST_METHOD (Emulator_APathAndAMistypedFlagGetDifferentMessages)
+        {
+            ArgVector  path = { "work.dsk" };
+            ArgVector  typo = { "--work.dsk" };
+
+            CommandLineOptions::EmulatorOptions  a =
+                CommandLineParser::ParseEmulator (path.Count(), path.Data());
+            CommandLineOptions::EmulatorOptions  b =
+                CommandLineParser::ParseEmulator (typo.Count(), typo.Data());
+
+            Assert::AreEqual (std::string ("Error: unexpected argument work.dsk"), a.refusalMessage);
+            Assert::AreEqual (std::string ("Error: unknown option --work.dsk"),     b.refusalMessage);
+        }
+
+
+        //  A FLAG THIS GRAMMAR DOES NOT HAVE STOPS STARTUP. The whole defect:
+        //  `--dsik1 foo.dsk` and `--disk 1 foo.dsk` each did nothing at all,
+        //  with nothing said and the emulator booting on regardless.
+        TEST_METHOD (Emulator_RefusesAFlagItDoesNotHave)
+        {
+            ArgVector  typo    = { "--dsik1", "foo.dsk" };
+            ArgVector  misspa  = { "--disk", "1", "foo.dsk" };
+
+            CommandLineOptions::EmulatorOptions  a =
+                CommandLineParser::ParseEmulator (typo.Count(), typo.Data());
+            CommandLineOptions::EmulatorOptions  b =
+                CommandLineParser::ParseEmulator (misspa.Count(), misspa.Data());
+
+            Assert::IsTrue (a.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+            Assert::AreEqual (std::string ("Error: unknown option --dsik1"), a.refusalMessage,
+                L"one line quoting what was typed; the options are in the same box, so "
+                L"the message neither restates one nor sends the reader to --help");
+
+            Assert::IsTrue (b.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused,
+                L"a space in the middle of --disk1 is a mistake too");
+        }
+
+
+        //  A VALUE LEFT OFF IS ITS OWN MISTAKE, and says so. Reporting it as an
+        //  unknown option would send the reader back to reread a flag that is
+        //  spelled perfectly.
+        TEST_METHOD (Emulator_RefusesAFlagWithNoValueAfterIt)
+        {
+            ArgVector  tail = { "--machine", "Apple2e", "--disk1" };
 
             CommandLineOptions::EmulatorOptions  parsed =
-                CommandLineParser::ParseEmulator (noisy.Count(), noisy.Data());
+                CommandLineParser::ParseEmulator (tail.Count(), tail.Data());
 
             Assert::AreEqual (std::string ("Apple2e"), parsed.machine,
-                L"the flags it recognizes still land");
+                L"the flags it did read still land");
 
-            Assert::IsTrue (parsed.disk1.empty(),
-                L"a flag with no value left to take is skipped, not read past the end");
+            Assert::IsTrue (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+            Assert::AreEqual (std::string ("Error: missing value for --disk1"), parsed.refusalMessage,
+                L"which says what to fix, where 'unknown option' would send the reader "
+                L"back to reread a flag that is spelled perfectly");
+        }
+
+
+        //  EVERY VALUE-TAKING FLAG, IN BOTH PREFIXES, and the slash forms are
+        //  the point of it. The refusal tells a value left off from a flag
+        //  nothing has by testing the CANONICALIZED argument, so `/disk1` has
+        //  to reach the missing-value arm rather than the unknown-option one.
+        //  While every case wrote `--`, that distinction was invisible:
+        //  substituting the raw argument for the canonical one left the suite
+        //  green and told a reader who typed `/disk1` perfectly that Casso had
+        //  never heard of it.
+        TEST_METHOD (Emulator_EveryValueFlagReportsItsOwnMissingValue)
+        {
+            const char *  flags[] = { "--machine", "--disk1", "--disk2",
+                                      "/machine",  "/disk1",  "/disk2" };
+
+            for (const char * flag : flags)
+            {
+                ArgVector  args (std::vector<const char *> { flag });
+
+                CommandLineOptions::EmulatorOptions  parsed =
+                    CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+                Assert::AreEqual (std::string ("Error: missing value for ") + flag,
+                    parsed.refusalMessage,
+                    Widen (std::string ("wrong refusal for a bare ") + flag).c_str());
+            }
+        }
+
+
+        //  THE SHELL'S OWN ARGUMENTS ARE STILL TOLERATED, which is the concern
+        //  the old blanket tolerance existed for. Listing them by name is what
+        //  lets everything else be refused.
+        //
+        //  SWEPT FROM THE TABLE RATHER THAN WRITTEN OUT, so a row added to it
+        //  is covered by having been added. Three hand-written forms would have
+        //  left the fourth entry a switch nobody exercised, which is how ten of
+        //  this tool's flags once went untested.
+        TEST_METHOD (Emulator_ToleratesWhatWindowsSuppliesUnbidden)
+        {
+            const char *  prefixes[] = { "-", "/" };
+            size_t        rowCount   = CommandLineParser::GetShellSuppliedArguments().size();
+
+            Assert::IsTrue (rowCount > 0, L"a sweep over an empty table tolerates nothing");
+
+            for (const char * bare : CommandLineParser::GetShellSuppliedArguments())
+            {
+                for (const char * prefix : prefixes)
+                {
+                    //  As the shell writes it, which is capitalized, and as the
+                    //  documentation writes it, which is not.
+                    std::string  capitalized = std::string (bare);
+                    std::string  written;
+
+                    capitalized[0] = (char) toupper ((unsigned char) capitalized[0]);
+
+                    for (const std::string & form : { std::string (bare), capitalized })
+                    {
+                        written = std::string (prefix) + form;
+
+                        ArgVector  line (std::vector<const char *> { written.c_str(),
+                                                                    "--machine", "Apple2e" });
+
+                        CommandLineOptions::EmulatorOptions  parsed =
+                            CommandLineParser::ParseEmulator (line.Count(), line.Data());
+
+                        Assert::IsTrue (parsed.verdict
+                                        == CommandLineOptions::EmulatorOptions::Verdict::Clean,
+                            Widen ("shell argument refused: " + written).c_str());
+
+                        Assert::AreEqual (std::string ("Apple2e"), parsed.machine,
+                            L"and the flags beside it still land");
+
+                        Assert::IsTrue (parsed.disk1.empty(),
+                            Widen (written + " was mistaken for a disk").c_str());
+                    }
+                }
+            }
+        }
+
+
+        //  EVERY FORM OF THE REQUEST, and it asks rather than boots. `--help`
+        //  launched the emulator, which is the one answer nobody wanted.
+        TEST_METHOD (Emulator_AnswersEveryFormOfAHelpRequest)
+        {
+            const char *  forms[] = { "--help", "-h", "-?", "/help", "/?", "/h" };
+
+            for (const char * form : forms)
+            {
+                ArgVector  args (std::vector<const char *> { form });
+
+                CommandLineOptions::EmulatorOptions  parsed =
+                    CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+                Assert::IsTrue (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Help,
+                    Widen (std::string ("help form not recognized: ") + form).c_str());
+            }
+        }
+
+
+        //  A HELP REQUEST BEATS A REFUSAL on the same line. A reader who
+        //  mistyped one flag and asked for the flags wants the list, not a
+        //  complaint about the typo with the list withheld.
+        TEST_METHOD (Emulator_AHelpRequestBeatsARefusalOnTheSameLine)
+        {
+            ArgVector  both = { "--frobnicate", "--help" };
+
+            CommandLineOptions::EmulatorOptions  parsed =
+                CommandLineParser::ParseEmulator (both.Count(), both.Data());
+
+            Assert::IsTrue (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Help);
+            Assert::IsTrue (parsed.refusalMessage.empty());
+        }
+
+
+        //  A HELP REQUEST STANDING WHERE A VALUE BELONGS IS STILL A REQUEST,
+        //  which is why the scan runs over the whole line BEFORE the walk
+        //  rather than inside it.
+        //
+        //  Scanning inside the walk, `--machine` reached `--help` first and
+        //  took it as the machine to boot. An unmatched machine falls back to
+        //  the default, so Casso started up and exited 0 having shown nothing,
+        //  which is precisely the silence this work exists to end -- and it
+        //  passed every other test here.
+        TEST_METHOD (Emulator_AHelpRequestAfterAValueFlagIsStillARequest)
+        {
+            const char *  lines[][2] = { { "--machine", "--help" },
+                                         { "--disk1",   "--help" },
+                                         { "--disk2",   "-?"     },
+                                         { "/machine",  "/?"     } };
+
+            for (const auto & line : lines)
+            {
+                ArgVector  args (std::vector<const char *> { line[0], line[1] });
+
+                CommandLineOptions::EmulatorOptions  parsed =
+                    CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+                Assert::IsTrue (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Help,
+                    Widen (std::string ("help swallowed as the value of ") + line[0]).c_str());
+
+                Assert::IsTrue (parsed.machine.empty() && parsed.disk1.empty()
+                                                       && parsed.disk2.empty(),
+                    L"and nothing was read off the line the request ended");
+            }
+        }
+
+
+        //  A SLASH READER IS ANSWERED IN SLASHES, the same promise the disk
+        //  grammar makes. Offering `--disk2` to somebody who just typed
+        //  `/machine` is a form they have shown they do not write.
+        //
+        //  IT IS KEPT BY TWO DIFFERENT MEANS, which is why both are asserted
+        //  here. The refusal QUOTES the argument as typed and composes nothing,
+        //  so it cannot pick the wrong prefix; the options list beside it is
+        //  composed, and takes the prefix the parser recorded.
+        TEST_METHOD (Emulator_ASlashReaderIsAnsweredInSlashes)
+        {
+            ArgVector  slashed = { "/machine", "Apple2e", "/dsik1", "one.dsk" };
+
+            CommandLineOptions::EmulatorOptions  parsed =
+                CommandLineParser::ParseEmulator (slashed.Count(), slashed.Data());
+
+            std::string  page;
+
+            Assert::IsTrue (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+            Assert::IsTrue (parsed.flagPrefix == '/');
+            Assert::AreEqual (std::string ("Error: unknown option /dsik1"), parsed.refusalMessage,
+                L"quoted as typed, so no rewriting can get the prefix wrong");
+
+            page = CommandLineHelp::BuildEmulatorHelp (parsed.flagPrefix);
+
+            Assert::IsTrue (page.find ("/disk2")  != std::string::npos,
+                L"and the options shown beside it are written the same way");
+            Assert::IsTrue (page.find ("--disk2") == std::string::npos);
+        }
+
+
+        //  A LONE `-` AND A LONE `/` ARE NOT FLAGS. Both are refused, since
+        //  this grammar takes no operand, but as an unexpected ARGUMENT rather
+        //  than an unknown option: a single slash is a legal ProDOS root and a
+        //  single dash is the conventional stand-in for a stream, and telling
+        //  either reader that Casso has no such option would answer a question
+        //  they did not ask.
+        TEST_METHOD (Emulator_ALoneDashOrSlashIsNotAFlag)
+        {
+            const char *  lone[] = { "/", "-" };
+
+            for (const char * arg : lone)
+            {
+                ArgVector  args (std::vector<const char *> { arg });
+
+                CommandLineOptions::EmulatorOptions  parsed =
+                    CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+                Assert::AreEqual (std::string ("Error: unexpected argument ") + arg,
+                    parsed.refusalMessage,
+                    Widen (std::string ("a lone ") + arg + " was read as a flag").c_str());
+            }
+        }
+
+
+        //  AN EMPTY COMMAND LINE IS THE ORDINARY LAUNCH, and asks for nothing.
+        TEST_METHOD (Emulator_NoArgumentsAsksForNothing)
+        {
+            CommandLineOptions::EmulatorOptions  parsed =
+                CommandLineParser::ParseEmulator (0, nullptr);
+
+            Assert::IsTrue (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::IsTrue (parsed.disk1.empty());
+            Assert::IsTrue (parsed.machine.empty());
+        }
+
+
+        //  EVERY DOCUMENTED OPTION IS ONE THE PARSER TAKES, and every option
+        //  the parser takes is documented -- bar the one developer switch that
+        //  says out loud it is not. Two tables that have to agree are two
+        //  tables that will not, unless something asks.
+        TEST_METHOD (Emulator_TheUsageDescribesTheGrammarItParses)
+        {
+            std::set<std::string>  documented;
+            std::set<std::string>  parsed;
+            size_t                 flagCount = CommandLineParser::GetEmulatorFlags().size();
+
+            Assert::IsTrue (flagCount > 0, L"a sweep over an empty table checks nothing");
+
+            for (const CommandLineParser::EmulatorFlag & flag : CommandLineParser::GetEmulatorFlags())
+            {
+                std::string  bare = flag.option;
+
+                while (!bare.empty() && bare[0] == '-')
+                {
+                    bare.erase (0, 1);
+                }
+
+                documented.insert (bare);
+            }
+
+            for (const char * option : CommandLineParser::GetEmulatorLongOptions())
+            {
+                parsed.insert (option);
+            }
+
+            //  BOTH EXCEPTIONS ARE ASSERTED PRESENT BEFORE THEY ARE TAKEN OUT,
+            //  because std::set::erase on an absent key is a no-op and says so
+            //  to nobody. Written as a bare erase, this sweep could not tell a
+            //  row deliberately excepted from a row somebody deleted: dropping
+            //  the `--help` row leaves both sides equal and the dialog stops
+            //  describing help, and dropping `no-image-watch` from the option
+            //  table turns `/no-image-watch` from a developer switch into a
+            //  refusal that blocks startup. Both pass a sweep that only erases.
+            Assert::IsTrue (documented.erase ("help") == 1,
+                L"--help is described without being in the canonicalization table, "
+                L"IsHelpRequest matching its forms exactly");
+
+            Assert::IsTrue (parsed.erase ("no-image-watch") == 1,
+                L"the developer switch is parsed and deliberately not described");
+
+            Assert::IsTrue (documented == parsed,
+                L"the emulator's help and its grammar have come apart");
+        }
+
+
+        //  THE USAGE TEXT FITS THE BOX IT IS SHOWN IN. It is read in a themed
+        //  message box at a fixed width in a proportional font, so a line past
+        //  the budget wraps somewhere nobody chose and an indented description
+        //  comes out as two ragged ones.
+        TEST_METHOD (Emulator_UsageTextKeepsInsideItsWidth)
+        {
+            const char     prefixes[] = { '-', '/' };
+            std::string    text;
+            size_t         lineCount  = 0;
+
+            for (char prefix : prefixes)
+            {
+                std::istringstream  lines (CommandLineHelp::BuildEmulatorHelp (prefix));
+                std::string         line;
+
+                while (std::getline (lines, line))
+                {
+                    lineCount++;
+
+                    Assert::IsTrue (line.size() <= CommandLineHelp::kEmulatorLineColumns,
+                        Widen ("usage line over budget: " + line).c_str());
+                }
+            }
+
+            Assert::IsTrue (lineCount > 10, L"a width promise measured over no lines is no promise");
+
+            //  AND IT IS A PAGE, not a bare list of flags. The width promise
+            //  above is satisfied just as well by an empty string, and the
+            //  sweep beside it reconciles two tables without reading a word of
+            //  what the reader sees, so nothing else here would notice the
+            //  headings or the descriptions going missing.
+            text = CommandLineHelp::BuildEmulatorHelp ('/');
+
+            Assert::IsTrue (text.find ("Usage:")           != std::string::npos);
+            Assert::IsTrue (text.find ("Casso [options]")  != std::string::npos,
+                L"the usage line itself, showing options and no operand");
+            Assert::IsTrue (text.find ("[disk image]")     == std::string::npos,
+                L"this grammar takes no operand and must not advertise one");
+            Assert::IsTrue (text.find ("Options:")         != std::string::npos);
+            Assert::IsTrue (text.find ("Insert this image into drive 1") != std::string::npos,
+                L"and each flag carries its description, not just its name");
         }
 
         //  THE PREFIX IS TAKEN FROM THE LINE, NOT ONLY FROM A HELP REQUEST.

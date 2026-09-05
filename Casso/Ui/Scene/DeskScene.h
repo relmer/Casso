@@ -109,6 +109,30 @@ public:
 
     const DeskSceneModel &  DriveModel   () const { return m_drive; }
 
+    // THE MOUNTED IMAGE'S NAME, as a surface in the scene rather than as
+    // chrome laid over it.
+    //
+    // It was a 2D label parked under the drive's projected bounds, which put
+    // it in front of everything: orbit until the monitor stood between the
+    // camera and a drive and the name showed straight through the case. A
+    // quad the depth buffer can see is cut by the case exactly where the case
+    // crosses it, per pixel, with no threshold to tune and nothing to pop as
+    // the camera moves.
+    //
+    // `corners` are WORLD-space, top-left, top-right, bottom-left,
+    // bottom-right, as DeskSceneLayout::TryMakeDriveLabelQuad hands them
+    // over. They already carry the camera-facing placement and the
+    // constant-pixel sizing, so this only has to make triangles of them.
+    // A null srv clears the label.
+    // `uv` is the sub-rectangle of `srv` this drive's name occupies, as
+    // { u0, v0, u1, v1 }. Both names share one texture -- the text renderer
+    // keeps a single off-screen target, so a second bake would otherwise
+    // replace the first and both drives would wear the same name -- and that
+    // texture is grown rather than resized, so even a lone label rarely
+    // covers all of it.
+    void  SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
+                        const float uv[4]);
+
     // The measured metrics DeskSceneLayout composes with.
     DeskSceneMetrics  Metrics () const;
 
@@ -427,6 +451,10 @@ private:
     void     BuildDerivedGeometry ();
     void     BuildGlassSheen  (const CurvedDisplaySurface & surface, float tiltRad);
     HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+
+    // The mounted-image names, drawn after every opaque body so the depth
+    // they test against is the whole scene's.
+    HRESULT  DrawDiskLabels   (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     HRESULT  DrawLampGlows    (const DeskSceneComposition & comp,
                                const D3D11_VIEWPORT       & viewport,
                                bool                         includeMonitor);
@@ -604,6 +632,16 @@ private:
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
 
+    // The mounted image's name: its quad in WORLD space, and the texture the
+    // text was baked into. The view is owned by the text renderer that made
+    // it. Its own revision, because these six vertices move whenever the
+    // camera does and the shared one would re-upload the whole scene's
+    // furniture with them.
+    std::vector<Dxui3DRenderer::Vertex>   m_diskLabelVerts[2];
+    ID3D11ShaderResourceView            * m_diskLabelSrv[2] = { nullptr, nullptr };
+    Dxui3DRenderer::StaticMesh            m_diskLabelMesh[2];
+    uint32_t                              m_diskLabelRev    = 1;
+
     Dxui3DRenderer::StaticMesh             m_labelMesh[2];
     Dxui3DRenderer::StaticMesh             m_monitorTiltMesh;
     Dxui3DRenderer::StaticMesh             m_monitorShadowMesh;
@@ -661,6 +699,10 @@ private:
 
     HRESULT  EnsurePlateTarget (int width, int height);
     HRESULT  RenderPlate       (const D3D11_VIEWPORT & viewport, int width, int height);
+
+    // The glass-only presentation's background: one opaque black quad at the
+    // far depth, in place of the case and desk that presentation leaves out.
+    void     FillViewportBlack (const D3D11_VIEWPORT & viewport);
     float                                 m_doorProgress[2] = { -1.0f, -1.0f };
     bool                                  m_driveWp[2]      = {};
 };

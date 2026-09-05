@@ -4,6 +4,17 @@
 #define NOMINMAX
 #include <windows.h>
 
+// <winnt.h> aliases these to the _bittest intrinsics, and CpuOperations::BitTest
+// is the 6502 BIT instruction. CassoCore/Pch.h is where that actually bites --
+// it compiles the definition, and its Byte typedef means every consumer of a
+// CPU header goes through it anyway -- so this is belt and braces: a Pch that
+// pulls Windows in should not leave the macro live behind it.
+#undef BitTest
+#undef BitTestAndSet
+#undef BitTestAndReset
+#undef BitTestAndComplement
+
+#include <mmdeviceapi.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>

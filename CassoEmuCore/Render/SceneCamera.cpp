@@ -281,35 +281,83 @@ float SceneCamera::FitContainFovY (float fovY, float contentAspect, float viewpo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SceneCamera::SolveGlassFillCamera
+//  SceneCamera::SolveCoverStandoff
 //
-//  Per-axis standoff demands: at distance d the frustum spans 2*d*tan(fovY/2)
-//  vertically and that times the aspect horizontally. Filling means the rect
-//  meets or exceeds both spans, so the eye takes the NEARER of the two
-//  distances -- the other axis then overfills and crops. Straight-on: the
-//  fullscreen glass reads face-on, no desk gaze.
+//  At distance d the frustum spans 2*d*tan(fovY/2) vertically and that times
+//  the aspect horizontally. Covering requires the rect to meet or exceed both
+//  spans, which holds at the NEARER of the two per-axis distances; the other
+//  axis then overfills and crops.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SceneCamera::SolveGlassFillCamera (float centerX,
-                                        float centerY,
-                                        float width,
-                                        float height,
-                                        float planeZ,
-                                        float fovY,
-                                        float aspect,
-                                        float zn,
-                                        float zf,
-                                        float outView[16],
-                                        float outProj[16],
-                                        float outViewProj[16])
+float SceneCamera::SolveCoverStandoff (float width, float height, float fovY, float aspect)
 {
     float   tanY      = std::tan (fovY * 0.5f);
     float   standoffH = (height * 0.5f) / tanY;
     float   standoffW = (width * 0.5f) / (tanY * aspect);
-    float   standoff  = std::min (standoffH, standoffW);
-    float   eye[3]    = { centerX, centerY, planeZ + standoff };
-    float   at[3]     = { centerX, centerY, planeZ };
+
+
+
+    return std::min (standoffH, standoffW);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SceneCamera::SolveContainStandoff
+//
+//  The same relation inverted, and for ONE point rather than a rect -- a point
+//  that need not lie on the aim plane. A point `towardEye` in front of the
+//  plane sits that much closer to the camera, which shifts the distance by
+//  exactly that amount: hence the added term rather than a scale factor. Both
+//  axes must be satisfied, so the FARTHER of the two distances applies:
+//  contain, not cover.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float SceneCamera::SolveContainStandoff (float dx, float dy, float towardEye, float fovY, float aspect)
+{
+    float   tanY      = std::tan (fovY * 0.5f);
+    float   standoffH = std::abs (dy) / tanY;
+    float   standoffW = std::abs (dx) / (tanY * aspect);
+
+
+
+    return std::max (standoffH, standoffW) + towardEye;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SceneCamera::SolveStraightOnCamera
+//
+//  Straight-on at the solved standoff, with no downward gaze: the fullscreen
+//  glass is viewed face-on. What the standoff was solved for -- covering the
+//  glass, containing the picture -- is the caller's decision, not this
+//  function's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SceneCamera::SolveStraightOnCamera (float centerX,
+                                         float centerY,
+                                         float planeZ,
+                                         float standoff,
+                                         float fovY,
+                                         float aspect,
+                                         float zn,
+                                         float zf,
+                                         float outView[16],
+                                         float outProj[16],
+                                         float outViewProj[16])
+{
+    float   eye[3] = { centerX, centerY, planeZ + standoff };
+    float   at[3]  = { centerX, centerY, planeZ };
 
 
 

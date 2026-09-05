@@ -1796,6 +1796,43 @@ void DeskScene::RebuildLampVerts()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::FillViewportBlack
+//
+//  One opaque black quad over the whole viewport, at the far depth so it
+//  depth-tests away nothing else in the scene. This is the glass-only
+//  presentation's background: the plate is a LAYER and clears transparent, so
+//  without it the theme's backdrop is visible wherever the tube does not
+//  cover.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::FillViewportBlack (const D3D11_VIEWPORT & viewport)
+{
+    HRESULT                 hr           = S_OK;
+    float                   identity[16] = {};
+    Dxui3DRenderer::Vertex  quad[6]      = {};
+
+
+
+    SceneCamera::Identity44 (identity);
+
+    quad[0] = { -1.0f,  1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[1] = {  1.0f,  1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[2] = {  1.0f, -1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[3] = { -1.0f,  1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[4] = {  1.0f, -1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+    quad[5] = { -1.0f, -1.0f, 1.0f, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f };
+
+    hr = m_renderer.DrawTriangles (quad, 6, identity, false, viewport, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::DrawDebugRect
 //
 //  Four thin bars in clip space (identity MVP) over a full-backbuffer
@@ -1871,6 +1908,17 @@ void DeskScene::DrawDebugRect (const RECT & rectPx, int backBufferW, int backBuf
 //  used to be paid sixty times a second to antialias edges that had not moved
 //  since the last time. Measured at ~20 points of GPU on this machine.
 //
+//  THE GLASS-ONLY PRESENTATION skips most of that. Fullscreen draws the tube
+//  and nothing else, on black, so the case, the bezel, the power lamp and the
+//  ground shadows are all left out. The camera sits at whatever distance
+//  shows the whole picture, and on a screen wider than the glass that leaves
+//  space beside the tube; filling it with a case cropped top and bottom looks
+//  worse than filling it with black. What remains is the tube, the faceplate
+//  mask and the sheen -- the layers the raster itself sits in.
+//
+//  The front plate's occluder pass exists only to put the case back in front
+//  of the raster, so with no case drawn that whole pass is skipped too.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int height)
@@ -1879,6 +1927,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     HRESULT                  hrEnd        = S_OK;
     float                    mvp[16]      = {};
     float                    clear[4]     = { 0.0f, 0.0f, 0.0f, 0.0f };
+    bool                     glassOnly    = m_comp.glassOnly != 0;
     ID3D11RenderTargetView * rawPlate     = nullptr;
 
 
@@ -1908,27 +1957,35 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     hr = m_renderer.BeginDepthPass();
     CHRA (hr);
 
-    hr = DrawShadows (m_comp, viewport, true);
-    CHRA (hr);
+    if (glassOnly)
+    {
+        FillViewportBlack (viewport);
+    }
+    else
+    {
+        hr = DrawShadows (m_comp, viewport, true);
+        CHRA (hr);
 
-    // Opaque bodies: monitor, then each placed drive.
-    SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
+        // Opaque bodies: monitor, then each placed drive.
+        SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, mvp);
 
-    SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
+        SetModelLighting (m_monitor, m_comp.monitorWorld, m_powerLampOn, kMonitorGlowRgb);
 
-    hr = m_renderer.DrawStatic (m_monitorOpaqueMesh,
-                                m_monitor.OpaqueVerts().data(),
-                                m_monitor.OpaqueVerts().size(),
-                                m_geometryRev, mvp, false, viewport, true);
-    CHRA (hr);
+        hr = m_renderer.DrawStatic (m_monitorOpaqueMesh,
+                                    m_monitor.OpaqueVerts().data(),
+                                    m_monitor.OpaqueVerts().size(),
+                                    m_geometryRev, mvp, false, viewport, true);
+        CHRA (hr);
 
-    hr = DrawDrives (m_comp, viewport);
-    CHRA (hr);
+        hr = DrawDrives (m_comp, viewport);
+        CHRA (hr);
+    }
 
     // THE TILTING ASSEMBLY, on its own transform. Lit through that same
     // transform too: the shader takes its lights in model space, so handing
     // it the untilted placement would leave the bezel lit as though it had
-    // never moved.
+    // never moved. The matrix is built whether or not the bezel draws,
+    // because the tube below is drawn with it.
     {
         float  tiltWorld[16] = {};
 
@@ -1937,7 +1994,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
         SetModelLighting (m_monitor, tiltWorld, m_powerLampOn, kMonitorGlowRgb);
 
-        if (!m_monitor.TiltableVerts().empty())
+        if (!glassOnly && !m_monitor.TiltableVerts().empty())
         {
             hr = m_renderer.DrawStatic (m_monitorTiltMesh,
                                         m_monitor.TiltableVerts().data(),
@@ -2012,7 +2069,9 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
         SceneCamera::Mul44 (m_comp.monitorWorld, m_comp.viewProj, caseMvp);
         SceneCamera::Mul44 (tiltWorld,           m_comp.viewProj, tubeMvp);
 
-        if (!m_pictureDepthVerts.empty())
+        // With no case drawn there is nothing to place in front of the
+        // raster, and the stamp exists only to cut a mouth in that case.
+        if (!glassOnly && !m_pictureDepthVerts.empty())
         {
             // The stamp is the picture's own footprint, so it travels with
             // the tube -- left on the case's placement it opens the mouth
@@ -2073,7 +2132,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
         }
 
         // The power lamp sits in the case's notch, not on the tube.
-        if (!m_monitorLampVerts.empty())
+        if (!glassOnly && !m_monitorLampVerts.empty())
         {
             hr = m_renderer.DrawStatic (m_monitorLampMesh, m_monitorLampVerts.data(), m_monitorLampVerts.size(), m_geometryRev,
                                            caseMvp, false, viewport, true);
@@ -2081,8 +2140,21 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
         }
     }
 
-    hr = DrawLampGlows (m_comp, viewport, true);
-    CHRA (hr);
+    // The disk names go on after every opaque body, and before the glows.
+    // Anything drawn later that writes depth would simply paint over them:
+    // they test depth without writing it, which is what keeps a name from
+    // leaving its transparent rectangle in the buffer.
+    //
+    // Both belong to bodies the glass-only presentation leaves out: the names
+    // are anchored to the drives, and the only glow is the power lamp's.
+    if (!glassOnly)
+    {
+        hr = DrawDiskLabels (m_comp, viewport);
+        CHRA (hr);
+
+        hr = DrawLampGlows (m_comp, viewport, true);
+        CHRA (hr);
+    }
 
 Error:
     // Resolve and composite on EVERY exit, not just the clean one: a failure
@@ -2291,6 +2363,136 @@ HRESULT DeskScene::Render (ID3D11RenderTargetView   * dstRtv,
     if (m_frontPlateSrv != nullptr)
     {
         hr = m_renderer.CompositeFullTarget (m_frontPlateSrv.Get(), m_plateW, m_plateH);
+        CHRA (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetDiskLabel
+//
+//  Makes triangles of the billboard's four world corners.
+//
+//  WORLD SPACE, not the drive's. The quad faces the camera and covers a fixed
+//  number of pixels, so it cannot be expressed in the drive's own frame --
+//  the drive turns under the orbit and the name must not turn with it. Its
+//  placement is solved in DeskSceneLayout, where a test can reach it, and
+//  arrives here already positioned.
+//
+//  The normals stay zero: zero is the renderer's "unlit", and a name should
+//  read the same whatever the room lights are doing to the case behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
+                              const float uv[4])
+{
+    // Two triangles over the corner order the layout hands over -- top-left,
+    // top-right, bottom-left, bottom-right -- with v running down the
+    // texture as the quad runs down the screen. The corner's two bits pick
+    // its edge of the caller's sub-rectangle.
+    static constexpr int                 kTri[6] = { 0, 1, 2, 2, 1, 3 };
+    std::vector<Dxui3DRenderer::Vertex>  next;
+
+
+
+    if (drive < 0 || drive >= 2)
+    {
+        return;
+    }
+
+    if (srv != nullptr && corners != nullptr && uv != nullptr)
+    {
+        for (int index = 0; index < 6; index++)
+        {
+            Dxui3DRenderer::Vertex   v      = {};
+            int                      corner = kTri[index];
+
+            v.x = corners[corner][0];
+            v.y = corners[corner][1];
+            v.z = corners[corner][2];
+            v.u = (corner & 1) ? uv[2] : uv[0];
+            v.v = (corner & 2) ? uv[3] : uv[1];
+            v.r = 1.0f;  v.g = 1.0f;  v.b = 1.0f;  v.a = 1.0f;
+
+            next.push_back (v);
+        }
+    }
+
+    // AN UNCHANGED QUAD COSTS NOTHING. This runs on every composition pass,
+    // and the plate exists precisely so a still scene is not redrawn -- so
+    // invalidating it here unconditionally would retire the cache outright
+    // and put the whole desk back on the GPU every frame.
+    if (m_diskLabelSrv[drive] == srv && m_diskLabelVerts[drive].size() == next.size() &&
+        (next.empty() ||
+         memcmp (m_diskLabelVerts[drive].data(), next.data(),
+                 next.size() * sizeof (Dxui3DRenderer::Vertex)) == 0))
+    {
+        return;
+    }
+
+    m_diskLabelSrv[drive]   = srv;
+    m_diskLabelVerts[drive] = std::move (next);
+
+    // The quad alone, not the scene's furniture: a name that re-places every
+    // time the camera moves must not drag two megabytes of case through the
+    // upload path with it.
+    m_diskLabelRev++;
+    InvalidatePlate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::DrawDiskLabels
+//
+//  Draws each mounted image's name, depth-tested against the scene the passes
+//  before it built.
+//
+//  THE VERTICES ARE ALREADY IN WORLD SPACE, so the transform is the shared
+//  viewProj alone. Every other draw in this file multiplies a device's world
+//  matrix in first; this one must not, or the name would turn with the drive
+//  and the constant pixel size the layout solved for would be undone.
+//
+//  Depth TESTED, never WRITTEN. A name is a transparent decal, and writing
+//  its rectangle into the buffer would let the blank corners occlude the lamp
+//  glows that come after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawDiskLabels (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    for (int drive = 0; drive < comp.driveCount && drive < 2; drive++)
+    {
+        if (m_diskLabelVerts[drive].empty() || m_diskLabelSrv[drive] == nullptr)
+        {
+            continue;
+        }
+
+        // The content view is swapped in for this one draw and put back:
+        // the glass owns it for the rest of the frame.
+        m_renderer.SetContentSrv (m_diskLabelSrv[drive]);
+
+        hr = m_renderer.DrawStatic (m_diskLabelMesh[drive],
+                                    m_diskLabelVerts[drive].data(),
+                                    m_diskLabelVerts[drive].size(),
+                                    m_diskLabelRev, comp.viewProj, true, viewport, true, false);
+
+        m_renderer.SetContentSrv (nullptr);
         CHRA (hr);
     }
 

@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 
 #include "CrtPostProcess.h"
+#include "Render/CurvedDisplayMath.h"
 #include "Render/SceneCamera.h"
 #include "Ui/Scene/DeskSceneLayout.h"
 
@@ -28,6 +29,14 @@ TEST_CLASS (DeskSceneLayoutTests)
 {
 public:
 
+    // The emulated grid, which is what fixes the picture's band on the glass.
+    static constexpr int    kDisplayW         = 560;
+    static constexpr int    kDisplayH         = 384;
+
+    // A boundary point solved to land exactly on a screen edge may round to
+    // either side of it.
+    static constexpr float  kEdgeTolerancePx  = 0.5f;
+
     // Metrics mirroring the real models: Monitor //c 248x280x226 with the
     // generated glass rect, Disk II 155x222x86 (model space X/Y-back/Z-up).
     static DeskSceneMetrics MakeMetrics()
@@ -48,6 +57,58 @@ public:
         metrics.glass.radius  = 2.2f * std::sqrt (95.0f * 95.0f + 60.0f * 60.0f);
 
         return metrics;
+    }
+
+    // The picture's screen bounds: the band sampled densely over the whole
+    // sheet and projected through the composition, so the result is where the
+    // raster's curved corners and bulging edges actually land, not where a
+    // flat rect through the same camera would put them. Deliberately denser
+    // than the solve's own sampling, which is what makes this a check rather
+    // than a restatement of it.
+    static void MeasureBandBoundsPx (const DeskSceneComposition & comp,
+                                     const CurvedDisplaySurface & glass,
+                                     float                        outMinPx[2],
+                                     float                        outMaxPx[2])
+    {
+        constexpr int  kSamples = 17;
+
+        float   bandU0 = 0.0f;
+        float   bandV0 = 0.0f;
+        float   bandU1 = 1.0f;
+        float   bandV1 = 1.0f;
+
+
+
+        CurvedDisplayMath::ComputePictureBand (glass, kDisplayW, kDisplayH,
+                                               bandU0, bandV0, bandU1, bandV1);
+
+        outMinPx[0] = outMinPx[1] =  FLT_MAX;
+        outMaxPx[0] = outMaxPx[1] = -FLT_MAX;
+
+        for (int iu = 0; iu < kSamples; iu++)
+        {
+            for (int iv = 0; iv < kSamples; iv++)
+            {
+                float   fu         = (float) iu / (float) (kSamples - 1);
+                float   fv         = (float) iv / (float) (kSamples - 1);
+                float   modelPt[3] = {};
+                float   worldPt[3] = {};
+                float   px[2]      = {};
+
+                CurvedDisplayMath::ModelPointFromUv (glass,
+                                                     bandU0 + fu * (bandU1 - bandU0),
+                                                     bandV0 + fv * (bandV1 - bandV0),
+                                                     modelPt);
+
+                Assert::IsTrue (SceneCamera::TransformPoint (comp.monitorWorld, modelPt, worldPt));
+                Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, worldPt, comp.viewportPx, px));
+
+                outMinPx[0] = std::min (outMinPx[0], px[0]);
+                outMaxPx[0] = std::max (outMaxPx[0], px[0]);
+                outMinPx[1] = std::min (outMinPx[1], px[1]);
+                outMaxPx[1] = std::max (outMaxPx[1], px[1]);
+            }
+        }
     }
 
     // Projects every world-space corner of a device's remapped model box and
@@ -593,6 +654,436 @@ public:
                 L"the z column must survive the lens untouched");
             Assert::AreEqual (plain[row * 4 + 3], framed[row * 4 + 3], 1e-6f,
                 L"and so must w, or the perspective divide changes meaning");
+        }
+    }
+
+    // Projects a billboard's four world corners and returns their screen
+    // bounds, which is the whole of what the sizing contract is about.
+    static void MeasureQuadPx (const DeskSceneComposition & comp,
+                               const float                  corners[4][3],
+                               RECT                       & outPx)
+    {
+        float  pxMin[2] = {};
+        float  pxMax[2] = {};
+
+        Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, corners[0], comp.viewportPx, pxMin));
+
+        pxMax[0] = pxMin[0];
+        pxMax[1] = pxMin[1];
+
+        for (int corner = 1; corner < 4; corner++)
+        {
+            float  px[2] = {};
+
+            Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, corners[corner], comp.viewportPx, px));
+
+            pxMin[0] = std::min (pxMin[0], px[0]);  pxMax[0] = std::max (pxMax[0], px[0]);
+            pxMin[1] = std::min (pxMin[1], px[1]);  pxMax[1] = std::max (pxMax[1], px[1]);
+        }
+
+        outPx.left   = (LONG) std::lround (pxMin[0]);
+        outPx.top    = (LONG) std::lround (pxMin[1]);
+        outPx.right  = (LONG) std::lround (pxMax[0]);
+        outPx.bottom = (LONG) std::lround (pxMax[1]);
+    }
+
+
+    // The clip w of a world point: its distance in front of the eye, which
+    // is what the billboard's four corners must all agree on.
+    static float MeasureClipW (const DeskSceneComposition & comp, const float worldPt[3])
+    {
+        return worldPt[0] * comp.viewProj[3]  + worldPt[1] * comp.viewProj[7] +
+               worldPt[2] * comp.viewProj[11] + comp.viewProj[15];
+    }
+
+
+    TEST_METHOD (Camera_Basis_Is_Orthonormal_And_Square_To_The_Gaze)
+    {
+        DeskSceneMetrics      metrics  = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport = { 0, 0, 1600, 1000 };
+        float                 right[3] = {};
+        float                 up[3]    = {};
+        float                 rl       = 0.0f;
+        float                 ul       = 0.0f;
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        DeskSceneLayout::GetCameraBasis (comp.view, right, up);
+
+        rl = std::sqrt (right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
+        ul = std::sqrt (up[0] * up[0] + up[1] * up[1] + up[2] * up[2]);
+
+        Assert::AreEqual (1.0f, rl, 1e-5f, L"camera right must be unit length");
+        Assert::AreEqual (1.0f, ul, 1e-5f, L"camera up must be unit length");
+
+        Assert::AreEqual (0.0f, right[0] * up[0] + right[1] * up[1] + right[2] * up[2], 1e-5f,
+            L"right and up must be square to each other, or the quad shears");
+    }
+
+
+    TEST_METHOD (World_Per_Pixel_Grows_With_Distance)
+    {
+        DeskSceneMetrics      metrics    = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport   = { 0, 0, 1600, 1000 };
+        float                 anchor[3]  = {};
+        float                 farther[3] = {};
+        float                 nearX      = 0.0f;
+        float                 nearY      = 0.0f;
+        float                 farX       = 0.0f;
+        float                 farY       = 0.0f;
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        anchor[0] = comp.driveLabelWorld[0][0];
+        anchor[1] = comp.driveLabelWorld[0][1];
+        anchor[2] = comp.driveLabelWorld[0][2];
+
+        // Straight back along the gaze, which in this world frame is -Z.
+        farther[0] = anchor[0];
+        farther[1] = anchor[1];
+        farther[2] = anchor[2] - 500.0f;
+
+        Assert::IsTrue (DeskSceneLayout::GetWorldPerPixel (comp, anchor,  nearX, nearY));
+        Assert::IsTrue (DeskSceneLayout::GetWorldPerPixel (comp, farther, farX,  farY));
+
+        Assert::IsTrue (farY > nearY, L"a pixel must cover more world further away");
+        Assert::IsTrue (farX > nearX, L"and the same across as down");
+    }
+
+
+    TEST_METHOD (World_Per_Pixel_Follows_The_Zoom)
+    {
+        DeskSceneMetrics      metrics  = MakeMetrics();
+        DeskSceneComposition  plain;
+        DeskSceneComposition  zoomed;
+        DeskSceneView         view;
+        RECT                  viewport = { 0, 0, 1600, 1000 };
+        float                 plainX   = 0.0f;
+        float                 plainY   = 0.0f;
+        float                 zoomX    = 0.0f;
+        float                 zoomY    = 0.0f;
+
+
+
+        view.zoom = 2.0f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, plain));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, zoomed, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::GetWorldPerPixel (plain,  plain.driveLabelWorld[0],  plainX, plainY));
+        Assert::IsTrue (DeskSceneLayout::GetWorldPerPixel (zoomed, zoomed.driveLabelWorld[0], zoomX,  zoomY));
+
+        // A doubled zoom halves the world a pixel covers. Reading the scale
+        // off kFovY instead of the composition's own proj would miss this and
+        // size the name wrong at every zoom but 1.0.
+        Assert::AreEqual (plainY * 0.5f, zoomY, plainY * 0.01f,
+            L"a doubled zoom must halve the world per pixel");
+        Assert::AreEqual (plainX * 0.5f, zoomX, plainX * 0.01f,
+            L"and the same across");
+    }
+
+
+    TEST_METHOD (World_Per_Pixel_Rejects_A_Point_Behind_The_Eye)
+    {
+        DeskSceneMetrics      metrics   = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport  = { 0, 0, 1600, 1000 };
+        float                 behind[3] = {};
+        float                 perPxX    = 1.0f;
+        float                 perPxY    = 1.0f;
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        // Well behind the camera, which sits forward of the whole scene.
+        behind[0] = comp.driveLabelWorld[0][0];
+        behind[1] = comp.driveLabelWorld[0][1];
+        behind[2] = comp.driveLabelWorld[0][2] + 100000.0f;
+
+        Assert::IsFalse (DeskSceneLayout::GetWorldPerPixel (comp, behind, perPxX, perPxY));
+
+        Assert::AreEqual (0.0f, perPxX, L"a refused query must not leave a stale scale behind");
+        Assert::AreEqual (0.0f, perPxY, L"and the same down");
+    }
+
+
+    TEST_METHOD (Label_Quad_Covers_The_Requested_Pixels)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 120, 16 };
+        int                   gapPx         = 4;
+        float                 corners[4][3] = {};
+        RECT                  quadPx        = {};
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, labelPx, gapPx, corners));
+
+        MeasureQuadPx (comp, corners, quadPx);
+
+        Assert::AreEqual (labelPx.cx, quadPx.right - quadPx.left,
+            L"the quad must be exactly as wide as it was asked for");
+        Assert::AreEqual (labelPx.cy, quadPx.bottom - quadPx.top,
+            L"and exactly as tall");
+
+        // Centered on the anchor and hung the gap below it: the placement the
+        // chrome strip had, which is what keeps the tooltip rect honest.
+        Assert::AreEqual (comp.driveLabelPx[0].x, (quadPx.left + quadPx.right) / 2,
+            L"centered on the drive's anchor");
+        Assert::AreEqual (comp.driveLabelPx[0].y + gapPx, quadPx.top,
+            L"hung the gap below that anchor");
+    }
+
+
+    TEST_METHOD (Label_Quad_Keeps_Its_Pixel_Size_Through_The_Orbit)
+    {
+        DeskSceneMetrics      metrics          = MakeMetrics();
+        DeskSceneComposition  front;
+        DeskSceneComposition  turned;
+        DeskSceneView         view;
+        RECT                  viewport         = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx          = { 120, 16 };
+        float                 frontQuad[4][3]  = {};
+        float                 turnedQuad[4][3] = {};
+        RECT                  frontPx          = {};
+        RECT                  turnedPx         = {};
+
+
+
+        // Forty degrees of yaw is where the bleed showed, and where the
+        // reverted in-scene quad had foreshortened the name away.
+        view.orbitYawRad = 0.6981317f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, front));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, turned, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (front,  0, labelPx, 4, frontQuad));
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (turned, 0, labelPx, 4, turnedQuad));
+
+        MeasureQuadPx (front,  frontQuad,  frontPx);
+        MeasureQuadPx (turned, turnedQuad, turnedPx);
+
+        Assert::AreEqual (frontPx.right - frontPx.left, turnedPx.right - turnedPx.left,
+            L"the name must not narrow as the scene turns");
+        Assert::AreEqual (frontPx.bottom - frontPx.top, turnedPx.bottom - turnedPx.top,
+            L"nor shorten");
+    }
+
+
+    TEST_METHOD (Label_Quad_Keeps_Its_Pixel_Size_At_Any_Zoom)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        DeskSceneView         view;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 120, 16 };
+        float                 corners[4][3] = {};
+        RECT                  quadPx        = {};
+
+
+
+        view.zoom = 2.5f;
+        view.panY = -0.3f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, labelPx, 4, corners));
+
+        MeasureQuadPx (comp, corners, quadPx);
+
+        Assert::AreEqual (labelPx.cx, quadPx.right - quadPx.left,
+            L"leaning in must not enlarge the type");
+        Assert::AreEqual (labelPx.cy, quadPx.bottom - quadPx.top,
+            L"nor stretch it");
+    }
+
+
+    TEST_METHOD (Label_Quad_Corners_Share_The_Anchor_Depth)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        DeskSceneView         view;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 200, 20 };
+        float                 corners[4][3] = {};
+        float                 anchorW       = 0.0f;
+
+
+
+        view.orbitYawRad   = 0.6f;
+        view.orbitPitchRad = 0.2f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 1, labelPx, 4, corners));
+
+        anchorW = MeasureClipW (comp, comp.driveLabelWorld[1]);
+
+        // ONE depth across the whole quad is what makes the occlusion exact.
+        // A quad tilted in depth would be cut by the case along a line that
+        // has nothing to do with where the case crosses the name on screen.
+        for (int corner = 0; corner < 4; corner++)
+        {
+            Assert::AreEqual (anchorW, MeasureClipW (comp, corners[corner]), anchorW * 1e-4f,
+                L"every corner must sit at the drive's own distance");
+        }
+    }
+
+
+    TEST_METHOD (Label_Quad_Refuses_An_Absent_Drive)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 120, 16 };
+        SIZE                  emptyPx       = { 0, 0 };
+        float                 corners[4][3] = {};
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 1, metrics, comp));
+
+        Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 1, labelPx, 4, corners),
+            L"a drive the composition never placed has no name to hang");
+        Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, -1, labelPx, 4, corners));
+        Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, emptyPx, 4, corners),
+            L"an empty measurement is not a quad");
+    }
+
+
+    TEST_METHOD (Fullscreen_Shows_The_Whole_Picture_At_Every_Screen_Shape)
+    {
+        // The defect this pins: the glass is only about 1.4:1 and the raster
+        // nearly fills it, so a camera positioned to COVER a 16:9 screen with
+        // the glass crops the glass vertically and removes a dozen scanlines
+        // from each end of the picture, in text mode as well as graphics.
+        // Every screen shape must show the whole raster.
+        const RECT  screens[] = { {   0,   0, 1024,  768 },     // 4:3
+                                  {   0,   0, 1440,  960 },     // 3:2
+                                  {   0,   0, 1920, 1200 },     // 16:10
+                                  {   0,   0, 1920, 1080 },     // 16:9
+                                  {   0,   0, 3440, 1440 },     // 21:9
+                                  { 100, 100, 1180, 2020 } };   // portrait, offset origin
+
+
+
+        for (const RECT & screen : screens)
+        {
+            DeskSceneMetrics      metrics    = MakeMetrics();
+            DeskSceneComposition  comp;
+            float                 bandMin[2] = {};
+            float                 bandMax[2] = {};
+
+            Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                       metrics, comp));
+
+            MeasureBandBoundsPx (comp, metrics.glass, bandMin, bandMax);
+
+            Assert::IsTrue (bandMin[0] >= (float) screen.left   - kEdgeTolerancePx,
+                L"the picture's left edge is off screen");
+            Assert::IsTrue (bandMax[0] <= (float) screen.right  + kEdgeTolerancePx,
+                L"the picture's right edge is off screen");
+            Assert::IsTrue (bandMin[1] >= (float) screen.top    - kEdgeTolerancePx,
+                L"the picture's top edge is off screen");
+            Assert::IsTrue (bandMax[1] <= (float) screen.bottom + kEdgeTolerancePx,
+                L"the picture's bottom edge is off screen");
+        }
+    }
+
+
+    TEST_METHOD (Fullscreen_Fills_A_Wide_Screen_Top_To_Bottom)
+    {
+        // Contained, not merely uncropped: on a screen wider than the glass
+        // the picture's own height is the binding constraint, so it reaches
+        // both edges and all the slack falls on the sides.
+        DeskSceneMetrics      metrics    = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  screen     = { 0, 0, 1920, 1080 };
+        float                 bandMin[2] = {};
+        float                 bandMax[2] = {};
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                   metrics, comp));
+
+        MeasureBandBoundsPx (comp, metrics.glass, bandMin, bandMax);
+
+        Assert::AreEqual (0.0f,    bandMin[1], kEdgeTolerancePx);
+        Assert::AreEqual (1080.0f, bandMax[1], kEdgeTolerancePx);
+        Assert::IsTrue   (bandMin[0] > 0.0f, L"a 16:9 screen is wider than the picture");
+    }
+
+
+    TEST_METHOD (Fullscreen_Glass_Still_Covers_A_Screen_Shaped_Like_The_Glass)
+    {
+        // And where covering costs no picture, nothing changed: the glass
+        // covers the whole screen and the monitor's case stays off it.
+        DeskSceneMetrics      metrics = MakeMetrics();
+        DeskSceneComposition  comp;
+        float                 glassW  = metrics.glass.x1 - metrics.glass.x0;
+        float                 glassH  = metrics.glass.z1 - metrics.glass.z0;
+        RECT                  screen  = { 0, 0, (LONG) lroundf (1200.0f * glassW / glassH), 1200 };
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                   metrics, comp));
+
+        Assert::AreEqual (screen.left,   comp.glassRectPx.left);
+        Assert::AreEqual (screen.top,    comp.glassRectPx.top);
+        Assert::AreEqual (screen.right,  comp.glassRectPx.right);
+        Assert::AreEqual (screen.bottom, comp.glassRectPx.bottom);
+    }
+
+
+    TEST_METHOD (Fullscreen_Asks_For_The_Glass_Alone_And_The_Desk_Does_Not)
+    {
+        // The flag the renderer reads to skip the case, the bezel and the
+        // lamp and put black beside the tube instead.
+        DeskSceneMetrics      metrics = MakeMetrics();
+        DeskSceneComposition  full;
+        DeskSceneComposition  desk;
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::ComputeGlassFill (screen, 96, kDisplayW, kDisplayH,
+                                                                   metrics, full));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (screen, 96, 2, metrics, desk));
+
+        Assert::AreEqual (1, full.glassOnly);
+        Assert::AreEqual (0, desk.glassOnly, L"the windowed desk shows the whole monitor");
+    }
+
+
+    TEST_METHOD (Fullscreen_Refuses_An_Empty_Screen_Or_Display)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  screen  = { 0, 0, 1920, 1080 };
+
+
+
+        Assert::AreEqual (S_FALSE, DeskSceneLayout::ComputeGlassFill (RECT{ 0, 0, 0, 1080 }, 96,
+                                                                      kDisplayW, kDisplayH, metrics, comp));
+
+        {
+            UnitTestHelpers::ExpectedEhmAssert  expect;
+
+            Assert::AreEqual (E_INVALIDARG, DeskSceneLayout::ComputeGlassFill (screen, 96, 0, kDisplayH,
+                                                                               metrics, comp));
         }
     }
 

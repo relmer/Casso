@@ -524,6 +524,10 @@ Casso --machine Apple2e --disk1 "Apple2\Demos\casso-rocks.woz"
 
 # Both drives
 Casso --machine Apple2c --disk1 "side-a.woz" --disk2 "side-b.woz"
+
+# Every option, in a dialog. Anything Casso cannot read gets the same dialog
+# and no emulator.
+Casso --help
 ```
 
 Machine names come from `Resources/Machines/<Name>/`: `Apple2`, `Apple2Plus`,

@@ -52,23 +52,33 @@ public:
     // crop. A viewport at least as wide as the content keeps the fov as-is.
     static float FitContainFovY   (float fovY, float contentAspect, float viewportAspect);
 
-    // The fullscreen glass-fill camera: straight-on at the centered rect
-    // (centerX/centerY world, width x height, front plane at `planeZ`), with
-    // the standoff solved so the rect FILLS the frustum -- cover, not
-    // contain: the axis demanding the nearer eye wins and the other axis
-    // crops offscreen. Writes view, proj, and their product.
-    static void  SolveGlassFillCamera (float centerX,
-                                       float centerY,
-                                       float width,
-                                       float height,
-                                       float planeZ,
-                                       float fovY,
-                                       float aspect,
-                                       float zn,
-                                       float zf,
-                                       float outView[16],
-                                       float outProj[16],
-                                       float outViewProj[16]);
+    // The straight-on camera distance at which a centered `width` x `height`
+    // rect on the aim plane COVERS the frustum: the shorter of the two
+    // per-axis distances, which leaves the other axis cropped offscreen.
+    static float SolveCoverStandoff (float width, float height, float fovY, float aspect);
+
+    // And the distance at which ONE point stays INSIDE the frustum: `dx`/`dy`
+    // off the aim axis, `towardEye` in front of the aim plane (which
+    // magnifies its offset). The longer of the two per-axis distances applies.
+    // Taking the maximum over a shape's boundary contains the shape including
+    // its curvature, where a rect solve on its flat bounds would clip the
+    // bulge.
+    static float SolveContainStandoff (float dx, float dy, float towardEye, float fovY, float aspect);
+
+    // The straight-on camera itself: eye `standoff` in front of the aim point
+    // (centerX/centerY on the plane at `planeZ`), looking back at it. Writes
+    // view, proj, and their product.
+    static void  SolveStraightOnCamera (float centerX,
+                                        float centerY,
+                                        float planeZ,
+                                        float standoff,
+                                        float fovY,
+                                        float aspect,
+                                        float zn,
+                                        float zf,
+                                        float outView[16],
+                                        float outProj[16],
+                                        float outViewProj[16]);
 
     // world point * viewProj -> pixel position inside `viewportPx`. Returns
     // false when the point is at or behind the eye plane (w <= 0).

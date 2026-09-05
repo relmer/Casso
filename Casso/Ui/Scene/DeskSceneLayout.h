@@ -134,6 +134,13 @@ struct DeskSceneComposition
     float  monitorWorld[16] = {};
     float  driveWorld[2][16] = {};
     int    driveCount       = 0;
+
+    // The fullscreen presentation: draw the tube and nothing else, on black.
+    // An int rather than a bool because compositions are compared whole with
+    // memcmp -- the plate cache keys off one -- and a bool would add three
+    // bytes of padding to that comparison that nothing writes.
+    int    glassOnly        = 0;
+
     float  sceneScale       = 0.0f;   // glass px height / (384 dp at dpi)
     RECT   glassRectPx      = {};     // projected glass bounds -- the CRT target rect
     RECT   sceneRectPx      = {};     // projected scene bounds -- what the composition occupies
@@ -145,6 +152,12 @@ struct DeskSceneComposition
     // swell and swing as it turns, so chrome hung from them swims; one
     // point rides the drive rigidly through any orbit.
     POINT  driveLabelPx[2]  = {};
+
+    // The same anchor in WORLD space, which is what a depth-tested billboard
+    // needs and a screen point cannot give. The depth is the whole difficulty
+    // here: the name has to sit at the drive's own distance before the
+    // monitor's case can stand in front of it.
+    float  driveLabelWorld[2][3] = {};
 };
 
 
@@ -176,12 +189,19 @@ public:
     // show you a differently-shaped part than the composition does.
     static void     ApplyViewTransform (const DeskSceneView & view, float proj[16]);
 
-    // The fullscreen presentation: a straight-on camera whose frustum the
-    // GLASS fills (cover, not contain -- the monitor body crops offscreen),
-    // no drives in the composition (the overlay strip presents those
-    // separately). Same S_FALSE contract for an empty viewport.
+    // The fullscreen presentation: a straight-on camera at the closest
+    // distance that does not crop the picture, showing the tube alone on
+    // black (the composition sets `glassOnly`, and the drives come from the
+    // overlay strip). Closest means the glass covers the viewport; on a
+    // viewport wide enough that covering would crop the raster, the picture's
+    // own containment distance applies instead and black fills what that
+    // leaves beside the tube. `displayW` x `displayH` is the emulated grid,
+    // which determines the picture's band on the glass. Same S_FALSE contract
+    // for an empty viewport.
     static HRESULT  ComputeGlassFill (const RECT             & viewportPx,
                                       UINT                     dpi,
+                                      int                      displayW,
+                                      int                      displayH,
                                       const DeskSceneMetrics & metrics,
                                       DeskSceneComposition   & out);
 
@@ -291,6 +311,35 @@ public:
                                             int                          displayW,
                                             int                          displayH);
 
+    // The camera's own right and up axes in WORLD space, read off the view
+    // matrix's rotation. Both are unit length and square to the gaze, so a
+    // quad spanned by them faces the camera head-on and all four of its
+    // corners share one depth.
+    static void     GetCameraBasis (const float view[16], float outRight[3], float outUp[3]);
+
+    // How much world one screen pixel spans at `worldPt`'s depth, across and
+    // down. Returns false for a point at or behind the eye plane. Read off
+    // the projection the composition actually carries, so the user's zoom is
+    // already in the answer rather than something a caller has to reapply.
+    static bool     GetWorldPerPixel (const DeskSceneComposition & comp,
+                                      const float                  worldPt[3],
+                                      float                      & outPerPxX,
+                                      float                      & outPerPxY);
+
+    // The four world corners of one drive's name billboard, covering exactly
+    // `labelPx` pixels starting `gapPx` below that drive's anchor. Corners
+    // come back top-left, top-right, bottom-left, bottom-right. Returns false
+    // when the anchor does not project.
+    //
+    // Pixels go IN and world corners come out, which is the inversion the
+    // whole fix rests on: the name is specified in the units it has to be
+    // legible in, and the scene is told where that lands.
+    static bool     TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
+                                           int                          drive,
+                                           const SIZE                 & labelPx,
+                                           int                          gapPx,
+                                           float                        outCorners[4][3]);
+
 private:
     static void     SolveStandoff (const float             sceneMin[3],
                                    const float             sceneMax[3],
@@ -308,6 +357,17 @@ private:
                                          float                   tanHalfY,
                                          float                   tanHalfX,
                                          float                 & outDist);
+
+    // The distance at which the WHOLE picture is on screen. Sampled over the
+    // picture band's boundary rather than solved from its flat rect, because
+    // the band lies on a curved sheet: the sag places each edge's midpoint
+    // nearer the camera, and a nearer point projects further off-axis than
+    // the corners on either side of it.
+    static float    SolvePictureStandoff (const DeskSceneMetrics & metrics,
+                                          const float              monitorWorld[16],
+                                          int                      displayW,
+                                          int                      displayH,
+                                          float                    aspect);
 
     // One full composition solve at a specific drive drop; Compute wraps it
     // with the gap-reserving correction.

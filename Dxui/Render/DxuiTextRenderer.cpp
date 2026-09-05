@@ -467,6 +467,28 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetDrawToTextureSize
+//
+//  Reports the off-screen target's real dimensions, which is what a caller
+//  needs to map texture coordinates over the part of it that was drawn. The
+//  texture is grown and never shrunk, so this is >= whatever the last
+//  BeginDrawToTexture asked for, and the difference is uninitialized surface
+//  a 0..1 mapping would sample.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const
+{
+    outWidthPx  = (m_textureTarget != nullptr) ? m_textureW : 0;
+    outHeightPx = (m_textureTarget != nullptr) ? m_textureH : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BeginDrawDeferred
 //
 //  Points the context at a fresh command list, so everything this pass draws
@@ -1176,6 +1198,16 @@ Error:
 //  Color fonts are enabled, so emoji and multi-color glyphs render in color
 //  rather than as flat silhouettes.
 //
+//  A BOX WITH NO AREA DRAWS NOTHING, and says so here rather than at the
+//  DirectWrite call. Widgets size themselves from a client rect, and a window
+//  that has none yet -- one shown minimized, or mid-resize -- gives every one
+//  of them a zero width; a widget that then insets that width by its padding
+//  passes a NEGATIVE one down. CreateTextLayout refuses a negative extent with
+//  E_INVALIDARG, so without this the first paint of such a window fails an
+//  assertion, and it is a paint, so it fails again on the next frame and the
+//  next. Nothing is lost by declining: an unwrapped draw is clipped to its box
+//  and an empty box shows none of it anyway.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiTextRenderer::DrawString (
@@ -1208,6 +1240,8 @@ HRESULT DxuiTextRenderer::DrawString (
     CBRA (m_d2dContext);
     CBRA (m_drawing);
     CBRAEx (text, E_INVALIDARG);
+
+    BAIL_OUT_IF (widthDip <= 0.0f || heightDip <= 0.0f, S_OK);
 
     hr = EnsureTextFormat (fontFamily, fontSizeDip, weight, &rawFmt);
     CHRA (hr);
