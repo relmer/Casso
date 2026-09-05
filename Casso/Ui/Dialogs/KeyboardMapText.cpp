@@ -51,7 +51,7 @@ std::vector<DialogTextRun> KeyboardMapText::BuildBody (const Machine & machine)
     if (machine.hasGamePort)
     {
         body.push_back ({ L"", false, L"" });
-        body.push_back ({ L"With Map Arrows to Joystick on:", false, L"" });
+        body.push_back ({ L"In joystick mode:", false, L"" });
 
         row.text = L"Arrow keys";  row.rightText = L"Joystick, not the keyboard";
         body.push_back (row);
