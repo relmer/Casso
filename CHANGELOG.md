@@ -79,6 +79,27 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **Answering the "disk modified outside Casso" question could act on the wrong
+  disk.** The answer was carried out against whatever was in the drive, so
+  taking the disk out and putting another in while the question stood moved the
+  new disk onto the departed one's timestamped copy -- which the next write
+  then overwrote. A change arriving from a build under the open question also
+  swapped the disk out from under it, leaving "keep your current version"
+  meaning the other program's version. A question now holds the drive until it
+  is answered, and the answer lands on whatever is on disk when it comes.
+- **The question never appeared if any dialog was open.** Settings, a file
+  picker or the About box swallowed it, and that drive was never asked about
+  again until the disk was ejected. Notifications and mount results went the
+  same way. The same held when the question was raised before the main window
+  existed.
+- **Pressing Enter on "mounted disk has been removed" discarded the disk.** So
+  did closing the dialog. With the file gone, the copy in the drive was the
+  only one left. Both now offer to save it, and only an explicit Discard lets
+  it go.
+- **A disk found missing partway through a reload offered buttons that did
+  nothing.** The offer to save it went to the notice strip, which routes no
+  answers. It is a question now, like the one raised when a change is first
+  noticed.
 - **A dismissed "disk modified outside Casso" question dated the next copy
   after it.** Putting the question reserves the name the preserved copy
   would take, stamped with that moment. Waving the question away left the
