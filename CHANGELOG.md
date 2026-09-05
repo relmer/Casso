@@ -85,6 +85,11 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The paddle-capture banner covered the drive widgets on every machine but
+  the //c.** It was hung above the //c's switch strip, which collapses to
+  nothing everywhere else, so the notice fell back to the window's bottom
+  edge and sat on top of the drive band. It now clears whichever bottom band
+  is actually there.
 - **Answering the "disk modified outside Casso" question could act on the wrong
   disk.** The answer was carried out against whatever was in the drive, so
   taking the disk out and putting another in while the question stood moved the

@@ -2339,15 +2339,30 @@ void EmulatorShell::SyncCaptureBanner()
 
     // ABOVE THE BOTTOM CHROME, not on it. Hung from the client's own bottom
     // edge the notice straddled the switch bar, half over the scene and half
-    // over a shell band, reading as neither. Measured off the switch band
-    // rather than the drive band: under the desk scene the drive band is
-    // empty -- the scene owns the drives -- so it reports nothing to sit
-    // above. The picture is not available either; the CRT pass paints over
-    // this chrome.
+    // over a shell band, reading as neither -- and on a machine with no
+    // switch bar it covered the drive widgets outright. Measured off
+    // whichever bottom band is topmost, because either can be collapsed to
+    // nothing: the switch strip exists only on the //c, and the drive band
+    // is empty under the desk scene, where the scene owns the drives. A
+    // collapsed band reports bottom == top and is skipped. The picture is
+    // not available as a floor either; the CRT pass paints over this chrome.
     {
-        RECT  bar    = m_switchBand.GetBounds();
-        LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
-                     ? bar.top : client.bottom;
+        RECT  strip  = m_switchBand.GetBounds();
+        RECT  drives = m_driveBand.GetBounds();
+        LONG  bottom = client.bottom;
+
+        if (!m_d3dRenderer.IsFullscreen())
+        {
+            if (strip.bottom > strip.top && strip.top < bottom)
+            {
+                bottom = strip.top;
+            }
+
+            if (drives.bottom > drives.top && drives.top < bottom)
+            {
+                bottom = drives.top;
+            }
+        }
 
         rc.left   = client.left;
         rc.right  = client.right;
