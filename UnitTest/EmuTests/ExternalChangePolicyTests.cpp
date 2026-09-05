@@ -417,13 +417,18 @@ public:
         Assert::IsTrue (report.message.find (L"Your disk has been renamed to")
                             != std::wstring::npos);
 
-        //  The file once, as everywhere else. THE DRIVE APPEARS TWICE HERE AND
-        //  IS MEANT TO: once identifying the disk, once as the destination of
-        //  the remount, which is a fact about what was done and not a repeat of
-        //  who it was done to.
-        Assert::AreEqual ((size_t) 1, CountOf (report.message, L"Loader.dsk"));
+        //  TWICE EACH HERE, AND MEANT TO BE. This report is the only one that
+        //  describes two files, so it has to distinguish them: the drive is
+        //  printed again as the destination of the remount, and the original is
+        //  printed again to say that nothing was done to it. Both are facts
+        //  about what happened rather than repeats of who it happened to, which
+        //  is the repetition the question was rewritten to lose.
+        Assert::AreEqual ((size_t) 2, CountOf (report.message, L"Loader.dsk"));
         Assert::AreEqual ((size_t) 2, CountOf (report.message, L"Drive 1"));
         Assert::IsTrue (report.message.find (L"remounted in Drive 1")
+                            != std::wstring::npos);
+        Assert::IsTrue (report.message.find (L"No changes were made to the other "
+                                             L"program's modified version of Loader.dsk.")
                             != std::wstring::npos);
 
         //  The folder is not repeated into the sentence; the file is enough,
@@ -578,12 +583,13 @@ public:
 
 
         Assert::IsTrue (before.message.find (L"It will be renamed") != std::wstring::npos);
-        Assert::IsTrue (after.message.find  (L"We've renamed your disk") != std::wstring::npos);
+        Assert::IsTrue (after.message.find  (L"Your disk has been renamed")
+                            != std::wstring::npos);
 
         //  And neither one says the other's sentence. The rename is reported
         //  once, in the tense it actually happened in.
         Assert::IsTrue (after.message.find  (L"It will be renamed") == std::wstring::npos);
-        Assert::IsTrue (before.message.find (L"We've renamed your disk") == std::wstring::npos);
+        Assert::IsTrue (before.message.find (L"has been renamed") == std::wstring::npos);
 
         //  NOTHING MENTIONS UNSAVED WRITES. It used to open with "your writes
         //  to it hadn't been saved yet", which describes a write cache the
@@ -597,6 +603,51 @@ public:
         //  The new name is on the screen once either way.
         Assert::AreEqual ((size_t) 1, CountOf (after.message,  L"Loader.20260830-014233-01.dsk"));
         Assert::AreEqual ((size_t) 1, CountOf (before.message, L"Loader.20260830-014233-01.dsk"));
+    }
+
+
+
+    //  ONE VOICE ACROSS THE FAMILY. The notices used to mix "we'll rename it",
+    //  "we've renamed your disk" and "it's already saved as" -- three ways of
+    //  reporting one event, which reads as three different events. The disk is
+    //  the subject everywhere and it is acted upon, so the only thing that
+    //  varies is whether the rename has happened yet.
+    TEST_METHOD (EveryNoticePutsTheRenameTheSameWay)
+    {
+        const ChangePrompt  ahead[] = {
+            ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask, "Work.x.dsk", false),
+        };
+        const ChangePrompt  done[] = {
+            ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask, "Work.x.dsk", true),
+            ChangePrompt::ComposePickUpReport ("Work.dsk", 0, false, "Apple //e",
+                                               "Work.x.dsk"),
+            ChangePrompt::ComposeConflictReport ("Work.dsk", 0, "Work.x.dsk"),
+        };
+
+
+
+        for (const ChangePrompt & prompt : ahead)
+        {
+            Assert::IsTrue (prompt.message.find (L"will be renamed to Work.x.dsk")
+                                != std::wstring::npos,
+                            (L"not the shared wording: " + prompt.message).c_str());
+        }
+
+        for (const ChangePrompt & prompt : done)
+        {
+            Assert::IsTrue (prompt.message.find (L"has been renamed to Work.x.dsk")
+                                != std::wstring::npos,
+                            (L"not the shared wording: " + prompt.message).c_str());
+        }
+
+        //  AND NOBODY SPEAKS FOR CASSO IN THE FIRST PERSON. "We saved", "we've
+        //  renamed" and "we'll rename" all put an actor in front of a fact the
+        //  user only needs the result of.
+        for (const ChangePrompt & prompt : done)
+        {
+            Assert::IsTrue (prompt.message.find (L"We've") == std::wstring::npos,
+                            (L"Casso speaks for itself: " + prompt.message).c_str());
+        }
     }
 
 

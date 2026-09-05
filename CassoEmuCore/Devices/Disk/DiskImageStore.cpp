@@ -818,7 +818,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
             //  question. Reserving happens once, wherever it happens first.
             preservedPath = entry.preservedPath;
 
-            hrKeep = PreserveHeldVersion (entry, preservedPath);
+            hrKeep = SaveLoadedImage (entry, preservedPath);
 
             //  A preserve that did not happen stops the write. The image KEEPS
             //  ITS DIRTY BIT, which is the difference between refusing and
@@ -2141,7 +2141,7 @@ void DiskImageStore::ApplyPendingPickUpToBay (int slot, int drive)
     //  side happened to be quicker.
     if (action == ChangeAction::Conflict)
     {
-        hr = PreserveHeldVersion (entry, entry.preservedPath);
+        hr = SaveLoadedImage (entry, entry.preservedPath);
 
         if (FAILED (hr))
         {
@@ -2445,7 +2445,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     {
     case ChangeAction::TakeUpInPlace:
     case ChangeAction::Restart:
-        hr = TakeUpContents (slot, drive, bytes);
+        hr = MountExternallyModifiedDisk (slot, drive, bytes);
 
         if (SUCCEEDED (hr))
         {
@@ -2477,7 +2477,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         //  disk and leave the first orphaned.
         if (!entry.preservedWritten)
         {
-            hr = PreserveHeldVersion (entry, entry.preservedPath);
+            hr = SaveLoadedImage (entry, entry.preservedPath);
 
             if (FAILED (hr))
             {
@@ -2595,7 +2595,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::TakeUpContents
+//  DiskImageStore::MountExternallyModifiedDisk
 //
 //  Swaps a mounted image's contents for the ones on disk.
 //
@@ -2609,7 +2609,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::TakeUpContents (int slot, int drive, const vector<Byte> & bytes)
+HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes)
 {
     HRESULT                  hr         = S_OK;
     Entry                  & entry      = GetEntry (slot, drive);
@@ -2930,7 +2930,7 @@ HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::PreserveHeldVersion
+//  DiskImageStore::SaveLoadedImage
 //
 //  Writes what the bay is holding to a file of its own.
 //
@@ -2939,7 +2939,7 @@ HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::PreserveHeldVersion (Entry & entry, string & outPath)
+HRESULT DiskImageStore::SaveLoadedImage (Entry & entry, string & outPath)
 {
     HRESULT       hr = S_OK;
     vector<Byte>  bytes;

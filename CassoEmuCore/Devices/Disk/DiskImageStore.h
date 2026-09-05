@@ -489,7 +489,7 @@ private:
     //
     //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
     //  point of preserving it is that the file no longer holds this version.
-    HRESULT        PreserveHeldVersion (Entry & entry, string & outPath);
+    HRESULT        SaveLoadedImage (Entry & entry, string & outPath);
 
     //  Writes bytes that came off the file to a preserved copy, for the other
     //  direction: the emulator is about to write over an external change it
@@ -523,7 +523,7 @@ private:
     //  precise loss this feature exists to prevent. The new bytes are loaded
     //  into a fresh image first, so a load that fails leaves the mounted disk
     //  exactly as it was.
-    HRESULT        TakeUpContents (int slot, int drive, const vector<Byte> & bytes);
+    HRESULT        MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes);
 
     //  Registers and drops the watch on a bay's directory.
     //

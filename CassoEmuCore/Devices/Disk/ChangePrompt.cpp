@@ -165,7 +165,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         //  name, which is exactly what happened.
         if (copyAlreadyWritten && !copy.empty())
         {
-            prompt.message += L"\n\nWe've renamed your disk to " + copy + L".";
+            prompt.message += L"\n\nYour disk has been renamed to " + copy + L".";
         }
 
         prompt.message += L"\n\nInsert the modified disk to use the other program's "
@@ -255,7 +255,7 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
     //  reported: it has a new name, and here it is.
     if (!copy.empty())
     {
-        prompt.message += L" We've renamed your disk to " + copy + L".";
+        prompt.message += L" Your disk has been renamed to " + copy + L".";
     }
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
@@ -300,7 +300,8 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
     prompt.message += L"\n\nYour disk has been renamed to " + copy
                     + L" to avoid a conflict with the other program, and has been "
                       L"remounted in " + where
-                    + L". The modified file is left as the other program wrote it.";
+                    + L". No changes were made to the other program's modified version "
+                      L"of " + file + L".";
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
 
