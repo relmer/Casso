@@ -120,6 +120,10 @@ public:
     HRESULT       Flush             (int slot, int drive);
     HRESULT       FlushAll          ();
 
+    //  The same, for the two moments that cannot ask: a bay being emptied and
+    //  a process on its way out.
+    HRESULT       FlushAllForClosing ();
+
     //  Sets a mounted WOZ's write-protect flag in its backing file by patching
     //  the single byte that carries it -- read the file, set INFO's flag byte,
     //  recompute the header CRC, write it back atomically -- rather than
@@ -226,14 +230,21 @@ public:
 
     //  Putting a question to the user.
     //
-    //  IT ASKS AND RETURNS NOTHING. Asking happens on the thread that owns disk
-    //  writes and answering on the one that owns the screen, so a sink that
-    //  returned the answer would have to block the machine while the user read
-    //  it. The answer comes back through ResolvePendingChange instead.
+    //  IT DOES NOT RETURN THE ANSWER. Asking happens on the thread that owns
+    //  disk writes and answering on the one that owns the screen, so a sink
+    //  that returned the answer would have to block the machine while the user
+    //  read it. The answer comes back through ResolvePendingChange instead.
+    //
+    //  IT RETURNS WHETHER THE QUESTION REACHED SOMEWHERE IT CAN BE ANSWERED,
+    //  which is a different fact and one only the sink knows. The shell posts
+    //  the question to its own window and cannot do that before the window
+    //  exists or when the queue is full; a bay marked as having a question
+    //  outstanding that nobody ever saw is a bay nothing acts on again until
+    //  the disk is ejected.
     //
     //  Null means nothing can answer, and a change that needs an answer stays
     //  pending rather than resolving itself by default.
-    using AskSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
+    using AskSink = std::function<bool (int slot, int drive, const ChangePrompt &)>;
 
     void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
 
@@ -289,9 +300,6 @@ public:
     //  Act on whatever has settled. Called on the CPU thread at a moment with
     //  no disk operation in flight.
     void          ApplyPendingReload ();
-
-    //  The user dismissed the standing report for a bay.
-    void          ClearChangeReport (int slot, int drive);
 
     //  What a bay knows about its image beyond the bytes: the identity read at
     //  mount, any change noticed since, and whether a report stands. Null for
@@ -382,19 +390,6 @@ private:
         //  at eject, refreshed after every commit this store makes.
         MountedImageState      sharedState;
 
-        //  The name the guest's version goes under, and whether it is there
-        //  yet.
-        //
-        //  RESERVED BEFORE IT IS WRITTEN, and that separation is the point. A
-        //  question tells the user the name it WOULD take, and the flush path
-        //  may then write the copy while that question is still on screen. If
-        //  the two worked it out independently they produced different names,
-        //  and the dialog ended up offering a file that was never created --
-        //  measured, five seconds apart. Reserving it once means whoever writes
-        //  it writes the name the user was already shown.
-        string                 preservedPath;
-        bool                   preservedWritten = false;
-
         //  Which bay this is.
         //
         //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
@@ -417,9 +412,41 @@ private:
     //  sees nothing at all.
     HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath);
 
+    //  Whether a flush failure can still be put as a question.
+    //
+    //  THE DISCRIMINATOR IS NOT WHICH FUNCTION FLUSHED, IT IS WHETHER ANYBODY
+    //  WILL BE THERE FOR THE ANSWER. A question is posted to the shell's window
+    //  and answered later on the thread that owns disk writes, so it needs a
+    //  bay still holding the disk, a pump still running and a store still
+    //  alive. Most flushes have all three; two do not.
+    enum class FlushMoment
+    {
+        //  The machine is running and the bay stays: a spindown, an explicit
+        //  flush, a write-protect change, a machine switch, a power cycle.
+        Running,
+
+        //  The disk is leaving the drive, or the process is leaving. Whatever
+        //  is said has to be said now and cannot be answered.
+        Closing,
+    };
+
     Entry &       GetEntry          (int slot, int drive);
     const Entry & GetEntry          (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry);
+    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
+    HRESULT       FlushEveryBay     (FlushMoment moment);
+
+    //  Says the guest's version could not be written beside the file that
+    //  displaced it -- as a question where one can still be answered, and as a
+    //  notice where it cannot.
+    void          ReportPreserveFailure (Entry & entry, FlushMoment moment,
+                                         const string & attemptedPath, HRESULT hrKeep,
+                                         const string & original);
+
+    //  Whether some other bay already reads and writes this file, and which
+    //  drive has it. The bay being mounted into is excluded, because putting
+    //  the same file back into the same drive is how a re-mount works.
+    bool          IsFileInAnotherBay (const string & path, int exceptSlot, int exceptDrive,
+                                      int & outDrive);
 
     // Routes through m_imageReader when a test has installed one, so the
     // read and write seams stay symmetric.
@@ -495,12 +522,6 @@ private:
     //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
     //  point of preserving it is that the file no longer holds this version.
     HRESULT        SaveLoadedImage (Entry & entry, string & outPath);
-
-    //  Writes bytes that came off the file to a preserved copy, for the other
-    //  direction: the emulator is about to write over an external change it
-    //  never saw.
-    HRESULT        PreserveGivenBytes (const Entry & entry, const vector<Byte> & bytes,
-                                       string & outPath);
 
     //  A preserved-copy path nothing is sitting at yet.
     //

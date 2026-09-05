@@ -70,8 +70,8 @@ public:
         case ChangeAction::Ask:           return L"Ask";
         case ChangeAction::Conflict:      return L"Conflict";
         case ChangeAction::Unusable:      return L"Unusable";
-        case ChangeAction::Defer:         return L"Defer";
         case ChangeAction::KeepHeld:      return L"KeepHeld";
+        case ChangeAction::Discard:       return L"Discard";
         case ChangeAction::PreserveCopy:  return L"PreserveCopy";
         }
 
@@ -185,25 +185,6 @@ public:
 
 
 
-    TEST_METHOD (AFileSomebodyElseHoldsOutranksEverything)
-    {
-        Situation  situation = Seen();
-
-
-
-        situation.heldByOther = true;
-        situation.usable      = false;
-        situation.guestDirty  = true;
-        situation.intent      = ExternalChangeIntent::Restart;
-
-        //  Acting on a file still being written would read a half-written
-        //  disk, and everything below this test is a judgement about contents
-        //  that are not final yet.
-        AssertDecides (situation, ChangeAction::Defer);
-    }
-
-
-
     TEST_METHOD (EveryOutcomeThePolicyCanReachIsReachedByAKnownSituation)
     {
         //  The reverse sweep. For each outcome the policy is capable of
@@ -221,10 +202,6 @@ public:
 
 
         reaches.push_back (Reach { ChangeAction::Ignore, Situation() });
-
-        situation             = Seen();
-        situation.heldByOther = true;
-        reaches.push_back (Reach { ChangeAction::Defer, situation });
 
         situation        = Seen();
         situation.usable = false;
@@ -250,13 +227,15 @@ public:
             AssertDecides (reach.situation, reach.outcome);
         }
 
-        //  KeepHeld and PreserveCopy are answers a person gives, never
-        //  outcomes the policy reaches on its own. Asserted so that making
-        //  either one reachable from a rule has to be a deliberate edit here.
+        //  KeepHeld, PreserveCopy and Discard are answers a person gives,
+        //  never outcomes the policy reaches on its own. Asserted so that
+        //  making one of them reachable from a rule has to be a deliberate
+        //  edit here.
         for (const Reach & reach : reaches)
         {
             Assert::IsTrue (reach.outcome != ChangeAction::KeepHeld
-                         && reach.outcome != ChangeAction::PreserveCopy,
+                         && reach.outcome != ChangeAction::PreserveCopy
+                         && reach.outcome != ChangeAction::Discard,
                             L"these are answers, not decisions");
         }
     }
@@ -276,7 +255,6 @@ public:
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Ignore));
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::ReloadInPlace));
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Restart));
-        Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Defer));
     }
 
 
@@ -373,7 +351,7 @@ public:
         Assert::AreEqual ((size_t) 2, deleted.answers.size());
         Assert::AreEqual ((size_t) 2, unreadable.answers.size());
         Assert::IsTrue (deleted.answers[0].action == ChangeAction::PreserveCopy);
-        Assert::IsTrue (deleted.answers[1].action == ChangeAction::KeepHeld);
+        Assert::IsTrue (deleted.answers[1].action == ChangeAction::Discard);
 
         //  The path leads on its own line, then what the screen will not show
         //  for itself: the disk is still in memory and can be saved or
@@ -872,9 +850,9 @@ public:
         const ChangeAction  notQuestions[] = { ChangeAction::Ignore,
                                                ChangeAction::ReloadInPlace,
                                                ChangeAction::Restart,
-                                               ChangeAction::Defer,
                                                ChangeAction::Conflict,
-                                               ChangeAction::KeepHeld };
+                                               ChangeAction::KeepHeld,
+                                               ChangeAction::Discard };
 
 
 
@@ -948,6 +926,44 @@ public:
                         L"the failure prints where to look");
         Assert::IsTrue (lost.message.rfind (L"C:\\deep\\folder\\loader.dsk", 0) == 0,
                         L"the lost-file notice leads with the whole path, on its own line");
+    }
+
+
+
+    //  EVERY PROMPT'S SAFE ANSWER COSTS THE USER NOTHING. It is what Enter and
+    //  the close box take, and taking it to be the last answer everywhere
+    //  meant the lost-file question defaulted to Discard -- throwing away a
+    //  disk that existed in memory and nowhere else.
+    TEST_METHOD (TheAnswerAQuestionDefaultsToNeverDestroysAnything)
+    {
+        ChangePrompt  asked  = ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask,
+                                                      "Work.x.dsk");
+        ChangePrompt  failed = ChangePrompt::ComposeSaveFailure (
+                                   "Work.dsk", 0, "Work.x.dsk", E_FAIL,
+                                   SaveFailureCause::ExternalChange);
+        ChangePrompt  gone   = ChangePrompt::ComposeLostFile ("Work.dsk", 0,
+                                                              ChangeAction::Deleted);
+        ChangePrompt  broken = ChangePrompt::ComposeLostFile ("Work.dsk", 0,
+                                                              ChangeAction::Unusable);
+
+
+
+        Assert::IsTrue (asked.safeAnswer < asked.answers.size());
+        Assert::IsTrue (asked.answers[asked.safeAnswer].action == ChangeAction::KeepHeld,
+                        L"the disk stays in the drive and the file is left alone");
+
+        Assert::IsTrue (failed.safeAnswer < failed.answers.size());
+        Assert::IsTrue (failed.answers[failed.safeAnswer].action == ChangeAction::Ignore,
+                        L"the copy stays unwritten and the drive as it was");
+
+        //  The one prompt with no answer that costs nothing: the nearest thing
+        //  is the one that keeps the disk.
+        for (const ChangePrompt & lost : { gone, broken })
+        {
+            Assert::IsTrue (lost.safeAnswer < lost.answers.size());
+            Assert::IsTrue (lost.answers[lost.safeAnswer].action == ChangeAction::PreserveCopy,
+                            L"the only copy of the disk is saved, never discarded");
+        }
     }
 
 };
