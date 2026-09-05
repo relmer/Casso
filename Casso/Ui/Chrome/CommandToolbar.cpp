@@ -44,6 +44,7 @@ static constexpr wchar_t  s_kGlyphPower      = L'\uE7E8';   // power symbol
 static constexpr wchar_t  s_kGlyphVolume     = L'\uE767';   // speaker
 static constexpr wchar_t  s_kGlyphMuted      = L'\uE74F';   // muted speaker
 static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline, matches the set)
+static constexpr wchar_t  s_kGlyphMouse      = L'\uE962';   // mouse (the input cluster's one font glyph)
 
 // Volume flyout (vertical slider + readout under the track).
 static constexpr int      s_kFlyoutWidthDp    = 56;
@@ -61,7 +62,11 @@ static constexpr int      s_kSegLedGapDp      = 4;
 static constexpr int      s_kSegGapDp         = 2;
 static constexpr int      s_kInputLabelGapDp  = 8;    // label -> first segment
 
-static constexpr const wchar_t * s_kInputLabel = L"Input";
+// The cluster's name, and the per-device names the ribbon shows instead: with
+// every button wearing its own label under its icon, one word over three
+// glyphs names none of them.
+static constexpr const wchar_t * s_kInputLabel   = L"Input";
+static constexpr const wchar_t * s_kSegLabels[3] = { L"Joystick", L"Paddle", L"Mouse" };
 
 // Per-segment tooltips. The segments carry no labels of their own, so the
 // tips lead with the mode name the old selector showed as text.
@@ -396,27 +401,34 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
     int  segGap    = MulDiv (s_kSegGapDp,       (int) dpi, s_kBaseDpi);
     int  labelGap  = MulDiv (s_kInputLabelGapDp, (int) dpi, s_kBaseDpi);
 
-    // The input cluster: the shared label (dropped in icon-only mode, like
-    // every other label) + LED/glyph segments. The label sits beside the
-    // segments in LabelRight and UNDER them in the ribbon mode, so it costs
-    // width in the first case and none in the second (it is far narrower
-    // than the segment row).
+    // The input cluster: LED/glyph segments plus whatever names them. That is
+    // the one shared "Input" beside them in LabelRight, a per-device label
+    // under each segment (which can widen the segments) in the ribbon, and
+    // nothing at all in icon-only, where tooltips carry every name.
     auto  clusterWidth = [&] (Mode mode) -> int
     {
-        int  segsW = InputSegCount() * segW + (InputSegCount() - 1) * segGap;
+        int  w = (InputSegCount() - 1) * segGap;
 
-        switch (mode)
+        for (int i = 0; i < InputSegCount(); i++)
         {
-        case Mode::LabelRight:
-            return segsW + measure (s_kInputLabel, s_kFontDip * (float) dpi / (float) s_kBaseDpi) +
-                   3 + labelGap;
-        case Mode::LabelBelow:
-            return (std::max) (segsW,
-                   measure (s_kInputLabel, s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi) + 3);
-        case Mode::IconOnly:
-        default:
-            return segsW;
+            if (mode == Mode::LabelBelow)
+            {
+                w += (std::max) (segW, padXStack * 2 +
+                                 measure (s_kSegLabels[i],
+                                          s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi) + 3);
+            }
+            else
+            {
+                w += segW;
+            }
         }
+
+        if (mode == Mode::LabelRight)
+        {
+            w += measure (s_kInputLabel, s_kFontDip * (float) dpi / (float) s_kBaseDpi) + 3 + labelGap;
+        }
+
+        return w;
     };
 
     // Total width a mode wants: the command buttons, the volume button (its
@@ -591,29 +603,14 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         int  segGap   = MulDiv (s_kSegGapDp,        (int) dpi, s_kBaseDpi);
         int  labelGap = MulDiv (s_kInputLabelGapDp, (int) dpi, s_kBaseDpi);
 
-        int  segsW    = InputSegCount() * segW + (InputSegCount() - 1) * segGap;
-        int  segTop   = top;
-        int  segBot   = bottom;
-
         m_inputLabelRc = {};
 
         // +3px slack over the measured width: DrawString wraps on a rect
         // even fractionally narrower than the layout width it measured.
-        if (m_mode == Mode::LabelBelow)
-        {
-            // Ribbon mode: the segments take the icon region and the shared
-            // label spans the cluster underneath, the same split the stacked
-            // buttons use so the two label rows sit on one baseline.
-            int  labelW  = measure (s_kInputLabel,
-                                    s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi) + 3;
-            int  labelH  = (int) (s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi + 4.0f);
-            int  clustW  = (std::max) (segsW, labelW);
-
-            segBot         = bottom - labelH;
-            m_inputLabelRc = RECT { x, segBot - 2, x + clustW, bottom - 2 };
-            x             += (clustW - segsW) / 2;   // segments centered under a wider label
-        }
-        else if (m_mode == Mode::LabelRight)
+        // Ribbon mode names each device under its own glyph, exactly as the
+        // stacked buttons do, and drops the shared label that named the group
+        // for them; the other modes keep the one "Input" to the left.
+        if (m_mode == Mode::LabelRight)
         {
             int  labelW = measure (s_kInputLabel, s_kFontDip * (float) dpi / (float) s_kBaseDpi) + 3;
 
@@ -625,8 +622,17 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         {
             if (i < InputSegCount())
             {
-                m_inputSegs[i].rc = RECT { x, segTop, x + segW, segBot };
-                x += segW + ((i + 1 < InputSegCount()) ? segGap : 0);
+                int  w = segW;
+
+                if (m_mode == Mode::LabelBelow)
+                {
+                    w = (std::max) (segW, padXStack * 2 +
+                                    measure (s_kSegLabels[i],
+                                             s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi) + 3);
+                }
+
+                m_inputSegs[i].rc = RECT { x, top, x + w, bottom };
+                x += w + ((i + 1 < InputSegCount()) ? segGap : 0);
             }
             else
             {
@@ -1177,31 +1183,30 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
 
     if (m_inputLabelRc.right > m_inputLabelRc.left)
     {
-        // Ribbon mode stacks the label under the segments, centered across
-        // the cluster in the small stacked face -- matching the buttons.
-        bool   below     = (m_mode == Mode::LabelBelow);
-        float  labelDip  = below ? s_kStackedFontDip * (float) m_dpi / (float) s_kBaseDpi
-                                 : fontDip;
-
         hr = text.DrawString (s_kInputLabel,
                               (float) m_inputLabelRc.left,
                               (float) m_inputLabelRc.top,
                               (float) (m_inputLabelRc.right  - m_inputLabelRc.left),
                               (float) (m_inputLabelRc.bottom - m_inputLabelRc.top),
-                              labelInk, labelDip, s_kFontFamily,
-                              below ? DxuiTextHAlign::Center : DxuiTextHAlign::Left,
-                              DxuiTextVAlign::Center);
+                              labelInk, fontDip, s_kFontFamily,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     for (int i = 0; i < InputSegCount(); i++)
     {
-        const InputSeg &  seg    = m_inputSegs[i];
-        bool              active = seg.hovered || seg.pressed;
-        float             sl     = (float) seg.rc.left;
-        float             st     = (float) seg.rc.top;
-        float             sw     = (float) (seg.rc.right  - seg.rc.left);
-        float             sh     = (float) (seg.rc.bottom - seg.rc.top);
+        const InputSeg  & seg      = m_inputSegs[i];
+        bool              active   = seg.hovered || seg.pressed;
+        bool              below    = (m_mode == Mode::LabelBelow);
+        float             sl       = (float) seg.rc.left;
+        float             st       = (float) seg.rc.top;
+        float             sw       = (float) (seg.rc.right  - seg.rc.left);
+        float             sh       = (float) (seg.rc.bottom - seg.rc.top);
+        float             stackDip = s_kStackedFontDip * (float) m_dpi / (float) s_kBaseDpi;
+        float             labelH   = below ? stackDip + 4.0f : 0.0f;
+        float             iconRegH = sh - labelH;
+        float             groupW   = (float) (ledD + ledGap + iconD);
+        float             groupL   = sl + (sw - groupW) * 0.5f;
 
 
 
@@ -1212,19 +1217,29 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
             painter.OutlineRect (sl, st, sw, sh, 1.0f, theme.buttonBorder);
         }
 
-        // LED left of the glyph, both vertically centered in the segment.
+        // LED left of the glyph, the pair centered in the segment's icon
+        // region -- which is the whole segment until a label takes the row
+        // under it.
         {
-            float  ledCx = sl + (float) segPad + (float) ledD * 0.5f;
-            float  ledCy = st + sh * 0.5f;
+            float  ledCx = groupL + (float) ledD * 0.5f;
+            float  ledCy = st + iconRegH * 0.5f;
             bool   on    = InputSegSelected (i);
 
             painter.FillCircleApprox (ledCx, ledCy, (float) ledD * 0.5f,
                                       on ? theme.ledActive : theme.ledIdle);
         }
 
+        if (below)
         {
-            int   boxL = seg.rc.left + segPad + ledD + ledGap;
-            int   boxT = seg.rc.top + ((seg.rc.bottom - seg.rc.top) - iconD) / 2;
+            hr = text.DrawString (s_kSegLabels[i], sl, st + iconRegH - 2.0f, sw, labelH,
+                                  labelInk, stackDip, s_kFontFamily,
+                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        {
+            int   boxL = (int) (groupL + (float) (ledD + ledGap));
+            int   boxT = (int) (st + (iconRegH - (float) iconD) * 0.5f);
             RECT  box  = { boxL, boxT, boxL + iconD, boxT + iconD };
 
             if (m_inputMonoline)
@@ -1233,7 +1248,23 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
                 {
                     case 0:  PaintJoystickMono (painter, box, theme.navItemText); break;
                     case 1:  PaintPaddleMono   (painter, box, theme.navItemText); break;
-                    case 2:  PaintMouseMono    (painter, box, theme.navItemText); break;
+
+                    // The mouse is the one device MDL2 draws itself, and its
+                    // glyph beats the drawn one at this size; it renders at
+                    // the same em as every other icon on the bar.
+                    case 2:
+                    {
+                        wchar_t  glyph[2] = { s_kGlyphMouse, 0 };
+                        float    emDip    = s_kIconDip * (float) m_dpi / (float) s_kBaseDpi;
+
+                        hr = text.DrawString (glyph, (float) box.left, (float) box.top,
+                                              (float) iconD, (float) iconD,
+                                              theme.navItemText, emDip, s_kIconFamily,
+                                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+                        IGNORE_RETURN_VALUE (hr, S_OK);
+                        break;
+                    }
+
                     default: break;
                 }
             }
@@ -1394,37 +1425,6 @@ void CommandToolbar::PaintPaddleMono (IDxuiPainter & painter, const RECT & box, 
     painter.DrawLineApprox (cx - botHalf, botY, cx + botHalf, botY, stroke, ink);
 
     StrokeCircle (painter, cx, cy, w * 0.115f, stroke, ink);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::PaintMouseMono
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::PaintMouseMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
-{
-    float  w      = (float) (box.right  - box.left);
-    float  h      = (float) (box.bottom - box.top);
-    float  stroke = GetGlyphStroke (w);
-    float  bodyL  = (float) box.left + w * 0.30f;
-    float  bodyT  = (float) box.top + h * 0.20f;
-    float  bodyW  = w * 0.40f;
-    float  bodyH  = h * 0.62f;
-
-
-
-    // The M0100 in outline: the box body's border, the single wide button's
-    // split a third down, and the cable stub off the top.
-    painter.OutlineRect    (bodyL, bodyT, bodyW, bodyH, stroke, ink);
-    painter.DrawLineApprox (bodyL, bodyT + bodyH * 0.32f,
-                            bodyL + bodyW, bodyT + bodyH * 0.32f, stroke, ink);
-    painter.DrawLineApprox (bodyL + bodyW * 0.5f, bodyT,
-                            bodyL + bodyW * 0.5f, bodyT - h * 0.10f, stroke, ink);
 }
 
 
