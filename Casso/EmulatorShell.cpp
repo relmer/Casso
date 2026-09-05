@@ -11677,6 +11677,16 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 
 
+    // The swallow is a ONE-SHOT owned by this keydown, and clearing it here
+    // is what keeps it one. Windows does not always follow a keydown with the
+    // WM_CHAR its setters assume: an Alt-held key arrives as WM_SYSKEYDOWN
+    // (routed here just like WM_KEYDOWN) and yields WM_SYSCHAR, which reaches
+    // no handler at all. A flag left armed by one of those would eat the next
+    // ordinary character the user typed. Windows queues a keydown's character
+    // before the next keydown, so a swallow that is still wanted is always
+    // consumed before this runs again.
+    m_swallowMetaChar = false;
+
     // 0. Esc exits paddle mode: releases the mouse capture (cursor
     //    reappears) and returns the input mapping to Off, matching the
     //    "Esc to exit" hint on the widget.
@@ -11901,7 +11911,10 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // the authoritative one -- it is the only one that can tell the TAB
         // key from Ctrl+I, which sends the same $09 -- so the character is
         // swallowed. Set on repeats too, since each repeated keydown brings
-        // its own character along, and the flag is consumed one for one.
+        // its own character along. Nothing here depends on that character
+        // actually arriving: OnKeyDown clears the flag on the way in, so an
+        // Alt-held TAB or Escape, whose WM_SYSCHAR never reaches OnChar,
+        // cannot leave it armed for the next key.
         if (isSpecial && DoesSpecialKeySynthesizeChar (specialKey))
         {
             m_swallowMetaChar = true;

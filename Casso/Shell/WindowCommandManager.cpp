@@ -2246,12 +2246,13 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.icon  = DialogIcon::Info;
             def.body.push_back ({
                 L"PC key mapping:\n\n"
-                L"Arrow keys -> Apple ][ cursor movement\n"
+                L"Left / Right arrow -> Apple cursor keys\n"
+                L"Up / Down arrow -> Apple cursor keys (//e and //c)\n"
                 L"Enter -> Return\n"
                 L"Escape -> Escape\n"
-                L"Delete -> Delete\n"
-                L"Left Alt -> Open Apple (//e)\n"
-                L"Right Alt -> Closed Apple (//e)\n\n"
+                L"Delete -> Delete (//e and //c)\n"
+                L"Left Alt -> Open Apple (//e and //c)\n"
+                L"Right Alt -> Closed Apple (//e and //c)\n\n"
                 L"Emulator controls:\n"
                 L"Ctrl+Shift+R -> Reset\n"
                 L"Ctrl+Shift+P -> Power cycle\n"
