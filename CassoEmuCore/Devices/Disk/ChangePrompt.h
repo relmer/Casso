@@ -128,10 +128,17 @@ struct ChangePrompt
     //
     //  `machineName` IS THE MACHINE AS THE USER KNOWS IT -- "Apple //e" --
     //  because "the Apple" is not what is in front of them.
+    //
+    //  `copyAlreadyWritten` CARRIES THE SAME MEANING IT DOES ABOVE, and is here
+    //  for the same reason: a path is where a copy would go, never evidence
+    //  that one is there. A bay reserves the name when the question is put and
+    //  keeps holding it when a write fails, so reading a non-empty `copyPath`
+    //  as a save reported files that were never created.
     static ChangePrompt  ComposePickUpReport (const std::string & imagePath, int drive,
                                               bool machineRebooted,
                                               const std::string & machineName,
-                                              const std::string & copyPath = std::string());
+                                              const std::string & copyPath   = std::string(),
+                                              bool copyAlreadyWritten        = false);
 
     //  The notice shown when a flush found the file changed underneath it and
     //  moved the guest's version to a file of its own.

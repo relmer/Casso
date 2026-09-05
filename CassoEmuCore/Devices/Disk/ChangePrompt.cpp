@@ -206,12 +206,18 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
 //  THE ONE ACTION IT DOES CARRY IS ITS OWN DISMISSAL, which every standing
 //  notice needs.
 //
+//  THE COPY IS REPORTED ONLY WHEN ONE WAS WRITTEN. The path alone used to be
+//  the test, and it is not one: a bay reserves the name while the question is
+//  on screen and keeps holding it after a failed write, both of which left this
+//  notice telling the user their writes were saved as a file nothing created.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, int drive,
                                                 bool machineRebooted,
                                                 const std::string & machineName,
-                                                const std::string & copyPath)
+                                                const std::string & copyPath,
+                                                bool copyAlreadyWritten)
 {
     ChangePrompt  prompt;
     std::wstring  file    = GetFileName (imagePath);
@@ -235,7 +241,7 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
         prompt.message = L"CassoCli modified " + file + L" and inserted it into " + where + L".";
     }
 
-    if (!copy.empty())
+    if (copyAlreadyWritten && !copy.empty())
     {
         prompt.message += L" Your writes to it hadn't been saved yet, so we saved them as "
                         + copy + L".";

@@ -593,6 +593,33 @@ public:
 
 
 
+    //  A PATH IS WHERE A COPY WOULD GO, NEVER PROOF THAT ONE IS THERE. A bay
+    //  reserves the name the moment a question is put and keeps holding the
+    //  name it tried after a write that failed, so composing this notice from
+    //  the path alone told the user their writes were saved as a file nothing
+    //  had created.
+    TEST_METHOD (ThePickUpNoticeReportsOnlyACopyThatWasWritten)
+    {
+        const std::string  copy     = "Game.20260904-173238-01.dsk";
+        ChangePrompt       reserved = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,
+                                                                         "Apple //e", copy, false);
+        ChangePrompt       written  = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,
+                                                                         "Apple //e", copy, true);
+
+
+
+        Assert::IsTrue (reserved.message.find (L"hadn't been saved yet") == std::wstring::npos,
+                        L"a reserved name is not a saved file");
+        Assert::IsTrue (reserved.message.find (L"20260904") == std::wstring::npos,
+                        L"and a file nothing created must not be offered as somewhere to look");
+
+        Assert::IsTrue (written.message.find (L"hadn't been saved yet") != std::wstring::npos);
+        Assert::IsTrue (written.message.find (L"Game.20260904-173238-01.dsk") != std::wstring::npos,
+                        L"a copy that does exist is only useful with its name");
+    }
+
+
+
     TEST_METHOD (AnActionThatIsNotAQuestionComposesNothing)
     {
         //  Conflict is here now: it composes through its own report, which

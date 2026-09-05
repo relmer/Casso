@@ -2522,6 +2522,11 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
     //  Whatever was decided, the conflict is over: either the copy was taken
     //  up as the bay's file or the external version went in beside it.
+    //
+    //  THE PATH AND THE FACT TRAVEL TOGETHER. A bay holds a reserved name from
+    //  the moment a question is put, and holds the name it tried after a write
+    //  that failed, so `preservedPath` says where a copy would go and only
+    //  `preservedWritten` says whether one is there.
     if (tookUp)
     {
         preservedPath = entry.preservedPath;
@@ -2568,7 +2573,8 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         if (tookUp)
         {
             report = ChangePrompt::ComposePickUpReport (original, drive, restarted,
-                                                        m_machineName, preservedPath);
+                                                        m_machineName, preservedPath,
+                                                        preserved);
         }
         else if (preserved)
         {
