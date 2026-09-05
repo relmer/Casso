@@ -329,6 +329,64 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageStore::IsFileInAnotherBay
+//
+//  Whether some OTHER bay is already reading and writing this file.
+//
+//  EVERY SLOT, NOT JUST THIS ONE. Two controllers are as capable of holding one
+//  file between them as two drives on one controller are, and the damage is
+//  identical.
+//
+//  A BAY WITH NO PATH IS NOT A MATCH. An empty bay and a bay built from bytes
+//  that never came off disk both carry nothing to compare, and an empty string
+//  matches another empty string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsFileInAnotherBay (const string & path, int exceptSlot, int exceptDrive,
+                                         int & outDrive)
+{
+    int   slot  = 0;
+    int   drive = 0;
+    bool  found = false;
+
+
+
+    outDrive = -1;
+
+    if (path.empty())
+    {
+        return false;
+    }
+
+    for (slot = 0; slot < kSlotCount && !found; slot++)
+    {
+        for (drive = 0; drive < kDriveCount && !found; drive++)
+        {
+            const Entry &  other = m_entries[slot][drive];
+
+            if (slot == exceptSlot && drive == exceptDrive)
+            {
+                continue;
+            }
+
+            if (other.mounted && MountedImageState::IsSamePath (other.path, path))
+            {
+                outDrive = drive;
+                found    = true;
+            }
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Mount
 //
 //  The same mount, saying why it refused. The two failures BEFORE any loader
@@ -341,13 +399,29 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
                                MountDiagnosis & outDiagnosis)
 {
-    HRESULT       hr   = S_OK;
-    DiskFormat    fmt  = DiskFormat::Dsk;
+    HRESULT       hr        = S_OK;
+    DiskFormat    fmt       = DiskFormat::Dsk;
+    bool          elsewhere = false;
     vector<Byte>  bytes;
 
 
 
     outDiagnosis = MountDiagnosis();
+
+    //  ONE FILE, ONE DRIVE, and refused before a byte is read -- the bytes are
+    //  not what is wrong with it. Two bays on one file each hold their own
+    //  DiskImage, and a flush writes the whole image, so from the guest's
+    //  first write each drive overwrites whatever the other saved. One
+    //  external change then raises the conflict twice, writes two rescue
+    //  copies and puts two dialogs up in a row.
+    //
+    //  THE SAME FILE BACK INTO THE SAME DRIVE IS NOT THIS. Re-mounting is how
+    //  a machine switch and a reload put the disk back, so the bay being
+    //  mounted into is the one bay this does not look at.
+    elsewhere = IsFileInAnotherBay (path, slot, drive, outDiagnosis.occupiedDrive);
+
+    CBRFEx (!elsewhere, E_INVALIDARG,
+            outDiagnosis.failure = MountFailure::AlreadyMounted);
 
     hr = GetSourceFormatByExtension (path, fmt);
     CHRF (hr, outDiagnosis.failure = MountFailure::UnknownExtension);

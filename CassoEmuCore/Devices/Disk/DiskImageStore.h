@@ -412,6 +412,12 @@ private:
     const Entry & GetEntry          (int slot, int drive) const;
     HRESULT       FlushEntry        (Entry & entry);
 
+    //  Whether some other bay already reads and writes this file, and which
+    //  drive has it. The bay being mounted into is excluded, because putting
+    //  the same file back into the same drive is how a re-mount works.
+    bool          IsFileInAnotherBay (const string & path, int exceptSlot, int exceptDrive,
+                                      int & outDrive);
+
     // Routes through m_imageReader when a test has installed one, so the
     // read and write seams stay symmetric.
     HRESULT       ReadImageFile     (const string & path, vector<Byte> & bytes) const;
