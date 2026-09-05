@@ -3,7 +3,7 @@
 
 #include "CassoTheme.h"
 #include "CommandToolbar.h"
-#include "InputDeviceSelector.h"
+#include "InputDeviceGlyphs.h"
 
 #include "../../Resource.h"
 
@@ -52,10 +52,6 @@ static constexpr int      s_kSegLedDp         = 7;    // LED diameter
 static constexpr int      s_kSegLedGapDp      = 4;
 static constexpr int      s_kSegGapDp         = 2;
 static constexpr int      s_kInputLabelGapDp  = 8;    // label -> first segment
-
-// LED state colors -- the drive-bar blue the band selector used.
-static constexpr uint32_t s_kLedOnCore  = 0xFF3DA1FF;
-static constexpr uint32_t s_kLedOffCore = 0xFF06121A;
 
 static constexpr const wchar_t * s_kInputLabel = L"Input";
 
@@ -708,9 +704,9 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
 //
 //  CommandToolbar::SetInputState / InputSegSelected
 //
-//  State mirrors the band selector's exactly: the joystick segment lights
-//  from the arrows mapping, paddle / mouse from the pointer mode, and the
-//  mouse segment exists only when the machine has a mouse.
+//  The joystick segment lights from the arrows mapping, paddle / mouse from
+//  the pointer mode, and the mouse segment exists only when the machine has
+//  a mouse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1524,7 +1520,7 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
 
         PaintStatusLed (painter, iconX + iconDip + 1.0f,
                         bt + bh * 0.5f - iconDip * 0.48f, m_dpi,
-                        anyMapped ? s_kLedOnCore : 0);
+                        anyMapped ? theme.ledActive : 0);
     }
 
     if (btn.labeled && labelText != nullptr && labelText[0] != 0)
@@ -1623,8 +1619,9 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 //  The shared "Input" label (it names the group, it is not a button) and the
 //  LED + glyph segments. Hover chrome matches the buttons'; the LED is the
-//  state, exactly as the band selector drew it: an outline would read as
-//  focus, a lit LED reads as ON.
+//  state: an outline would read as focus, a lit LED reads as ON. The core
+//  tracks the theme's LED tokens, so the dot matches the drive widgets'
+//  lights under every preset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1678,7 +1675,7 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
             bool   on    = InputSegSelected (i);
 
             painter.FillCircleApprox (ledCx, ledCy, (float) ledD * 0.5f,
-                                      on ? s_kLedOnCore : s_kLedOffCore);
+                                      on ? theme.ledActive : theme.ledIdle);
         }
 
         {
@@ -1710,9 +1707,9 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
 
                 switch (i)
                 {
-                    case 0:  InputDeviceSelector::PaintJoystickGlyph (painter, box, m_inputSkeuo); break;
-                    case 1:  InputDeviceSelector::PaintPaddleGlyph   (painter, box, m_inputSkeuo); break;
-                    case 2:  InputDeviceSelector::PaintMouseGlyph    (painter, box, m_inputSkeuo); break;
+                    case 0:  InputDeviceGlyphs::PaintJoystickGlyph (painter, box, m_inputSkeuo); break;
+                    case 1:  InputDeviceGlyphs::PaintPaddleGlyph   (painter, box, m_inputSkeuo); break;
+                    case 2:  InputDeviceGlyphs::PaintMouseGlyph    (painter, box, m_inputSkeuo); break;
                     default: break;
                 }
             }

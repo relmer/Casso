@@ -97,6 +97,13 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **A held key repeated far too fast above 1x speed, and at Maximum too fast to
+  type against at all.** The keyboard's auto-repeat cadence was counted in
+  emulated cycles, so the emulation speed dragged it along: Double repeated at
+  twice the rate off half the delay, and Maximum, which runs uncapped, turned a
+  held key into hundreds of characters a second. It is timed in real seconds
+  now, as the //e's own keyboard encoder is, so the ~0.5s delay and ~15
+  characters a second hold at every speed.
 - **Tooltips kept the theme that was live when the window was built.** Switching
   themes in Settings recolored the rest of the chrome but left the toolbar, //c
   switch-bar and drive tooltips in the outgoing palette -- skeuomorphic blue
@@ -143,6 +150,11 @@ Entries before versioning was introduced use dates only.
   and a reservation no longer outlives the disk it was made for: neither
   eject cleared one, so the next disk into that drive filed its own copy
   under the departed disk's name.
+- **The joystick / paddle / mouse indicator dots on the command bar stayed blue
+  under every theme.** They painted from a hardcoded copy of the DarkModern
+  palette, so they kept its blue while the drive LEDs beside them went red on
+  Skeuomorphic and green on RetroTerminal. They now follow the theme's LED
+  colors like the rest of the chrome.
 - **Tooltips could lose their last glyph.** A balloon sized a hair too narrow
   wrapped the tail onto a second line it had no room to show, so a tip ending
   in something short and breakable came up looking truncated.

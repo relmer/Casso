@@ -26,7 +26,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiShadowedText.h"
@@ -323,6 +322,12 @@ private:
     void RunCpuThreadFrame();
     void ExecuteCpuSlices();
     void RenderFramebuffer();
+
+    // Hands the //e keyboard the real time that has passed since the previous
+    // CPU-thread frame, which is what its auto-repeat cadence runs on. Not
+    // driven off the guest clock: Double would then repeat twice as fast and
+    // Maximum, which is uncapped, faster than anyone can type against.
+    void TickKeyboardAutoRepeat();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
 
     // Presentation pacing + render-skip gate (rationale in the .cpp).
@@ -1827,6 +1832,12 @@ private:
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;
+
+    // When the //e keyboard's auto-repeat cadence was last advanced, and the
+    // sub-microsecond remainder that advance left behind. Zero before the
+    // first CPU-thread frame, which starts the interval rather than reporting
+    // one. CPU-thread-only.
+    chrono::steady_clock::time_point  m_lastKeyRepeatSteady = {};
 
     // Host sample rate the loaded sounds were decoded at, 0 before the first
     // load. Compared against the live device rate each frame so a reopen onto
