@@ -13753,22 +13753,16 @@ void EmulatorShell::InstallChangeReporting()
     m_changeBanner.SetSeverity (DxuiInfoBanner::Severity::Info);
     m_changeBanner.SetVisible  (false);
 
+    //  EVERY BUTTON ON THE STRIP DISMISSES IT, and that is all any of them
+    //  does. Only questions carry answers worth acting on, and questions go to
+    //  a dialog -- the strip routes nothing back, which is why a lost-file
+    //  prompt sent here had two buttons that did nothing. Dismissing it and
+    //  its countdown running out are the same thing.
     m_changeBanner.SetOnAction ([this] (size_t index)
     {
-        //  What the button means came from core with its label. The shell
-        //  reads it back rather than assuming, so a banner that grows a second
-        //  action does not need this rewritten.
-        ChangeAction  action = (index < m_changeBannerActions.size())
-                                   ? m_changeBannerActions[index]
-                                   : ChangeAction::Ignore;
+        UNREFERENCED_PARAMETER (index);
 
-        //  Dismissing it and its countdown running out are the same thing.
         HideChangeBanner();
-
-        if (action == ChangeAction::Restart)
-        {
-            PostCommand (IDM_MACHINE_RESET);
-        }
     });
 
     return;
@@ -13801,12 +13795,9 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
 
 
 
-    m_changeBannerActions.clear();
-
     for (i = 0; i < notice.prompt.answers.size(); i++)
     {
         labels.push_back (notice.prompt.answers[i].label);
-        m_changeBannerActions.push_back (notice.prompt.answers[i].action);
     }
 
     m_changeBanner.SetText    (notice.prompt.message);

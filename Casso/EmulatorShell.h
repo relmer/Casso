@@ -1308,11 +1308,6 @@ private:
     int64_t                     m_changeBannerHideAtMs = 0;
     int64_t                     m_changeBannerTickMs   = 0;
 
-    // What each of the banner's buttons means, in the order they were drawn.
-    // The labels and the meanings are both core's; keeping the meanings beside
-    // the buttons is what stops the shell from inventing one.
-    std::vector<ChangeAction>   m_changeBannerActions;
-
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
     // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
