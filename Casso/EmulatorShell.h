@@ -1511,6 +1511,12 @@ private:
     // ReflowChromeForChangeBand.
     bool                     m_inChromeLayout = false;
 
+    // Set when a capture band was found standing with no capture behind it,
+    // and cleared by the re-dock at the top of the next frame. A flag rather
+    // than the re-dock itself, because the sync that spots it runs inside the
+    // frame the re-dock would repaint.
+    bool                     m_captureBandStale = false;
+
     // When the capture's own band was last docked, on the monotonic clock.
     // The resize that follows bounces WM_CANCELMODE back at whoever holds the
     // pointer, and that one cancel is ours to ignore -- see OnCancelMode.

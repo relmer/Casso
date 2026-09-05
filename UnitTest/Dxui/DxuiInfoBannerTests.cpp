@@ -362,5 +362,50 @@ namespace DxuiInfoBannerTests
             Assert::IsTrue (align == DxuiTextHAlign::Left, L"...and still left-aligns its text");
         }
 
+
+        //  THE HEIGHT AND THE PAINT MUST AGREE. Both go through the same
+        //  measured, cached box now, so the lines a caller reserves room for
+        //  are exactly the lines the paint lays down -- a wide face cannot
+        //  make the estimate promise one line fewer than the text needs.
+        TEST_METHOD (Centered_ReservedHeightHoldsThePaintedBox)
+        {
+            DxuiDpiScaler         scaler = Scaler96();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            std::wstring          words (400, L'x');   // 2800 dip on one line
+            DxuiInfoBanner        banner (words);
+            float                 height = 0.0f;
+            float                 drawnW = 0.0f;
+            float                 drawnH = 0.0f;
+            float                 wrapW  = 0.0f;
+            float                 wrapH  = 0.0f;
+
+            banner.SetCentered (true);
+
+            height = banner.GetMeasuredHeightPx (text, 4000.0f, scaler);
+            banner.Layout (RECT{ 0, 0, 4000, (LONG) height }, scaler);
+            static_cast<IDxuiControl &> (banner).Paint (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString)
+                {
+                    drawnW = call.width;
+                    drawnH = call.height;
+                }
+            }
+
+            Assert::IsTrue (drawnW > 0.0f, L"the banner drew its text");
+
+            //  What the text actually needs in the box the paint chose, against
+            //  the room the paint was given inside the reserved height.
+            Assert::AreEqual (S_OK, text.MeasureStringWrapped (words.c_str(), 13.0f,
+                                                               DxuiTheme::kBodyFace,
+                                                               drawnW, wrapW, wrapH));
+            Assert::IsTrue (wrapH <= drawnH + 0.5f,
+                            L"the reserved height holds every line the painted box wraps to");
+        }
+
     };
 }

@@ -2342,18 +2342,22 @@ void EmulatorShell::SyncCaptureBanner()
         m_captureBar.SetVisible        (false);
         m_captureBarSurface.SetVisible (false);
 
-        //  A BAND LEFT BEHIND, GIVEN BACK. The height is claimed and released
-        //  where the capture starts and ends, but the capture is also dropped
-        //  from OnCancelMode / OnKillFocus, which can fire from INSIDE a
-        //  layout pass -- and a re-dock asked for from in there is refused,
-        //  because the pass would be calling itself. Without this the picture
-        //  would stay short, under an empty strip, until some unrelated resize
-        //  came along. Safe to run from here and nowhere else: with no capture
-        //  held there is none for the resize to cancel.
+        //  A BAND LEFT BEHIND, NOTED FOR THE NEXT FRAME. The height is claimed
+        //  and released where the capture starts and ends, but the capture is
+        //  also dropped from OnCancelMode / OnKillFocus, which can fire from
+        //  INSIDE a layout pass -- and a re-dock asked for from in there is
+        //  refused, because the pass would be calling itself. Without this the
+        //  picture would stay short, under an empty strip, until some
+        //  unrelated resize came along.
+        //
+        //  FLAGGED, NOT DONE HERE: this runs inside the frame the re-dock
+        //  would repaint, and a layout pass drives a synchronous WM_PAINT.
+        //  TryPresentUiFrame acts on it at the top of the next frame, where
+        //  the change band's own expiry already re-docks from.
         if (m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen()
             && m_captureBand.GetBounds().bottom > m_captureBand.GetBounds().top)
         {
-            ReflowChromeForChangeBand();
+            m_captureBandStale = true;
         }
 
         return;
@@ -7784,6 +7788,15 @@ bool EmulatorShell::TryPresentUiFrame()
 
 
     ExpireChangeBannerIfDue();
+
+    //  The capture band a lost grab left standing, given back -- here, at the
+    //  top of the frame, because re-docking repaints and nothing has been
+    //  composed yet. See SyncCaptureBanner for what sets this.
+    if (m_captureBandStale)
+    {
+        m_captureBandStale = false;
+        ReflowChromeForChangeBand();
+    }
 
     // Copy latest framebuffer under lock, then present with vsync
     {
@@ -14321,9 +14334,24 @@ int EmulatorShell::GetChangeBandThicknessPx (int clientWidthPx) const
 
 int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
 {
+    IDxuiTextRenderer *  text = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+
+
+
     if (!m_paddleCaptured || m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
     {
         return 0;
+    }
+
+    //  MEASURED WHEN THERE IS A RENDERER TO ASK, because the bar centers its
+    //  text and a centered banner picks its line width from that measurement.
+    //  The estimate behind GetPreferredHeightPx is an AVERAGE glyph width: a
+    //  wide face measures past it, and a height taken from it would reserve a
+    //  line fewer than the paint lays down. The estimate stays as the fallback
+    //  for the moments before the renderer exists.
+    if (text != nullptr)
+    {
+        return (int) m_captureBar.GetMeasuredHeightPx (*text, (float) clientWidthPx, m_scaler);
     }
 
     return (int) m_captureBar.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);

@@ -41,7 +41,7 @@ public:
     explicit DxuiInfoBanner  (std::wstring text) : m_text (std::move (text)) {}
     ~DxuiInfoBanner () override = default;
 
-    void  SetText (const std::wstring & text) { m_text = text; }
+    void  SetText (const std::wstring & text) { m_text = text; m_fitValid = false; }
 
     void  SetSeverity (Severity severity) { m_severity = severity; }
 
@@ -71,10 +71,10 @@ public:
     //  reads as two things that happen to share a strip.
     //
     //  Off by default, so every existing banner paints exactly as it did.
-    void  SetCentered (bool centered) { m_centered = centered; }
+    void  SetCentered (bool centered) { m_centered = centered; m_fitValid = false; }
 
     void  SetRect (const RECT & rect) { SetBounds (rect); }
-    void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }   // the fit cache keys off the dpi itself
 
     // The height (in the caller's layout space) the banner needs to show its text
     // wrapped to `widthPx`: the estimated wrapped-line count times the line
@@ -126,17 +126,21 @@ private:
     // wraps -- see ResolveCenteredLinePx.
     static constexpr float  s_kMaxLineDip = 1024.0f;
 
-    // Widening the wrapped box when the real word breaks need one line more
-    // than the even split allowed: how far each step goes, and how many are
-    // tried before the paint gives up and uses the full width instead.
-    static constexpr float  s_kCenterFitWiden = 1.12f;
-    static constexpr int    s_kCenterFitSteps = 6;
 
     // Estimated wrapped-line count for the text laid out at `textWidthPx`.
     int    EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const;
 
-    // The box a CENTERED banner lays its text in, given the width available to
-    // it and how wide that text wants to be on one line.
+    // The box a CENTERED banner lays its text in, MEASURED -- the one number
+    // the height and the paint must agree on. Cached against the text, the
+    // width it was resolved for and the DPI, because it changes only when one
+    // of those does and Paint runs every frame.
+    float  ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
+                                 float                  availableTextPx,
+                                 const DxuiDpiScaler &  scaler) const;
+
+    // The same box from the renderer-free estimate, for a caller that has no
+    // renderer to ask. See ResolveCenteredLinePx.
+
     //
     // EVENLY SPLIT WHEN IT WRAPS. Filling each line to the cap and letting the
     // remainder fall onto the last one leaves a word or two stranded under a
@@ -159,6 +163,15 @@ private:
 
     //  See SetCentered.
     bool            m_centered = false;
+
+    //  What ResolveCenteredBoxPx last worked out, and the three inputs it
+    //  depends on. Mutable because the height queries are const and are the
+    //  ones that warm it -- Paint then costs nothing.
+    mutable std::wstring  m_fitText;
+    mutable float         m_fitAvailPx = 0.0f;
+    mutable UINT          m_fitDpi     = 0;
+    mutable float         m_fitBoxPx   = 0.0f;
+    mutable bool          m_fitValid   = false;
 
     std::wstring    m_text;
     DxuiDpiScaler   m_scaler;

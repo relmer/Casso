@@ -138,6 +138,62 @@ float DxuiInfoBanner::ResolveCenteredLinePx (float availableTextPx, float wanted
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoBanner::ResolveCenteredBoxPx
+//
+//  The same rule as ResolveCenteredLinePx, asked of the renderer instead of
+//  the estimate -- and this is the answer that counts. The estimate exists for
+//  a caller with no renderer to ask; it is an AVERAGE glyph width, so a wide
+//  face or a line of capitals measures past it, and a width taken from it
+//  would reserve a line fewer than the paint then needs.
+//
+//  CACHED, because Paint runs every frame and this changes only when the text,
+//  the width it has to fit, or the DPI does. That is also what lets the height
+//  query and the paint share one number rather than each work one out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
+                                            float                  availableTextPx,
+                                            const DxuiDpiScaler &  scaler) const
+{
+    HRESULT  hr        = S_OK;
+    float    measuredW = 0.0f;
+    float    measuredH = 0.0f;
+
+
+
+    if (m_fitValid && m_fitText == m_text && m_fitDpi == scaler.GetDpi()
+        && m_fitAvailPx == availableTextPx)
+    {
+        return m_fitBoxPx;
+    }
+
+    hr = text.MeasureString (m_text.c_str(), scaler.ToPxf (s_kFontDip),
+                             DxuiTheme::kBodyFace, measuredW, measuredH);
+
+    //  A measurement that failed says nothing about the text; the full width
+    //  is what the banner used before it was centered, and it wraps to the
+    //  fewest lines, which is the safe way to be wrong.
+    if (FAILED (hr) || measuredW <= 0.0f)
+    {
+        return (availableTextPx > 1.0f) ? availableTextPx : 1.0f;
+    }
+
+    m_fitText    = m_text;
+    m_fitDpi     = scaler.GetDpi();
+    m_fitAvailPx = availableTextPx;
+    m_fitBoxPx   = ResolveCenteredLinePx (availableTextPx, measuredW, scaler);
+    m_fitValid   = true;
+
+    return m_fitBoxPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoBanner::GetPreferredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,19 +264,13 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
         textWidth = 1.0f;
     }
 
-    //  Same box the centered paint will use -- capped and evenly split -- so
-    //  the height a caller reserves and the height the text takes agree.
+    //  THE BOX THE CENTERED PAINT WILL USE, not the full width: capped and
+    //  evenly split, measured rather than estimated, and cached -- so the
+    //  height reserved here and the lines the paint lays down are the same
+    //  count by construction, with nothing left for a fit-up pass to rescue.
     if (m_centered)
     {
-        float  outSingleW = 0.0f;
-        float  outSingleH = 0.0f;
-        HRESULT  hrSingle = text.MeasureString (m_text.c_str(), scaler.ToPxf (s_kFontDip),
-                                                DxuiTheme::kBodyFace, outSingleW, outSingleH);
-
-        if (SUCCEEDED (hrSingle) && outSingleW > 0.0f)
-        {
-            textWidth = ResolveCenteredLinePx (textWidth, outSingleW, scaler);
-        }
+        textWidth = ResolveCenteredBoxPx (text, textWidth, scaler);
     }
 
     hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
@@ -327,65 +377,26 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     //  the text measured together and slid to the middle. Measured rather than
     //  estimated -- Paint has the renderer that Layout does not.
     //
-    //  THE LINE BOX IS THE ONE THE HEIGHT WAS RESERVED FOR: capped at
-    //  s_kMaxLineDip and split evenly when the text has to wrap, exactly as
-    //  GetPreferredHeightPx assumed when it counted lines. It is then widened
-    //  a step at a time if the real word breaks need one more line than the
-    //  reserved height holds, and falls back to the full width -- the fewest
-    //  lines possible -- rather than let a line be clipped.
-    if (m_centered)
+    //  THE LINE BOX IS THE ONE THE HEIGHT WAS RESERVED FOR -- literally the
+    //  same call, off the same cache: capped at s_kMaxLineDip and split evenly
+    //  when the text has to wrap. Nothing is fitted up or retried here; a box
+    //  the height query measured cannot need a line the height query did not
+    //  reserve.
+    if (m_centered && textW > 1.0f)
     {
-        float  measuredW = 0.0f;
-        float  measuredH = 0.0f;
-        HRESULT  hrMeasure = text.MeasureString (m_text.c_str(), fontPx,
-                                                 DxuiTheme::kBodyFace,
-                                                 measuredW, measuredH);
+        float  lineBox = ResolveCenteredBoxPx (text, textW, m_scaler);
+        float  groupW  = iconBox + iconGap + lineBox;
+        float  startX  = left + (width - m_trailingReservePx - groupW) * 0.5f;
 
-        if (SUCCEEDED (hrMeasure) && measuredW > 0.0f && textW > 1.0f)
+        if (startX < left + padX)
         {
-            float  lineH   = fontPx * s_kLineHeightEm;
-            float  textH   = height - padY * 2.0f;
-            float  lineBox = ResolveCenteredLinePx (textW, measuredW, m_scaler);
-            float  groupW  = 0.0f;
-            float  startX  = 0.0f;
-            int    step    = 0;
-
-            //  Only a wrapped box can come out a line short; a single line is
-            //  its own measurement and cannot.
-            for (step = 0; step < s_kCenterFitSteps && lineBox < textW; step++)
-            {
-                float  fitW = 0.0f;
-                float  fitH = 0.0f;
-                HRESULT  hrFit = text.MeasureStringWrapped (m_text.c_str(), fontPx,
-                                                            DxuiTheme::kBodyFace,
-                                                            lineBox, fitW, fitH);
-
-                if (FAILED (hrFit) || fitH <= textH + lineH * 0.1f)
-                {
-                    break;
-                }
-
-                lineBox *= s_kCenterFitWiden;
-
-                if (lineBox > textW)
-                {
-                    lineBox = textW;
-                }
-            }
-
-            groupW = iconBox + iconGap + lineBox;
-            startX = left + (width - m_trailingReservePx - groupW) * 0.5f;
-
-            if (startX < left + padX)
-            {
-                startX = left + padX;
-            }
-
-            iconCx  = startX + iconR;
-            textX   = startX + iconBox + iconGap;
-            textW   = lineBox;
-            hAlign  = DxuiTextHAlign::Center;
+            startX = left + padX;
         }
+
+        iconCx = startX + iconR;
+        textX  = startX + iconBox + iconGap;
+        textW  = lineBox;
+        hAlign = DxuiTextHAlign::Center;
     }
 
     // Themed surface: a subtle tinted fill inside a muted border, so the banner
