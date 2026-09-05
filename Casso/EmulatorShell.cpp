@@ -803,7 +803,12 @@ EmulatorShell::~EmulatorShell()
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
-    hrFlush = m_diskStore.FlushAll();
+    //
+    // THE CLOSING VARIANT, because this runs after the message loop has
+    // exited. A question raised here would be posted to a window nothing is
+    // pumping and answered on a thread that is being torn down; the blocking
+    // notice is the only thing that still reaches the user.
+    hrFlush = m_diskStore.FlushAllForClosing();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:
@@ -6450,6 +6455,23 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // colors (the old per-frame apply path is dead post-T129).
     m_mainMenu.ApplyChromeColors (theme);
 
+    // Tooltips cache their surface colors instead of reading the theme at
+    // paint time -- the popup path hands its background to the popup host at
+    // Show, before any painter exists -- so a theme swap has to re-seed them
+    // here. Without this the balloons kept the palette that was live when the
+    // window was built, leaving skeuomorphic blue tips over a green
+    // RetroTerminal chrome.
+    m_toolbarTooltip.SetTheme   (theme);
+    m_switchBarTooltip.SetTheme (theme);
+    m_driveTooltip.SetTheme     (theme);
+
+    // A balloon that is already up was sized and cleared with the outgoing
+    // colors, and nothing repaints its background. Take it down; the next
+    // hover raises it in the new palette.
+    m_toolbarTooltip.HideImmediate();
+    m_switchBarTooltip.HideImmediate();
+    m_driveTooltip.HideImmediate();
+
     // Every path applies the new thickness; only the window resize is
     // conditional. Min/max/fullscreen windows are skipped because the user
     // explicitly chose that state and should not see the window resize from
@@ -7627,101 +7649,6 @@ int EmulatorShell::RunMessageLoop()
             // no WM_SIZE / OnSize would otherwise re-evaluate it).
             // A notification raised off the UI thread. lParam owns a
             // heap-allocated copy of the text, handed over by ShowNotification.
-            // A mount that ran on the CPU thread wants its damage report raised
-            // here, where a modal can be built.
-            if (msg.message == WM_APP_REPORT_DAMAGE)
-            {
-                ReportDamagedMount ((int) msg.wParam);
-                continue;
-            }
-
-            // Likewise the salvage flow: the Disk menu dispatches it from the
-            // CPU thread, and it builds a modal.
-            if (msg.message == WM_APP_RUN_SALVAGE)
-            {
-                RunSalvageFlow ((int) msg.wParam);
-                continue;
-            }
-
-            // One mount's outcome, from whichever thread ran it. lParam owns a
-            // heap-allocated copy, handed over by OnMountCompleted. Startup
-            // mounts land here too, which is what keeps a bad --disk1 from
-            // raising a dialog before this loop existed to run it.
-            if (msg.message == WM_APP_MOUNT_COMPLETED)
-            {
-                MountCompletion *  carried = reinterpret_cast<MountCompletion *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    HandleMountCompletion (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            // A disk changed outside Casso. The store decided on the thread
-            // that owns disk writes; both of these build UI, so they land
-            // here. lParam owns a heap-allocated notice in each case.
-            if (msg.message == WM_APP_CHANGE_REPORT)
-            {
-                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    ShowChangeBanner (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_CHANGE_ASK)
-            {
-                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    AskAboutChange (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_NOTIFY_USER)
-            {
-                wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    ShowNotification (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
-            {
-                UpdateWindowTitle();
-                ReflowChromeForMachineChange();
-
-                // The machine may now sit in front of a different monitor,
-                // which changes every override key. This is the UI-thread
-                // side of the switch; SwitchMachine runs on the CPU thread
-                // and must not do file work or race the render path.
-                RefreshCrtOverrideKeys();
-
-                // A switch adopts the machine's own input mapping and may
-                // change the default pointer mode, both on the CPU thread,
-                // which defers their UI reflection here. Sync the selector
-                // state on the UI thread; it is idempotent when nothing
-                // changed.
-                SyncSelectorState();
-                continue;
-            }
-
             // Modeless Settings: let the sheet claim its dialog-navigation keys
             // (Tab / Enter / Escape) first (Dxui's IsDialogMessage equivalent).
             if (m_settingsSheet != nullptr && m_settingsSheet->ProcessDialogMessage (msg))
@@ -8488,10 +8415,6 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                     m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
                 }
 
-                if (m_refs.keyboard != nullptr)
-                {
-                    m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
-                }
             }
 
             break;
@@ -8842,11 +8765,6 @@ void EmulatorShell::StepInstructionWhilePaused()
         m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
     }
 
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
-    }
-
     RunOneFrame();
     PublishFramebuffer();
 }
@@ -9174,6 +9092,74 @@ void EmulatorShell::DestroyFrameReadyEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TickKeyboardAutoRepeat
+//
+//  Advances the //e keyboard's auto-repeat cadence by the real time since the
+//  previous CPU-thread frame.
+//
+//  The cadence used to be counted in guest cycles, ticked once per
+//  instruction. That reads as authentic and is not: the //e's repeat is
+//  generated in the keyboard encoder, off an oscillator that knows nothing
+//  about the 6502, and a typist's finger rests in real seconds either way. So
+//  the guest clock dragged it along -- Double repeated at twice the rate off
+//  half the delay, and Maximum, which runs uncapped at tens of times real,
+//  turned a held key into hundreds of characters a second and made the
+//  machine impossible to type on.
+//
+//  Once a frame is resolution enough for a 500 ms delay and a 15 cps rate,
+//  and the clock read replaces one call per instruction. The stamp is
+//  advanced by the whole microseconds handed over rather than set to now, so
+//  the sub-microsecond remainder is carried instead of being dropped every
+//  frame -- at Maximum speed the frames are short enough for that to matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TickKeyboardAutoRepeat()
+{
+    chrono::steady_clock::time_point  now      = chrono::steady_clock::now();
+    int64_t                           elapsed  = 0;
+
+
+
+    if (m_refs.keyboard == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastKeyRepeatSteady == chrono::steady_clock::time_point{})
+    {
+        // First frame since the machine came up: start the interval here
+        // rather than report the whole time since the epoch as elapsed.
+        m_lastKeyRepeatSteady = now;
+        return;
+    }
+
+    elapsed = chrono::duration_cast<chrono::microseconds> (now - m_lastKeyRepeatSteady).count();
+
+    if (elapsed <= 0)
+    {
+        return;
+    }
+
+    m_lastKeyRepeatSteady += chrono::microseconds (elapsed);
+
+    // An hour of stall does not fit the 32-bit interval the device takes, and
+    // the device caps anything past the initial delay at one repeat anyway, so
+    // capping here loses nothing and keeps the cast honest.
+    if (elapsed > static_cast<int64_t> (AppleKeyboard::kKeyRepeatDelayUs))
+    {
+        elapsed = AppleKeyboard::kKeyRepeatDelayUs;
+    }
+
+    m_refs.keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecuteCpuSlices
 //
 //  One emulated frame's worth of CPU time, cut into ~1023-cycle slices.
@@ -9233,6 +9219,10 @@ void EmulatorShell::ExecuteCpuSlices()
     // IsInitialized, so the gate below would otherwise keep the reopen from
     // ever running (GH #137).
     m_wasapiAudio.ServiceEndpointChanges();
+
+    // Real time, not the cycle budget below: the keyboard's repeat cadence is
+    // the one thing in this frame that must not follow the emulated clock.
+    TickKeyboardAutoRepeat();
 
     audioActive = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
 
@@ -9301,11 +9291,6 @@ void EmulatorShell::ExecuteCpuSlices()
             if (m_refs.mockingboard != nullptr)
             {
                 m_refs.mockingboard->Tick (cycles);
-            }
-
-            if (m_refs.keyboard != nullptr)
-            {
-                m_refs.keyboard->Tick (cycles);
             }
         }
 
@@ -11888,10 +11873,11 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // Arrow / Escape / Delete map to //e control codes. Gated on the
         // auto-repeat bit so the host OS repeat never reaches the latch; a
         // fresh press arms the $C000 strobe once and registers the key for
-        // the emulator's own authentic //e auto-repeat cadence (Tick). With
-        // "Map Arrows to Joystick" on (and a game-port paddle bank present),
-        // arrow keys are withheld from the keyboard latch so a held
-        // direction cannot flood $C000 and starve a joystick game's reads.
+        // the emulator's own authentic //e auto-repeat cadence
+        // (TickAutoRepeat). With "Map Arrows to Joystick" on (and a game-port
+        // paddle bank present), arrow keys are withheld from the keyboard
+        // latch so a held direction cannot flood $C000 and starve a joystick
+        // game's reads.
         if (!ev.repeat)
         {
             appleCode = MapVkToAppleControlCode (vk);
@@ -12823,7 +12809,8 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 //                    withheld from the latch
 //    OS auto-repeat  the host repeat rate would flood $C000 and confuse games
 //                    that poll it; the emulated //e generates its own repeat
-//                    in CPU time (AppleKeyboard::Tick) from the single latch
+//                    in real time (AppleKeyboard::TickAutoRepeat) from the
+//                    single latch
 //
 //  What survives goes through the viewport, not straight to the keyboard, so
 //  characters travel the same Dxui path as the key transitions (FR-034).
@@ -12870,7 +12857,8 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // OS auto-repeat: the host repeat rate would flood $C000 and confuse
     // real-time games that poll it. A fresh press is latched once and
     // registered for the emulator's own authentic //e auto-repeat cadence
-    // (driven in CPU time by AppleKeyboard::Tick).
+    // (driven in real time by AppleKeyboard::TickAutoRepeat, so the emulation
+    // speed does not move it).
     bool  isGuestChar = m_refs.keyboard != nullptr &&
                         !overlayOwnsIt &&
                         !isRepeat &&
@@ -13198,6 +13186,9 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 //  still sitting on screen. It uses the same " - " separator as the machine
 //  name so the whole caption reads as one list rather than two grammars.
 //
+//  An undocumented --title puts a launcher's own label in front of all of it,
+//  which is what lets several windows running the same machine be told apart.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::UpdateWindowTitle()
@@ -13223,7 +13214,18 @@ void EmulatorShell::UpdateWindowTitle()
 
     BAIL_OUT_IF (isOffThread, S_OK);
 
-    title = L"Casso";
+    //  The launcher's label, ahead of everything the emulator has to say about
+    //  itself. FIRST because that is the half of a caption a taskbar button or
+    //  an Alt+Tab thumbnail still has room for once it truncates, and the whole
+    //  reason the label was passed in is to tell one window from several
+    //  identical ones.
+    if (!m_titlePrefix.empty())
+    {
+        title += m_titlePrefix;
+        title += L" - ";
+    }
+
+    title += L"Casso";
 
     if (!m_config.name.empty())
     {
@@ -14075,7 +14077,11 @@ void EmulatorShell::InstallChangeReporting()
         }
     });
 
-    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    //  THE POST IS THE DELIVERY, so whether it succeeded is what the store is
+    //  told. This sink is installed before the window exists and posting can
+    //  fail on a full queue, and a bay left believing a question is on screen
+    //  that nobody ever saw is a bay nothing acts on again until it is ejected.
+    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt) -> bool
     {
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
@@ -14083,28 +14089,26 @@ void EmulatorShell::InstallChangeReporting()
             !PostMessageW (m_hwnd, WM_APP_CHANGE_ASK, 0, (LPARAM) carried))
         {
             delete carried;
+
+            return false;
         }
+
+        return true;
     });
 
     m_changeBanner.SetSeverity (DxuiInfoBanner::Severity::Info);
     m_changeBanner.SetVisible  (false);
 
+    //  EVERY BUTTON ON THE STRIP DISMISSES IT, and that is all any of them
+    //  does. Only questions carry answers worth acting on, and questions go to
+    //  a dialog -- the strip routes nothing back, which is why a lost-file
+    //  prompt sent here had two buttons that did nothing. Dismissing it and
+    //  its countdown running out are the same thing.
     m_changeBanner.SetOnAction ([this] (size_t index)
     {
-        //  What the button means came from core with its label. The shell
-        //  reads it back rather than assuming, so a banner that grows a second
-        //  action does not need this rewritten.
-        ChangeAction  action = (index < m_changeBannerActions.size())
-                                   ? m_changeBannerActions[index]
-                                   : ChangeAction::Ignore;
+        UNREFERENCED_PARAMETER (index);
 
-        //  Dismissing it and its countdown running out are the same thing.
         HideChangeBanner();
-
-        if (action == ChangeAction::Restart)
-        {
-            PostCommand (IDM_MACHINE_RESET);
-        }
     });
 
     return;
@@ -14137,18 +14141,13 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
 
 
 
-    m_changeBannerActions.clear();
-
     for (i = 0; i < notice.prompt.answers.size(); i++)
     {
         labels.push_back (notice.prompt.answers[i].label);
-        m_changeBannerActions.push_back (notice.prompt.answers[i].action);
     }
 
     m_changeBanner.SetText    (notice.prompt.message);
     m_changeBanner.SetActions (labels);
-
-    m_changeBannerDrive = notice.drive;
 
     //  RE-ARMED ON EVERY CHANGE, not only the first. A later change re-words
     //  the strip already on screen, and a countdown left running from the
@@ -14161,12 +14160,6 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
     //  Replaced rather than stacked: a standing report absorbs later changes,
     //  so a second one re-words the strip already on screen.
     m_changeBanner.SetVisible (!labels.empty());
-
-    if (labels.empty())
-    {
-        m_diskStore.ClearChangeReport (notice.slot, notice.drive);
-        m_changeBannerDrive = -1;
-    }
 
     //  The band just changed height, so everything below it moves and the
     //  picture is rescaled into what is left. Nothing here positions the
@@ -14331,16 +14324,18 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
     for (i = 0; i < notice.prompt.answers.size(); i++)
     {
-        bool  isLast = (i + 1 == notice.prompt.answers.size());
+        bool  isSafe = (i == notice.prompt.safeAnswer);
 
-        //  The last answer is the one that changes nothing, so it is the
-        //  default and the close-box result: dismissing a question about a
-        //  disk must not act on it.
+        //  THE PROMPT NAMES ITS OWN SAFE ANSWER, and that is the default and
+        //  the close-box result: dismissing a question about a disk must not
+        //  cost the user anything. Which answer that is differs by question,
+        //  and taking it to be the last one threw away a disk that had no file
+        //  left to go back to.
         def.buttons.push_back (DialogButton { notice.prompt.answers[i].label,
-                                              (int) i, isLast, isLast, false });
+                                              (int) i, isSafe, isSafe, false });
     }
 
-    def.closeBoxResult = (int) (notice.prompt.answers.size() - 1);
+    def.closeBoxResult = (int) notice.prompt.safeAnswer;
 
     //  THE QUESTION STANDS UNTIL IT IS ANSWERED. Saving needs a destination,
     //  and only this thread can ask for one; but a picker the user backs out of
@@ -14356,7 +14351,7 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
         if (choice < 0 || choice >= (int) notice.prompt.answers.size())
         {
-            choice = (int) (notice.prompt.answers.size() - 1);
+            choice = (int) notice.prompt.safeAnswer;
         }
 
         chosen = notice.prompt.answers[choice].action;
@@ -14525,6 +14520,136 @@ void EmulatorShell::InstallIntentMessageFilter()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::OnAppMessage
+//
+//  The messages this shell posts to its own window.
+//
+//  HERE RATHER THAN IN RunMessageLoop, WHICH IS THE WHOLE POINT. That loop
+//  picked every one of these off before DispatchMessage, so they existed only
+//  while it was the pump that was running -- and any modal dialog runs a pump
+//  of its own. A question about a changed disk arriving while a picker or the
+//  About box was open reached DefWindowProc, its heap payload leaked, and the
+//  store had already recorded that a question was outstanding, so it never
+//  asked again: that bay stayed stuck with a pending change until it was
+//  ejected. A mount completing under the same dialog went the same way, and
+//  the user was never told it had failed. Reached from the window procedure,
+//  every pump delivers them.
+//
+//  A QUESTION ARRIVING UNDER A MODAL THEREFORE OPENS AS A NESTED MODAL, which
+//  is ordinary Win32 -- a disabled owner still receives posted messages -- and
+//  better than the alternative of not being told at all.
+//
+//  EACH lParam OWNS A HEAP PAYLOAD handed over by whoever posted it, and this
+//  is where it is freed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    // A disk changed outside Casso. The store decided on the thread that owns
+    // disk writes; both of these build UI, so they land here.
+    if (msg == WM_APP_CHANGE_REPORT)
+    {
+        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowChangeBanner (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_CHANGE_ASK)
+    {
+        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+
+        if (carried != nullptr)
+        {
+            AskAboutChange (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_NOTIFY_USER)
+    {
+        wstring *  carried = reinterpret_cast<wstring *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowNotification (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A mount that ran on the CPU thread wants its damage report raised here,
+    // where a modal can be built.
+    if (msg == WM_APP_REPORT_DAMAGE)
+    {
+        ReportDamagedMount ((int) wParam);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // Likewise the salvage flow: the Disk menu dispatches it from the CPU
+    // thread, and it builds a modal.
+    if (msg == WM_APP_RUN_SALVAGE)
+    {
+        RunSalvageFlow ((int) wParam);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // One mount's outcome, from whichever thread ran it. Startup mounts land
+    // here too, which is what keeps a bad --disk1 from raising a dialog before
+    // there was a pump to run it.
+    if (msg == WM_APP_MOUNT_COMPLETED)
+    {
+        MountCompletion *  carried = reinterpret_cast<MountCompletion *> (lParam);
+
+        if (carried != nullptr)
+        {
+            HandleMountCompletion (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_DXUI_UPDATE_TITLE)
+    {
+        UpdateWindowTitle();
+        ReflowChromeForMachineChange();
+
+        // The machine may now sit in front of a different monitor, which
+        // changes every override key. This is the UI-thread side of the
+        // switch; SwitchMachine runs on the CPU thread and must not do file
+        // work or race the render path.
+        RefreshCrtOverrideKeys();
+
+        // A switch adopts the machine's own input mapping and may change the
+        // default pointer mode, both on the CPU thread, which defers their UI
+        // reflection here. Sync the selector state on the UI thread; it is
+        // idempotent when nothing changed.
+        SyncSelectorState();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::OnCopyData
 //
 //  A writing tool saying what its change to a mounted image meant.
@@ -14588,12 +14713,6 @@ void EmulatorShell::HideChangeBanner()
 {
     m_changeBanner.SetVisible (false);
     m_changeBannerHideAtMs = 0;
-
-    if (m_changeBannerDrive >= 0)
-    {
-        m_diskStore.ClearChangeReport (6, m_changeBannerDrive);
-        m_changeBannerDrive = -1;
-    }
 
     ReflowChromeForChangeBand();
 

@@ -98,6 +98,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                                    const std::function<const uint32_t * (int &, int &)> & framebufferSource,
                                    const std::function<std::wstring (int)>              & mountedPathSource,
                                    const std::function<WriteProtectInfo (int)>          & writeProtectSource,
+                                   const std::function<void (int, DriveWidgetState &)>   & driveActivitySource,
                                    std::array<DriveWidget, 2>           & previewDrives,
                                    DxuiCaptionBar                       & previewCaption,
                                    MainMenu                             & previewMenu,
@@ -299,6 +300,17 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         {
             mount0.writeProtect = writeProtectSource (0);
             mount1.writeProtect = writeProtectSource (1);
+        }
+
+        // Head position + activity, sampled from the live drives for the same
+        // reason the mounted path is: the preview is the chrome, not a
+        // picture of it. A default-constructed state carries the "position
+        // unknown" -1, which the head bar refuses to draw a core for, so
+        // without this the 2D themes' activity indicator was a bare rail.
+        if (driveActivitySource)
+        {
+            driveActivitySource (0, mount0);
+            driveActivitySource (1, mount1);
         }
 
         mount0.doorState = mount0.mountedImagePath.empty()
@@ -830,7 +842,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
         hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.IsChecked(), m_sceneRequest);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_driveActivitySource, m_previewDrives, m_previewCaption, m_previewMenu, m_previewChromeConfigured, m_crtMonitorCheckbox.IsChecked(), m_sceneRequest);
 
         // The 3D pass runs after the whole panel tree, so it would otherwise
         // land on top of the menu about to be painted below. An in-window

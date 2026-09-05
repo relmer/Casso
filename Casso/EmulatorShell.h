@@ -26,7 +26,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiShadowedText.h"
@@ -195,6 +194,12 @@ public:
     // --no-image-watch and read by the two places that install notification.
     void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
     bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
+
+    // Text put in front of the window caption, so one of several open windows
+    // can be told from the others at a glance. Undocumented; set from --title
+    // and read by UpdateWindowTitle. Set before the window exists, so it does
+    // not refresh the caption itself.
+    void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void DumpTrace        (const wstring & reason);
 
@@ -289,6 +294,7 @@ private:
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
@@ -322,6 +328,12 @@ private:
     void RunCpuThreadFrame();
     void ExecuteCpuSlices();
     void RenderFramebuffer();
+
+    // Hands the //e keyboard the real time that has passed since the previous
+    // CPU-thread frame, which is what its auto-repeat cadence runs on. Not
+    // driven off the guest clock: Double would then repeat twice as fast and
+    // Maximum, which is uncapped, faster than anyone can type against.
+    void TickKeyboardAutoRepeat();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
 
     // Presentation pacing + render-skip gate (rationale in the .cpp).
@@ -678,6 +690,31 @@ private:
         }
 
         return m_driveWidgetState[(size_t) driveIndex].writeProtect;
+    }
+
+    // Head position and activity for the Settings -> Theme preview, copied
+    // into the caller's state rather than returned, because the live state
+    // holds atomics and cannot be copied whole. Without it the preview's
+    // drives are built from a default-constructed state, whose head position
+    // is the "unknown" -1 that PaintCompactHeadBar deliberately refuses to
+    // draw a core for -- so a 2D theme's activity indicator showed the bare
+    // rail and nothing else. Index 0 is drive 1.
+    void  SampleDriveActivity (int driveIndex, DriveWidgetState & outState) const
+    {
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return;
+        }
+
+        const DriveWidgetState &  st = m_driveWidgetState[(size_t) driveIndex];
+
+        outState.headQuarterTrack.store (st.headQuarterTrack.load (std::memory_order_relaxed),
+                                         std::memory_order_relaxed);
+        outState.motorOn.store    (st.motorOn.load    (std::memory_order_relaxed),
+                                   std::memory_order_relaxed);
+        outState.diskActive.store (st.diskActive.load (std::memory_order_relaxed),
+                                   std::memory_order_relaxed);
+        outState.lastActiveMs = st.lastActiveMs;
     }
 
     // Base directory for user preferences. SettingsPanel.CommitApply
@@ -1203,6 +1240,7 @@ private:
     unique_ptr<class Prng>  m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
+    wstring                m_titlePrefix;                 // --title (undocumented)
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
     D3DRenderer            m_d3dRenderer;
@@ -1324,7 +1362,6 @@ private:
     // reaches for once the program starts misbehaving, and a notice that faded
     // would take that action with it.
     DxuiActionBanner            m_changeBanner;
-    int                         m_changeBannerDrive = -1;
 
     //  When the change band closes itself, and the frame that last looked.
     //  Zero means it stands until dismissed. Hovering does not extend the
@@ -1333,11 +1370,6 @@ private:
     //  what was left when it arrived.
     int64_t                     m_changeBannerHideAtMs = 0;
     int64_t                     m_changeBannerTickMs   = 0;
-
-    // What each of the banner's buttons means, in the order they were drawn.
-    // The labels and the meanings are both core's; keeping the meanings beside
-    // the buttons is what stops the shell from inventing one.
-    std::vector<ChangeAction>   m_changeBannerActions;
 
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
@@ -1797,6 +1829,12 @@ private:
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;
+
+    // When the //e keyboard's auto-repeat cadence was last advanced, and the
+    // sub-microsecond remainder that advance left behind. Zero before the
+    // first CPU-thread frame, which starts the interval rather than reporting
+    // one. CPU-thread-only.
+    chrono::steady_clock::time_point  m_lastKeyRepeatSteady = {};
 
     // Host sample rate the loaded sounds were decoded at, 0 before the first
     // load. Compared against the live device rate each frame so a reopen onto

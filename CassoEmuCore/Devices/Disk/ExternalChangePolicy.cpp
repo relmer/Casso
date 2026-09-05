@@ -40,14 +40,6 @@ ChangeAction ExternalChangePolicy::Decide (const Situation & situation)
     {
         action = ChangeAction::Ignore;
     }
-    else if (situation.heldByOther)
-    {
-        //  Deferred rather than refused: the pick-up simply happens once the
-        //  writer lets go. Both writers here commit atomically, but a text
-        //  editor or a copy tool need not, and the quiet period alone does not
-        //  cover one that takes its time.
-        action = ChangeAction::Defer;
-    }
     else if (!situation.usable)
     {
         action = ChangeAction::Unusable;
