@@ -413,4 +413,65 @@ public:
         Assert::AreEqual ((size_t) 0, prefs.recentDiskLoadedAt.size());
     }
 
+
+    // GlobalUserPrefs::Save is the SECOND writer of the unified prefs file,
+    // and Main.cpp runs it on every launch before the shell exists. It used to
+    // swallow a failed read-back of that file and write defaults over it,
+    // which destroyed an unreadable file before UserConfigStore could set it
+    // aside -- and made the whole recovery path unreachable in a real build.
+
+    TEST_METHOD (Save_OverAnUnreadablePrefsFile_IsRefused)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        HRESULT             hr       = S_OK;
+        std::wstring        baseDir  = L"C:\\Casso";
+        std::string         original = "{\"global\":{\"activeTheme\":\"Retro Terminal\"},}";
+
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (baseDir), original);
+        AssertSucceeded (hr);
+
+        prefs.activeTheme = "DarkModern";
+
+        hr = prefs.Save (baseDir, fs);
+        AssertFailed (hr);
+
+        // Byte for byte, including the trailing comma that made it unreadable.
+        // Whatever is in there is still the user's only copy.
+        Assert::AreEqual (original, fs.PeekContent (GlobalUserPrefs::GetFilePath (baseDir)));
+    }
+
+
+    TEST_METHOD (Save_OverAReadablePrefsFile_KeepsTheMachinesAndWrites)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        JsonValue           written;
+        JsonParseError      err;
+        std::string         text;
+        HRESULT             hr      = S_OK;
+        std::wstring        baseDir = L"C:\\Casso";
+
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (baseDir),
+                              "{\"global\":{},\"machines\":{\"Apple2e\":{\"speedMode\":\"Maximum\"}}}");
+        AssertSucceeded (hr);
+
+        prefs.activeTheme = "DarkModern";
+
+        // The refusal must not cost the ordinary path anything: a file that
+        // reads still saves, and still carries the machines section across.
+        hr = prefs.Save (baseDir, fs);
+        AssertSucceeded (hr);
+
+        hr = fs.ReadAllText (GlobalUserPrefs::GetFilePath (baseDir), text);
+        AssertSucceeded (hr);
+        hr = JsonParser::Parse (text, written, err);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (text.find ("DarkModern") != std::string::npos);
+        Assert::IsTrue (text.find ("Maximum") != std::string::npos);
+    }
+
 };
