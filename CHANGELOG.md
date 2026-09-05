@@ -84,7 +84,10 @@ Entries before versioning was introduced use dates only.
   would take, stamped with that moment. Waving the question away left the
   name held, so a genuine conflict hours later filed the guest's disk under
   the old timestamp -- and under a name another file may have taken since.
-  The same went for the question raised when a copy could not be written.
+  The same went for the question raised when a copy could not be written,
+  and a reservation no longer outlives the disk it was made for: neither
+  eject cleared one, so the next disk into that drive filed its own copy
+  under the departed disk's name.
 - **The startup download dialog broke "OpenEmulator (GitHub)" across two lines.**
   Its source column was a fixed width that stood a few pixels short of the
   drive-audio origin. The column is now measured from the labels the list

@@ -516,6 +516,56 @@ public:
         }
     }
 
+    //  AND A RESERVATION DOES NOT OUTLIVE THE DISK IT WAS MADE FOR. Neither
+    //  eject clears one, which costs nothing while the bay stands empty --
+    //  nothing reads a reservation on an empty bay. The disk mounted next is
+    //  what inherited it, and filed its own copy under the name and the moment
+    //  belonging to a disk that had already left the drive.
+    TEST_METHOD (AReservationDoesNotOutliveTheDiskItWasMadeFor)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  A question goes up, reserving a name stamped with this moment, and
+        //  the user takes the disk out instead of answering it.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        rig.store.Eject (kSlot, kDrive);
+
+        //  An hour later a disk goes back in, and it conflicts on its own.
+        rig.wallClock += 3600;
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
+
+        Assert::AreNotEqual (PreservedCopy::MakePath (
+                                 kImagePath,
+                                 PreservedCopy::MakeStamp (rig.wallClock - 3600), 0),
+                             rig.PreservedPaths()[0],
+                             L"not under the name reserved for the disk that left");
+        Assert::AreEqual (PreservedCopy::MakePath (
+                              kImagePath,
+                              PreservedCopy::MakeStamp (rig.wallClock), 0),
+                          rig.PreservedPaths()[0],
+                          L"but under one belonging to the disk that is in the drive");
+    }
+
 
 
 

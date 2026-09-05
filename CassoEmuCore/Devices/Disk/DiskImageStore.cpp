@@ -271,6 +271,17 @@ HRESULT DiskImageStore::MountFromBytes (
         entry.format  = fmt;
         entry.mounted = true;
 
+        //  A DISK INHERITS NOTHING FROM THE ONE BEFORE IT. A preserved name is
+        //  reserved for the file a question was asked about, and neither eject
+        //  clears one -- neither needs to, because nothing reads a reservation
+        //  on an empty bay. The disk that follows is what would have inherited
+        //  it, and filed its copy under the previous disk's name and moment.
+        //
+        //  AFTER THE FLUSH ABOVE, which is the last thing entitled to the
+        //  outgoing disk's reservation.
+        entry.preservedPath.clear();
+        entry.preservedWritten = false;
+
         entry.image->LoadFromBytes (fmt, bytes, virtualPath);
 
         // A format the loader rejects leaves the slot empty rather than
