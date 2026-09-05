@@ -116,9 +116,13 @@ Byte Apple80ColTextMode::ReadTextByte (
 
 
 
-    if      (fromAux && m_auxMem != nullptr)   { value = m_auxMem[addr];       }
+    //  The direct pointers first, then videoRam, then the bus. videoRam serves
+    //  EITHER column when its own bank pointer is absent: it did so for both
+    //  before main was taken directly, and confining it to the main column
+    //  quietly moved an aux read with no aux buffer onto the bus.
+    if      (fromAux  && m_auxMem  != nullptr) { value = m_auxMem[addr];       }
     else if (!fromAux && m_mainMem != nullptr) { value = m_mainMem[addr];      }
-    else if (!fromAux && videoRam != nullptr)  { value = videoRam[addr];       }
+    else if (videoRam != nullptr)              { value = videoRam[addr];       }
     else                                       { value = m_bus.ReadByte (addr); }
 
     return value;
