@@ -66,6 +66,9 @@ Entries before versioning was introduced use dates only.
   open did the same. Text is no longer drawn into a box with no area, and a
   failed assertion is now shown once per run and never on top of another one --
   the task-modal box was pumping the very paint whose failure raised it.
+- **Unchecking a second drive was not correctly persisted.** The drive left the
+  desk as it should, but came back the next time Settings opened, and on the
+  next launch.
 - **Full-screen mode hid the top and bottom of the picture on a widescreen
   display.** The camera was placed so the monitor's glass covered the screen,
   and the glass is about 1.4:1, so on 16:9 the top and bottom of the glass were
