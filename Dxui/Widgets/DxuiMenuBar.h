@@ -182,6 +182,12 @@ public:
     // titles never clip.
     int   GetMenuStripContentWidthPx () const;
 
+    // The strip's height in physical pixels at `dpi`, known before any
+    // Layout: a host that stacks the menu bar with other chrome needs the
+    // height to place them, and asking the bar afterwards would mean laying
+    // it out at a position computed from a height it had not reported yet.
+    static int  GetStripHeightPx (UINT dpi);
+
     // Public reusable helper. Parses a Win32-style label ("E&xit") into
     // a stripped string ("Exit"), the index of the mnemonic in the
     // stripped string, and its lower-cased character. "&&" collapses

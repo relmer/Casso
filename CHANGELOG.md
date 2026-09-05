@@ -85,6 +85,9 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The fullscreen top edge revealed only the command toolbar, leaving the menu
+  bar unreachable.** The menu bar now rides down with the toolbar, above it, in
+  the order the windowed chrome stacks them.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,

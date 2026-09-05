@@ -899,7 +899,7 @@ private:
     // //c switch strip -- so the glass-fill scene owns the whole client.
     void    SetChromeHiddenForFullscreenScene (bool hidden);
 
-    // The pointer-capture banner and the fullscreen top-edge toolbar reveal,
+    // The pointer-capture banner and the fullscreen top-edge chrome reveal,
     // both driven from the per-frame UI upkeep.
     void    SyncCaptureBanner    ();
     void    SyncFrameRateReadout ();
@@ -907,7 +907,7 @@ private:
     // The scene pose across the middle of the picture, so a screenshot of a
     // render fault carries the angle it was taken from.
     void    SyncSceneViewReadout ();
-    void    TickFullscreenToolbar();
+    void    TickFullscreenTopChrome();
 
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
@@ -1416,12 +1416,12 @@ private:
 
     void  LayoutSceneCompass ();
 
-    // The fullscreen toolbar reveal, the drive strip's bargain mirrored
-    // along the top edge: shown while the pointer is up there, hidden once
-    // it leaves and the grace expires.
-    bool                       m_fsToolbarShown    = false;
-    int64_t                    m_fsToolbarLeftMs   = 0;
-    int64_t                    m_fsToolbarAnimMs   = 0;   // slide start
+    // The fullscreen menu-bar-and-toolbar reveal, the drive strip's bargain
+    // mirrored along the top edge: shown while the pointer is up there,
+    // hidden once it leaves and the grace expires.
+    bool                       m_fsTopChromeShown  = false;
+    int64_t                    m_fsTopChromeLeftMs = 0;
+    int64_t                    m_fsTopChromeAnimMs = 0;   // slide start
 
     // Chrome layout via DxuiDockLayout. The three bands carry the title
     // bar, nav strip, and drive bar pixel thicknesses in their GetBounds();
