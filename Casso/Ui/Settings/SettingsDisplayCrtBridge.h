@@ -22,7 +22,7 @@ class EmulatorShell;
 //  Per-monitor CRT plumbing for the Settings panel's Display page.
 //  Bridges three sources of truth -- monitor presets (CrtPresets),
 //  active theme overrides (ThemeManager::GetActiveTheme), and the
-//  user's stored overrides (GlobalUserPrefs::crtByMode) -- into the
+//  user's stored overrides (GlobalUserPrefs::crtOverrides) -- into the
 //  slider widget state on DisplayPage.
 //
 //  Stateless across calls (everything reads through the bound refs);
@@ -71,31 +71,35 @@ public:
 
 
 
-        if (m_prefs == nullptr)
+        if (m_prefs != nullptr)
         {
-            return;
-        }
+            key = ActiveOverrideKey();
 
-        key = ActiveOverrideKey();
-
-        if (ResolveWithoutUser().values.*valueSlot == value)
-        {
-            auto  found = m_prefs->crtOverrides.find (key);
-
-            if (found != m_prefs->crtOverrides.end())
+            if (ResolveWithoutUser().values.*valueSlot == value)
             {
-                (found->second.*slot).reset();
+                auto  found = m_prefs->crtOverrides.find (key);
 
-                if (found->second.IsEmpty())
+                if (found != m_prefs->crtOverrides.end())
                 {
-                    m_prefs->crtOverrides.erase (found);
+                    (found->second.*slot).reset();
+
+                    if (found->second.IsEmpty())
+                    {
+                        m_prefs->crtOverrides.erase (found);
+                    }
                 }
             }
+            else
+            {
+                m_prefs->crtOverrides[key].*slot = value;
+            }
 
-            return;
+            // A badge reports the tier that supplied the value, so it goes
+            // stale the instant this map changes. Republishing here is what
+            // drops a row's badge as a control moves off its default and
+            // brings the badge back when the control returns.
+            PublishDefaultsHint();
         }
-
-        m_prefs->crtOverrides[key].*slot = value;
     }
 
     // A theme carries CRT defaults, so adopting a theme adopts them --
@@ -106,8 +110,8 @@ public:
 
     // Installs the slider / toggle / monitor / restore-defaults
     // callbacks on the bound DisplayPage. The lambdas funnel through
-    // PromoteActiveToOverride + the per-monitor crtByMode block so the
-    // CRT shader picks live edits up on the next frame.
+    // SetOverride, so each one records only the field it changed and the
+    // CRT shader picks the edit up on the next frame.
     void  WireDisplayPageCallbacks ();
 
 
