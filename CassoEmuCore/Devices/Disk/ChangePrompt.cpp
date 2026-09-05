@@ -384,16 +384,40 @@ ChangePrompt ChangePrompt::ComposeSaveFailure (const std::string & imagePath, in
 
     prompt.message += L"\n\n" + full + L"\n\nError: " + DescribeError (reason) + L"\n\n";
 
-    prompt.message += (cause == SaveFailureCause::FileLost)
-                          ? (L"Your disk is still in " + where + L".")
-                          : (L"Your changes are still in " + where + L", and the modified "
-                             + file + L" hasn't been inserted.");
+    if (cause == SaveFailureCause::FileLost)
+    {
+        prompt.message += L"Your disk is still in " + where + L".";
+    }
+    else if (cause == SaveFailureCause::Ejecting)
+    {
+        prompt.message += L"Your changes are only in " + where + L", which is about to "
+                          L"be emptied. Save them somewhere, or let them go.";
+    }
+    else
+    {
+        prompt.message += L"Your changes are still in " + where + L", and the modified "
+                        + file + L" hasn't been inserted.";
+    }
 
-    //  Dismissing leaves the copy unwritten and the drive as it was.
-    prompt.safeAnswer = 1;
+    if (cause == SaveFailureCause::Ejecting)
+    {
+        //  THE DISK COMES OUT EITHER WAY, and the labels say which of the two
+        //  ways. There is no answer here that costs nothing: the nearest is
+        //  the one that keeps the disk, so that is what Enter and the close
+        //  box take.
+        prompt.safeAnswer = 0;
 
-    prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
-    prompt.answers.push_back (PromptAnswer { L"Dismiss",    ChangeAction::Ignore });
+        prompt.answers.push_back (PromptAnswer { L"Save as...",       ChangeAction::PreserveCopy });
+        prompt.answers.push_back (PromptAnswer { L"Eject and discard", ChangeAction::Discard });
+    }
+    else
+    {
+        //  Dismissing leaves the copy unwritten and the drive as it was.
+        prompt.safeAnswer = 1;
+
+        prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
+        prompt.answers.push_back (PromptAnswer { L"Dismiss",    ChangeAction::Ignore });
+    }
 
     return prompt;
 }
