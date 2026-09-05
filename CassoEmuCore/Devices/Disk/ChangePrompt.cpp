@@ -168,7 +168,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         prompt.message += L"\n\nInsert the modified disk to use the other program's "
                           L"version.";
 
-        prompt.message += L"\n\nKeep your current version to carry on with the disk as "
+        prompt.message += L"\n\nKeep your current version to go on using the disk as "
                           L"it is.";
 
         if (!copy.empty())

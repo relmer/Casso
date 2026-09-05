@@ -574,7 +574,7 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
     {
         message += L" Your session was preserved here instead:\n\n" + wideRecovery +
                    L"\n\nThat copy is complete. It keeps the track that could not "
-                   L"be written back. Mount it to carry on from where you were.";
+                   L"be written back. Mount it to pick up where you left off.";
     }
     else
     {
