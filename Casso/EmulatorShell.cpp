@@ -6439,6 +6439,23 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // colors (the old per-frame apply path is dead post-T129).
     m_mainMenu.ApplyChromeColors (theme);
 
+    // Tooltips cache their surface colors instead of reading the theme at
+    // paint time -- the popup path hands its background to the popup host at
+    // Show, before any painter exists -- so a theme swap has to re-seed them
+    // here. Without this the balloons kept the palette that was live when the
+    // window was built, leaving skeuomorphic blue tips over a green
+    // RetroTerminal chrome.
+    m_toolbarTooltip.SetTheme   (theme);
+    m_switchBarTooltip.SetTheme (theme);
+    m_driveTooltip.SetTheme     (theme);
+
+    // A balloon that is already up was sized and cleared with the outgoing
+    // colors, and nothing repaints its background. Take it down; the next
+    // hover raises it in the new palette.
+    m_toolbarTooltip.HideImmediate();
+    m_switchBarTooltip.HideImmediate();
+    m_driveTooltip.HideImmediate();
+
     // Every path applies the new thickness; only the window resize is
     // conditional. Min/max/fullscreen windows are skipped because the user
     // explicitly chose that state and should not see the window resize from

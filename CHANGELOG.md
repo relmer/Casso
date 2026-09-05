@@ -85,6 +85,10 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **Tooltips kept the theme that was live when the window was built.** Switching
+  themes in Settings recolored the rest of the chrome but left the toolbar, //c
+  switch-bar and drive tooltips in the outgoing palette -- skeuomorphic blue
+  balloons over RetroTerminal green.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,
