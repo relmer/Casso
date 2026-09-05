@@ -294,6 +294,16 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         return;
     }
 
+    // The head bar and the caption belong to the compact branch above, and
+    // nothing below writes either one. A widget that was compact under the
+    // previous theme would carry both into this layout, and GetOuterRect
+    // folds a non-empty caption rect in, so the skeuomorphic drive's outer
+    // box would grow to cover a caption it no longer draws -- taking the
+    // widget's own bounds, the probe that sizes the drive row, and the hover
+    // test with it.
+    m_barRect     = {};
+    m_captionRect = {};
+
     m_bodyRect.left   = x;
     m_bodyRect.top    = y;
     m_bodyRect.right  = x + bodyW;

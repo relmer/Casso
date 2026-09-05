@@ -51,12 +51,14 @@ public:
     // clears the latch.
     void               Hide            ()
     {
-        m_bodyRect  = {};
-        m_faceRect  = {};
-        m_slotRect  = {};
-        m_ejectRect = {};
-        m_labelRect = {};
-        m_hidden    = true;
+        m_bodyRect    = {};
+        m_faceRect    = {};
+        m_slotRect    = {};
+        m_ejectRect   = {};
+        m_labelRect   = {};
+        m_barRect     = {};
+        m_captionRect = {};
+        m_hidden      = true;
     }
 
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
