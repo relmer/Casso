@@ -39,10 +39,9 @@ class DxuiHwndSource;
 //  anything.
 //
 //  Icons are Segoe MDL2 Assets glyphs (the repo's established icon face)
-//  except where the set has no glyph for what the button means: the monitor
-//  button draws a screen lit in the phosphor it would switch to, and the
-//  input devices are drawn in the same monoline pen. The Printer button
-//  carries a status-LED dot on its glyph's corner. That light is EVENT-ONLY
+//  except for the input devices, which the set has no joystick for and which
+//  are drawn in a monoline pen matching it. The Printer button carries a
+//  status-LED dot on its glyph's corner. That light is EVENT-ONLY
 //  -- unlit while idle (no light = no problem): bright green = receiving a
 //  print, bright amber = a finished page is waiting, bright red = delivery
 //  error.
@@ -200,7 +199,6 @@ private:
 
     static bool      IsPointInRect      (const RECT & rc, int x, int y);
     static uint32_t  GetStatusCoreColor (PrinterStatus status);
-    static uint32_t  GetPhosphorColor   (int colorIndex);
 
     Button       &  GetEntry           (Entry entry)       { return m_buttons[(size_t) entry]; }
     const Button &  GetEntry           (Entry entry) const { return m_buttons[(size_t) entry]; }
@@ -233,8 +231,6 @@ private:
     static void      PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink);
     static void      PaintPaddleMono   (IDxuiPainter & painter, const RECT & box, uint32_t ink);
     static void      PaintMouseMono    (IDxuiPainter & painter, const RECT & box, uint32_t ink);
-    static void      PaintMonitorMono  (IDxuiPainter & painter, const RECT & box,
-                                        uint32_t ink, int colorIndex);
     void             PaintVolumeFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                         const struct CassoTheme & theme);
 

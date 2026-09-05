@@ -28,15 +28,16 @@ static constexpr const wchar_t * s_kIconFamily = L"Segoe MDL2 Assets";
 
 // Segoe MDL2 Assets codepoints.
 static constexpr wchar_t  s_kGlyphSettings   = L'\uE713';   // gear
-static constexpr wchar_t  s_kGlyphTheme      = L'\uE790';   // paint palette
+static constexpr wchar_t  s_kGlyphTheme      = L'\uE746';   // half-filled square: light / dark
 static constexpr wchar_t  s_kGlyphScreenshot = L'\uE722';   // camera
 static constexpr wchar_t  s_kGlyphReset      = L'\uE72C';   // refresh arrow
 static constexpr wchar_t  s_kGlyphPower      = L'\uE7E8';   // power symbol
 static constexpr wchar_t  s_kGlyphVolume     = L'\uE767';   // speaker
 static constexpr wchar_t  s_kGlyphMuted      = L'\uE74F';   // muted speaker
 static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline, matches the set)
-static constexpr wchar_t  s_kGlyphFullscreen = L'\uE740';   // expand to fullscreen
-static constexpr wchar_t  s_kGlyphRestore    = L'\uE73F';   // back to a window
+static constexpr wchar_t  s_kGlyphColor      = L'\uE790';   // artist's palette
+static constexpr wchar_t  s_kGlyphFullscreen = L'\uEE49';   // framed screen, arrow out
+static constexpr wchar_t  s_kGlyphRestore    = L'\uEE47';   // framed screen, arrow in
 
 // Volume flyout (vertical slider + readout under the track).
 static constexpr int      s_kFlyoutWidthDp    = 56;
@@ -55,12 +56,6 @@ static constexpr int      s_kInputLabelGapDp  = 8;    // label -> first segment
 // LED state colors -- the drive-bar blue the band selector used.
 static constexpr uint32_t s_kLedOnCore  = 0xFF3DA1FF;
 static constexpr uint32_t s_kLedOffCore = 0xFF06121A;
-
-// What the tubes actually glow, for the monitor button's screen. The Color
-// row has no single color, so it draws bars instead (see PaintMonitorMono).
-static constexpr uint32_t s_kPhosphorGreen = 0xFF39E05B;
-static constexpr uint32_t s_kPhosphorAmber = 0xFFFFA000;
-static constexpr uint32_t s_kPhosphorWhite = 0xFFE6E6E6;
 
 static constexpr const wchar_t * s_kInputLabel = L"Input";
 
@@ -131,7 +126,7 @@ CommandToolbar::CommandToolbar()
 
     GetEntry (Entry::Settings)   = Button { Entry::Settings,   IDM_VIEW_SETTINGS,        s_kGlyphSettings,   L"Settings"   };
     GetEntry (Entry::Theme)      = Button { Entry::Theme,      0,                        s_kGlyphTheme,      L"Theme"      };
-    GetEntry (Entry::Color)      = Button { Entry::Color,      0,                        0,                  L"Color"      };
+    GetEntry (Entry::Color)      = Button { Entry::Color,      0,                        s_kGlyphColor,      L"Color"      };
     GetEntry (Entry::Printer)    = Button { Entry::Printer,    IDM_PRINTER_PREVIEW,      s_kGlyphPrint,      L"Printer"    };
     GetEntry (Entry::Volume)     = Button { Entry::Volume,     0,                        s_kGlyphVolume,     L"Volume"     };
     GetEntry (Entry::Input)      = Button { Entry::Input,      0,                        0,                  s_kInputLabel };
@@ -710,36 +705,6 @@ uint32_t CommandToolbar::GetStatusCoreColor (PrinterStatus status)
     }
 
     return core;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::GetPhosphorColor
-//
-//  What the monitor button's screen glows for a color-mode row. The Color row
-//  has no single answer, so it returns 0 and the icon draws bars instead.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t CommandToolbar::GetPhosphorColor (int colorIndex)
-{
-    uint32_t  color = 0;
-
-
-
-    switch (colorIndex)
-    {
-    case 1:  color = s_kPhosphorGreen; break;
-    case 2:  color = s_kPhosphorAmber; break;
-    case 3:  color = s_kPhosphorWhite; break;
-    default:                           break;
-    }
-
-    return color;
 }
 
 
@@ -1526,11 +1491,12 @@ void CommandToolbar::PaintEntryIcon (const Button & btn, IDxuiPainter & painter,
         box.right  = box.left + (int) iconDip;
         box.bottom = box.top  + (int) iconDip;
 
-        switch (btn.entry)
+        // The input devices are the only drawn icon: MDL2 has no joystick, and
+        // one hand-drawn glyph beside two from the font would mismatch stroke
+        // weight, so the whole device set is drawn with the same pen.
+        if (btn.entry == Entry::Input)
         {
-            case Entry::Color:  PaintMonitorMono  (painter, box, ink, m_colorIndex); break;
-            case Entry::Input:  PaintJoystickMono (painter, box, ink);               break;
-            default:                                                                 break;
+            PaintJoystickMono (painter, box, ink);
         }
     }
 }
@@ -1816,72 +1782,14 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::PaintMonitorMono
-//
-//  A screen on a stand, lit in the color the button would switch to. The
-//  Color row has no single color to light, so its screen carries four bars in
-//  the hi-res palette instead -- at one icon cell that reads as "colorful",
-//  which is the whole distinction being drawn.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::PaintMonitorMono (IDxuiPainter & painter, const RECT & box,
-                                       uint32_t ink, int colorIndex)
-{
-    constexpr int       kBands       = 4;
-    constexpr uint32_t  kBandArgb[kBands] =
-        { 0xFFFF44CC, 0xFF44DD55, 0xFF5566FF, 0xFFFF9933 };
-
-
-
-    float     w       = (float) (box.right  - box.left);
-    float     h       = (float) (box.bottom - box.top);
-    float     stroke  = (std::max) (1.0f, w / 14.0f);
-    float     bezelT  = (float) box.top + h * 0.06f;
-    float     bezelH  = h * 0.66f;
-    float     screenL = (float) box.left + stroke * 1.5f;
-    float     screenT = bezelT + stroke * 1.5f;
-    float     screenW = w - stroke * 3.0f;
-    float     screenH = bezelH - stroke * 3.0f;
-    float     cx      = (float) box.left + w * 0.5f;
-    uint32_t  glow    = GetPhosphorColor (colorIndex);
-
-
-
-    if (glow != 0)
-    {
-        painter.FillRect (screenL, screenT, screenW, screenH, glow);
-    }
-    else
-    {
-        for (int i = 0; i < kBands; i++)
-        {
-            float  bandW = screenW / (float) kBands;
-
-            painter.FillRect (screenL + bandW * (float) i, screenT, bandW, screenH, kBandArgb[i]);
-        }
-    }
-
-    painter.OutlineRect    ((float) box.left, bezelT, w, bezelH, stroke, ink);
-    painter.DrawLineApprox (cx, bezelT + bezelH, cx, (float) box.top + h * 0.88f, stroke, ink);
-    painter.DrawLineApprox ((float) box.left + w * 0.24f, (float) box.top + h * 0.92f,
-                            (float) box.left + w * 0.76f, (float) box.top + h * 0.92f, stroke, ink);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////
-//
 //  CommandToolbar::StrokeCircle + the monoline glyph painters
 //
 //  Monoline device glyphs in the Segoe MDL2 language the bar's other icons
 //  speak: uniform stroke, dots for controls, no shading. Drawn rather than
-//  taken from the font because MDL2 has no paddle, and one hand-drawn glyph
-//  next to two font glyphs would mismatch stroke weight -- so all three are
-//  drawn with the same pen. Geometry is in box fractions, so the set scales
-//  together.
+//  taken from the font because MDL2 has no joystick or paddle, and one
+//  hand-drawn glyph next to two font glyphs would mismatch stroke weight --
+//  so all three are drawn with the same pen. Geometry is in box fractions,
+//  so the set scales together.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
