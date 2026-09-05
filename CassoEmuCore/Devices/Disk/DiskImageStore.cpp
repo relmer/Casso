@@ -1765,7 +1765,7 @@ Error:
 //  MOST FLUSHES HAPPEN WITH THE MACHINE RUNNING. A drive spinning down, a
 //  machine switch and a soft reset all keep every bay and every pump, so a
 //  failure among them is a question like any other. Only the last flush of the
-//  process is different, and it says so by name.
+//  process is different, which is why it goes through a call of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2918,8 +2918,8 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     //
     //  THE PATH AND THE FACT TRAVEL TOGETHER. A bay holds a reserved name from
     //  the moment a question is put, and holds the name it tried after a write
-    //  that failed, so the reserved path says where a copy would go and only
-    //  `IsPreservedWritten` says whether one is there.
+    //  that failed, so the reserved path gives where a copy would go and only
+    //  `IsPreservedWritten` records whether one is there.
     if (tookUp)
     {
         preservedPath = entry.sharedState.GetPreservedPath();
