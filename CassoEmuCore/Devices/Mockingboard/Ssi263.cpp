@@ -1062,12 +1062,10 @@ void Ssi263::LatchMode()
 //  Starts the phoneme just written and withdraws any outstanding request --
 //  the write IS the answer to the previous one.
 //
-//  Articulation glides the tract only between adjacent SPOKEN phonemes.
-//  When the outgoing phoneme was silent -- a pause or a closure -- the
-//  articulators re-set during it, so the new phoneme snaps to its own
-//  targets rather than glide from wherever speech last left the tract:
-//  gliding across silence opened every utterance with a spurious w-like
-//  onglide from the previous word's final vowel.
+//  A phoneme after a pause GLIDES IN from wherever the tract was left, and
+//  does not snap to its own targets. Snapping was tried first, by zeroing the
+//  formants at the pause so the next phoneme took the cold-start path, and it
+//  traded one artifact for a worse one: see the note in the body.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

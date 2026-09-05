@@ -642,16 +642,32 @@ namespace Ssi263TestNs
             Assert::AreEqual (f2Before, chip.GetFormantCenter (1), 1.0,
                               L"A pause must hold the tract where the last phoneme left it");
 
-            // The phoneme AFTER a silence snaps to its own targets: the
-            // articulators re-set during the gap, so there is no glide from
-            // the previous word -- the spurious w-like onglide that opened
-            // every utterance when speech resumed by gliding from the last
-            // vowel's position.
+            // The phoneme AFTER a silence GLIDES IN from where the tract was
+            // held, and does not snap to its own targets.
+            //
+            // BOTH BEHAVIORS PRODUCE AN ARTIFACT, and this is the quieter one.
+            // Snapping was tried first: zeroing the formants at the pause made
+            // the next phoneme take the cold-start path, which stepped three
+            // filter centers at once while those filters carried state, and
+            // every step was a pop. The demo puts a pause inside consonant
+            // clusters as well as between words, so the popping tracked
+            // phoneme edges right through connected speech. Gliding instead
+            // can leave a w-like onglide off the previous vowel, which is
+            // what a mouth does anyway and what the listening tests preferred.
+            //
+            // Asserted as a direction rather than a value: a mid-glide sample
+            // is a property of the articulation rate, and pinning it would
+            // make this case fail for a change it is not about.
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x01);
             RenderInto (chip, buffer.data(), 4);
 
-            Assert::AreEqual (2330.0, chip.GetFormantCenter (1), 1.0,
-                              L"After a silence the next phoneme starts at its own targets");
+            double  f2After = chip.GetFormantCenter (1);
+
+            Assert::IsTrue (f2After > f2Before,
+                            L"The next phoneme moves toward its own F2 target");
+
+            Assert::IsTrue (f2After < 2330.0,
+                            L"...by gliding, not by snapping to it");
         }
 
 
