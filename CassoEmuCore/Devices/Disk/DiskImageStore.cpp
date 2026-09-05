@@ -271,17 +271,6 @@ HRESULT DiskImageStore::MountFromBytes (
         entry.format  = fmt;
         entry.mounted = true;
 
-        //  A DISK INHERITS NOTHING FROM THE ONE BEFORE IT. A preserved name is
-        //  reserved for the file a question was asked about, and neither eject
-        //  clears one -- neither needs to, because nothing reads a reservation
-        //  on an empty bay. The disk that follows is what would have inherited
-        //  it, and filed its copy under the previous disk's name and moment.
-        //
-        //  AFTER THE FLUSH ABOVE, which is the last thing entitled to the
-        //  outgoing disk's reservation.
-        entry.preservedPath.clear();
-        entry.preservedWritten = false;
-
         entry.image->LoadFromBytes (fmt, bytes, virtualPath);
 
         // A format the loader rejects leaves the slot empty rather than
@@ -827,7 +816,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
 
             //  Under the name the question already showed, when there is a
             //  question. Reserving happens once, wherever it happens first.
-            preservedPath = entry.preservedPath;
+            preservedPath = entry.sharedState.GetPreservedPath();
 
             hrKeep = SaveLoadedImage (entry, preservedPath);
 
@@ -843,8 +832,8 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
                     EhmNotifyUser (FormatExternalChangeMessage (original).c_str()));
 
             //  On disk under its own name, so the bay carries nothing unsaved.
-            entry.preservedPath    = preservedPath;
-            entry.preservedWritten = true;
+            entry.sharedState.SetPreservedPath (preservedPath);
+            entry.sharedState.SetPreservedWritten (true);
 
             entry.image->SetSourceCrcMismatch (false);
             entry.image->ClearDirty();
@@ -2071,6 +2060,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     vector<Byte>                       bytes;
     DiskFormat                         fmt       = DiskFormat::Dsk;
     ExternalChangePolicy::Situation    situation;
+    string                             savePath;
 
 
 
@@ -2153,7 +2143,11 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     //  side happened to be quicker.
     if (action == ChangeAction::Conflict)
     {
-        hr = SaveLoadedImage (entry, entry.preservedPath);
+        savePath = entry.sharedState.GetPreservedPath();
+
+        hr = SaveLoadedImage (entry, savePath);
+
+        entry.sharedState.SetPreservedPath (savePath);
 
         if (FAILED (hr))
         {
@@ -2179,7 +2173,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 
                 m_askSink (slot, drive,
                            ChangePrompt::ComposeSaveFailure (entry.path, drive,
-                                                             entry.preservedPath, hr,
+                                                             savePath, hr,
                                                              SaveFailureCause::ExternalChange));
             }
 
@@ -2188,7 +2182,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 
         //  It is on disk under its own name now, so the bay carries nothing
         //  unsaved and the change that follows is no longer a conflict.
-        entry.preservedWritten = true;
+        entry.sharedState.SetPreservedWritten (true);
 
         entry.image->ClearDirty();
 
@@ -2227,16 +2221,20 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
                 //  screen. Working it out again at that point produced a
                 //  different name and left the dialog offering a file nobody
                 //  ever created.
-                if (entry.preservedPath.empty())
+                string  reserved = entry.sharedState.GetPreservedPath();
+
+                if (reserved.empty())
                 {
-                    hrName = FindFreePreservedPath (entry.path, entry.preservedPath);
+                    hrName = FindFreePreservedPath (entry.path, reserved);
                     IGNORE_RETURN_VALUE (hrName, S_OK);
+
+                    entry.sharedState.SetPreservedPath (reserved);
                 }
 
                 m_askSink (slot, drive,
                            ChangePrompt::Compose (entry.path, drive, action,
-                                                  entry.preservedPath,
-                                                  entry.preservedWritten));
+                                                  reserved,
+                                                  entry.sharedState.IsPreservedWritten()));
             }
         }
 
@@ -2332,7 +2330,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
                 }
 
                 entry.image->ClearDirty();
-                entry.preservedPath.clear();
+                entry.sharedState.SetPreservedPath (string());
 
                 hr = RepointBayToFile (slot, drive, savePath);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -2346,7 +2344,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 
             //  Dismissed rather than answered, so the name this store had
             //  picked goes back with the question that offered it.
-            ReleaseUnwrittenReservation (entry);
+            entry.sharedState.ReleaseUnwrittenReservation();
 
             return;
         }
@@ -2502,22 +2500,24 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         //  The flush may have written it already, under the very name the
         //  question showed. Writing again would make a second copy of the same
         //  disk and leave the first orphaned.
-        if (!entry.preservedWritten)
+        preservedPath = entry.sharedState.GetPreservedPath();
+
+        if (!entry.sharedState.IsPreservedWritten())
         {
-            hr = SaveLoadedImage (entry, entry.preservedPath);
+            hr = SaveLoadedImage (entry, preservedPath);
+
+            entry.sharedState.SetPreservedPath (preservedPath);
 
             if (FAILED (hr))
             {
-                preserveFail  = true;
-                preservedPath = entry.preservedPath;
+                preserveFail = true;
                 break;
             }
 
-            entry.preservedWritten = true;
+            entry.sharedState.SetPreservedWritten (true);
         }
 
-        preservedPath = entry.preservedPath;
-        preserved     = true;
+        preserved = true;
 
         entry.image->ClearDirty();
 
@@ -2527,8 +2527,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         hr = RepointBayToFile (slot, drive, preservedPath);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        entry.preservedPath.clear();
-        entry.preservedWritten = false;
+        entry.sharedState.ClearPreserved();
 
         break;
 
@@ -2542,7 +2541,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         //  holding it after the user waves the question away labels the next
         //  copy with a timestamp from whenever this happened to be -- and
         //  hands it a name another file may have taken since.
-        ReleaseUnwrittenReservation (entry);
+        entry.sharedState.ReleaseUnwrittenReservation();
 
         break;
 
@@ -2562,15 +2561,14 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     //
     //  THE PATH AND THE FACT TRAVEL TOGETHER. A bay holds a reserved name from
     //  the moment a question is put, and holds the name it tried after a write
-    //  that failed, so `preservedPath` says where a copy would go and only
-    //  `preservedWritten` says whether one is there.
+    //  that failed, so the reserved path says where a copy would go and only
+    //  `IsPreservedWritten` says whether one is there.
     if (tookUp)
     {
-        preservedPath = entry.preservedPath;
-        preserved     = preserved || entry.preservedWritten;
+        preservedPath = entry.sharedState.GetPreservedPath();
+        preserved     = preserved || entry.sharedState.IsPreservedWritten();
 
-        entry.preservedPath.clear();
-        entry.preservedWritten = false;
+        entry.sharedState.ClearPreserved();
     }
 
     if (restarted && m_restartCallback)
@@ -2751,9 +2749,7 @@ HRESULT DiskImageStore::RepointBayToFile (int slot, int drive, const string & ne
         //  directory this bay was using.
         EndWatching (slot, drive);
 
-        entry.path             = newPath;
-        entry.preservedPath.clear();
-        entry.preservedWritten = false;
+        entry.path = newPath;
 
         //  A fresh identity for the new file, and nothing pending against the
         //  old one. Mount is what records both.
@@ -2967,36 +2963,6 @@ HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> 
     return hr;
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::ReleaseUnwrittenReservation
-//
-//  Gives back a preserved name that was reserved and never used.
-//
-//  A NAME IS RESERVED WHEN A QUESTION IS PUT, so that whoever writes the copy
-//  writes the name the user was shown. A question that ends without a copy
-//  leaves it held, and `SaveLoadedImage` uses a name it is given as it stands
-//  -- so the next copy, whenever it came, went out under the old question's
-//  timestamp.
-//
-//  A COPY THAT EXISTS KEEPS ITS NAME. `preservedWritten` says a file is there,
-//  and forgetting where would write the same disk out a second time beside it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskImageStore::ReleaseUnwrittenReservation (Entry & entry)
-{
-    if (!entry.preservedWritten)
-    {
-        entry.preservedPath.clear();
-    }
-
-    return;
-}
 
 
 

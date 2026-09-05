@@ -22,6 +22,8 @@ void MountedImageState::Mount (const ImageIdentity & identity)
     m_askOutstanding = false;
     m_askedAction    = ChangeAction::Ignore;
 
+    ClearPreserved();
+
     return;
 }
 
@@ -47,6 +49,51 @@ void MountedImageState::Eject()
     m_reportStanding = false;
     m_askOutstanding = false;
     m_askedAction    = ChangeAction::Ignore;
+
+    ClearPreserved();
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::ClearPreserved
+//
+//  A DISK INHERITS NOTHING FROM THE ONE BEFORE IT. A preserved name is
+//  reserved for the file a question was asked about. The disk that follows is
+//  what would otherwise inherit it, and file its copy under the previous
+//  disk's name and moment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MountedImageState::ClearPreserved()
+{
+    m_preservedPath.clear();
+    m_preservedWritten = false;
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::ReleaseUnwrittenReservation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MountedImageState::ReleaseUnwrittenReservation()
+{
+    if (!m_preservedWritten)
+    {
+        m_preservedPath.clear();
+    }
 
     return;
 }
