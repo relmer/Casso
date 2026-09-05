@@ -194,6 +194,12 @@ public:
     // --no-image-watch and read by the two places that install notification.
     void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
     bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
+
+    // Text put in front of the window caption, so one of several open windows
+    // can be told from the others at a glance. Undocumented; set from --title
+    // and read by UpdateWindowTitle. Set before the window exists, so it does
+    // not refresh the caption itself.
+    void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void DumpTrace        (const wstring & reason);
 
@@ -930,7 +936,7 @@ private:
     // //c switch strip -- so the glass-fill scene owns the whole client.
     void    SetChromeHiddenForFullscreenScene (bool hidden);
 
-    // The pointer-capture banner and the fullscreen top-edge toolbar reveal,
+    // The pointer-capture banner and the fullscreen top-edge chrome reveal,
     // both driven from the per-frame UI upkeep.
     void    SyncCaptureBanner    ();
     void    SyncFrameRateReadout ();
@@ -938,7 +944,7 @@ private:
     // The scene pose across the middle of the picture, so a screenshot of a
     // render fault carries the angle it was taken from.
     void    SyncSceneViewReadout ();
-    void    TickFullscreenToolbar();
+    void    TickFullscreenTopChrome();
 
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
@@ -1234,6 +1240,7 @@ private:
     unique_ptr<class Prng>  m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
+    wstring                m_titlePrefix;                 // --title (undocumented)
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
     D3DRenderer            m_d3dRenderer;
@@ -1451,12 +1458,12 @@ private:
 
     void  LayoutSceneCompass ();
 
-    // The fullscreen toolbar reveal, the drive strip's bargain mirrored
-    // along the top edge: shown while the pointer is up there, hidden once
-    // it leaves and the grace expires.
-    bool                       m_fsToolbarShown    = false;
-    int64_t                    m_fsToolbarLeftMs   = 0;
-    int64_t                    m_fsToolbarAnimMs   = 0;   // slide start
+    // The fullscreen menu-bar-and-toolbar reveal, the drive strip's bargain
+    // mirrored along the top edge: shown while the pointer is up there,
+    // hidden once it leaves and the grace expires.
+    bool                       m_fsTopChromeShown  = false;
+    int64_t                    m_fsTopChromeLeftMs = 0;
+    int64_t                    m_fsTopChromeAnimMs = 0;   // slide start
 
     // Chrome layout via DxuiDockLayout. The three bands carry the title
     // bar, nav strip, and drive bar pixel thicknesses in their GetBounds();

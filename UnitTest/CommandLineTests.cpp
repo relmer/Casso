@@ -3104,6 +3104,37 @@ namespace CommandLineTests
                 L"an unknown suffix leaves the bare number");
         }
 
+        //  THE UNDOCUMENTED CAPTION LABEL, which is the only way to tell
+        //  several windows running the same machine apart. Undocumented is not
+        //  untested: it is parsed by the same table as everything else, so it
+        //  takes a slash like everything else, and a label with spaces in it is
+        //  the ordinary case rather than an edge -- a session name or a
+        //  worktree name is what gets passed.
+        TEST_METHOD (Emulator_TakesAnUndocumentedCaptionLabel)
+        {
+            ArgVector  dashed  = { "--title", "casso-window-title", "--machine", "Apple2e" };
+            ArgVector  slashed = { "/title", "session 3" };
+            ArgVector  absent  = { "--machine", "Apple2e" };
+
+            CommandLineOptions::EmulatorOptions  withLabel =
+                CommandLineParser::ParseEmulator (dashed.Count(), dashed.Data());
+            CommandLineOptions::EmulatorOptions  withSlash =
+                CommandLineParser::ParseEmulator (slashed.Count(), slashed.Data());
+            CommandLineOptions::EmulatorOptions  without =
+                CommandLineParser::ParseEmulator (absent.Count(), absent.Data());
+
+            Assert::AreEqual (std::string ("casso-window-title"), withLabel.titlePrefix);
+            Assert::AreEqual (std::string ("Apple2e"), withLabel.machine,
+                L"the flags after it still land");
+
+            Assert::AreEqual (std::string ("session 3"), withSlash.titlePrefix,
+                L"the slash form canonicalizes through the same table");
+
+            Assert::IsTrue (without.titlePrefix.empty(),
+                L"an invocation that names no label carries none");
+        }
+
+
         //  A BARE IMAGE PATH IS REFUSED, NOT GUESSED AT. This grammar has no
         //  operand: a drive is filled by --disk1 or --disk2 and by nothing else.
         //
@@ -3211,8 +3242,8 @@ namespace CommandLineTests
         //  never heard of it.
         TEST_METHOD (Emulator_EveryValueFlagReportsItsOwnMissingValue)
         {
-            const char *  flags[] = { "--machine", "--disk1", "--disk2",
-                                      "/machine",  "/disk1",  "/disk2" };
+            const char *  flags[] = { "--machine", "--disk1", "--disk2", "--title",
+                                      "/machine",  "/disk1",  "/disk2",  "/title" };
 
             for (const char * flag : flags)
             {
@@ -3455,6 +3486,9 @@ namespace CommandLineTests
 
             Assert::IsTrue (parsed.erase ("no-image-watch") == 1,
                 L"the developer switch is parsed and deliberately not described");
+
+            Assert::IsTrue (parsed.erase ("title") == 1,
+                L"the caption label is parsed and deliberately not described");
 
             Assert::IsTrue (documented == parsed,
                 L"the emulator's help and its grammar have come apart");
