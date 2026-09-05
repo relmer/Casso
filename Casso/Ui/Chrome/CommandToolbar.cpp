@@ -261,9 +261,29 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
 
 void CommandToolbar::SetInputState (bool arrowsJoystick, InputMappingMode pointer, bool mouseAvailable)
 {
+    bool  countChanged = (mouseAvailable != m_mouseAvailable);
+
+
+
     m_arrowsJoystick = arrowsJoystick;
     m_pointerMode    = pointer;
     m_mouseAvailable = mouseAvailable;
+
+    // Whether the mouse exists decides HOW MANY segments there are, and the
+    // segment rects belong to Layout -- so a state push that adds or drops the
+    // mouse has to re-lay the cluster or the new segment keeps the empty rect
+    // it was left with and never paints. A machine switch does exactly that:
+    // it reflows the chrome first and syncs this state after, which is how a
+    // //c switched to at runtime showed the joystick and paddle but no mouse.
+    // Re-laying here rather than fixing that one order keeps every caller --
+    // the switch, the Hardware tab's mouse toggle -- from having to know.
+    if (countChanged && m_barRect.right > m_barRect.left)
+    {
+        DxuiDpiScaler  scaler;
+
+        scaler.SetDpi (m_dpi);
+        Layout (m_barRect, scaler);
+    }
 }
 
 
