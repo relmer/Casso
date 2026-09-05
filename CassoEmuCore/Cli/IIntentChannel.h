@@ -44,5 +44,5 @@ public:
     //  it acts, so an intent arriving first would describe contents that are not
     //  on disk yet.
     virtual void  StateIntent (const std::string & imagePath,
-                               PickUpIntent        intent) = 0;
+                               ExternalChangeIntent        intent) = 0;
 };

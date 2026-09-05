@@ -39,12 +39,33 @@ public:
 
 
 
+    //  How many times a message prints something. The interesting property
+    //  of these strings is repetition, so counting is what the tests assert
+    //  on rather than presence.
+    static size_t  CountOf (const std::wstring & text, const std::wstring & what)
+    {
+        size_t  found = 0;
+        size_t  at    = 0;
+
+
+
+        for (at = text.find (what); at != std::wstring::npos;
+             at = text.find (what, at + 1))
+        {
+            found++;
+        }
+
+        return found;
+    }
+
+
+
     static const wchar_t *  NameOf (ChangeAction action)
     {
         switch (action)
         {
         case ChangeAction::Ignore:        return L"Ignore";
-        case ChangeAction::TakeUpInPlace: return L"TakeUpInPlace";
+        case ChangeAction::ReloadInPlace: return L"ReloadInPlace";
         case ChangeAction::Restart:       return L"Restart";
         case ChangeAction::Ask:           return L"Ask";
         case ChangeAction::Conflict:      return L"Conflict";
@@ -87,8 +108,8 @@ public:
     {
         struct Row
         {
-            PickUpIntent  intent;
-            ChangeAction  expected;
+            ExternalChangeIntent  intent;
+            ChangeAction          expected;
         };
 
         //  Three intents, three rows, no second axis. The stored fallback that
@@ -96,9 +117,9 @@ public:
         //  what it meant, and one that cannot leaves the question to a person.
         const Row  rows[] =
         {
-            { PickUpIntent::TakeUpInPlace, ChangeAction::TakeUpInPlace },
-            { PickUpIntent::Restart,       ChangeAction::Restart },
-            { PickUpIntent::Unstated,      ChangeAction::Ask },
+            { ExternalChangeIntent::ReloadInPlace, ChangeAction::ReloadInPlace },
+            { ExternalChangeIntent::Restart,       ChangeAction::Restart },
+            { ExternalChangeIntent::Unstated,      ChangeAction::Ask },
         };
 
 
@@ -121,13 +142,13 @@ public:
         //  carries on, and never that work may be discarded. If this row ever
         //  moves below the intent test, `--on-change reload` silently throws
         //  away the guest's unsaved writes.
-        const PickUpIntent  intents[] = { PickUpIntent::Unstated,
-                                          PickUpIntent::TakeUpInPlace,
-                                          PickUpIntent::Restart };
+        const ExternalChangeIntent  intents[] = { ExternalChangeIntent::Unstated,
+                                          ExternalChangeIntent::ReloadInPlace,
+                                          ExternalChangeIntent::Restart };
 
 
 
-        for (PickUpIntent intent : intents)
+        for (ExternalChangeIntent intent : intents)
         {
             Situation  situation = Seen();
 
@@ -142,13 +163,13 @@ public:
 
     TEST_METHOD (UnusableOutranksTheConflictAndEverythingUnderIt)
     {
-        const PickUpIntent  intents[] = { PickUpIntent::Unstated,
-                                          PickUpIntent::TakeUpInPlace,
-                                          PickUpIntent::Restart };
+        const ExternalChangeIntent  intents[] = { ExternalChangeIntent::Unstated,
+                                          ExternalChangeIntent::ReloadInPlace,
+                                          ExternalChangeIntent::Restart };
 
 
 
-        for (PickUpIntent intent : intents)
+        for (ExternalChangeIntent intent : intents)
         {
             Situation  situation = Seen();
 
@@ -156,7 +177,7 @@ public:
             situation.guestDirty = true;
             situation.intent     = intent;
 
-            //  There is nothing to take up, so what the guest has written is
+            //  There is nothing to reload, so what the guest has written is
             //  not yet the question.
             AssertDecides (situation, ChangeAction::Unusable);
         }
@@ -173,7 +194,7 @@ public:
         situation.heldByOther = true;
         situation.usable      = false;
         situation.guestDirty  = true;
-        situation.intent      = PickUpIntent::Restart;
+        situation.intent      = ExternalChangeIntent::Restart;
 
         //  Acting on a file still being written would read a half-written
         //  disk, and everything below this test is a judgement about contents
@@ -214,11 +235,11 @@ public:
         reaches.push_back (Reach { ChangeAction::Conflict, situation });
 
         situation        = Seen();
-        situation.intent = PickUpIntent::TakeUpInPlace;
-        reaches.push_back (Reach { ChangeAction::TakeUpInPlace, situation });
+        situation.intent = ExternalChangeIntent::ReloadInPlace;
+        reaches.push_back (Reach { ChangeAction::ReloadInPlace, situation });
 
         situation        = Seen();
-        situation.intent = PickUpIntent::Restart;
+        situation.intent = ExternalChangeIntent::Restart;
         reaches.push_back (Reach { ChangeAction::Restart, situation });
 
         situation = Seen();
@@ -253,7 +274,7 @@ public:
         Assert::IsTrue  (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Deleted));
 
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Ignore));
-        Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::TakeUpInPlace));
+        Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::ReloadInPlace));
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Restart));
         Assert::IsFalse (ExternalChangePolicy::NeedsAnAnswer (ChangeAction::Defer));
     }
@@ -267,7 +288,7 @@ public:
 
         Assert::IsFalse (ExternalChangePolicy::IsFileLost (ChangeAction::Conflict));
         Assert::IsFalse (ExternalChangePolicy::IsFileLost (ChangeAction::Ask));
-        Assert::IsFalse (ExternalChangePolicy::IsFileLost (ChangeAction::TakeUpInPlace));
+        Assert::IsFalse (ExternalChangePolicy::IsFileLost (ChangeAction::ReloadInPlace));
     }
 
 
@@ -282,7 +303,7 @@ public:
                                                   "C:\\work\\Loader.20260830-014233-01.dsk"));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Unusable));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Deleted));
-        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\Loader.dsk", 1, false,
+        prompts.push_back (ChangePrompt::ComposeReloadReport ("C:\\work\\Loader.dsk", 1, false,
                                                               "Apple //e"));
         prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\\work\\Loader.dsk", 1,
                                                                 "C:\\work\\Loader.x.dsk"));
@@ -386,6 +407,31 @@ public:
         Assert::IsTrue (report.message.find (L"Loader.20260830-014233-01.dsk")
                             != std::wstring::npos);
 
+        //  IT FLOWS, WHERE THE QUESTION BREAKS INTO PARAGRAPHS. The report sink
+        //  puts this one in the message bar across the machine rather than in a
+        //  dialog, and a strip that thin reads better as sentences than as a
+        //  stack of one-line paragraphs. A break here would be a layout meant
+        //  for a window this notice never gets.
+        Assert::IsTrue (report.message.find (L'\n') == std::wstring::npos,
+                        (L"the bar notice carries a line break: "
+                         + report.message).c_str());
+        Assert::IsTrue (report.message.find (L"Your disk has been renamed to")
+                            != std::wstring::npos);
+
+        //  TWICE EACH HERE, AND MEANT TO BE. This report is the only one that
+        //  describes two files, so it has to distinguish them: the drive is
+        //  printed again as the destination of the remount, and the original is
+        //  printed again to say that nothing was done to it. Both are facts
+        //  about what happened rather than repeats of who it happened to, which
+        //  is the repetition the question was rewritten to lose.
+        Assert::AreEqual ((size_t) 2, CountOf (report.message, L"Loader.dsk"));
+        Assert::AreEqual ((size_t) 2, CountOf (report.message, L"Drive 1"));
+        Assert::IsTrue (report.message.find (L"remounted in Drive 1")
+                            != std::wstring::npos);
+        Assert::IsTrue (report.message.find (L"No changes were made to the other "
+                                             L"program's modified version of Loader.dsk.")
+                            != std::wstring::npos);
+
         //  The folder is not repeated into the sentence; the file is enough,
         //  and the path buries it.
         Assert::IsTrue (report.message.find (L"C:\\work") == std::wstring::npos);
@@ -464,16 +510,24 @@ public:
         Assert::AreEqual ((size_t) 2, prompt.answers.size(),
                           L"two answers: put the modified disk in, or keep the one in there");
 
-        Assert::IsTrue (prompt.answers[0].action == ChangeAction::TakeUpInPlace);
+        Assert::IsTrue (prompt.answers[0].action == ChangeAction::ReloadInPlace);
         Assert::IsTrue (prompt.answers[1].action == ChangeAction::KeepHeld);
 
         //  THE LABELS STATE THE ACTION. They were "Accept the changes" and
         //  "Ignore the changes", which described the external edit twice and
         //  the disk in the drive not at all -- and "ignore" reads as throwing
         //  the new file away, which is the one thing it does not do.
-        Assert::IsTrue (prompt.answers[0].label.find (L"Loader.dsk") != std::wstring::npos,
-                        L"the insert names the disk going in");
+        Assert::IsTrue (prompt.answers[0].label.find (L"Insert") != std::wstring::npos);
         Assert::IsTrue (prompt.answers[1].label.find (L"Keep") != std::wstring::npos);
+
+        //  AND THEY DO NOT CARRY THE FILENAME. The insert button used to read
+        //  "Insert the modified <file>", which set the dialog's width from the
+        //  length of a name the body has already given on a line of its own.
+        for (const PromptAnswer & answer : prompt.answers)
+        {
+            Assert::IsTrue (answer.label.find (L".dsk") == std::wstring::npos,
+                            (L"a button carries a filename: " + answer.label).c_str());
+        }
 
         //  The reboot is not an answer here. It is something the user may do
         //  afterwards, from the toolbar.
@@ -486,9 +540,40 @@ public:
 
 
 
+    //  SIX PRINTINGS OF ONE NAME. Every sentence used to carry the file and the
+    //  drive, so a dialog about "mockingboard-speech-demo-dhgr.dsk" said it in
+    //  the first line, in both offers, in the rename, and on a button, and the
+    //  sentences around it could not be read. The name and the drive now lead
+    //  on a line of their own, drive in parentheses after the file, and the
+    //  prose says "this disk" and "it".
+    TEST_METHOD (TheQuestionPrintsTheFileOnceAndTheDriveOnce)
+    {
+        ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0,
+                                                      ChangeAction::Ask,
+                                                      "C:\\work\\Loader.20260830-014233-01.dsk");
+        std::wstring  whole = prompt.message;
+
+
+
+        Assert::AreEqual ((size_t) 1, CountOf (whole, L"Loader.dsk"),
+                          L"the file is printed once");
+        Assert::AreEqual ((size_t) 1, CountOf (whole, L"Drive 1"),
+                          L"the drive is printed once");
+
+        //  Together, on their own line, where the eye finds them without
+        //  reading a sentence.
+        Assert::IsTrue (whole.find (L"\n\nLoader.dsk (Drive 1)") != std::wstring::npos,
+                        (L"the identifying line is missing: " + whole).c_str());
+
+        //  The copy is the one other name here, and it appears once.
+        Assert::IsTrue (whole.find (L"Loader.20260830-014233-01.dsk") != std::wstring::npos);
+    }
+
+
+
     //  KEEPING IS A SAVE-AS AND THE MESSAGE HAS TO SAY WHICH TENSE. A conflict
-    //  writes the copy before anything is put to the user, so by then it
-    //  already exists; with no conflict there is nothing on disk yet.
+    //  renames the disk before anything is put to the user, so by then it has
+    //  happened; with no conflict it is still ahead.
     TEST_METHOD (TheQuestionSaysWhetherTheCopyExistsYet)
     {
         ChangePrompt  before = ChangePrompt::Compose ("Loader.dsk", 0, ChangeAction::Ask,
@@ -498,13 +583,103 @@ public:
 
 
 
-        Assert::IsTrue (before.message.find (L"We'll rename it") != std::wstring::npos);
-        Assert::IsTrue (after.message.find  (L"already saved as") != std::wstring::npos);
+        Assert::IsTrue (before.message.find (L"It will be renamed") != std::wstring::npos);
+        Assert::IsTrue (after.message.find  (L"Your disk has been renamed")
+                            != std::wstring::npos);
 
-        //  And the one that already happened says so up front, because the
-        //  reader's first question is whether their work survived.
-        Assert::IsTrue (after.message.find (L"hadn't been saved yet") != std::wstring::npos);
-        Assert::IsTrue (before.message.find (L"hadn't been saved yet") == std::wstring::npos);
+        //  And neither one says the other's sentence. The rename is reported
+        //  once, in the tense it actually happened in.
+        Assert::IsTrue (after.message.find  (L"It will be renamed") == std::wstring::npos);
+        Assert::IsTrue (before.message.find (L"has been renamed") == std::wstring::npos);
+
+        //  NOTHING MENTIONS UNSAVED WRITES. It used to open with "your writes
+        //  to it hadn't been saved yet", which describes a write cache the
+        //  user cannot see and reads as though their work had been at risk.
+        for (const ChangePrompt * p : { &before, &after })
+        {
+            Assert::IsTrue (p->message.find (L"saved yet") == std::wstring::npos,
+                            (L"the cache leaked into the message: " + p->message).c_str());
+        }
+
+        //  The new name is on the screen once either way.
+        Assert::AreEqual ((size_t) 1, CountOf (after.message,  L"Loader.20260830-014233-01.dsk"));
+        Assert::AreEqual ((size_t) 1, CountOf (before.message, L"Loader.20260830-014233-01.dsk"));
+    }
+
+
+
+    //  ONE VOICE ACROSS THE FAMILY. The notices used to mix "we'll rename it",
+    //  "we've renamed your disk" and "it's already saved as" -- three ways of
+    //  reporting one event, which reads as three different events. The disk is
+    //  the subject everywhere and it is acted upon, so the only thing that
+    //  varies is whether the rename has happened yet.
+    TEST_METHOD (EveryNoticePutsTheRenameTheSameWay)
+    {
+        const ChangePrompt  ahead[] = {
+            ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask, "Work.x.dsk", false),
+        };
+        const ChangePrompt  done[] = {
+            ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask, "Work.x.dsk", true),
+            ChangePrompt::ComposeReloadReport ("Work.dsk", 0, false, "Apple //e",
+                                               "Work.x.dsk"),
+            ChangePrompt::ComposeConflictReport ("Work.dsk", 0, "Work.x.dsk"),
+        };
+
+
+
+        for (const ChangePrompt & prompt : ahead)
+        {
+            Assert::IsTrue (prompt.message.find (L"will be renamed to Work.x.dsk")
+                                != std::wstring::npos,
+                            (L"not the shared wording: " + prompt.message).c_str());
+        }
+
+        for (const ChangePrompt & prompt : done)
+        {
+            Assert::IsTrue (prompt.message.find (L"has been renamed to Work.x.dsk")
+                                != std::wstring::npos,
+                            (L"not the shared wording: " + prompt.message).c_str());
+        }
+
+        //  AND NOBODY SPEAKS FOR CASSO IN THE FIRST PERSON. "We saved", "we've
+        //  renamed" and "we'll rename" all put an actor in front of a fact the
+        //  user only needs the result of.
+        for (const ChangePrompt & prompt : done)
+        {
+            Assert::IsTrue (prompt.message.find (L"We've") == std::wstring::npos,
+                            (L"Casso speaks for itself: " + prompt.message).c_str());
+        }
+    }
+
+
+
+    //  THE MESSAGE BAR GETS NO LINE BREAKS. Reports go to the report sink, which
+    //  draws them in a strip across the machine; the question goes to a dialog
+    //  and can afford paragraphs. Sending a dialog layout to the strip is what
+    //  put a three-paragraph notice in a one-line bar.
+    TEST_METHOD (TheNoticesDrawnInTheBarFlowRatherThanBreak)
+    {
+        const ChangePrompt  bar[] = {
+            ChangePrompt::ComposeConflictReport ("Work.dsk", 0, "Work.x.dsk"),
+            ChangePrompt::ComposeReloadReport ("Work.dsk", 0, false, "Apple //e",
+                                               "Work.x.dsk"),
+            ChangePrompt::ComposeReloadReport ("Work.dsk", 0, true, "Apple //e",
+                                               "Work.x.dsk"),
+        };
+
+
+
+        for (const ChangePrompt & prompt : bar)
+        {
+            Assert::IsTrue (prompt.message.find (L'\n') == std::wstring::npos,
+                            (L"a bar notice carries a line break: "
+                             + prompt.message).c_str());
+        }
+
+        //  And the question still breaks, because it has a dialog to itself.
+        Assert::IsTrue (ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask,
+                                               "Work.x.dsk").message.find (L'\n')
+                            != std::wstring::npos);
     }
 
 
@@ -512,9 +687,9 @@ public:
     //  "The Apple" is not what is in front of them.
     TEST_METHOD (TheRebootNoticeGivesTheMachineTheUserHas)
     {
-        ChangePrompt  enhanced = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, true,
+        ChangePrompt  enhanced = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true,
                                                                     "Apple //e Enhanced");
-        ChangePrompt  unnamed  = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, true, "");
+        ChangePrompt  unnamed  = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true, "");
 
 
 
@@ -529,9 +704,9 @@ public:
     //  THE CAVEAT IS GONE. It explained that a running program may misread a
     //  swapped disk, and read as alarming for something working exactly as
     //  asked. The audience for this feature knows what a swapped disk does.
-    TEST_METHOD (ThePickUpNoticeDoesNotLectureAboutRebooting)
+    TEST_METHOD (TheReloadNoticeDoesNotLectureAboutRebooting)
     {
-        ChangePrompt  running = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,
+        ChangePrompt  running = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
                                                                    "Apple //e");
 
 
@@ -549,9 +724,9 @@ public:
     //  configured the pick-up with a switch, so making them dismiss a notice
     //  about it charges them twice for the same decision. The others report
     //  something they did not ask for and stand until read.
-    TEST_METHOD (OnlyThePickUpNoticeClosesItself)
+    TEST_METHOD (OnlyTheReloadNoticeClosesItself)
     {
-        ChangePrompt  pickUp   = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,
+        ChangePrompt  reload   = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
                                                                     "Apple //e");
         ChangePrompt  conflict = ChangePrompt::ComposeConflictReport ("Game.dsk", 0, "Game.x.dsk");
         ChangePrompt  failed   = ChangePrompt::ComposeSaveFailure ("Game.dsk", 0, "Game.x.dsk",
@@ -561,7 +736,7 @@ public:
 
 
 
-        Assert::IsTrue (pickUp.selfDismisses);
+        Assert::IsTrue (reload.selfDismisses);
 
         Assert::IsFalse (conflict.selfDismisses,
                          L"a copy was written and the user has to learn its name");
@@ -572,11 +747,11 @@ public:
 
 
 
-    TEST_METHOD (ThePickUpReportCarriesOnlyItsOwnDismissal)
+    TEST_METHOD (TheReloadReportCarriesOnlyItsOwnDismissal)
     {
-        ChangePrompt  running  = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, false,
+        ChangePrompt  running  = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
                                                                     "Apple //e");
-        ChangePrompt  rebooted = ChangePrompt::ComposePickUpReport ("Game.dsk", 0, true,
+        ChangePrompt  rebooted = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true,
                                                                     "Apple //e");
 
 
@@ -598,7 +773,7 @@ public:
         //  Conflict is here now: it composes through its own report, which
         //  needs the copy's path this one has no way to supply.
         const ChangeAction  notQuestions[] = { ChangeAction::Ignore,
-                                               ChangeAction::TakeUpInPlace,
+                                               ChangeAction::ReloadInPlace,
                                                ChangeAction::Restart,
                                                ChangeAction::Defer,
                                                ChangeAction::Conflict,
@@ -629,9 +804,9 @@ public:
                                                   "C:\\work\\loader.x.dsk"));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Deleted));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Unusable));
-        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\loader.dsk", 0, false,
+        prompts.push_back (ChangePrompt::ComposeReloadReport ("C:\\work\\loader.dsk", 0, false,
                                                               "Apple //e"));
-        prompts.push_back (ChangePrompt::ComposePickUpReport ("C:\\work\\loader.dsk", 0, true,
+        prompts.push_back (ChangePrompt::ComposeReloadReport ("C:\\work\\loader.dsk", 0, true,
                                                               "Apple //e"));
         prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\\work\\loader.dsk", 0,
                                                                 "C:\\work\\loader.x.dsk"));

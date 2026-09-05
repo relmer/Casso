@@ -43,6 +43,10 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **The "disk modified outside Casso" notices were rewritten.** The disk and its
+  drive lead on a line of their own instead of appearing in every sentence, and
+  all four notices report the copy the same way: your disk is renamed, and the
+  new name is given once.
 - **Massively faster startup.** Reduced startup time from ~20s (debug build) to 
   under 1s, and the executable is ~80% smaller by prebuilding object meshes, 
   optimizing tesselation, and precompiling shaders. 

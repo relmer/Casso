@@ -4,7 +4,7 @@
 
 //  The one word the command line and the disk policy share. It lives in
 //  CassoCore because that is the layer both can reach.
-#include "../CassoCore/PickUpIntent.h"
+#include "../CassoCore/ExternalChangeIntent.h"
 
 
 
@@ -24,7 +24,7 @@ enum class ChangeAction
     Ignore,
 
     //  Take the new contents; leave the machine running.
-    TakeUpInPlace,
+    ReloadInPlace,
 
     //  Take the new contents and restart the machine.
     Restart,
@@ -117,7 +117,7 @@ public:
         bool          heldByOther  = false;
 
         //  What the writer said, if anything.
-        PickUpIntent  intent       = PickUpIntent::Unstated;
+        ExternalChangeIntent  intent       = ExternalChangeIntent::Unstated;
     };
 
 
@@ -127,7 +127,7 @@ public:
     //  THE ORDER OF THE TESTS IS THE DESIGN. A conflict outranks any stated
     //  intent, because an intent says how the guest continues and never whether
     //  work may be discarded. Unusable outranks both, because there is nothing
-    //  to take up. And a file somebody else is still writing outranks
+    //  to reload. And a file somebody else is still writing outranks
     //  everything, because acting on it would read a half-written disk.
     static ChangeAction  Decide (const Situation & situation);
 

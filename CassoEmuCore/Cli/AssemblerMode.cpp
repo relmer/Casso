@@ -111,7 +111,7 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
     exitCode = kNoOutput;
 
     //  Wired unconditionally, though only the image sink can reach it: a
-    //  build that writes to a host file has no image for anyone to pick up,
+    //  build that writes to a host file has no image for anyone to reload,
     //  and the sink that would state an intent is not the one selected.
     imageSink.SetIntentChannel (&intentChannel);
 
