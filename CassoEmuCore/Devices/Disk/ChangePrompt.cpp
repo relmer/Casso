@@ -122,6 +122,13 @@ std::wstring ChangePrompt::DescribeError (HRESULT reason)
 //  new file away". Each label now states the action, and the body states its
 //  consequence.
 //
+//  THE FILE AND THE DRIVE ARE NAMED ONCE, ON A LINE OF THEIR OWN. Every
+//  sentence used to carry both, so a name of any length appeared six times in
+//  one dialog and the sentences around it were unreadable. Hoisting them to a
+//  labeled line lets the rest say "this disk" and "it", which is how anyone
+//  would say it out loud. The copy's name is the one other filename here, and
+//  it is printed once, where the rename is described.
+//
 //  KEEPING IS A SAVE-AS, NOT A SWAP. The disk in the drive does not move, so
 //  the sentence about it is a rename and not an insertion. That is also what
 //  the store does: it writes the copy and points the bay at it.
@@ -145,30 +152,35 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
     case ChangeAction::Ask:
         prompt.title   = L"Disk modified outside Casso";
 
-        prompt.message = L"Another program modified " + file + L" while it was in " + where + L".";
+        prompt.message = L"Another program modified this disk while it was mounted in Casso:"
+                         L"\n\n" + where + L": " + file;
 
         //  A conflict wrote the copy before anything was asked, so the guest's
-        //  writes are already safe and the reader is told so up front.
+        //  writes are already safe and the reader is told so up front. Where
+        //  they went waits for the sentence about keeping them, so the copy is
+        //  named once.
         if (copyAlreadyWritten && !copy.empty())
         {
-            prompt.message += L" Your writes to it hadn't been saved yet, so we saved them as "
-                            + copy + L".";
+            prompt.message += L"\n\nYour writes to it hadn't been saved yet, so we've "
+                              L"saved them.";
         }
 
-        prompt.message += L"\n\nInsert the modified " + file + L" into " + where + L".";
+        prompt.message += L"\n\nInsert the modified disk to use the other program's "
+                          L"version.";
 
-        prompt.message += L"\n\nKeep your current version in " + where + L".";
+        prompt.message += L"\n\nKeep your current version to carry on with the disk as "
+                          L"it is.";
 
         if (!copy.empty())
         {
             prompt.message += copyAlreadyWritten
                                   ? (L" It's already saved as " + copy + L".")
                                   : (L" We'll rename it to " + copy
-                                     + L" so that it doesn't conflict with the " + file
-                                     + L" that the other program modified.");
+                                     + L" so that it doesn't conflict with the modified "
+                                       L"file.");
         }
 
-        prompt.answers.push_back (PromptAnswer { L"Insert the modified " + file,
+        prompt.answers.push_back (PromptAnswer { L"Insert the modified disk",
                                                  ChangeAction::TakeUpInPlace });
         prompt.answers.push_back (PromptAnswer { L"Keep your current version",
                                                  ChangeAction::KeepHeld });

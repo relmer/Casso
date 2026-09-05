@@ -5999,11 +5999,11 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     }
 
     //  WIDE ENOUGH FOR ITS OWN BUTTONS. The width was a hard 440 while the
-    //  height already grew with the text, so a dialog whose buttons carry a
-    //  filename -- "Insert the modified work.dsk" -- pushed the row past the
-    //  left margin and hard against the frame with no gap at all. Measured
-    //  with the same estimate the row lays itself out with, so the two cannot
-    //  come to disagree.
+    //  height already grew with the text, so a dialog whose buttons carried a
+    //  filename pushed the row past the left margin and hard against the
+    //  frame with no gap at all. No label carries a filename any more, but a
+    //  measured row is what keeps that from mattering: measured with the same
+    //  estimate the row lays itself out with, so the two cannot disagree.
     widthDip = DxuiButtonRow::kEdgePadDip * 2;
 
     for (const DialogButton & button : def.buttons)

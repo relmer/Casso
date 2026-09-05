@@ -471,9 +471,17 @@ public:
         //  "Ignore the changes", which described the external edit twice and
         //  the disk in the drive not at all -- and "ignore" reads as throwing
         //  the new file away, which is the one thing it does not do.
-        Assert::IsTrue (prompt.answers[0].label.find (L"Loader.dsk") != std::wstring::npos,
-                        L"the insert names the disk going in");
+        Assert::IsTrue (prompt.answers[0].label.find (L"Insert") != std::wstring::npos);
         Assert::IsTrue (prompt.answers[1].label.find (L"Keep") != std::wstring::npos);
+
+        //  AND THEY DO NOT CARRY THE FILENAME. The insert button used to read
+        //  "Insert the modified <file>", which set the dialog's width from the
+        //  length of a name the body has already given on a line of its own.
+        for (const PromptAnswer & answer : prompt.answers)
+        {
+            Assert::IsTrue (answer.label.find (L".dsk") == std::wstring::npos,
+                            (L"a button carries a filename: " + answer.label).c_str());
+        }
 
         //  The reboot is not an answer here. It is something the user may do
         //  afterwards, from the toolbar.
@@ -482,6 +490,49 @@ public:
             Assert::IsTrue (answer.action != ChangeAction::Restart,
                             L"the toolbar carries the reboot");
         }
+    }
+
+
+
+    //  SIX PRINTINGS OF ONE NAME. Every sentence used to carry the file and the
+    //  drive, so a dialog about "mockingboard-speech-demo-dhgr.dsk" said it in
+    //  the first line, in both offers, in the rename, and on a button, and the
+    //  sentences around it could not be read. The name and the drive now lead
+    //  on a labeled line and the prose says "this disk" and "it".
+    TEST_METHOD (TheQuestionNamesTheFileOnceAndTheDriveOnce)
+    {
+        ChangePrompt  prompt = ChangePrompt::Compose ("C:\\work\\Loader.dsk", 0,
+                                                      ChangeAction::Ask,
+                                                      "C:\\work\\Loader.20260830-014233-01.dsk");
+        std::wstring  whole  = prompt.message;
+        size_t        files  = 0;
+        size_t        drives = 0;
+        size_t        at     = 0;
+
+
+
+        for (at = whole.find (L"Loader.dsk"); at != std::wstring::npos;
+             at = whole.find (L"Loader.dsk", at + 1))
+        {
+            files++;
+        }
+
+        for (at = whole.find (L"Drive 1"); at != std::wstring::npos;
+             at = whole.find (L"Drive 1", at + 1))
+        {
+            drives++;
+        }
+
+        Assert::AreEqual ((size_t) 1, files,  L"the file is named once");
+        Assert::AreEqual ((size_t) 1, drives, L"the drive is named once");
+
+        //  Together, on their own line, where the eye finds them without
+        //  reading a sentence.
+        Assert::IsTrue (whole.find (L"\n\nDrive 1: Loader.dsk") != std::wstring::npos,
+                        (L"the identifying line is missing: " + whole).c_str());
+
+        //  The copy is the one other name here, and it appears once.
+        Assert::IsTrue (whole.find (L"Loader.20260830-014233-01.dsk") != std::wstring::npos);
     }
 
 
