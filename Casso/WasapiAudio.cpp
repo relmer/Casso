@@ -287,6 +287,17 @@ void WasapiAudio::Shutdown()
         m_dumpFile = nullptr;
     }
 
+    //  Beside its producer-side twin above. Left open, the tail of a capture
+    //  sat in the stdio buffer and never reached the file -- and the end of
+    //  the stream is exactly what this tap is opened to look at.
+    if (m_devDumpFile != nullptr)
+    {
+        fclose (m_devDumpFile);
+        m_devDumpFile = nullptr;
+    }
+
+    m_devDumpChecked = false;
+
     m_initialized = false;
 }
 
@@ -670,9 +681,19 @@ void WasapiAudio::RenderPump()
 
     SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
-    // Keep at least ~20 ms queued in the device so scheduling jitter on
-    // the producer side never reaches the speaker.
-    floorFr = m_sampleRate / 50;
+    // The depth at which the endpoint is treated as about to run dry, and the
+    // only condition under which filler is written at all.
+    //
+    // This was 20 ms, and that was the whole problem. Logged over 3584 render
+    // wakes the device queue sits at a mean of 19.2 ms and never once fell
+    // below 10, while the pending queue is legitimately empty at 38% of wakes
+    // -- a producer running at real time has nothing in hand most of the time.
+    // A 20 ms floor against a 19 ms queue is therefore true almost whenever
+    // pending is empty, so filler was spliced into an endpoint that was in no
+    // danger whatsoever. 5 ms is a real emergency: the measured minimum is
+    // twice that, so this should never fire in normal running, and if it does
+    // the device genuinely was about to starve.
+    floorFr = m_sampleRate / 200;
 
     while (!m_renderStop.load (std::memory_order_relaxed))
     {
@@ -699,10 +720,26 @@ void WasapiAudio::RenderPump()
             pending = static_cast<UINT32> (m_pendingSamples.size() / 2);
         }
 
-        // Write everything pending (up to the free space); extend with
-        // filler only as far as needed to keep the device at the floor.
+        // Write everything pending, up to the free space.
         toWrite = (pending < available) ? pending : available;
 
+        // Filler is a last resort, not a top-up. Extending every pass to reach
+        // a queue floor splices a fade and a re-ramp into a stream that is
+        // keeping pace perfectly well; what the device actually needs is
+        // simply not to run dry, and while `padding` frames remain queued it
+        // will not.
+        //
+        // This was tried once before and measured no better, because the CPU
+        // thread's frame pacing was jittering hard enough to empty the queue
+        // regardless -- see CpuManager::ThreadProc. With the pacing corrected,
+        // the queue keeps a level and this is what removes the rest.
+        //
+        // WHAT IS QUEUED AFTER THIS PASS IS THE TEST, not whether anything is
+        // pending. Gating on an empty pending queue read almost the same on
+        // the measurements -- pending is empty at 38% of wakes and holds only
+        // a handful of frames at most of the rest -- while leaving the case it
+        // is supposed to cover wide open: a nearly dry endpoint with three
+        // frames in hand would be sent those three and nothing else.
         if (padding + toWrite < floorFr)
         {
             toWrite = ((floorFr - padding) < available) ? (floorFr - padding)
@@ -819,6 +856,28 @@ void WasapiAudio::DrainFrames (UINT32 toWrite, BYTE * buffer)
             samples[i * m_channels]     = left;
             samples[i * m_channels + 1] = right;
         }
+    }
+
+    // Diagnostic tap (CASSO_AUDIO_DUMP_DEVICE): the frames as handed to the
+    // endpoint, filler included. CASSO_AUDIO_DUMP taps the producer side; the
+    // two together say whether an artifact was generated or was introduced by
+    // this queue. That comparison is what identified the filler cadence.
+    if (!m_devDumpChecked)
+    {
+        char     path[MAX_PATH] = {};
+        size_t   len            = 0;
+
+        m_devDumpChecked = true;
+
+        if (getenv_s (&len, path, sizeof (path), "CASSO_AUDIO_DUMP_DEVICE") == 0 && len > 1)
+        {
+            fopen_s (&m_devDumpFile, path, "wb");
+        }
+    }
+
+    if (m_devDumpFile != nullptr)
+    {
+        fwrite (samples, sizeof (float), toWrite * m_channels, m_devDumpFile);
     }
 
     m_pendingSamples.erase (m_pendingSamples.begin(),

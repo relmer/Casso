@@ -1,0 +1,441 @@
+; ============================================================================
+;  mockingboard-speech-demo-dhgr.a65 -- the Mockingboard C's voice chip, and
+;  HAL's eye in double hi-res
+;
+;  The hi-res version of this demo is mockingboard-speech-demo-hgr.a65. The two
+;  speak and sing exactly the same stream and are driven by the same code:
+;  mockingboard-speech-engine.inc is the whole program bar the picture, and one
+;  generator writes both .inc files of data. What is left here is how the eye
+;  is drawn and where the captions go -- 140 color cells over 80-column text,
+;  against 280 hi-res pixels over 40-column text there.
+;
+;  A direct-boot demo for the SSI 263A speech synthesizer in slot 4. It speaks,
+;  changes voice type, asks a question with a rising pitch, delivers a line in
+;  a flat computer monotone, and then sings.
+;
+;  The point of the singing is that it cannot be faked. An emulator that plays
+;  pre-recorded phoneme samples can say the words; only one that synthesizes
+;  from the chip's parameters can put those words on a melody, because pitch
+;  is a register (the 12-bit inflection value) and not a property of a
+;  recording.
+;
+;  Build:  scripts/BuildDirectBootDisk.ps1
+;  Boot:   Casso.exe --machine Apple2e --disk1 Apple2\Demos\mockingboard-speech-demo-dhgr.dsk
+;
+;  ---------------------------------------------------------------------------
+;  Driving the chip
+;
+;  Speech and song are paced differently, on purpose.
+;
+;  SPOKEN lines are paced by this program's own cycle-counted delays. They do
+;  NOT poll the chip's request line, because on a Mockingboard that cannot
+;  work: the first 6522 decodes only A0-A3 and A7, so it answers everywhere in
+;  $C400-$C47F, and $C440 is that VIA's port B. Every speech write lands in
+;  both chips -- a phoneme byte to $C440 is also an ORB write, and the rate
+;  byte to $C442 is also a DDRB write -- and a read returns the VIA's IRB, not
+;  the voice chip, which drives nothing on a read. Polling D7 there reads back
+;  the phoneme this program itself just wrote, through whichever port B bits
+;  the rate byte last left as outputs. Reading A/R back is a Phasor native
+;  mode facility; the Mockingboard route is A/R to VIA #1's CA1.
+;
+;  So the wait is computed instead of asked for. A phoneme sounds for
+;  4096 * (16 - rate) * (4 - DR) chip ticks, and PhonemeWait counts out that
+;  same product. Tempo becomes a property of this disk rather than of the host
+;  clock, which is what a demo meant to be passed between emulators needs.
+;
+;  The phoneme is re-written once at the halfway point so the chip is still
+;  sounding whichever rate its timer runs at, and so the next phoneme always
+;  reloads a sounding chip rather than restarting a silent one -- no seam at
+;  the boundary, the same trick Sing uses to hold a note.
+;
+;  SUNG notes cannot work that way. A single phoneme write sounds for at most
+;  146 ms (4096 * 16 * 4 chip ticks at the slowest rate), which is shorter than
+;  most notes, so a held note is built by re-writing the SAME phoneme byte
+;  every delay unit until the note's duration is used up. Re-writing a phoneme
+;  that is already sounding only reloads its duration countdown -- it does not
+;  disturb the glottal phase, the resonators, or the amplitude envelope -- so
+;  the note sustains without a seam. Note length therefore comes from this
+;  program's own cycle-counted delay loop rather than from the chip's timer,
+;  which also keeps the melody correct if the chip's phoneme timing is ever
+;  recalibrated.
+;
+;  Pitch is the 12-bit inflection value, scattered across two registers:
+;  I10-I3 fill $C441, I11 sits at bit 3 of $C442, and I2-I0 sit at bits 2-0.
+;  $C442's high nibble is the speech rate, so both halves are written together
+;  from a table rather than read back -- the chip is write-only through this
+;  path, and a read returns only the request bit.
+;
+;  The tune sits two octaves below its usual key. Pitch is clamped at 400 Hz,
+;  and a low fundamental leaves the formants legible, so the melody lands in
+;  the same register as the speaking voice: it sounds like one voice that
+;  starts singing rather than a second, higher instrument.
+;
+;  ---------------------------------------------------------------------------
+;  Stream formats
+;
+;  Speech: one phoneme byte per sound, its duration in bits 7:6, terminated by
+;  $FF. Five escapes carry the parameter changes:
+;      $FB n ...   print n high-ASCII characters as a caption; n = 0 clears
+;      $FC nn      nn delay units of silence
+;      $FD hi lo   set pitch: hi to $C441, lo to $C442
+;      $FE nn      set the filter frequency (voice type)
+;      $FF         end of stream
+;  Those five values would otherwise be phonemes $3B-$3F at the shortest
+;  duration -- the German vowels and LB, none of which this demo speaks.
+;
+;  A pitch byte carries the speech rate in its high nibble, because $C442 holds
+;  both. The generator folds the rate in; writing a bare pitch there resets the
+;  chip to rate 0, which is what made the question run 1.6x slower than the
+;  lines before it.
+;
+;  ---------------------------------------------------------------------------
+;  Captions
+;
+;  Each word is preceded by a caption escape, so the text appears as the word
+;  starts rather than after it finishes: Speak runs escapes to completion in the
+;  gap between phonemes, which is the instant the word begins.
+;
+;  Text goes straight into the text page. The monitor's COUT is not usable from
+;  a direct-boot payload -- it is a JMP through $0036, which nothing has set
+;  when the boot ROM jumps here -- and COUT1, HOME and CROUT all depend on the
+;  text window and cursor bytes being initialized. Writing $0400-$07FF costs
+;  about 19 cycles per character and depends on nothing.
+;
+;  Song: four bytes per record -- phoneme, pitch high, pitch low, duration in
+;  delay units -- terminated by $FF in the phoneme position. Consonants take a
+;  unit or two and the vowel carries the rest of the note, all at one pitch.
+; ============================================================================
+
+    .org $6000
+
+; -- Soft switches -----------------------------------------------------------
+SET80STORE = $C001         ; 80STORE on: PAGE2 steers text and hi-res page 1
+                           ; writes between main and auxiliary memory
+SET80COL   = $C00D         ; 80-column video
+TXTCLR     = $C050         ; graphics, not text
+MIXSET     = $C053         ; mixed: four text rows under the graphics
+PAGE2OFF   = $C054         ; with 80STORE: writes to main
+PAGE2ON    = $C055         ; with 80STORE: writes to auxiliary
+HIRES      = $C057         ; hi-res, not lo-res
+DHIRESON   = $C05E         ; double hi-res (needs 80-column video too)
+
+; -- This version ------------------------------------------------------------
+CAPLAST  = 79              ; the last column of a caption row
+CAPFIT   = 81              ; one past the width, for the fits-in-a-row test
+TITLECOL = 29              ; the title's first column, centered in 80
+ALT      = $1F             ; unpacker: the byte a pair run alternates with
+PCY      = $20             ; PutChar: the caller's Y
+
+    .include "mockingboard-speech-engine.inc"
+
+
+; ============================================================================
+;  EyeFlash    -- a syllable: the three inner rings each a shade brighter
+;  EyeFlashQ   -- EyeFlash if a vowel has queued one
+;  EyeDecay    -- one step of the flash collapsing inward: the outermost lit
+;                 ring back to its resting shade
+;  EyeRest     -- everything back to rest
+;  PaintStream -- apply one transition list; SRCP points at it
+;
+;  A color cell is four dots and a byte is seven, so the rings do not fall on
+;  byte boundaries and a paint copies bytes rather than filling them. Each
+;  transition is a list of spans: row address, first column with bit 7 set for
+;  the auxiliary bank, count, then the count bytes. With 80STORE on, PAGE2
+;  steers the hi-res writes between the banks.
+;
+;  EyeFlash, EyeFlashQ and EyeDecay return carry set when they painted, so the
+;  caller can give the time back: FLASHU and DECAYC are in speech units and
+;  SNGFLASHL and SNGDECAYL in song laps, all from the generator, which knows
+;  the byte counts.
+; ============================================================================
+EyeFlash
+    lda #$00
+    sta FLASHQ
+    lda #<eyeFlash
+    sta SRCP
+    lda #>eyeFlash
+    sta SRCP+1
+    jsr PaintStream
+    lda #$03
+    sta GLOWPH
+    lda #DECAYU
+    sta DECAYT
+    sec
+    rts
+
+EyeFlashQ
+    lda FLASHQ
+    bne EyeFlash
+    clc
+    rts
+
+EyeDecay
+    lda GLOWPH
+    beq ed_none
+    dec GLOWPH
+    ldx GLOWPH
+    lda eyeDecayLo,x
+    sta SRCP
+    lda eyeDecayHi,x
+    sta SRCP+1
+    jsr PaintStream
+    sec
+    rts
+ed_none
+    clc
+    rts
+
+EyeRest
+    lda #$00
+    sta FLASHQ
+er_loop
+    jsr EyeDecay
+    bcs er_loop
+    rts
+
+PaintStream
+ps_span
+    ldy #$00
+    lda (SRCP),y                ; row, low
+    sta EYEP
+    iny
+    lda (SRCP),y                ; row, high: zero ends the list
+    beq ps_done
+    sta EYEP+1
+    iny
+    lda (SRCP),y                ; first column; bit 7 selects the aux bank
+    bpl ps_main
+    sta PAGE2ON
+ps_main
+    and #$7F
+    sta TMP3
+    iny
+    lda (SRCP),y                ; count
+    clc
+    adc TMP3
+    sta TMP                     ; the column past the last
+    ; Step past the header, then bias the source down by the first column so
+    ; that one index serves both the source and the row.
+    lda SRCP
+    clc
+    adc #$04
+    sta SRCP
+    bcc ps_bias
+    inc SRCP+1
+ps_bias
+    lda SRCP
+    sec
+    sbc TMP3
+    sta SRCP
+    bcs ps_copy0
+    dec SRCP+1
+ps_copy0
+    ldy TMP3
+ps_copy
+    lda (SRCP),y
+    sta (EYEP),y
+    iny
+    cpy TMP
+    bne ps_copy
+    ; Unbias and step: the source sits at (bytes - first column), and the
+    ; bytes ran to the column past the last.
+    lda SRCP
+    clc
+    adc TMP
+    sta SRCP
+    bcc ps_next
+    inc SRCP+1
+ps_next
+    sta PAGE2OFF
+    jmp ps_span
+ps_done
+    rts
+
+eyeDecayLo
+    .byte <eyeDecay0,<eyeDecay1,<eyeDecay2
+eyeDecayHi
+    .byte >eyeDecay0,>eyeDecay1,>eyeDecay2
+
+
+; ============================================================================
+;  ScreenInit -- double hi-res over 80-column text, cleared, with the title
+;
+;  Nothing here calls the monitor. A direct-boot payload is entered by the
+;  disk ROM with the zero-page vectors COUT and its relatives depend on still
+;  holding power-on garbage, so the screen is set up from the soft switches
+;  and filled by hand.
+; ============================================================================
+ScreenInit
+    sta SET80COL
+    sta SET80STORE
+    sta PAGE2OFF
+    bit TXTCLR
+    bit MIXSET
+    bit HIRES
+    sta DHIRESON
+
+    ; Both banks of the text page blank: rows 20-23 show under the picture.
+    jsr TextFill
+    sta PAGE2ON
+    jsr TextFill
+    sta PAGE2OFF
+
+    ; HAL's eye, one bank at a time, each from its own run-length stream.
+    sta PAGE2ON
+    lda #<eyeRleAux
+    ldx #>eyeRleAux
+    jsr Unpack
+    sta PAGE2OFF
+    lda #<eyeRleMain
+    ldx #>eyeRleMain
+    jsr Unpack
+
+    ; Title on the bottom row, then park the caption cursor at the first
+    ; caption row. The picture starts at rest.
+    lda #<TITLE
+    sta CAPPTR
+    lda #>TITLE
+    sta CAPPTR+1
+    ldx #$00
+si_title
+    lda titleText,x
+    beq si_capinit
+    pha
+    txa
+    clc
+    adc #TITLECOL
+    tay
+    pla
+    jsr PutChar
+    inx
+    bne si_title
+
+si_capinit
+    lda #$00
+    sta CAPROW
+    sta GLOWPH
+    sta FLASHQ
+    lda #DECAYU
+    sta DECAYT
+    jsr CaptionRow
+    rts
+
+TextFill
+    lda #$A0
+    ldx #$00
+tf_loop
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $0700,x
+    inx
+    bne tf_loop
+    rts
+
+
+; ============================================================================
+;  Unpack -- one bank of the picture from its run-length stream, A/X = stream
+;
+;  A count with bit 7 set is followed by TWO bytes and the run alternates
+;  them, which is how a solid color packs: its pattern repeats every four
+;  bytes across the screen, so within one bank it alternates two values. The
+;  rows are not contiguous in memory, so the column is counted and the row
+;  pointer re-fetched at each row's end.
+; ============================================================================
+Unpack
+    sta SRCP
+    stx SRCP+1
+    lda #$00
+    sta RLROW
+    sta RLCOL
+    jsr RleRow
+rl_pair
+    ldy #$00
+    lda (SRCP),y                ; count: zero ends the stream
+    beq rl_done
+    sta TMP3                    ; bit 7 kept: a pair or not
+    and #$7F
+    sta TMP
+    iny
+    lda (SRCP),y                ; the byte
+    sta TMP2
+    sta ALT
+    bit TMP3
+    bpl rl_single
+    iny
+    lda (SRCP),y                ; the byte it alternates with
+    sta ALT
+rl_single
+    iny
+    tya
+    clc
+    adc SRCP
+    sta SRCP
+    bcc rl_run
+    inc SRCP+1
+rl_run
+    ldy RLCOL
+    lda TMP2
+    sta (EYEP),y
+    ldx ALT                     ; swap the pair; a single swaps with itself
+    lda TMP2
+    sta ALT
+    stx TMP2
+    iny
+    cpy #40
+    bne rl_same
+    ldy #$00
+    inc RLROW
+    jsr RleRow
+rl_same
+    sty RLCOL
+    dec TMP
+    bne rl_run
+    beq rl_pair                 ; always
+rl_done
+    rts
+
+RleRow
+    ldx RLROW
+    cpx #160
+    bcs rr_done                 ; the last run ends exactly on row 160
+    lda hgrRowLo,x
+    sta EYEP
+    lda hgrRowHi,x
+    sta EYEP+1
+rr_done
+    rts
+
+
+; ============================================================================
+;  PutChar -- character A at 80-column position Y of the row at CAPPTR
+;
+;  Even columns live in the auxiliary bank and odd ones in main, at the same
+;  address; with 80STORE on, PAGE2 selects which bank a text-page write lands
+;  in. A and Y survive.
+; ============================================================================
+PutChar
+    sty PCY
+    pha
+    tya
+    lsr a
+    tay
+    pla
+    bcs pc_main
+    sta PAGE2ON
+    sta (CAPPTR),y
+    sta PAGE2OFF
+    ldy PCY
+    rts
+pc_main
+    sta (CAPPTR),y
+    ldy PCY
+    rts
+
+
+; ============================================================================
+;  Data
+; ============================================================================
+    .include "mockingboard-speech-demo-dhgr.inc"
+
+; --- end ---
