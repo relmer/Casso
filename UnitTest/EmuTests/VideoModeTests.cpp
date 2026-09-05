@@ -957,6 +957,81 @@ TEST_CLASS (Apple80ColTextModeTests)
 {
 public:
 
+    // The mixed-mode overlay renders with no videoRam, so the main column
+    // used to come through the bus -- which, under 80STORE with PAGE2 on,
+    // answers a text-page read from aux. A program that keeps PAGE2 on while
+    // it writes its own aux bank therefore had frames with aux in both
+    // columns. The fixture mirrors DHR_MainHalfIgnoresAuxBankingUnder80Store:
+    // 80STORE goes to the switch bank directly, and the bus is proven banked
+    // before the render so a pass means something.
+    TEST_METHOD (TextMode80_MainColumnIgnoresAuxBankingUnder80Store)
+    {
+        const int              fbW          = 560;
+        const int              fbH          = 384;
+        MemoryBus              bus;
+        RamDevice              mainRam (0x0000, 0xBFFF);
+        Apple2eMmu             mmu;
+        Apple2eSoftSwitchBank  sw (&bus);
+        Byte *                 mainPtr      = mainRam.GetData();
+        std::vector<uint32_t>  fb (fbW * fbH, 0);
+        bool                   col0HasGreen = false;
+        bool                   col1HasGreen = false;
+
+
+
+        for (int page = 0x00; page < 0xC0; page++)
+        {
+            bus.SetReadPage  (page, mainPtr + (page * 0x100));
+            bus.SetWritePage (page, mainPtr + (page * 0x100));
+        }
+
+        sw.SetMmu (&mmu);
+        mmu.Initialize (&bus, &mainRam, nullptr, nullptr, nullptr, &sw);
+        bus.AddDevice (&sw);
+
+        Byte * auxPtr = mmu.GetAuxBuffer();
+
+        for (Word addr = 0x0400; addr < 0x0800; addr++)
+        {
+            mainPtr[addr] = 0xA0;
+            auxPtr [addr] = 0xA0;
+        }
+
+        // A blank in aux (column 0) and an 'A' in main (column 1): read both
+        // from aux and column 1 goes blank.
+        mainPtr[0x0400] = 0xC1;
+
+        sw.Write     (0xC001, 0x00);   // 80STORE on -- bank surface, not bus
+        bus.ReadByte (0xC055);         // PAGE2 on
+
+        Assert::IsTrue (mmu.Get80Store(), L"fixture: 80STORE did not latch");
+        Assert::IsTrue (sw.IsPage2(),     L"fixture: PAGE2 did not latch");
+        Assert::AreEqual (static_cast<Byte> (0xA0), bus.ReadByte (0x0400),
+            L"fixture: the bus must now be banked to aux for this to prove anything");
+
+        Apple80ColTextMode text80 (bus);
+        text80.SetAuxMemory  (auxPtr);
+        text80.SetMainMemory (mainPtr);
+        text80.RenderRowRange (0, 1, nullptr, fb.data(), fbW, fbH);
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 7; x++)
+            {
+                if (fb[y * fbW + x] == 0xFF00FF00u) { col0HasGreen = true; }
+            }
+
+            for (int x = 7; x < 14; x++)
+            {
+                if (fb[y * fbW + x] == 0xFF00FF00u) { col1HasGreen = true; }
+            }
+        }
+
+        Assert::IsFalse (col0HasGreen, L"column 0 is the aux blank");
+        Assert::IsTrue  (col1HasGreen,
+            L"column 1 must come from main RAM, not from the bus banked to aux");
+    }
+
     TEST_METHOD (TextMode80_RendersAuxMainInterleave)
     {
         const int  fbW          = 560;
@@ -1394,6 +1469,61 @@ public:
         }
 
         Assert::IsTrue (sl1AllBlack, L"All-zero scanline 1 must be all black");
+    }
+
+    // Apple IIe Technical Note #3 gives each color as the four bytes that
+    // fill a 28-dot span: aux, main, aux, main. Those bytes are the
+    // definition of the color phase, so the decoder is held to them rather
+    // than to a reading of the dots as a binary number, which is one dot
+    // off and turns magenta brown and orange green.
+    TEST_METHOD (DHR_TechnotePatternsDecodeToTheirColors)
+    {
+        const int              fbW      = 560;
+        const int              fbH      = 384;
+        const uint32_t         kMagenta = 0xFFDD2266;
+        const uint32_t         kOrange  = 0xFFFF4400;
+        const uint32_t         kViolet  = 0xFFDD0044;
+        MemoryBus              bus;
+        RamDevice              ram (0x0000, 0x5FFF);
+        std::vector<Byte>      auxBuf (0x10000, 0x00);
+        std::vector<uint32_t>  fb (fbW * fbH, 0xFFCCCCCC);
+        Word                   row1     = AppleHiResMode::GetScanlineAddress (1, 0x2000);
+        Word                   row2     = AppleHiResMode::GetScanlineAddress (2, 0x2000);
+
+
+
+        bus.AddDevice (&ram);
+
+        // Row 0 magenta, row 1 orange, row 2 violet, each pattern repeated
+        // across the first four byte columns.
+        const Byte magenta[4] = { 0x08, 0x11, 0x22, 0x44 };
+        const Byte orange[4]  = { 0x4C, 0x19, 0x33, 0x66 };
+        const Byte violet[4]  = { 0x19, 0x33, 0x66, 0x4C };
+
+        for (int col = 0; col < 4; col++)
+        {
+            auxBuf[0x2000 + col] = magenta[(col * 2)     % 4];
+            bus.WriteByte (static_cast<Word> (0x2000 + col), magenta[(col * 2 + 1) % 4]);
+
+            auxBuf[row1 + col] = orange[(col * 2)     % 4];
+            bus.WriteByte (static_cast<Word> (row1 + col), orange[(col * 2 + 1) % 4]);
+
+            auxBuf[row2 + col] = violet[(col * 2)     % 4];
+            bus.WriteByte (static_cast<Word> (row2 + col), violet[(col * 2 + 1) % 4]);
+        }
+
+        AppleDoubleHiResMode dhr (bus);
+        dhr.SetAuxMemory (auxBuf.data());
+        dhr.SetPage2 (false);
+        dhr.Render (nullptr, fb.data(), fbW, fbH);
+
+        // Four byte columns are 56 dots: 14 whole cells.
+        for (int x = 0; x < 56; x++)
+        {
+            Assert::AreEqual (kMagenta, fb[0 * fbW + x], L"technote magenta");
+            Assert::AreEqual (kOrange,  fb[2 * fbW + x], L"technote orange");
+            Assert::AreEqual (kViolet,  fb[4 * fbW + x], L"technote violet");
+        }
     }
 
     TEST_METHOD (DHR_GetActivePageAddress_ReturnsCorrectPages)

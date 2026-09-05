@@ -82,9 +82,21 @@ public:
     static constexpr size_t  kLoadPageAt    = 0xF1;
     static constexpr size_t  kTrackAt       = 0xF2;
     static constexpr size_t  kPhaseAt       = 0xF3;
-    static constexpr size_t  kJumpOpcodeAt  = 0x4C;
-    static constexpr size_t  kEntryLowAt    = 0x4D;
-    static constexpr size_t  kEntryHighAt   = 0x4E;
+    static constexpr size_t  kIndexAt       = 0xF4;
+    static constexpr size_t  kReadOrderAt   = 0xE0;
+    static constexpr size_t  kJumpOpcodeAt  = 0x53;
+    static constexpr size_t  kEntryLowAt    = 0x54;
+    static constexpr size_t  kEntryHighAt   = 0x55;
+
+    //  The order the loader asks a track's sectors for: every other one, then
+    //  the ones it skipped. Written out rather than computed, so that a builder
+    //  whose construction drifted is caught by a table instead of agreeing with
+    //  a second copy of its own arithmetic.
+    static std::vector<int> ReadOrder()
+    {
+        return std::vector<int> { 0, 2, 4, 6, 8, 10, 12, 14,
+                                  1, 3, 5, 7, 9, 11, 13, 15 };
+    }
 
     static constexpr Byte    kJumpAbsolute  = 0x4C;
 
@@ -111,10 +123,13 @@ public:
         return payload;
     }
 
+    //  Two mappings, both of which have to be applied: the page read Nth is
+    //  the one at the Nth sector of the read order, and that physical sector
+    //  sits at its own logical place in the buffer.
     static size_t PayloadSectorOffset (const std::vector<int> & physicalToLogical, size_t page)
     {
         int  track    = DirectBootBuilder::kFirstPayloadTrack + (int) (page / kSectorsTrack);
-        int  physical = (int) (page % kSectorsTrack);
+        int  physical = ReadOrder()[page % kSectorsTrack];
 
         return Dos33Skeleton::GetSectorOffset (track, physicalToLogical[(size_t) physical]);
     }
@@ -446,6 +461,48 @@ public:
         Assert::IsTrue (displaced > 0,
             L"and the two must differ for some page, or this case is satisfied by a "
             L"builder that wrote the payload straight down the buffer");
+    }
+
+    //  The loader reads the order out of its own sector, and the builder lays
+    //  the pages down against that same order. They are two halves of one
+    //  agreement and nothing but this case holds them together: a build that
+    //  wrote one and not the other produces an image that loads at full speed
+    //  and hands the guest its pages shuffled.
+    TEST_METHOD (Build_TheOrderInTheLoaderIsTheOrderThePagesWereLaidDownIn)
+    {
+        std::vector<int>   expected = ReadOrder();
+        std::vector<Byte>  payload  = PayloadOfPages (16);
+        std::vector<Byte>  built;
+        std::string        refusal;
+        DirectBootSpec     spec;
+        size_t             i        = 0;
+        int                gap      = 0;
+
+
+
+        spec.loadAddress  = kSomewhereSafe;
+        spec.entryAddress = kSomewhereSafe;
+
+        AssertSucceeded (DirectBootBuilder::Build (payload, spec, built, refusal));
+
+        for (i = 0; i < kSectorsTrack; i++)
+        {
+            Assert::AreEqual (expected[i], (int) built[kReadOrderAt + i],
+                L"the sixteen bytes the loader indexes are the read order itself");
+        }
+
+        //  Consecutive requests a sector apart is the ascending order this
+        //  replaced, and it costs a revolution each. Two is what was measured
+        //  to be both sufficient and the floor.
+        gap = expected[1] - expected[0];
+
+        Assert::AreEqual (2, gap,
+            L"and consecutive requests must be two sectors apart, which is what makes a "
+            L"track cost two revolutions instead of sixteen");
+
+        Assert::AreEqual (0, (int) built[kIndexAt],
+            L"the loader starts at the beginning of that order, and says so rather than "
+            L"inheriting a zero from the buffer");
     }
 
     TEST_METHOD (Build_AnUnalignedLoadAddress_CarriesItsOwnLeadIn)

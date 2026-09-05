@@ -224,12 +224,21 @@ void AppleDoubleHiResMode::Render (
         // replicate the same color across all 4 dots in the cell so
         // the framebuffer renders true 16-color DHR (560 horizontal
         // dots, 140 color cells).
+        //
+        // The cell's color number is NOT the dots read as a binary number.
+        // The color clock runs one dot ahead of the byte boundary, so the
+        // last dot of a cell carries the low bit and the first three carry
+        // bits 1-3. Apple IIe Technical Note #3 lists magenta (lo-res color
+        // 1) as aux $08, main $11, aux $22, main $44 -- only the fourth dot
+        // of each cell lit -- and orange (9) as $4C $19 $33 $66, the third
+        // and fourth. Reading the dots low-bit-first from the first dot
+        // shows those as brown and green.
         for (int cell = 0; cell + 3 < kDhrPixelsPerScanline; cell += 4)
         {
-            paletteIdx = (dots[cell + 0] ? 1 : 0)
-                       | (dots[cell + 1] ? 2 : 0)
-                       | (dots[cell + 2] ? 4 : 0)
-                       | (dots[cell + 3] ? 8 : 0);
+            paletteIdx = (dots[cell + 0] ? 2 : 0)
+                       | (dots[cell + 1] ? 4 : 0)
+                       | (dots[cell + 2] ? 8 : 0)
+                       | (dots[cell + 3] ? 1 : 0);
 
             color = kDhrColors[paletteIdx];
 

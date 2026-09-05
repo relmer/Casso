@@ -78,6 +78,19 @@ jobs:
         shell: pwsh
         run: scripts/BuildDemoDisk.ps1 -Verify -Configuration ${{ matrix.configuration }}
 
+      # The same question for every demo folder that carries a Build.ps1, and
+      # the speech demo has an extra reason to be asked it: its data tables are
+      # GENERATED, not written. Editing a line of speech changes nothing until
+      # gen-speech-demo-data.py runs, and nothing about the edit says so -- the
+      # .a65 still assembles, the disk still boots, and it still says the old
+      # line. The script builds every such folder and compares, and puts the
+      # tree back either way so it cannot fail the check below for its own
+      # reasons.
+      - name: Mockingboard demo disks match their sources
+        if: matrix.platform == 'x64'
+        shell: pwsh
+        run: scripts/CheckDemoDisks.ps1 -Configuration ${{ matrix.configuration }}
+
       # And nothing in the job may have changed a tracked file. CI runs
       # vstest directly rather than through scripts/RunTests.ps1, so the
       # mtime guard there never sees a CI run; this is the same rule stated
