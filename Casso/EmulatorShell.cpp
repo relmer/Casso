@@ -133,7 +133,13 @@ static constexpr int     kFramebufferWidth       = ChromeMetrics::kFramebufferWi
 static constexpr int     kFramebufferHeight      = ChromeMetrics::kFramebufferHeightPx;
 static constexpr LPCWSTR kWindowClass           = L"CassoWindow";
 static constexpr int     s_kBaseDpi             = ChromeMetrics::kBaseDpi;
-static constexpr int     s_kDriveWidgetGapDp    = 16;
+// Gap between the two drives. The compact presentation needs a wide one,
+// because it puts each drive's caption on the same line as the other's rail
+// and a narrow gap left "DRIVE 2" reading as a label on drive 1's bar. The
+// modeled drives have no caption beside them and keep the close spacing:
+// standing them 44 dp apart would push the pair out to the window's edges.
+static constexpr int     s_kDriveWidgetGapDp        = 16;
+static constexpr int     s_kCompactDriveWidgetGapDp = 44;
 
 //  How long the change band stands before closing itself. Long enough to read
 //  twice without hurrying, short enough that a build loop does not leave a
@@ -332,7 +338,8 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     int                           clientW,
     int                           clientH,
     UINT                          dpi,
-    float                         sceneScale)
+    float                         sceneScale,
+    int                           visibleCount)
 {
     int            bottomInset   = 0;
     int            commandBarTop = 0;
@@ -357,7 +364,8 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
 
     bottomInset = bottomInsetPx;
     commandBarTop = std::max (0, clientH - bottomInset);
-    gap = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+    gap = MulDiv (driveChrome[0].IsCompact() ? s_kCompactDriveWidgetGapDp : s_kDriveWidgetGapDp,
+                  static_cast<int> (dpi), s_kBaseDpi);
 
 
 
@@ -367,8 +375,32 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     probe   = driveChrome[0].GetOuterRect();
     widgetW = probe.right  - probe.left;
     widgetH = probe.bottom - probe.top;
-    totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
+    // Centered on the drives that will actually SHOW, not on the array. A //c
+    // with its external drive unconnected lays out both and hides the second
+    // right after this, so centering on two left the single visible drive
+    // sitting left of center by half a widget and a gap.
+    visibleCount = std::clamp (visibleCount, 1, static_cast<int> (driveChrome.size()));
+    totalW  = widgetW * visibleCount + gap * (visibleCount - 1);
     x       = std::max (0, (clientW - totalW) / 2);
+
+    // A LONE drive centers on the part that carries the weight -- the disk
+    // name and its head bar -- not on the whole widget. The 2D widget hangs
+    // its "DRIVE 1" caption off to the left, so centering the outer box put
+    // the name and bar half a caption column right of center and the row
+    // looked hung off to one side.
+    //
+    // The offset is measured off the widget rather than assumed, so the full
+    // skeuomorphic drive, whose body starts at its own left edge, subtracts
+    // nothing and is unaffected. Two drives keep centering on the pair: the
+    // caption then reads as part of a repeating unit rather than as a tail on
+    // a single object.
+    if (visibleCount == 1)
+    {
+        int  captionLead = driveChrome[0].GetBodyRect().left - probe.left;
+
+        x = std::max (0, x - captionLead / 2);
+    }
+
     // Anchor the widget to the bottom so the margin between the
     // basename label and the window edge mirrors the gap between
     // the drive body and the label (s_kLabelStripGapPx, scaled).
@@ -4330,7 +4362,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
         else
         {
-            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
+            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale,
+                                            ShouldShowExternalDrive() ? 2 : 1);
         }
 
         m_driveBandSurface.SetVisible (!DeskSceneActive());
@@ -7671,21 +7704,66 @@ bool EmulatorShell::TryPresentUiFrame()
     {
         bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
                             st.doorState == DriveWidgetState::Door::Closing);
-        bool  motorOn    = st.motorOn.load    (memory_order_relaxed);
-        bool  diskActive = st.diskActive.load (memory_order_relaxed);
+        bool  motorOn          = st.motorOn.load    (memory_order_relaxed);
+        bool  diskActive       = st.diskActive.load (memory_order_relaxed);
+        int   headQuarterTrack = st.headQuarterTrack.load  (memory_order_relaxed);
 
         anyDriveLive = anyDriveLive || motorOn || diskActive;
 
         // Everything about a drive that is VISIBLE, folded into one word so
         // the present vote below can ask whether it moved rather than whether
         // it is busy.
-        driveSig = (driveSig << 3) | (motorOn ? 1u : 0u)
-                                   | (diskActive ? 2u : 0u)
-                                   | (doorMoving ? 4u : 0u);
+        //
+        // The head position is in here because a 2D theme draws it: a seek
+        // with the motor already running changes no flag, so without this the
+        // readout would sit still until something else asked for a frame.
+        //
+        // EIGHT bits, because the value is in quarter-tracks and runs to 139.
+        // Six bits was the first cut and it aliased: quarter-track 64 folded
+        // onto 0, so a seek across the outer half of the disk moved the
+        // signature not at all. The unknown -1 folds to 0xFF, which is past
+        // the largest real position. Eleven bits per drive over two drives
+        // stays well inside the word.
+        driveSig = (driveSig << 11) | (motorOn ? 1u : 0u)
+                                    | (diskActive ? 2u : 0u)
+                                    | (doorMoving ? 4u : 0u)
+                                    | ((uint32_t) (headQuarterTrack & 0xFF) << 3);
 
         if (doorMoving)
         {
             m_d3dRenderer.MarkRedrawNeeded();
+        }
+
+        // A drive that has just gone quiet is FADING, and a fade nobody
+        // redraws is a step with a delay in front of it. Nothing else asks
+        // for these frames: the activity flags have already settled, the head
+        // is not moving, and a static emulator picture skips the present
+        // entirely. Ask for them until the fade is over.
+        {
+            int64_t  sinceMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                   std::chrono::steady_clock::now().time_since_epoch()).count()
+                               - st.lastActiveMs;
+
+            if (st.lastActiveMs != 0 && sinceMs >= 0 && sinceMs < DriveWidgetState::kActivityFadeMs)
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+        }
+    }
+
+    // A 2D drive's name roll wants frames for the same reason. Asked of the
+    // WIDGETS rather than the states, since the roll's clock lives with the
+    // label it is moving.
+    {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        for (const DriveWidget & drive : m_driveChrome)
+        {
+            if (drive.IsNameRolling (nowMs))
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
         }
     }
 
@@ -7854,7 +7932,8 @@ bool EmulatorShell::TryPresentUiFrame()
                     m_driveBandSurface.SetBounds (m_stripRectPx);
                     m_driveBandSurface.SetVisible (true);
                     LayoutDriveWidgetsInCommandBar (m_driveChrome, bandH, client.right,
-                                                    m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f);
+                                                    m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f,
+                                                    ShouldShowExternalDrive() ? 2 : 1);
 
                     if (!ShouldShowExternalDrive())
                     {
@@ -9549,7 +9628,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         bool  inside = x >= outer.left && x < outer.right &&
                        y >= outer.top  && y < outer.bottom;
 
-        drive.UpdateMarqueeHover (inside, nowMs);
+        if (drive.UpdateMarqueeHover (inside, nowMs))
+        {
+            // The band's button treatment appeared or went away. A static
+            // emulator picture presents no frames on its own, so without this
+            // the highlight would land on whatever frame happened next.
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
 
         if (inside && drive.IsWriteProtected())
         {
@@ -12754,7 +12839,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             }
             else if (fHasDisk)
             {
-                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi, m_chromeSceneScale);
+                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi,
+                                                m_chromeSceneScale, ShouldShowExternalDrive() ? 2 : 1);
 
                 // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
                 // widgets. Re-collapse the external one when it is an optional

@@ -46,6 +46,10 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **2D themes now use a richer drive widget.** The disk name is the control,
+  and its LED tracks where the head is sitting on the disk rather than only
+  showing that the drive is busy. Clicking the name ejects the disk and offers
+  a new one, which used to take a trip to the Disk menu.
 - **Direct-boot disks load about six times faster.** `disk create --boot` laid the
   payload down in ascending sector order, and the loader lost a whole revolution
   waiting for each one; it now reads every other sector, so a track costs two
