@@ -858,6 +858,7 @@ HRESULT GlobalUserPrefs::Save (
     JsonValue            global           = ToJson();
     JsonObject           rootEntries;
     JsonObject           machines;
+    bool                 isObject         = false;
 
 
 
@@ -865,26 +866,33 @@ HRESULT GlobalUserPrefs::Save (
     // this "global only" save path doesn't clobber per-machine user prefs
     // written by UserConfigStore. Without this, every Main.cpp pre-flight
     // save wipes the disk path the user mounted last session.
+    //
+    // A file that will not read or parse REFUSES THE SAVE, exactly as
+    // UserConfigStore::BuildCombinedJson does, because this is the second
+    // writer of the same document and the weaker of two contracts is the one
+    // that holds. Main.cpp:219 runs this on every launch before the shell
+    // exists, so swallowing the failure here overwrote an unreadable prefs
+    // file with defaults before anything could set it aside -- which made the
+    // whole recovery path unreachable in a shipped build.
     if (fs.Exists (path))
     {
         hr = fs.ReadAllText (path, existingText);
-        if (SUCCEEDED (hr))
+        CHR (hr);
+
+        hr = JsonParser::Parse (existingText, existing, err);
+        CHREx (hr, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+        isObject = (existing.GetType() == JsonType::Object);
+        CBREx (isObject, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+        for (const auto & kv : existing.GetObjectEntries())
         {
-            hr = JsonParser::Parse (existingText, existing, err);
-            if (SUCCEEDED (hr) && existing.GetType() == JsonType::Object)
+            if (kv.first == "machines" && kv.second.GetType() == JsonType::Object)
             {
-                for (const auto & kv : existing.GetObjectEntries())
-                {
-                    if (kv.first == "machines" && kv.second.GetType() == JsonType::Object)
-                    {
-                        machines = kv.second.GetObjectEntries();
-                        break;
-                    }
-                }
+                machines = kv.second.GetObjectEntries();
+                break;
             }
         }
-
-        hr = S_OK;
     }
 
     rootEntries.emplace_back ("global",   std::move (global));

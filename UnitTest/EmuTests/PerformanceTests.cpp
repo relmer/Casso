@@ -280,14 +280,14 @@ public:
         //  the first walk's page faults.
         for (i = 0; i < 1000; i++)
         {
-            store.ApplyPendingPickUp();
+            store.ApplyPendingReload();
         }
 
         QueryPerformanceCounter (&startQpc);
 
         for (i = 0; i < kIdleProbeCalls; i++)
         {
-            store.ApplyPendingPickUp();
+            store.ApplyPendingReload();
         }
 
         QueryPerformanceCounter (&endQpc);

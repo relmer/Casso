@@ -53,6 +53,92 @@ namespace DxuiInfoBannerTests
         }
 
 
+        //  A FORCED BREAK ENDS A LINE WHEREVER IT FALLS. The estimate used to
+        //  divide the whole string by the characters that fit, which assumes
+        //  every line is full and so loses one line for each partly-filled
+        //  line a break leaves behind. Nothing here had ever been given a
+        //  newline, and the change banner over the machine is laid out with
+        //  this path rather than the measured one, so the first multi-paragraph
+        //  notice would have been sized to show only its opening lines.
+        TEST_METHOD (ForcedBreaksCountAsLinesTheLengthAloneCannotShow)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  flowed (L"aaaa bbbb cccc dddd");
+            DxuiInfoBanner  broken (L"aaaa\n\nbbbb\n\ncccc\n\ndddd");
+
+
+
+            //  Both hold the same words at a width that fits them on one line,
+            //  so only the breaks can separate the two heights.
+            Assert::IsTrue (broken.GetPreferredHeightPx (600.0f, scaler)
+                          > flowed.GetPreferredHeightPx (600.0f, scaler),
+                            L"a broken-up notice is taller than the same words flowing");
+        }
+
+
+        //  The blank line between two paragraphs occupies a line of its own,
+        //  which is what makes a two-break notice taller than a one-break one.
+        TEST_METHOD (ABlankLineBetweenParagraphsTakesItsOwnLine)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  single (L"aaaa\nbbbb");
+            DxuiInfoBanner  spaced (L"aaaa\n\nbbbb");
+
+
+
+            Assert::IsTrue (spaced.GetPreferredHeightPx (600.0f, scaler)
+                          > single.GetPreferredHeightPx (600.0f, scaler));
+        }
+
+
+        //  A NOTICE-SIZED STRING, not a toy one. No shipped banner carries
+        //  paragraphs today -- the disk notices that reach the bar were rewritten
+        //  to flow once it turned out they land in a strip -- but the estimate is
+        //  wrong for any that does, and the next one should not have to
+        //  rediscover it.
+        TEST_METHOD (AMultiParagraphNoticeIsSizedForEveryParagraph)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  banner (L"Another program modified this disk while it was mounted "
+                                    L"in Casso:\n\nwork.dsk (Drive 1)\n\nYour disk has been renamed "
+                                    L"to work.20260905-010203-01.dsk to avoid a conflict with "
+                                    L"the other program, and has been remounted in Drive 1. No "
+                                    L"changes were made to the other program's modified version "
+                                    L"of work.dsk.");
+            DxuiInfoBanner  runOn  (L"Another program modified this disk while it was mounted "
+                                    L"in Casso: work.dsk (Drive 1) Your disk has been renamed "
+                                    L"to work.20260905-010203-01.dsk to avoid a conflict with "
+                                    L"the other program, and has been remounted in Drive 1. No "
+                                    L"changes were made to the other program's modified version "
+                                    L"of work.dsk.");
+
+
+
+            Assert::IsTrue (banner.GetPreferredHeightPx (700.0f, scaler)
+                          > runOn.GetPreferredHeightPx (700.0f, scaler),
+                            L"the paragraphs are not being counted");
+        }
+
+
+        //  NARROWER THAN A GLYPH IS NOT AN ESTIMATE. The printer page sizes its
+        //  banner from a page rect that is briefly tiny, and counting a line per
+        //  character there would ask for hundreds of lines of height.
+        TEST_METHOD (AWidthNarrowerThanOneGlyphStillAsksForOneLine)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  banner (L"A notice long enough that one line per character "
+                                    L"would be hundreds of lines of banner, which is what "
+                                    L"a degenerate width used to produce.");
+            DxuiInfoBanner  tiny   (L"Short.");
+
+
+
+            Assert::AreEqual (tiny.GetPreferredHeightPx   (1.0f, scaler),
+                              banner.GetPreferredHeightPx (1.0f, scaler),
+                              L"length must not matter once nothing can be estimated");
+        }
+
+
         TEST_METHOD (WiderBannerWrapsShorter)
         {
             DxuiDpiScaler  scaler  = Scaler96();
