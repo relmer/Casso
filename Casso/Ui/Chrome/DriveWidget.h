@@ -158,6 +158,17 @@ public:
     LedState           GetLed       () const { return m_led.GetState(); }
     int                GetDrive     () const { return m_drive; }
 
+    // Where the lit core sits along the head bar, for a head at the given
+    // QUARTER-track. Pulled out of the painter and made public because it is
+    // the part of the readout that can be got wrong silently: the drive
+    // engine's range of positions is wider than the rail this scale draws, so
+    // an over-stepped head has to be brought back to the scale rather than
+    // running off the end of it, and nothing on screen says which happened.
+    static float       GetHeadCoreCenterX (int   quarterTrack,
+                                           int   barLeftPx,
+                                           int   barWidthPx,
+                                           float coreHalfPx);
+
 private:
     // Widget geometry, palette, and the primitive-drawing helpers that
     // consume it. Every reader is a DriveWidget method, so the whole block

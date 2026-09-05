@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Chrome/DriveWidget.h"
+#include "Devices/Disk/Disk2NibbleEngine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -253,5 +254,188 @@ public:
 
         Assert::IsFalse (w.IsNameRolling (now),
                          L"the full widget animates its door instead");
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveWidgetCompactGeometryTests
+//
+//  The 2D widget's RECTS, rather than what it paints into them.
+//
+//  These cover faults that four green build configurations and the whole suite
+//  went straight past, because every one of them is a rectangle of the wrong
+//  size rather than code that is never reached.
+//
+//  Two rects decide behavior between them and are read by different callers.
+//  The shell takes hover from the OUTER rect and the click from HitTest, which
+//  reads the eject and body rects, so a column inside one and outside the other
+//  is a control that lights up and then does nothing. And the compact branch
+//  owns two rects the modeled branch never writes, so a widget that changes
+//  theme carries them across unless the other branch clears them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DriveWidgetCompactGeometryTests)
+{
+public:
+
+    static void LayOut (DriveWidget & drive, bool compact, const RECT & anchor)
+    {
+        DxuiDpiScaler  scaler;
+
+        scaler.SetDpi (96);
+        drive.Initialize (6, 0, nullptr);
+        drive.SetCompact (compact);
+        drive.Layout (anchor, scaler);
+    }
+
+
+    TEST_METHOD (Compact_CaptionColumnIsPartOfTheControl)
+    {
+        DriveWidget  drive;
+        RECT         anchor = { 100, 200, 100, 200 };
+        RECT         outer  = {};
+        RECT         body   = {};
+
+        LayOut (drive, true, anchor);
+        outer = drive.GetOuterRect();
+        body  = drive.GetBodyRect();
+
+        Assert::IsTrue (outer.left < body.left,
+                        L"the compact widget hangs its caption column off the left of the band");
+
+        // The caption used to sit inside the outer rect and outside every rect
+        // HitTest reads, so pointing at "DRIVE 1" lit the band's button
+        // treatment and clicking it did nothing at all.
+        Assert::IsTrue (drive.HitTest (outer.left + 1, (body.top + body.bottom) / 2)
+                        == DriveWidgetRegion::Eject,
+                        L"a click on the caption ejects, like a click anywhere else on the stack");
+    }
+
+
+    TEST_METHOD (Compact_EveryColumnTheShellHoversIsClickable)
+    {
+        DriveWidget  drive;
+        RECT         anchor = { 100, 200, 100, 200 };
+        RECT         outer  = {};
+        int          midY   = 0;
+        int          x      = 0;
+
+        LayOut (drive, true, anchor);
+        outer = drive.GetOuterRect();
+        midY  = (drive.GetBodyRect().top + drive.GetBodyRect().bottom) / 2;
+
+        // The shell decides hover from the OUTER rect and the click from
+        // HitTest. The two have to agree across the whole width, or the widget
+        // advertises a target somewhere it will not honor.
+        for (x = outer.left; x < outer.right; x++)
+        {
+            Assert::IsTrue (drive.HitTest (x, midY) != DriveWidgetRegion::None,
+                            L"a column the hover treatment lights must answer a click");
+        }
+    }
+
+
+    TEST_METHOD (ModeledAfterCompact_LaysOutLikeItNeverWasCompact)
+    {
+        DriveWidget  switched;
+        DriveWidget  reference;
+        RECT         compactAnchor = { 400, 700, 400, 700 };
+        RECT         anchor        = { 100, 200, 100, 200 };
+        RECT         a             = {};
+        RECT         b             = {};
+
+        // Compact FIRST, and at a position far from the origin, which is what
+        // gives the caption rect coordinates that stand out if they survive.
+        LayOut (switched,  true,  compactAnchor);
+        LayOut (switched,  false, anchor);
+        LayOut (reference, false, anchor);
+
+        a = switched.GetOuterRect();
+        b = reference.GetOuterRect();
+
+        // The head bar and the caption belong to the compact branch, and
+        // nothing in the modeled branch writes them. Carried across, the
+        // caption inflated GetOuterRect -- which is the widget's own bounds,
+        // the probe that sizes the drive row, and the shell's hover test.
+        Assert::AreEqual (b.left,   a.left,   L"no caption column on a drive that draws no caption");
+        Assert::AreEqual (b.top,    a.top,    L"top unchanged by the theme it came from");
+        Assert::AreEqual (b.right,  a.right,  L"right unchanged by the theme it came from");
+        Assert::AreEqual (b.bottom, a.bottom, L"no stale caption stretching the box downward");
+    }
+
+
+    TEST_METHOD (HideAfterCompact_CollapsesEveryRect)
+    {
+        DriveWidget  drive;
+        RECT         anchor = { 400, 700, 400, 700 };
+        RECT         outer  = {};
+
+        LayOut (drive, true, anchor);
+        drive.Hide();
+        outer = drive.GetOuterRect();
+
+        // Hide zeroes the rects so a machine with no controller shows no disk
+        // UI. It has to reach the compact-only rects too: GetOuterRect folds a
+        // non-empty caption in, so one left behind would keep a hidden widget
+        // occupying space and answering the hover test.
+        Assert::AreEqual (0L, outer.left,   L"a hidden widget occupies nothing");
+        Assert::AreEqual (0L, outer.top,    L"a hidden widget occupies nothing");
+        Assert::AreEqual (0L, outer.right,  L"a hidden widget occupies nothing");
+        Assert::AreEqual (0L, outer.bottom, L"a hidden widget occupies nothing");
+    }
+
+
+    TEST_METHOD (HeadCore_StaysOnTheRailAcrossTheEnginesWholeRange)
+    {
+        const int    barLeft  = 100;
+        const int    barW     = 140;
+        const float  coreHalf = 6.0f;
+        float        lowest   = (float) barLeft + coreHalf;
+        float        highest  = (float) (barLeft + barW) - coreHalf;
+        int          q        = 0;
+
+        // Walked over the ENGINE's range rather than the rail's. The rail
+        // spans 35 tracks and Disk2NibbleEngine clamps to its own wider
+        // maximum, so a disk that steps the head outward past track 35 reports
+        // a position the scale has no room for. Reading kMaxTrack from the
+        // engine means this fails if that range ever widens again.
+        for (q = Disk2NibbleEngine::kMinTrack; q <= Disk2NibbleEngine::kMaxTrack; q++)
+        {
+            float  cx = DriveWidget::GetHeadCoreCenterX (q, barLeft, barW, coreHalf);
+
+            Assert::IsTrue (cx >= lowest,
+                            L"the core never runs off the left end of the rail");
+            Assert::IsTrue (cx <= highest,
+                            L"the core never runs off the right end of the rail");
+        }
+    }
+
+
+    TEST_METHOD (HeadCore_InsetAtBothEndsAndParkedWhenOverStepped)
+    {
+        const int    barLeft  = 100;
+        const int    barW     = 140;
+        const float  coreHalf = 6.0f;
+        float        last     = DriveWidget::GetHeadCoreCenterX (139, barLeft, barW, coreHalf);
+
+        // Inset by the core's own half-width, so the lit spot is whole at the
+        // ends rather than clipped in half by the rail it rides on.
+        Assert::AreEqual (106.0f, DriveWidget::GetHeadCoreCenterX (0, barLeft, barW, coreHalf),
+                          0.01f, L"track 0 sits a core half-width in from the left");
+        Assert::AreEqual (234.0f, last,
+                          0.01f, L"the rail's last track sits a core half-width in from the right");
+
+        // An over-stepped head parks at the end of the scale instead of
+        // carrying on past it, which is what put the core outside the widget.
+        Assert::AreEqual (last,
+                          DriveWidget::GetHeadCoreCenterX (Disk2NibbleEngine::kMaxTrack,
+                                                           barLeft, barW, coreHalf),
+                          0.01f, L"the engine's outermost position parks on the rail's last track");
     }
 };

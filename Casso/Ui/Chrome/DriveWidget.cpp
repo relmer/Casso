@@ -457,6 +457,43 @@ void DriveWidget::PaintCompactNameRoll (IDxuiTextRenderer & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetHeadCoreCenterX
+//
+//  Where the lit core sits along the rail for a head at a given quarter-track.
+//
+//  The position is held to the rail's own last track first. Disk2NibbleEngine
+//  clamps to ITS maximum, quarter-track 159, which is past the 140 this rail
+//  spans, so a disk that steps the head outward beyond track 35 arrives with a
+//  position the scale has no room for. Without the hold it produced a fraction
+//  above 1 and put the core clean off the end of the bar, over whatever stood
+//  to the right of it.
+//
+//  The span is inset by the core's own half-width at both ends so the lit spot
+//  stays whole at the first and last track instead of being clipped in half by
+//  the rail it rides on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DriveWidget::GetHeadCoreCenterX (int   quarterTrack,
+                                       int   barLeftPx,
+                                       int   barWidthPx,
+                                       float coreHalfPx)
+{
+    float  span = (float) kMaxQuarterTrack;
+    int    held = std::clamp (quarterTrack, 0, kMaxQuarterTrack);
+    float  t    = (float) held / ((span > 0.0f) ? span : 1.0f);
+
+
+
+    return (float) barLeftPx + coreHalfPx + t * ((float) barWidthPx - 2.0f * coreHalfPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintCompactHeadBar
 //
 //  The 2D themes' activity indicator, drawn under the disk name.
@@ -521,22 +558,7 @@ void DriveWidget::PaintCompactHeadBar (IDxuiPainter & painter, const CassoTheme 
         return;
     }
 
-    {
-        float  span = (float) kMaxQuarterTrack;
-        float  t    = 0.0f;
-
-        // Held to the rail's own last track first. The engine clamps to ITS
-        // maximum, quarter-track 159, which is past the 140 this rail spans,
-        // so a disk that steps the head outward beyond track 35 arrives with
-        // a position the scale below has no room for and would put the lit
-        // core clean off the end of the bar.
-        quarter = std::min (quarter, kMaxQuarterTrack);
-        t       = (float) quarter / ((span > 0.0f) ? span : 1.0f);
-
-        // Inset by the core's own half-width so the lit spot stays whole at
-        // track 0 and at the last track instead of being clipped by the rail.
-        cx = (float) m_barRect.left + coreHalf + t * ((float) barW - 2.0f * coreHalf);
-    }
+    cx = GetHeadCoreCenterX (quarter, m_barRect.left, barW, coreHalf);
 
     // Stacked ellipses, widest and faintest first, so the alpha accumulates
     // toward the middle and the edge feathers out. Alpha is scaled rather
