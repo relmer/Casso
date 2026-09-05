@@ -287,6 +287,17 @@ void WasapiAudio::Shutdown()
         m_dumpFile = nullptr;
     }
 
+    //  Beside its producer-side twin above. Left open, the tail of a capture
+    //  sat in the stdio buffer and never reached the file -- and the end of
+    //  the stream is exactly what this tap is opened to look at.
+    if (m_devDumpFile != nullptr)
+    {
+        fclose (m_devDumpFile);
+        m_devDumpFile = nullptr;
+    }
+
+    m_devDumpChecked = false;
+
     m_initialized = false;
 }
 
@@ -716,14 +727,20 @@ void WasapiAudio::RenderPump()
         // a queue floor splices a fade and a re-ramp into a stream that is
         // keeping pace perfectly well; what the device actually needs is
         // simply not to run dry, and while `padding` frames remain queued it
-        // will not. So filler is written only when there is nothing real to
-        // send AND the endpoint is close to the floor.
+        // will not.
         //
         // This was tried once before and measured no better, because the CPU
         // thread's frame pacing was jittering hard enough to empty the queue
         // regardless -- see CpuManager::ThreadProc. With the pacing corrected,
         // the queue keeps a level and this is what removes the rest.
-        if (pending == 0 && padding < floorFr)
+        //
+        // WHAT IS QUEUED AFTER THIS PASS IS THE TEST, not whether anything is
+        // pending. Gating on an empty pending queue read almost the same on
+        // the measurements -- pending is empty at 38% of wakes and holds only
+        // a handful of frames at most of the rest -- while leaving the case it
+        // is supposed to cover wide open: a nearly dry endpoint with three
+        // frames in hand would be sent those three and nothing else.
+        if (padding + toWrite < floorFr)
         {
             toWrite = ((floorFr - padding) < available) ? (floorFr - padding)
                                                         : available;
@@ -861,8 +878,6 @@ void WasapiAudio::DrainFrames (UINT32 toWrite, BYTE * buffer)
     if (m_devDumpFile != nullptr)
     {
         fwrite (samples, sizeof (float), toWrite * m_channels, m_devDumpFile);
-        m_fillerFrames  += (toWrite - fromPending);
-        m_writtenFrames += toWrite;
     }
 
     m_pendingSamples.erase (m_pendingSamples.begin(),

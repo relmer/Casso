@@ -155,8 +155,6 @@ private:
     // so it can be differenced against the producer-side CASSO_AUDIO_DUMP.
     FILE *     m_devDumpFile    = nullptr;
     bool       m_devDumpChecked = false;
-    uint64_t   m_fillerFrames   = 0;
-    uint64_t   m_writtenFrames  = 0;
 
     // Diagnostic tap: when CASSO_AUDIO_DUMP names a file, every generated
     // stereo sample is appended to it as raw float32 pairs -- the exact
