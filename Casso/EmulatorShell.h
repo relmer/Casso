@@ -289,6 +289,7 @@ private:
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
@@ -1349,7 +1350,6 @@ private:
     // reaches for once the program starts misbehaving, and a notice that faded
     // would take that action with it.
     DxuiActionBanner            m_changeBanner;
-    int                         m_changeBannerDrive = -1;
 
     //  When the change band closes itself, and the frame that last looked.
     //  Zero means it stands until dismissed. Hovering does not extend the
@@ -1358,11 +1358,6 @@ private:
     //  what was left when it arrived.
     int64_t                     m_changeBannerHideAtMs = 0;
     int64_t                     m_changeBannerTickMs   = 0;
-
-    // What each of the banner's buttons means, in the order they were drawn.
-    // The labels and the meanings are both core's; keeping the meanings beside
-    // the buttons is what stops the shell from inventing one.
-    std::vector<ChangeAction>   m_changeBannerActions;
 
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 

@@ -47,9 +47,6 @@ enum class ChangeAction
     //  vagueness that makes a message worth nothing.
     Deleted,
 
-    //  Wait: something else is holding the file, or the guest is mid-operation.
-    Defer,
-
     //  Keep what the emulator holds and leave the file as it is.
     //
     //  NOT THE SAME AS Ignore, WHICH THE POLICY REACHES WHEN NOTHING HAPPENED.
@@ -65,6 +62,16 @@ enum class ChangeAction
     //  what the user picks when told the file behind a mounted disk is gone,
     //  where what the emulator holds may be the only copy left.
     PreserveCopy,
+
+    //  Let the disk in memory go.
+    //
+    //  ALSO AN ANSWER RATHER THAN A DECISION, and the other half of the offer
+    //  made when a file is lost: the user was told their disk exists nowhere
+    //  else and said to throw it away anyway. It used to be spelled KeepHeld,
+    //  which is the exact opposite everywhere else in this enum -- one word
+    //  meaning both "keep it" and "discard it" is how the wrong branch gets
+    //  taken by whoever reads it next.
+    Discard,
 };
 
 
@@ -112,9 +119,6 @@ public:
 
         //  The guest has written and those writes are not on disk yet.
         bool          guestDirty   = false;
-
-        //  Something else holds the file open right now.
-        bool          heldByOther  = false;
 
         //  What the writer said, if anything.
         ExternalChangeIntent  intent       = ExternalChangeIntent::Unstated;

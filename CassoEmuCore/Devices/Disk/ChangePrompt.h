@@ -128,6 +128,20 @@ struct ChangePrompt
     //  read.
     bool                       selfDismisses = false;
 
+    //  Which answer the default button and the close box both take.
+    //
+    //  DISMISSING A QUESTION MUST NOT COST THE USER ANYTHING, and which answer
+    //  that is depends on the question. It was the last one everywhere, on the
+    //  reasoning that the last one changes nothing -- true for a question
+    //  about a file that is still there, and exactly wrong for a question
+    //  about one that is gone: the last answer there is Discard, and the disk
+    //  it discards exists in memory and nowhere else. Enter, or the close box,
+    //  threw it away.
+    //
+    //  EACH COMPOSER NAMES ITS OWN, so a new prompt has to decide rather than
+    //  inherit a rule written for a different one.
+    size_t                     safeAnswer = 0;
+
     //  Whether there is anything to show at all. An action that needs no answer
     //  composes an empty prompt rather than a blank dialog.
     bool  IsAsked () const { return !answers.empty(); }
