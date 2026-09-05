@@ -223,7 +223,7 @@ static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 // The pointer-capture notice: how to get the mouse back, said for as long as
 // it is held. The bar sizes itself to this text; nothing here places it.
 static const std::wstring         s_kCaptureBanner =
-    std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
+    std::wstring (L"Paddle mode ") + s_kchEmDash + L" press Esc to release the mouse";
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //

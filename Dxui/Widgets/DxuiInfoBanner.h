@@ -116,8 +116,19 @@ private:
     static constexpr float  s_kLineHeightEm = 1.38f;   // body line height, in ems
     static constexpr float  s_kEstGlyphEm   = 0.55f;   // avg glyph width (generous -> no clip)
 
+    // The info badge's pen, as a fraction of the icon box: one weight for the
+    // ring and the "i", which is what makes the mark read as monoline.
+    static constexpr float  s_kBadgeStrokeEm = 0.085f;
+
     // Estimated wrapped-line count for the text laid out at `textWidthPx`.
     int    EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const;
+
+    // A circle drawn as a ring rather than filled: short chords around the
+    // circumference, the way the toolbar's monoline glyphs are stroked. The
+    // painter has no arc primitive and does not need one for a mark this
+    // small.
+    static void  StrokeCircle (IDxuiPainter & painter, float cx, float cy,
+                               float radiusPx, float strokePx, uint32_t argb);
 
     //  How much of the trailing edge belongs to something else. See
     //  SetTrailingReservePx.

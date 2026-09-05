@@ -1416,7 +1416,7 @@ private:
     // filesystem parsing or text measurement.
     std::array<std::string, 2>  m_sceneLabelPath;
 
-    // "Paddle Mode -- press Esc to release the mouse", on screen for as long
+    // "Paddle mode -- press Esc to release the mouse", on screen for as long
     // as the capture holds. The joystick button carries the same words, but
     // it is chrome: fullscreen hides it, and a captured pointer with the
     // cursor gone and no way out shown is how a user ends up killing the

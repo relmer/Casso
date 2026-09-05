@@ -85,7 +85,7 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
-- **The "Paddle Mode -- press Esc to release the mouse" notice covered the
+- **The "Paddle mode -- press Esc to release the mouse" notice covered the
   drive widgets.** It was shadowed text laid over the viewport and hung above
   the //c's switch strip, which collapses to nothing on every other machine,
   so it fell back to the window's bottom edge and sat on the drives. It is a

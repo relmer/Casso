@@ -10,9 +10,6 @@
 
 
 
-static constexpr uint32_t   s_kBadgeInkArgb = 0xFFF7F9FCu;   // near-white "i" on the accent disc
-
-
 
 
 
@@ -158,6 +155,38 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoBanner::StrokeCircle
+//
+//  A ring, walked as chords. Twenty segments is past the point where a mark
+//  this size shows corners, and the painter has no arc of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBanner::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
+                                   float radiusPx, float strokePx, uint32_t argb)
+{
+    constexpr int  s_kSegments = 20;
+    int            i           = 0;
+
+
+
+    for (i = 0; i < s_kSegments; i++)
+    {
+        float  a0 = 6.2831853f * (float) i       / (float) s_kSegments;
+        float  a1 = 6.2831853f * (float) (i + 1) / (float) s_kSegments;
+
+        painter.DrawLineApprox (cx + radiusPx * std::cos (a0), cy + radiusPx * std::sin (a0),
+                                cx + radiusPx * std::cos (a1), cy + radiusPx * std::sin (a1),
+                                strokePx, argb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoBanner::Paint
 //
 //  Draws an informational notice: an accent-tinted surface, an info badge, and
@@ -166,7 +195,8 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
 //  A tinted fill inside a MUTED accent border, rather than a solid accent
 //  panel, so the banner reads as a notice and not as a button. That
 //  distinction is the widget's entire job -- it must be noticed without
-//  inviting a click.
+//  inviting a click. The info badge is monoline for the same reason: a filled
+//  disc is the heaviest mark the strip has.
 //
 //  The badge is drawn from PRIMITIVES rather than an icon-font glyph. That
 //  avoids a font dependency for one symbol, and more importantly gives exact
@@ -262,16 +292,29 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
     else
     {
-        // Info badge, drawn from primitives (no icon-font dependency, exact centering):
-        // a full-accent disc with a light "i" -- a dot over a stem, symmetric about the
-        // disc center both ways.
-        float  dotR  = iconR * 0.17f;
-        float  stemW = iconR * 0.24f;
-        float  stemH = iconR * 0.62f;
+        // Info badge, drawn from primitives (no icon-font dependency, exact
+        // centering): a RING with an "i" inside it, one pen weight throughout.
+        // Monoline, because a filled accent disc is the heaviest mark on a
+        // strip whose whole job is to be noticed without shouting -- and it
+        // sat next to line-drawn chrome that shares this weight.
+        //
+        // Inset by half the stroke so the pen's outer edge lands on the icon
+        // box rather than straddling it, and the "i" is proportioned off the
+        // ring's inner space so it stays centered at any size.
+        float  stroke = iconBox * s_kBadgeStrokeEm;
+        float  ringR  = iconR - stroke * 0.5f;
+        float  dotR   = stroke * 0.55f;
+        float  stemH  = iconR * 0.58f;
 
-        painter.FillCircleApprox (iconCx, iconCy, iconR, theme.Accent());
-        painter.FillCircleApprox (iconCx, iconCy - iconR * 0.38f, dotR, s_kBadgeInkArgb);
-        painter.FillRect         (iconCx - stemW * 0.5f, iconCy - iconR * 0.07f, stemW, stemH, s_kBadgeInkArgb);
+        if (stroke < 1.0f)
+        {
+            stroke = 1.0f;
+        }
+
+        StrokeCircle     (painter, iconCx, iconCy, ringR, stroke, theme.Accent());
+        painter.FillCircleApprox (iconCx, iconCy - iconR * 0.42f, dotR, theme.Accent());
+        painter.FillRect         (iconCx - stroke * 0.5f, iconCy - iconR * 0.12f,
+                                  stroke, stemH, theme.Accent());
     }
 
     // Wrapping body text, VERTICALLY CENTERED IN WHATEVER HEIGHT THE BANNER HAS.
