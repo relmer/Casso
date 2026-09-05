@@ -27,7 +27,6 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/CommandToolbar.h"
-#include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
@@ -53,6 +52,7 @@
 #include "WasapiAudio.h"
 #include "Window/DxuiHwndSource.h"
 #include "Widgets/DxuiActionBanner.h"
+#include "Widgets/DxuiInfoBanner.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
@@ -612,6 +612,12 @@ public:
     // mouse buttons onto the emulated fire buttons.
     void    StartPaddleCapture     ();
     void    StopPaddleCapture      ();
+
+    // Confines the pointer to the client and parks it in the middle, which is
+    // what "captured" means to the user. Shared by the grab and by the re-take
+    // after a cancel the layout caused.
+    void    ClipPaddleCursorToClient ();
+
     void    UpdatePaddleFromMouse  (int xClient, int yClient);
     void    PushPaddlePosition     ();
     void    PushPaddleButton       (int index, bool pressed);
@@ -1085,6 +1091,11 @@ private:
     // reported, and the height its wrapped text needs when something is.
     int     GetChangeBandThicknessPx (int clientWidthPx) const;
 
+    // How tall the capture bar's band is right now: zero unless the pointer is
+    // held, and zero in fullscreen, where there are no bands at all and the
+    // bar rides under the toolbar reveal instead.
+    int     GetCaptureBandThicknessPx (int clientWidthPx) const;
+
     // Re-docks the chrome after the notice's band appears or goes.
     //
     // IT DOES NOT RESIZE THE WINDOW, unlike the machine-change reflow beside
@@ -1438,12 +1449,20 @@ private:
     // filesystem parsing or text measurement.
     std::array<std::string, 2>  m_sceneLabelPath;
 
-    // "Paddle Mode -- press Esc to release the mouse", on screen for as long
-    // as the capture holds. The joystick button carries the same words, but
+    // "Press Esc to release the mouse and exit paddle mode", on screen for as
+    // long as the capture holds. The joystick button carries the same words, but
     // it is chrome: fullscreen hides it, and a captured pointer with the
     // cursor gone and no way out shown is how a user ends up killing the
-    // process. This rides above the picture in both presentations.
-    DxuiHudNotice              m_captureBanner;
+    // process. A message bar rather than a caption over the picture: it says
+    // something and asks nothing, which is what an info banner is, and the
+    // chrome under the command strip is the one place it covers nothing.
+    DxuiInfoBanner             m_captureBar;
+
+    // An opaque panel behind it, the way the drive bar has one. The banner's
+    // own fill is a tint meant to sit on chrome, and the bar does not: it
+    // hangs over the picture, and over the desk scene the monitor read
+    // straight through the words.
+    DxuiSurface                m_captureBarSurface;
 
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.
@@ -1503,6 +1522,34 @@ private:
     // Zero height when nothing is being reported, so every other machine and
     // every quiet session is laid out exactly as before.
     ChromeBand               m_changeBand;
+
+    // The capture bar's own band, docked directly under the change notice so
+    // both sit below the command strip. Zero height whenever the pointer is
+    // not held, which is every ordinary session.
+    ChromeBand               m_captureBand;
+
+    // Whether the one authoritative layout pass (OnSize) is running, so a
+    // notice band cannot ask for another from inside it. See
+    // ReflowChromeForChangeBand.
+    bool                     m_inChromeLayout = false;
+
+    // Set when a capture band was found standing with no capture behind it,
+    // and cleared by the re-dock at the top of the next frame. A flag rather
+    // than the re-dock itself, because the sync that spots it runs inside the
+    // frame the re-dock would repaint.
+    bool                     m_captureBandStale = false;
+
+    // When the capture's own band was last docked, on the monotonic clock.
+    // The resize that follows bounces WM_CANCELMODE back at whoever holds the
+    // pointer, and that one cancel is ours to ignore -- see OnCancelMode.
+    // Zeroed once it has been used, so exactly one is ever swallowed.
+    int64_t                  m_captureReflowMs = 0;
+
+    // How long after that dock a cancel is still credibly its echo. Long
+    // enough to cover a settle pass on a slow frame, short enough that a real
+    // takeover arriving later is never mistaken for it.
+    static constexpr int64_t s_kCaptureReflowEchoMs = 750;
+
     ChromeBand               m_driveBand;
     ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;

@@ -10,11 +10,6 @@
 
 
 
-static constexpr uint32_t   s_kBadgeInkArgb = 0xFFF7F9FCu;   // near-white "i" on the accent disc
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -90,6 +85,113 @@ int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scal
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoBanner::ResolveCenteredLinePx
+//
+//  How wide one line of a centered banner is allowed to be.
+//
+//  TWO REASONS TO WRAP, and the cap is the one a bar has that a dialog box
+//  does not: the banner is as wide as the window, so text that fits on one
+//  line can still be a line nobody wants to read. Past s_kMaxLineDip it wraps
+//  even though there was room.
+//
+//  EVENLY, so the last line is as full as the others. Filling each line to the
+//  cap and letting what is left fall onto the last one strands a word or two
+//  under a full-width block; dividing the text's own width by the number of
+//  lines it needs gives each the same share. The result is never wider than
+//  the cap, because dividing by a count that came from the cap cannot be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::ResolveCenteredLinePx (float availableTextPx, float wantedWidthPx,
+                                             const DxuiDpiScaler & scaler) const
+{
+    float  cap   = scaler.ToPxf (s_kMaxLineDip);
+    int    lines = 0;
+
+
+
+    if (cap > availableTextPx)
+    {
+        cap = availableTextPx;
+    }
+
+    if (cap < 1.0f)
+    {
+        cap = 1.0f;
+    }
+
+    if (wantedWidthPx <= cap)
+    {
+        return (wantedWidthPx > 1.0f) ? wantedWidthPx : 1.0f;
+    }
+
+    lines = (int) std::ceil (wantedWidthPx / cap);
+
+    return wantedWidthPx / (float) lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::ResolveCenteredBoxPx
+//
+//  The same rule as ResolveCenteredLinePx, asked of the renderer instead of
+//  the estimate -- and this is the answer that counts. The estimate exists for
+//  a caller with no renderer to ask; it is an AVERAGE glyph width, so a wide
+//  face or a line of capitals measures past it, and a width taken from it
+//  would reserve a line fewer than the paint then needs.
+//
+//  CACHED, because Paint runs every frame and this changes only when the text,
+//  the width it has to fit, or the DPI does. That is also what lets the height
+//  query and the paint share one number rather than each work one out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
+                                            float                  availableTextPx,
+                                            const DxuiDpiScaler &  scaler) const
+{
+    HRESULT  hr        = S_OK;
+    float    measuredW = 0.0f;
+    float    measuredH = 0.0f;
+
+
+
+    if (m_fitValid && m_fitText == m_text && m_fitDpi == scaler.GetDpi()
+        && m_fitAvailPx == availableTextPx)
+    {
+        return m_fitBoxPx;
+    }
+
+    hr = text.MeasureString (m_text.c_str(), scaler.ToPxf (s_kFontDip),
+                             DxuiTheme::kBodyFace, measuredW, measuredH);
+
+    //  A measurement that failed says nothing about the text; the full width
+    //  is what the banner used before it was centered, and it wraps to the
+    //  fewest lines, which is the safe way to be wrong.
+    if (FAILED (hr) || measuredW <= 0.0f)
+    {
+        return (availableTextPx > 1.0f) ? availableTextPx : 1.0f;
+    }
+
+    m_fitText    = m_text;
+    m_fitDpi     = scaler.GetDpi();
+    m_fitAvailPx = availableTextPx;
+    m_fitBoxPx   = ResolveCenteredLinePx (availableTextPx, measuredW, scaler);
+    m_fitValid   = true;
+
+    return m_fitBoxPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoBanner::GetPreferredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,9 +203,28 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
     float   iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
     float   textWidth = widthPx - padX * 2.0f - iconCol - m_trailingReservePx;
     float   lineH     = scaler.ToPxf (s_kFontDip) * s_kLineHeightEm;
-    int     lines     = EstimateLines ((textWidth > 1.0f) ? textWidth : 1.0f, scaler);
-    float   textH     = lineH * (float) lines;
+    float   lineBox   = (textWidth > 1.0f) ? textWidth : 1.0f;
+    int     lines     = 0;
+    float   textH     = 0.0f;
     float   iconH     = scaler.ToPxf (s_kIconBoxDip);
+
+
+
+    //  A CENTERED BANNER IS MEASURED IN THE BOX IT WILL ACTUALLY USE, not the
+    //  whole width: it caps and evenly splits its lines (see
+    //  ResolveCenteredLinePx), so a height taken from the full width would be
+    //  a line short of what the paint needs. The estimate that feeds the split
+    //  is the generous one this class already uses, which is what keeps the
+    //  count at or above what the real text turns out to need.
+    if (m_centered)
+    {
+        float  glyphPx = scaler.ToPxf (s_kFontDip) * s_kEstGlyphEm;
+
+        lineBox = ResolveCenteredLinePx (lineBox, (float) m_text.size() * glyphPx, scaler);
+    }
+
+    lines = EstimateLines (lineBox, scaler);
+    textH = lineH * (float) lines;
 
 
 
@@ -141,6 +262,15 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
         textWidth = 1.0f;
     }
 
+    //  THE BOX THE CENTERED PAINT WILL USE, not the full width: capped and
+    //  evenly split, measured rather than estimated, and cached -- so the
+    //  height reserved here and the lines the paint lays down are the same
+    //  count by construction, with nothing left for a fit-up pass to rescue.
+    if (m_centered)
+    {
+        textWidth = ResolveCenteredBoxPx (text, textWidth, scaler);
+    }
+
     hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
                                     DxuiTheme::kBodyFace, textWidth, outW, outH);
 
@@ -158,6 +288,38 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoBanner::StrokeCircle
+//
+//  A ring, walked as chords. Twenty segments is past the point where a mark
+//  this size shows corners, and the painter has no arc of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBanner::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
+                                   float radiusPx, float strokePx, uint32_t argb)
+{
+    constexpr int  s_kSegments = 20;
+    int            i           = 0;
+
+
+
+    for (i = 0; i < s_kSegments; i++)
+    {
+        float  a0 = 6.2831853f * (float) i       / (float) s_kSegments;
+        float  a1 = 6.2831853f * (float) (i + 1) / (float) s_kSegments;
+
+        painter.DrawLineApprox (cx + radiusPx * std::cos (a0), cy + radiusPx * std::sin (a0),
+                                cx + radiusPx * std::cos (a1), cy + radiusPx * std::sin (a1),
+                                strokePx, argb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoBanner::Paint
 //
 //  Draws an informational notice: an accent-tinted surface, an info badge, and
@@ -166,7 +328,8 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
 //  A tinted fill inside a MUTED accent border, rather than a solid accent
 //  panel, so the banner reads as a notice and not as a button. That
 //  distinction is the widget's entire job -- it must be noticed without
-//  inviting a click.
+//  inviting a click. The info badge is monoline for the same reason: a filled
+//  disc is the heaviest mark the strip has.
 //
 //  The badge is drawn from PRIMITIVES rather than an icon-font glyph. That
 //  avoids a font dependency for one symbol, and more importantly gives exact
@@ -183,28 +346,55 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
 
 void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT  hr       = S_OK;
-    float    left     = (float) m_boundsDip.left;
-    float    top      = (float) m_boundsDip.top;
-    float    width    = (float) (m_boundsDip.right  - m_boundsDip.left);
-    float    height   = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float    padX     = m_scaler.ToPxf (s_kPadXDip);
-    float    padY     = m_scaler.ToPxf (s_kPadYDip);
-    float    borderPx = m_scaler.ToPxf (s_kBorderDip);
-    float    iconBox  = m_scaler.ToPxf (s_kIconBoxDip);
-    float    iconGap  = m_scaler.ToPxf (s_kIconGapDip);
-    float    fontPx   = m_scaler.ToPxf (s_kFontDip);
-    float    textX    = left + padX + iconBox + iconGap;
-    float    textW    = width - padX * 2.0f - iconBox - iconGap - m_trailingReservePx;
-    float    iconR    = iconBox * 0.5f;
-    float    iconCx   = left + padX + iconR;
-    float    iconCy   = top + height * 0.5f;   // vertically centered in the bordered area
+    HRESULT         hr       = S_OK;
+    float           left     = (float) m_boundsDip.left;
+    float           top      = (float) m_boundsDip.top;
+    float           width    = (float) (m_boundsDip.right  - m_boundsDip.left);
+    float           height   = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    float           padX     = m_scaler.ToPxf (s_kPadXDip);
+    float           padY     = m_scaler.ToPxf (s_kPadYDip);
+    float           borderPx = m_scaler.ToPxf (s_kBorderDip);
+    float           iconBox  = m_scaler.ToPxf (s_kIconBoxDip);
+    float           iconGap  = m_scaler.ToPxf (s_kIconGapDip);
+    float           fontPx   = m_scaler.ToPxf (s_kFontDip);
+    float           textX    = left + padX + iconBox + iconGap;
+    float           textW    = width - padX * 2.0f - iconBox - iconGap - m_trailingReservePx;
+    float           iconR    = iconBox * 0.5f;
+    float           iconCx   = left + padX + iconR;
+    float           iconCy   = top + height * 0.5f;   // vertically centered in the bordered area
+    DxuiTextHAlign  hAlign   = DxuiTextHAlign::Left;
 
 
 
     if (!m_visible)
     {
         return;
+    }
+
+    //  CENTERED AS A GROUP when the caller asked for it: the badge, the gap and
+    //  the text measured together and slid to the middle. Measured rather than
+    //  estimated -- Paint has the renderer that Layout does not.
+    //
+    //  THE LINE BOX IS THE ONE THE HEIGHT WAS RESERVED FOR -- literally the
+    //  same call, off the same cache: capped at s_kMaxLineDip and split evenly
+    //  when the text has to wrap. Nothing is fitted up or retried here; a box
+    //  the height query measured cannot need a line the height query did not
+    //  reserve.
+    if (m_centered && textW > 1.0f)
+    {
+        float  lineBox = ResolveCenteredBoxPx (text, textW, m_scaler);
+        float  groupW  = iconBox + iconGap + lineBox;
+        float  startX  = left + (width - m_trailingReservePx - groupW) * 0.5f;
+
+        if (startX < left + padX)
+        {
+            startX = left + padX;
+        }
+
+        iconCx = startX + iconR;
+        textX  = startX + iconBox + iconGap;
+        textW  = lineBox;
+        hAlign = DxuiTextHAlign::Center;
     }
 
     // Themed surface: a subtle tinted fill inside a muted border, so the banner
@@ -233,16 +423,35 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
     else
     {
-        // Info badge, drawn from primitives (no icon-font dependency, exact centering):
-        // a full-accent disc with a light "i" -- a dot over a stem, symmetric about the
-        // disc center both ways.
-        float  dotR  = iconR * 0.17f;
-        float  stemW = iconR * 0.24f;
-        float  stemH = iconR * 0.62f;
+        // Info badge, drawn from primitives (no icon-font dependency, exact
+        // centering): a RING with an "i" inside it, one pen weight throughout.
+        // Monoline, because a filled accent disc is the heaviest mark on a
+        // strip whose whole job is to be noticed without shouting -- and it
+        // sat next to line-drawn chrome that shares this weight.
+        //
+        // Inset by half the stroke so the pen's outer edge lands on the icon
+        // box rather than straddling it, and the "i" is proportioned off the
+        // ring's inner space so it stays centered at any size.
+        //  The pen is clamped FIRST: the ring's inset and the dot are both
+        //  proportions of it, and sizing them from a hairline the painter
+        //  would then draw a pixel wide pushes the ring past the icon box.
+        float  stroke = iconBox * s_kBadgeStrokeEm;
+        float  ringR  = 0.0f;
+        float  dotR   = 0.0f;
+        float  stemH  = iconR * 0.58f;
 
-        painter.FillCircleApprox (iconCx, iconCy, iconR, theme.Accent());
-        painter.FillCircleApprox (iconCx, iconCy - iconR * 0.38f, dotR, s_kBadgeInkArgb);
-        painter.FillRect         (iconCx - stemW * 0.5f, iconCy - iconR * 0.07f, stemW, stemH, s_kBadgeInkArgb);
+        if (stroke < 1.0f)
+        {
+            stroke = 1.0f;
+        }
+
+        ringR = iconR - stroke * 0.5f;
+        dotR  = stroke * 0.55f;
+
+        StrokeCircle     (painter, iconCx, iconCy, ringR, stroke, theme.Accent());
+        painter.FillCircleApprox (iconCx, iconCy - iconR * 0.42f, dotR, theme.Accent());
+        painter.FillRect         (iconCx - stroke * 0.5f, iconCy - iconR * 0.12f,
+                                  stroke, stemH, theme.Accent());
     }
 
     // Wrapping body text, VERTICALLY CENTERED IN WHATEVER HEIGHT THE BANNER HAS.
@@ -261,7 +470,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           theme.InfoBannerForeground(),
                           fontPx,
                           DxuiTheme::kBodyFace,
-                          DxuiTextHAlign::Left,
+                          hAlign,
                           DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,
                           true);

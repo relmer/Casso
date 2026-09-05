@@ -97,6 +97,7 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- Replaced shadowed paddle mode text with a docked message bar.
 - **The input device icons were drawn larger than the rest of the command
   bar's.** They now match the other icons' size and stroke weight, and the
   mouse uses MDL2's own glyph.

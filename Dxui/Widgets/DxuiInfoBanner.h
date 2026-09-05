@@ -41,7 +41,7 @@ public:
     explicit DxuiInfoBanner  (std::wstring text) : m_text (std::move (text)) {}
     ~DxuiInfoBanner () override = default;
 
-    void  SetText (const std::wstring & text) { m_text = text; }
+    void  SetText (const std::wstring & text) { m_text = text; m_fitValid = false; }
 
     void  SetSeverity (Severity severity) { m_severity = severity; }
 
@@ -61,8 +61,20 @@ public:
     //  it did.
     void  SetTrailingReservePx (float reservePx) { m_trailingReservePx = reservePx; }
 
+    //  Centers the badge and the text AS ONE GROUP within the banner, rather
+    //  than starting them at the leading edge. For a banner that is a strip
+    //  across a window rather than a box in a dialog: left-aligned, one short
+    //  line stranded itself against the far edge of a very wide bar.
+    //
+    //  The group, not the text alone -- the badge belongs to the words, and
+    //  parking it at the leading edge with the text adrift in the middle
+    //  reads as two things that happen to share a strip.
+    //
+    //  Off by default, so every existing banner paints exactly as it did.
+    void  SetCentered (bool centered) { m_centered = centered; m_fitValid = false; }
+
     void  SetRect (const RECT & rect) { SetBounds (rect); }
-    void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }   // the fit cache keys off the dpi itself
 
     // The height (in the caller's layout space) the banner needs to show its text
     // wrapped to `widthPx`: the estimated wrapped-line count times the line
@@ -104,12 +116,62 @@ private:
     static constexpr float  s_kLineHeightEm = 1.38f;   // body line height, in ems
     static constexpr float  s_kEstGlyphEm   = 0.55f;   // avg glyph width (generous -> no clip)
 
+    // The info badge's pen, as a fraction of the icon box: one weight for the
+    // ring and the "i", which is what makes the mark read as monoline.
+    static constexpr float  s_kBadgeStrokeEm = 0.085f;
+
+    // The widest a centered line is allowed to get, whatever the bar's width.
+    // A message bar is as wide as the window, and a single line run out to
+    // 2000 px is read by sweeping the head, not the eye. Past this the text
+    // wraps -- see ResolveCenteredLinePx.
+    static constexpr float  s_kMaxLineDip = 1024.0f;
+
+
     // Estimated wrapped-line count for the text laid out at `textWidthPx`.
     int    EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const;
+
+    // The box a CENTERED banner lays its text in, MEASURED -- the one number
+    // the height and the paint must agree on. Cached against the text, the
+    // width it was resolved for and the DPI, because it changes only when one
+    // of those does and Paint runs every frame.
+    float  ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
+                                 float                  availableTextPx,
+                                 const DxuiDpiScaler &  scaler) const;
+
+    // The same box from the renderer-free estimate, for a caller that has no
+    // renderer to ask. See ResolveCenteredLinePx.
+
+    //
+    // EVENLY SPLIT WHEN IT WRAPS. Filling each line to the cap and letting the
+    // remainder fall onto the last one leaves a word or two stranded under a
+    // full-width block, which reads as a mistake. Dividing the text's own
+    // width by the number of lines it needs gives every line the same share,
+    // so the last one is as full as the rest.
+    float  ResolveCenteredLinePx (float availableTextPx, float wantedWidthPx,
+                                  const DxuiDpiScaler & scaler) const;
+
+    // A circle drawn as a ring rather than filled: short chords around the
+    // circumference, the way the toolbar's monoline glyphs are stroked. The
+    // painter has no arc primitive and does not need one for a mark this
+    // small.
+    static void  StrokeCircle (IDxuiPainter & painter, float cx, float cy,
+                               float radiusPx, float strokePx, uint32_t argb);
 
     //  How much of the trailing edge belongs to something else. See
     //  SetTrailingReservePx.
     float           m_trailingReservePx = 0.0f;
+
+    //  See SetCentered.
+    bool            m_centered = false;
+
+    //  What ResolveCenteredBoxPx last worked out, and the three inputs it
+    //  depends on. Mutable because the height queries are const and are the
+    //  ones that warm it -- Paint then costs nothing.
+    mutable std::wstring  m_fitText;
+    mutable float         m_fitAvailPx = 0.0f;
+    mutable UINT          m_fitDpi     = 0;
+    mutable float         m_fitBoxPx   = 0.0f;
+    mutable bool          m_fitValid   = false;
 
     std::wstring    m_text;
     DxuiDpiScaler   m_scaler;
