@@ -85,6 +85,13 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **A held key repeated far too fast above 1x speed, and at Maximum too fast to
+  type against at all.** The keyboard's auto-repeat cadence was counted in
+  emulated cycles, so the emulation speed dragged it along: Double repeated at
+  twice the rate off half the delay, and Maximum, which runs uncapped, turned a
+  held key into hundreds of characters a second. It is timed in real seconds
+  now, as the //e's own keyboard encoder is, so the ~0.5s delay and ~15
+  characters a second hold at every speed.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,

@@ -8477,10 +8477,6 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                     m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
                 }
 
-                if (m_refs.keyboard != nullptr)
-                {
-                    m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
-                }
             }
 
             break;
@@ -8831,11 +8827,6 @@ void EmulatorShell::StepInstructionWhilePaused()
         m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
     }
 
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
-    }
-
     RunOneFrame();
     PublishFramebuffer();
 }
@@ -9163,6 +9154,74 @@ void EmulatorShell::DestroyFrameReadyEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TickKeyboardAutoRepeat
+//
+//  Advances the //e keyboard's auto-repeat cadence by the real time since the
+//  previous CPU-thread frame.
+//
+//  The cadence used to be counted in guest cycles, ticked once per
+//  instruction. That reads as authentic and is not: the //e's repeat is
+//  generated in the keyboard encoder, off an oscillator that knows nothing
+//  about the 6502, and a typist's finger rests in real seconds either way. So
+//  the guest clock dragged it along -- Double repeated at twice the rate off
+//  half the delay, and Maximum, which runs uncapped at tens of times real,
+//  turned a held key into hundreds of characters a second and made the
+//  machine impossible to type on.
+//
+//  Once a frame is resolution enough for a 500 ms delay and a 15 cps rate,
+//  and the clock read replaces one call per instruction. The stamp is
+//  advanced by the whole microseconds handed over rather than set to now, so
+//  the sub-microsecond remainder is carried instead of being dropped every
+//  frame -- at Maximum speed the frames are short enough for that to matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TickKeyboardAutoRepeat()
+{
+    chrono::steady_clock::time_point  now      = chrono::steady_clock::now();
+    int64_t                           elapsed  = 0;
+
+
+
+    if (m_refs.keyboard == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastKeyRepeatSteady == chrono::steady_clock::time_point{})
+    {
+        // First frame since the machine came up: start the interval here
+        // rather than report the whole time since the epoch as elapsed.
+        m_lastKeyRepeatSteady = now;
+        return;
+    }
+
+    elapsed = chrono::duration_cast<chrono::microseconds> (now - m_lastKeyRepeatSteady).count();
+
+    if (elapsed <= 0)
+    {
+        return;
+    }
+
+    m_lastKeyRepeatSteady += chrono::microseconds (elapsed);
+
+    // An hour of stall does not fit the 32-bit interval the device takes, and
+    // the device caps anything past the initial delay at one repeat anyway, so
+    // capping here loses nothing and keeps the cast honest.
+    if (elapsed > static_cast<int64_t> (AppleKeyboard::kKeyRepeatDelayUs))
+    {
+        elapsed = AppleKeyboard::kKeyRepeatDelayUs;
+    }
+
+    m_refs.keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecuteCpuSlices
 //
 //  One emulated frame's worth of CPU time, cut into ~1023-cycle slices.
@@ -9222,6 +9281,10 @@ void EmulatorShell::ExecuteCpuSlices()
     // IsInitialized, so the gate below would otherwise keep the reopen from
     // ever running (GH #137).
     m_wasapiAudio.ServiceEndpointChanges();
+
+    // Real time, not the cycle budget below: the keyboard's repeat cadence is
+    // the one thing in this frame that must not follow the emulated clock.
+    TickKeyboardAutoRepeat();
 
     audioActive = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
 
@@ -9290,11 +9353,6 @@ void EmulatorShell::ExecuteCpuSlices()
             if (m_refs.mockingboard != nullptr)
             {
                 m_refs.mockingboard->Tick (cycles);
-            }
-
-            if (m_refs.keyboard != nullptr)
-            {
-                m_refs.keyboard->Tick (cycles);
             }
         }
 
@@ -11877,10 +11935,11 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // Arrow / Escape / Delete map to //e control codes. Gated on the
         // auto-repeat bit so the host OS repeat never reaches the latch; a
         // fresh press arms the $C000 strobe once and registers the key for
-        // the emulator's own authentic //e auto-repeat cadence (Tick). With
-        // "Map Arrows to Joystick" on (and a game-port paddle bank present),
-        // arrow keys are withheld from the keyboard latch so a held
-        // direction cannot flood $C000 and starve a joystick game's reads.
+        // the emulator's own authentic //e auto-repeat cadence
+        // (TickAutoRepeat). With "Map Arrows to Joystick" on (and a game-port
+        // paddle bank present), arrow keys are withheld from the keyboard
+        // latch so a held direction cannot flood $C000 and starve a joystick
+        // game's reads.
         if (!ev.repeat)
         {
             appleCode = MapVkToAppleControlCode (vk);
@@ -12812,7 +12871,8 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 //                    withheld from the latch
 //    OS auto-repeat  the host repeat rate would flood $C000 and confuse games
 //                    that poll it; the emulated //e generates its own repeat
-//                    in CPU time (AppleKeyboard::Tick) from the single latch
+//                    in real time (AppleKeyboard::TickAutoRepeat) from the
+//                    single latch
 //
 //  What survives goes through the viewport, not straight to the keyboard, so
 //  characters travel the same Dxui path as the key transitions (FR-034).
@@ -12859,7 +12919,8 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // OS auto-repeat: the host repeat rate would flood $C000 and confuse
     // real-time games that poll it. A fresh press is latched once and
     // registered for the emulator's own authentic //e auto-repeat cadence
-    // (driven in CPU time by AppleKeyboard::Tick).
+    // (driven in real time by AppleKeyboard::TickAutoRepeat, so the emulation
+    // speed does not move it).
     bool  isGuestChar = m_refs.keyboard != nullptr &&
                         !overlayOwnsIt &&
                         !isRepeat &&
