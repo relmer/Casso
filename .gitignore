@@ -441,3 +441,7 @@ UnitTest/Fixtures/*.rom
 
 # Intermediate assembler output for demo disks (the .dsk is the artifact)
 Apple2/Demos/**/*.bin
+# The cassowary framebuffers are authored artifacts the casso-rocks disk is
+# built from, not intermediates. They live under CassoRocks/ and the pattern
+# above would otherwise make `git add` skip a regenerated one without a word.
+!Apple2/Demos/CassoRocks/*.bin
