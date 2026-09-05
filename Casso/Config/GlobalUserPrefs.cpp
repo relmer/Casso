@@ -1078,11 +1078,12 @@ Error:
 //  hand-edited; the reader should see what schema they are looking at before
 //  anything else.
 //
-//  CRT blocks are persisted for every monitor type even when userOverride is
-//  false. The override flag governs whether those values are APPLIED, not
-//  whether they exist, so writing them keeps a user's customizations for a
-//  mode they have temporarily switched away from -- and keeps save-load-save
-//  byte-identical.
+//  CRT overrides go out per monitor-and-mode pair, and within a pair only the
+//  fields the user adjusted. A pair holding nothing is omitted entirely, so a
+//  monitor the user never touched leaves no trace in the file -- which is what
+//  lets a later preset or theme change reach it. Writing the pairs that DO
+//  hold something keeps a user's adjustments for a mode they have temporarily
+//  switched away from.
 //
 //  Enum-valued fields go out as names via their ToString helpers, so inserting
 //  an enumerator later cannot reinterpret an existing file.

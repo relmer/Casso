@@ -34,8 +34,8 @@ class DxuiHwndSource;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Snapshot struct used by SettingsPanel to seed DisplayPage with the
-// full set of CRT values at Show() time. Mirrors GlobalUserPrefs::Crt
-// minus the userOverride bookkeeping field.
+// full set of CRT values at Show() time. Mirrors CrtValues, which is
+// what the resolver hands back once the three tiers have combined.
 struct GlobalUserPrefsCrtSnapshot
 {
     float    brightness          = 1.0f;
