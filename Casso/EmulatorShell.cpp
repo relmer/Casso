@@ -7421,39 +7421,6 @@ int EmulatorShell::RunMessageLoop()
             // no WM_SIZE / OnSize would otherwise re-evaluate it).
             // A notification raised off the UI thread. lParam owns a
             // heap-allocated copy of the text, handed over by ShowNotification.
-            // A mount that ran on the CPU thread wants its damage report raised
-            // here, where a modal can be built.
-            if (msg.message == WM_APP_REPORT_DAMAGE)
-            {
-                ReportDamagedMount ((int) msg.wParam);
-                continue;
-            }
-
-            // Likewise the salvage flow: the Disk menu dispatches it from the
-            // CPU thread, and it builds a modal.
-            if (msg.message == WM_APP_RUN_SALVAGE)
-            {
-                RunSalvageFlow ((int) msg.wParam);
-                continue;
-            }
-
-            // One mount's outcome, from whichever thread ran it. lParam owns a
-            // heap-allocated copy, handed over by OnMountCompleted. Startup
-            // mounts land here too, which is what keeps a bad --disk1 from
-            // raising a dialog before this loop existed to run it.
-            if (msg.message == WM_APP_MOUNT_COMPLETED)
-            {
-                MountCompletion *  carried = reinterpret_cast<MountCompletion *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    HandleMountCompletion (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
             // Modeless Settings: let the sheet claim its dialog-navigation keys
             // (Tab / Enter / Escape) first (Dxui's IsDialogMessage equivalent).
             if (m_settingsSheet != nullptr && m_settingsSheet->ProcessDialogMessage (msg))
@@ -13739,7 +13706,11 @@ void EmulatorShell::InstallChangeReporting()
         }
     });
 
-    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    //  THE POST IS THE DELIVERY, so whether it succeeded is what the store is
+    //  told. This sink is installed before the window exists and posting can
+    //  fail on a full queue, and a bay left believing a question is on screen
+    //  that nobody ever saw is a bay nothing acts on again until it is ejected.
+    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt) -> bool
     {
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
@@ -13747,7 +13718,11 @@ void EmulatorShell::InstallChangeReporting()
             !PostMessageW (m_hwnd, WM_APP_CHANGE_ASK, 0, (LPARAM) carried))
         {
             delete carried;
+
+            return false;
         }
+
+        return true;
     });
 
     m_changeBanner.SetSeverity (DxuiInfoBanner::Severity::Info);
@@ -14179,13 +14154,15 @@ void EmulatorShell::InstallIntentMessageFilter()
 //  The messages this shell posts to its own window.
 //
 //  HERE RATHER THAN IN RunMessageLoop, WHICH IS THE WHOLE POINT. That loop
-//  picked these off before DispatchMessage, so they existed only while it was
-//  the pump that was running -- and any modal dialog runs a pump of its own.
-//  A question about a changed disk arriving while Settings or a file picker
-//  was open reached DefWindowProc, its heap payload leaked, and the store had
-//  already recorded that a question was outstanding, so it never asked again:
-//  that bay stayed stuck with a pending change until it was ejected. Reached
-//  from the window procedure, every pump delivers them.
+//  picked every one of these off before DispatchMessage, so they existed only
+//  while it was the pump that was running -- and any modal dialog runs a pump
+//  of its own. A question about a changed disk arriving while a picker or the
+//  About box was open reached DefWindowProc, its heap payload leaked, and the
+//  store had already recorded that a question was outstanding, so it never
+//  asked again: that bay stayed stuck with a pending change until it was
+//  ejected. A mount completing under the same dialog went the same way, and
+//  the user was never told it had failed. Reached from the window procedure,
+//  every pump delivers them.
 //
 //  A QUESTION ARRIVING UNDER A MODAL THEREFORE OPENS AS A NESTED MODAL, which
 //  is ordinary Win32 -- a disabled owner still receives posted messages -- and
@@ -14198,8 +14175,6 @@ void EmulatorShell::InstallIntentMessageFilter()
 
 DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (wParam);
-
     // A disk changed outside Casso. The store decided on the thread that owns
     // disk writes; both of these build UI, so they land here.
     if (msg == WM_APP_CHANGE_REPORT)
@@ -14235,6 +14210,40 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         if (carried != nullptr)
         {
             ShowNotification (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A mount that ran on the CPU thread wants its damage report raised here,
+    // where a modal can be built.
+    if (msg == WM_APP_REPORT_DAMAGE)
+    {
+        ReportDamagedMount ((int) wParam);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // Likewise the salvage flow: the Disk menu dispatches it from the CPU
+    // thread, and it builds a modal.
+    if (msg == WM_APP_RUN_SALVAGE)
+    {
+        RunSalvageFlow ((int) wParam);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // One mount's outcome, from whichever thread ran it. Startup mounts land
+    // here too, which is what keeps a bad --disk1 from raising a dialog before
+    // there was a pump to run it.
+    if (msg == WM_APP_MOUNT_COMPLETED)
+    {
+        MountCompletion *  carried = reinterpret_cast<MountCompletion *> (lParam);
+
+        if (carried != nullptr)
+        {
+            HandleMountCompletion (*carried);
             delete carried;
         }
 

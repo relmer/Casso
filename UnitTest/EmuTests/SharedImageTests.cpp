@@ -92,6 +92,11 @@ public:
         //  want of somewhere to put the other one.
         bool                                           refusePreserve = false;
 
+        //  Makes the ask sink report that the question never reached anywhere
+        //  it could be answered -- what the shell says when it has no window
+        //  yet, or when the post fails.
+        bool                                           askSinkDelivers = true;
+
         //  What the store reported and did.
         std::vector<ChangePrompt>                      reports;
         std::vector<ChangePrompt>                      questions;
@@ -168,9 +173,11 @@ public:
                 reports.push_back (prompt);
             });
 
-            store.SetAskSink ([this] (int, int, const ChangePrompt & prompt)
+            store.SetAskSink ([this] (int, int, const ChangePrompt & prompt) -> bool
             {
                 questions.push_back (prompt);
+
+                return askSinkDelivers;
             });
 
             store.SetMachineRestartCallback ([this] () { restarts++; });
@@ -522,6 +529,42 @@ public:
                               L"but under one stamped with the moment the copy was made");
         }
     }
+
+    //  A QUESTION THAT NEVER REACHED ANYBODY DOES NOT COUNT AS ONE. The shell
+    //  posts it to its own window, and it installs the sink before that window
+    //  exists; a post can also fail on a full queue. The bay used to be marked
+    //  as having a question outstanding either way, and since nothing acts on
+    //  a bay while one stands, that bay went silent until it was ejected.
+    TEST_METHOD (AQuestionThatCouldNotBePutLeavesTheBayStillListening)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.askSinkDelivers = false;
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"the sink was called");
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->IsAskOutstanding(),
+                         L"but nothing is waiting on an answer nobody can give");
+
+        //  So the next change is acted on rather than swallowed.
+        rig.askSinkDelivers = true;
+
+        rig.WriteImage (kImagePath, 0x33);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size(),
+                          L"the bay is still listening");
+    }
+
+
 
     //  A QUESTION ON SCREEN OWNS THE BAY UNTIL IT IS ANSWERED. Mount and eject
     //  both clear the outstanding-question flag, so a disk that leaves the

@@ -2189,13 +2189,13 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
             //  second dialog on the first.
             if (m_askSink && !entry.sharedState.IsAskOutstanding())
             {
-                entry.sharedState.SetAskOutstanding (true);
                 entry.sharedState.SetAskedAction (ChangeAction::Conflict);
 
-                m_askSink (slot, drive,
-                           ChangePrompt::ComposeSaveFailure (entry.path, drive,
-                                                             savePath, hr,
-                                                             SaveFailureCause::ExternalChange));
+                entry.sharedState.SetAskOutstanding (
+                    m_askSink (slot, drive,
+                               ChangePrompt::ComposeSaveFailure (entry.path, drive,
+                                                                 savePath, hr,
+                                                                 SaveFailureCause::ExternalChange)));
             }
 
             return;
@@ -2230,7 +2230,6 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     {
         if (m_askSink && !entry.sharedState.IsAskOutstanding())
         {
-            entry.sharedState.SetAskOutstanding (true);
             entry.sharedState.SetAskedAction (action);
 
             {
@@ -2252,10 +2251,11 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
                     entry.sharedState.SetPreservedPath (reserved);
                 }
 
-                m_askSink (slot, drive,
-                           ChangePrompt::Compose (entry.path, drive, action,
-                                                  reserved,
-                                                  entry.sharedState.IsPreservedWritten()));
+                entry.sharedState.SetAskOutstanding (
+                    m_askSink (slot, drive,
+                               ChangePrompt::Compose (entry.path, drive, action,
+                                                      reserved,
+                                                      entry.sharedState.IsPreservedWritten())));
             }
         }
 
@@ -2348,14 +2348,13 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
                 {
                     //  Still nowhere to put it. The disk is untouched and the
                     //  question stands rather than being quietly dropped.
-                    entry.sharedState.SetAskOutstanding (true);
-
                     if (m_askSink)
                     {
-                        m_askSink (slot, drive,
-                                   ChangePrompt::ComposeSaveFailure (
-                                       entry.path, drive, savePath, hr,
-                                       SaveFailureCause::ExternalChange));
+                        entry.sharedState.SetAskOutstanding (
+                            m_askSink (slot, drive,
+                                       ChangePrompt::ComposeSaveFailure (
+                                           entry.path, drive, savePath, hr,
+                                           SaveFailureCause::ExternalChange)));
                     }
 
                     return;
@@ -2407,14 +2406,13 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
                 //  followed by throwing the only copy away.
                 if (FAILED (hr))
                 {
-                    entry.sharedState.SetAskOutstanding (true);
-
                     if (m_askSink)
                     {
-                        m_askSink (slot, drive,
-                                   ChangePrompt::ComposeSaveFailure (entry.path, drive,
-                                                                     savePath, hr,
-                                                                     SaveFailureCause::FileLost));
+                        entry.sharedState.SetAskOutstanding (
+                            m_askSink (slot, drive,
+                                       ChangePrompt::ComposeSaveFailure (entry.path, drive,
+                                                                         savePath, hr,
+                                                                         SaveFailureCause::FileLost)));
                     }
 
                     return;
@@ -2645,10 +2643,10 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     //  this.
     if (ExternalChangePolicy::IsFileLost (action) && m_askSink)
     {
-        entry.sharedState.SetAskOutstanding (true);
         entry.sharedState.SetAskedAction (action);
 
-        m_askSink (slot, drive, ChangePrompt::Compose (original, drive, action));
+        entry.sharedState.SetAskOutstanding (
+            m_askSink (slot, drive, ChangePrompt::Compose (original, drive, action)));
 
         return;
     }

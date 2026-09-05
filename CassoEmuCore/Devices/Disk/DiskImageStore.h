@@ -226,14 +226,21 @@ public:
 
     //  Putting a question to the user.
     //
-    //  IT ASKS AND RETURNS NOTHING. Asking happens on the thread that owns disk
-    //  writes and answering on the one that owns the screen, so a sink that
-    //  returned the answer would have to block the machine while the user read
-    //  it. The answer comes back through ResolvePendingChange instead.
+    //  IT DOES NOT RETURN THE ANSWER. Asking happens on the thread that owns
+    //  disk writes and answering on the one that owns the screen, so a sink
+    //  that returned the answer would have to block the machine while the user
+    //  read it. The answer comes back through ResolvePendingChange instead.
+    //
+    //  IT RETURNS WHETHER THE QUESTION REACHED SOMEWHERE IT CAN BE ANSWERED,
+    //  which is a different fact and one only the sink knows. The shell posts
+    //  the question to its own window and cannot do that before the window
+    //  exists or when the queue is full; a bay marked as having a question
+    //  outstanding that nobody ever saw is a bay nothing acts on again until
+    //  the disk is ejected.
     //
     //  Null means nothing can answer, and a change that needs an answer stays
     //  pending rather than resolving itself by default.
-    using AskSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
+    using AskSink = std::function<bool (int slot, int drive, const ChangePrompt &)>;
 
     void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
 
