@@ -357,11 +357,14 @@ std::wstring StartupDownloadDialog::FormatStatusText (const EntryRuntime & rt, s
 //  column can only grow into space the name column does not need -- widening
 //  it past that would trade a wrapped source for an ellipsized name.
 //
-//  The gutter is what keeps a measured column from wrapping anyway: the
-//  row rects are truncated to whole pixels on the way out, so a column cut
-//  to the exact glyph extent loses a fraction of its last character. The
-//  label inset mirrors DxuiCheckbox's 16 dip box plus its 6 dip label gap,
-//  dead space at the head of the row that no name can use.
+//  The gutter is what keeps a measured column from clipping anyway: the row
+//  rects are truncated to whole pixels on the way out, so a column cut to
+//  the exact glyph extent loses a fraction of its last character. Both
+//  measurements carry it -- the name column reaches its exact width
+//  whenever the ceiling binds, and would ellipsize the very label the
+//  ceiling is there to keep whole. The label inset mirrors DxuiCheckbox's
+//  16 dip box plus its 6 dip label gap, dead space at the head of the row
+//  that no name can use.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -395,7 +398,7 @@ float StartupDownloadDialog::MeasureSourceColumnPx (
         hr = ctx.text->MeasureString (entry.displayName.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        namePx = std::max (namePx, std::ceil (w) + kLabelInsetDp * ctx.dpiScale);
+        namePx = std::max (namePx, std::ceil (w) + (kLabelInsetDp + kGutterDp) * ctx.dpiScale);
     }
 
     ceilingPx = m.fullW - namePx - m.statusW - m.colGap * 2.0f;
