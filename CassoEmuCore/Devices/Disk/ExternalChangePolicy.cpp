@@ -17,7 +17,7 @@
 //
 //    nothing seen        -- there is no question to answer
 //    still being written -- acting now would read a half-written disk
-//    cannot be used      -- there is nothing to take up
+//    cannot be used      -- there is nothing to reload
 //    guest has written   -- two sides have work, and neither may be discarded
 //    a stated intent     -- the writer knew what they changed
 //    otherwise           -- nobody said, so ask
@@ -56,11 +56,11 @@ ChangeAction ExternalChangePolicy::Decide (const Situation & situation)
     {
         action = ChangeAction::Conflict;
     }
-    else if (situation.intent == PickUpIntent::TakeUpInPlace)
+    else if (situation.intent == ExternalChangeIntent::ReloadInPlace)
     {
-        action = ChangeAction::TakeUpInPlace;
+        action = ChangeAction::ReloadInPlace;
     }
-    else if (situation.intent == PickUpIntent::Restart)
+    else if (situation.intent == ExternalChangeIntent::Restart)
     {
         action = ChangeAction::Restart;
     }

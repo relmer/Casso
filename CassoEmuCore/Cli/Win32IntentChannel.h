@@ -55,8 +55,8 @@ public:
     //  Everything a stated intent puts on the wire.
     struct Payload
     {
-        PickUpIntent  intent = PickUpIntent::Unstated;
-        std::string   imagePath;
+        ExternalChangeIntent  intent    = ExternalChangeIntent::Unstated;
+        std::string           imagePath;
     };
 
     //  Packs an intent and a path into the bytes a message carries.
@@ -64,7 +64,7 @@ public:
     //  THE PATH GOES AS UTF-8 and absolute, as the writer resolved it. A
     //  receiver holds its own spelling of the same file and matches after
     //  normalizing, so a relative path would name nothing on the other side.
-    static std::vector<Byte>  Encode (const std::string & imagePath, PickUpIntent intent);
+    static std::vector<Byte>  Encode (const std::string & imagePath, ExternalChangeIntent intent);
 
     //  Reads bytes back, refusing anything that is not a whole valid payload.
     //
@@ -80,5 +80,5 @@ public:
     //  length that does is a message this channel did not send.
     static constexpr size_t  kMaxPayloadBytes = 4096;
 
-    void  StateIntent (const std::string & imagePath, PickUpIntent intent) override;
+    void  StateIntent (const std::string & imagePath, ExternalChangeIntent intent) override;
 };

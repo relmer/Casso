@@ -91,13 +91,17 @@ private:
     std::string  m_baselineTheme;
     bool         m_themeAppliedLive = false;
 
-    // Baseline captures the value at Show time so Cancel can revert.
-    // The per-monitor schema means we keep a snapshot of ALL 4 mode
-    // blocks because the user can switch monitors inside the panel and
-    // edit multiple blocks before they decide whether to commit.
+    // Baseline captures the value at Show time so Cancel can revert. The
+    // whole override map is copied, not a fixed set of blocks, because the
+    // user can switch monitors and modes inside the panel and edit several
+    // pairs before deciding whether to commit.
+    //
+    // Copying the container rather than its entries is what lets Cancel undo
+    // a pair the sheet CREATED: an entry that did not exist at Show has
+    // nothing to revert to, and assigning the whole map back removes it.
     // m_baselineColorMode tracks which monitor was active at open.
-    GlobalUserPrefs::Crt  m_baselineCrt[GlobalUserPrefs::kCrtModeCount] = {};
-    int                   m_baselineColorMode                           = -1;
+    std::map<std::string, CrtOverrides>  m_baselineCrt;
+    int                                  m_baselineColorMode = -1;
 
     // Printing prefs baseline (Settings > Printing, global host-service prefs
     // like the CRT blocks): Cancel reverts these and CommitApply saves the

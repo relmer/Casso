@@ -26,15 +26,15 @@ public:
 
     struct Stated
     {
-        std::string   imagePath;
-        PickUpIntent  intent = PickUpIntent::Unstated;
+        std::string           imagePath;
+        ExternalChangeIntent  intent    = ExternalChangeIntent::Unstated;
     };
 
     std::vector<Stated>  stated;
 
 
 
-    void  StateIntent (const std::string & imagePath, PickUpIntent intent) override
+    void  StateIntent (const std::string & imagePath, ExternalChangeIntent intent) override
     {
         stated.push_back (Stated { imagePath, intent });
 

@@ -43,113 +43,42 @@
 //
 //  MakeCrtParams
 //
-//  Pure logic. Produces a `CrtParams` constant-buffer payload by
-//  resolving the precedence chain:
+//  Pure logic. Produces a `CrtParams` constant-buffer payload from values
+//  the caller has already resolved through CrtResolver::Resolve.
 //
-//    1. User override (prefsCrt.userOverride == true) -> prefsCrt verbatim
-//    2. Theme variant override (themeDefaults != nullptr) -> theme values
-//    3. Monitor-type preset (CrtPresets::GetPreset(modeIndex)) -> preset values
-//    4. (Implicit) struct defaults of GlobalUserPrefs::Crt -- fallback
-//       if everything above is somehow unset
-//
-//  Gamma and persistence are NEW in the per-monitor schema and have
-//  no theme-default equivalent yet; they fall through user override ->
-//  monitor preset directly.
+//  The precedence chain used to live here as well as in three places in the
+//  settings bridge, and the copies drifted. It lives in the resolver now.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 CrtParams MakeCrtParams (
-    const GlobalUserPrefs::Crt  & prefsCrt,
-    size_t                        modeIndex,
-    const ThemeCrtDefaults      * themeDefaults,
-    float                         outputW,
-    float                         outputH)
+    const CrtResolved & resolved,
+    float               outputW,
+    float               outputH)
 {
     // Luminance a pixel must reach before it feeds the bloom. Half scale
     // sits above the dark half of a dithered image and below anything the
     // guest lit, which is the split the effect is meant to model. One value
     // for every monitor for now; whether a color tube wants a different one
     // from a phosphor tube is left to the CRT tuning work.
-    constexpr float              kBloomThreshold = 0.5f;
-    CrtParams                    params;
-    const GlobalUserPrefs::Crt & preset          = CrtPresets::GetPreset (modeIndex);
+    constexpr float      kBloomThreshold = 0.5f;
+    CrtParams            params;
+    const CrtValues &    v               = resolved.values;
 
 
 
-    // Default everything from the monitor-type preset; layered sources
-    // overwrite into this struct in lowest-priority-first order so the
-    // highest-priority winner is the final value.
-    float  brightness  = preset.brightness;
-    float  contrast    = preset.contrast;
-    float  gamma       = preset.gamma;
-    float  persistence = preset.persistence;
-    bool   scanEn      = preset.scanlinesEnabled;
-    float  scanInt     = preset.scanlinesIntensity;
-    bool   bloomEn     = preset.bloomEnabled;
-    float  bloomR      = preset.bloomRadius;
-    float  bloomS      = preset.bloomStrength;
-    bool   bleedEn     = preset.colorBleedEnabled;
-    float  bleedW      = preset.colorBleedWidth;
-
-
-
-    // Theme variant overrides land on top of the monitor preset for
-    // every field group the theme actually declares. Theme doesn't
-    // yet carry gamma / persistence so those keep preset values.
-    // The per-group hasX flags are CRITICAL -- a theme that omits a
-    // group (e.g. Skeuomorphic not setting scanlines) must leave the
-    // monitor preset's value alone, not silently wipe it with the
-    // ThemeCrtDefaults struct-default.
-    if (!prefsCrt.userOverride && themeDefaults != nullptr)
-    {
-        if (themeDefaults->hasBrightness) { brightness = themeDefaults->brightness; }
-        if (themeDefaults->hasContrast)   { contrast   = themeDefaults->contrast;   }
-        if (themeDefaults->hasScanlines)
-        {
-            scanEn  = themeDefaults->scanlinesEnabled;
-            scanInt = themeDefaults->scanlinesIntensity;
-        }
-
-        if (themeDefaults->hasBloom)
-        {
-            bloomEn = themeDefaults->bloomEnabled;
-            bloomR  = themeDefaults->bloomRadius;
-            bloomS  = themeDefaults->bloomStrength;
-        }
-
-        if (themeDefaults->hasColorBleed)
-        {
-            bleedEn = themeDefaults->colorBleedEnabled;
-            bleedW  = themeDefaults->colorBleedWidth;
-        }
-    }
-
-    // User overrides win outright. Once flipped, prefs values land
-    // verbatim regardless of theme or preset.
-    if (prefsCrt.userOverride)
-    {
-        brightness  = prefsCrt.brightness;
-        contrast    = prefsCrt.contrast;
-        gamma       = prefsCrt.gamma;
-        persistence = prefsCrt.persistence;
-        scanEn      = prefsCrt.scanlinesEnabled;
-        scanInt     = prefsCrt.scanlinesIntensity;
-        bloomEn     = prefsCrt.bloomEnabled;
-        bloomR      = prefsCrt.bloomRadius;
-        bloomS      = prefsCrt.bloomStrength;
-        bleedEn     = prefsCrt.colorBleedEnabled;
-        bleedW      = prefsCrt.colorBleedWidth;
-    }
-
-    params.brightness        = brightness;
-    params.contrast          = contrast;
-    params.gamma             = gamma;
-    params.persistence       = persistence;
-    params.scanlineIntensity = scanEn  ? scanInt : 0.0f;
-    params.bloomRadius       = bloomEn ? bloomR  : 0.0f;
-    params.bloomStrength     = bloomEn ? bloomS  : 0.0f;
+    // An enabled toggle folds into its magnitude, because the shaders read a
+    // zero rather than a flag. The resolver deliberately keeps the two apart,
+    // so that the Display page can report a toggle's own provenance.
+    params.brightness        = v.brightness;
+    params.contrast          = v.contrast;
+    params.gamma             = v.gamma;
+    params.persistence       = v.persistence;
+    params.scanlineIntensity = v.scanlinesEnabled  ? v.scanlinesIntensity : 0.0f;
+    params.bloomRadius       = v.bloomEnabled      ? v.bloomRadius        : 0.0f;
+    params.bloomStrength     = v.bloomEnabled      ? v.bloomStrength      : 0.0f;
     params.bloomThreshold    = kBloomThreshold;
-    params.colorBleedWidth   = bleedEn ? bleedW  : 0.0f;
+    params.colorBleedWidth   = v.colorBleedEnabled ? v.colorBleedWidth    : 0.0f;
     params.outputW           = (outputW > 0.0f) ? outputW : 1.0f;
     params.outputH           = (outputH > 0.0f) ? outputH : 1.0f;
 

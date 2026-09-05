@@ -284,11 +284,11 @@ public:
     //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
     //  runs on its own thread and the message channel on the UI thread, while
     //  acting on a change belongs to the thread that owns disk writes.
-    void          NoteExternalChange (const string & path, PickUpIntent intent);
+    void          NoteExternalChange (const string & path, ExternalChangeIntent intent);
 
     //  Act on whatever has settled. Called on the CPU thread at a moment with
     //  no disk operation in flight.
-    void          ApplyPendingPickUp ();
+    void          ApplyPendingReload ();
 
     //  The user dismissed the standing report for a bay.
     void          ClearChangeReport (int slot, int drive);
@@ -477,7 +477,7 @@ private:
     static wstring FormatExternalChangeMessage (const string & path);
 
     //  Everything one bay's settled change leads to.
-    void           ApplyPendingPickUpToBay (int slot, int drive);
+    void           ApplyPendingReloadToBay (int slot, int drive);
 
     //  Carries out what was decided. Split from deciding so the decision has
     //  one shape whether it came from the policy or from the user.
@@ -489,7 +489,7 @@ private:
     //
     //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
     //  point of preserving it is that the file no longer holds this version.
-    HRESULT        PreserveHeldVersion (Entry & entry, string & outPath);
+    HRESULT        SaveLoadedImage (Entry & entry, string & outPath);
 
     //  Writes bytes that came off the file to a preserved copy, for the other
     //  direction: the emulator is about to write over an external change it
@@ -523,7 +523,7 @@ private:
     //  precise loss this feature exists to prevent. The new bytes are loaded
     //  into a fresh image first, so a load that fails leaves the mounted disk
     //  exactly as it was.
-    HRESULT        TakeUpContents (int slot, int drive, const vector<Byte> & bytes);
+    HRESULT        MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes);
 
     //  Registers and drops the watch on a bay's directory.
     //

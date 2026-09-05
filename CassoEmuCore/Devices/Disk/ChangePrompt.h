@@ -111,14 +111,19 @@ struct ChangePrompt
     //
     //  `copyPath` IS WHERE THE VERSION IN THE DRIVE GOES IF IT IS KEPT, and
     //  `copyAlreadyWritten` says whether it is there yet. A conflict writes it
-    //  before asking anything, so the two cases differ by one tense: "we'll
-    //  rename it to" against "it's already saved as".
+    //  before asking anything, so the two cases differ by one tense: "it will
+    //  be renamed to" against "we've renamed your disk to".
+    //
+    //  IT IS ALWAYS PUT AS A RENAME, never as a save. The user's disk is a
+    //  file to them, and what happened to it is that it has a new name.
+    //  Telling them their writes "hadn't been saved yet" describes a write
+    //  cache they have no view of and reads as though work had been at risk.
     static ChangePrompt  Compose (const std::string & imagePath, int drive,
                                   ChangeAction action,
                                   const std::string & copyPath   = std::string(),
                                   bool copyAlreadyWritten        = false);
 
-    //  The notice shown once contents were taken up without a question, which
+    //  The notice shown once contents were reloaded without a question, which
     //  only happens when the write stated what it was for.
     //
     //  IT ATTRIBUTES THE WRITE TO CassoCli, and can, because this notice is
@@ -128,7 +133,7 @@ struct ChangePrompt
     //
     //  `machineName` IS THE MACHINE AS THE USER KNOWS IT -- "Apple //e" --
     //  because "the Apple" is not what is in front of them.
-    static ChangePrompt  ComposePickUpReport (const std::string & imagePath, int drive,
+    static ChangePrompt  ComposeReloadReport (const std::string & imagePath, int drive,
                                               bool machineRebooted,
                                               const std::string & machineName,
                                               const std::string & copyPath = std::string());

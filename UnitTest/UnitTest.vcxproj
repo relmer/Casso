@@ -456,6 +456,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Config\CrtResolver.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\Ui\Chrome\MainMenu.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -489,6 +493,10 @@
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="..\Casso\Ui\ColorUtil.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Settings\DisplayPage.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
@@ -548,6 +556,7 @@
     <ClCompile Include="UiTests\DxuiCheckboxTests.cpp" />
     <ClCompile Include="UiTests\DxuiRadioGroupTests.cpp" />
     <ClCompile Include="UiTests\DxuiSearchBoxTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTextInputDegenerateTests.cpp" />
     <ClCompile Include="UiTests\DxuiOrbitControlTests.cpp" />
     <ClCompile Include="UiTests\DxuiSliderTests.cpp" />
     <ClCompile Include="UiTests\DxuiTreeViewTests.cpp" />
@@ -574,6 +583,9 @@
     <ClCompile Include="UiTests\InputDeviceSelectorTests.cpp" />
     <ClCompile Include="UiTests\Apple2cSwitchBarTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
+    <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
+    <ClCompile Include="UiTests\CrtResolverTests.cpp" />
+    <ClCompile Include="UiTests\DisplayPageTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\SceneCameraTests.cpp" />
     <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />
