@@ -236,11 +236,11 @@ public:
         kbd.SetKeyDown (true);
         kbd.BeginKeyRepeat ('K');
 
-        // First Tick arms the cadence for the newly armed key; the second,
-        // with a large cycle budget, crosses the pre-repeat delay and
+        // The first call arms the cadence for the newly armed key; the
+        // second hands over the whole pre-repeat delay in real time and
         // re-latches the held key once.
-        kbd.Tick (1);
-        kbd.Tick (10000000);
+        kbd.TickAutoRepeat (1);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
 
         Assert::AreEqual (1, sink.autoRepeatCount,
             L"A held key crossing the repeat delay must emit one auto-repeat event");
