@@ -520,7 +520,7 @@ Casso
 Casso --machine Apple2e
 
 # Boot a disk in drive 1
-Casso --machine Apple2e --disk1 "Apple2\Demos\casso-rocks.woz"
+Casso --machine Apple2e --disk1 "Apple2\Demos\casso-rocks.dsk"
 
 # Both drives
 Casso --machine Apple2c --disk1 "side-a.woz" --disk2 "side-b.woz"

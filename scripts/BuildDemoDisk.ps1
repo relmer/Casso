@@ -29,8 +29,8 @@
        opposite things from the encoder, so each image is authored for
        one monitor and reads as noise on the other. Nothing on the disk
        can tell which is attached, so all four ship, monochrome pair
-       first. See scripts/DhgrCassowaryGen.py and
-       scripts/HgrCassowaryGen.py.
+       first. See DhgrCassowaryGen.py and HgrCassowaryGen.py, both in
+       Apple2/Demos/CassoRocks beside the assets they write.
 
        The tracks are in the order the demo reads them, which is the
        order the modes are cycled in, so whatever the user reaches next
@@ -73,6 +73,11 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $demoDir  = Join-Path $repoRoot 'Apple2\Demos'
+
+#  Sources and image assets live in the demo's own folder; the finished
+#  .dsk goes to Apple2\Demos, where every machine profile and launch
+#  command already points.
+$srcDir   = Join-Path $demoDir 'CassoRocks'
 $cli      = Join-Path $repoRoot "x64\$Configuration\CassoCli.exe"
 
 if (-not (Test-Path $cli)) {
@@ -187,7 +192,7 @@ function Read-AssetFile {
         [int]$ExpectedLength
     )
 
-    $path = Join-Path $demoDir $Name
+    $path = Join-Path $srcDir $Name
     if (-not (Test-Path $path)) {
         throw "Asset not found: $path"
     }
@@ -208,10 +213,10 @@ function Read-AssetFile {
 Write-Host "Assembling stages..." -ForegroundColor Cyan
 
 $stage1 = Get-AssembledRegion `
-    (Join-Path $demoDir 'casso-rocks.a65') $kStage1Org $kStage1Length
+    (Join-Path $srcDir 'casso-rocks.a65') $kStage1Org $kStage1Length
 
 $stage2 = Get-AssembledRegion `
-    (Join-Path $demoDir 'casso-rocks-stage2.a65') $kStage2Org $kStage2Length
+    (Join-Path $srcDir 'casso-rocks-stage2.a65') $kStage2Org $kStage2Length
 
 Write-Host "Loading image assets..." -ForegroundColor Cyan
 
@@ -319,8 +324,8 @@ function Build-LayoutWithCassoCli {
 
     #  Each stage goes to a scratch file first: sectorwrite takes a file, and
     #  the assembled regions are in memory at this point.
-    $tmp1 = Join-Path $demoDir "stage1.tmp"
-    $tmp2 = Join-Path $demoDir "stage2.tmp"
+    $tmp1 = Join-Path $srcDir "stage1.tmp"
+    $tmp2 = Join-Path $srcDir "stage2.tmp"
 
     [System.IO.File]::WriteAllBytes($tmp1, $stage1)
     [System.IO.File]::WriteAllBytes($tmp2, $stage2)
@@ -329,13 +334,13 @@ function Build-LayoutWithCassoCli {
     #  documents, in the order its boot loader reads it.
     $plan = @(
         @{ Track = 0; Sector = 0; Path = $tmp1 },
-        @{ Track = 1; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-aux.bin") },
+        @{ Track = 1; Sector = 0; Path = (Join-Path $srcDir "dhgr-cassowary-mono-aux.bin") },
         @{ Track = 3; Sector = 0; Path = $tmp2 },
-        @{ Track = 4; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-mono-main.bin") },
-        @{ Track = 6; Sector = 0; Path = (Join-Path $demoDir "cassowary-mono.hgr") },
-        @{ Track = 8; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-aux.bin") },
-        @{ Track = 10; Sector = 0; Path = (Join-Path $demoDir "dhgr-cassowary-main.bin") },
-        @{ Track = 12; Sector = 0; Path = (Join-Path $demoDir "cassowary.hgr") }
+        @{ Track = 4; Sector = 0; Path = (Join-Path $srcDir "dhgr-cassowary-mono-main.bin") },
+        @{ Track = 6; Sector = 0; Path = (Join-Path $srcDir "cassowary-mono.hgr") },
+        @{ Track = 8; Sector = 0; Path = (Join-Path $srcDir "dhgr-cassowary-aux.bin") },
+        @{ Track = 10; Sector = 0; Path = (Join-Path $srcDir "dhgr-cassowary-main.bin") },
+        @{ Track = 12; Sector = 0; Path = (Join-Path $srcDir "cassowary.hgr") }
     )
 
     foreach ($step in $plan) {

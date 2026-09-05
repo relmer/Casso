@@ -14,8 +14,11 @@
     says so: the .a65 still assembles, the disk still boots, and it still says
     the old line. Nobody was asking that question.
 
-    casso-rocks has its own answer already -- scripts/BuildDemoDisk.ps1 -Verify,
-    which CI runs -- so it is deliberately not repeated here.
+    casso-rocks is covered here as well, since it gained a Build.ps1 when its
+    sources moved into a folder of their own. scripts/BuildDemoDisk.ps1 -Verify
+    still runs in CI beside this, and the overlap is worth its few seconds: it
+    verifies the image in memory and never writes, so it holds even if the
+    capture-and-restore below were ever to go wrong.
 
     NOTHING IS LEFT BEHIND. Verifying has to build, and building writes into the
     tree, so every tracked file under Apple2\Demos is captured first and put

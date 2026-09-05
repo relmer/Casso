@@ -37,8 +37,21 @@ CELLS     = 140        # DHGR color cells across the screen
 HGR_PIX   = 280        # HGR pixels across the screen
 DOTS      = 560        # half-dots across the screen
 
-SRC = (Path(__file__).resolve().parent.parent
-       / "Assets" / "3a Mrs Cassowary closeup 8167.jpg")
+def _repo_root():
+    """The folder holding Casso.sln, found by walking up.
+
+    Counting directories broke the moment this file moved out of
+    scripts/ into the demo's own folder, and would break again on the
+    next move.
+    """
+    here = Path(__file__).resolve()
+    for d in here.parents:
+        if (d / "Casso.sln").exists():
+            return d
+    raise RuntimeError("no Casso.sln above " + str(here))
+
+
+SRC = _repo_root() / "Assets" / "3a Mrs Cassowary closeup 8167.jpg"
 
 # The portrait crop the DHGR pair uses: the full casque, head, neck and
 # wattles. HGR gets a tighter one -- see HgrCassowaryGen for why.
