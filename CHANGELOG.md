@@ -44,8 +44,20 @@ Entries before versioning was introduced use dates only.
   the drive keeps running on it. Decline and the drive is emptied, since the
   file behind it is gone.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
+- **Theme and monitor-color pickers on the command bar**, beside Settings. Both
+  preview live as you move down the menu, by mouse or by arrow key, and put
+  back what was there if you dismiss it. A picked theme and color mode are
+  remembered.
+- **A fullscreen button on the command bar**, before Screenshot, which reads
+  "Exit fullscreen" once you are in it.
 
 ### Changed
+- **The command bar now narrows one button at a time.** As the window shrinks,
+  buttons drop their labels from the right, so the leftmost keep their names
+  longest and nothing is pushed off the end. The input devices give up their
+  LED row for a single icon at the same point, and the theme, monitor-color
+  and input menus check the setting they are on, so a collapsed button still
+  says where it stands.
 - **2D themes now use a richer drive widget.** The disk name is the control,
   and its LED tracks where the head is sitting on the disk rather than only
   showing that the drive is busy. Clicking the name ejects the disk and offers
@@ -146,6 +158,12 @@ Entries before versioning was introduced use dates only.
   palette, so they kept its blue while the drive LEDs beside them went red on
   Skeuomorphic and green on RetroTerminal. They now follow the theme's LED
   colors like the rest of the chrome.
+- **Tooltips could lose their last glyph.** A balloon sized a hair too narrow
+  wrapped the tail onto a second line it had no room to show, so a tip ending
+  in something short and breakable came up looking truncated.
+- **The command bar's Reset and Power tooltips said only what the button said.**
+  They now specify the machine they act on, and Reset gives the open-apple
+  chord for a cold boot -- the only place the chord is shown.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,

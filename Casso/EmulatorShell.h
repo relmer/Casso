@@ -1261,10 +1261,20 @@ private:
     std::array<DriveWidget, 2>  m_driveChrome;
 
     // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
-    // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
-    // Reset / Power. Its printer button carries the status light (the old
-    // standalone PrinterIndicator is deleted).
+    // Settings / theme + monitor-color pickers / Printer (+status LED) /
+    // master Volume + Mute / Input / Fullscreen / Screenshot / Reset / Power.
+    // Its printer button carries the status light (the old standalone
+    // PrinterIndicator is deleted).
     CommandToolbar      m_toolbar;
+
+    // Theme ids in the toolbar picker's row order, so a picked row resolves
+    // to the id ThemeManager wants. Rebuilt whenever the catalog is.
+    std::vector<std::string>  m_toolbarThemeIds;
+
+    void  WireToolbarPickers          ();
+    void  RefreshToolbarThemeList     ();
+    void  SyncToolbarState            ();
+    void  PersistColorModeForMachine  (int settingsColorModeIndex);
 
     // The pure model deriving the printer LED state from the worker's live
     // signals, plus the last state pushed to the toolbar so a transition

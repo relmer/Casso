@@ -340,6 +340,16 @@ public:
                                        const SettingsUiPrefs                  & prefs,
                                        const std::vector<SettingsMachinePort> & machinePorts = {});
 
+    // The stored spellings of the enumerated UI prefs. Public because the
+    // panel is not the only writer: the command bar's monitor-color picker
+    // saves the same key, and both have to write the same word for it.
+    static const char *        SpeedToString       (SettingsSpeedMode s);
+    static SettingsSpeedMode   SpeedFromString     (const std::string & s, SettingsSpeedMode fallback);
+    static const char *        ColorToString       (SettingsColorMode c);
+    static SettingsColorMode   ColorFromString     (const std::string & s, SettingsColorMode fallback);
+    static const char *        WriteModeToString   (SettingsWriteMode mode);
+    static SettingsWriteMode   WriteModeFromString (const std::string & s, SettingsWriteMode fallback);
+
 private:
 
     struct Snapshot
@@ -403,13 +413,6 @@ private:
     static CapabilityFlag  ParseCapability (
         const std::string & str,
         CapabilityFlag      fallback);
-
-    static const char *        SpeedToString     (SettingsSpeedMode s);
-    static SettingsSpeedMode   SpeedFromString   (const std::string & s, SettingsSpeedMode fallback);
-    static const char *        ColorToString     (SettingsColorMode c);
-    static SettingsColorMode   ColorFromString   (const std::string & s, SettingsColorMode fallback);
-    static const char *        WriteModeToString (SettingsWriteMode mode);
-    static SettingsWriteMode   WriteModeFromString (const std::string & s, SettingsWriteMode fallback);
 
     static JsonValue  CloneJson (const JsonValue & v);
 
