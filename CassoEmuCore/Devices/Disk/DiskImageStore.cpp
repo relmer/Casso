@@ -2054,6 +2054,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     bool                               usable    = false;
     bool                               unchanged = false;
     ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
+    ChangeAuthor                       author    = ChangeAuthor::AnotherProgram;
     ChangeAction                       action    = ChangeAction::Ignore;
     ImageIdentity                      current;
     vector<Byte>                       bytes;
@@ -2231,7 +2232,14 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         return;
     }
 
-    CarryOutChangeAction (slot, drive, action, bytes);
+    //  THE INTENT THAT DECIDED IS THE INTENT THAT ATTRIBUTES. `intent` was read
+    //  at the top of this function, and the record it came from is refreshed by
+    //  every later write -- a read taken now would credit this reload to
+    //  whoever wrote most recently rather than to whoever asked for it.
+    author = (intent == ExternalChangeIntent::Unstated) ? ChangeAuthor::AnotherProgram
+                                                        : ChangeAuthor::CassoCli;
+
+    CarryOutChangeAction (slot, drive, action, bytes, author);
 
     return;
 }
@@ -2397,7 +2405,11 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
         }
     }
 
-    CarryOutChangeAction (slot, drive, chosen, bytes);
+    //  THE USER DID THE INSERTING, so no program is named. A question is only
+    //  ever put when nothing stated an intent -- that is what `Ask` means --
+    //  and one arriving while the question stood on screen does not turn the
+    //  answer into somebody else's reload.
+    CarryOutChangeAction (slot, drive, chosen, bytes, ChangeAuthor::AnotherProgram);
 
     return;
 }
@@ -2425,7 +2437,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction action,
-                                           const vector<Byte> & bytes)
+                                           const vector<Byte> & bytes, ChangeAuthor author)
 {
     HRESULT  hr           = S_OK;
     Entry &  entry        = GetEntry (slot, drive);
@@ -2522,6 +2534,11 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
     //  Whatever was decided, the conflict is over: either the copy was taken
     //  up as the bay's file or the external version went in beside it.
+    //
+    //  THE PATH AND THE FACT TRAVEL TOGETHER. A bay holds a reserved name from
+    //  the moment a question is put, and holds the name it tried after a write
+    //  that failed, so `preservedPath` says where a copy would go and only
+    //  `preservedWritten` says whether one is there.
     if (tookUp)
     {
         preservedPath = entry.preservedPath;
@@ -2568,7 +2585,8 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         if (tookUp)
         {
             report = ChangePrompt::ComposeReloadReport (original, drive, restarted,
-                                                        m_machineName, preservedPath);
+                                                        m_machineName, author,
+                                                        preservedPath, preserved);
         }
         else if (preserved)
         {
