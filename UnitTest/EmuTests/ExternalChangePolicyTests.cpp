@@ -414,12 +414,17 @@ public:
         Assert::IsTrue (report.message.find (L"\n\nLoader.dsk (Drive 1)")
                             != std::wstring::npos,
                         (L"the identifying line is missing: " + report.message).c_str());
-        Assert::IsTrue (report.message.find (L"We've renamed your disk to")
+        Assert::IsTrue (report.message.find (L"Your disk has been renamed to")
                             != std::wstring::npos);
 
-        //  Once each, as everywhere else.
+        //  The file once, as everywhere else. THE DRIVE APPEARS TWICE HERE AND
+        //  IS MEANT TO: once identifying the disk, once as the destination of
+        //  the remount, which is a fact about what was done and not a repeat of
+        //  who it was done to.
         Assert::AreEqual ((size_t) 1, CountOf (report.message, L"Loader.dsk"));
-        Assert::AreEqual ((size_t) 1, CountOf (report.message, L"Drive 1"));
+        Assert::AreEqual ((size_t) 2, CountOf (report.message, L"Drive 1"));
+        Assert::IsTrue (report.message.find (L"remounted in Drive 1")
+                            != std::wstring::npos);
 
         //  The folder is not repeated into the sentence; the file is enough,
         //  and the path buries it.
