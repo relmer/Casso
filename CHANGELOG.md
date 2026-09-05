@@ -85,6 +85,10 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The same disk image could be put in both drives at once.** Each drive held
+  its own copy of it from that moment, so whichever wrote last overwrote the
+  other's changes, and one change from outside Casso raised the conflict twice.
+  The second drive now refuses it and says which drive has it.
 - **Answering the "disk modified outside Casso" question could act on the wrong
   disk.** The answer was carried out against whatever was in the drive, so
   taking the disk out and putting another in while the question stood moved the

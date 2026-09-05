@@ -530,6 +530,74 @@ public:
         }
     }
 
+    //  ONE FILE, ONE DRIVE. Two bays on one file each hold their own copy of
+    //  the disk, and a flush writes the whole image -- so from the guest's
+    //  first write each drive overwrites whatever the other saved. One
+    //  external change raises the conflict twice and puts two dialogs up.
+    TEST_METHOD (AFileAlreadyInADriveIsRefusedByTheOther)
+    {
+        Rig             rig;
+        MountDiagnosis  diagnosis;
+        HRESULT         hr = S_OK;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        hr = rig.store.Mount (kSlot, kDrive + 1, kImagePath, diagnosis);
+
+        Assert::IsTrue (FAILED (hr), L"the second drive refuses it");
+        Assert::IsTrue (diagnosis.failure == MountFailure::AlreadyMounted);
+        Assert::AreEqual (kDrive, diagnosis.occupiedDrive,
+                          L"and says which drive has it");
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive + 1));
+
+        //  The message names the drive rather than leaving the reader to look
+        //  in both.
+        Assert::IsTrue (diagnosis.Describe().find ("drive 1") != std::string::npos);
+    }
+
+
+
+    //  AND PUTTING THE SAME FILE BACK INTO THE SAME DRIVE IS NOT THAT. A
+    //  machine switch and a reload both re-mount, so the bay being mounted
+    //  into is the one bay the check does not look at.
+    TEST_METHOD (AReMountOfTheSameFileIntoItsOwnDriveStillWorks)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath),
+                         L"the same file back into the drive that has it");
+
+        Assert::IsTrue (rig.store.IsMounted (kSlot, kDrive));
+    }
+
+
+
+    //  AND THE DRIVE IT LEFT IS FREE AGAIN.
+    TEST_METHOD (EjectingAFileLetsTheOtherDriveTakeIt)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.Eject (kSlot, kDrive);
+
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive + 1, kImagePath));
+
+        Assert::IsTrue (rig.store.IsMounted (kSlot, kDrive + 1));
+    }
+
+
+
     //  A QUESTION THAT NEVER REACHED ANYBODY DOES NOT COUNT AS ONE. The shell
     //  posts it to its own window, and it installs the sink before that window
     //  exists; a post can also fail on a full queue. The bay used to be marked

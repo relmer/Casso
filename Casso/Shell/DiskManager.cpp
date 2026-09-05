@@ -366,6 +366,28 @@ void DiskManager::MountCommandLineDisks (
         return;
     }
 
+    // ONE FILE CANNOT GO IN BOTH DRIVES, and drive 1 is the one that keeps it:
+    // it is the drive the machine boots from. The store refuses the second bay
+    // whichever order they arrive in, and drive 2 goes in first, so without
+    // this the boot drive would be the one turned away.
+    //
+    // A DUPLICATE THAT CAME OUT OF THE SAVED PATHS IS CLEARED, not just
+    // skipped. Prefs written before the store refused this could hold the same
+    // file for both drives, and a launch that only skipped it would raise the
+    // same refusal on every launch after.
+    if (!resolvedDisk1.empty()
+     && MountedImageState::IsSamePath (resolvedDisk1, resolvedDisk2))
+    {
+        resolvedDisk2.clear();
+
+        if (disk2Path.empty() && !m_currentMachineName.empty())
+        {
+            HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
+                m_userConfigStore, m_fileSystem, 1, m_currentMachineName, std::wstring());
+            IGNORE_RETURN_VALUE (hrClear, S_OK);
+        }
+    }
+
     // Drive 2 goes in first so drive 1's disk -- the one the machine boots
     // from -- is the later of the two mounts and therefore the top entry in
     // the recent-disks picker, which the mount completion feeds in the order
