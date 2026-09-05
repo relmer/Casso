@@ -154,7 +154,9 @@ void DxuiPopupMenu::Show (
 
 void DxuiPopupMenu::Hide()
 {
-    DxuiPopupHost *  popup  = m_activePopup;
+    DxuiPopupHost *  popup      = m_activePopup;
+    bool             wasVisible = m_visible;
+    bool             committed  = m_committing;
 
 
 
@@ -164,10 +166,20 @@ void DxuiPopupMenu::Hide()
     m_hover       = -1;
     m_pressed     = -1;
     m_activePopup = nullptr;
+    m_committing  = false;
 
     if (popup != nullptr && m_popupHost != nullptr)
     {
         m_popupHost->ReleasePopup (popup);
+    }
+
+    // The edge only. Hide() is reached from the dismiss paths, from a pick and
+    // from the popup's own onClosed hook, several of which run against an
+    // already hidden menu; firing every time would hand a previewing caller a
+    // settle it never asked for.
+    if (wasVisible && m_onClosed)
+    {
+        m_onClosed (committed);
     }
 }
 
@@ -238,7 +250,41 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
     // A live popup owns its own input via the host WndProc.
     if (m_activePopup == nullptr && m_visible)
     {
-        m_hover = HitTestIndex (x, y);
+        SetHover (HitTestIndex (x, y));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHover
+//
+//  The single place the highlight moves, so the preview notification cannot
+//  be forgotten on one of the four paths that move it (pointer in the
+//  in-window menu, pointer in the hosted popup, and the two arrow keys).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::SetHover (int index)
+{
+    if (index == m_hover)
+    {
+        return;
+    }
+
+    m_hover = index;
+
+    if (m_activePopup != nullptr)
+    {
+        m_activePopup->MarkDirty();
+    }
+
+    if (index >= 0 && m_onHighlight)
+    {
+        m_onHighlight (index);
     }
 }
 
@@ -331,6 +377,7 @@ bool DxuiPopupMenu::OnLButtonUp (int x, int y)
 
         if (commit >= 0)
         {
+            m_committing = true;
             Hide();
 
             if (cb) { cb (commit); }
@@ -392,21 +439,18 @@ bool DxuiPopupMenu::OnKey (WPARAM vk)
     }
     else if (wasVisible && vk == VK_DOWN && hasItems)
     {
-        m_hover = (m_hover + 1) % (int) m_items.size();
-
-        if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
+        SetHover ((m_hover + 1) % (int) m_items.size());
     }
     else if (wasVisible && vk == VK_UP && hasItems)
     {
-        m_hover = (m_hover <= 0) ? (int) m_items.size() - 1 : m_hover - 1;
-
-        if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
+        SetHover ((m_hover <= 0) ? (int) m_items.size() - 1 : m_hover - 1);
     }
     else if (wasVisible && (vk == VK_RETURN || vk == VK_SPACE) &&
              m_hover >= 0 && m_hover < (int) m_items.size())
     {
-        cb     = m_onSelect;
-        commit = m_hover;
+        cb           = m_onSelect;
+        commit       = m_hover;
+        m_committing = true;
         Hide();
 
         if (cb) { cb (commit); }
@@ -580,14 +624,9 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
         isInRow = row < (int) m_items.size();
     }
 
-    if (isInRow && row != m_hover)
+    if (isInRow)
     {
-        m_hover = row;
-
-        if (m_activePopup != nullptr)
-        {
-            m_activePopup->MarkDirty();
-        }
+        SetHover (row);
     }
 }
 
@@ -625,6 +664,7 @@ void DxuiPopupMenu::OnPopupClick (POINT localPx)
 
     if (isInRow)
     {
+        m_committing = true;
         Hide();
 
         if (cb)

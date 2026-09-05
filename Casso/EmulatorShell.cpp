@@ -3546,6 +3546,7 @@ void EmulatorShell::RefreshToolbarThemeList()
 void EmulatorShell::SyncToolbarState()
 {
     ColorMode  mode       = m_colorMode.load (std::memory_order_acquire);
+    RECT       client     = {};
     int        colorIndex = 0;
     int        themeIndex = -1;
     int        row        = 0;
@@ -3573,6 +3574,11 @@ void EmulatorShell::SyncToolbarState()
 
             row++;
         }
+    }
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &client))
+    {
+        m_toolbar.SetHostClientRect (client);
     }
 
     m_toolbar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
@@ -8443,7 +8449,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // forced present the preview would wait for the next unrelated redraw.
     SyncToolbarState();
 
-    if (m_toolbar.IsDropdownOpen())
+    if (m_toolbar.IsMenuOpen())
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -11922,7 +11928,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     // An open toolbar picker is modal in practice: it owns arrows, Enter and
     //    Escape so browsing the rows previews rather than typing into the //e.
-    if (m_toolbar.IsDropdownOpen())
+    if (m_toolbar.IsMenuOpen())
     {
         (void) m_toolbar.HandleKey (vk);
         BAIL_OUT_IF (true, S_OK);

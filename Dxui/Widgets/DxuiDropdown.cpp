@@ -206,18 +206,11 @@ Error:
 //
 //  Close
 //
-//  The closed notification fires on the open -> closed EDGE only. Close() is
-//  reached from the dismiss paths, from a commit, from losing focus and from
-//  the popup's own onClosed hook, several of which run against an already
-//  closed list; firing unconditionally would hand a preview caller a second
-//  settle it never asked for.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDropdown::Close()
 {
-    DxuiPopupHost *  popup   = m_activePopup;
-    bool             wasOpen = m_open;
+    DxuiPopupHost *  popup  = m_activePopup;
 
 
 
@@ -230,11 +223,6 @@ void DxuiDropdown::Close()
     if (popup != nullptr && m_popupHost != nullptr)
     {
         m_popupHost->ReleasePopup (popup);
-    }
-
-    if (wasOpen && m_closed)
-    {
-        m_closed();
     }
 }
 
