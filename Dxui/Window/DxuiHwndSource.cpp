@@ -2517,6 +2517,14 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
 
 
 
+    //  THE WHOLE WM_APP RANGE GOES TO ONE ARM, ahead of the switch. These are
+    //  the client's own messages to itself; the host knows none of them by
+    //  name and needs to know none.
+    if (msg >= WM_APP && msg <= 0xBFFF)
+    {
+        return IsClaimed (m_client->OnAppMessage (msg, wp, lp), RepaintOnClaim::No);
+    }
+
     switch (msg)
     {
         // -- claim-or-fall-through, no repaint --

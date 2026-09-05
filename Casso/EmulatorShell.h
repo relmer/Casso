@@ -289,6 +289,7 @@ private:
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;

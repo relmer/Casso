@@ -7454,67 +7454,6 @@ int EmulatorShell::RunMessageLoop()
                 continue;
             }
 
-            // A disk changed outside Casso. The store decided on the thread
-            // that owns disk writes; both of these build UI, so they land
-            // here. lParam owns a heap-allocated notice in each case.
-            if (msg.message == WM_APP_CHANGE_REPORT)
-            {
-                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    ShowChangeBanner (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_CHANGE_ASK)
-            {
-                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    AskAboutChange (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_NOTIFY_USER)
-            {
-                wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    ShowNotification (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
-            {
-                UpdateWindowTitle();
-                ReflowChromeForMachineChange();
-
-                // The machine may now sit in front of a different monitor,
-                // which changes every override key. This is the UI-thread
-                // side of the switch; SwitchMachine runs on the CPU thread
-                // and must not do file work or race the render path.
-                RefreshCrtOverrideKeys();
-
-                // A switch may have changed the default pointer mode on the CPU
-                // thread (ApplyDefaultPointerForMachine defers its UI reflection
-                // here to stay off the CPU thread). Sync the selector state on
-                // the UI thread; it is idempotent when nothing changed.
-                SyncSelectorState();
-                continue;
-            }
-
             // Modeless Settings: let the sheet claim its dialog-navigation keys
             // (Tab / Enter / Escape) first (Dxui's IsDialogMessage equivalent).
             if (m_settingsSheet != nullptr && m_settingsSheet->ProcessDialogMessage (msg))
@@ -14236,6 +14175,102 @@ void EmulatorShell::InstallIntentMessageFilter()
     allowed = ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA, MSGFLT_ALLOW, nullptr);
 
     IGNORE_RETURN_VALUE (allowed, TRUE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnAppMessage
+//
+//  The messages this shell posts to its own window.
+//
+//  HERE RATHER THAN IN RunMessageLoop, WHICH IS THE WHOLE POINT. That loop
+//  picked these off before DispatchMessage, so they existed only while it was
+//  the pump that was running -- and any modal dialog runs a pump of its own.
+//  A question about a changed disk arriving while Settings or a file picker
+//  was open reached DefWindowProc, its heap payload leaked, and the store had
+//  already recorded that a question was outstanding, so it never asked again:
+//  that bay stayed stuck with a pending change until it was ejected. Reached
+//  from the window procedure, every pump delivers them.
+//
+//  A QUESTION ARRIVING UNDER A MODAL THEREFORE OPENS AS A NESTED MODAL, which
+//  is ordinary Win32 -- a disabled owner still receives posted messages -- and
+//  better than the alternative of not being told at all.
+//
+//  EACH lParam OWNS A HEAP PAYLOAD handed over by whoever posted it, and this
+//  is where it is freed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+
+    // A disk changed outside Casso. The store decided on the thread that owns
+    // disk writes; both of these build UI, so they land here.
+    if (msg == WM_APP_CHANGE_REPORT)
+    {
+        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowChangeBanner (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_CHANGE_ASK)
+    {
+        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+
+        if (carried != nullptr)
+        {
+            AskAboutChange (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_NOTIFY_USER)
+    {
+        wstring *  carried = reinterpret_cast<wstring *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowNotification (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_DXUI_UPDATE_TITLE)
+    {
+        UpdateWindowTitle();
+        ReflowChromeForMachineChange();
+
+        // The machine may now sit in front of a different monitor, which
+        // changes every override key. This is the UI-thread side of the
+        // switch; SwitchMachine runs on the CPU thread and must not do file
+        // work or race the render path.
+        RefreshCrtOverrideKeys();
+
+        // A switch may have changed the default pointer mode on the CPU thread
+        // (ApplyDefaultPointerForMachine defers its UI reflection here to stay
+        // off the CPU thread). Sync the selector state on the UI thread; it is
+        // idempotent when nothing changed.
+        SyncSelectorState();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
 }
 
 
