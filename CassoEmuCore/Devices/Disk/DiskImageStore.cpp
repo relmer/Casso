@@ -3077,41 +3077,6 @@ Error:
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::PreserveGivenBytes
-//
-//  Writes bytes that came off the file to a file of their own.
-//
-//  THE OTHER DIRECTION. Here the emulator is about to write its own version
-//  over an external change it never reloaded, so the version being displaced
-//  is the one on disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DiskImageStore::PreserveGivenBytes (const Entry & entry, const vector<Byte> & bytes,
-                                            string & outPath)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    hr = FindFreePreservedPath (entry.path, outPath);
-    CHR (hr);
-
-    hr = WritePreserved (outPath, bytes);
-    CHR (hr);
-
-Error:
-    //  outPath IS LEFT AS THE PATH THAT WAS TRIED, even on failure. The notice
-    //  raised for a failed copy prints where it tried to write, and clearing it
-    //  here left that notice with nothing to show but an error code.
-    return hr;
-}
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //

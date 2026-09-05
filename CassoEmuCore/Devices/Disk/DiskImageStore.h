@@ -483,12 +483,6 @@ private:
     //  point of preserving it is that the file no longer holds this version.
     HRESULT        SaveLoadedImage (Entry & entry, string & outPath);
 
-    //  Writes bytes that came off the file to a preserved copy, for the other
-    //  direction: the emulator is about to write over an external change it
-    //  never saw.
-    HRESULT        PreserveGivenBytes (const Entry & entry, const vector<Byte> & bytes,
-                                       string & outPath);
-
     //  A preserved-copy path nothing is sitting at yet.
     //
     //  THE COLLISION LOOP IS NOT OPTIONAL. Two conflicts on one image inside a
