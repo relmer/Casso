@@ -85,11 +85,13 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
-- **The paddle-capture banner covered the drive widgets on every machine but
-  the //c.** It was hung above the //c's switch strip, which collapses to
-  nothing everywhere else, so the notice fell back to the window's bottom
-  edge and sat on top of the drive band. It now clears whichever bottom band
-  is actually there.
+- **The "Paddle Mode -- press Esc to release the mouse" notice covered the
+  drive widgets.** It was hung above the //c's switch strip, which collapses
+  to nothing on every other machine, so it fell back to the window's bottom
+  edge and sat on the drives. The notice now goes where the presentation can
+  carry it: a message bar under the command strip in the flat themes and in
+  fullscreen, and over the desk scene the caption it always was -- low on the
+  CRT picture, clear of the drives and their name strips.
 - **Answering the "disk modified outside Casso" question could act on the wrong
   disk.** The answer was carried out against whatever was in the drive, so
   taking the disk out and putting another in while the question stood moved the

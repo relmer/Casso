@@ -2318,9 +2318,15 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 //  Paddle mode takes the mouse: the cursor is hidden and clipped to the
 //  window, and the only release is a key the user has to already know. The
 //  joystick button says so -- and fullscreen hides the joystick button, which
-//  leaves a captured pointer, no cursor, and nothing on screen to read. This
-//  says it over the picture instead, in both presentations, and goes away the
-//  moment the capture does.
+//  leaves a captured pointer, no cursor, and nothing on screen to read. The
+//  notice goes away the moment the capture does.
+//
+//  TWO PRESENTATIONS, AND NEVER BOTH AT ONCE. Over the desk scene the words
+//  lie on the picture as shadowed text, which is the one place that treatment
+//  belongs: it needs a photographic surface under it to read as a caption
+//  rather than as text someone left on the screen. A flat theme offers no such
+//  surface, and in fullscreen the words would sit on whatever the game is
+//  drawing. Both take a message bar under the command strip instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2331,36 +2337,109 @@ void EmulatorShell::SyncCaptureBanner()
 
 
 
-    if (!m_paddleCaptured || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
         m_captureBanner.SetVisible (false);
+        m_captureBar.SetVisible    (false);
         return;
     }
 
-    // ABOVE THE BOTTOM CHROME, not on it. Hung from the client's own bottom
-    // edge the notice straddled the switch bar, half over the scene and half
-    // over a shell band, reading as neither -- and on a machine with no
-    // switch bar it covered the drive widgets outright. Measured off
-    // whichever bottom band is topmost, because either can be collapsed to
-    // nothing: the switch strip exists only on the //c, and the drive band
-    // is empty under the desk scene, where the scene owns the drives. A
-    // collapsed band reports bottom == top and is skipped. The picture is
-    // not available as a floor either; the CRT pass paints over this chrome.
+    m_captureBanner.SetVisible (CaptureHudWanted());
+    m_captureBar.SetVisible    (CaptureBarWanted());
+
+    if (CaptureBarWanted())
+    {
+        //  HUNG UNDER THE COMMAND STRIP, WHEREVER THAT STRIP IS -- docked at
+        //  the top of a window, or slid down over a fullscreen picture -- and
+        //  at the client's own top edge when the strip is away. One rule for
+        //  both presentations, and it follows the reveal rather than being
+        //  covered by it.
+        //
+        //  AN OVERLAY RATHER THAN A BAND, which is the opposite of what the
+        //  external-change notice does and for a reason peculiar to this one:
+        //  a band would make the picture give up the height, and resizing the
+        //  picture CANCELS MOUSE CAPTURE (Windows raises WM_CANCELMODE, which
+        //  drops the grab). The notice exists to say the pointer is held, so
+        //  it cannot be announced by a layout pass that lets it go.
+        RECT   strip = m_toolbar.GetBounds();
+        LONG   top   = (m_toolbar.IsVisible() && strip.bottom > client.top)
+                           ? strip.bottom : client.top;
+        float  width = (float) (client.right - client.left);
+
+        rc.left   = client.left;
+        rc.right  = client.right;
+        rc.top    = top;
+        rc.bottom = top + (LONG) m_captureBar.GetPreferredHeightPx (width, m_scaler);
+
+        m_captureBar.SetDpi (m_scaler.GetDpi());
+        m_captureBar.Layout (rc, m_scaler);
+    }
+
+    if (!CaptureHudWanted())
+    {
+        return;
+    }
+
+    // ON THE PICTURE WHEN THE MONITOR IS ON THE DESK -- low on it, where a
+    // paddle game's action is not, which is what a shadowed caption is for.
+    // Placed off the MONITOR'S projected bounds, whose center lands on the
+    // glass, and not off glassRectPx: that rect tracks something other than
+    // the CRT (SyncSceneViewReadout says what it measured). Halfway from that
+    // center to the monitor's bottom edge is the lower part of the picture,
+    // clear of the drives below and of their name strips below those.
+    if (DeskSceneActive() && CrtMonitorActive()
+        && m_deskScene.Composition().monitorRectPx.bottom
+             > m_deskScene.Composition().monitorRectPx.top)
+    {
+        const RECT &  monitor = m_deskScene.Composition().monitorRectPx;
+        LONG          cy      = (monitor.top + monitor.bottom) / 2;
+
+        rc.left   = client.left;
+        rc.right  = client.right;
+        rc.bottom = cy + (monitor.bottom - cy) / 2;
+        rc.top    = rc.bottom - m_scaler.ToPx (s_kCaptureBannerHeightDp);
+
+        m_captureBanner.SetText        (s_kCaptureBanner);
+        m_captureBanner.SetFontSizeDip (s_kCaptureBannerFontDip);
+        m_captureBanner.SetDpi         (m_scaler.GetDpi());
+        m_captureBanner.Layout         (rc, m_scaler);
+        return;
+    }
+
+    // ABOVE WHATEVER THE BOTTOM OF THE WINDOW ALREADY SAYS, not on it. Hung
+    // from the client's own bottom edge the notice straddled the switch bar,
+    // half over the scene and half over a shell band, reading as neither --
+    // and where there is no switch bar it covered the drive widgets outright.
+    // So it floors on the topmost thing down there, and everything down there
+    // can be absent: the switch strip exists only on the //c, the drive band
+    // is empty under the desk scene (the scene owns the drives), and the
+    // scene's own name strips are empty when no disk is mounted. Each is
+    // skipped when it reports nothing. The picture is not available as a
+    // floor either; the CRT pass paints over this chrome.
     {
         RECT  strip  = m_switchBand.GetBounds();
         RECT  drives = m_driveBand.GetBounds();
         LONG  bottom = client.bottom;
 
-        if (!m_d3dRenderer.IsFullscreen())
+        if (strip.bottom > strip.top && strip.top < bottom)
         {
-            if (strip.bottom > strip.top && strip.top < bottom)
-            {
-                bottom = strip.top;
-            }
+            bottom = strip.top;
+        }
 
-            if (drives.bottom > drives.top && drives.top < bottom)
+        if (drives.bottom > drives.top && drives.top < bottom)
+        {
+            bottom = drives.top;
+        }
+
+        //  The name under each 3D drive is the desk scene's answer to the
+        //  drive band, and it hangs BELOW the drives -- so under the scene it
+        //  is the lowest chrome there is, and the only thing between the
+        //  notice and the mounted image's name.
+        for (const RECT & label : m_sceneDriveLabelRect)
+        {
+            if (label.bottom > label.top && label.top < bottom)
             {
-                bottom = drives.top;
+                bottom = label.top;
             }
         }
 
@@ -2374,7 +2453,6 @@ void EmulatorShell::SyncCaptureBanner()
     m_captureBanner.SetFontSizeDip (s_kCaptureBannerFontDip);
     m_captureBanner.SetDpi         (m_scaler.GetDpi());
     m_captureBanner.Layout         (rc, m_scaler);
-    m_captureBanner.SetVisible     (true);
 }
 
 
@@ -4222,6 +4300,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_toolbar);
     m_host->GetRoot().Adopt (m_switchBar);
     m_host->GetRoot().Adopt (m_changeBanner);
+    m_host->GetRoot().Adopt (m_captureBar);
+
+    //  FIXED WORDS, SET ONCE. The bar says the same thing every time it is up,
+    //  and its band is measured from that text before the bar has ever been
+    //  shown -- so the text cannot wait until the first capture to exist.
+    m_captureBar.SetText     (s_kCaptureBanner);
+    m_captureBar.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_captureBar.SetVisible  (false);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
