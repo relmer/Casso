@@ -4,6 +4,8 @@
 
 #include "CrtPostProcess.h"
 
+#include "Capture/CapturedImage.h"
+
 
 
 
@@ -80,6 +82,17 @@ public:
     // The offscreen target's SRV (null until UploadAndCompositeOffscreen
     // has run). Non-owning; valid until Shutdown or the next resize.
     ID3D11ShaderResourceView * GetSceneContentSrv () const { return m_sceneSrv.Get(); }
+
+    // Screenshot readback. Both bring a rectangle of already-rendered pixels
+    // back to the CPU; the caller has driven the frame and has NOT presented
+    // yet, because a presented flip-model back buffer's contents are
+    // discarded by definition.
+    //
+    // The staging resources are created per call and released with the call.
+    // A retained copy would mean a full back-buffer copy every frame, forever,
+    // to serve an action taken at human frequency.
+    HRESULT CaptureBackBufferRegion (const RECT & regionPx, CapturedImage & outImage);
+    HRESULT CaptureSceneTargetRegion (const RECT & regionPx, CapturedImage & outImage);
 
     HRESULT ToggleFullscreen (HWND hwnd);
 
@@ -174,6 +187,13 @@ private:
     // Creates (or resizes) the offscreen scene-content target. Sized to the
     // PICTURE, not the window -- see UploadAndCompositeOffscreen.
     HRESULT EnsureSceneContentTarget (int width, int height);
+
+    // Copies `regionPx` of `source` into a staging texture and maps it out to
+    // tightly packed, top-down BGRA. Clamps the region to the source's real
+    // extent, so a stale rect costs pixels rather than a device removal.
+    HRESULT ReadBackRegion (ID3D11Texture2D * source,
+                            const RECT      & regionPx,
+                            CapturedImage   & outImage);
 
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;

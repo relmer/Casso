@@ -592,7 +592,7 @@ void WindowCommandManager::OnEditCommand (int id)
 
         case IDM_EDIT_COPY_SCREENSHOT:
         {
-            m_shell.m_clipboardManager->CopyScreenshot (m_shell.m_hwnd);
+            m_shell.TakeScreenshot();
             break;
         }
 

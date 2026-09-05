@@ -89,9 +89,9 @@ no GPU-to-CPU readback anywhere in the tree -- every `Map` in `Casso/` and `Dxui
 
 ### Readback and the shell seam
 
-- [ ] T018 Add a readback entry point to `Casso/D3DRenderer.h/.cpp`: create a `D3D11_USAGE_STAGING` texture with `D3D11_CPU_ACCESS_READ` sized to the requested rectangle, `CopySubresourceRegion` the source into it, `Map` for read, unpack rows honoring `D3D11_MAPPED_SUBRESOURCE::RowPitch` into a tightly packed top-down RGBA buffer, `Unmap`. Resources are created per capture and released, never retained. Single exit via `Error:` so the unmap cannot be skipped
-- [ ] T019 Change `ClipboardManager::CopyScreenshot` in `Casso/Shell/ClipboardManager.h/.cpp` to accept a captured image rather than reading `m_uiFramebuffer` directly, keeping the CF_DIB form and the reversed-row emission
-- [ ] T020 Add `Casso/Shell/ScreenshotCapture.h/.cpp` to execute a resolved `ScreenshotPlan`: readback or framebuffer read, PNG encode, file write, clipboard copy, populating a `CaptureOutcome`
+- [X] T018 Add a readback entry point to `Casso/D3DRenderer.h/.cpp`: create a `D3D11_USAGE_STAGING` texture with `D3D11_CPU_ACCESS_READ` sized to the requested rectangle, `CopySubresourceRegion` the source into it, `Map` for read, unpack rows honoring `D3D11_MAPPED_SUBRESOURCE::RowPitch` into a tightly packed top-down RGBA buffer, `Unmap`. Resources are created per capture and released, never retained. Single exit via `Error:` so the unmap cannot be skipped
+- [X] T019 Change `ClipboardManager::CopyScreenshot` in `Casso/Shell/ClipboardManager.h/.cpp` to accept a captured image rather than reading `m_uiFramebuffer` directly, keeping the CF_DIB form and the reversed-row emission
+- [X] T020 Add `Casso/Shell/ScreenshotCapture.h/.cpp` to execute a resolved `ScreenshotPlan`: readback or framebuffer read, PNG encode, file write, clipboard copy, populating a `CaptureOutcome`
 
 **Checkpoint**: The decision layer is fully unit-tested and the readback works. User story
 work can begin.

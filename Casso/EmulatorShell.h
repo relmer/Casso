@@ -18,6 +18,7 @@
 #include "Devices/IAciaEndpoint.h"
 #include "Print/PrinterWorker.h"
 #include "Shell/ClipboardManager.h"
+#include "Shell/ScreenshotCapture.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
@@ -322,6 +323,11 @@ private:
     void RunCpuThreadFrame();
     void ExecuteCpuSlices();
     void RenderFramebuffer();
+
+    // Take a screenshot in the user's configured mode: copy it to the
+    // clipboard, write the PNG if saving is on, and say what happened.
+    // Bound to the toolbar camera, Edit > Copy screenshot, and Ctrl+Alt+C.
+    void TakeScreenshot();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
 
     // Presentation pacing + render-skip gate (rationale in the .cpp).
@@ -1402,6 +1408,65 @@ private:
     // cursor gone and no way out shown is how a user ends up killing the
     // process. This rides above the picture in both presentations.
     DxuiHudNotice              m_captureBanner;
+
+    //  A SCREENSHOT IN FLIGHT.
+    //
+    //  Scene and Crt captures cannot be taken from outside a frame: the swap
+    //  chain is FLIP_DISCARD, so a presented back buffer holds nothing, and
+    //  the two modes want different moments anyway -- Crt after the CRT
+    //  composite but before the chrome walk, Scene after it. So TakeScreenshot
+    //  arms this, drives one synchronous paint, and the paint hooks fill in
+    //  the pixels at whichever point the plan asked for.
+    //
+    //  It is not a queue and does not survive the paint: if the frame did not
+    //  service it, `captured` stays false and the capture is reported as
+    //  having failed rather than silently landing on a later frame.
+    //  WHERE IN THE FRAME A CAPTURE IS TAKEN. Not derivable from the source:
+    //  both points can read the back buffer, and which is right depends on
+    //  the mode rather than on the texture.
+    //
+    //  AfterPicture   end of the before-present hook. The CRT composite is
+    //                 finished and nothing has painted over it -- what Crt
+    //                 wants.
+    //  AfterChrome    the after-paint hook. Everything the scene contributes
+    //                 is in, INCLUDING the 3D drives, which render there
+    //                 rather than in the composite when the monitor is off --
+    //                 which is why Scene cannot simply share the point above.
+    enum class CapturePoint
+    {
+        AfterPicture,
+        AfterChrome,
+    };
+
+    struct PendingCapture
+    {
+        bool            armed    = false;
+        bool            captured = false;
+        CapturePoint    at       = CapturePoint::AfterChrome;
+        CaptureSource   from     = CaptureSource::BackBufferRegion;
+        RECT            regionPx = {};
+        CapturedImage   image;
+    };
+
+    PendingCapture             m_pendingCapture;
+
+    // The screenshot result notice: the filename on success, the reason
+    // otherwise. Its own notice rather than the mouse-capture banner's,
+    // because the two can be wanted at once and this one expires on a timer
+    // while that one tracks a state.
+    DxuiHudNotice              m_screenshotNotice;
+    int64_t                    m_screenshotNoticeUntilMs = 0;
+
+    void  ShowCaptureNotice   (const std::wstring & text);
+    void  SyncCaptureNotice   ();
+
+    // Called from the two paint hooks at their own points in the frame; fills
+    // the pending capture when the point matches what the plan asked for.
+    void  ServiceCaptureRequest (CapturePoint atPoint);
+
+    // Hides (or restores) the overlays that describe the application rather
+    // than the machine, for the duration of a capture paint.
+    void  SetCaptureOverlaysHidden (bool hidden);
 
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.

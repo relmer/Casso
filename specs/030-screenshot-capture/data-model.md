@@ -53,18 +53,25 @@ straight into the back buffer and the picture must be sub-rected out of it.
 
 ### Frame ordering
 
-Which point in the frame a source is read at is part of the source, not an
-implementation detail, because it is what makes FR-003 and FR-004 true:
+Which point in the frame a capture is read at is **not derivable from the source** --
+both points can read the back buffer -- so it is carried separately, and it follows the
+MODE. It is what makes FR-003 and FR-004 true.
 
-| Source | Read at | Why |
-|---|---|---|
-| `Framebuffer` | any time, no paint needed | CPU-side; no overlay suppression either |
-| `PictureTarget` | after the CRT composite | the target holds only the picture; nothing else ever lands in it |
-| `BackBufferRegion`, `mode == Crt` | after the CRT composite, **before** the chrome panel walk | chrome has not painted yet, so the sub-rect is picture-only |
-| `BackBufferRegion`, `mode == Scene` | **after** the chrome panel walk | the scene is complete; the viewport rect excludes the chrome bands, which lie outside it |
+**Corrected during implementation.** This table first said `Scene` reads "after the chrome
+panel walk" because the scene was assumed to be painted by the panel tree. It is not: the
+desk scene composites inside the host's *before-present* hook, and the panel tree paints
+chrome on top of it afterwards. The conclusion survives but for a different reason, and
+the reason matters -- see the last row.
 
-The overlays hidden per FR-007 are suppressed for the whole capture paint, so they are
-absent regardless of which point is read.
+| Mode | Point | Where that is | Why |
+|---|---|---|---|
+| `Raw` | none | no paint at all | CPU-side; no overlay suppression either |
+| `Crt` | `AfterPicture` | end of the before-present hook | the CRT composite is finished and nothing has painted over it |
+| `Scene` | `AfterChrome` | the after-paint hook | not because chrome must be included -- the viewport rect excludes the chrome bands anyway -- but because the **3D drives render in that hook** when the monitor is off. Capturing at `AfterPicture` would drop them from exactly the theme that has no monitor to hide them behind |
+
+The overlays hidden per FR-007 are suppressed across the whole capture paint, so they are
+absent at either point. For `Crt` this is belt and braces (they paint later regardless);
+for `Scene` it is load-bearing.
 
 ---
 

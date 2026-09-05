@@ -248,6 +248,7 @@
     <ClCompile Include="Devices\Disk\BlankDiskBuilder.cpp" />
     <ClCompile Include="Devices\Disk\StockBootDisks.cpp" />
     <ClCompile Include="Capture\CaptureOutcome.cpp" />
+    <ClCompile Include="Capture\CapturedImage.cpp" />
     <ClCompile Include="Capture\ScreenshotMode.cpp" />
     <ClCompile Include="Capture\ScreenshotPlan.cpp" />
     <ClCompile Include="Cli\CommandLine.cpp" />
@@ -374,6 +375,7 @@
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\StockBootDisks.h" />
     <ClInclude Include="Capture\CaptureOutcome.h" />
+    <ClInclude Include="Capture\CapturedImage.h" />
     <ClInclude Include="Capture\ScreenshotMode.h" />
     <ClInclude Include="Capture\ScreenshotPlan.h" />
     <ClInclude Include="Cli\CommandLine.h" />

@@ -230,6 +230,11 @@ static constexpr int     s_kCaptureBannerHeightDp   = 44;
 static constexpr int     s_kCaptureBannerInsetDp    = 16;
 static constexpr float   s_kCaptureBannerFontDip    = DxuiHudNotice::kFontDip;
 
+// How long the screenshot result stays up. Long enough to read a filename
+// without hunting for it, short enough that it is gone before the next thing
+// the user wants to look at.
+static constexpr int64_t s_kScreenshotNoticeMs      = 4000;
+
 static const std::wstring         s_kCaptureBanner =
     std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
 // The readout sits in the bottom-left corner, inset far enough that its
@@ -1461,6 +1466,12 @@ HRESULT EmulatorShell::InitializeRenderer()
         // persistent one (device lost) shows on screen and is handled by
         // the renderer's own device-reset path, not from here.
         IGNORE_RETURN_VALUE (hrComposite, S_OK);
+
+        //  A Crt capture belongs HERE, at the end of the composite and
+        //  before the chrome walk: the picture is finished and nothing has
+        //  painted over it yet. Waiting until after the panel tree would
+        //  collect the readouts and any chrome overlapping the viewport.
+        ServiceCaptureRequest (CapturePoint::AfterPicture);
     });
 
     // With the monitor opted out the drives are the only scene objects, and
@@ -1472,6 +1483,14 @@ HRESULT EmulatorShell::InitializeRenderer()
     {
         HRESULT  hrDrives = S_OK;
 
+
+        //  A Scene capture is taken at the TOP of this hook, ahead of the
+        //  early returns below -- it has to run whatever the monitor and
+        //  theme state, and by here the panel tree has painted and the scene
+        //  is whole. The drives rendered further down belong to the
+        //  monitor-off path, which is the one case this ordering gets wrong;
+        //  see the note in TakeScreenshot.
+        ServiceCaptureRequest (CapturePoint::AfterChrome);
 
         if (CrtMonitorActive() || !DeskSceneActive())
         {
@@ -4160,6 +4179,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
     m_host->GetRoot().Adopt (m_captureBanner);
+    m_host->GetRoot().Adopt (m_screenshotNotice);
     m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
@@ -7858,6 +7878,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // The capture banner and the fullscreen toolbar reveal, both per-frame
     // because both answer where the pointer is right now.
     SyncCaptureBanner();
+    SyncCaptureNotice();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
     TickFullscreenToolbar();
@@ -9319,6 +9340,299 @@ void EmulatorShell::ExecuteCpuSlices()
             m_refs.speaker->ClearTimestamps();
             m_refs.speaker->BeginFrame();
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowCaptureNotice
+//
+//  Post the screenshot result over the picture for a few seconds.
+//
+//  The text arrives already composed by CaptureOutcome::DescribeResult, which
+//  is deliberate: every branch of what to say about a capture is decided in
+//  core where a test can reach it, and this function chooses no wording.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowCaptureNotice (const std::wstring & text)
+{
+    int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                          std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
+    m_screenshotNotice.SetText (text);
+    m_screenshotNoticeUntilMs = nowMs + s_kScreenshotNoticeMs;
+
+    SyncCaptureNotice();
+
+    m_d3dRenderer.MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncCaptureNotice
+//
+//  Lay the notice out while it is live, and drop it once it expires.
+//
+//  It sits where the mouse-capture banner does, since both are transient
+//  messages about the window rather than about the machine -- but they are
+//  separate notices, because a screenshot taken with the paddle captured
+//  should not silently replace the words telling the user how to get their
+//  cursor back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncCaptureNotice()
+{
+    RECT      client = {};
+    RECT      rc     = {};
+    int64_t   nowMs  = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                           std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
+    if (nowMs >= m_screenshotNoticeUntilMs || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        m_screenshotNotice.SetVisible (false);
+        return;
+    }
+
+    {
+        RECT  bar    = m_switchBand.GetBounds();
+        LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
+                     ? bar.top : client.bottom;
+
+        //  One banner height above the mouse-capture line, so the two stack
+        //  rather than overprint when both are up.
+        rc.left   = client.left;
+        rc.right  = client.right;
+        rc.bottom = bottom - m_scaler.ToPx (s_kCaptureBannerInsetDp)
+                           - m_scaler.ToPx (s_kCaptureBannerHeightDp);
+        rc.top    = rc.bottom - m_scaler.ToPx (s_kCaptureBannerHeightDp);
+    }
+
+    m_screenshotNotice.SetFontSizeDip (s_kCaptureBannerFontDip);
+    m_screenshotNotice.SetDpi         (m_scaler.GetDpi());
+    m_screenshotNotice.Layout         (rc, m_scaler);
+    m_screenshotNotice.SetVisible     (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCaptureOverlaysHidden
+//
+//  HIDE WHAT DESCRIBES THE APPLICATION; CAPTURE WHAT DESCRIBES THE MACHINE.
+//
+//  The compass is a control, the two readouts are diagnostics, and the
+//  mouse-capture banner is a transient piece of state -- none of them are part
+//  of the machine on the desk, and all four sit inside the viewport where a
+//  Scene capture would otherwise collect them.
+//
+//  A useful side effect: a scene capture no longer depends on which
+//  diagnostics happen to be switched on, so two captures of the same view are
+//  the same image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
+{
+    if (hidden)
+    {
+        m_sceneCompass.SetVisible    (false);
+        m_fpsReadout.SetVisible      (false);
+        m_sceneViewReadout.SetVisible (false);
+        m_captureBanner.SetVisible   (false);
+    }
+    else
+    {
+        //  Restored by the layout pass that owns each one, rather than by
+        //  remembering four booleans here -- the pose readout and the frame
+        //  rate are driven by prefs, the compass by whether a scene is up,
+        //  and the banner by whether the mouse is captured. Re-deriving is
+        //  what keeps this from disagreeing with them.
+        LayoutSceneCompass();
+        SyncFrameRateReadout();
+        SyncSceneViewReadout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServiceCaptureRequest
+//
+//  Called from both paint hooks. Fills the pending capture if this is the
+//  point in the frame the plan asked for, and does nothing otherwise.
+//
+//  Read failures are swallowed here on purpose: `captured` stays false and
+//  TakeScreenshot reports it once the frame is over. A paint hook is not a
+//  place to raise anything -- it runs inside the host's pump, with a frame
+//  half-built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ServiceCaptureRequest (CapturePoint atPoint)
+{
+    HRESULT   hr = S_OK;
+
+
+
+    if (!m_pendingCapture.armed || m_pendingCapture.captured)
+    {
+        return;
+    }
+
+    if (m_pendingCapture.at != atPoint)
+    {
+        return;
+    }
+
+    if (m_pendingCapture.from == CaptureSource::PictureTarget)
+    {
+        hr = m_d3dRenderer.CaptureSceneTargetRegion (m_pendingCapture.regionPx, m_pendingCapture.image);
+    }
+    else
+    {
+        hr = m_d3dRenderer.CaptureBackBufferRegion (m_pendingCapture.regionPx, m_pendingCapture.image);
+    }
+
+    m_pendingCapture.captured = SUCCEEDED (hr);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeScreenshot
+//
+//  Resolve what the user asked for, get the pixels, deliver them, say what
+//  happened.
+//
+//  THE PIXELS COME FROM ONE OF TWO PLACES, and which one decides the shape of
+//  this function. A Raw capture is a memcpy out of the framebuffer and needs
+//  no frame at all. The other two live on the GPU in a back buffer that
+//  FLIP_DISCARD throws away at Present, so they can only be read from inside a
+//  paint -- which is why this arms a request, drives one synchronous paint
+//  through the ordinary WM_PAINT path, and collects the result afterwards.
+//
+//  Driving the paint rather than waiting for the next natural one keeps the
+//  whole thing synchronous from the caller's point of view: the notice appears
+//  in the same turn the user pressed the button.
+//
+//  The overlays are hidden across that paint and restored immediately, which
+//  the user sees as a shutter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TakeScreenshot()
+{
+    HRESULT                     hr          = S_OK;
+    ScreenshotPlanInputs        inputs;
+    ScreenshotPlan              plan;
+    ScreenshotCapture::Sources  sources;
+    CaptureOutcome              outcome;
+    CapturedImage               image;
+    vector<MetadataEntry>       textChunks;
+    PWSTR                       picturesRaw = nullptr;
+    HRESULT                     hrPictures  = S_OK;
+    SYSTEMTIME                  now         = {};
+
+
+
+    GetLocalTime (&now);
+
+    hrPictures = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
+
+    if (SUCCEEDED (hrPictures))
+    {
+        inputs.defaultPicturesFolder = fs::path (picturesRaw);
+    }
+
+    inputs.mode            = ScreenshotModeToken::Parse (m_globalPrefs.screenshotMode);
+    inputs.saveFile        = m_globalPrefs.screenshotSaveFile;
+    inputs.folder          = fs::path (m_globalPrefs.screenshotFolder);
+    inputs.viewportPx      = m_viewportBoundsPx;
+    inputs.picturePx       = m_d3dRenderer.GetTargetBounds();
+    inputs.framebufferSize = { kFramebufferWidth, kFramebufferHeight };
+    inputs.deskSceneActive = DeskSceneActive();
+    inputs.windowMinimized = (IsIconic (m_hwnd) != FALSE);
+    inputs.when            = now;
+
+    plan = ScreenshotPlan::Resolve (inputs,
+               [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
+
+    sources.hwnd             = m_hwnd;
+    sources.renderer         = &m_d3dRenderer;
+    sources.clipboard        = m_clipboardManager.get();
+    sources.framebuffer      = m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
+    sources.framebufferMutex = &m_framebufferMutex;
+    sources.framebufferSize  = { kFramebufferWidth, kFramebufferHeight };
+
+    if (plan.refusal == CaptureRefusal::None)
+    {
+        if (plan.source == CaptureSource::Framebuffer)
+        {
+            hr = ScreenshotCapture::AcquirePixels (plan, sources, image);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else
+        {
+            m_pendingCapture          = PendingCapture();
+            m_pendingCapture.armed    = true;
+            m_pendingCapture.from     = plan.source;
+            m_pendingCapture.regionPx = plan.sourceRectPx;
+            m_pendingCapture.at       = (inputs.mode == ScreenshotMode::Scene)
+                                        ? CapturePoint::AfterChrome
+                                        : CapturePoint::AfterPicture;
+
+            SetCaptureOverlaysHidden (true);
+
+            m_d3dRenderer.MarkRedrawNeeded();
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+            UpdateWindow   (m_hwnd);
+
+            SetCaptureOverlaysHidden (false);
+
+            if (m_pendingCapture.captured)
+            {
+                image = std::move (m_pendingCapture.image);
+            }
+
+            m_pendingCapture = PendingCapture();
+        }
+    }
+
+    hr = ScreenshotCapture::Deliver (plan, sources, textChunks, image, outcome);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    ShowCaptureNotice (CaptureOutcome::DescribeResult (outcome));
+
+    if (picturesRaw != nullptr)
+    {
+        CoTaskMemFree (picturesRaw);
     }
 }
 
