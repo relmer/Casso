@@ -581,8 +581,8 @@ public:
                           L"and says which drive has it");
         Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive + 1));
 
-        //  The message names the drive rather than leaving the reader to look
-        //  in both.
+        //  The message says which drive has it rather than leaving the reader
+        //  to look in both.
         Assert::IsTrue (diagnosis.Describe().find ("drive 1") != std::string::npos);
     }
 
