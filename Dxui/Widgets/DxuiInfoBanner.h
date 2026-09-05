@@ -61,6 +61,18 @@ public:
     //  it did.
     void  SetTrailingReservePx (float reservePx) { m_trailingReservePx = reservePx; }
 
+    //  Centers the badge and the text AS ONE GROUP within the banner, rather
+    //  than starting them at the leading edge. For a banner that is a strip
+    //  across a window rather than a box in a dialog: left-aligned, one short
+    //  line stranded itself against the far edge of a very wide bar.
+    //
+    //  The group, not the text alone -- the badge belongs to the words, and
+    //  parking it at the leading edge with the text adrift in the middle
+    //  reads as two things that happen to share a strip.
+    //
+    //  Off by default, so every existing banner paints exactly as it did.
+    void  SetCentered (bool centered) { m_centered = centered; }
+
     void  SetRect (const RECT & rect) { SetBounds (rect); }
     void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }
 
@@ -110,6 +122,9 @@ private:
     //  How much of the trailing edge belongs to something else. See
     //  SetTrailingReservePx.
     float           m_trailingReservePx = 0.0f;
+
+    //  See SetCentered.
+    bool            m_centered = false;
 
     std::wstring    m_text;
     DxuiDpiScaler   m_scaler;

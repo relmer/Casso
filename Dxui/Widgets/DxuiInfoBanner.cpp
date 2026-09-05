@@ -207,6 +207,35 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         return;
     }
 
+    //  CENTERED AS A GROUP when the caller asked for it: the badge, the gap
+    //  and the text measured together and slid to the middle. Measured, not
+    //  estimated -- Paint has the renderer that Layout does not -- and only
+    //  when the line actually fits, so a long notice keeps the wrapping
+    //  layout it needs rather than being pushed off the leading edge.
+    if (m_centered)
+    {
+        float  measuredW = 0.0f;
+        float  measuredH = 0.0f;
+        HRESULT  hrMeasure = text.MeasureString (m_text.c_str(), fontPx,
+                                                 DxuiTheme::kBodyFace,
+                                                 measuredW, measuredH);
+
+        if (SUCCEEDED (hrMeasure) && measuredW > 0.0f && measuredW <= textW)
+        {
+            float  groupW = iconBox + iconGap + measuredW;
+            float  startX = left + (width - m_trailingReservePx - groupW) * 0.5f;
+
+            if (startX < left + padX)
+            {
+                startX = left + padX;
+            }
+
+            iconCx = startX + iconR;
+            textX  = startX + iconBox + iconGap;
+            textW  = measuredW;
+        }
+    }
+
     // Themed surface: a subtle tinted fill inside a muted border, so the banner
     // reads as a notice, not a button. A warning carries its own hue rather
     // than the theme accent -- caution should not depend on what the accent

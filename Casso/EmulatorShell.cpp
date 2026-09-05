@@ -4226,6 +4226,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  shown -- so the text cannot wait until the first capture to exist.
     m_captureBar.SetText     (s_kCaptureBanner);
     m_captureBar.SetSeverity (DxuiInfoBanner::Severity::Info);
+
+    //  CENTERED, because this bar spans the window rather than sitting in a
+    //  dialog: one short line held against the leading edge of a wide strip
+    //  reads as something that failed to lay out.
+    m_captureBar.SetCentered (true);
     m_captureBar.SetVisible  (false);
 
     // Give the host the chrome theme so its paint pump renders the
