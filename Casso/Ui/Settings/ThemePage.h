@@ -42,6 +42,7 @@ public:
     using  FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
     using  MountedPathFn       = std::function<std::wstring (int driveIndex)>;
     using  WriteProtectFn      = std::function<WriteProtectInfo (int driveIndex)>;
+    using  DriveActivityFn     = std::function<void (int driveIndex, DriveWidgetState & outState)>;
     using  HasDiskSourceFn     = std::function<bool ()>;
 
     void  SetThemes             (std::vector<std::string>  themeIds,
@@ -51,6 +52,11 @@ public:
     void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
     void  SetMountedPathSource  (MountedPathFn       fn) { m_mountedPathSource = std::move (fn); }
     void  SetWriteProtectSource (WriteProtectFn      fn) { m_writeProtectSource = std::move (fn); }
+
+    // Head position + activity for the preview's drives. The mounted path and
+    // the write-protect cue have their own sources; this one carries what the
+    // 2D themes' head bar reads. Absent => the bar draws its rail alone.
+    void  SetDriveActivitySource (DriveActivityFn    fn) { m_driveActivitySource = std::move (fn); }
 
     // Reports whether the staged machine config has an ENABLED Disk ][
     // controller. When it returns false the preview drops the drive widgets
@@ -197,6 +203,7 @@ private:
                                      const std::function<const uint32_t * (int &, int &)> & framebufferSource,
                                      const std::function<std::wstring (int)>              & mountedPathSource,
                                      const std::function<WriteProtectInfo (int)>          & writeProtectSource,
+                                     const std::function<void (int, DriveWidgetState &)>   & driveActivitySource,
                                      std::array<DriveWidget, 2>           & previewDrives,
                                      DxuiCaptionBar                       & previewCaption,
                                      MainMenu                             & previewMenu,
@@ -225,6 +232,7 @@ private:
     FramebufferSourceFn  m_framebufferSource;
     MountedPathFn        m_mountedPathSource;
     WriteProtectFn       m_writeProtectSource;
+    DriveActivityFn      m_driveActivitySource;
     HasDiskSourceFn      m_hasDiskSource;
     ApplyThemeNowFn      m_onApplyThemeNow;
     CrtMonitorFn         m_onCrtMonitorToggled;
