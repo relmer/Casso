@@ -2,15 +2,17 @@
 
 **Feature**: `024-mockingboard-speech` | **Issue**: #123 | **Date**: 2026-09-05
 
-**Status: NOT STARTED. The owner has not given the go-ahead.** This document
-exists because the experiment had no written record anywhere in the tree: it was
-carried in a handoff and in session transcripts only, and both of those expire.
-Nothing here has been implemented.
+**Status: RUN on 2026-09-05. The hypothesis is REFUTED as a single-parameter
+change.** Moving the glottal source's break frequency does buy F2 and F3 the
+energy they lack, but it pays for that energy out of the 80-200 Hz band at a
+rate of roughly 4 dB lost for every 1 dB gained, which is the thin and buzzy
+voice `8b4a2556` already repaired once. No code change came out of this. See
+**Results** below; the constant is untouched and still 50.0.
+
+What remains open is the deficit itself, which is real and is not the break
+frequency's to fix. See **Where to look next**.
 
 Read the provenance section at the end before acting on any number in this file.
-The two headline measurements come from an earlier session and have not been
-reproduced; everything else is derived from the code and the phoneme ROM table
-and can be re-checked in a minute.
 
 ---
 
@@ -120,17 +122,125 @@ assuming 48 kHz.
 5. The sibilants hold. Z against L was 33 dB apart after the fricative work; a
    refit must not close that.
 
+## Results, 2026-09-05
+
+### Method
+
+`pulse-probe.dsk` on `--machine Apple2e`, which holds EH unchanging for several
+seconds, captured through `CASSO_AUDIO_DUMP`. The capture rate was derived by
+timing the dump file's growth over a measured interval rather than assumed:
+**48003 Hz**, so 48 kHz. The steady hold runs 2.0-5.75 s into the capture; every
+figure below is the 2.25-5.50 s window, Welch averaged, 8192-point FFT.
+
+Only `s_kSourceBreakHz` changed between runs. Each value got a full rebuild and
+its own capture. Formant peaks are read at EH's stored formants, F1 577, F2 1823
+and F3 2511 Hz.
+
+Levels are quoted **relative to the F1 peak**, because overall gain is a free
+parameter that would be retuned anyway: raising the break lifts the whole output
+by up to 24 dB, and renormalizing to equal loudness is what a listener hears.
+
+### The sweep
+
+| `s_kSourceBreakHz` | below 800 Hz | F2 - F1 | F3 - F1 | 80-200 Hz - F1 | rolloff above F1 |
+|---|---|---|---|---|---|
+| **50 (shipping)** | 98.38% | -19.0 dB | -35.0 dB | **-4.6 dB** | -37.8 dB/oct |
+| 100 | 98.18% | -18.8 dB | -34.8 dB | -7.9 dB | -38.0 dB/oct |
+| 200 | 96.73% | -16.9 dB | -34.9 dB | -17.7 dB | -6.2 dB/oct |
+| 400 | 91.17% | -13.2 dB | -33.8 dB | -29.7 dB | -4.7 dB/oct |
+| **805 (known bad)** | 86.44% | -10.3 dB | -27.9 dB | **-31.7 dB** | -1.5 dB/oct |
+
+### The control worked
+
+805 Hz is the value `8b4a2556` removed. Its note records the result as 21 dB
+short at 80-200 Hz against the real chip. Measured here, 805 Hz costs 27.1 dB in
+that band relative to F1 against the shipping build. Same direction, same order,
+so the measurement can see the regression it is supposed to guard against. A
+sweep whose known-bad point looked fine would have proved nothing.
+
+### Why the hypothesis fails
+
+The exchange rate is bad everywhere on the curve, and it never improves:
+
+| Step | F2 - F1 gained | 80-200 Hz - F1 lost | Cost per dB of F2 |
+|---|---|---|---|
+| 50 to 200 | 2.1 dB | 13.1 dB | 6.2 dB |
+| 50 to 400 | 5.8 dB | 25.1 dB | 4.3 dB |
+| 50 to 805 | 8.7 dB | 27.1 dB | 3.1 dB |
+
+Even at 805 Hz, which is already past the point that shipped once and was
+reverted, **F2 is still 10.3 dB under F1**. So the break frequency cannot
+deliver an adequate F2 at any setting, never mind one that keeps the
+fundamental. There is no value of this constant that is worth having.
+
+An absolute-level check confirms the reading is not an artifact of the relative
+measure: from 50 to 805 Hz the 80-200 Hz band moves by -2.7 dB in absolute
+terms while the F1 peak rises 24.4 dB and F2 rises 33.1 dB. The band is not
+collapsing on its own; everything above it is running away from it. Once the
+output is renormalized to equal loudness, that is the same thing.
+
+### What was confirmed, and what was not
+
+- **"99.5% of energy below 800 Hz" is corroborated in substance.** A steady EH
+  measures 98.38%. The original figure was quoted for a spoken line rather than
+  one held vowel, so the two are not the same measurement, but the deficit is
+  real and this large.
+- **F2 and F3 are underexcited**, at -19.0 dB and -35.0 dB against F1 for a
+  vowel whose formants are only an octave and a half apart.
+- **The 11 dB deficit against the real chip is still unverified.** No reference
+  recording exists anywhere on this machine. Without it, "closer to the chip"
+  cannot be evaluated at all, only "different from where we are".
+- **The filter register sweep was not tested.** Both probes write `SFILT` once
+  and hold it; measuring that claim needs a probe that steps it.
+
+## Where to look next
+
+The deficit is real, so something else is producing it. In rough order of how
+much each could plausibly be worth:
+
+1. **The F1 resonator's bandwidth**, `s_kBandwidthHz[0]` = 60 Hz. A narrow F1
+   both concentrates energy at F1 and steepens the skirt that F2 and F3 sit
+   under. The measured rolloff above F1 is -37.8 dB/oct, far steeper than the
+   -12 the source alone contributes.
+2. **The output low-pass.** Two poles at `s_kfOutputLpCoef` = 0.32 break near
+   2.9 kHz at 48 kHz, which lands on F3 for most phonemes.
+3. **Cascade against parallel for the voiced path.** F2 and F3 currently sit
+   behind F1's skirt. The fricative branch was moved to parallel for exactly
+   this reason. A cascade is the conventional choice for voiced formants, so
+   this is the largest change and the least certain.
+
+Whichever is tried, the two guards this run established should come with it:
+the 80-200 Hz band against F1 must not fall far from -4.6 dB, and 805 Hz
+belongs in any sweep as the known-bad control.
+
+## Reproducing this
+
+The instruments are in the tree and the analysis needs numpy only. Capture with
+`CASSO_AUDIO_DUMP` set, boot `Apple2/Demos/pulse-probe.dsk` on `Apple2e`, take
+the 2.25-5.50 s window, and read the F1/F2/F3 peaks against the ROM formants for
+the phoneme the probe holds. Derive the rate from the file's growth; do not
+assume it.
+
+After any sweep that edits `Ssi263.cpp`, **rebuild before trusting the next
+capture**, and rebuild again after restoring the constant. A sweep leaves the
+binary holding its last value while the source reads the original, which is a
+capture that measures something no longer on disk.
+
 ## Provenance
 
 | Claim | Source | Verified |
 |---|---|---|
-| 11 dB deficit above 800 Hz | earlier session, via handoff 028 | NO |
-| 99.5% of energy below 800 Hz | earlier session, via handoff 028 | NO |
-| Filter register sweep is barely audible | earlier session, via handoff 028 | NO |
+| 11 dB deficit above 800 Hz | earlier session, via handoff 028 | **NO -- no reference recording exists on this machine** |
+| 99.5% of energy below 800 Hz | earlier session, via handoff 028 | corroborated 2026-09-05 at 98.38% on a steady vowel, which is a different measurement |
+| Filter register sweep is barely audible | earlier session, via handoff 028 | NO, not tested; needs a probe that steps `SFILT` |
+| Every figure in Results | measured 2026-09-05 | yes, method above |
 | Formant ranges and the counts above 800 Hz | computed from `s_kPhonemes` | yes, 2026-09-05 |
 | Chain slopes, constants, clamps | read from `Ssi263.cpp` | yes, 2026-09-05 |
-| -8 dB/oct reference, 805 Hz regression, 4.9 dB and 33 dB figures | comments in `Ssi263.cpp` and commit `8b4a2556` | quoted, not re-measured |
+| -8 dB/oct reference, 4.9 dB and 33 dB figures | comments in `Ssi263.cpp` | quoted, not re-measured |
+| 805 Hz regression, 21 dB at 80-200 Hz | commit `8b4a2556` | reproduced 2026-09-05 as 27.1 dB |
 
-The first three are the ones the experiment rests on, and they are exactly the
-ones nobody has reproduced. Re-measure them before spending time on a refit: if
-the deficit is not 11 dB, the work changes.
+**The missing reference recording is the one real blocker.** Everything above
+measures this build against itself, which is enough to reject a change and not
+enough to accept one: it can show a setting is worse, but "closer to a real
+SSI-263" is unanswerable without the recording the original measurement used.
+Acceptance criterion 1 cannot be evaluated until that file is found.
