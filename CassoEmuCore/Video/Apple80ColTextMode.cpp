@@ -96,6 +96,44 @@ static constexpr uint32_t kColorBlack = 0xFF000000;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReadTextByte
+//
+//  One character of one column: aux for the even columns, main for the odd.
+//  Each bank is read straight from its buffer when one is known. The bus is
+//  only a fallback for a renderer with no direct pointers, because it follows
+//  live banking: under 80STORE with PAGE2 on, a text-page read through it
+//  answers from aux, and a frame scanned while a program had PAGE2 on for its
+//  own aux writes showed aux in both columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple80ColTextMode::ReadTextByte (
+    bool         fromAux,
+    const Byte * videoRam,
+    Word         addr) const
+{
+    Byte  value = 0;
+
+
+
+    //  The direct pointers first, then videoRam, then the bus. videoRam serves
+    //  EITHER column when its own bank pointer is absent: it did so for both
+    //  before main was taken directly, and confining it to the main column
+    //  quietly moved an aux read with no aux buffer onto the bus.
+    if      (fromAux  && m_auxMem  != nullptr) { value = m_auxMem[addr];       }
+    else if (!fromAux && m_mainMem != nullptr) { value = m_mainMem[addr];      }
+    else if (videoRam != nullptr)              { value = videoRam[addr];       }
+    else                                       { value = m_bus.ReadByte (addr); }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Render
 //
 //  80-column text mode renders 80x24 characters. Columns alternate between
@@ -155,9 +193,7 @@ void Apple80ColTextMode::Render (
 
             // Mirror RenderRowRange's read order exactly so the diff matches
             // what gets rasterized (aux even columns, main odd; bus fallback).
-            if (fromAux && m_auxMem != nullptr) { c = m_auxMem[addr];       }
-            else if (videoRam != nullptr)       { c = videoRam[addr];       }
-            else                                { c = m_bus.ReadByte (addr); }
+            c = ReadTextByte (fromAux, videoRam, addr);
 
             rowBytes[col] = c;
             changed      |= (c != cacheRow[col]);
@@ -251,20 +287,7 @@ void Apple80ColTextMode::RenderRowRange (
             bool  flash       = false;
             bool  showInverse = false;
 
-            Byte charCode = 0;
-
-            if (fromAux && m_auxMem != nullptr)
-            {
-                charCode = m_auxMem[addr];
-            }
-            else if (videoRam != nullptr)
-            {
-                charCode = videoRam[addr];
-            }
-            else
-            {
-                charCode = m_bus.ReadByte (addr);
-            }
+            Byte charCode = ReadTextByte (fromAux, videoRam, addr);
 
             // Decode character mode from the top two bits.
             // ALTCHARSET=0:  $00-$3F inverse, $40-$7F flash, $80-$FF normal.

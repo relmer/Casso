@@ -188,7 +188,15 @@ formulas, and formant synthesis, with the ready line on the VIA's CA1 where
 speech drivers expect it. Sound-only software is untouched: the speech chip is an
 additive tap on the real board's address decode and powers up in the part's own
 silent Power Down state, so **Mockingboard A** behavior is byte-for-byte
-unchanged. Boot `Apple2/Demos/mockingboard-speech-test.dsk` to hear it.
+unchanged. Boot `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk` for three film
+lines and Daisy Bell, with HAL's eye pulsing on each syllable; there is a hi-res
+version of the same demo beside it, and `mockingboard-speech-test.dsk` is the
+smaller smoke test.
+
+Singing is the part that cannot be faked. An emulator that plays recorded
+phonemes can say the words, but only one that synthesizes from the chip's
+registers can put them on a melody, because pitch is the 12-bit inflection value
+and not a property of a recording.
 
 The chip's per-phoneme parameter ROM — never published, substituted for by every
 emulator — has been **read off the visual6502 die photographs** and fully
@@ -520,7 +528,7 @@ Casso
 Casso --machine Apple2e
 
 # Boot a disk in drive 1
-Casso --machine Apple2e --disk1 "Apple2\Demos\casso-rocks.woz"
+Casso --machine Apple2e --disk1 "Apple2\Demos\casso-rocks.dsk"
 
 # Both drives
 Casso --machine Apple2c --disk1 "side-a.woz" --disk2 "side-b.woz"

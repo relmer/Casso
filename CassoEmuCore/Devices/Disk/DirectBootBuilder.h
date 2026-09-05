@@ -94,6 +94,11 @@ public:
                                       vector<Byte>          & outSectors,
                                       std::string           & outRefusal);
 
+    //  How far apart the sectors the loader asks for consecutively are. One
+    //  would be ascending order, which costs a revolution per sector; see
+    //  DirectBootBuilder::BuildReadOrder for the measurement behind the value.
+    static constexpr int   kInterleave        = 2;
+
 private:
     //  Byte offsets into the loader sector that a build fills in. Everything
     //  else in the sector is the loader verbatim.
@@ -101,12 +106,16 @@ private:
     static constexpr size_t  kLoadPageOffset    = 0xF1;
     static constexpr size_t  kTrackOffset       = 0xF2;
     static constexpr size_t  kPhaseOffset       = 0xF3;
-    static constexpr size_t  kEntryLowOffset    = 0x4D;
-    static constexpr size_t  kEntryHighOffset   = 0x4E;
+    static constexpr size_t  kIndexOffset       = 0xF4;
+    static constexpr size_t  kOrderOffset       = 0xE0;
+    static constexpr size_t  kEntryLowOffset    = 0x54;
+    static constexpr size_t  kEntryHighOffset   = 0x55;
 
     static HRESULT      Validate         (const vector<Byte>    & payload,
                                           const DirectBootSpec  & spec,
                                           std::string           & outRefusal);
+
+    static void         BuildReadOrder   (Byte * outOrder);
 
     static void         WriteLoader      (const DirectBootSpec  & spec,
                                           size_t                  sectorCount,

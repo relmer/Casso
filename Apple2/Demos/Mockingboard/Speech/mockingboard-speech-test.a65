@@ -23,9 +23,15 @@
 ;  The chip powers up with CTL set (Power Down). Loading the duration bits
 ;  and then driving CTL low latches the operating mode from them; DR=11
 ;  selects A/R active + phoneme timing + transitioned inflection, the mode
-;  real speech drivers use. Each phoneme is then started by writing $C440,
-;  and completion is polled by reading the chip: D7 set = requesting the
-;  next phoneme. Polling means no interrupts are needed for first light.
+;  real speech drivers use. Each phoneme is then started by writing $C440.
+;
+;  Completion is COUNTED OUT here, not polled. The chip's A/R pin cannot be
+;  read at $C440: the first 6522 decodes only A0-A3 and A7, so it answers all
+;  across $C400-$C47F and $C440 is its port B. A read there returns that VIA,
+;  and with RATE below writing $00 to $C442 -- which is also DDRB -- every
+;  port B pin is an input and the read is a constant. A phoneme lasts
+;  4096 * (16 - rate) * (4 - DR) chip ticks, and rate is fixed at 0 here, so
+;  Hold counts (4 - DR) frames of 4096 * 16 ticks each.
 ; ============================================================================
 
     .org $0801
@@ -48,6 +54,10 @@ RATE    = $00              ; speech rate $0 in D7:4 -- the chip's slowest
 INFL    = $C9              ; I10-I3 for roughly a 90 Hz voice
 FILT    = $D3              ; roughly a 20 KHz tract clock
 
+; -- Zero page ---------------------------------------------------------------
+IDX     = $06              ; index into the phoneme list
+UNITS   = $07              ; frames left in the current phoneme
+
 
 start
     ; Leave Power Down with the mode bits staged: write DR=11 while still
@@ -68,17 +78,47 @@ start
     sta SFILT
 
 say
-    ldy #$00
+    lda #$00
+    sta IDX
 next
+    ldy IDX
     lda phonemes,y          ; next phoneme code, $FF = end of utterance
     cmp #$FF
     beq say                 ; wrap and speak it again, forever
-    sta SPHON               ; start the phoneme (also answers the request)
-wait
-    lda SPHON               ; D7 = chip requesting the next phoneme
-    bpl wait
-    iny
-    bne next                ; unconditional (Y never wraps within the list)
+    sta SPHON               ; start the phoneme
+    jsr Hold                ; and let it have its full duration
+    inc IDX
+    bne next                ; unconditional (the list is far shorter than 256)
+
+
+; Hold for the (4 - DR) frames the phoneme byte in A asked for. A frame at
+; rate 0 is 4096 * 16 chip ticks, 36.6 ms, which is 37375 machine cycles; the
+; 29 laps below come to 37120, deliberately a little short so the next phoneme
+; reloads a chip that is still sounding rather than restarting a silent one.
+Hold
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    lsr a                   ; DR alone, 0 to 3
+    sta UNITS
+    lda #$04
+    sec
+    sbc UNITS
+    sta UNITS               ; 4 - DR, so 1 to 4
+h_unit
+    ldx #$1D
+h_lap
+    ldy #$00
+h_in
+    dey
+    bne h_in                ; 5 cycles a pass, 1280 a lap
+    dex
+    bne h_lap
+    dec UNITS
+    bne h_unit
+    rts
 
 
 ; "CASSO ROCKS" as SSI 263A phonemes: K AE S O OU / R1 AH (closure) K S.

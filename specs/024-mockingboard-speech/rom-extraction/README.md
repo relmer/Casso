@@ -51,7 +51,7 @@ was extracted from visual6502's published die photograph.
 
 | Bits | Meaning | Evidence |
 |---|---|---|
-| b00 | Closure flag (clear = closure onset) | Clear exactly for B, D, HVC, HFC |
+| b00 | Closure flag (clear = closure onset) | Clear exactly for B, D, P, T, K, HVC, HFC |
 | b01-b02 | Manner class bits | Vowels `##`, stops/holds patterns differ by class |
 | b03 | Fricative flag (oval = non-fricative) | 63/64 vs datasheet, sole exception PA |
 | b04 | Voiced flag (oval = unvoiced) | 63/64 vs datasheet, sole exception PA |

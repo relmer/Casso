@@ -15,7 +15,7 @@ order). Reading down a column, top to bottom:
 
 | Rows | Contents |
 |---|---|
-| b00 | Closure flag — clear for phonemes that begin with a sealed tract (B, D, HVC, HFC) |
+| b00 | Closure flag — clear for phonemes that begin with a sealed tract (B, D, P, T, K, HVC, HFC): every stop, plus the two closure holds |
 | b01, b02 | Manner-class bits |
 | b03 | Fricative flag — oval means NOT fricative (sole exception: PA) |
 | b04 | Voiced flag — oval means NOT voiced (sole exception: PA) |

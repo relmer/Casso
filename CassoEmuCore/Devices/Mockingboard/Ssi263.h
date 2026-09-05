@@ -26,7 +26,15 @@ struct Ssi263PhonemeSpec
     uint16_t   f3;
     bool       voiced;      // glottal excitation
     bool       fricative;   // noise excitation (both set = voiced fricative)
-    float      level;       // intrinsic amplitude, 0..1
+
+    //  The chip stores the two source amplitudes SEPARATELY -- vocal amplitude
+    //  and fricative amplitude -- and the ratio between them is what tells one
+    //  sound from another. Z is frication 10, voicing 1; L is frication 0,
+    //  voicing 7. Collapsing them to one number made Z and L the same sound,
+    //  since their formants are nearly identical (365/1106/2677 against
+    //  365/1261/2756) and only the source balance separates them.
+    float      voicedLevel; // VA / 15
+    float      fricLevel;   // FA / 15
 };
 
 
@@ -126,7 +134,6 @@ public:
     static constexpr Byte    kInflectLowMask = 0x07;
 
     // D7 on a read carries the inverted A/R level.
-    static constexpr Byte    kStatusRequest = 0x80;
 
     // Duration-bit mode encodings, latched on a CTL one-to-zero transition.
     static constexpr Byte    kModePhonemeTransitioned = 3;
@@ -145,7 +152,6 @@ public:
     void    SetTickClock  (double tickClockHz);
 
     void    WriteRegister (Byte reg, Byte value);
-    Byte    ReadRegister  (Byte reg) const;
 
     void    Reset ();
 
@@ -197,9 +203,13 @@ private:
     void    LatchMode           ();
     void    BeginPhoneme        (Byte outgoing);
     void    GlideFormants       ();
+    void    GlideLevels         ();
     float   GenerateExcitation  ();
     float   GenerateNoiseSample ();
     float   Resonate            (int stage, float input, double centerHz);
+    float   ResonateFricative   (float input, double centerHz);
+
+    static bool  HasAnySource   (const Ssi263PhonemeSpec & spec);
 
     const Ssi263PhonemeSpec &  GetActiveSpec () const;
 
@@ -210,6 +220,10 @@ private:
     double     m_xckHz       = kDefaultXckHz;
     double     m_tickClockHz = 0.0;
     uint32_t   m_sampleRate  = 0;
+
+    // The glottal source's break, as a one-pole coefficient for the current
+    // device rate (see s_kSourceBreakHz). Set by SetSampleRate.
+    float      m_sourcePole   = 0.0065f;
 
     Byte       m_reg[kRegCount] = {};
 
@@ -250,9 +264,22 @@ private:
     uint32_t   m_lfsr         = 0xACE1u;
     float      m_noiseLp      = 0.0f;
 
+    // The two source amplitudes as actually applied, eased toward the active
+    // phoneme's so a boundary is not a step (see s_kLevelTauSec).
+    float      m_vaCur        = 0.0f;
+    float      m_faCur        = 0.0f;
+
+    // Parallel fricative branch state: its low-pass and its F2 resonator.
+    float      m_fricLp       = 0.0f;
+    float      m_fricLp2      = 0.0f;
+    float      m_fricLp3      = 0.0f;
+    float      m_fricY1       = 0.0f;
+    float      m_fricY2       = 0.0f;
+
     // Radiation-characteristic differentiator history (previous cascade
     // output sample) and the output low-pass state that rounds the top
     // octave off the differentiated signal.
     float      m_radPrev      = 0.0f;
     float      m_outLp        = 0.0f;
+    float      m_outLp2       = 0.0f;
 };

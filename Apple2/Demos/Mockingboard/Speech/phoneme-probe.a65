@@ -1,0 +1,95 @@
+; Diagnostic: speak Z, L, S, SCH in isolation with silence between, so each
+; one's spectrum can be measured on its own. Not a shipped demo.
+    .org $6000
+
+SPHON   = $C440
+SINF    = $C441
+SRATE   = $C442
+SCTL    = $C443
+SFILT   = $C444
+
+PTR     = $06
+UNITS   = $08              ; frames left in the current phoneme
+
+start
+    lda #$C0
+    sta SPHON
+    lda #$80
+    sta SCTL
+    lda #$5C
+    sta SCTL
+    lda #$06                    ; I10-I3 for ~112 Hz
+    sta SINF
+    lda #$8A                    ; rate 8 + I11 + I2-I0
+    sta SRATE
+    lda #$D3
+    sta SFILT
+
+    lda #<probeData
+    sta PTR
+    lda #>probeData
+    sta PTR+1
+
+next
+    ldy #$00
+    lda (PTR),y
+    cmp #$FF
+    beq done
+    sta SPHON
+    jsr Hold
+    inc PTR
+    bne next
+    inc PTR+1
+    jmp next
+
+
+; Hold the phoneme for the (16 - rate) * (4 - DR) frames it asked for. Rate is
+; 8 here, so that is 8 * (4 - DR) frames of 4096 chip ticks. A frame is
+; 4096 / 1789772.5 = 2.289 ms, which is 2335 machine cycles; the pass below is
+; nop-nop-dey-bne, nine cycles, and 256 of them come to 2304 -- a little short,
+; so the next write reloads a chip that is still sounding.
+;
+; A/R cannot be polled at $C440: that address reads the first 6522's port B.
+Hold
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    lsr a                       ; DR alone, 0 to 3
+    sta UNITS
+    lda #$04
+    sec
+    sbc UNITS
+    asl a
+    asl a
+    asl a                       ; (4 - DR) * 8, the rate 8 frame count
+    sta UNITS
+h_unit
+    ldy #$00
+h_in
+    nop
+    nop
+    dey
+    bne h_in
+    dec UNITS
+    bne h_unit
+    rts
+
+done
+    lda #$80
+    sta SCTL
+halt
+    jmp halt
+
+; Each sound held by repeating it at the longest duration, then a long silence.
+probeData
+    .byte $2F,$2F,$2F,$2F,$2F,$2F      ; Z  x6
+    .byte $00,$00,$00,$00,$00,$00      ; PA
+    .byte $20,$20,$20,$20,$20,$20      ; L  x6
+    .byte $00,$00,$00,$00,$00,$00
+    .byte $30,$30,$30,$30,$30,$30      ; S  x6
+    .byte $00,$00,$00,$00,$00,$00
+    .byte $32,$32,$32,$32,$32,$32      ; SCH x6
+    .byte $00,$00,$00,$00,$00,$00
+    .byte $FF

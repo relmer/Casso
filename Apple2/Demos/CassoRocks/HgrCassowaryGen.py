@@ -3,8 +3,8 @@
 Generate the casso-rocks demo's two HGR cassowary images.
 
 Reads:  Assets/3a Mrs Cassowary closeup 8167.jpg
-Writes: Apple2/Demos/cassowary.hgr       (8 KB, 6-color NTSC artifact)
-        Apple2/Demos/cassowary-mono.hgr  (8 KB, authored for 280x192 1-bit)
+Writes: cassowary.hgr       (8 KB, 6-color NTSC artifact)
+        cassowary-mono.hgr  (8 KB, authored for 280x192 1-bit)
         plus a preview PNG of each.
 
 The DHGR pair's argument, one resolution down: an HGR framebuffer is
@@ -265,8 +265,9 @@ def render_mono(buf):
 
 
 def main():
-    repo    = Path(__file__).resolve().parent.parent
-    out_dir = repo / "Apple2" / "Demos"
+    #  The assets sit beside this script now, so the output folder is
+    #  simply this one.
+    out_dir = Path(__file__).resolve().parent
 
     color = build_color()
     mono  = build_mono()

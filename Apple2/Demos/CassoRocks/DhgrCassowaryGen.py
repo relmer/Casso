@@ -3,10 +3,10 @@
 Generate the casso-rocks demo's two DHGR cassowary images.
 
 Reads:  Assets/3a Mrs Cassowary closeup 8167.jpg
-Writes: Apple2/Demos/dhgr-cassowary-aux.bin        (8 KB, 16-color)
-        Apple2/Demos/dhgr-cassowary-main.bin       (8 KB, 16-color)
-        Apple2/Demos/dhgr-cassowary-mono-aux.bin   (8 KB, 560x192 1-bit)
-        Apple2/Demos/dhgr-cassowary-mono-main.bin  (8 KB, 560x192 1-bit)
+Writes: dhgr-cassowary-aux.bin        (8 KB, 16-color)
+        dhgr-cassowary-main.bin       (8 KB, 16-color)
+        dhgr-cassowary-mono-aux.bin   (8 KB, 560x192 1-bit)
+        dhgr-cassowary-mono-main.bin  (8 KB, 560x192 1-bit)
         plus a preview PNG of each.
 
 WHY TWO IMAGES. A DHGR framebuffer is decoded two different ways
@@ -165,8 +165,9 @@ def encode_dhgr(get_dot):
 
 
 def main():
-    repo    = Path(__file__).resolve().parent.parent
-    out_dir = repo / "Apple2" / "Demos"
+    #  The assets sit beside this script now, so the output folder is
+    #  simply this one.
+    out_dir = Path(__file__).resolve().parent
 
     color = build_color_cells()
     cpix  = color.load()

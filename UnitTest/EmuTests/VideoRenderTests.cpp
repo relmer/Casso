@@ -929,7 +929,7 @@ public:
     {
         MemoryBus           bus;
         uint64_t            hash      = 0;
-        constexpr uint64_t  kExpected = 0x56CE5AB7DF017725ULL;
+        constexpr uint64_t  kExpected = 0x1084304075270825ULL;
 
 
 
@@ -976,6 +976,18 @@ public:
         // Video/PixelFormat.h). The on-screen colors are identical;
         // the framebuffer byte sequence differs for any pixel with
         // R != B, which moves the hash.
+        //
+        // Updated 2026-09-04 alongside the color-phase fix. A cell's
+        // color number is not its four dots read as a binary number:
+        // the color clock runs one dot ahead of the byte boundary, so
+        // the LAST dot carries the low bit. Apple IIe Technical Note
+        // #3 gives magenta as aux $08, main $11, aux $22, main $44 --
+        // only that last dot lit -- and the old decode rendered it as
+        // brown. Every cell of this pattern with an asymmetric dot
+        // group changes color, so the hash moves.
+        // AppleDoubleHiResModeTests::DHR_TechnotePatternsDecodeToTheir-
+        // Colors holds the decode against the technote's own table, so
+        // this golden no longer stands alone.
 
         Assert::AreEqual (kExpected, hash,
             std::format (L"DHR golden hash mismatch: got 0x{:016X}", hash).c_str());

@@ -16,15 +16,15 @@
 
 #include "DemoAssets.h"
 
-IDR_DEMO_STAGE1_SRC   RCDATA "..\\..\\Apple2\\Demos\\casso-rocks.a65"
-IDR_DEMO_STAGE2_SRC   RCDATA "..\\..\\Apple2\\Demos\\casso-rocks-stage2.a65"
-IDR_DEMO_HGR          RCDATA "..\\..\\Apple2\\Demos\\cassowary.hgr"
-IDR_DEMO_HGR_MONO     RCDATA "..\\..\\Apple2\\Demos\\cassowary-mono.hgr"
-IDR_DEMO_DHGR_AUX     RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-aux.bin"
-IDR_DEMO_DHGR_MAIN    RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-main.bin"
+IDR_DEMO_STAGE1_SRC   RCDATA "..\\..\\Apple2\\Demos\\CassoRocks\\casso-rocks.a65"
+IDR_DEMO_STAGE2_SRC   RCDATA "..\\..\\Apple2\\Demos\\CassoRocks\\casso-rocks-stage2.a65"
+IDR_DEMO_HGR          RCDATA "..\\..\\Apple2\\Demos\\CassoRocks\\cassowary.hgr"
+IDR_DEMO_HGR_MONO     RCDATA "..\\..\\Apple2\\Demos\\CassoRocks\\cassowary-mono.hgr"
+IDR_DEMO_DHGR_AUX     RCDATA "..\\..\\Apple2\\Demos\\CassoRocks\\dhgr-cassowary-aux.bin"
+IDR_DEMO_DHGR_MAIN    RCDATA "..\\..\\Apple2\\Demos\\CassoRocks\\dhgr-cassowary-main.bin"
 
-IDR_DEMO_DHGR_MONO_AUX   RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-mono-aux.bin"
-IDR_DEMO_DHGR_MONO_MAIN  RCDATA "..\\..\\Apple2\\Demos\\dhgr-cassowary-mono-main.bin"
+IDR_DEMO_DHGR_MONO_AUX   RCDATA "..\\..\\Apple2\\Demos\\CassoRocks\\dhgr-cassowary-mono-aux.bin"
+IDR_DEMO_DHGR_MONO_MAIN  RCDATA "..\\..\\Apple2\\Demos\\CassoRocks\\dhgr-cassowary-mono-main.bin"
 
 IDR_BASIC_CORPUS_SRC  RCDATA "..\\Fixtures\\Basic\\construct-corpus.bas"
 IDR_BASIC_CORPUS_TOK  RCDATA "..\\Fixtures\\Basic\\construct-corpus.tok"
