@@ -42,7 +42,7 @@
 //      * OnPaddleRead    -- guest read of $C064-$C067 (PADDL0-3 axis timer
 //                            bit 7)
 //      * OnHostAutoRepeat-- the //e repeat timer re-latching a held key
-//                            (originates in AppleKeyboard::Tick)
+//                            (originates in AppleKeyboard::TickAutoRepeat)
 //
 //    UI thread -- stage directly into the UI-owned buffer (these callbacks
 //    are raised from the Windows message handlers via BeginKeyRepeat and

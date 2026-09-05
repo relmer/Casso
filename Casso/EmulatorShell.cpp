@@ -803,7 +803,12 @@ EmulatorShell::~EmulatorShell()
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
-    hrFlush = m_diskStore.FlushAll();
+    //
+    // THE CLOSING VARIANT, because this runs after the message loop has
+    // exited. A question raised here would be posted to a window nothing is
+    // pumping and answered on a thread that is being torn down; the blocking
+    // notice is the only thing that still reaches the user.
+    hrFlush = m_diskStore.FlushAllForClosing();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:
@@ -2276,15 +2281,15 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 
     m_host->SetCaptionVisible (!hidden);
     m_mainMenu.SetVisible (!hidden);
-    // The toolbar comes back on its own in fullscreen, summoned by the top
-    // edge -- so hiding the chrome parks it and TickFullscreenToolbar owns
-    // it from there.
+    // The menu bar and toolbar come back on their own in fullscreen, summoned
+    // by the top edge -- so hiding the chrome parks them and
+    // TickFullscreenTopChrome owns them from there.
     m_toolbar.SetVisible (!hidden);
 
     if (hidden)
     {
-        m_fsToolbarShown  = false;
-        m_fsToolbarLeftMs = 0;
+        m_fsTopChromeShown  = false;
+        m_fsTopChromeLeftMs = 0;
     }
 
     // The band surface only exists for the 2D chrome; under the desk scene
@@ -2538,33 +2543,38 @@ static int64_t MirroredSlideStart (int64_t nowMs, int64_t animStartMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::TickFullscreenToolbar
+//  EmulatorShell::TickFullscreenTopChrome
 //
-//  The command toolbar on the same bargain the drive strip has at the bottom:
-//  the pointer at the top edge slides it down, leaving slides it away.
+//  The menu bar and the command toolbar on the same bargain the drive strip
+//  has at the bottom: the pointer at the top edge slides them down, leaving
+//  slides them away. They travel as one band, menu above toolbar, in the
+//  order the windowed chrome stacks them.
 //
 //  Laid out here rather than by the chrome dock, because in fullscreen there
-//  are no bands -- the scene owns the whole client, and the toolbar is an
-//  overlay across its top rather than a strip the viewport makes room for.
+//  are no bands -- the scene owns the whole client, and this is an overlay
+//  across its top rather than a strip the viewport makes room for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::TickFullscreenToolbar()
+void EmulatorShell::TickFullscreenTopChrome()
 {
-    RECT     client = {};
-    POINT    cursor = {};
-    int      bandH  = 0;
-    bool     want   = false;
-    int64_t  nowMs  = 0;
+    RECT     client    = {};
+    POINT    cursor    = {};
+    int      menuH     = 0;
+    int      toolbarH  = 0;
+    int      bandH     = 0;
+    bool     want      = false;
+    int64_t  nowMs     = 0;
 
 
 
     if (!m_d3dRenderer.IsFullscreen() || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        if (m_fsToolbarShown)
+        if (m_fsTopChromeShown)
         {
-            m_fsToolbarShown = false;
-            m_toolbar.SetVisible (false);
+            m_fsTopChromeShown = false;
+            m_mainMenu.SetVisible (false);
+            m_toolbar.SetVisible  (false);
         }
 
         return;
@@ -2574,40 +2584,42 @@ void EmulatorShell::TickFullscreenToolbar()
                 std::chrono::steady_clock::now().time_since_epoch()).count();
 
     m_toolbar.PlanForWidth (client.right - client.left, m_scaler);
-    bandH = m_scaler.ToPx (m_toolbar.GetBandDp());
+    menuH    = DxuiMenuBar::GetStripHeightPx (m_scaler.GetDpi());
+    toolbarH = m_scaler.ToPx (m_toolbar.GetBandDp());
+    bandH    = menuH + toolbarH;
 
     if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
     {
         // The edge zone summons; the whole band holds it open, so the
         // pointer can travel down onto the buttons without dismissing them.
-        want = m_fsToolbarShown ? (cursor.y <= bandH)
-                                : (cursor.y <= m_scaler.ToPx (s_kStripEdgeZoneDp));
+        want = m_fsTopChromeShown ? (cursor.y <= bandH)
+                                  : (cursor.y <= m_scaler.ToPx (s_kStripEdgeZoneDp));
     }
 
-    // A menu opened from the toolbar keeps it up regardless of where the
-    // pointer wandered to reach the menu's items.
+    // An open menu keeps the band up regardless of where the pointer
+    // wandered to reach the dropdown's items, which hang below it.
     want = want || m_mainMenu.IsOpen();
 
     if (want)
     {
-        m_fsToolbarLeftMs = 0;
+        m_fsTopChromeLeftMs = 0;
     }
-    else if (m_fsToolbarShown && m_fsToolbarLeftMs == 0)
+    else if (m_fsTopChromeShown && m_fsTopChromeLeftMs == 0)
     {
-        m_fsToolbarLeftMs = nowMs;
+        m_fsTopChromeLeftMs = nowMs;
     }
 
-    if (!want && m_fsToolbarShown &&
-        nowMs - m_fsToolbarLeftMs >= FullscreenStripState::kAutoHideGraceMs)
+    if (!want && m_fsTopChromeShown &&
+        nowMs - m_fsTopChromeLeftMs >= FullscreenStripState::kAutoHideGraceMs)
     {
-        m_fsToolbarShown  = false;
-        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
+        m_fsTopChromeShown  = false;
+        m_fsTopChromeAnimMs = MirroredSlideStart (nowMs, m_fsTopChromeAnimMs);
         m_d3dRenderer.MarkRedrawNeeded();
     }
-    else if (want && !m_fsToolbarShown)
+    else if (want && !m_fsTopChromeShown)
     {
-        m_fsToolbarShown  = true;
-        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
+        m_fsTopChromeShown  = true;
+        m_fsTopChromeAnimMs = MirroredSlideStart (nowMs, m_fsTopChromeAnimMs);
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
@@ -2616,18 +2628,22 @@ void EmulatorShell::TickFullscreenToolbar()
     // rather than blinking into place. Reversing mid-slide keeps the current
     // position (see MirroredSlideStart) instead of snapping to the far end.
     {
-        float  t        = std::clamp ((float) (nowMs - m_fsToolbarAnimMs) /
+        float  t        = std::clamp ((float) (nowMs - m_fsTopChromeAnimMs) /
                                       (float) FullscreenStripState::kSlideMs, 0.0f, 1.0f);
-        float  progress = m_fsToolbarShown ? t : 1.0f - t;
+        float  progress = m_fsTopChromeShown ? t : 1.0f - t;
         int    top      = client.top - (int) ((1.0f - progress) * (float) bandH);
 
         if (progress <= 0.0f)
         {
-            m_toolbar.SetVisible (false);
+            m_mainMenu.SetVisible (false);
+            m_toolbar.SetVisible  (false);
             return;
         }
 
-        m_toolbar.Layout     (RECT{ client.left, top, client.right, top + bandH }, m_scaler);
+        m_mainMenu.Layout     (RECT{ client.left, top, client.right, top + menuH }, m_scaler);
+        m_mainMenu.SetVisible (true);
+
+        m_toolbar.Layout     (RECT{ client.left, top + menuH, client.right, top + bandH }, m_scaler);
         m_toolbar.SetVisible (true);
 
         if (t < 1.0f)
@@ -6439,6 +6455,23 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // colors (the old per-frame apply path is dead post-T129).
     m_mainMenu.ApplyChromeColors (theme);
 
+    // Tooltips cache their surface colors instead of reading the theme at
+    // paint time -- the popup path hands its background to the popup host at
+    // Show, before any painter exists -- so a theme swap has to re-seed them
+    // here. Without this the balloons kept the palette that was live when the
+    // window was built, leaving skeuomorphic blue tips over a green
+    // RetroTerminal chrome.
+    m_toolbarTooltip.SetTheme   (theme);
+    m_switchBarTooltip.SetTheme (theme);
+    m_driveTooltip.SetTheme     (theme);
+
+    // A balloon that is already up was sized and cleared with the outgoing
+    // colors, and nothing repaints its background. Take it down; the next
+    // hover raises it in the new palette.
+    m_toolbarTooltip.HideImmediate();
+    m_switchBarTooltip.HideImmediate();
+    m_driveTooltip.HideImmediate();
+
     // Every path applies the new thickness; only the window resize is
     // conditional. Min/max/fullscreen windows are skipped because the user
     // explicitly chose that state and should not see the window resize from
@@ -7765,7 +7798,7 @@ bool EmulatorShell::TryPresentUiFrame()
     SyncCaptureBanner();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
-    TickFullscreenToolbar();
+    TickFullscreenTopChrome();
 
 
     for (const DriveWidgetState & st : m_driveWidgetState)
@@ -8382,10 +8415,6 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                     m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
                 }
 
-                if (m_refs.keyboard != nullptr)
-                {
-                    m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
-                }
             }
 
             break;
@@ -8736,11 +8765,6 @@ void EmulatorShell::StepInstructionWhilePaused()
         m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
     }
 
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
-    }
-
     RunOneFrame();
     PublishFramebuffer();
 }
@@ -9068,6 +9092,74 @@ void EmulatorShell::DestroyFrameReadyEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TickKeyboardAutoRepeat
+//
+//  Advances the //e keyboard's auto-repeat cadence by the real time since the
+//  previous CPU-thread frame.
+//
+//  The cadence used to be counted in guest cycles, ticked once per
+//  instruction. That reads as authentic and is not: the //e's repeat is
+//  generated in the keyboard encoder, off an oscillator that knows nothing
+//  about the 6502, and a typist's finger rests in real seconds either way. So
+//  the guest clock dragged it along -- Double repeated at twice the rate off
+//  half the delay, and Maximum, which runs uncapped at tens of times real,
+//  turned a held key into hundreds of characters a second and made the
+//  machine impossible to type on.
+//
+//  Once a frame is resolution enough for a 500 ms delay and a 15 cps rate,
+//  and the clock read replaces one call per instruction. The stamp is
+//  advanced by the whole microseconds handed over rather than set to now, so
+//  the sub-microsecond remainder is carried instead of being dropped every
+//  frame -- at Maximum speed the frames are short enough for that to matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TickKeyboardAutoRepeat()
+{
+    chrono::steady_clock::time_point  now      = chrono::steady_clock::now();
+    int64_t                           elapsed  = 0;
+
+
+
+    if (m_refs.keyboard == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastKeyRepeatSteady == chrono::steady_clock::time_point{})
+    {
+        // First frame since the machine came up: start the interval here
+        // rather than report the whole time since the epoch as elapsed.
+        m_lastKeyRepeatSteady = now;
+        return;
+    }
+
+    elapsed = chrono::duration_cast<chrono::microseconds> (now - m_lastKeyRepeatSteady).count();
+
+    if (elapsed <= 0)
+    {
+        return;
+    }
+
+    m_lastKeyRepeatSteady += chrono::microseconds (elapsed);
+
+    // An hour of stall does not fit the 32-bit interval the device takes, and
+    // the device caps anything past the initial delay at one repeat anyway, so
+    // capping here loses nothing and keeps the cast honest.
+    if (elapsed > static_cast<int64_t> (AppleKeyboard::kKeyRepeatDelayUs))
+    {
+        elapsed = AppleKeyboard::kKeyRepeatDelayUs;
+    }
+
+    m_refs.keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecuteCpuSlices
 //
 //  One emulated frame's worth of CPU time, cut into ~1023-cycle slices.
@@ -9127,6 +9219,10 @@ void EmulatorShell::ExecuteCpuSlices()
     // IsInitialized, so the gate below would otherwise keep the reopen from
     // ever running (GH #137).
     m_wasapiAudio.ServiceEndpointChanges();
+
+    // Real time, not the cycle budget below: the keyboard's repeat cadence is
+    // the one thing in this frame that must not follow the emulated clock.
+    TickKeyboardAutoRepeat();
 
     audioActive = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
 
@@ -9195,11 +9291,6 @@ void EmulatorShell::ExecuteCpuSlices()
             if (m_refs.mockingboard != nullptr)
             {
                 m_refs.mockingboard->Tick (cycles);
-            }
-
-            if (m_refs.keyboard != nullptr)
-            {
-                m_refs.keyboard->Tick (cycles);
             }
         }
 
@@ -11782,10 +11873,11 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // Arrow / Escape / Delete map to //e control codes. Gated on the
         // auto-repeat bit so the host OS repeat never reaches the latch; a
         // fresh press arms the $C000 strobe once and registers the key for
-        // the emulator's own authentic //e auto-repeat cadence (Tick). With
-        // "Map Arrows to Joystick" on (and a game-port paddle bank present),
-        // arrow keys are withheld from the keyboard latch so a held
-        // direction cannot flood $C000 and starve a joystick game's reads.
+        // the emulator's own authentic //e auto-repeat cadence
+        // (TickAutoRepeat). With "Map Arrows to Joystick" on (and a game-port
+        // paddle bank present), arrow keys are withheld from the keyboard
+        // latch so a held direction cannot flood $C000 and starve a joystick
+        // game's reads.
         if (!ev.repeat)
         {
             appleCode = MapVkToAppleControlCode (vk);
@@ -12717,7 +12809,8 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 //                    withheld from the latch
 //    OS auto-repeat  the host repeat rate would flood $C000 and confuse games
 //                    that poll it; the emulated //e generates its own repeat
-//                    in CPU time (AppleKeyboard::Tick) from the single latch
+//                    in real time (AppleKeyboard::TickAutoRepeat) from the
+//                    single latch
 //
 //  What survives goes through the viewport, not straight to the keyboard, so
 //  characters travel the same Dxui path as the key transitions (FR-034).
@@ -12764,7 +12857,8 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // OS auto-repeat: the host repeat rate would flood $C000 and confuse
     // real-time games that poll it. A fresh press is latched once and
     // registered for the emulator's own authentic //e auto-repeat cadence
-    // (driven in CPU time by AppleKeyboard::Tick).
+    // (driven in real time by AppleKeyboard::TickAutoRepeat, so the emulation
+    // speed does not move it).
     bool  isGuestChar = m_refs.keyboard != nullptr &&
                         !overlayOwnsIt &&
                         !isRepeat &&
@@ -13092,6 +13186,9 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 //  still sitting on screen. It uses the same " - " separator as the machine
 //  name so the whole caption reads as one list rather than two grammars.
 //
+//  An undocumented --title puts a launcher's own label in front of all of it,
+//  which is what lets several windows running the same machine be told apart.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::UpdateWindowTitle()
@@ -13117,7 +13214,18 @@ void EmulatorShell::UpdateWindowTitle()
 
     BAIL_OUT_IF (isOffThread, S_OK);
 
-    title = L"Casso";
+    //  The launcher's label, ahead of everything the emulator has to say about
+    //  itself. FIRST because that is the half of a caption a taskbar button or
+    //  an Alt+Tab thumbnail still has room for once it truncates, and the whole
+    //  reason the label was passed in is to tell one window from several
+    //  identical ones.
+    if (!m_titlePrefix.empty())
+    {
+        title += m_titlePrefix;
+        title += L" - ";
+    }
+
+    title += L"Casso";
 
     if (!m_config.name.empty())
     {
