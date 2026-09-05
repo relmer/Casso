@@ -2281,15 +2281,15 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 
     m_host->SetCaptionVisible (!hidden);
     m_mainMenu.SetVisible (!hidden);
-    // The toolbar comes back on its own in fullscreen, summoned by the top
-    // edge -- so hiding the chrome parks it and TickFullscreenToolbar owns
-    // it from there.
+    // The menu bar and toolbar come back on their own in fullscreen, summoned
+    // by the top edge -- so hiding the chrome parks them and
+    // TickFullscreenTopChrome owns them from there.
     m_toolbar.SetVisible (!hidden);
 
     if (hidden)
     {
-        m_fsToolbarShown  = false;
-        m_fsToolbarLeftMs = 0;
+        m_fsTopChromeShown  = false;
+        m_fsTopChromeLeftMs = 0;
     }
 
     // The band surface only exists for the 2D chrome; under the desk scene
@@ -2543,33 +2543,38 @@ static int64_t MirroredSlideStart (int64_t nowMs, int64_t animStartMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::TickFullscreenToolbar
+//  EmulatorShell::TickFullscreenTopChrome
 //
-//  The command toolbar on the same bargain the drive strip has at the bottom:
-//  the pointer at the top edge slides it down, leaving slides it away.
+//  The menu bar and the command toolbar on the same bargain the drive strip
+//  has at the bottom: the pointer at the top edge slides them down, leaving
+//  slides them away. They travel as one band, menu above toolbar, in the
+//  order the windowed chrome stacks them.
 //
 //  Laid out here rather than by the chrome dock, because in fullscreen there
-//  are no bands -- the scene owns the whole client, and the toolbar is an
-//  overlay across its top rather than a strip the viewport makes room for.
+//  are no bands -- the scene owns the whole client, and this is an overlay
+//  across its top rather than a strip the viewport makes room for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::TickFullscreenToolbar()
+void EmulatorShell::TickFullscreenTopChrome()
 {
-    RECT     client = {};
-    POINT    cursor = {};
-    int      bandH  = 0;
-    bool     want   = false;
-    int64_t  nowMs  = 0;
+    RECT     client    = {};
+    POINT    cursor    = {};
+    int      menuH     = 0;
+    int      toolbarH  = 0;
+    int      bandH     = 0;
+    bool     want      = false;
+    int64_t  nowMs     = 0;
 
 
 
     if (!m_d3dRenderer.IsFullscreen() || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        if (m_fsToolbarShown)
+        if (m_fsTopChromeShown)
         {
-            m_fsToolbarShown = false;
-            m_toolbar.SetVisible (false);
+            m_fsTopChromeShown = false;
+            m_mainMenu.SetVisible (false);
+            m_toolbar.SetVisible  (false);
         }
 
         return;
@@ -2579,40 +2584,42 @@ void EmulatorShell::TickFullscreenToolbar()
                 std::chrono::steady_clock::now().time_since_epoch()).count();
 
     m_toolbar.PlanForWidth (client.right - client.left, m_scaler);
-    bandH = m_scaler.ToPx (m_toolbar.GetBandDp());
+    menuH    = DxuiMenuBar::GetStripHeightPx (m_scaler.GetDpi());
+    toolbarH = m_scaler.ToPx (m_toolbar.GetBandDp());
+    bandH    = menuH + toolbarH;
 
     if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
     {
         // The edge zone summons; the whole band holds it open, so the
         // pointer can travel down onto the buttons without dismissing them.
-        want = m_fsToolbarShown ? (cursor.y <= bandH)
-                                : (cursor.y <= m_scaler.ToPx (s_kStripEdgeZoneDp));
+        want = m_fsTopChromeShown ? (cursor.y <= bandH)
+                                  : (cursor.y <= m_scaler.ToPx (s_kStripEdgeZoneDp));
     }
 
-    // A menu opened from the toolbar keeps it up regardless of where the
-    // pointer wandered to reach the menu's items.
+    // An open menu keeps the band up regardless of where the pointer
+    // wandered to reach the dropdown's items, which hang below it.
     want = want || m_mainMenu.IsOpen();
 
     if (want)
     {
-        m_fsToolbarLeftMs = 0;
+        m_fsTopChromeLeftMs = 0;
     }
-    else if (m_fsToolbarShown && m_fsToolbarLeftMs == 0)
+    else if (m_fsTopChromeShown && m_fsTopChromeLeftMs == 0)
     {
-        m_fsToolbarLeftMs = nowMs;
+        m_fsTopChromeLeftMs = nowMs;
     }
 
-    if (!want && m_fsToolbarShown &&
-        nowMs - m_fsToolbarLeftMs >= FullscreenStripState::kAutoHideGraceMs)
+    if (!want && m_fsTopChromeShown &&
+        nowMs - m_fsTopChromeLeftMs >= FullscreenStripState::kAutoHideGraceMs)
     {
-        m_fsToolbarShown  = false;
-        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
+        m_fsTopChromeShown  = false;
+        m_fsTopChromeAnimMs = MirroredSlideStart (nowMs, m_fsTopChromeAnimMs);
         m_d3dRenderer.MarkRedrawNeeded();
     }
-    else if (want && !m_fsToolbarShown)
+    else if (want && !m_fsTopChromeShown)
     {
-        m_fsToolbarShown  = true;
-        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
+        m_fsTopChromeShown  = true;
+        m_fsTopChromeAnimMs = MirroredSlideStart (nowMs, m_fsTopChromeAnimMs);
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
@@ -2621,18 +2628,22 @@ void EmulatorShell::TickFullscreenToolbar()
     // rather than blinking into place. Reversing mid-slide keeps the current
     // position (see MirroredSlideStart) instead of snapping to the far end.
     {
-        float  t        = std::clamp ((float) (nowMs - m_fsToolbarAnimMs) /
+        float  t        = std::clamp ((float) (nowMs - m_fsTopChromeAnimMs) /
                                       (float) FullscreenStripState::kSlideMs, 0.0f, 1.0f);
-        float  progress = m_fsToolbarShown ? t : 1.0f - t;
+        float  progress = m_fsTopChromeShown ? t : 1.0f - t;
         int    top      = client.top - (int) ((1.0f - progress) * (float) bandH);
 
         if (progress <= 0.0f)
         {
-            m_toolbar.SetVisible (false);
+            m_mainMenu.SetVisible (false);
+            m_toolbar.SetVisible  (false);
             return;
         }
 
-        m_toolbar.Layout     (RECT{ client.left, top, client.right, top + bandH }, m_scaler);
+        m_mainMenu.Layout     (RECT{ client.left, top, client.right, top + menuH }, m_scaler);
+        m_mainMenu.SetVisible (true);
+
+        m_toolbar.Layout     (RECT{ client.left, top + menuH, client.right, top + bandH }, m_scaler);
         m_toolbar.SetVisible (true);
 
         if (t < 1.0f)
@@ -7787,7 +7798,7 @@ bool EmulatorShell::TryPresentUiFrame()
     SyncCaptureBanner();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
-    TickFullscreenToolbar();
+    TickFullscreenTopChrome();
 
 
     for (const DriveWidgetState & st : m_driveWidgetState)

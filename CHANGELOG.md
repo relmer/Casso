@@ -85,6 +85,9 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The fullscreen top edge revealed only the command toolbar, leaving the menu
+  bar unreachable.** The menu bar now rides down with the toolbar, above it, in
+  the order the windowed chrome stacks them.
 - **A held key repeated far too fast above 1x speed, and at Maximum too fast to
   type against at all.** The keyboard's auto-repeat cadence was counted in
   emulated cycles, so the emulation speed dragged it along: Double repeated at
