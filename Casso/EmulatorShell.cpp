@@ -49,6 +49,7 @@
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
+#include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Cli/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
@@ -3370,6 +3371,226 @@ void EmulatorShell::RecordActiveMachineSelection()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WireToolbarPickers
+//
+//  The command bar's theme and monitor-color pickers, wired to the same
+//  live-apply channels the Settings panel drives so the two behave alike.
+//
+//  A HIGHLIGHT PREVIEWS: it activates the theme (or the color treatment)
+//  without writing anything down, because moving the pointer down a list is
+//  not a choice. The toolbar replays that same sink with the row the list
+//  opened on when the list is dismissed, which is what snaps the chrome and
+//  the picture back.
+//
+//  A PICK COMMITS, which is where the choice reaches the prefs file: the
+//  theme into GlobalUserPrefs, the color mode into the machine's UI prefs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::WireToolbarPickers()
+{
+    m_toolbar.SetPopupHost (m_host.get());
+
+    m_toolbar.SetThemeSinks (
+        [this] (int index)
+        {
+            HRESULT  hrTheme = S_OK;
+            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
+
+            if (inRange)
+            {
+                hrTheme = ApplyThemeLive (m_toolbarThemeIds[index]);
+                IGNORE_RETURN_VALUE (hrTheme, S_OK);
+            }
+        },
+        [this] (int index)
+        {
+            HRESULT  hrTheme = S_OK;
+            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
+
+            if (inRange)
+            {
+                hrTheme = ApplyAndPersistTheme (m_toolbarThemeIds[index]);
+                IGNORE_RETURN_VALUE (hrTheme, S_OK);
+            }
+        });
+
+    m_toolbar.SetMonitorSinks (
+        [this] (int index)
+        {
+            SetColorModeLive (index);
+        },
+        [this] (int index)
+        {
+            SetColorModeLive              (index);
+            PersistColorModeForMachine    (index);
+        });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PersistColorModeForMachine
+//
+//  Writes the picked color mode into the machine's UI prefs, the same key
+//  the Settings panel saves on OK. The View menu's color commands
+//  deliberately do not persist -- they are a momentary look -- but a picker
+//  that shows the current value has to remember the one it was given.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
+{
+    HRESULT                                         hr      = S_OK;
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+    const char *                                    text    = nullptr;
+    bool                                            inRange = settingsColorModeIndex >= 0 &&
+                                                              settingsColorModeIndex <= (int) SettingsColorMode::White;
+
+
+
+    if (m_userConfigStore == nullptr || m_currentMachineName.empty() || !inRange)
+    {
+        return;
+    }
+
+    text = SettingsPanelState::ColorToString ((SettingsColorMode) settingsColorModeIndex);
+    entries.emplace_back ("colorMode", JsonValue (std::string (text)));
+
+    hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs,
+                                          m_currentMachineName, entries);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshToolbarThemeList
+//
+//  Fills the toolbar's theme picker from the discovered catalog and keeps the
+//  parallel id vector that turns a picked row back into a theme id.
+//
+//  The rows are REPLACED only when the catalog itself changed. This runs from
+//  the theme-change listener, which also fires for every live preview -- and
+//  replacing the rows resets the selection, which would destroy the row the
+//  picker has to snap back to when the list is dismissed. An unchanged
+//  catalog therefore only moves the selection, which the toolbar in turn
+//  drops while its list is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefreshToolbarThemeList()
+{
+    std::vector<std::wstring>  displayNames;
+    std::vector<std::string>   ids;
+    std::string                activeName;
+    int                        activeIndex = -1;
+    int                        row         = 0;
+
+
+
+    if (m_themeManager == nullptr)
+    {
+        return;
+    }
+
+    activeName = m_themeManager->GetActiveThemeName();
+
+    for (const LoadedTheme & theme : m_themeManager->GetAvailableThemes())
+    {
+        if (theme.name == activeName)
+        {
+            activeIndex = row;
+        }
+
+        ids.push_back (theme.name);
+        displayNames.emplace_back (theme.name.begin(), theme.name.end());
+        row++;
+    }
+
+    if (ids != m_toolbarThemeIds)
+    {
+        m_toolbarThemeIds = std::move (ids);
+        m_toolbar.SetThemes (displayNames, activeIndex);
+    }
+    else if (activeIndex >= 0)
+    {
+        m_toolbar.SetThemeIndex (activeIndex);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncToolbarState
+//
+//  Pushes the state the toolbar mirrors rather than owns: which machine the
+//  Reset / Power tips talk about, which way the fullscreen button points, and
+//  where the two pickers sit. The pickers can be moved from the menu, from
+//  Settings and from a machine switch, so the sync runs every UI frame; the
+//  toolbar drops it while a list is open, since an open list is mid-preview
+//  and owns its own value until it closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncToolbarState()
+{
+    ColorMode  mode       = m_colorMode.load (std::memory_order_acquire);
+    int        colorIndex = 0;
+    int        themeIndex = -1;
+    int        row        = 0;
+
+
+
+    switch (mode)
+    {
+        case ColorMode::GreenMono: colorIndex = 1; break;
+        case ColorMode::AmberMono: colorIndex = 2; break;
+        case ColorMode::WhiteMono: colorIndex = 3; break;
+        default:                   colorIndex = 0; break;
+    }
+
+    if (m_themeManager != nullptr)
+    {
+        const std::string &  activeName = m_themeManager->GetActiveThemeName();
+
+        for (const std::string & id : m_toolbarThemeIds)
+        {
+            if (id == activeName)
+            {
+                themeIndex = row;
+            }
+
+            row++;
+        }
+    }
+
+    m_toolbar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
+    m_toolbar.SetFullscreen         (m_d3dRenderer.IsFullscreen());
+    m_toolbar.SetMonitorColorIndex  (colorIndex);
+
+    if (themeIndex >= 0)
+    {
+        m_toolbar.SetThemeIndex (themeIndex);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SubscribeAndActivateTheme
 //
 //  Two orderings here, both load-bearing.
@@ -3409,6 +3630,12 @@ void EmulatorShell::SubscribeAndActivateTheme()
     {
         m_chromeTheme = CassoTheme::MakeByName (t.name);
         ApplyThemeToChrome (m_chromeTheme);
+
+        // The command bar's theme picker is built from this catalog, and the
+        // manager outlives every other path that can change the active theme
+        // (the picker itself, Settings, a fallback activation), so this is
+        // the one place that sees all of them.
+        RefreshToolbarThemeList();
     });
 
     // Tell the theme manager which machine is active BEFORE the
@@ -4315,6 +4542,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
     m_toolbar.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
     m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
+
+    // The theme + monitor-color pickers, and the catalog behind the first of
+    // them. Both option lists render through the host popup pool for the same
+    // reason the menu bar's does: they hang off the strip over the viewport.
+    WireToolbarPickers();
+    RefreshToolbarThemeList();
+    SyncToolbarState();
     m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -8204,6 +8438,16 @@ bool EmulatorShell::TryPresentUiFrame()
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
+    // An open toolbar picker previews live, so it needs the same treatment:
+    // a highlight change alters the chrome or the picture, and without a
+    // forced present the preview would wait for the next unrelated redraw.
+    SyncToolbarState();
+
+    if (m_toolbar.IsDropdownOpen())
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     // Drive the chrome tooltip dwell timers (joystick button, toolbar,
     // //c switch strip, drive widgets); each shows / hides its popup once
     // the open / close delay elapses after a hover.
@@ -11673,6 +11917,14 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     if (m_pointerMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
     {
         SetPointerMapping (InputMappingMode::Off);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // An open toolbar picker is modal in practice: it owns arrows, Enter and
+    //    Escape so browsing the rows previews rather than typing into the //e.
+    if (m_toolbar.IsDropdownOpen())
+    {
+        (void) m_toolbar.HandleKey (vk);
         BAIL_OUT_IF (true, S_OK);
     }
 

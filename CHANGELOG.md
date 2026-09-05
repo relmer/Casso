@@ -44,6 +44,12 @@ Entries before versioning was introduced use dates only.
   the drive keeps running on it. Decline and the drive is emptied, since the
   file behind it is gone.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
+- **Theme and monitor-color pickers on the command bar**, beside Settings. Both
+  preview live as you move down the list, by mouse or by arrow key, and put
+  back what was there if you dismiss the list. A picked theme and color mode
+  are remembered.
+- **A fullscreen button on the command bar**, before Screenshot, which reads
+  "Exit fullscreen" once you are in it.
 
 ### Changed
 - **2D themes now use a richer drive widget.** The disk name is the control,
@@ -85,6 +91,9 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The command bar's Reset and Power tooltips said only what the button said.**
+  They now specify the machine they act on, and Reset gives the open-apple
+  chord for a cold boot -- the only place the chord is shown.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,

@@ -5,7 +5,11 @@
 #include "Core/IDxuiControl.h"
 #include "Devices/Printer/PrinterStatusModel.h"   // PrinterStatus
 #include "UiCommandTypes.h"                       // InputMappingMode
+#include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiSlider.h"
+
+
+class DxuiHwndSource;
 
 
 
@@ -43,6 +47,7 @@ public:
     using DispatchFn = std::function<void (WORD)>;
     using VolumeFn   = std::function<void (float, bool)>;
     using InputFn    = std::function<void (InputMappingMode)>;
+    using ChoiceFn   = std::function<void (int index)>;
 
     // Responsive presentation, chosen from the window width (widest first):
     // icon + label to the right, icon with the label stacked BELOW (ribbon
@@ -75,6 +80,34 @@ public:
 
     void  SetDispatch       (DispatchFn fn)              { m_dispatch = std::move (fn); }
     void  SetVolumeSink     (VolumeFn fn)                { m_volumeSink = std::move (fn); }
+
+    // The machine the Reset / Power tooltips talk about ("Apple //e"), and
+    // the presentation the fullscreen button offers to leave or enter.
+    void  SetMachineDisplayName (const std::wstring & displayName);
+    void  SetFullscreen         (bool fullscreen);
+
+    // Theme picker: display names in the order the shell holds their ids,
+    // and the row the active theme sits on. Monitor color is the fixed
+    // Color / Green / Amber / White set the Settings picture list carries.
+    void  SetThemes            (const std::vector<std::wstring> & displayNames, int activeIndex);
+    void  SetThemeIndex        (int index);
+    void  SetMonitorColorIndex (int index);
+
+    // Both pickers preview while their list is open and settle when it
+    // closes. Preview applies without persisting, because a highlight is
+    // not a choice; commit is the user's pick. A dismissed list replays
+    // preview with the row it opened on, which is the snap-back.
+    void  SetThemeSinks        (ChoiceFn preview, ChoiceFn commit);
+    void  SetMonitorSinks      (ChoiceFn preview, ChoiceFn commit);
+
+    // Routes both option lists through the host's popup-window pool so
+    // they escape the strip and hang over the emulator viewport.
+    void  SetPopupHost         (DxuiHwndSource * host);
+
+    // An open list owns the keyboard: the shell hands it every keydown so
+    // arrowing through the rows previews instead of typing into the guest.
+    bool  IsDropdownOpen       () const;
+    bool  HandleKey            (WPARAM vk);
 
     // Input-mode cluster: one "Input" label over three LED + glyph segments
     // (joystick / paddle / mouse), the toolbar home of what used to be the
@@ -126,6 +159,7 @@ private:
         wchar_t          glyph     = 0;
         const wchar_t *  label     = nullptr;
         bool             statusLed = false;
+        std::wstring     tip;                  // shown in EVERY mode; see GetTooltipAt
         RECT             rc        = {};
         bool             hovered   = false;
         bool             pressed   = false;
@@ -164,6 +198,10 @@ private:
     bool             InputSegSelected  (int index) const;
     RECT             FlyoutKeepAliveRc () const;
 
+    void             WireDropdowns      ();
+    void             RebuildActionTips  ();
+    static int       GetDropdownWidthPx (Mode mode, UINT dpi);
+
     std::vector<Button>   m_buttons;        // command buttons in visual order
     Button                m_muteButton;     // toggles mute (not a dispatch id)
     DxuiSlider            m_volumeSlider;   // vertical, lives in the flyout
@@ -176,6 +214,18 @@ private:
     bool                  m_mouseAvailable = false;
     bool                  m_inputSkeuo     = true;
     bool                  m_inputMonoline  = true;
+
+    DxuiDropdown          m_themeDropdown;
+    DxuiDropdown          m_monitorDropdown;
+    ChoiceFn              m_themePreview;
+    ChoiceFn              m_themeCommit;
+    ChoiceFn              m_monitorPreview;
+    ChoiceFn              m_monitorCommit;
+    bool                  m_themePreviewed   = false;   // a highlight moved off the open row
+    bool                  m_monitorPreviewed = false;
+
+    std::wstring          m_machineName;
+    bool                  m_fullscreen     = false;
 
     bool                  m_flyoutOpen     = false;
     RECT                  m_flyoutRc       = {};

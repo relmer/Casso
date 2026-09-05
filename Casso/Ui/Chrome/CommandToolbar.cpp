@@ -44,6 +44,16 @@ static constexpr wchar_t  s_kGlyphPower      = L'\uE7E8';   // power symbol
 static constexpr wchar_t  s_kGlyphVolume     = L'\uE767';   // speaker
 static constexpr wchar_t  s_kGlyphMuted      = L'\uE74F';   // muted speaker
 static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline, matches the set)
+static constexpr wchar_t  s_kGlyphFullscreen = L'\uE740';   // expand to fullscreen
+static constexpr wchar_t  s_kGlyphRestore    = L'\uE73F';   // back to a window
+
+// The theme + monitor-color pickers. The box shows the value rather than a
+// label, so the width has to hold the longest row ("RetroTerminal") plus the
+// chevron; both boxes take the same width, since two unequal boxes side by
+// side read as a mistake.
+static constexpr int      s_kDropdownWidthDp   = 124;
+static constexpr int      s_kDropdownNarrowDp  = 104;   // stacked / icon-only modes
+static constexpr int      s_kDropdownHeightDp  = 24;
 
 // Volume flyout (vertical slider + readout under the track).
 static constexpr int      s_kFlyoutWidthDp    = 56;
@@ -65,6 +75,20 @@ static constexpr uint32_t s_kLedOffCore = 0xFF06121A;
 
 static constexpr const wchar_t * s_kInputLabel = L"Input";
 
+static constexpr const wchar_t * s_kTipTheme        = L"Theme";
+static constexpr const wchar_t * s_kTipMonitorColor = L"Monitor color";
+
+// The monitor-color rows. Settings spells the monochrome ones out in full;
+// on a strip this narrow the phosphor name alone carries it, and the tooltip
+// supplies what the box is for.
+static constexpr const wchar_t * s_kMonitorColorRows[] =
+{
+    L"Color",
+    L"Green",
+    L"Amber",
+    L"White",
+};
+
 // Per-segment tooltips. The segments carry no labels of their own, so the
 // tips lead with the mode name the old selector showed as text.
 static constexpr const wchar_t * s_kTipJoystickSeg =
@@ -84,9 +108,10 @@ static constexpr const wchar_t * s_kTipMouseSeg =
 //
 //  CommandToolbar::CommandToolbar
 //
-//  Fixed command set (spec 015 DCR-2 decision): Settings + Printer, the
-//  volume group, then Screenshot / Reset / Power. Every command id is an
-//  existing IDM_* routed through the menu's HandleCommand path.
+//  Fixed command set: Settings with the theme + monitor-color pickers,
+//  Printer, the volume group, the input cluster, then Fullscreen /
+//  Screenshot / Reset / Power. Every command id is an existing IDM_* routed
+//  through the menu's HandleCommand path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,9 +121,15 @@ CommandToolbar::CommandToolbar()
 
     m_buttons.push_back (Button { IDM_VIEW_SETTINGS,        s_kGlyphSettings,   L"Settings",   false });
     m_buttons.push_back (Button { IDM_PRINTER_PREVIEW,      s_kGlyphPrint,      L"Printer",    true  });
+    m_buttons.push_back (Button { IDM_VIEW_FULLSCREEN,      s_kGlyphFullscreen, L"Fullscreen", false });
     m_buttons.push_back (Button { IDM_EDIT_COPY_SCREENSHOT, s_kGlyphScreenshot, L"Screenshot", false });
     m_buttons.push_back (Button { IDM_MACHINE_RESET,        s_kGlyphReset,      L"Reset",      false });
     m_buttons.push_back (Button { IDM_MACHINE_POWERCYCLE,   s_kGlyphPower,      L"Power",      false });
+
+    m_monitorDropdown.SetItems (std::vector<std::wstring> (std::begin (s_kMonitorColorRows),
+                                                           std::end   (s_kMonitorColorRows)));
+    WireDropdowns();
+    RebuildActionTips();
 
     m_muteButton.id    = 0;   // not a dispatch: toggles mute locally
     m_muteButton.glyph = s_kGlyphVolume;
@@ -132,6 +163,297 @@ CommandToolbar::CommandToolbar()
         swprintf_s (buf, L"%d%%", (int) std::lround (v));
         return buf;
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::WireDropdowns
+//
+//  Both pickers run the same three-callback contract, which is what gives
+//  them the Settings behavior: a highlight PREVIEWS (mouse hover or keyboard
+//  arrow, applied but not persisted), a pick COMMITS, and the close edge
+//  SETTLES on whatever row is selected by then.
+//
+//  Settling on close is what snaps the chrome back after a dismissal, and it
+//  costs nothing after a pick: the commit already cleared the previewed flag,
+//  so the settle only runs when a preview is outstanding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::WireDropdowns()
+{
+    m_themeDropdown.SetOnHighlightChange ([this] (int index)
+    {
+        m_themePreviewed = true;
+
+        if (m_themePreview)
+        {
+            m_themePreview (index);
+        }
+    });
+
+    m_themeDropdown.SetSelect ([this] (int index)
+    {
+        m_themePreviewed = false;
+
+        if (m_themeCommit)
+        {
+            m_themeCommit (index);
+        }
+    });
+
+    m_themeDropdown.SetOnClosed ([this] ()
+    {
+        int  settled = m_themeDropdown.GetSelectedIndex();
+
+        if (m_themePreviewed && settled >= 0 && m_themePreview)
+        {
+            m_themePreview (settled);
+        }
+
+        m_themePreviewed = false;
+    });
+
+    m_monitorDropdown.SetOnHighlightChange ([this] (int index)
+    {
+        m_monitorPreviewed = true;
+
+        if (m_monitorPreview)
+        {
+            m_monitorPreview (index);
+        }
+    });
+
+    m_monitorDropdown.SetSelect ([this] (int index)
+    {
+        m_monitorPreviewed = false;
+
+        if (m_monitorCommit)
+        {
+            m_monitorCommit (index);
+        }
+    });
+
+    m_monitorDropdown.SetOnClosed ([this] ()
+    {
+        int  settled = m_monitorDropdown.GetSelectedIndex();
+
+        if (m_monitorPreviewed && settled >= 0 && m_monitorPreview)
+        {
+            m_monitorPreview (settled);
+        }
+
+        m_monitorPreviewed = false;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::RebuildActionTips
+//
+//  Reset and Power say which machine they act on, so the tips are composed
+//  rather than fixed. Reset's also carries the open-apple chord, which is the
+//  only place in the chrome that surfaces it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::RebuildActionTips()
+{
+    std::wstring  machine = m_machineName.empty() ? std::wstring (L"machine") : m_machineName;
+
+
+
+    for (Button & btn : m_buttons)
+    {
+        if (btn.id == IDM_MACHINE_RESET)
+        {
+            btn.tip = L"Reset the " + machine +
+                      L". Open-apple (left alt) + Reset to cold boot.";
+        }
+        else if (btn.id == IDM_MACHINE_POWERCYCLE)
+        {
+            btn.tip = L"Power-cycle the " + machine;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::SetMachineDisplayName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::SetMachineDisplayName (const std::wstring & displayName)
+{
+    if (displayName == m_machineName)
+    {
+        return;
+    }
+
+    m_machineName = displayName;
+    RebuildActionTips();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::SetFullscreen
+//
+//  One button covers both directions, so the glyph and the label follow the
+//  presentation the click would LEAVE, not the one it is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::SetFullscreen (bool fullscreen)
+{
+    m_fullscreen = fullscreen;
+
+    for (Button & btn : m_buttons)
+    {
+        if (btn.id == IDM_VIEW_FULLSCREEN)
+        {
+            btn.glyph = m_fullscreen ? s_kGlyphRestore    : s_kGlyphFullscreen;
+            btn.label = m_fullscreen ? L"Exit fullscreen" : L"Fullscreen";
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::SetThemes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::SetThemes (const std::vector<std::wstring> & displayNames, int activeIndex)
+{
+    m_themeDropdown.SetItems    (displayNames);
+    m_themeDropdown.SetSelected (activeIndex);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::SetThemeIndex / SetMonitorColorIndex
+//
+//  An OPEN list is mid-preview and owns what the box shows, so a sync from
+//  the shell is dropped rather than fighting the highlight the user is
+//  moving -- and the preview itself arrives back here as a shell sync.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::SetThemeIndex (int index)
+{
+    if (!m_themeDropdown.IsOpen())
+    {
+        m_themeDropdown.SetSelected (index);
+    }
+}
+
+
+void CommandToolbar::SetMonitorColorIndex (int index)
+{
+    if (!m_monitorDropdown.IsOpen())
+    {
+        m_monitorDropdown.SetSelected (index);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::SetThemeSinks / SetMonitorSinks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::SetThemeSinks (ChoiceFn preview, ChoiceFn commit)
+{
+    m_themePreview = std::move (preview);
+    m_themeCommit  = std::move (commit);
+}
+
+
+void CommandToolbar::SetMonitorSinks (ChoiceFn preview, ChoiceFn commit)
+{
+    m_monitorPreview = std::move (preview);
+    m_monitorCommit  = std::move (commit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::SetPopupHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::SetPopupHost (DxuiHwndSource * host)
+{
+    m_themeDropdown.SetPopupHost   (host);
+    m_monitorDropdown.SetPopupHost (host);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::IsDropdownOpen / HandleKey
+//
+//  An open list is modal in practice, so the shell hands it every keydown --
+//  otherwise arrowing through the rows would also type into the guest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandToolbar::IsDropdownOpen() const
+{
+    return m_themeDropdown.IsOpen() || m_monitorDropdown.IsOpen();
+}
+
+
+bool CommandToolbar::HandleKey (WPARAM vk)
+{
+    bool  handled = false;
+
+
+
+    if (m_themeDropdown.IsOpen())
+    {
+        handled = m_themeDropdown.HandleKey (vk);
+    }
+    else if (m_monitorDropdown.IsOpen())
+    {
+        handled = m_monitorDropdown.HandleKey (vk);
+    }
+
+    return handled;
 }
 
 
@@ -309,12 +631,35 @@ RECT CommandToolbar::FlyoutKeepAliveRc() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandToolbar::GetDropdownWidthPx
+//
+//  The pickers show a value, not an icon, so they cannot collapse the way the
+//  buttons do -- the narrow modes only tighten them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CommandToolbar::GetDropdownWidthPx (Mode mode, UINT dpi)
+{
+    int  widthDp = (mode == Mode::LabelRight) ? s_kDropdownWidthDp : s_kDropdownNarrowDp;
+
+
+
+    return MulDiv (widthDp, (int) dpi, s_kBaseDpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandToolbar::Layout
 //
 //  Lays the buttons left-to-right from the strip's left edge: [Settings]
-//  [Printer] | [Volume + slider] | [Screenshot] [Reset] [Power]. Button
-//  widths follow their measured label (icon + gap + label + padding); the
-//  strip rect is the dock band handed in by the shell.
+//  [Theme] [Monitor color] [Printer] | [Volume + slider] | [Input] |
+//  [Fullscreen] [Screenshot] [Reset] [Power]. Button widths follow their
+//  measured label (icon + gap + label + padding); the strip rect is the dock
+//  band handed in by the shell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -402,6 +747,7 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
         for (const Button & b : m_buttons) { w += buttonWidth (b, mode) + btnGap; }
         w += buttonWidth (m_muteButton, mode);
         w += clusterWidth (mode);
+        w += (GetDropdownWidthPx (mode, dpi) + btnGap) * 2;
         w += (groupGap - btnGap) + groupGap + groupGap + groupGap;
         return w;
     };
@@ -427,11 +773,15 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
 //
 //  CommandToolbar::Layout
 //
-//  Places the buttons left-to-right in the current mode: [Settings] [Printer]
-//  | [Volume + slider] | [Screenshot] [Reset] [Power]. The mode is re-planned
-//  against this exact strip width so mode and layout can never disagree; in
-//  icon-only mode the volume slider then shrinks toward its minimum if even
-//  the icons overflow.
+//  Places the buttons left-to-right in the current mode: [Settings] [Theme]
+//  [Monitor color] [Printer] | [Volume + slider] | [Input] | [Fullscreen]
+//  [Screenshot] [Reset] [Power]. The mode is re-planned against this exact
+//  strip width so mode and layout can never disagree; in icon-only mode the
+//  volume slider then shrinks toward its minimum if even the icons overflow.
+//
+//  The two pickers keep a fixed height centered in the strip rather than
+//  filling it, because the ribbon mode's band is tall enough that a
+//  full-height box would read as a panel instead of a control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -532,6 +882,23 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     };
 
     place (m_buttons[0]);                       // Settings
+
+    // The theme + monitor-color pickers sit with Settings, because that is
+    // where the same two settings otherwise live.
+    {
+        int  dropW = GetDropdownWidthPx (m_mode, dpi);
+        int  dropH = MulDiv (s_kDropdownHeightDp, (int) dpi, s_kBaseDpi);
+        int  dropY = boundsDip.top + ((boundsDip.bottom - boundsDip.top) - dropH) / 2;
+
+        m_themeDropdown.SetRect (RECT { x, dropY, x + dropW, dropY + dropH });
+        m_themeDropdown.SetDpi  (dpi);
+        x += dropW + btnGap;
+
+        m_monitorDropdown.SetRect (RECT { x, dropY, x + dropW, dropY + dropH });
+        m_monitorDropdown.SetDpi  (dpi);
+        x += dropW + btnGap;
+    }
+
     place (m_buttons[1]);                       // Printer
     x += groupGap - btnGap;
 
@@ -592,9 +959,10 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         x += groupGap;
     }
 
-    place (m_buttons[2]);                       // Screenshot
-    place (m_buttons[3]);                       // Reset
-    place (m_buttons[4]);                       // Power
+    place (m_buttons[2]);                       // Fullscreen
+    place (m_buttons[3]);                       // Screenshot
+    place (m_buttons[4]);                       // Reset
+    place (m_buttons[5]);                       // Power
 
     SetBounds (m_barRect);
 }
@@ -611,6 +979,12 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 //  a tooltip (the shell owns the DxuiTooltip and its dwell timing). The mute
 //  button's tooltip reflects the action it would take.
 //
+//  A button carrying an EXPLICIT tip shows it in every mode. Those tips say
+//  something the label cannot -- which machine Reset acts on, and the
+//  open-apple chord that turns it into a cold boot -- so suppressing them
+//  wherever the label happens to be visible would hide the only place that
+//  information appears.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * CommandToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
@@ -618,6 +992,28 @@ const wchar_t * CommandToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
     const wchar_t *  tip = nullptr;
 
 
+
+    // The pickers show a value, not what the value is FOR, so like the input
+    // segments they are tipped in every mode.
+    if (m_themeDropdown.HitTest (x, y))
+    {
+        anchor = m_themeDropdown.GetRect();
+        tip    = s_kTipTheme;
+    }
+    else if (m_monitorDropdown.HitTest (x, y))
+    {
+        anchor = m_monitorDropdown.GetRect();
+        tip    = s_kTipMonitorColor;
+    }
+
+    for (const Button & btn : m_buttons)
+    {
+        if (tip == nullptr && !btn.tip.empty() && btn.enabled && IsPointInRect (btn.rc, x, y))
+        {
+            anchor = btn.rc;
+            tip    = btn.tip.c_str();
+        }
+    }
 
     // The input segments carry no labels in ANY mode -- the cluster's shared
     // label only names the group -- so their tooltips always show and lead
@@ -642,7 +1038,7 @@ const wchar_t * CommandToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
     {
         for (const Button & btn : m_buttons)
         {
-            if (tip == nullptr && btn.enabled && IsPointInRect (btn.rc, x, y))
+            if (tip == nullptr && btn.tip.empty() && btn.enabled && IsPointInRect (btn.rc, x, y))
             {
                 anchor = btn.rc;
                 tip    = btn.label;
@@ -692,6 +1088,14 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
     {
         m_volumeSlider.SetMouseHover (x, y);
     }
+
+    // A hosted list owns the pointer inside its own window, so this only ever
+    // updates the BOX hover -- the row highlight (and its preview) arrives
+    // through the popup's own move hook.
+    m_themeDropdown.SetMouseHover   (x, y);
+    m_monitorDropdown.SetMouseHover (x, y);
+
+    over = over || m_themeDropdown.HitTest (x, y) || m_monitorDropdown.HitTest (x, y);
 
     for (Button & btn : m_buttons)
     {
@@ -750,6 +1154,11 @@ void CommandToolbar::OnToolbarMouseLeave()
     m_muteButton.hovered = false;
     m_muteButton.pressed = false;
 
+    // Clears the BOX hover only. An open list is a separate window the
+    // pointer has just moved into, so leaving the strip must not close it.
+    m_themeDropdown.SetMouseHover   (-1, -1);
+    m_monitorDropdown.SetMouseHover (-1, -1);
+
     for (InputSeg & seg : m_inputSegs)
     {
         seg.hovered = false;
@@ -795,6 +1204,16 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
     bool  handled = m_flyoutOpen && !m_muted && m_volumeSlider.OnLButtonDown (x, y);
 
 
+
+    if (!handled)
+    {
+        // Either press also DISMISSES the other open list, which is how one
+        // picker's box click closes the one already up.
+        bool  onTheme   = m_themeDropdown.OnLButtonDown   (x, y);
+        bool  onMonitor = m_monitorDropdown.OnLButtonDown (x, y);
+
+        handled = onTheme || onMonitor;
+    }
 
     for (Button & btn : m_buttons)
     {
@@ -857,6 +1276,14 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
     bool  wasPressed = false;
 
 
+
+    if (!handled)
+    {
+        bool  onTheme   = m_themeDropdown.OnLButtonUp   (x, y);
+        bool  onMonitor = m_monitorDropdown.OnLButtonUp (x, y);
+
+        handled = onTheme || onMonitor;
+    }
 
     // Every button drops its pressed visual on any release, whether or not
     // the release landed on it -- a press that ends elsewhere is a cancel.
@@ -1092,12 +1519,22 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     PaintButton (m_muteButton, painter, text, theme);
     PaintInputCluster (painter, text, theme);
 
+    m_themeDropdown.SetTheme     (&theme);
+    m_monitorDropdown.SetTheme   (&theme);
+    m_themeDropdown.PaintBase    (painter, text);
+    m_monitorDropdown.PaintBase  (painter, text);
+
     // The flyout paints LAST: it hangs below the bar over whatever chrome or
     // scene is there, and everything on the bar must be under it.
     if (m_flyoutOpen)
     {
         PaintVolumeFlyout (painter, text, theme);
     }
+
+    // Same reason, and a no-op whenever the list is a real popup window --
+    // that one covers the desktop, not the strip.
+    m_themeDropdown.PaintMenu   (painter, text);
+    m_monitorDropdown.PaintMenu (painter, text);
 }
 
 

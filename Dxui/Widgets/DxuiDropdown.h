@@ -17,6 +17,7 @@ class DxuiDropdown : public IDxuiControl
 {
 public:
     using SelectFn = std::function<void (int index)>;
+    using ClosedFn = std::function<void ()>;
 
     DxuiDropdown() { m_focusable = true; }
     ~DxuiDropdown() override = default;
@@ -29,6 +30,13 @@ public:
     bool  IsFocused   () const { return m_focused; }
     void  SetSelect   (SelectFn select) { m_select = std::move (select); }
     void  SetOnHighlightChange (SelectFn fn) { m_highlightChange = std::move (fn); }
+
+    // Fired once per open -> closed edge, AFTER any commit the closing
+    // gesture made. A caller that previews on highlight settles on
+    // GetSelectedIndex() from here: the committed row after a pick, the
+    // row the list opened on after a dismissal.
+    void  SetOnClosed          (ClosedFn fn) { m_closed = std::move (fn); }
+
     void  Open           ();
     void  Close          ();
     bool  IsOpen()       const { return m_open; }
@@ -135,6 +143,7 @@ private:
     std::vector<std::wstring>    m_items;
     SelectFn                     m_select;
     SelectFn                     m_highlightChange;
+    ClosedFn                     m_closed;
     bool                         m_open            = false;
     bool                         m_armed           = false;
     bool                         m_hover           = false;
