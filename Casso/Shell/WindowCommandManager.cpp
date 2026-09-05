@@ -2250,7 +2250,6 @@ void WindowCommandManager::OnHelpCommand (int id)
                 L"Enter -> Return\n"
                 L"Escape -> Escape\n"
                 L"Delete -> Delete\n"
-                L"Ctrl+Reset -> Warm reset\n"
                 L"Left Alt -> Open Apple (//e)\n"
                 L"Right Alt -> Closed Apple (//e)\n\n"
                 L"Emulator controls:\n"

@@ -214,15 +214,22 @@ void Apple2eKeyboard::EmitHostButton (int index, bool pressed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PressKeyRaw
+//  TranslateHostKey
 //
-//  IIe keyboard supports lowercase — don't force uppercase.
+//  The //e keyboard adds everything the base class drops: lowercase, the
+//  up and down arrows, TAB and DELETE. Every host character it is handed
+//  is one the hardware can send, so it passes through untouched.
+//
+//  The //c keyboard-layout switch is NOT applied here. It remaps the encoder
+//  rather than the key set, it must not touch injected text, and it needs the
+//  host layout for context, so the shell applies MapTypedChar to physical
+//  keystrokes before they ever reach the latch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eKeyboard::PressKeyRaw (Byte asciiChar)
+Byte Apple2eKeyboard::TranslateHostKey (Byte ch) const
 {
-    PressKey (asciiChar);
+    return ch;
 }
 
 

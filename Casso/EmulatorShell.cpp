@@ -11466,9 +11466,11 @@ void EmulatorShell::OpenSettings()
 //  HandleHostMetaShortcut
 //
 //  Consume host-meta keys that never reach the emulated //e keyboard: menu
-//  mnemonic navigation, F10 menu focus, Ctrl+V paste, and Ctrl+Shift+R reset.
-//  Returns true when the key was claimed. An unmatched Alt+key deliberately
-//  falls through so combos like Ctrl+Alt+R still reach the reset path.
+//  mnemonic navigation, F10 menu focus, and Ctrl+V paste. Returns true when
+//  the key was claimed. Every accelerator the menu advertises is dispatched
+//  from the accelerator table instead, so nothing here duplicates one; an
+//  unmatched Alt+key deliberately falls through, since Alt is the //e's
+//  Open / Closed Apple and belongs to the guest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11499,11 +11501,6 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
         // line (the classic paste-then-SYNTAX-ERROR).
         m_swallowMetaChar = true;
         m_clipboardManager->PasteFromClipboard (m_hwnd);
-    }
-    else if (vk == 'R' && ctrlHeld && !(GetKeyState (VK_SHIFT) & 0x8000))
-    {
-        m_swallowMetaChar = true;
-        PostCommand (IDM_MACHINE_RESET);
     }
     else
     {
@@ -12828,9 +12825,9 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 
 
-    // A host-meta shortcut (Ctrl+V paste, Ctrl+R reset) claimed the keydown,
-    // but Windows synthesized its control character anyway; swallow exactly
-    // that one char so it never types into the guest.
+    // A host-meta shortcut (Ctrl+V paste) claimed the keydown, but Windows
+    // synthesized its control character anyway; swallow exactly that one
+    // char so it never types into the guest.
     if (m_swallowMetaChar)
     {
         m_swallowMetaChar = false;

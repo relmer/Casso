@@ -113,6 +113,49 @@ public:
         }
     }
 
+    //  A ][ / ][+ keyboard has left and right arrows only, no DELETE and no
+    //  TAB -- all three arrived with the //e -- so those host keys must not
+    //  reach the latch at all. The strobe staying clear is the assertion that
+    //  matters: a dropped key leaves the guest exactly as it was.
+    TEST_METHOD (KeysTheTwoPlusLacks_NeverLatch)
+    {
+        const Byte  absent[] = { kAppleKeyUp, kAppleKeyDown,
+                                 kAppleKeyTab, kAppleKeyDelete };
+
+        for (Byte ch : absent)
+        {
+            AppleKeyboard  kbd;
+            Byte           val = 0;
+
+            kbd.PressKey (ch);
+
+            val = kbd.Read (0xC000);
+
+            Assert::IsTrue ((val & 0x80) == 0,
+                std::format (L"${:02X} is not a ][+ key and must leave the strobe clear", ch).c_str());
+        }
+    }
+
+    //  Left / right arrows and Escape DO exist on the ][+, so the same drop
+    //  rule must not swallow them.
+    TEST_METHOD (KeysTheTwoPlusHas_StillLatch)
+    {
+        const Byte  present[] = { kAppleKeyLeft, kAppleKeyRight, kAppleKeyEscape };
+
+        for (Byte ch : present)
+        {
+            AppleKeyboard  kbd;
+            Byte           val = 0;
+
+            kbd.PressKey (ch);
+
+            val = kbd.Read (0xC000);
+
+            Assert::AreEqual (ch, static_cast<Byte> (val & 0x7F),
+                std::format (L"${:02X} is a ][+ key and must latch", ch).c_str());
+        }
+    }
+
     TEST_METHOD (ReturnKey_Produces0D)
     {
         AppleKeyboard  kbd;
@@ -323,6 +366,42 @@ public:
     //  source and bits 0-6 from the keyboard latch (read-only).
     //
     ////////////////////////////////////////////////////////////////////////
+
+    //  Everything the ][+ keyboard drops, the //e keyboard sends: the up and
+    //  down arrows, TAB, DELETE, and lowercase. Lowercase is the one with
+    //  teeth -- the //e is a lowercase machine, and folding it to uppercase
+    //  would make AppleWorks and ProDOS unusable.
+    TEST_METHOD (KeysTheTwoeAdds_AllLatch)
+    {
+        const Byte  added[] = { kAppleKeyUp, kAppleKeyDown,
+                                kAppleKeyTab, kAppleKeyDelete };
+
+        for (Byte ch : added)
+        {
+            Apple2eKeyboard  kbd;
+            Byte             val = 0;
+
+            kbd.PressKey (ch);
+
+            val = kbd.Read (0xC000);
+
+            Assert::AreEqual (ch, static_cast<Byte> (val & 0x7F),
+                std::format (L"${:02X} is a //e key and must latch", ch).c_str());
+        }
+    }
+
+    TEST_METHOD (LowercaseSurvives_OnTwoe)
+    {
+        Apple2eKeyboard  kbd;
+        Byte             val = 0;
+
+        kbd.PressKey ('a');
+
+        val = kbd.Read (0xC000);
+
+        Assert::AreEqual (static_cast<Byte> ('a'), static_cast<Byte> (val & 0x7F),
+            L"The //e keyboard types lowercase; 'a' must not fold to 'A'");
+    }
 
     TEST_METHOD (OpenAppleReadable_C061)
     {
@@ -787,7 +866,7 @@ public:
 
         kbd.PressKey (kbd.MapTypedChar ('k'));
 
-        Assert::AreEqual<Byte> ('T', static_cast<Byte> (kbd.Read (0xC000) & 0x7F),
-            L"typing 'k' with the Dvorak switch in must latch 't' (upcased at $C000)");
+        Assert::AreEqual<Byte> ('t', static_cast<Byte> (kbd.Read (0xC000) & 0x7F),
+            L"typing 'k' with the Dvorak switch in must latch 't', in the case typed");
     }
 };

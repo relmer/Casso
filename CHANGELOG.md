@@ -46,6 +46,9 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **Ctrl+R no longer resets the machine.** It was a second binding for the menu's
+  Ctrl+Shift+R, and because the shell claimed the keystroke, no Apple program
+  could ever receive a Ctrl+R of its own. Reset keeps its menu accelerator.
 - **2D themes now use a richer drive widget.** The disk name is the control,
   and its LED tracks where the head is sitting on the disk rather than only
   showing that the drive is busy. Clicking the name ejects the disk and offers
@@ -85,6 +88,13 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The //e and //c could not type lowercase.** Every letter was folded to
+  uppercase on its way to the keyboard latch, on machines whose whole keyboard
+  advance was lowercase. Pasted text was folded the same way.
+- **The ][ and ][+ received keys their keyboard has no way to send.** Up and
+  down arrows, TAB and DELETE all arrived with the //e, but the host has them
+  and Casso passed them straight through. A machine now drops the keys it does
+  not have, whether they are typed, translated from a host key, or pasted.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,

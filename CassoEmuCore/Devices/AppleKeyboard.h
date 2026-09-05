@@ -23,6 +23,7 @@ static constexpr Byte kAppleKeyLeft    = 0x08;   // Backspace / cursor left
 static constexpr Byte kAppleKeyRight   = 0x15;   // NAK / cursor right
 static constexpr Byte kAppleKeyUp      = 0x0B;   // VT / cursor up
 static constexpr Byte kAppleKeyDown    = 0x0A;   // LF / cursor down
+static constexpr Byte kAppleKeyTab     = 0x09;   // HT / tab
 static constexpr Byte kAppleKeyEscape  = 0x1B;   // Escape
 static constexpr Byte kAppleKeyDelete  = 0x7F;   // Delete
 
@@ -104,9 +105,12 @@ public:
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
-private:
-    Byte TranslateToUppercase (Byte ch) const;
+protected:
+    // Fold one host character to what this keyboard can actually latch;
+    // 0 means the machine has no such key. See the .cpp for the rationale.
+    virtual Byte TranslateHostKey (Byte ch) const;
 
+private:
     // Producer-side coalesced emit helpers (CPU thread). Each fires the
     // matching sink callback only when the observed value changed, so a
     // tight poll loop produces one event per transition.

@@ -122,9 +122,6 @@ public:
     // characters (digits, whitespace, control codes) pass through unchanged.
     static Byte QwertyToDvorak (Byte ascii);
 
-    // Override key press to allow lowercase
-    void PressKeyRaw (Byte asciiChar);
-
     // Phase 6 / FR-013 read-only modifier accessors used by the soft-switch
     // bank when sourcing bit 7 of $C061/$C062/$C063 status reads.
     bool IsOpenApplePressed   () const { return m_openApple.load   (memory_order_acquire); }
@@ -132,6 +129,9 @@ public:
     bool IsShiftPressed       () const { return m_shift.load       (memory_order_acquire); }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
+
+protected:
+    Byte TranslateHostKey (Byte ch) const override;
 
 private:
     static constexpr Word kFirstButtonAddress = 0xC061;
