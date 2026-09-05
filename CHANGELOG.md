@@ -85,12 +85,15 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
-- **The "Paddle mode -- press Esc to release the mouse" notice covered the
-  drive widgets.** It was shadowed text laid over the viewport and hung above
-  the //c's switch strip, which collapses to nothing on every other machine,
-  so it fell back to the window's bottom edge and sat on the drives. It is a
-  message bar under the command strip now -- the same in every theme, and in
-  fullscreen, where it rides down with the toolbar reveal.
+- **The paddle-capture notice covered the drive widgets.** "Press Esc to
+  release the mouse and exit paddle mode" was shadowed text laid over the
+  viewport, hung above the //c's switch strip -- which collapses to nothing
+  on every other machine, so it fell back to the window's bottom edge and sat
+  on the drives. It is a message bar docked under the command strip now --
+  the picture gives up the height while the pointer is held, the same as the
+  external-change notice does -- and the same bar in every theme. In
+  fullscreen, where there are no bands, it rides down with the toolbar
+  reveal.
 - **Answering the "disk modified outside Casso" question could act on the wrong
   disk.** The answer was carried out against whatever was in the drive, so
   taking the disk out and putting another in while the question stood moved the

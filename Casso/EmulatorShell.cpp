@@ -222,8 +222,8 @@ static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 
 // The pointer-capture notice: how to get the mouse back, said for as long as
 // it is held. The bar sizes itself to this text; nothing here places it.
-static const std::wstring         s_kCaptureBanner =
-    std::wstring (L"Paddle mode ") + s_kchEmDash + L" press Esc to release the mouse";
+static const wchar_t * const  s_kpszCaptureNotice =
+    L"Press Esc to release the mouse and exit paddle mode";
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //
@@ -1055,6 +1055,10 @@ void EmulatorShell::RegisterChromeDock()
     // Under the toolbar and above the picture, because a notice about the disk
     // in the drive belongs with the controls rather than over the screen.
     m_chromeDock.SetDock (m_changeBand,  DxuiDock::Top);
+
+    // Under the change notice, so a capture that starts while a disk question
+    // stands does not push the question off the top of the chrome.
+    m_chromeDock.SetDock (m_captureBand, DxuiDock::Top);
     m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
     // Registered AFTER the drive band so the dock peels the drive bar off the
     // very bottom first and the //c switch strip lands just above it (between
@@ -2340,27 +2344,45 @@ void EmulatorShell::SyncCaptureBanner()
         return;
     }
 
-    //  UNDER THE COMMAND STRIP, WHEREVER THAT STRIP IS -- docked at the top of
-    //  a window, or slid down over a fullscreen picture -- and at the client's
-    //  own top edge when the strip is away. One rule for every presentation,
-    //  and it follows the reveal down rather than being covered by it.
-    //
-    //  AN OVERLAY RATHER THAN A DOCKED BAND, which is the opposite of what the
-    //  external-change notice does and for a reason peculiar to this one: a
-    //  band makes the picture give up the height, and the resize that follows
-    //  raises WM_CANCELMODE, which DROPS THE MOUSE CAPTURE. Ordering does not
-    //  save it -- the cancel is dispatched on a later pump, after the grab has
-    //  been taken -- so a notice that exists to say the pointer is held cannot
-    //  be laid out by a pass that lets it go.
-    strip = m_toolbar.GetBounds();
-    top   = (m_toolbar.IsVisible() && strip.bottom > client.top) ? strip.bottom
-                                                                 : client.top;
-    width = (float) (client.right - client.left);
+    //  THE GRAB, PUT BACK IF THE OS TOOK IT WITHOUT SAYING SO. Between the
+    //  band docking and any cancel the window manager decides to send, the
+    //  capture can go while everything the shell knows says it is still held.
+    //  OnCancelMode covers the cancel it can identify; this covers the rest,
+    //  by simply asking. It fires only while this window is the foreground one
+    //  and the shell still believes the pointer is held, and costs one
+    //  GetCapture per frame while paddling -- nothing at all otherwise.
+    if (GetCapture() != m_hwnd && GetForegroundWindow() == m_hwnd)
+    {
+        SetCapture (m_hwnd);
+        ClipPaddleCursorToClient();
+    }
 
-    rc.left   = client.left;
-    rc.right  = client.right;
-    rc.top    = top;
-    rc.bottom = top + (LONG) m_captureBar.GetPreferredHeightPx (width, m_scaler);
+    //  A DOCKED BAND WHEN THERE ARE BANDS: the dock gives it the client width
+    //  under the command strip and the picture gives up the height, the same
+    //  bargain the external-change notice makes. Taking the band's rect rather
+    //  than computing a second one is what keeps the bar and the picture from
+    //  disagreeing about where the chrome ends.
+    //
+    //  IN FULLSCREEN THERE ARE NO BANDS -- the picture owns the whole client --
+    //  so the bar hangs off the top edge instead, following the toolbar's
+    //  reveal down and back up so it stays under the command strip wherever
+    //  that strip currently is.
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        rc = m_captureBand.GetBounds();
+    }
+    else
+    {
+        strip = m_toolbar.GetBounds();
+        top   = (m_toolbar.IsVisible() && strip.bottom > client.top) ? strip.bottom
+                                                                     : client.top;
+        width = (float) (client.right - client.left);
+
+        rc.left   = client.left;
+        rc.right  = client.right;
+        rc.top    = top;
+        rc.bottom = top + (LONG) m_captureBar.GetPreferredHeightPx (width, m_scaler);
+    }
 
     m_captureBarSurface.Layout     (rc, m_scaler);
     m_captureBarSurface.SetVisible (true);
@@ -4224,7 +4246,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  FIXED WORDS, SET ONCE. The bar says the same thing every time it is up,
     //  and its band is measured from that text before the bar has ever been
     //  shown -- so the text cannot wait until the first capture to exist.
-    m_captureBar.SetText     (s_kCaptureBanner);
+    m_captureBar.SetText     (s_kpszCaptureNotice);
     m_captureBar.SetSeverity (DxuiInfoBanner::Severity::Info);
 
     //  CENTERED, because this bar spans the window rather than sitting in a
@@ -4705,6 +4727,7 @@ void EmulatorShell::SyncChromeBands()
     // Measuring against the viewport is what put the text off the edge: the
     // picture keeps its own aspect and can be wider than the window.
     m_changeBand.SetBounds  (RECT{ 0, 0, 0, GetChangeBandThicknessPx (m_lastClientWidthPx) });
+    m_captureBand.SetBounds (RECT{ 0, 0, 0, GetCaptureBandThicknessPx (m_lastClientWidthPx) });
     m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (driveBandDp) });
     m_switchBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.ToPx (switchBandDp) });
 }
@@ -4726,7 +4749,8 @@ void EmulatorShell::SyncChromeBands()
 RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 {
     IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_changeBand,
-                               &m_driveBand, &m_switchBand, &m_centerBand };
+                               &m_captureBand, &m_driveBand, &m_switchBand,
+                               &m_centerBand };
 
 
 
@@ -11278,6 +11302,29 @@ void EmulatorShell::ReleaseGuestKeys()
 
 DxuiMessageResult EmulatorShell::OnCancelMode()
 {
+
+    //  THE ECHO OF OUR OWN LAYOUT IS NOT A TAKEOVER. Docking the capture bar
+    //  resizes the picture, and Windows answers a resize by cancelling the
+    //  mode of whoever holds the pointer -- so the pass that makes room for
+    //  the notice saying the mouse is held would be the thing that lets it go.
+    //
+    //  Exactly ONE cancel is swallowed, only just after that dock, and only
+    //  while this window is still the foreground one with no menu open. Every
+    //  other cancel -- a modal, a secure desktop, a real takeover -- releases
+    //  the pointer as it always did, which is what keeps a hidden cursor from
+    //  being stranded behind someone else's window.
+    if (m_paddleCaptured && m_captureReflowMs != 0
+        && ChangeBannerNowMs() - m_captureReflowMs <= s_kCaptureReflowEchoMs
+        && GetForegroundWindow() == m_hwnd
+        && !m_mainMenu.IsOpen())
+    {
+        m_captureReflowMs = 0;
+        SetCapture (m_hwnd);
+        ClipPaddleCursorToClient();
+
+        return DxuiMessageResult::Handled;
+    }
+
     StopPaddleCapture();
     return DxuiMessageResult::NotHandled;
 }
@@ -12478,42 +12525,29 @@ void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StartPaddleCapture
+//  ClipPaddleCursorToClient
 //
-//  Hides and confines the cursor to the client area, parks it at center,
-//  and begins relative tracking. No-op unless the mode is Paddle, the
-//  window owns the foreground, and capture isn't already active. The
-//  current (held) paddle position is pushed so a re-grab after an Esc
-//  release resumes from where the dial was left.
+//  The pointer confined to the picture and parked in the middle -- the half of
+//  "captured" the user can see. Kept apart from StartPaddleCapture because the
+//  clip has to be laid on twice: once at the grab, and again when a cancel the
+//  chrome's own layout raised has to be taken back (see OnCancelMode).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StartPaddleCapture()
+void EmulatorShell::ClipPaddleCursorToClient()
 {
-    HRESULT  hr      = S_OK;
-    RECT     client  = {};
-    POINT    topLeft = {};
-    POINT    botRt   = {};
-    RECT     clip    = {};
-    POINT    center  = {};
+    RECT   client  = {};
+    POINT  topLeft = {};
+    POINT  botRt   = {};
+    RECT   clip    = {};
+    POINT  center  = {};
 
 
 
-    BAIL_OUT_IF (m_pointerMode != InputMappingMode::Paddle, S_OK);
-    BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
-    BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
-    BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
-
-    m_paddleCaptured = true;
-
-    SetCapture (m_hwnd);
-
-    // Drive the per-thread ShowCursor counter negative so the arrow hides.
-    while (ShowCursor (FALSE) >= 0)
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
+        return;
     }
-
-    GetClientRect (m_hwnd, &client);
 
     topLeft.x = client.left;
     topLeft.y = client.top;
@@ -12532,6 +12566,54 @@ void EmulatorShell::StartPaddleCapture()
     center.y = (client.bottom - client.top)  / 2;
     ClientToScreen (m_hwnd, &center);
     SetCursorPos (center.x, center.y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartPaddleCapture
+//
+//  Hides and confines the cursor to the client area, parks it at center,
+//  and begins relative tracking. No-op unless the mode is Paddle, the
+//  window owns the foreground, and capture isn't already active. The
+//  current (held) paddle position is pushed so a re-grab after an Esc
+//  release resumes from where the dial was left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StartPaddleCapture()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_pointerMode != InputMappingMode::Paddle, S_OK);
+    BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
+    BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
+    BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
+
+    m_paddleCaptured = true;
+
+    //  THE BAND IS CLAIMED BEFORE THE MOUSE IS, and the order is the point.
+    //  Docking resizes the picture, and Windows answers a resize by cancelling
+    //  the mode of whoever holds the pointer -- so the layout runs while there
+    //  is no grab to lose, and the grab is taken once it has settled. Traced
+    //  in that order, no cancel arrives at all; the two guards below exist for
+    //  the case where one does anyway.
+    ReflowChromeForChangeBand();
+    m_captureReflowMs = ChangeBannerNowMs();
+
+    SetCapture (m_hwnd);
+
+    // Drive the per-thread ShowCursor counter negative so the arrow hides.
+    while (ShowCursor (FALSE) >= 0)
+    {
+    }
+
+    ClipPaddleCursorToClient();
 
     PushPaddlePosition();
 
@@ -12577,6 +12659,9 @@ void EmulatorShell::StopPaddleCapture()
 
     PushPaddleButton (0, false);
     PushPaddleButton (1, false);
+
+    //  ...and the picture takes the height back.
+    ReflowChromeForChangeBand();
 
 Error:
     return;
@@ -12869,6 +12954,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
     UNREFERENCED_PARAMETER (widthPx);
 
+    m_inChromeLayout = true;
+
     // A resize restretches the window; drop any open menu so its
     // window-anchored popup is not left stranded.
     if (m_mainMenu.IsOpen())
@@ -13025,6 +13112,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         m_userStateChange = false;
         m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     }
+
+    m_inChromeLayout = false;
 
     return DxuiMessageResult::NotHandled;
 }
@@ -14117,7 +14206,10 @@ void EmulatorShell::ReflowChromeForChangeBand()
 
     DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
 
-    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    //  NEVER FROM INSIDE THE PASS IT RUNS. Losing the pointer capture re-docks,
+    //  and the capture is dropped from OnCancelMode / OnKillFocus, which a
+    //  resize itself can raise -- so the layout would call itself.
+    if (m_inChromeLayout || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
         return;
     }
@@ -14166,6 +14258,35 @@ int EmulatorShell::GetChangeBandThicknessPx (int clientWidthPx) const
     height = m_changeBanner.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
 
     return (int) height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetCaptureBandThicknessPx
+//
+//  How tall the capture bar's band is.
+//
+//  ZERO WHILE THE POINTER IS FREE, so every session that never grabs it is
+//  laid out exactly as before.
+//
+//  ZERO IN FULLSCREEN TOO, where there are no bands at all: the picture owns
+//  the whole client and the bar hangs off the top edge under the toolbar
+//  reveal instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
+{
+    if (!m_paddleCaptured || m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
+    {
+        return 0;
+    }
+
+    return (int) m_captureBar.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
 }
 
 
