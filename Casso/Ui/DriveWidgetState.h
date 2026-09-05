@@ -24,6 +24,7 @@
 //      mountedImagePath      -- UI thread only (insert/eject path)
 //      motorOn               -- atomic<bool>, written by CPU thread
 //      diskActive            -- atomic<bool>, written by CPU thread
+//      headQuarterTrack      -- atomic<int>, written by CPU thread
 //      doorState             -- UI thread only
 //      animationStartTimeMs  -- UI thread only
 //
@@ -60,6 +61,35 @@ struct DriveWidgetState
     std::wstring      mountedImagePath;
     std::atomic<bool> motorOn              { false };
     std::atomic<bool> diskActive           { false };
+
+    // Where the head is sitting, in QUARTER-tracks (0 to 139), sampled each
+    // UI frame from the drive's own nibble engine. Divide by four for a track
+    // number.
+    //
+    // The units are the engine's, and its accessor is misnamed:
+    // Disk2NibbleEngine::GetCurrentTrack returns quarter-tracks, while
+    // Disk2Controller::GetCurrentTrack next door returns whole ones. See
+    // GH #136, which renames them.
+    //
+    // Sampled per drive rather than from the controller's own quarter-track,
+    // which is a single member for the whole card and so follows whichever
+    // drive is selected. Drive 1's head drawn under drive 2's name would be a
+    // worse fault than a coarse readout. GH #135 covers the underlying defect.
+    //
+    // -1 means the position is not known, which is every drive on a machine
+    // with no Disk ][ controller. A reader must not render that as track 0.
+    std::atomic<int>  headQuarterTrack     { -1 };
+
+    // When the drive was last doing something, so the 2D indicator can fade
+    // out of full brightness instead of dropping to idle the instant the
+    // motor stops. UI thread only: it is written where the activity is
+    // sampled and read where the bar is painted, both on that thread.
+    int64_t           lastActiveMs         = 0;
+
+    // How long that fade takes. Shared rather than local to the painter,
+    // because the shell has to keep asking for frames for exactly as long as
+    // the fade runs. A fade nobody redraws is a snap with extra steps.
+    static constexpr int64_t  kActivityFadeMs = 700;
 
     // Write-protect state of the mounted image, sampled each UI frame
     // from the DiskImage in DiskManager::UpdateDriveWidgets. Drives the

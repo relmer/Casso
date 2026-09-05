@@ -1912,5 +1912,6 @@ public:
         Assert::AreNotEqual (first, second, L"a second rescue must take a different name");
     }
 
+
 };
 

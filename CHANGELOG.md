@@ -46,6 +46,10 @@ Entries before versioning was introduced use dates only.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
+- **2D themes now use a richer drive widget.** The disk name is the control,
+  and its LED tracks where the head is sitting on the disk rather than only
+  showing that the drive is busy. Clicking the name ejects the disk and offers
+  a new one, which used to take a trip to the Disk menu.
 - **Direct-boot disks load about six times faster.** `disk create --boot` laid the
   payload down in ascending sector order, and the loader lost a whole revolution
   waiting for each one; it now reads every other sector, so a track costs two
@@ -85,6 +89,13 @@ Entries before versioning was introduced use dates only.
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,
   including the //c case-switch positions.
+- **The startup download dialog broke "OpenEmulator (GitHub)" across two lines.**
+  Its source column was a fixed width that stood a few pixels short of the
+  drive-audio origin. The column is now measured from the labels the list
+  carries, growing only into room the asset names do not need.
+- **Two false claims in the notice shown after a changed disk was reloaded.**
+  It reported a renamed copy that was never written, and named CassoCli
+  whatever program had changed the file.
 - **A window with no client area buried the screen in assertion dialogs.**
   Every control laid out against a minimized window came out zero DIPs wide,
   and a text field insetting that by its own padding passed a NEGATIVE width to
@@ -141,6 +152,8 @@ Entries before versioning was introduced use dates only.
   and the output low-pass is tightened to match the real chip, whose 3-6 kHz energy sits
   36 dB under its voice band where ours sat 28 dB under. Across six bands, mean error
   against that recording falls from 9.9 dB to 4.9 dB.
+- **Powering the voice chip down clicked.** Its output was cut mid-cycle rather
+  than falling over the release, so every spoken line ended on a click.
 - **Changing one CRT setting no longer freezes the others.** Every setting left
   alone keeps following the monitor preset and the active theme.
 - **The color bleed width now shows the width in effect.** It rounded to whole

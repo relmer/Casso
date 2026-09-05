@@ -12,6 +12,7 @@
 #include "Widgets/DxuiLabel.h"
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiEvents.h"
+#include "Theme/DxuiTheme.h"
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiTextRenderer.h"
 #include "Window/DxuiDialogWindow.h"
@@ -340,6 +341,77 @@ std::wstring StartupDownloadDialog::FormatStatusText (const EntryRuntime & rt, s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MeasureSourceColumnPx
+//
+//  Pixel width the source column needs to hold its longest origin string on
+//  a single line.
+//
+//  The column was a fixed 130 dip, five dip short of "OpenEmulator (GitHub)",
+//  so the two drive-audio rows broke their source across two lines. Taking
+//  the width from the strings the list actually carries keeps the next
+//  longer label from doing the same.
+//
+//  Two limits bracket the measurement. The floor is the old fixed width, so
+//  a list of short sources keeps the layout it has always had. The ceiling
+//  is what remains once the widest checkbox label has its room, so the
+//  column can only grow into space the name column does not need -- widening
+//  it past that would trade a wrapped source for an ellipsized name.
+//
+//  The gutter is what keeps a measured column from clipping anyway: the row
+//  rects are truncated to whole pixels on the way out, so a column cut to
+//  the exact glyph extent loses a fraction of its last character. Both
+//  measurements carry it -- the name column reaches its exact width
+//  whenever the ceiling binds, and would ellipsize the very label the
+//  ceiling is there to keep whole. The label inset mirrors DxuiCheckbox's
+//  16 dip box plus its 6 dip label gap, dead space at the head of the row
+//  that no name can use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float StartupDownloadDialog::MeasureSourceColumnPx (
+    DialogPaintContext        & ctx,
+    const StartupDownloadSet  & set,
+    const RowMetrics          & m)
+{
+    constexpr float  kGutterDp     = 8.0f;
+    constexpr float  kLabelInsetDp = 22.0f;
+    HRESULT          hr            = S_OK;
+    float            fontPx        = s_kFontDp          * ctx.dpiScale;
+    float            floorPx       = s_kSourceColumnDp  * ctx.dpiScale;
+    float            sourcePx      = floorPx;
+    float            namePx        = 0.0f;
+    float            ceilingPx     = 0.0f;
+    float            w             = 0.0f;
+    float            h             = 0.0f;
+
+
+
+    for (const StartupAssetEntry & entry : set.entries)
+    {
+        // A measurement that fails leaves w at zero, which simply loses to
+        // the floor below.
+        hr = ctx.text->MeasureString (entry.source.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        sourcePx = std::max (sourcePx, std::ceil (w) + kGutterDp * ctx.dpiScale);
+
+        hr = ctx.text->MeasureString (entry.displayName.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        namePx = std::max (namePx, std::ceil (w) + (kLabelInsetDp + kGutterDp) * ctx.dpiScale);
+    }
+
+    ceilingPx = m.fullW - namePx - m.statusW - m.colGap * 2.0f;
+
+    return std::max (std::min (sourcePx, ceilingPx), floorPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintGroupHeader
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,6 +529,10 @@ void StartupDownloadDialog::PaintBody (
     m.sourceW   = s_kSourceColumnDp           * ctx.dpiScale;
     m.statusW   = s_kStatusColumnDp           * ctx.dpiScale;
     m.colGap    = s_kColumnGapDp              * ctx.dpiScale;
+
+    // Measured last: the fit reads the columns already set above, and the
+    // fixed width it replaces is only this column's floor.
+    m.sourceW   = MeasureSourceColumnPx (ctx, set, m);
 
     y     = (float) ctx.customBodyRect.top;
     fg    = ctx.theme->dropdownItemText;

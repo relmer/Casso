@@ -481,8 +481,13 @@ private:
 
     //  Carries out what was decided. Split from deciding so the decision has
     //  one shape whether it came from the policy or from the user.
+    //
+    //  `author` COMES FROM THE CALLER BECAUSE ONLY THE CALLER STILL KNOWS. A
+    //  bay's pending record holds the newest change and nothing older, so by
+    //  the time this runs it can describe a write that landed after the one
+    //  being acted on. Reading it here named whoever wrote last.
     void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
-                                         const vector<Byte> & bytes);
+                                         const vector<Byte> & bytes, ChangeAuthor author);
 
     //  Writes what the bay currently holds to a preserved copy beside the
     //  original, and reports where it went.
