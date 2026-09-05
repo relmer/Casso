@@ -379,17 +379,26 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
     int  labelGap  = MulDiv (s_kInputLabelGapDp, (int) dpi, s_kBaseDpi);
 
     // The input cluster: the shared label (dropped in icon-only mode, like
-    // every other label) + LED/glyph segments.
+    // every other label) + LED/glyph segments. The label sits beside the
+    // segments in LabelRight and UNDER them in the ribbon mode, so it costs
+    // width in the first case and none in the second (it is far narrower
+    // than the segment row).
     auto  clusterWidth = [&] (Mode mode) -> int
     {
-        int  w = InputSegCount() * segW + (InputSegCount() - 1) * segGap;
+        int  segsW = InputSegCount() * segW + (InputSegCount() - 1) * segGap;
 
-        if (mode != Mode::IconOnly)
+        switch (mode)
         {
-            w += measure (s_kInputLabel, s_kFontDip * (float) dpi / (float) s_kBaseDpi) + 3 + labelGap;
+        case Mode::LabelRight:
+            return segsW + measure (s_kInputLabel, s_kFontDip * (float) dpi / (float) s_kBaseDpi) +
+                   3 + labelGap;
+        case Mode::LabelBelow:
+            return (std::max) (segsW,
+                   measure (s_kInputLabel, s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi) + 3);
+        case Mode::IconOnly:
+        default:
+            return segsW;
         }
-
-        return w;
     };
 
     // Total width a mode wants: the command buttons, the volume button (its
@@ -564,12 +573,30 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         int  segGap   = MulDiv (s_kSegGapDp,        (int) dpi, s_kBaseDpi);
         int  labelGap = MulDiv (s_kInputLabelGapDp, (int) dpi, s_kBaseDpi);
 
+        int  segsW    = InputSegCount() * segW + (InputSegCount() - 1) * segGap;
+        int  segTop   = top;
+        int  segBot   = bottom;
+
         m_inputLabelRc = {};
 
-        if (m_mode != Mode::IconOnly)
+        // +3px slack over the measured width: DrawString wraps on a rect
+        // even fractionally narrower than the layout width it measured.
+        if (m_mode == Mode::LabelBelow)
         {
-            // +3px slack over the measured width: DrawString wraps on a rect
-            // even fractionally narrower than the layout width it measured.
+            // Ribbon mode: the segments take the icon region and the shared
+            // label spans the cluster underneath, the same split the stacked
+            // buttons use so the two label rows sit on one baseline.
+            int  labelW  = measure (s_kInputLabel,
+                                    s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi) + 3;
+            int  labelH  = (int) (s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi + 4.0f);
+            int  clustW  = (std::max) (segsW, labelW);
+
+            segBot         = bottom - labelH;
+            m_inputLabelRc = RECT { x, segBot - 2, x + clustW, bottom - 2 };
+            x             += (clustW - segsW) / 2;   // segments centered under a wider label
+        }
+        else if (m_mode == Mode::LabelRight)
+        {
             int  labelW = measure (s_kInputLabel, s_kFontDip * (float) dpi / (float) s_kBaseDpi) + 3;
 
             m_inputLabelRc = RECT { x, top, x + labelW, bottom };
@@ -580,7 +607,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         {
             if (i < InputSegCount())
             {
-                m_inputSegs[i].rc = RECT { x, top, x + segW, bottom };
+                m_inputSegs[i].rc = RECT { x, segTop, x + segW, segBot };
                 x += segW + ((i + 1 < InputSegCount()) ? segGap : 0);
             }
             else
@@ -589,6 +616,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
             }
         }
 
+        x = (std::max) (x, (int) m_inputLabelRc.right);
         x += groupGap;
     }
 
@@ -1130,13 +1158,20 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
 
     if (m_inputLabelRc.right > m_inputLabelRc.left)
     {
+        // Ribbon mode stacks the label under the segments, centered across
+        // the cluster in the small stacked face -- matching the buttons.
+        bool   below     = (m_mode == Mode::LabelBelow);
+        float  labelDip  = below ? s_kStackedFontDip * (float) m_dpi / (float) s_kBaseDpi
+                                 : fontDip;
+
         hr = text.DrawString (s_kInputLabel,
                               (float) m_inputLabelRc.left,
                               (float) m_inputLabelRc.top,
                               (float) (m_inputLabelRc.right  - m_inputLabelRc.left),
                               (float) (m_inputLabelRc.bottom - m_inputLabelRc.top),
-                              labelInk, fontDip, s_kFontFamily,
-                              DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+                              labelInk, labelDip, s_kFontFamily,
+                              below ? DxuiTextHAlign::Center : DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
