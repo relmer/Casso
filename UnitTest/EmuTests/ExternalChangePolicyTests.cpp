@@ -928,4 +928,42 @@ public:
                         L"the lost-file notice leads with the whole path, on its own line");
     }
 
+
+
+    //  EVERY PROMPT'S SAFE ANSWER COSTS THE USER NOTHING. It is what Enter and
+    //  the close box take, and taking it to be the last answer everywhere
+    //  meant the lost-file question defaulted to Discard -- throwing away a
+    //  disk that existed in memory and nowhere else.
+    TEST_METHOD (TheAnswerAQuestionDefaultsToNeverDestroysAnything)
+    {
+        ChangePrompt  asked  = ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask,
+                                                      "Work.x.dsk");
+        ChangePrompt  failed = ChangePrompt::ComposeSaveFailure (
+                                   "Work.dsk", 0, "Work.x.dsk", E_FAIL,
+                                   SaveFailureCause::ExternalChange);
+        ChangePrompt  gone   = ChangePrompt::ComposeLostFile ("Work.dsk", 0,
+                                                              ChangeAction::Deleted);
+        ChangePrompt  broken = ChangePrompt::ComposeLostFile ("Work.dsk", 0,
+                                                              ChangeAction::Unusable);
+
+
+
+        Assert::IsTrue (asked.safeAnswer < asked.answers.size());
+        Assert::IsTrue (asked.answers[asked.safeAnswer].action == ChangeAction::KeepHeld,
+                        L"the disk stays in the drive and the file is left alone");
+
+        Assert::IsTrue (failed.safeAnswer < failed.answers.size());
+        Assert::IsTrue (failed.answers[failed.safeAnswer].action == ChangeAction::Ignore,
+                        L"the copy stays unwritten and the drive as it was");
+
+        //  The one prompt with no answer that costs nothing: the nearest thing
+        //  is the one that keeps the disk.
+        for (const ChangePrompt & lost : { gone, broken })
+        {
+            Assert::IsTrue (lost.safeAnswer < lost.answers.size());
+            Assert::IsTrue (lost.answers[lost.safeAnswer].action == ChangeAction::PreserveCopy,
+                            L"the only copy of the disk is saved, never discarded");
+        }
+    }
+
 };

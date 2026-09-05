@@ -183,6 +183,10 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
                             + L" so that it doesn't conflict with the modified file.";
         }
 
+        //  Keeping what is in the drive leaves the file alone and the disk
+        //  where it is.
+        prompt.safeAnswer = 1;
+
         prompt.answers.push_back (PromptAnswer { L"Insert the modified disk",
                                                  ChangeAction::ReloadInPlace });
         prompt.answers.push_back (PromptAnswer { L"Keep your current version",
@@ -385,6 +389,9 @@ ChangePrompt ChangePrompt::ComposeSaveFailure (const std::string & imagePath, in
                           : (L"Your changes are still in " + where + L", and the modified "
                              + file + L" hasn't been inserted.");
 
+    //  Dismissing leaves the copy unwritten and the drive as it was.
+    prompt.safeAnswer = 1;
+
     prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
     prompt.answers.push_back (PromptAnswer { L"Dismiss",    ChangeAction::Ignore });
 
@@ -426,6 +433,14 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
     prompt.message = full + L"\n\n" + where
                    + L" still has the disk's contents in memory. "
                      L"You can save it to a new file or discard it.";
+
+    //  THIS ONE IS DELIBERATELY STICKY, and it is the only prompt that is.
+    //  The disk in the drive exists in memory and nowhere else, so there is no
+    //  answer here that costs nothing -- the nearest thing is the one that
+    //  keeps it. Enter and the close box both open the picker; backing out of
+    //  the picker returns to this question. The only ways past it are a
+    //  completed save and an explicit click on Discard.
+    prompt.safeAnswer = 0;
 
     prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
     prompt.answers.push_back (PromptAnswer { L"Discard",    ChangeAction::Discard });

@@ -14048,16 +14048,18 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
     for (i = 0; i < notice.prompt.answers.size(); i++)
     {
-        bool  isLast = (i + 1 == notice.prompt.answers.size());
+        bool  isSafe = (i == notice.prompt.safeAnswer);
 
-        //  The last answer is the one that changes nothing, so it is the
-        //  default and the close-box result: dismissing a question about a
-        //  disk must not act on it.
+        //  THE PROMPT NAMES ITS OWN SAFE ANSWER, and that is the default and
+        //  the close-box result: dismissing a question about a disk must not
+        //  cost the user anything. Which answer that is differs by question,
+        //  and taking it to be the last one threw away a disk that had no file
+        //  left to go back to.
         def.buttons.push_back (DialogButton { notice.prompt.answers[i].label,
-                                              (int) i, isLast, isLast, false });
+                                              (int) i, isSafe, isSafe, false });
     }
 
-    def.closeBoxResult = (int) (notice.prompt.answers.size() - 1);
+    def.closeBoxResult = (int) notice.prompt.safeAnswer;
 
     //  THE QUESTION STANDS UNTIL IT IS ANSWERED. Saving needs a destination,
     //  and only this thread can ask for one; but a picker the user backs out of
@@ -14073,7 +14075,7 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
         if (choice < 0 || choice >= (int) notice.prompt.answers.size())
         {
-            choice = (int) (notice.prompt.answers.size() - 1);
+            choice = (int) notice.prompt.safeAnswer;
         }
 
         chosen = notice.prompt.answers[choice].action;
