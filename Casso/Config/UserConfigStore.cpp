@@ -152,6 +152,7 @@ std::wstring UserConfigStore::GetPreservedPrefsFilename (time_t when)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring UserConfigStore::ComposeLoadFailureMessage (
+    const std::wstring  & userDir,
     const std::wstring  & prefsPath,
     const LoadReport    & report)
 {
@@ -169,11 +170,14 @@ std::wstring UserConfigStore::ComposeLoadFailureMessage (
         // have written one. Pointing the user at UserPrefs.json here would
         // send them after a file that does not exist, and saving is not
         // refused either, since the gate only guards a file that is present.
+        // The DIRECTORY, not prefsPath: this branch runs precisely because
+        // that file does not exist, so printing it sends the user after
+        // something they cannot find.
         message = std::wstring (L"Settings could not be carried forward\n\n")
                 + L"Casso could not move your settings from an older layout "
                   L"and has started with defaults. Your old settings files are "
                   L"still in:\n\n"
-                + prefsPath
+                + userDir
                 + L"\n\nCasso will try again the next time it starts.";
     }
     else if (wasPreserved)
@@ -1107,7 +1111,7 @@ HRESULT UserConfigStore::LoadAll (
 
     m_prefs = &prefs;
     m_machinePrefs.clear();
-    m_hasReadFile = true;
+    m_hasReadFile = false;
     outReport = LoadReport {};
 
     // Recorded before anything can change it, because a failure past this
@@ -1122,6 +1126,10 @@ HRESULT UserConfigStore::LoadAll (
         hr = MigrateLegacyFiles (prefs, fs, fFoundLegacy, outReport.skippedLegacyFiles);
         CHR (hr);
 
+        // The migration wrote the document, so this store knows its contents
+        // as surely as if it had read them.
+        m_hasReadFile = true;
+
         // No unified file and nothing legacy to carry forward: a genuine
         // first run, so start from struct defaults.
         if (!fFoundLegacy)
@@ -1135,7 +1143,12 @@ HRESULT UserConfigStore::LoadAll (
     hr = fs.ReadAllText (path, text);
     CHR (hr);
 
-    hasText = true;
+    // Only now. A read that never happened has established nothing, and a
+    // store that believes otherwise stops going back for the file when a
+    // transient lock clears -- which would leave every machine on shipped
+    // defaults for the rest of the session over a file that reads fine.
+    hasText       = true;
+    m_hasReadFile = true;
 
     // A file that exists but will not parse is the case worth explaining:
     // the user still has settings, we just cannot read them. Capture where
@@ -1158,10 +1171,11 @@ Error:
     // name they can open, and the next save creates a fresh file rather than
     // overwriting settings they can still repair.
     //
-    // A preservation that FAILED leaves the original in place, and
-    // BuildCombinedJson refuses to save over it for as long as it sits there.
-    // That is the whole recovery contract, and it needs no session state: the
-    // refusal lifts exactly when the unreadable file stops being present.
+    // A preservation that FAILED leaves the original in place, and the latch
+    // set below refuses every save until a later load succeeds. That outlasts
+    // the condition on purpose: the file being readable again is not the same
+    // as this store holding what is in it, and the caller has by then reset
+    // its prefs to defaults.
     if (FAILED (hr) && hasText)
     {
         hrPreserve = PreserveUnreadableFile (text, fs, outReport.preservedPath);
@@ -1322,10 +1336,10 @@ HRESULT UserConfigStore::Load (
         JsonValue        root;
 
 
-        m_hasReadFile = true;
-
         hr = fs.ReadAllText (GetUserPrefsFilePath(), userContent);
         CHR (hr);
+
+        m_hasReadFile = true;
 
         hr = JsonParser::Parse (userContent, root, parseErr);
         CHR (hr);
@@ -1599,12 +1613,12 @@ Error:
 //  still on disk and still repairable with a document built from whatever
 //  happens to be in memory.
 //
-//  That does not trap the user, because the refusal is evaluated per save and
-//  clears itself. LoadAll moves an unreadable file aside under a stamped name,
-//  after which the file is simply absent and saving works normally; a
-//  transient failure -- another Casso holding the file open, since ReadAllText
-//  opens it FILE_SHARE_READ -- resolves on the next save with no session state
-//  to go stale.
+//  That does not trap the user. LoadAll moves an unreadable file aside under a
+//  stamped name, after which the file is simply absent and saving works
+//  normally. What this check cannot see is a store whose load failed over a
+//  file it could not move, so SaveCombinedJson holds a separate latch for
+//  that; the two are not redundant, and removing either reopens a path that
+//  writes fallback defaults over settings that were never lost.
 //
 //  The merge goes through an ordered map, so machines land in a stable order
 //  and the file does not churn between saves.

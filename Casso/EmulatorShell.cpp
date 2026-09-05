@@ -1143,7 +1143,7 @@ void EmulatorShell::PrimeChromeThemeEarly()
     hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, report);
     CHRF (hr,
           message = UserConfigStore::ComposeLoadFailureMessage (
-                        m_userConfigStore->GetUserPrefsFilePath(), report);
+                        m_assetBaseDir, m_userConfigStore->GetUserPrefsFilePath(), report);
           EhmNotifyUser (message.c_str());
           m_globalPrefs = GlobalUserPrefs {});
 
@@ -5323,6 +5323,48 @@ void EmulatorShell::ShowNotification (const std::wstring & message)
     def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
 
     ShowModalDialog (def);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PostNotification
+//
+//  Hands the report to the message pump rather than opening a dialog here.
+//
+//  ShowNotification ends in a modal, which is wrong for a caller that is
+//  itself inside a message being handled: the Settings sheet's OK handler
+//  reaches one, and a modal opened there runs a nested loop against a sheet
+//  that has neither finished committing nor closed. Posting lets the click
+//  finish first, so the dialog arrives over a settled window.
+//
+//  Falls back to the pre-window queue for the same reason ShowNotification
+//  does -- a report raised before there is a window must not vanish.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PostNotification (const std::wstring & message)
+{
+    wstring *  carried = nullptr;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        EmulatorShell::QueueNotification (message);
+        return;
+    }
+
+    carried = new (std::nothrow) wstring (message);
+
+    if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_NOTIFY_USER, 0,
+                                             reinterpret_cast<LPARAM> (carried)))
+    {
+        delete carried;
+    }
 }
 
 

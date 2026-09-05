@@ -1388,7 +1388,7 @@ public:
         movedReport.parseDetail   = L"line 2, column 1: trailing comma";
 
         moved = UserConfigStore::ComposeLoadFailureMessage (
-                    L"C:\\Casso\\UserPrefs.json", movedReport);
+                    L"C:\\Casso", L"C:\\Casso\\UserPrefs.json", movedReport);
 
         Assert::IsTrue (moved.find (L"UserPrefs.20260903-141530.original.json") != std::wstring::npos);
         Assert::IsTrue (moved.find (L"line 2, column 1") != std::wstring::npos);
@@ -1400,7 +1400,7 @@ public:
         stayedReport.hadPrefsFile = true;
 
         stayed = UserConfigStore::ComposeLoadFailureMessage (
-                     L"C:\\Casso\\UserPrefs.json", stayedReport);
+                     L"C:\\Casso", L"C:\\Casso\\UserPrefs.json", stayedReport);
 
         // Nothing was moved, so the message reports the original and says
         // saving is refused rather than implying the session keeps anything.
@@ -1411,11 +1411,18 @@ public:
         // pointing at UserPrefs.json would send the user after a file that is
         // not there, and saving is not refused either.
         neverWritten = UserConfigStore::ComposeLoadFailureMessage (
-                           L"C:\\Casso", neverWrittenReport);
+                           L"C:\\Casso", L"C:\\Casso\\UserPrefs.json",
+                           neverWrittenReport);
 
         Assert::IsTrue (neverWritten.find (L"older layout") != std::wstring::npos);
         Assert::IsTrue (neverWritten.find (L"not be saved") == std::wstring::npos);
         Assert::IsTrue (neverWritten.find (L"still where it was") == std::wstring::npos);
+
+        // It must point at the DIRECTORY. There is no UserPrefs.json in this
+        // case -- that is why this branch exists -- so printing its path sends
+        // the user after a file that is not there.
+        Assert::IsTrue (neverWritten.find (L"UserPrefs.json") == std::wstring::npos);
+        Assert::IsTrue (neverWritten.find (L"C:\\Casso") != std::wstring::npos);
     }
 
 
@@ -1672,5 +1679,37 @@ public:
         // produce nothing rather than a message about no files.
         Assert::IsTrue (UserConfigStore::ComposeSkippedLegacyMessage (
                             L"C:\\Casso", report).empty());
+    }
+
+
+    TEST_METHOD (Load_AfterATransientReadFailure_GoesBackForTheFile)
+    {
+        FaultyFileSystem             fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    merged;
+        UserConfigStore::LoadReport  report;
+        HRESULT                      hr          = S_OK;
+        UserConfigStore              store (L"C:\\Casso");
+        JsonValue                    defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+
+        fs.fFailRead = true;
+
+        hr = store.LoadAll (prefs, fs, report);
+        AssertFailed (hr);
+
+        // The read never happened, so the store established nothing about the
+        // document. Once the lock clears a machine load has to go and get it:
+        // treating the failed attempt as "already read" left every machine on
+        // shipped defaults for the rest of the session over a readable file.
+        fs.fFailRead = false;
+
+        hr = store.Load ("Apple2e", defaultJson, fs, merged);
+        AssertSucceeded (hr);
+        Assert::AreEqual (std::string ("Maximum"),
+                          FindObjectValueForTest (merged, "speedMode")->GetString());
     }
 };

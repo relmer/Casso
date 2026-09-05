@@ -108,7 +108,8 @@ public:
     // What to tell the user when LoadAll failed. Lives here rather than in the
     // shell because the shell is not compiled into the test project, and the
     // outcomes it tells apart are exactly what a test should pin.
-    static std::wstring ComposeLoadFailureMessage (const std::wstring & prefsPath,
+    static std::wstring ComposeLoadFailureMessage (const std::wstring & userDir,
+                                                   const std::wstring & prefsPath,
                                                    const LoadReport   & report);
 
     // What to tell the user when a load SUCCEEDED but the migration left files

@@ -381,12 +381,17 @@ void SettingsApplyController::CommitApply()
     // otherwise close the sheet looking like it worked. The file is intact and
     // the startup message already explained why, but that was minutes ago and
     // said nothing about the change the user just made.
+    //
+    // POSTED, not shown. This runs inside SettingsSheet::OnOk, which has not
+    // returned and so has not closed the sheet; a modal opened here would run
+    // a nested message loop against a sheet still mid-commit.
     if (savesRefused)
     {
-        EhmNotifyUser (L"Settings not saved\n\n"
-                       L"Casso could not read your settings file, so these "
-                       L"changes were applied to this session but not written "
-                       L"to disk. Repair or move the file, then restart Casso.");
+        m_emuShell->PostNotification (
+            L"Settings not saved\n\n"
+            L"Casso could not read your settings file, so these changes were "
+            L"applied to this session but not written to disk. Repair or move "
+            L"the file, then restart Casso.");
     }
 
     m_baselineColorMode = (int) m_state->GetPrefs().colorMode;
