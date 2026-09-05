@@ -49,6 +49,12 @@ Entries before versioning was introduced use dates only.
 - **Ctrl+R no longer resets the machine.** It was a second binding for the menu's
   Ctrl+Shift+R, and because the shell claimed the keystroke, no Apple program
   could ever receive a Ctrl+R of its own. Reset keeps its menu accelerator.
+- **The keyboard map now carries only what the menus cannot say.** Its list of
+  emulator shortcuts repeated six accelerators the menus already print beside
+  their own items, while omitting eleven others, so it read as a complete list
+  and was not one. Gone too are the rows mapping keys to themselves. What
+  remains is the Apple-specific part: the Open and Closed Apple keys, which
+  keys the ][ and ][+ do not have, and the joystick mapping.
 - **2D themes now use a richer drive widget.** The disk name is the control,
   and its LED tracks where the head is sitting on the disk rather than only
   showing that the drive is busy. Clicking the name ejects the disk and offers

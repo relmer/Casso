@@ -2245,21 +2245,17 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.title = L"Keyboard map";
             def.icon  = DialogIcon::Info;
             def.body.push_back ({
-                L"PC key mapping:\n\n"
-                L"Left / Right arrow -> Apple cursor keys\n"
-                L"Up / Down arrow -> Apple cursor keys (//e and //c)\n"
-                L"Enter -> Return\n"
-                L"Escape -> Escape\n"
-                L"Delete -> Delete (//e and //c)\n"
+                L"Apple keyboard:\n\n"
                 L"Left Alt -> Open Apple (//e and //c)\n"
-                L"Right Alt -> Closed Apple (//e and //c)\n\n"
-                L"Emulator controls:\n"
-                L"Ctrl+Shift+R -> Reset\n"
-                L"Ctrl+Shift+P -> Power cycle\n"
-                L"Pause -> Pause/resume\n"
-                L"F11 -> Step (when paused)\n"
-                L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset view (window size, scene pose and zoom)",
+                L"Right Alt -> Closed Apple (//e and //c)\n"
+                L"Backspace -> Left arrow, which is the Apple's backspace\n\n"
+                L"The //e and //c added the up and down arrows, Delete and\n"
+                L"Tab. On the ][ and ][+ those keys do nothing, as they do\n"
+                L"nothing on the hardware.\n\n"
+                L"With Map Arrows to Joystick on:\n"
+                L"Arrow keys -> Joystick, not the keyboard\n"
+                L"X / Z -> Buttons 0 and 1 (either Alt fires too)\n\n"
+                L"Every other shortcut is shown beside its menu item.",
                 false, L"" });
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
