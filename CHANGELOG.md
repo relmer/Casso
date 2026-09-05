@@ -57,8 +57,9 @@ Entries before versioning was introduced use dates only.
   RetroTerminal, then DarkModern -- rather than alphabetically.
 
 ### Fixed
-- **A disk taken up after an outside change reported saving a copy that was
-  never written.** The notice gives the copy's name only when there is a copy.
+- **Two false claims in the notice shown after a changed disk was taken up.**
+  It reported a preserved copy that was never written, and named CassoCli
+  whatever program had changed the file.
 - **Unchecking a second drive was not correctly persisted.** The drive left the
   desk as it should, but came back the next time Settings opened, and on the
   next launch.

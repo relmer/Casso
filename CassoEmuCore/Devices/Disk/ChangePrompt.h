@@ -55,6 +55,37 @@ enum class SaveFailureCause
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ChangeAuthor
+//
+//  Who rewrote a mounted file, as far as this emulator can tell.
+//
+//  ONLY THE INTENT CHANNEL CAN SAY, and only CassoCli sends on it. A directory
+//  watch reports that a file changed and cannot report who changed it, so a
+//  change that arrived without a stated intent came from a program this store
+//  has no way to identify.
+//
+//  AN ENUM RATHER THAN A BOOL because it sits beside two other flags on the
+//  same call. Naming the author at the call site is what stops a reader, and a
+//  caller, from taking one of the three for another.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ChangeAuthor
+{
+    //  The write stated what it was for, over the channel nothing else sends
+    //  on.
+    CassoCli,
+
+    //  Anything else. The watcher saw the file change and that is all it saw.
+    AnotherProgram,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ChangePrompt
 //
 //  What the user is told about a changed image, and the answers it accepts.
@@ -89,11 +120,12 @@ struct ChangePrompt
 
     //  Whether this one closes itself after a while.
     //
-    //  ONLY THE PICK-UP NOTICE DOES. The user configured that behavior with a
-    //  switch, so making them dismiss a notice about it is charging them twice
-    //  for something they already opted into. The notices about a copy being
-    //  written, or failing to be, report something they did NOT ask for and
-    //  stand until read.
+    //  ONLY THE PICK-UP NOTICE DOES, because it is the only one confirming
+    //  something the user asked for -- with a switch on the write, or by
+    //  answering the question -- and making them dismiss it charges them twice
+    //  for the same decision. The notices about a copy being written, or
+    //  failing to be, report something they did NOT ask for and stand until
+    //  read.
     bool                       selfDismisses = false;
 
     //  Whether there is anything to show at all. An action that needs no answer
@@ -118,13 +150,14 @@ struct ChangePrompt
                                   const std::string & copyPath   = std::string(),
                                   bool copyAlreadyWritten        = false);
 
-    //  The notice shown once contents were taken up without a question, which
-    //  only happens when the write stated what it was for.
+    //  The notice shown once contents went into a drive, whether the write
+    //  said what it was for or the user answered the question above.
     //
-    //  IT ATTRIBUTES THE WRITE TO CassoCli, and can, because this notice is
-    //  unreachable any other way: the intent travels over a channel nothing
-    //  else sends on. The question above stays general, since any program at
-    //  all can raise that one.
+    //  IT ATTRIBUTES THE WRITE ONLY WHEN `author` SAYS SO. It used to name
+    //  CassoCli unconditionally, on the belief that no other route reached it;
+    //  answering the question does reach it, so a change by any program at all
+    //  was reported as CassoCli's, and the insertion the user had just asked
+    //  for was reported as something the writer did.
     //
     //  `machineName` IS THE MACHINE AS THE USER KNOWS IT -- "Apple //e" --
     //  because "the Apple" is not what is in front of them.
@@ -137,6 +170,7 @@ struct ChangePrompt
     static ChangePrompt  ComposePickUpReport (const std::string & imagePath, int drive,
                                               bool machineRebooted,
                                               const std::string & machineName,
+                                              ChangeAuthor author,
                                               const std::string & copyPath   = std::string(),
                                               bool copyAlreadyWritten        = false);
 

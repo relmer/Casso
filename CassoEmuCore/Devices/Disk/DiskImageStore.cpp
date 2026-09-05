@@ -2427,19 +2427,37 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction action,
                                            const vector<Byte> & bytes)
 {
-    HRESULT  hr           = S_OK;
-    Entry &  entry        = GetEntry (slot, drive);
-    bool     restarted    = false;
-    bool     tookUp       = false;
-    bool     preserved    = false;
-    bool     preserveFail = false;
-    string   preservedPath;
+    HRESULT       hr           = S_OK;
+    Entry       & entry        = GetEntry (slot, drive);
+    bool          restarted    = false;
+    bool          tookUp       = false;
+    bool          preserved    = false;
+    bool          preserveFail = false;
+    PickUpIntent  intent       = PickUpIntent::Unstated;
+    ChangeAuthor  author       = ChangeAuthor::AnotherProgram;
+    string        preservedPath;
     //  KEEPING MOVES THE BAY ONTO THE COPY, so entry.path is no longer the file
     //  any of these messages are about by the time they are composed. Captured
     //  before anything can move it.
-    string   original     = entry.path;
+    string        original     = entry.path;
 
 
+
+    //  WHO WROTE, READ BEFORE THE PENDING RECORD IS CLEARED BELOW. Only a
+    //  stated intent identifies the writer, and only CassoCli states one, so a
+    //  change that arrived without one came from a program this store cannot
+    //  put a name to. Both routes into this function reach it with the record
+    //  still standing: the watcher's, and the user's answer.
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        intent = entry.sharedState.GetPending().intent;
+    }
+
+    if (intent != PickUpIntent::Unstated)
+    {
+        author = ChangeAuthor::CassoCli;
+    }
 
     switch (action)
     {
@@ -2573,8 +2591,8 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         if (tookUp)
         {
             report = ChangePrompt::ComposePickUpReport (original, drive, restarted,
-                                                        m_machineName, preservedPath,
-                                                        preserved);
+                                                        m_machineName, author,
+                                                        preservedPath, preserved);
         }
         else if (preserved)
         {

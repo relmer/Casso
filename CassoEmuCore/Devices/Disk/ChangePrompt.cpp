@@ -211,11 +211,18 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
 //  on screen and keeps holding it after a failed write, both of which left this
 //  notice telling the user their writes were saved as a file nothing created.
 //
+//  THE WRITE IS ATTRIBUTED ONLY WHEN SOMETHING SAID WHO MADE IT. Every sentence
+//  here used to open with CassoCli, which is right for a write that stated its
+//  intent and wrong for the other route in: the user answering the question
+//  gets here too, and there the writer is unknown and the insertion is theirs.
+//  Naming the wrong program sends them to look at a build that never ran.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, int drive,
                                                 bool machineRebooted,
                                                 const std::string & machineName,
+                                                ChangeAuthor author,
                                                 const std::string & copyPath,
                                                 bool copyAlreadyWritten)
 {
@@ -224,21 +231,39 @@ ChangePrompt ChangePrompt::ComposePickUpReport (const std::string & imagePath, i
     std::wstring  where   = DriveLabel (drive);
     std::wstring  copy    = GetFileName (copyPath);
     std::wstring  machine = fs::path (machineName).wstring();
+    std::wstring  reboot  = machine.empty() ? std::wstring (L"the machine")
+                                            : (L"the " + machine);
 
 
 
     prompt.title = L"Disk modified outside Casso";
 
-    if (machineRebooted)
+    //  THE TWO READ DIFFERENTLY BECAUSE THEY DESCRIBE DIFFERENT EVENTS. One
+    //  program did all of it; in the other the program did the modifying and
+    //  the user did the inserting, so claiming the insertion for the writer
+    //  would tell them somebody else pressed the button they just pressed.
+    if (author == ChangeAuthor::CassoCli)
     {
-        prompt.message = L"CassoCli modified " + file + L", inserted it into " + where;
-
-        prompt.message += machine.empty() ? L", and rebooted the machine."
-                                          : (L", and rebooted the " + machine + L".");
+        if (machineRebooted)
+        {
+            prompt.message = L"CassoCli modified " + file + L", inserted it into " + where
+                           + L", and rebooted " + reboot + L".";
+        }
+        else
+        {
+            prompt.message = L"CassoCli modified " + file + L" and inserted it into " + where
+                           + L".";
+        }
+    }
+    else if (machineRebooted)
+    {
+        prompt.message = L"Another program modified " + file + L", " + where
+                       + L" now has the modified version, and " + reboot + L" was rebooted.";
     }
     else
     {
-        prompt.message = L"CassoCli modified " + file + L" and inserted it into " + where + L".";
+        prompt.message = L"Another program modified " + file + L", and " + where
+                       + L" now has the modified version.";
     }
 
     if (copyAlreadyWritten && !copy.empty())

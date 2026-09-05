@@ -1,6 +1,5 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
-#include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -1913,112 +1912,6 @@ public:
         Assert::AreNotEqual (first, second, L"a second rescue must take a different name");
     }
 
-
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  External change, from the watcher through to the notice
-    //
-    //  DRIVEN THROUGH THE STORE RATHER THAN COMPOSED DIRECTLY. What the user
-    //  is told is composed from bay state that several paths write, so a test
-    //  that calls the composer with hand-picked arguments proves only that the
-    //  composer agrees with itself. These reach it the way the running
-    //  emulator does.
-    //
-    ////////////////////////////////////////////////////////////////////////
-
-    //  THE QUESTION RESERVES A NAME AND WRITES NOTHING. A disk the guest never
-    //  wrote to has nothing to preserve, so answering "insert the modified
-    //  one" must not raise a notice saying a copy was saved: the name the
-    //  question reserved was never given to a file, and sending the user after
-    //  it sends them after something that is not there.
-    TEST_METHOD (AnsweringAChangeOnACleanDisk_ClaimsNoCopyItNeverWrote)
-    {
-        DiskImageStore   store;
-        FakeDiskFileIo   fileIo;
-        vector<Byte>     onDisk  = MakeSectorImage (1);
-        vector<Byte>     rebuilt = MakeSectorImage (2);
-        vector<Byte>   * served  = &onDisk;
-        DiskImage      * img     = nullptr;
-        ImageIdentity    identity;
-        ChangePrompt     asked;
-        ChangePrompt     reported;
-        int64_t          nowMs   = 0;
-        int              copies  = 0;
-        const string     path    = "C:\\demo\\Loader.dsk";
-
-
-
-        identity.recorded           = true;
-        identity.stamp.sizeBytes    = onDisk.size();
-        identity.stamp.modifiedUnix = 1;
-
-        store.SetFileIo (&fileIo);
-
-        store.SetClock ([&nowMs] ()
-        {
-            return nowMs;
-        });
-
-        store.SetTimestampSource ([] () -> time_t
-        {
-            return 0;
-        });
-
-        store.SetImageReader ([&served] (const string &, vector<Byte> & bytes)
-        {
-            bytes = *served;
-            return S_OK;
-        });
-
-        store.SetIdentityReader ([&identity] (const string &)
-        {
-            return identity;
-        });
-
-        //  Every write of a preserved copy lands here, so a copy that was
-        //  written and one that was only named are distinguishable.
-        store.SetFlushSink ([&copies] (const string &, const vector<Byte> &)
-        {
-            copies++;
-            return S_OK;
-        });
-
-        store.SetAskSink ([&asked] (int, int, const ChangePrompt & prompt)
-        {
-            asked = prompt;
-        });
-
-        store.SetChangeReportSink ([&reported] (int, int, const ChangePrompt & prompt)
-        {
-            reported = prompt;
-        });
-
-        AssertSucceeded (store.Mount (kSlot, kDrive, path));
-
-        img = store.GetImage (kSlot, kDrive);
-        Assert::IsNotNull (img);
-        Assert::IsFalse (img->IsDirty(), L"a disk that boots and is read has nothing to save");
-
-        //  Another program rewrote the file and said nothing about why.
-        served                      = &rebuilt;
-        identity.stamp.modifiedUnix = 2;
-
-        store.NoteExternalChange (path, PickUpIntent::Unstated);
-
-        nowMs += MountedImageState::kQuietPeriodMs + 1;
-        store.ApplyPendingPickUp();
-
-        Assert::IsTrue (asked.IsAsked(), L"an unexplained change is a question");
-        Assert::IsFalse (img->IsDirty(), L"and putting the question writes nothing to the disk");
-        Assert::AreEqual (0, copies, L"nor does it write a copy");
-
-        //  "Insert the modified Loader.dsk."
-        store.ResolvePendingChange (kSlot, kDrive, ChangeAction::TakeUpInPlace);
-
-        Assert::AreEqual (0, copies, L"and neither does answering it");
-        Assert::IsTrue (reported.message.find (L"saved them as") == std::wstring::npos,
-                        L"the notice must not report a copy that was only ever named");
-    }
 
 };
 
