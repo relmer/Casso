@@ -288,6 +288,7 @@ private:
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
@@ -677,6 +678,31 @@ private:
         }
 
         return m_driveWidgetState[(size_t) driveIndex].writeProtect;
+    }
+
+    // Head position and activity for the Settings -> Theme preview, copied
+    // into the caller's state rather than returned, because the live state
+    // holds atomics and cannot be copied whole. Without it the preview's
+    // drives are built from a default-constructed state, whose head position
+    // is the "unknown" -1 that PaintCompactHeadBar deliberately refuses to
+    // draw a core for -- so a 2D theme's activity indicator showed the bare
+    // rail and nothing else. Index 0 is drive 1.
+    void  SampleDriveActivity (int driveIndex, DriveWidgetState & outState) const
+    {
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return;
+        }
+
+        const DriveWidgetState &  st = m_driveWidgetState[(size_t) driveIndex];
+
+        outState.headQuarterTrack.store (st.headQuarterTrack.load (std::memory_order_relaxed),
+                                         std::memory_order_relaxed);
+        outState.motorOn.store    (st.motorOn.load    (std::memory_order_relaxed),
+                                   std::memory_order_relaxed);
+        outState.diskActive.store (st.diskActive.load (std::memory_order_relaxed),
+                                   std::memory_order_relaxed);
+        outState.lastActiveMs = st.lastActiveMs;
     }
 
     // Base directory for user preferences. SettingsPanel.CommitApply
@@ -1323,7 +1349,6 @@ private:
     // reaches for once the program starts misbehaving, and a notice that faded
     // would take that action with it.
     DxuiActionBanner            m_changeBanner;
-    int                         m_changeBannerDrive = -1;
 
     //  When the change band closes itself, and the frame that last looked.
     //  Zero means it stands until dismissed. Hovering does not extend the
@@ -1332,11 +1357,6 @@ private:
     //  what was left when it arrived.
     int64_t                     m_changeBannerHideAtMs = 0;
     int64_t                     m_changeBannerTickMs   = 0;
-
-    // What each of the banner's buttons means, in the order they were drawn.
-    // The labels and the meanings are both core's; keeping the meanings beside
-    // the buttons is what stops the shell from inventing one.
-    std::vector<ChangeAction>   m_changeBannerActions;
 
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
