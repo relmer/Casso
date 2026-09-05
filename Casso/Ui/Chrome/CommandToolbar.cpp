@@ -51,8 +51,10 @@ static constexpr int      s_kFlyoutHeightDp   = 154;
 static constexpr int      s_kFlyoutPadDp      = 8;
 static constexpr int      s_kFlyoutDropDp     = 2;    // gap under the bar
 
-// Input cluster: LED + glyph segments under one shared label.
-static constexpr int      s_kSegIconDp        = 28;
+// Input cluster: LED + glyph segments under one shared label. The glyph box
+// is sized so its INK matches the MDL2 icons' (their 15 dip em draws about
+// 15 dp of ink); a drawn glyph filling its box needs the smaller number.
+static constexpr int      s_kSegIconDp        = 19;
 static constexpr int      s_kSegPadXDp        = 5;
 static constexpr int      s_kSegLedDp         = 7;    // LED diameter
 static constexpr int      s_kSegLedGapDp      = 4;
@@ -1257,7 +1259,23 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
 //  drawn with the same pen. Geometry is in box fractions, so the set scales
 //  together.
 //
+//  The joystick is drawn for the icon row's size rather than shrunk to it:
+//  its outlined handle profile (cap, shoulder, body, waist) turned to a blob
+//  once the box came down to 19 dp, so it is a ball on a stick over the base
+//  slab instead.
+//
 ////////////////////////////////////////////////////////////////////////////////
+
+float CommandToolbar::GetGlyphStroke (float w)
+{
+    // MDL2 draws roughly a fifteenth of its em as stroke; the floor keeps the
+    // pen visible once the box is small enough for the ratio to fall under a
+    // pixel.
+    return (std::max) (1.15f, w / 15.0f);
+}
+
+
+
 
 void CommandToolbar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
                                    float r, float stroke, uint32_t ink)
@@ -1289,38 +1307,23 @@ void CommandToolbar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
 
 void CommandToolbar::PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink)
 {
-    float  w         = (float) (box.right  - box.left);
-    float  h         = (float) (box.bottom - box.top);
-    float  stroke    = (std::max) (1.0f, w / 26.0f);
-    float  cx        = (float) box.left + w * 0.5f;
-    float  capHalf   = w * 0.085f;
-    float  bodyHalf  = w * 0.155f;
-    float  waistHalf = w * 0.045f;
-    float  capY      = (float) box.top + h * 0.08f;
-    float  shoulderY = (float) box.top + h * 0.16f;
-    float  bodyY     = (float) box.top + h * 0.30f;
-    float  waistY    = (float) box.top + h * 0.52f;
-    float  baseT     = (float) box.top + h * 0.62f;
-    float  baseH     = h * 0.26f;
-    float  baseHalf  = w * 0.32f;
+    float  w        = (float) (box.right  - box.left);
+    float  h        = (float) (box.bottom - box.top);
+    float  stroke   = GetGlyphStroke (w);
+    float  cx       = (float) box.left + w * 0.5f;
+    float  knobR    = w * 0.16f;
+    float  knobY    = (float) box.top + h * 0.21f;
+    float  baseT    = (float) box.top + h * 0.66f;
+    float  baseH    = h * 0.20f;
+    float  baseHalf = w * 0.34f;
 
 
 
-    // The handle's half-profile, top to bottom, outline only and symmetric
-    // about the centerline: flat cap; shoulder angling out; the nearly-
-    // cylindrical upper body; the slow taper in to the narrow waist; the
-    // straight shaft down to the base; the base slab's border.
-    painter.DrawLineApprox (cx - capHalf, capY, cx + capHalf, capY, stroke, ink);
-
-    painter.DrawLineApprox (cx - capHalf,  capY,      cx - bodyHalf,  shoulderY, stroke, ink);
-    painter.DrawLineApprox (cx + capHalf,  capY,      cx + bodyHalf,  shoulderY, stroke, ink);
-    painter.DrawLineApprox (cx - bodyHalf, shoulderY, cx - bodyHalf,  bodyY,     stroke, ink);
-    painter.DrawLineApprox (cx + bodyHalf, shoulderY, cx + bodyHalf,  bodyY,     stroke, ink);
-    painter.DrawLineApprox (cx - bodyHalf, bodyY,     cx - waistHalf, waistY,    stroke, ink);
-    painter.DrawLineApprox (cx + bodyHalf, bodyY,     cx + waistHalf, waistY,    stroke, ink);
-    painter.DrawLineApprox (cx - waistHalf, waistY,   cx + waistHalf, waistY,    stroke, ink);
-
-    painter.DrawLineApprox (cx, waistY, cx, baseT, stroke, ink);
+    // Ball, stick, slab, all in outline: the hollow knob keeps the glyph in
+    // the same weight class as the MDL2 icons beside it, which carry no
+    // solid masses of their own.
+    StrokeCircle           (painter, cx, knobY, knobR, stroke, ink);
+    painter.DrawLineApprox (cx, knobY + knobR, cx, baseT, stroke, ink);
     painter.OutlineRect    (cx - baseHalf, baseT, baseHalf * 2.0f, baseH, stroke, ink);
 }
 
@@ -1342,7 +1345,7 @@ void CommandToolbar::PaintPaddleMono (IDxuiPainter & painter, const RECT & box, 
 
     float  w       = (float) (box.right  - box.left);
     float  h       = (float) (box.bottom - box.top);
-    float  stroke  = (std::max) (1.0f, w / 26.0f);
+    float  stroke  = GetGlyphStroke (w);
     float  cx      = (float) box.left + w * 0.5f;
     float  cy      = (float) box.top + h * 0.34f;
     float  outerR  = w * 0.24f;
@@ -1390,7 +1393,7 @@ void CommandToolbar::PaintMouseMono (IDxuiPainter & painter, const RECT & box, u
 {
     float  w      = (float) (box.right  - box.left);
     float  h      = (float) (box.bottom - box.top);
-    float  stroke = (std::max) (1.0f, w / 26.0f);
+    float  stroke = GetGlyphStroke (w);
     float  bodyL  = (float) box.left + w * 0.30f;
     float  bodyT  = (float) box.top + h * 0.20f;
     float  bodyW  = w * 0.40f;

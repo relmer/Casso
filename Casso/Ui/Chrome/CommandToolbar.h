@@ -154,6 +154,10 @@ private:
     static void      StrokeCircle      (IDxuiPainter & painter, float cx, float cy,
                                         float r, float stroke, uint32_t ink);
 
+    // The pen every device glyph draws with, for a box `w` pixels wide: the
+    // weight that sits level with the MDL2 glyphs beside them.
+    static float     GetGlyphStroke    (float w);
+
     static void      PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink);
     static void      PaintPaddleMono   (IDxuiPainter & painter, const RECT & box, uint32_t ink);
     static void      PaintMouseMono    (IDxuiPainter & painter, const RECT & box, uint32_t ink);
