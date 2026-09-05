@@ -304,7 +304,8 @@ public:
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Unusable));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\Loader.dsk", 1, ChangeAction::Deleted));
         prompts.push_back (ChangePrompt::ComposeReloadReport ("C:\\work\\Loader.dsk", 1, false,
-                                                              "Apple //e"));
+                                                              "Apple //e",
+                                                              ChangeAuthor::CassoCli));
         prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\\work\\Loader.dsk", 1,
                                                                 "C:\\work\\Loader.x.dsk"));
         prompts.push_back (ChangePrompt::ComposeSaveFailure ("C:\\work\\Loader.dsk", 1,
@@ -621,7 +622,7 @@ public:
         const ChangePrompt  done[] = {
             ChangePrompt::Compose ("Work.dsk", 0, ChangeAction::Ask, "Work.x.dsk", true),
             ChangePrompt::ComposeReloadReport ("Work.dsk", 0, false, "Apple //e",
-                                               "Work.x.dsk"),
+                                               ChangeAuthor::CassoCli, "Work.x.dsk", true),
             ChangePrompt::ComposeConflictReport ("Work.dsk", 0, "Work.x.dsk"),
         };
 
@@ -662,9 +663,9 @@ public:
         const ChangePrompt  bar[] = {
             ChangePrompt::ComposeConflictReport ("Work.dsk", 0, "Work.x.dsk"),
             ChangePrompt::ComposeReloadReport ("Work.dsk", 0, false, "Apple //e",
-                                               "Work.x.dsk"),
+                                               ChangeAuthor::CassoCli, "Work.x.dsk", true),
             ChangePrompt::ComposeReloadReport ("Work.dsk", 0, true, "Apple //e",
-                                               "Work.x.dsk"),
+                                               ChangeAuthor::CassoCli, "Work.x.dsk", true),
         };
 
 
@@ -688,8 +689,10 @@ public:
     TEST_METHOD (TheRebootNoticeGivesTheMachineTheUserHas)
     {
         ChangePrompt  enhanced = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true,
-                                                                    "Apple //e Enhanced");
-        ChangePrompt  unnamed  = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true, "");
+                                                                    "Apple //e Enhanced",
+                                                                    ChangeAuthor::CassoCli);
+        ChangePrompt  unnamed  = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true, "",
+                                                                    ChangeAuthor::CassoCli);
 
 
 
@@ -707,15 +710,16 @@ public:
     TEST_METHOD (TheReloadNoticeDoesNotLectureAboutRebooting)
     {
         ChangePrompt  running = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
-                                                                   "Apple //e");
+                                                                   "Apple //e",
+                                                                   ChangeAuthor::CassoCli);
 
 
 
         Assert::IsTrue (running.message.find (L"misbehav") == std::wstring::npos);
         Assert::IsTrue (running.message.find (L"directory") == std::wstring::npos);
         Assert::IsTrue (running.message.find (L"CassoCli") != std::wstring::npos,
-                        L"this notice is unreachable except through the message channel, "
-                        L"so it can attribute the write");
+                        L"a write that stated its intent came over the channel nothing "
+                        L"else sends on, so this one can attribute it");
     }
 
 
@@ -727,7 +731,8 @@ public:
     TEST_METHOD (OnlyTheReloadNoticeClosesItself)
     {
         ChangePrompt  reload   = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
-                                                                    "Apple //e");
+                                                                    "Apple //e",
+                                                                    ChangeAuthor::CassoCli);
         ChangePrompt  conflict = ChangePrompt::ComposeConflictReport ("Game.dsk", 0, "Game.x.dsk");
         ChangePrompt  failed   = ChangePrompt::ComposeSaveFailure ("Game.dsk", 0, "Game.x.dsk",
                                                                    E_FAIL,
@@ -750,9 +755,11 @@ public:
     TEST_METHOD (TheReloadReportCarriesOnlyItsOwnDismissal)
     {
         ChangePrompt  running  = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
-                                                                    "Apple //e");
+                                                                    "Apple //e",
+                                                                    ChangeAuthor::AnotherProgram);
         ChangePrompt  rebooted = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true,
-                                                                    "Apple //e");
+                                                                    "Apple //e",
+                                                                    ChangeAuthor::CassoCli);
 
 
 
@@ -765,6 +772,96 @@ public:
         Assert::IsTrue (running.answers[0].action  == ChangeAction::Ignore);
         Assert::IsTrue (rebooted.answers[0].action == ChangeAction::Ignore);
     }
+
+
+
+    //  A PATH IS WHERE A COPY WOULD GO, NEVER PROOF THAT ONE IS THERE. A bay
+    //  reserves the name the moment a question is put and keeps holding the
+    //  name it tried after a write that failed, so composing this notice from
+    //  the path alone told the user their disk had been renamed to a file
+    //  nothing had created.
+    TEST_METHOD (TheReloadNoticeReportsOnlyARenameThatHappened)
+    {
+        const std::string  copy = "Game.20260904-173238-01.dsk";
+
+        ChangePrompt       reserved = ChangePrompt::ComposeReloadReport (
+                                          "Game.dsk", 0, false, "Apple //e",
+                                          ChangeAuthor::CassoCli, copy, false);
+        ChangePrompt       written  = ChangePrompt::ComposeReloadReport (
+                                          "Game.dsk", 0, false, "Apple //e",
+                                          ChangeAuthor::CassoCli, copy, true);
+
+
+
+        Assert::IsTrue (reserved.message.find (L"renamed") == std::wstring::npos,
+                        L"a reserved name is not a renamed file");
+        Assert::IsTrue (reserved.message.find (L"20260904") == std::wstring::npos,
+                        L"and a file nothing created must not be offered as somewhere to look");
+
+        Assert::IsTrue (written.message.find (L"has been renamed to") != std::wstring::npos);
+        Assert::IsTrue (written.message.find (L"Game.20260904-173238-01.dsk")
+                            != std::wstring::npos,
+                        L"a rename that did happen is only useful with the new name");
+    }
+
+
+
+    //  ONLY A STATED INTENT IDENTIFIES THE WRITER. A directory watch reports
+    //  that a file changed, never who changed it, so the notice raised after
+    //  the user answers the question has no program to point at -- and used to
+    //  point at CassoCli anyway, which sent readers to look at a build that
+    //  never ran.
+    TEST_METHOD (TheReloadNoticeNamesCassoCliOnlyWhenTheWriteSaidSo)
+    {
+        ChangePrompt  stated   = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
+                                                                    "Apple //e",
+                                                                    ChangeAuthor::CassoCli);
+        ChangePrompt  answered = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false,
+                                                                    "Apple //e",
+                                                                    ChangeAuthor::AnotherProgram);
+
+
+
+        Assert::IsTrue (stated.message.find (L"CassoCli modified") != std::wstring::npos);
+
+        Assert::IsTrue (answered.message.find (L"CassoCli") == std::wstring::npos,
+                        L"the watcher cannot say who wrote, so nothing here may");
+        Assert::IsTrue (answered.message.find (L"Another program modified") != std::wstring::npos);
+
+        //  The user pressed the button, so the notice does not hand the
+        //  insertion to the program that only did the modifying.
+        Assert::IsTrue (answered.message.find (L"inserted it") == std::wstring::npos,
+                        L"the user did the inserting, not the writer");
+
+        //  Both still say where the disk ended up, which is the one fact the
+        //  reader is checking for.
+        Assert::IsTrue (stated.message.find   (L"Drive 1") != std::wstring::npos);
+        Assert::IsTrue (answered.message.find (L"Drive 1") != std::wstring::npos);
+    }
+
+
+
+    //  A reboot belongs to whoever caused it, and the sentence has to survive
+    //  a machine with no name either way.
+    TEST_METHOD (TheRebootIsReportedInBothVoices)
+    {
+        ChangePrompt  stated   = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true,
+                                                                    "Apple //e",
+                                                                    ChangeAuthor::CassoCli);
+        ChangePrompt  answered = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true,
+                                                                    "Apple //e",
+                                                                    ChangeAuthor::AnotherProgram);
+        ChangePrompt  unnamed  = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, true, "",
+                                                                    ChangeAuthor::AnotherProgram);
+
+
+
+        Assert::IsTrue (stated.message.find   (L"rebooted the Apple //e") != std::wstring::npos);
+        Assert::IsTrue (answered.message.find (L"Apple //e was rebooted") != std::wstring::npos);
+        Assert::IsTrue (unnamed.message.find  (L"machine was rebooted")   != std::wstring::npos,
+                        L"a machine with no name still produces a sentence");
+    }
+
 
 
 
@@ -805,9 +902,11 @@ public:
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Deleted));
         prompts.push_back (ChangePrompt::Compose ("C:\\work\\loader.dsk", 0, ChangeAction::Unusable));
         prompts.push_back (ChangePrompt::ComposeReloadReport ("C:\\work\\loader.dsk", 0, false,
-                                                              "Apple //e"));
+                                                              "Apple //e",
+                                                              ChangeAuthor::AnotherProgram));
         prompts.push_back (ChangePrompt::ComposeReloadReport ("C:\\work\\loader.dsk", 0, true,
-                                                              "Apple //e"));
+                                                              "Apple //e",
+                                                              ChangeAuthor::CassoCli));
         prompts.push_back (ChangePrompt::ComposeConflictReport ("C:\\work\\loader.dsk", 0,
                                                                 "C:\\work\\loader.x.dsk"));
         prompts.push_back (ChangePrompt::ComposeSaveFailure ("C:\\work\\loader.dsk", 0,

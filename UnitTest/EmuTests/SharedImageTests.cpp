@@ -306,6 +306,110 @@ public:
 
 
 
+    //  A CHANGE NOBODY EXPLAINED IS A QUESTION, AND ANSWERING IT IS NOT A
+    //  RELOAD BY WHOEVER WROTE. The notice raised afterwards claimed CassoCli
+    //  had modified the file and inserted it -- on a change the watcher found
+    //  and an insertion the user asked for -- and claimed a preserved copy
+    //  under the name the question had merely reserved. A disk the guest never
+    //  writes to reaches all of it with no dirty bit anywhere.
+    TEST_METHOD (AnAnsweredQuestionReportsNeitherAWriterNorACopy)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  Something rewrote the file and said nothing about why.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+        Assert::AreEqual ((size_t) 0, rig.reports.size(), L"and not yet a notice");
+        Assert::IsFalse (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
+                         L"a disk that boots and is read has nothing to save");
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"putting the question reserves a name, it does not write a file");
+
+        //  "Insert the modified <file>."
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"and answering it does not write one either");
+
+        Assert::IsTrue (rig.reports[0].message.find (L"renamed") == std::wstring::npos,
+                        L"so the notice must not report a rename that never happened");
+        Assert::IsTrue (rig.reports[0].message.find (L"CassoCli") == std::wstring::npos,
+                        L"and nothing said who wrote, so it must not name a program");
+    }
+
+
+
+    //  The other half. A write that DID say what it was for keeps the sentence
+    //  that makes the feature worth having.
+    TEST_METHOD (AStatedIntentIsAttributedToTheOneThingThatCanStateIt)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 0, rig.questions.size(),
+                          L"a stated intent is acted on rather than asked about");
+        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        Assert::IsTrue (rig.reports[0].message.find (L"CassoCli") != std::wstring::npos,
+                        L"the intent channel is the only thing that can identify a writer");
+    }
+
+
+
+    //  A WRITE THAT LANDS UNDER THE QUESTION DOES NOT RE-LABEL THE ANSWER. A
+    //  bay keeps only the newest change, so a build finishing while the dialog
+    //  is on screen replaces the intent the question was raised for. Reading
+    //  the record when the answer came back credited the user's own insertion
+    //  to CassoCli -- the very sentence saying somebody else pressed the button
+    //  they had just pressed.
+    TEST_METHOD (AStatedIntentArrivingUnderTheQuestionDoesNotReattributeTheAnswer)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  Something rewrote the file and said nothing about why, so it asks.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        //  A build finishes while the user is still reading it.
+        rig.WriteImage (kImagePath, 0x33);
+        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+        //  "Insert the modified <file>."
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        Assert::IsTrue (rig.reports[0].message.find (L"CassoCli") == std::wstring::npos,
+                        L"the user pressed the button, whoever wrote last");
+        Assert::IsTrue (rig.reports[0].message.find (L"inserted it") == std::wstring::npos,
+                        L"and the insertion stays theirs");
+    }
+
+
+
+
     TEST_METHOD (AChangedImageIsPickedUpAndTheIdentityRefreshed)
     {
         Rig  rig;

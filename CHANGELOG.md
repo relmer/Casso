@@ -87,6 +87,9 @@ Entries before versioning was introduced use dates only.
   Its source column was a fixed width that stood a few pixels short of the
   drive-audio origin. The column is now measured from the labels the list
   carries, growing only into room the asset names do not need.
+- **Two false claims in the notice shown after a changed disk was reloaded.**
+  It reported a renamed copy that was never written, and named CassoCli
+  whatever program had changed the file.
 - **A window with no client area buried the screen in assertion dialogs.**
   Every control laid out against a minimized window came out zero DIPs wide,
   and a text field insetting that by its own padding passed a NEGATIVE width to
