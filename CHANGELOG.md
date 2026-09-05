@@ -49,6 +49,11 @@ Entries before versioning was introduced use dates only.
 - **Ctrl+R no longer resets the machine.** It was a second binding for the menu's
   Ctrl+Shift+R, and because the shell claimed the keystroke, no Apple program
   could ever receive a Ctrl+R of its own. Reset keeps its menu accelerator.
+- **The keyboard map now describes the machine you are running, in aligned
+  columns.** Rows name only keys that machine actually has, so a ][+ is no
+  longer told about Open Apple, Delete or the up and down arrows it does not
+  have, and the dialog sizes itself to what is left. Key, arrow and meaning
+  line up in three columns.
 - **The keyboard map now carries only what the menus cannot say.** Its list of
   emulator shortcuts repeated six accelerators the menus already print beside
   their own items, while omitting eleven others, so it read as a complete list

@@ -48,6 +48,11 @@ public:
     // hosting dialog.
     int   GetPreferredHeightDip () const;
 
+    // Width in DIP the column rows need, or 0 when the body has none. Only
+    // column rows report a width: prose wraps to whatever it is given, so a
+    // body without them keeps the caller's default dialog width.
+    int   GetPreferredWidthDip  () const;
+
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
@@ -57,7 +62,19 @@ private:
     {
         IDxuiControl *  widget = nullptr;
         int             lines  = 1;
+
+        // A three-column row owns two more widgets: the arrow between the
+        // cells and the right cell. Null on an ordinary prose run.
+        IDxuiControl *  arrowWidget = nullptr;
+        IDxuiControl *  rightWidget = nullptr;
     };
+
+    // Width one string needs, estimated from an average glyph width because
+    // layout runs without a text renderer -- the same trade DxuiButtonRow
+    // makes for button labels. Alignment does not depend on the estimate
+    // being right: every row is measured the same way and every arrow is
+    // placed at the same column, so they line up whatever the estimate says.
+    static int  EstimateTextWidthDip (const std::wstring & text);
 
 
     std::vector<Item>      m_items;
@@ -66,6 +83,11 @@ private:
     int                    m_iconSrcH     = 0;
     int                    m_iconSizeDip  = 0;
     RECT                   m_iconRectPx   = {};
+    // Shared column geometry for every column row in this body, so their
+    // arrows form one vertical line. Zero when the body has no column rows.
+    int                    m_leftColDip   = 0;
+    int                    m_rightColDip  = 0;
+
     wchar_t                m_glyph        = 0;
     uint32_t               m_glyphArgb    = 0;
     int                    m_glyphSizeDip = 0;

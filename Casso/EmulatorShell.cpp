@@ -6276,20 +6276,22 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 
 int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 {
-    constexpr int       s_kBaseWidthDip     = 440;
-    constexpr int       s_kMaxWidthDip      = 760;
-    constexpr int       s_kChromeHeightDip  = 108;   // caption + content pad*2 + button row
-    constexpr int       s_kMinHeightDip     = 120;
-    constexpr int       s_kMaxHeightDip     = 620;
-    constexpr int       s_kIconSrcPx        = 256;
-    constexpr int       s_kDefaultIconDip   = 48;
-    constexpr int       s_kGlyphSizeDip     = 32;
-    constexpr wchar_t   s_kchGlyphInfo      = L'\uE946';   // MDL2 Info
-    constexpr wchar_t   s_kchGlyphWarning   = L'\uE7BA';   // MDL2 Warning
-    constexpr wchar_t   s_kchGlyphError     = L'\uEA39';   // MDL2 ErrorBadge
-    constexpr uint32_t  s_kGlyphArgbInfo    = 0xFF4A9EDB;
-    constexpr uint32_t  s_kGlyphArgbWarning = 0xFFF5A623;
-    constexpr uint32_t  s_kGlyphArgbError   = 0xFFE5424D;
+    constexpr int       s_kBaseWidthDip       = 440;
+    constexpr int       s_kMaxWidthDip        = 760;
+    constexpr int       s_kMinContentWidthDip = 280;   // floor for a self-sizing body
+    constexpr int       s_kBodyPadDip         = 56;   // content inset, both sides
+    constexpr int       s_kChromeHeightDip    = 108;   // caption + content pad*2 + button row
+    constexpr int       s_kMinHeightDip       = 120;
+    constexpr int       s_kMaxHeightDip       = 620;
+    constexpr int       s_kIconSrcPx          = 256;
+    constexpr int       s_kDefaultIconDip     = 48;
+    constexpr int       s_kGlyphSizeDip       = 32;
+    constexpr wchar_t   s_kchGlyphInfo        = L'\uE946';   // MDL2 Info
+    constexpr wchar_t   s_kchGlyphWarning     = L'\uE7BA';   // MDL2 Warning
+    constexpr wchar_t   s_kchGlyphError       = L'\uEA39';   // MDL2 ErrorBadge
+    constexpr uint32_t  s_kGlyphArgbInfo      = 0xFF4A9EDB;
+    constexpr uint32_t  s_kGlyphArgbWarning   = 0xFFF5A623;
+    constexpr uint32_t  s_kGlyphArgbError     = 0xFFE5424D;
 
 
 
@@ -6357,7 +6359,28 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         widthDip += DxuiButtonRow::GetWidthForLabel (button.label) + DxuiButtonRow::kGapDip;
     }
 
-    widthDip = std::clamp (widthDip - DxuiButtonRow::kGapDip, s_kBaseWidthDip, s_kMaxWidthDip);
+    widthDip -= DxuiButtonRow::kGapDip;
+
+    // A body of aligned column rows knows how wide it wants to be, and that
+    // width varies with what the running machine actually has. Let it set the
+    // width -- floor included, so a short body gives a small dialog rather
+    // than a standard-width one with a column of air down the right. Prose
+    // bodies report 0 (they wrap to whatever they are given) and keep the
+    // standard width.
+    {
+        int  bodyDip = content->GetPreferredWidthDip();
+
+        if (bodyDip > 0)
+        {
+            bodyDip += s_kBodyPadDip;
+            widthDip = (widthDip > bodyDip) ? widthDip : bodyDip;
+            widthDip = std::clamp (widthDip, s_kMinContentWidthDip, s_kMaxWidthDip);
+        }
+        else
+        {
+            widthDip = std::clamp (widthDip, s_kBaseWidthDip, s_kMaxWidthDip);
+        }
+    }
 
     dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
 

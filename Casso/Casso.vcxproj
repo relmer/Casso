@@ -281,6 +281,7 @@
     <ClCompile Include="Ui\UiShell.cpp" />
     <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
+    <ClCompile Include="Ui\Dialogs\KeyboardMapText.cpp" />
     <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
     <ClCompile Include="Ui\Dialogs\MessageDialog.cpp" />
     <ClCompile Include="Ui\Dialogs\SalvageDialogContent.cpp" />
@@ -335,6 +336,7 @@
     <ClInclude Include="Config\MonitorCatalog.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
+    <ClInclude Include="Ui\Dialogs\KeyboardMapText.h" />
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
     <ClInclude Include="Ui\Dialogs\DialogBodyContent.h" />
     <ClInclude Include="Ui\Dialogs\MessageDialog.h" />

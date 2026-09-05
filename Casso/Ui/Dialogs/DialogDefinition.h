@@ -44,6 +44,14 @@ struct DialogTextRun
     std::wstring  text;
     bool          isHyperlink   = false;
     std::wstring  hyperlinkUrl;   // ignored unless isHyperlink == true
+
+    // When set, the run is an aligned three-column row rather than a line of
+    // prose: `text`, an arrow, then `rightText`. Every column row in one body
+    // shares its column positions, measured across all of them, so the arrows
+    // form a single vertical line whatever the rows say.
+    std::wstring  rightText;
+
+    bool IsColumnRow () const { return !rightText.empty(); }
 };
 
 

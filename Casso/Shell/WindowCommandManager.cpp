@@ -7,6 +7,8 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
+#include "../Ui/Dialogs/KeyboardMapText.h"
+#include "Devices/AppleKeyboard.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"
@@ -2241,22 +2243,27 @@ void WindowCommandManager::OnHelpCommand (int id)
     {
         case IDM_HELP_KEYMAP:
         {
-            DialogDefinition def = {};
+            DialogDefinition          def     = {};
+            KeyboardMapText::Machine  machine = {};
+
+            // Read the capabilities off the live devices rather than a model
+            // name, so a machine gains its row the moment it gains the
+            // hardware. The //e keyboard is what carries Open / Closed Apple;
+            // MapSpecialKey answers for the keys that model added, without
+            // this dialog needing to know which model is running.
+            machine.hasAppleKeys = m_shell.m_refs.iieKeyboard != nullptr;
+            machine.hasGamePort  = m_shell.m_refs.iieSoftSwitches != nullptr ||
+                                   m_shell.m_refs.gamePort != nullptr;
+
+            if (m_shell.m_refs.keyboard != nullptr)
+            {
+                machine.hasTwoeKeys =
+                    m_shell.m_refs.keyboard->MapSpecialKey (AppleSpecialKey::Delete) != 0;
+            }
+
             def.title = L"Keyboard map";
             def.icon  = DialogIcon::Info;
-            def.body.push_back ({
-                L"Apple keyboard:\n\n"
-                L"Left Alt -> Open Apple (//e and //c)\n"
-                L"Right Alt -> Closed Apple (//e and //c)\n"
-                L"Backspace -> Left arrow, which is the Apple's backspace\n\n"
-                L"The //e and //c added the up and down arrows, Delete and\n"
-                L"Tab. On the ][ and ][+ those keys do nothing, as they do\n"
-                L"nothing on the hardware.\n\n"
-                L"With Map Arrows to Joystick on:\n"
-                L"Arrow keys -> Joystick, not the keyboard\n"
-                L"X / Z -> Buttons 0 and 1 (either Alt fires too)\n\n"
-                L"Every other shortcut is shown beside its menu item.",
-                false, L"" });
+            def.body  = KeyboardMapText::BuildBody (machine);
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
             break;
