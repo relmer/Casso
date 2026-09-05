@@ -1555,6 +1555,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     HRESULT                hrMerge           = S_OK;
     std::string            carryDisk1;
     std::string            carryDisk2;
+    bool                   inputAdopted      = false;
 
 
 
@@ -1707,6 +1708,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     // reflow (WM_APP_DXUI_UPDATE_TITLE) puts it on the
                     // chrome.
                     m_shell.AdoptInputModeForMachine (extPrefs);
+                    inputAdopted = true;
 
                     // //c: default Pointer -> Mouse when connected and no
                     // pointer mapping is active. Runtime nudge.
@@ -1714,6 +1716,19 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                 }
             }
         }
+    }
+
+    // The mapping is settled whether or not this machine's prefs could be
+    // read. Every path above is guarded -- an unparsable config, no store, a
+    // merge that failed, a merged document that is not an object -- and
+    // leaving the mapping alone on those hands the switched-to machine
+    // whatever the machine being LEFT was using. A null block seeds from the
+    // legacy global setting, the same fallback a machine that has never
+    // stored one gets. This is the launch path's rule (AdoptInputModeForMachine
+    // runs ahead of the bail in ApplyPersistedAudioPrefs) applied to switching.
+    if (!inputAdopted)
+    {
+        m_shell.AdoptInputModeForMachine (nullptr);
     }
 
     romSearchPaths.push_back (configPath.parent_path().parent_path().parent_path());

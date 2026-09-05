@@ -880,6 +880,31 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RefreshMergedJson
+//
+//  Replaces the document BuildJson roots the save on. The caller re-reads it
+//  from the store just before applying, so a key written behind this modeless
+//  sheet's back -- the per-machine input mapping, a //c case switch, a disk
+//  mounted while it was open -- is carried forward as it stands on disk rather
+//  than as it stood when the sheet opened.
+//
+//  The staged edits live in m_current and the baselines in m_original, so
+//  re-pointing this changes what the save carries forward, not what the sheet
+//  believes the user chose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
+{
+    m_mergedJson = CloneJson (mergedJson);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Apply
 //
 //  Pushes the live-applicable diffs through `sink` and emits the

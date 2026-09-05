@@ -248,6 +248,7 @@ bool SettingsApplyController::IsResetRequired() const
 void SettingsApplyController::CommitApply()
 {
     JsonValue             currentJson;
+    JsonValue             freshJson;
     HRESULT               hr             = S_OK;
     bool                  savesRefused   = false;
     std::string           pendingMachine;
@@ -263,6 +264,25 @@ void SettingsApplyController::CommitApply()
     if (m_state == nullptr || m_emuShell == nullptr)
     {
         return;
+    }
+
+    // Re-read before building the save. The sheet is modeless, so the machine's
+    // prefs can have moved on disk since it opened: the input mapping and the
+    // //c case switches are written the moment the user touches them, and a disk
+    // mounted behind the sheet writes its path. BuildJson carries forward every
+    // $cassoUiPrefs key its pages do not write, so carrying them from the
+    // snapshot taken at open reverted those changes on OK. A read that fails
+    // leaves the snapshot in place, which is where this started.
+    if (m_ucs != nullptr && m_fs != nullptr && !m_state->GetMachineName().empty())
+    {
+        hr = m_ucs->Load (m_state->GetMachineName(), m_state->GetDefaultJson(), *m_fs, freshJson);
+
+        if (SUCCEEDED (hr))
+        {
+            m_state->RefreshMergedJson (freshJson);
+        }
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     hr = m_state->Apply (adapter, currentJson);

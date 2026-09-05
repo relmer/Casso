@@ -251,6 +251,14 @@ public:
                              const JsonValue   & mergedJson);
     void    Cancel          ();
 
+    // Re-points the document the save is rooted on. The sheet is modeless, so
+    // the machine's prefs can change on disk while it is open -- the input
+    // mapping and the //c case switches are written the moment the user touches
+    // them -- and BuildJson carries forward every $cassoUiPrefs key its pages do
+    // not write. Carried from the snapshot taken when the sheet opened, those
+    // changes are reverted on OK.
+    void    RefreshMergedJson (const JsonValue & mergedJson);
+
     bool IsDirty       () const;
     bool RequiresReset () const;          // true iff any hardware enable changed
 

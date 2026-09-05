@@ -5567,17 +5567,11 @@ Error:
 
 void EmulatorShell::SaveGlobalPrefs()
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     offUiThread = (m_hwnd != nullptr) &&
+                           (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
 
 
-
-    // Whatever a deferred save was waiting to write is in this one, so clear
-    // the pending request rather than letting the timer rewrite the same file
-    // a second time. The timer is deliberately NOT killed here: SwitchMachine
-    // reaches this function on the CPU thread, and the Dxui timer calls assert
-    // the UI thread. It fires once more, finds nothing dirty, and stops itself
-    // in OnTimer.
-    m_globalPrefsDirty = false;
 
     if (m_userConfigStore == nullptr)
     {
@@ -5585,6 +5579,24 @@ void EmulatorShell::SaveGlobalPrefs()
     }
 
     hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+
+    // A deferred request is consumed only by a write that LANDED and that ran
+    // on the thread the request was made from. Clearing it up front dropped the
+    // change outright: a save that failed, or one skipped for want of a store,
+    // still ate the request, and the shutdown flush writes nothing when the flag
+    // is clear. Clearing it from the CPU thread -- SwitchMachine reaches here --
+    // ate a request for a value that thread has no happens-before edge to, so
+    // the file could be written with the old volume while the pending write that
+    // would have corrected it was cancelled.
+    //
+    // The timer is deliberately NOT killed here: the Dxui timer calls assert the
+    // UI thread. It fires once more and either finds nothing dirty and stops
+    // itself in OnTimer, or writes the value a failed or off-thread save missed.
+    if (SUCCEEDED (hr) && !offUiThread)
+    {
+        m_globalPrefsDirty = false;
+    }
+
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
