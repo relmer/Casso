@@ -133,7 +133,11 @@ or per small group. Each phase says which it is.
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T024 [P] Correct the README sentence at `README.md:284`, which promises that tweaks persist on top of presets and themes. It becomes true in Phase 3 and should be checked rather than assumed.
+- [x] T024 [P] VERIFIED, no edit. `README.md:284` already promises that presets
+  seed defaults, themes override, and a user's tweaks persist on top of either.
+  The sentence was false when written and is true now, so the work was to make
+  the code match the README rather than the other way round. The README carries
+  headline news only, and the mechanism behind this belongs in the CHANGELOG.
 - [ ] T025 [P] Add a precedence paragraph to `docs/themes/AUTHORING.md:22`, which calls `crtDefaults` "preferred CRT post-processing presets" and states no precedence at all.
 - [ ] T026 Add the `CHANGELOG.md` entry under `[Unreleased]`. User-visible, so required. One entry covering the net effect, not the path taken through the phases. Do not add entries for the spec and plan commits, which are `docs`.
 - [ ] T027 [P] Confirm no stale prose survives the deletions. The layering description at `Casso/Config/CrtPresets.h:21-23` is rewritten in T008 and the comment at `Casso/Config/GlobalUserPrefs.h:118-120` is deleted with the members it documents in T009, so this task verifies rather than edits. Note that `specs/007-ui-overhaul/contracts/global-user-prefs.schema.json` is two generations stale already and is a historical artifact, not an edit site.
