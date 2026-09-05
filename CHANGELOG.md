@@ -131,6 +131,11 @@ Entries before versioning was introduced use dates only.
   and a reservation no longer outlives the disk it was made for: neither
   eject cleared one, so the next disk into that drive filed its own copy
   under the departed disk's name.
+- **The joystick / paddle / mouse indicator dots on the command bar stayed blue
+  under every theme.** They painted from a hardcoded copy of the DarkModern
+  palette, so they kept its blue while the drive LEDs beside them went red on
+  Skeuomorphic and green on RetroTerminal. They now follow the theme's LED
+  colors like the rest of the chrome.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,
