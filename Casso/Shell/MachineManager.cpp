@@ -1404,7 +1404,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
             // is to swap what is under it. One line and no decisions: which
             // bay, whether anything settled and what to do about it are all
             // the store's.
-            m_shell.m_diskStore.ApplyPendingPickUp();
+            m_shell.m_diskStore.ApplyPendingReload();
         });
 
         // The spindown hook above is not enough on its own, and the gap is the
@@ -1421,7 +1421,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         {
             m_shell.m_refs.diskController->SetIdleCallback ([this] ()
             {
-                m_shell.m_diskStore.ApplyPendingPickUp();
+                m_shell.m_diskStore.ApplyPendingReload();
             });
         }
 

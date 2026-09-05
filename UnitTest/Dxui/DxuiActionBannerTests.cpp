@@ -109,7 +109,7 @@ namespace DxuiActionBannerTests
 
 
 
-            banner.SetText    (L"Loader.dsk changed and the new contents were taken up.");
+            banner.SetText    (L"Loader.dsk changed and the new contents were reloaded.");
             banner.SetActions ({ L"Take it up", L"Restart" });
             banner.Layout     (bounds, scaler);
 
@@ -153,7 +153,7 @@ namespace DxuiActionBannerTests
             DxuiDpiScaler     scaler = Scaler96();
             const wchar_t *   text   =
                 L"Loader.dsk was changed by something else while it was mounted, and the "
-                L"new contents have been taken up. The machine is still running.";
+                L"new contents have been reloaded. The machine is still running.";
 
 
 

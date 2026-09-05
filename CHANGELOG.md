@@ -50,6 +50,15 @@ Entries before versioning was introduced use dates only.
   payload down in ascending sector order, and the loader lost a whole revolution
   waiting for each one; it now reads every other sector, so a track costs two
   revolutions instead of sixteen. A 38-sector demo boots in 4.2s rather than 10.7s.
+- **The "disk modified outside Casso" notices were rewritten.** The disk and its
+  drive lead on a line of their own instead of appearing in every sentence, and
+  all four notices report the copy the same way: your disk is renamed, and the
+  new name is given once.
+- **A machine's `monitor` key takes a vendor-qualified identifier.** `MonitorII`
+  and `MonitorIIc` are now `AppleMonitorII` and `AppleMonitorIIc`. The catalog
+  will hold tubes from more than one maker, so each identifier carries whose it
+  is. A machine JSON carrying an old identifier falls back to the default
+  monitor.
 - **Massively faster startup.** Reduced startup time from ~20s (debug build) to 
   under 1s, and the executable is ~80% smaller by prebuilding object meshes, 
   optimizing tesselation, and precompiling shaders. 
@@ -120,6 +129,14 @@ Entries before versioning was introduced use dates only.
   and the output low-pass is tightened to match the real chip, whose 3-6 kHz energy sits
   36 dB under its voice band where ours sat 28 dB under. Across six bands, mean error
   against that recording falls from 9.9 dB to 4.9 dB.
+- **Changing one CRT setting no longer freezes the others.** Every setting left
+  alone keeps following the monitor preset and the active theme.
+- **The color bleed width now shows the width in effect.** It rounded to whole
+  pixels, which put every theme's width at 1 px and left the setting stuck
+  there once dragged. It reads and drags to a tenth of a pixel.
+- **The preferences file grew a duplicate monitor-tilt entry on every save.** The
+  key was both read directly and swept up as an unknown key, so each save wrote
+  one more copy than the last. Existing files repair themselves on the next save.
 - **GH #137: audio follows a change of the default output device.** The output
   device was resolved once at startup, so selecting a different speaker or
   headset left the sound on the old one until the next launch. Sounds are
@@ -152,6 +169,23 @@ Entries before versioning was introduced use dates only.
   `Casso --machine Apple2e --dsik1 work.dsk` ran whatever disk was mounted last.
   An argument Casso cannot read now stops startup and shows the reason above the
   full usage text, and every form of `--help` shows that text and exits.
+- **A settings file Casso could not read was overwritten anyway.** It is now saved
+  as `UserPrefs.<date-time>.original.json` and a fresh one started, so the original
+  is still there to repair. If it cannot be set aside, nothing is written over it.
+- **Settings changes that could not be saved reported success.** The Settings sheet
+  closed as though it had written them, and Cancel had nothing left to revert to.
+  A save that cannot go through now says so and leaves the sheet where it was.
+- **Old settings files that could not be read cost you the ones that could.** One
+  unreadable file failed the whole upgrade, and every readable file beside it was
+  then left unread for good. Casso now carries across what it can and reports what
+  it left behind.
+- **Global settings could be reset to defaults on launch.** A remembered disk whose
+  file was gone made startup rewrite the preferences file to clear the stale path,
+  and that write replaced the whole global section with built-in defaults.
+- **Restore defaults ignored a theme's per-machine values.** It read the theme's base
+  CRT defaults and skipped the machine overrides merged on top. On an Apple //e running
+  Retro Terminal it seeded the base numbers instead of the //e variant's. Those wrong
+  values then stuck, because Restore defaults also marks the monitor as user-set.
 - **Bloom washed out dithered pictures.** It was applied to every pixel rather than
   to bright ones, so a dark pixel next to a lit one was lifted along with it. On
   dithered artwork every dark gap has a lit neighbor, so the gaps filled and the

@@ -56,10 +56,7 @@ void SettingsApplyController::SnapshotBaselines()
 {
     if (m_prefs != nullptr)
     {
-        for (size_t i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
-        {
-            m_baselineCrt[i] = m_prefs->crtByMode[i];
-        }
+        m_baselineCrt = m_prefs->crtOverrides;
     }
 
     if (m_state != nullptr)
@@ -252,6 +249,7 @@ void SettingsApplyController::CommitApply()
 {
     JsonValue             currentJson;
     HRESULT               hr             = S_OK;
+    bool                  savesRefused   = false;
     std::string           pendingMachine;
     std::wstring          currentMachine;
     std::string           currentMachineNarrow;
@@ -279,6 +277,12 @@ void SettingsApplyController::CommitApply()
                                 currentJson,
                                 m_state->GetDefaultJson(),
                                 *m_fs);
+
+        if (FAILED (hr))
+        {
+            savesRefused = true;
+        }
+
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -291,9 +295,8 @@ void SettingsApplyController::CommitApply()
     // whole file atomically.
     if (m_prefs != nullptr)
     {
-        bool    anyCrtChanged   = false;
-        bool    anyPrintChanged = false;
-        size_t  i               = 0;
+        bool  anyCrtChanged   = false;
+        bool  anyPrintChanged = false;
 
         anyPrintChanged =
             m_prefs->printOutputDpi          != m_baselinePrintOutputDpi          ||
@@ -303,27 +306,10 @@ void SettingsApplyController::CommitApply()
             m_prefs->printerAudioPanOverride != m_baselinePrinterAudioPanOverride ||
             m_prefs->printerAudioPan         != m_baselinePrinterAudioPan;
 
-        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
-        {
-            const auto &  cur  = m_prefs->crtByMode[i];
-            const auto &  base = m_baselineCrt[i];
-
-            if (cur.brightness         != base.brightness         ||
-                cur.contrast           != base.contrast           ||
-                cur.gamma              != base.gamma              ||
-                cur.persistence        != base.persistence        ||
-                cur.scanlinesEnabled   != base.scanlinesEnabled   ||
-                cur.scanlinesIntensity != base.scanlinesIntensity ||
-                cur.bloomEnabled       != base.bloomEnabled       ||
-                cur.bloomRadius        != base.bloomRadius        ||
-                cur.bloomStrength      != base.bloomStrength      ||
-                cur.colorBleedEnabled  != base.colorBleedEnabled  ||
-                cur.colorBleedWidth    != base.colorBleedWidth    ||
-                cur.userOverride       != base.userOverride)
-            {
-                anyCrtChanged = true;
-            }
-        }
+        // Presence counts as a change, not just a differing value: clearing
+        // a pair's last override is an edit worth saving, and the map compare
+        // sees the entry disappear where a field-by-field walk would not.
+        anyCrtChanged = (m_prefs->crtOverrides != m_baselineCrt);
 
         if (anyCrtChanged || anyPrintChanged)
         {
@@ -338,23 +324,50 @@ void SettingsApplyController::CommitApply()
                 hrSave = m_prefs->Save (m_emuShell->GetAssetBaseDir(), *m_fs);
             }
 
+            if (FAILED (hrSave))
+            {
+                savesRefused = true;
+            }
+
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
 
         // Re-snapshot baselines so subsequent Cancel after another
         // round of edits reverts to THIS committed state, not the
         // pre-commit one.
-        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+        //
+        // NOT when a save was refused, though. The baselines are what Cancel
+        // reverts to, so advancing them to values that never reached disk
+        // leaves the sheet with nothing to go back to and the next launch
+        // showing settings the user watched take effect and then lose.
+        if (!savesRefused)
         {
-            m_baselineCrt[i] = m_prefs->crtByMode[i];
-        }
+            m_baselineCrt = m_prefs->crtOverrides;
 
-        m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
-        m_baselinePrintDotStyle    = m_prefs->printDotStyle;
-        m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
-        m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
-        m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
-        m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
+            m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
+            m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+            m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
+            m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
+            m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
+            m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
+        }
+    }
+
+    // Every save on this path is fire-and-forget by design, so a refusal would
+    // otherwise close the sheet looking like it worked. The file is intact and
+    // the startup message already explained why, but that was minutes ago and
+    // said nothing about the change the user just made.
+    //
+    // POSTED, not shown. This runs inside SettingsSheet::OnOk, which has not
+    // returned and so has not closed the sheet; a modal opened here would run
+    // a nested message loop against a sheet still mid-commit.
+    if (savesRefused)
+    {
+        m_emuShell->PostNotification (
+            L"Settings not saved\n\n"
+            L"Casso could not read your settings file, so these changes were "
+            L"applied to this session but not written to disk. Repair or move "
+            L"the file, then restart Casso.");
     }
 
     m_baselineColorMode = (int) m_state->GetPrefs().colorMode;
@@ -433,10 +446,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
     // per-frame MakeCrtParams path.
     if (m_prefs != nullptr)
     {
-        for (size_t i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
-        {
-            m_prefs->crtByMode[i] = m_baselineCrt[i];
-        }
+        m_prefs->crtOverrides = m_baselineCrt;
 
         // Revert Printing edits (no live effect; they only bind at the next
         // delivery / printer sound, so this simply un-does the staged writes).

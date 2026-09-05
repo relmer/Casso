@@ -73,7 +73,7 @@ void MountedImageState::Eject()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MountedImageState::NoteChange (int64_t nowMs, PickUpIntent intent)
+void MountedImageState::NoteChange (int64_t nowMs, ExternalChangeIntent intent)
 {
     m_pending.seen       = true;
     m_pending.lastSeenMs = nowMs;

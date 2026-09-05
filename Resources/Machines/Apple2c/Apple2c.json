@@ -10,7 +10,7 @@
     // restated as a color preference here -- naming the Monitor //c is what
     // makes this machine come up green, and moving it to another monitor
     // would move its color with it.
-    "monitor": "MonitorIIc",
+    "monitor": "AppleMonitorIIc",
 
     "name": "Apple //c",
     "releaseYear": 1984,

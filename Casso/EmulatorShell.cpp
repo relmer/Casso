@@ -3,6 +3,8 @@
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
+#include "Config/CrtPresets.h"
+#include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
 #include "Devices/Printer/PrinterCard.h"
@@ -1113,8 +1115,10 @@ void EmulatorShell::AllocateFramebuffers()
 
 void EmulatorShell::PrimeChromeThemeEarly()
 {
-    HRESULT       hr = S_OK;
-    std::wstring  parseDetail;
+    HRESULT                      hr = S_OK;
+    UserConfigStore::LoadReport  report;
+    std::wstring                 message;
+    std::wstring                 skipped;
 
 
 
@@ -1122,6 +1126,12 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // with defaults. A corrupt one is the user's file being unreadable, so we
     // tell them where it broke and reset to defaults so Casso still boots --
     // silently starting over just reads as "Casso lost my settings".
+    //
+    // Two outcomes to report, and the difference matters to the reader. With a
+    // preserved path, LoadAll moved every byte to that file and settings save
+    // normally from here. Without one, the file is still where it was and
+    // saving is refused until it reads, so the message must not suggest the
+    // session will keep anything.
     //
     // Non-asserting on purpose. A malformed prefs file is bad DATA, not a
     // coding error: there is no bug for a developer to break into, and it
@@ -1132,12 +1142,23 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // and the -N family is CHRF with its action fixed to one EhmNotifyUser
     // call. EhmNotifyUser rather than a themed dialog: this runs before the
     // chrome theme or main window exist, and it auto-detects GUI vs console.
-    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, parseDetail);
+    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, report);
     CHRF (hr,
-          EhmNotifyUser ((L"Casso could not read your settings and has started "
-                          L"with defaults. Your file was left untouched.\n\n" +
-                          parseDetail).c_str());
+          message = UserConfigStore::ComposeLoadFailureMessage (
+                        m_assetBaseDir, m_userConfigStore->GetUserPrefsFilePath(), report);
+          EhmNotifyUser (message.c_str());
           m_globalPrefs = GlobalUserPrefs {});
+
+    // A migration that carried forward what it could and left the rest is the
+    // one degraded outcome that reports SUCCESS, so nothing else will mention
+    // it. The unified file exists from here on, which closes the gate that
+    // would have retried those files, so this is the only chance to say so.
+    skipped = UserConfigStore::ComposeSkippedLegacyMessage (m_assetBaseDir, report);
+
+    if (!skipped.empty())
+    {
+        EhmNotifyUser (skipped.c_str());
+    }
 
 Error:
     m_chromeTheme = CassoTheme::MakeByName (m_globalPrefs.activeTheme);
@@ -1523,6 +1544,83 @@ void EmulatorShell::PersistBezelTilt()
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RefreshCrtOverrideKeys
+//
+//  Rebuilds the four override keys for the monitor now on the desk.
+//
+//  Resolving the monitor costs a path lookup, a file read and a JSON parse,
+//  so it cannot happen on the render path. Caching all four modes rather
+//  than the active one means a color-mode change needs no invalidation at
+//  all, and the per-frame lookup does not build a string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefreshCrtOverrideKeys()
+{
+    const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
+    size_t               mode    = 0;
+
+
+
+    for (mode = 0; mode < kCrtModeCount; mode++)
+    {
+        m_crtOverrideKeys[mode] = CrtResolver::MakeKey (monitor.configName, mode);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ResolveCrtForCurrentMode
+//
+//  The picture for the monitor and mode showing right now.
+//
+//  The color mode is loaded ONCE. Reading it twice would let a preemption
+//  between the reads pair one mode preset with another mode overrides, which
+//  is a race the previous two-load call sites carried.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
+{
+    const ThemeCrtDefaults *  themeDefaults = nullptr;
+    size_t                    mode          = (size_t) m_colorMode.load (std::memory_order_acquire);
+    CrtOverrides              overrides;
+    auto                      found         = m_globalPrefs.crtOverrides.end();
+
+
+
+    if (mode >= kCrtModeCount)
+    {
+        mode = 0;
+    }
+
+    found = m_globalPrefs.crtOverrides.find (m_crtOverrideKeys[mode]);
+    if (found != m_globalPrefs.crtOverrides.end())
+    {
+        overrides = found->second;
+    }
+
+    // Resolved defaults, never the base theme: the base drops the machine
+    // variant overrides, which is what made the picture change brightness
+    // depending on which caller set the parameters last.
+    if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
+    {
+        themeDefaults = &m_themeManager->ActiveCrtDefaults();
+    }
+
+    return CrtResolver::Resolve (CrtPresets::GetPreset (mode), themeDefaults, overrides);
 }
 
 
@@ -2967,10 +3065,15 @@ void EmulatorShell::LoadMachineUiPrefs (
 
     // A missing file, or a missing "$cassoUiPrefs" key, is normal (first run
     // for this machine): recover to null so the caller keeps defaults, no
-    // assert. Content that exists but is corrupt -- unparseable JSON or a
-    // failed override merge -- means something is wrong, so CHRA asserts (a
-    // debug build breaks for a dev to dig in) and then bails to that same
-    // null-prefs recovery.
+    // assert. A machine's own config failing to parse IS a coding error -- it
+    // is a shipped asset, not something a user edits -- so that one asserts.
+    //
+    // The store's Load is a different matter and must NOT assert. It reads the
+    // user's prefs file, and PrimeChromeThemeEarly's banner already settles
+    // what that means: a malformed prefs file is bad DATA, there is no bug for
+    // a developer to break into, and it would stop the debugger every time
+    // someone hand-edits their JSON. An unreadable file that could not be set
+    // aside reaches here on the very next machine load.
     BAIL_OUT_IF (configPath.empty(), S_OK);
     configFile.open (configPath);
     BAIL_OUT_IF (!configFile.good(), S_OK);
@@ -2982,7 +3085,7 @@ void EmulatorShell::LoadMachineUiPrefs (
     CHRA (hr);
 
     hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, outDoc);
-    CHRA (hr);
+    CHR (hr);
 
     BAIL_OUT_IF (outDoc.GetType() != JsonType::Object, S_OK);
 
@@ -3031,6 +3134,12 @@ HRESULT EmulatorShell::InitializeUiShell()
     SubscribeAndActivateTheme();
 
     ApplyPersistedChromePrefs();
+
+    // Seed the CRT override keys once the machine is settled. Done here
+    // rather than inside ApplyPersistedChromePrefs, which returns early for
+    // a machine carrying no $cassoUiPrefs object and would leave the keys
+    // empty for it.
+    RefreshCrtOverrideKeys();
 
     hr = FinishUiShellLayout();
     CHR (hr);
@@ -5520,6 +5629,48 @@ void EmulatorShell::ShowNotification (const std::wstring & message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::PostNotification
+//
+//  Hands the report to the message pump rather than opening a dialog here.
+//
+//  ShowNotification ends in a modal, which is wrong for a caller that is
+//  itself inside a message being handled: the Settings sheet's OK handler
+//  reaches one, and a modal opened there runs a nested loop against a sheet
+//  that has neither finished committing nor closed. Posting lets the click
+//  finish first, so the dialog arrives over a settled window.
+//
+//  Falls back to the pre-window queue for the same reason ShowNotification
+//  does -- a report raised before there is a window must not vanish.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PostNotification (const std::wstring & message)
+{
+    wstring *  carried = nullptr;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        EmulatorShell::QueueNotification (message);
+        return;
+    }
+
+    carried = new (std::nothrow) wstring (message);
+
+    if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_NOTIFY_USER, 0,
+                                             reinterpret_cast<LPARAM> (carried)))
+    {
+        delete carried;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::FlushPendingNotifications
 //
 //  Replays anything reported before the window existed. The queue is drained
@@ -5999,11 +6150,11 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     }
 
     //  WIDE ENOUGH FOR ITS OWN BUTTONS. The width was a hard 440 while the
-    //  height already grew with the text, so a dialog whose buttons carry a
-    //  filename -- "Insert the modified work.dsk" -- pushed the row past the
-    //  left margin and hard against the frame with no gap at all. Measured
-    //  with the same estimate the row lays itself out with, so the two cannot
-    //  come to disagree.
+    //  height already grew with the text, so a dialog whose buttons carried a
+    //  filename pushed the row past the left margin and hard against the
+    //  frame with no gap at all. No label carries a filename any more, but a
+    //  measured row is what keeps that from mattering: measured with the same
+    //  estimate the row lays itself out with, so the two cannot disagree.
     widthDip = DxuiButtonRow::kEdgePadDip * 2;
 
     for (const DialogButton & button : def.buttons)
@@ -7350,6 +7501,12 @@ int EmulatorShell::RunMessageLoop()
                 UpdateWindowTitle();
                 ReflowChromeForMachineChange();
 
+                // The machine may now sit in front of a different monitor,
+                // which changes every override key. This is the UI-thread
+                // side of the switch; SwitchMachine runs on the CPU thread
+                // and must not do file work or race the render path.
+                RefreshCrtOverrideKeys();
+
                 // A switch may have changed the default pointer mode on the CPU
                 // thread (ApplyDefaultPointerForMachine defers its UI reflection
                 // here to stay off the CPU thread). Sync the selector state on
@@ -7477,15 +7634,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // overrides, so the picture changed brightness whenever a resize let
     // the other caller set the parameters instead.
     {
-        const ThemeCrtDefaults *  themeDefaults = nullptr;
-        if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
-        {
-            themeDefaults = &m_themeManager->ActiveCrtDefaults();
-        }
-
-        CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
-                                           (size_t) m_colorMode.load(std::memory_order_acquire),
-                                           themeDefaults,
+        CrtParams  params = MakeCrtParams (ResolveCrtForCurrentMode(),
                                            (float) m_d3dRenderer.GetBackBufferWidth(),
                                            (float) m_d3dRenderer.GetBackBufferHeight());
         m_d3dRenderer.SetCrtParams (params);
@@ -12668,17 +12817,9 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         if (!m_uiFramebuffer.empty())
         {
-            const ThemeCrtDefaults  * themeDefaults = nullptr;
-            CrtParams                 params        = {};
+            CrtParams  params = {};
 
-            if (m_themeManager != nullptr && m_themeManager->GetActiveTheme() != nullptr)
-            {
-                themeDefaults = &m_themeManager->ActiveCrtDefaults();
-            }
-
-            params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
-                                    (size_t) m_colorMode.load(std::memory_order_acquire),
-                                    themeDefaults,
+            params = MakeCrtParams (ResolveCrtForCurrentMode(),
                                     (float) m_d3dRenderer.GetBackBufferWidth(),
                                     (float) m_d3dRenderer.GetBackBufferHeight());
             m_d3dRenderer.SetCrtParams (params);

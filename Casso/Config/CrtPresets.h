@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "GlobalUserPrefs.h"
+#include "CrtTypes.h"
 
 
 
@@ -18,18 +18,16 @@
 //  visually correct P3 phosphor preset instead of identity values
 //  layered over a color-tuned default.
 //
-//  Layering: when GlobalUserPrefs::crtByMode[N].userOverride is false,
-//  CrtPostProcess::MakeCrtParams seeds from CrtPresets::GetPreset(N)
-//  before applying any theme variant overrides on top.
+//  Layering: CrtResolver::Resolve starts from GetPreset(N), lays the
+//  active theme's declared groups over it, and lets the user's own
+//  per-field overrides win last.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace CrtPresets
 {
     // Index by SettingsColorMode (Color=0, Green=1, Amber=2, White=3).
-    // Each entry mirrors GlobalUserPrefs::Crt minus the userOverride
-    // flag (presets are by definition NOT user-overridden).
-    inline const GlobalUserPrefs::Crt &  GetPreset (size_t modeIndex)
+    inline const CrtValues &  GetPreset (size_t modeIndex)
     {
         // Color: NTSC composite color, modest bloom + the chroma bleed
         //   that defines the Apple II color-mode look. No scanlines /
@@ -51,7 +49,7 @@ namespace CrtPresets
         // gamma on top of the host display's already-calibrated curve
         // just produces a stack the user never asked for; treat the
         // gamma slider as a user-customization lever instead.
-        static const GlobalUserPrefs::Crt  s_kPresets[GlobalUserPrefs::kCrtModeCount] = {
+        static const CrtValues  s_kPresets[kCrtModeCount] = {
             // Color
             {
                 /* brightness         */ 1.00f,
@@ -65,7 +63,6 @@ namespace CrtPresets
                 /* colorBleedEnabled  */ true,
                 /* colorBleedWidth    */ 3.0f,
                 /* persistence        */ 0.00f,
-                /* userOverride       */ false,
             },
             // Green (P1)
             {
@@ -80,7 +77,6 @@ namespace CrtPresets
                 /* colorBleedEnabled  */ false,
                 /* colorBleedWidth    */ 0.0f,
                 /* persistence        */ 0.55f,
-                /* userOverride       */ false,
             },
             // Amber (P3)
             {
@@ -95,7 +91,6 @@ namespace CrtPresets
                 /* colorBleedEnabled  */ false,
                 /* colorBleedWidth    */ 0.0f,
                 /* persistence        */ 0.80f,
-                /* userOverride       */ false,
             },
             // White (P4)
             {
@@ -110,11 +105,10 @@ namespace CrtPresets
                 /* colorBleedEnabled  */ false,
                 /* colorBleedWidth    */ 0.0f,
                 /* persistence        */ 0.30f,
-                /* userOverride       */ false,
             },
         };
 
-        size_t  clamped = (modeIndex < GlobalUserPrefs::kCrtModeCount) ? modeIndex : 0;
+        size_t  clamped = (modeIndex < kCrtModeCount) ? modeIndex : 0;
         return s_kPresets[clamped];
     }
 }

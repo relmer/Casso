@@ -398,6 +398,13 @@ private:
     // come from the one answer, so they cannot disagree about what is
     // standing on the desk.
     const MonitorSpec &  ResolveMonitorForCurrentMachine();
+
+    // The four override keys for the monitor currently on the desk, one per
+    // color mode. Cached because resolving the monitor re-reads and re-parses
+    // the machine JSON, and the render path needs a key every frame.
+    // Refreshed only when the machine changes, on the UI thread.
+    void          RefreshCrtOverrideKeys ();
+    CrtResolved   ResolveCrtForCurrentMode () const;
     void    ApplyPersistedChromePrefs     ();
     void    ApplyPersistedAudioPrefs      ();
 
@@ -1093,6 +1100,12 @@ private:
     // thread: a flush that fails on the CPU thread reports through here.
     void         ShowNotification (const std::wstring & message);
 
+    // Hands a notification to the message pump instead of showing it here.
+    // For callers that are themselves inside a message being handled -- a
+    // dialog's OK handler, say -- where a modal opened inline would run a
+    // nested loop against a window still mid-commit.
+    void         PostNotification (const std::wstring & message);
+
     // Replays notifications raised before the window existed. Startup reports
     // a bad prefs file before there is anything to parent a dialog to, and a
     // queued message that appears a moment later beats a bare Win32 box.
@@ -1692,6 +1705,11 @@ private:
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};
+
+    // Joined "<monitorConfigName>/<mode>" keys, indexed by color mode. All
+    // four are cached rather than just the active one, so a mode change needs
+    // no invalidation and the per-frame lookup allocates nothing.
+    std::array<std::string, kCrtModeCount>  m_crtOverrideKeys;
 
     // Resolved text color (0xAARRGGBB) for the Color monitor. UI writes via
     // SetColorMonitorTextArgbLive; RenderFramebuffer reads it when the Color

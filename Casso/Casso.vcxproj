@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -241,6 +241,7 @@
     <ClCompile Include="Config\WindowPlacementProfile.cpp" />
     <ClCompile Include="Config\UserConfigStore.cpp" />
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
+    <ClCompile Include="Config\CrtResolver.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\CreateDiskBodyPanel.cpp" />
@@ -327,6 +328,8 @@
     <ClInclude Include="Config\WindowPlacementProfile.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
+    <ClInclude Include="Config\CrtTypes.h" />
+    <ClInclude Include="Config\CrtResolver.h" />
     <ClInclude Include="Config\MonitorCatalog.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />

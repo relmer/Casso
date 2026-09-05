@@ -6,6 +6,8 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 
+#include "CrtResolver.h"
+
 
 
 
@@ -27,10 +29,18 @@ static constexpr const char *  s_kpszVersionKey  = "$cassoGlobalPrefsVersion";
 static constexpr int           s_kCurrentVersion = 1;
 
 
-// crt sub-object key per monitor type, indexed by SettingsColorMode.
-static constexpr const char *  s_kpszCrtModeKeys[GlobalUserPrefs::kCrtModeCount] = {
+// Legacy v1 crt sub-object key per monitor type, indexed by SettingsColorMode.
+// Read by the v1 conversion only; nothing writes these any more.
+static constexpr const char *  s_kpszCrtModeKeys[kCrtModeCount] = {
     "color", "green", "amber", "white"
 };
+
+
+// The monitors the v1-era catalog held, frozen against that history. The
+// conversion fans an adopted v1 block onto both, and deliberately does NOT
+// read s_kMonitors: an eight-monitor build must not spread a //e-era user's
+// tuning onto a Commodore tube they have never booted.
+static constexpr const char *  s_kpszV1Monitors[] = { "AppleMonitorII", "AppleMonitorIIc" };
 
 
 // Known top-level keys recognized by this version of GlobalUserPrefs.
@@ -53,7 +63,9 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "colorMonitorTextCustom",
     "recentDisks",
     "recentDiskLoadedAt",
-    "crt",
+    "crt",                        // legacy v1 block; consumed by the conversion, no longer emitted
+    "crtOverrides",
+    "monitorTilt",
     "window",
     "printOutputDpi",
     "printDotStyle",
@@ -112,35 +124,34 @@ static constexpr size_t  s_kcCrtGroup = _countof (s_kpszCrtGroupKeys);
 
 
 // One scalar CRT field: which group it serializes into, its JSON key, type,
-// a pointer-to-member into GlobalUserPrefs::Crt, and (floats only) the
+// a pointer-to-member into CrtOverrides, and (floats only) the
 // inclusive clamp range applied on load so a hand-edited prefs file can't
 // drive the shaders out of range. The unused member pointer is null. Row
 // order within a group is the serialized key order.
 struct CrtFieldDesc
 {
-    CrtGroup                       group;
-    const char *                   key;
-    CrtScalar                      type;
-    bool  GlobalUserPrefs::Crt::*  boolMember;
-    float GlobalUserPrefs::Crt::*  floatMember;
-    float                          lo;
-    float                          hi;
+    CrtGroup                                group;
+    const char                            * key;
+    CrtScalar                               type;
+    std::optional<bool> CrtOverrides::*     boolMember;
+    std::optional<float> CrtOverrides::*    floatMember;
+    float                                   lo;
+    float                                   hi;
 };
 
 
 static constexpr CrtFieldDesc  s_kCrtFields[] = {
-    { CrtGroup::Top,        "userOverride", CrtScalar::Bool,  &GlobalUserPrefs::Crt::userOverride,      nullptr,                                   0.0f, 0.0f  },
-    { CrtGroup::Top,        "brightness",   CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::brightness,         0.0f, 2.0f  },
-    { CrtGroup::Top,        "contrast",     CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::contrast,           0.0f, 2.0f  },
-    { CrtGroup::Top,        "gamma",        CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::gamma,              0.5f, 2.5f  },
-    { CrtGroup::Top,        "persistence",  CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::persistence,        0.0f, 0.99f },
-    { CrtGroup::Scanlines,  "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::scanlinesEnabled,  nullptr,                                   0.0f, 0.0f  },
-    { CrtGroup::Scanlines,  "intensity",    CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::scanlinesIntensity, 0.0f, 1.0f  },
-    { CrtGroup::Bloom,      "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::bloomEnabled,      nullptr,                                   0.0f, 0.0f  },
-    { CrtGroup::Bloom,      "radius",       CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::bloomRadius,        0.0f, 4.0f  },
-    { CrtGroup::Bloom,      "strength",     CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::bloomStrength,      0.0f, 1.0f  },
-    { CrtGroup::ColorBleed, "enabled",      CrtScalar::Bool,  &GlobalUserPrefs::Crt::colorBleedEnabled, nullptr,                                   0.0f, 0.0f  },
-    { CrtGroup::ColorBleed, "width",        CrtScalar::Float, nullptr,                                  &GlobalUserPrefs::Crt::colorBleedWidth,    0.0f, 8.0f  },
+    { CrtGroup::Top,        "brightness",   CrtScalar::Float, nullptr,                             &CrtOverrides::brightness,         0.0f, 2.0f  },
+    { CrtGroup::Top,        "contrast",     CrtScalar::Float, nullptr,                             &CrtOverrides::contrast,           0.0f, 2.0f  },
+    { CrtGroup::Top,        "gamma",        CrtScalar::Float, nullptr,                             &CrtOverrides::gamma,              0.5f, 2.5f  },
+    { CrtGroup::Top,        "persistence",  CrtScalar::Float, nullptr,                             &CrtOverrides::persistence,        0.0f, 0.99f },
+    { CrtGroup::Scanlines,  "enabled",      CrtScalar::Bool,  &CrtOverrides::scanlinesEnabled,     nullptr,                           0.0f, 0.0f  },
+    { CrtGroup::Scanlines,  "intensity",    CrtScalar::Float, nullptr,                             &CrtOverrides::scanlinesIntensity, 0.0f, 1.0f  },
+    { CrtGroup::Bloom,      "enabled",      CrtScalar::Bool,  &CrtOverrides::bloomEnabled,         nullptr,                           0.0f, 0.0f  },
+    { CrtGroup::Bloom,      "radius",       CrtScalar::Float, nullptr,                             &CrtOverrides::bloomRadius,        0.0f, 4.0f  },
+    { CrtGroup::Bloom,      "strength",     CrtScalar::Float, nullptr,                             &CrtOverrides::bloomStrength,      0.0f, 1.0f  },
+    { CrtGroup::ColorBleed, "enabled",      CrtScalar::Bool,  &CrtOverrides::colorBleedEnabled,    nullptr,                           0.0f, 0.0f  },
+    { CrtGroup::ColorBleed, "width",        CrtScalar::Float, nullptr,                             &CrtOverrides::colorBleedWidth,    0.0f, 8.0f  },
 };
 
 
@@ -269,17 +280,23 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::CrtToJson
+//  GlobalUserPrefs::CrtOverridesToJson
 //
-//  Serialize one monitor's CRT block, table-driven so the emitted key order
-//  matches s_kCrtGroups exactly.
+//  Serialize one pair's overrides, table-driven so the emitted key order
+//  matches s_kCrtFields exactly.
+//
+//  SPARSE: a field the user has not set is omitted rather than written with
+//  a placeholder, and a group with nothing set is omitted entirely. Absent
+//  is the encoding for "no opinion", so writing a default-valued field would
+//  claim an adjustment the user never made.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
+JsonValue GlobalUserPrefs::CrtOverridesToJson (const CrtOverrides & o)
 {
     JsonObject  groups[s_kcCrtGroup];
-    JsonObject  modeObj;
+    JsonObject  pairObj;
+    size_t      i        = 0;
 
 
 
@@ -289,23 +306,37 @@ JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
 
         if (field.type == CrtScalar::Bool)
         {
-            target.emplace_back (field.key, JsonValue (c.*field.boolMember));
+            const std::optional<bool> &  slot = o.*field.boolMember;
+
+            if (slot.has_value())
+            {
+                target.emplace_back (field.key, JsonValue (slot.value()));
+            }
         }
         else
         {
-            target.emplace_back (field.key, JsonValue ((double) (c.*field.floatMember)));
+            const std::optional<float> &  slot = o.*field.floatMember;
+
+            if (slot.has_value())
+            {
+                target.emplace_back (field.key, JsonValue ((double) slot.value()));
+            }
         }
     }
 
-    // Top-group fields serialize directly onto the mode object; each named
-    // group becomes a nested sub-object, in CrtGroup order.
-    modeObj = std::move (groups[(size_t) CrtGroup::Top]);
-    for (size_t i = 1; i < s_kcCrtGroup; i++)
+    // Top-group fields serialize directly onto the pair object; each named
+    // group becomes a nested sub-object, in CrtGroup order, and only when it
+    // actually holds something.
+    pairObj = std::move (groups[(size_t) CrtGroup::Top]);
+    for (i = 1; i < s_kcCrtGroup; i++)
     {
-        modeObj.emplace_back (s_kpszCrtGroupKeys[i], JsonValue (std::move (groups[i])));
+        if (!groups[i].empty())
+        {
+            pairObj.emplace_back (s_kpszCrtGroupKeys[i], JsonValue (std::move (groups[i])));
+        }
     }
 
-    return JsonValue (std::move (modeObj));
+    return JsonValue (std::move (pairObj));
 }
 
 
@@ -552,40 +583,160 @@ JsonValue GlobalUserPrefs::RecentDiskTimesToJson (const std::vector<std::int64_t
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::CrtModeFromJson
+//  GlobalUserPrefs::ReadCrtOverrides
 //
-//  Parse one monitor's CRT block, table-driven and clamping each numeric
-//  field to its documented range. Absent fields keep their struct defaults.
+//  Fills the override map from a document, converting a v1 "crt" block when
+//  that is what the document carries.
+//
+//  The trigger is SHAPE, never $cassoGlobalPrefsVersion. Nothing branches on
+//  that stamp, and one UserPrefs.json is shared by builds of different ages,
+//  so an older build reads a stamped file, finds no key it recognizes,
+//  and write its own defaults back over the top while leaving the stamp
+//  claiming otherwise.
+//
+//  Absence is tested by scanning the members rather than with HasObject,
+//  because HasObject is type-checked
+//  and a hand-edited "crtOverrides": null would read as absent
+//  and re-run the conversion over data already converted.
+//
+//  The v1 blocks were monitor-independent, since the render path indexed by
+//  color mode alone. The two monitors in the v1-era catalog are therefore the
+//  only tubes the user could have been looking at, so an overridden block
+//  becomes an entry under BOTH. Those two names are literals frozen against
+//  that catalog and are deliberately not read from s_kMonitors: an
+//  eight-monitor build must not fan a //e-era user's tuning onto a Commodore
+//  tube they have never booted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GlobalUserPrefs::CrtModeFromJson (const JsonValue & modeObj, Crt & c)
+void GlobalUserPrefs::ReadCrtOverrides (const JsonValue & v, std::map<std::string, CrtOverrides> & out)
 {
-    HRESULT            hr                    = S_OK;
-    const JsonValue  * sources[s_kcCrtGroup] = {};
+    const JsonValue *  overridesVal = nullptr;
+    const JsonValue *  overridesObj = nullptr;
+    const JsonValue *  crtSub       = nullptr;
+    size_t             i            = 0;
+    size_t             m            = 0;
 
 
 
-    // Resolve each group's source object once: the mode object itself for
-    // the top group, and the matching sub-object (when present) otherwise.
-    sources[(size_t) CrtGroup::Top] = &modeObj;
-    for (size_t i = 1; i < s_kcCrtGroup; i++)
+    out.clear();
+
+    for (const auto & kv : v.GetObjectEntries())
     {
-        const JsonValue * sub = nullptr;
+        if (kv.first == "crtOverrides")
+        {
+            overridesVal = &kv.second;
+            break;
+        }
+    }
 
-        hr = modeObj.GetObject (s_kpszCrtGroupKeys[i], sub);
-        if (FAILED (hr))
+    if (overridesVal != nullptr)
+    {
+        // Present. Whatever its type, the conversion has already run over
+        // this document and must not run again.
+        if (v.HasObject ("crtOverrides", overridesObj))
+        {
+            for (const auto & kv : overridesObj->GetObjectEntries())
+            {
+                CrtOverrides  parsed;
+
+                if (kv.second.GetType() == JsonType::Object)
+                {
+                    CrtOverridesFromJson (kv.second, parsed);
+                }
+
+                if (!parsed.IsEmpty())
+                {
+                    out[kv.first] = parsed;
+                }
+            }
+        }
+
+        return;
+    }
+
+    // No new key: convert a v1 block if one is there.
+    if (!v.HasObject ("crt", crtSub))
+    {
+        return;
+    }
+
+    for (i = 0; i < kCrtModeCount; i++)
+    {
+        const JsonValue *  modeObj = nullptr;
+        CrtOverrides       carried;
+
+        if (!crtSub->HasObject (s_kpszCrtModeKeys[i], modeObj))
         {
             continue;
         }
-         
-        sources[i] = sub;
 
+        // A block the user never adopted was never applied, because the old
+        // renderer gated the whole user tier on this flag. Its stored numbers
+        // carry no intent, so they convert to nothing.
+        if (!TryGetBoolOpt (*modeObj, "userOverride", false))
+        {
+            continue;
+        }
+
+        CrtOverridesFromJson (*modeObj, carried);
+
+        if (carried.IsEmpty())
+        {
+            continue;
+        }
+
+        for (m = 0; m < _countof (s_kpszV1Monitors); m++)
+        {
+            out[CrtResolver::MakeKey (s_kpszV1Monitors[m], i)] = carried;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::CrtOverridesFromJson
+//
+//  Parse one pair's overrides, table-driven and clamping each numeric field
+//  to its documented range.
+//
+//  A field the document does not carry stays absent rather than taking a
+//  default, because absent means the user has no opinion about it. An
+//  out-of-range value in a hand-edited file is clamped rather than refused:
+//  the file is meant to be readable and editable, and refusing to load would
+//  leave the user unable to fix it by changing a setting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::CrtOverridesFromJson (const JsonValue & obj, CrtOverrides & o)
+{
+    HRESULT            hr                    = S_OK;
+    const JsonValue  * sources[s_kcCrtGroup] = {};
+    size_t             i                     = 0;
+
+
+
+    // Resolve each group's source object once: the pair object itself for
+    // the top group, and the matching sub-object (when present) otherwise.
+    sources[(size_t) CrtGroup::Top] = &obj;
+    for (i = 1; i < s_kcCrtGroup; i++)
+    {
+        const JsonValue *  sub = nullptr;
+
+        hr = obj.GetObject (s_kpszCrtGroupKeys[i], sub);
+        if (SUCCEEDED (hr))
+        {
+            sources[i] = sub;
+        }
     }
 
     for (const CrtFieldDesc & field : s_kCrtFields)
     {
-        const JsonValue * source = sources[(size_t) field.group];
+        const JsonValue *  source = sources[(size_t) field.group];
 
         if (source == nullptr)
         {
@@ -594,13 +745,23 @@ void GlobalUserPrefs::CrtModeFromJson (const JsonValue & modeObj, Crt & c)
 
         if (field.type == CrtScalar::Bool)
         {
-            c.*field.boolMember = TryGetBoolOpt (*source, field.key, c.*field.boolMember);
+            bool  value = false;
+
+            hr = source->GetBool (field.key, value);
+            if (SUCCEEDED (hr))
+            {
+                o.*field.boolMember = value;
+            }
         }
         else
         {
-            float  value = (float) GetNumberOpt (*source, field.key, c.*field.floatMember);
+            double  value = 0.0;
 
-            c.*field.floatMember = std::clamp (value, field.lo, field.hi);
+            hr = source->GetNumber (field.key, value);
+            if (SUCCEEDED (hr))
+            {
+                o.*field.floatMember = std::clamp ((float) value, field.lo, field.hi);
+            }
         }
     }
 }
@@ -858,6 +1019,7 @@ HRESULT GlobalUserPrefs::Save (
     JsonValue            global           = ToJson();
     JsonObject           rootEntries;
     JsonObject           machines;
+    bool                 isObject         = false;
 
 
 
@@ -865,26 +1027,33 @@ HRESULT GlobalUserPrefs::Save (
     // this "global only" save path doesn't clobber per-machine user prefs
     // written by UserConfigStore. Without this, every Main.cpp pre-flight
     // save wipes the disk path the user mounted last session.
+    //
+    // A file that will not read or parse REFUSES THE SAVE, exactly as
+    // UserConfigStore::BuildCombinedJson does, because this is the second
+    // writer of the same document and the weaker of two contracts is the one
+    // that holds. Main.cpp:219 runs this on every launch before the shell
+    // exists, so swallowing the failure here overwrote an unreadable prefs
+    // file with defaults before anything could set it aside -- which made the
+    // whole recovery path unreachable in a shipped build.
     if (fs.Exists (path))
     {
         hr = fs.ReadAllText (path, existingText);
-        if (SUCCEEDED (hr))
+        CHR (hr);
+
+        hr = JsonParser::Parse (existingText, existing, err);
+        CHREx (hr, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+        isObject = (existing.GetType() == JsonType::Object);
+        CBREx (isObject, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+        for (const auto & kv : existing.GetObjectEntries())
         {
-            hr = JsonParser::Parse (existingText, existing, err);
-            if (SUCCEEDED (hr) && existing.GetType() == JsonType::Object)
+            if (kv.first == "machines" && kv.second.GetType() == JsonType::Object)
             {
-                for (const auto & kv : existing.GetObjectEntries())
-                {
-                    if (kv.first == "machines" && kv.second.GetType() == JsonType::Object)
-                    {
-                        machines = kv.second.GetObjectEntries();
-                        break;
-                    }
-                }
+                machines = kv.second.GetObjectEntries();
+                break;
             }
         }
-
-        hr = S_OK;
     }
 
     rootEntries.emplace_back ("global",   std::move (global));
@@ -916,11 +1085,12 @@ Error:
 //  hand-edited; the reader should see what schema they are looking at before
 //  anything else.
 //
-//  CRT blocks are persisted for every monitor type even when userOverride is
-//  false. The override flag governs whether those values are APPLIED, not
-//  whether they exist, so writing them keeps a user's customizations for a
-//  mode they have temporarily switched away from -- and keeps save-load-save
-//  byte-identical.
+//  CRT overrides go out per monitor-and-mode pair, and within a pair only the
+//  fields the user adjusted. A pair holding nothing is omitted entirely, so a
+//  monitor the user never touched leaves no trace in the file -- which is what
+//  lets a later preset or theme change reach it. Writing the pairs that DO
+//  hold something keeps a user's adjustments for a mode they have temporarily
+//  switched away from.
 //
 //  Enum-valued fields go out as names via their ToString helpers, so inserting
 //  an enumerator later cannot reinterpret an existing file.
@@ -957,16 +1127,22 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("colorMonitorTextMode", JsonValue (std::string (ColorTextModeToString (colorMonitorTextMode))));
     root.emplace_back ("colorMonitorTextCustom", JsonValue ((double) (colorMonitorTextCustomArgb & 0x00FFFFFFu)));
 
-    // crt: one sub-object per monitor type. Persist every block even
-    // when userOverride is false so a roundtrip is deterministic; the
-    // override flag controls whether the values are APPLIED, not
-    // whether they're written.
-    for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
+    // crtOverrides: only pairs the user has actually adjusted, and within
+    // each pair only the fields they set. std::map already gives sorted
+    // keys, so the file does not churn between saves.
+    //
+    // The object is emitted even when the map is empty. That is what
+    // retires the v1 conversion: its trigger is the legacy block present
+    // and this key absent, and most files convert to nothing at all.
+    for (const auto & kv : crtOverrides)
     {
-        crtObj.emplace_back (s_kpszCrtModeKeys[i], CrtToJson (crtByMode[i]));
+        if (!kv.second.IsEmpty())
+        {
+            crtObj.emplace_back (kv.first, CrtOverridesToJson (kv.second));
+        }
     }
 
-    root.emplace_back ("crt", JsonValue (std::move (crtObj)));
+    root.emplace_back ("crtOverrides", JsonValue (std::move (crtObj)));
 
     // window
     windowObj.emplace_back ("placements", PlacementsToJson (window.placements));
@@ -1057,7 +1233,6 @@ JsonValue GlobalUserPrefs::ToJson() const
 HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 {
     HRESULT             hr            = S_OK;
-    const JsonValue *   crtSub        = nullptr;
     const JsonValue *   windowSub     = nullptr;
     const JsonValue *   placementsObj = nullptr;
     const JsonValue *   recentArr     = nullptr;
@@ -1065,7 +1240,6 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     std::string         inputModeStr;
     std::string         textModeStr;
     bool                legacyArrows  = false;
-    size_t              i             = 0;
 
 
 
@@ -1142,18 +1316,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         0xFF000000u | ((uint32_t) GetIntOpt (v, "colorMonitorTextCustom",
                                              (int) (colorMonitorTextCustomArgb & 0x00FFFFFFu)) & 0x00FFFFFFu);
 
-    if (v.HasObject ("crt", crtSub))
-    {
-        for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
-        {
-            const JsonValue *  modeObj = nullptr;
-
-            if (crtSub->HasObject (s_kpszCrtModeKeys[i], modeObj))
-            {
-                CrtModeFromJson (*modeObj, crtByMode[i]);
-            }
-        }
-    }
+    ReadCrtOverrides (v, crtOverrides);
 
     {
         const JsonValue *  tiltObj = nullptr;
