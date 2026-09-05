@@ -26,7 +26,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiShadowedText.h"

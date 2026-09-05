@@ -92,6 +92,10 @@ Entries before versioning was introduced use dates only.
   held key into hundreds of characters a second. It is timed in real seconds
   now, as the //e's own keyboard encoder is, so the ~0.5s delay and ~15
   characters a second hold at every speed.
+- **Tooltips kept the theme that was live when the window was built.** Switching
+  themes in Settings recolored the rest of the chrome but left the toolbar, //c
+  switch-bar and drive tooltips in the outgoing palette -- skeuomorphic blue
+  balloons over RetroTerminal green.
 - **A disk that could not be moved out of the way was sometimes only announced,
   never offered anywhere to go.** When a program rewrites a mounted image and
   the guest has written too, Casso saves the guest's version to a copy beside
@@ -134,6 +138,11 @@ Entries before versioning was introduced use dates only.
   and a reservation no longer outlives the disk it was made for: neither
   eject cleared one, so the next disk into that drive filed its own copy
   under the departed disk's name.
+- **The joystick / paddle / mouse indicator dots on the command bar stayed blue
+  under every theme.** They painted from a hardcoded copy of the DarkModern
+  palette, so they kept its blue while the drive LEDs beside them went red on
+  Skeuomorphic and green on RetroTerminal. They now follow the theme's LED
+  colors like the rest of the chrome.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,
