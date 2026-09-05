@@ -60,9 +60,11 @@ BASE_HZ     = 112.0       # speaking pitch; well clear of the 54.6 Hz floor
 #  125 Hz on all three, so the method works where a voice dominates its
 #  background; it cannot do this one.
 #
-#  So this stays a judgement. 90 was the original and read as too big a
-#  machine; 171 came off the bad measurement and was far too high by ear.
-HAL_HZ      = 105.0
+#  So this stays a judgement, and the judgement is made by ear rather than by
+#  me: 90 Hz is where it started and where it is back. The two departures were
+#  both mine -- 105 from my own estimate of a calm male range, and 171 from
+#  the bad measurement above, which was heard as far too high straight away.
+HAL_HZ      = 90.0
 
 CAP  = 0xFB               # caption escape: $FB len <high-ASCII bytes>, len 0 = clear
 FILT = 0xFE

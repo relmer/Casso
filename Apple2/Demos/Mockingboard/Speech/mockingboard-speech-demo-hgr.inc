@@ -28,7 +28,7 @@ wargData
 
 ; "I'm sorry Mark. I'm afraid I can't do that." -- slow and level
 halData
-    .byte $FB,$00,$FD,$F5,$45,$FB,$03,$C9
+    .byte $FB,$00,$FD,$C9,$42,$FB,$03,$C9
     .byte $A7,$CD,$0F,$87,$B7,$FB,$06,$D3
     .byte $CF,$D2,$D2,$D9,$AC,$B0,$10,$9E
     .byte $41,$40,$FB,$05,$C4,$C1,$D6,$C5
