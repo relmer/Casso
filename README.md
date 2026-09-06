@@ -36,7 +36,7 @@ the other, so the demo ships both and your answer picks one:
   <td valign="top" width="50%"><img src="Assets/demo-dhgr-mono.png" alt="The same demo on an Apple //c green monochrome monitor: the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
 </tr></table>
 
-<p align="center"><sub>Monitor II is a green-phosphor screen by default; on the //e above it has been switched to color so the 16-color encoding reads as color. The //c keeps its period green monochrome. The desk is one of three themes: Dark Modern and Retro Terminal are flat, and fullscreen is the picture alone. See <a href="#themed-chrome">Themed chrome</a>.</sub></p>
+<p align="center"><sub>Monitor II is a green-phosphor screen by default; on the //e above it has been switched to color so the 16-color encoding reads as color. The //c keeps its period green monochrome. The desk is one of three themes: Dark Modern and Retro Terminal are flat, and full screen is the picture alone. See <a href="#themed-chrome">Themed chrome</a>.</sub></p>
 
 `CassoCli` accelerates the retro development loop, with no need for third-party tools:
 
@@ -300,11 +300,11 @@ The **CRT monitor** that frames the display is one of the CAD models pictured
 under [What's New](#the-skeuomorphic-theme-goes-to-11-121), lit and shadowed
 with the rest of the desk scene. It can be turned off with **3D CRT monitor**
 on **Settings → Theme**, which leaves the drives standing on the desk under a
-flat picture. Alt+Enter goes fullscreen: every chrome band hides and the glass
+flat picture. Alt+Enter goes full screen: every chrome band hides and the glass
 fills the screen edge to edge, with the drives available as an overlay strip
 from the View menu.
 
-<p align="center"><img src="Assets/feat-fullscreen.png" alt="Casso fullscreen: Lode Runner filling the whole display, with only the rounded corners of the glass left of the desk scene" width="100%" /></p>
+<p align="center"><img src="Assets/feat-fullscreen.png" alt="Casso full screen: Lode Runner filling the whole display, with only the rounded corners of the glass left of the desk scene" width="100%" /></p>
 
 ### Themed chrome
 

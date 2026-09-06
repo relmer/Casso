@@ -37,8 +37,8 @@ static constexpr wchar_t  s_kGlyphVolume     = L'\uE767';   // speaker
 static constexpr wchar_t  s_kGlyphMuted      = L'\uE74F';   // muted speaker
 static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline, matches the set)
 static constexpr wchar_t  s_kGlyphColor      = L'\uE790';   // artist's palette
-static constexpr wchar_t  s_kGlyphFullscreen = L'\uEE49';   // framed screen, arrow out
-static constexpr wchar_t  s_kGlyphRestore    = L'\uEE47';   // framed screen, arrow in
+static constexpr wchar_t  s_kGlyphFullscreen = L'\uE740';   // diagonal arrows, outward
+static constexpr wchar_t  s_kGlyphRestore    = L'\uE73F';   // diagonal arrows, inward
 static constexpr wchar_t  s_kGlyphMouse      = L'\uE962';   // mouse (the input cluster's one font glyph)
 
 // Volume flyout (vertical slider + readout under the track).
@@ -132,7 +132,7 @@ CommandToolbar::CommandToolbar()
     GetEntry (Entry::Printer)    = Button { Entry::Printer,    IDM_PRINTER_PREVIEW,      s_kGlyphPrint,      L"Printer"    };
     GetEntry (Entry::Volume)     = Button { Entry::Volume,     0,                        s_kGlyphVolume,     L"Volume"     };
     GetEntry (Entry::Input)      = Button { Entry::Input,      0,                        0,                  s_kInputLabel };
-    GetEntry (Entry::Fullscreen) = Button { Entry::Fullscreen, IDM_VIEW_FULLSCREEN,      s_kGlyphFullscreen, L"Fullscreen" };
+    GetEntry (Entry::Fullscreen) = Button { Entry::Fullscreen, IDM_VIEW_FULLSCREEN,      s_kGlyphFullscreen, L"Full screen" };
     GetEntry (Entry::Screenshot) = Button { Entry::Screenshot, IDM_EDIT_COPY_SCREENSHOT, s_kGlyphScreenshot, L"Screenshot" };
     GetEntry (Entry::Reset)      = Button { Entry::Reset,      IDM_MACHINE_RESET,        s_kGlyphReset,      L"Reset"      };
     GetEntry (Entry::Power)      = Button { Entry::Power,      IDM_MACHINE_POWERCYCLE,   s_kGlyphPower,      L"Power"      };
@@ -341,7 +341,7 @@ void CommandToolbar::SetFullscreen (bool fullscreen)
 
     m_fullscreen = fullscreen;
     btn.glyph    = m_fullscreen ? s_kGlyphRestore    : s_kGlyphFullscreen;
-    btn.label    = m_fullscreen ? L"Exit fullscreen" : L"Fullscreen";
+    btn.label    = m_fullscreen ? L"Exit full screen" : L"Full screen";
 }
 
 
