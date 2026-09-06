@@ -2615,6 +2615,11 @@ int DiskMruPickerSession::Run()
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
+    // Beside the emulator on the same side as the Settings sheet: the
+    // picker is a browsing window the user reads WHILE looking at the
+    // drive it will fill, so covering the machine defeats it.
+    params.placement                = DxuiWindowPlacement::BesideOwnerLeft;
+
     hr = dlg.Create (params);
     CHRA (hr);
 

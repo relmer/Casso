@@ -52,6 +52,11 @@ Entries before versioning was introduced use dates only.
   "Exit full screen" once you are in it.
 
 ### Changed
+- **Casso's windows now open next to the emulator** instead of at a Windows
+  cascade position. Settings and the disk picker sit against its left edge, the
+  printer preview against its right, and dialogs open centered on it.
+- **Reset view (Ctrl+0) no longer moves the window**, only its size and the
+  scene pose.
 - **Ctrl+R no longer resets the machine.** It was a second binding for the menu's
   Ctrl+Shift+R, and because the shell claimed the keystroke, no Apple program
   could ever receive a Ctrl+R of its own. Reset keeps its menu accelerator.
