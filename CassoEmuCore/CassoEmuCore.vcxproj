@@ -250,6 +250,7 @@
     <ClCompile Include="Capture\CaptureOutcome.cpp" />
     <ClCompile Include="Capture\CapturedImage.cpp" />
     <ClCompile Include="Capture\ScreenshotMode.cpp" />
+    <ClCompile Include="Capture\ScreenshotMetadata.cpp" />
     <ClCompile Include="Capture\ScreenshotPlan.cpp" />
     <ClCompile Include="Cli\CommandLine.cpp" />
     <ClCompile Include="Cli\Win32DiskFileIo.cpp" />
@@ -377,6 +378,7 @@
     <ClInclude Include="Capture\CaptureOutcome.h" />
     <ClInclude Include="Capture\CapturedImage.h" />
     <ClInclude Include="Capture\ScreenshotMode.h" />
+    <ClInclude Include="Capture\ScreenshotMetadata.h" />
     <ClInclude Include="Capture\ScreenshotPlan.h" />
     <ClInclude Include="Cli\CommandLine.h" />
     <ClInclude Include="Cli\Win32DiskFileIo.h" />

@@ -19,6 +19,7 @@
 #include "Print/PrinterWorker.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/ScreenshotCapture.h"
+#include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
@@ -1463,6 +1464,10 @@ private:
     // Called from the two paint hooks at their own points in the frame; fills
     // the pending capture when the point matches what the plan asked for.
     void  ServiceCaptureRequest (CapturePoint atPoint);
+
+    // Gathers what a screenshot can say about itself. Collecting only; which
+    // entries a mode emits is decided by the composer in core.
+    ScreenshotFacts  BuildScreenshotFacts (ScreenshotMode mode, const SYSTEMTIME & when) const;
 
     // Hides (or restores) the overlays that describe the application rather
     // than the machine, for the duration of a capture paint.

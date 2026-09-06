@@ -394,6 +394,7 @@
     <ClCompile Include="CaptureTests\CaptureOutcomeTests.cpp" />
     <ClCompile Include="CaptureTests\CapturedImageTests.cpp" />
     <ClCompile Include="CaptureTests\ScreenshotModeTests.cpp" />
+    <ClCompile Include="CaptureTests\ScreenshotMetadataTests.cpp" />
     <ClCompile Include="CaptureTests\ScreenshotPlanTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterPipelineTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterJobTests.cpp" />

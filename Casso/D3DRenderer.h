@@ -112,6 +112,11 @@ public:
     // defaults so the renderer behaves like a passthrough.
     void SetCrtParams    (const CrtParams & params) { m_crtParams     = params; }
 
+    // What the chain is running right now -- the pair to the setter above, so
+    // a screenshot records the parameters that produced the image rather than
+    // re-resolving them and possibly getting a different answer.
+    const CrtParams & GetCrtParams () const         { return m_crtParams; }
+
     // Pixel-space rectangle inside the host swap-chain back buffer
     // where the Apple ][ framebuffer should composite. EmulatorShell
     // pushes a fresh rect from OnViewportBoundsChanged whenever the

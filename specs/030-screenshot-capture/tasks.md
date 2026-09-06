@@ -147,13 +147,13 @@ documented content and dimensions. Resize and repeat: `raw` alone is unchanged.
 **Independent test**: Capture in each mode and read the entries back with `exiftool`;
 seven entries for `scene`, six for `crt`, five for `raw`, and nothing excluded.
 
-- [ ] T036 [US3] Implement `ScreenshotMetadata::Compose (facts)` in `CassoEmuCore/Capture/ScreenshotMetadata.h/.cpp`, emitting the entries of [contracts/screenshot-metadata.md](contracts/screenshot-metadata.md) in the contract's order, per mode; this is the single authority for what a screenshot says
-- [ ] T037 [P] [US3] Test the composer in `UnitTest/CaptureTests/ScreenshotMetadataTests.cpp`: exact entry count and order per mode, `Casso Scene Pose` absent for `crt` and `raw`, `Casso CRT` absent for `raw`, keyword rules honored, and guards asserting no emitted value contains a path separator, a drive letter, or the image dimensions (FR-025, FR-026)
-- [ ] T038 [US3] Extract the scene-pose format string from `EmulatorShell::UpdateSceneViewReadout` in `Casso/EmulatorShell.cpp` (near line 2426) into one formatter used by both the on-screen readout and `ScreenshotFacts`, so a pose read from a file and one read from a picture are the same text (FR-024)
-- [ ] T039 [P] [US3] Implement RFC 1123 `Creation Time` formatting with UTC offset in `CassoEmuCore/Capture/ScreenshotMetadata.cpp`, with tests for a positive offset, a negative offset, and UTC
-- [ ] T040 [US3] Assemble `ScreenshotFacts` in `Casso/Shell/ScreenshotCapture.cpp`: `"Casso " VERSION_STRING` reusing the `kCassoCreator` construction from `CassoEmuCore/Devices/Disk/WozLoader.cpp`, the machine JSON `name` field, `CrtResolver::MakeKey` for the monitor, the pose, and the resolved `CrtParams`
-- [ ] T041 [US3] Pass the composed entries into `PngCodec::EncodeRgba` from `Casso/Shell/ScreenshotCapture.cpp`, and pass dpi 0 so no `pHYs` is written (FR-019, research.md R-007)
-- [ ] T042 [US3] Validate manually per [quickstart.md](quickstart.md) Scenario 4, including the pose round trip and grepping the `exiftool` output for the Windows account name
+- [X] T036 [US3] Implement `ScreenshotMetadata::Compose (facts)` in `CassoEmuCore/Capture/ScreenshotMetadata.h/.cpp`, emitting the entries of [contracts/screenshot-metadata.md](contracts/screenshot-metadata.md) in the contract's order, per mode; this is the single authority for what a screenshot says
+- [X] T037 [P] [US3] Test the composer in `UnitTest/CaptureTests/ScreenshotMetadataTests.cpp`: exact entry count and order per mode, `Casso Scene Pose` absent for `crt` and `raw`, `Casso CRT` absent for `raw`, keyword rules honored, and guards asserting no emitted value contains a path separator, a drive letter, or the image dimensions (FR-025, FR-026)
+- [X] T038 [US3] Extract the scene-pose format string from `EmulatorShell::UpdateSceneViewReadout` in `Casso/EmulatorShell.cpp` (near line 2426) into one formatter used by both the on-screen readout and `ScreenshotFacts`, so a pose read from a file and one read from a picture are the same text (FR-024)
+- [X] T039 [P] [US3] Implement RFC 1123 `Creation Time` formatting with UTC offset in `CassoEmuCore/Capture/ScreenshotMetadata.cpp`, with tests for a positive offset, a negative offset, and UTC
+- [X] T040 [US3] Assemble `ScreenshotFacts` in `Casso/Shell/ScreenshotCapture.cpp`: `"Casso " VERSION_STRING` reusing the `kCassoCreator` construction from `CassoEmuCore/Devices/Disk/WozLoader.cpp`, the machine JSON `name` field, `CrtResolver::MakeKey` for the monitor, the pose, and the resolved `CrtParams`
+- [X] T041 [US3] Pass the composed entries into `PngCodec::EncodeRgba` from `Casso/Shell/ScreenshotCapture.cpp`, and pass dpi 0 so no `pHYs` is written (FR-019, research.md R-007)
+- [X] T042 [US3] Validate manually per [quickstart.md](quickstart.md) Scenario 4, including the pose round trip and grepping the `exiftool` output for the Windows account name
 
 **Checkpoint**: Screenshots are self-describing.
 

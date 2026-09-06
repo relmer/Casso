@@ -2442,12 +2442,21 @@ void EmulatorShell::SyncSceneViewReadout()
         rc.bottom = cy + hh;
     }
 
-    swprintf_s (text, L"yaw %.1f  pitch %.1f  zoom %.2f  pan %.3f %.3f",
-                m_sceneView.orbitYawRad * 180.0f / 3.14159265f,
-                m_sceneView.orbitPitchRad * 180.0f / 3.14159265f,
-                m_sceneView.zoom, m_sceneView.panX, m_sceneView.panY);
+    //  ONE FORMATTER, shared with the screenshot metadata entry. A pose read
+    //  out of a file and one read off the picture have to be the same text or
+    //  they do not restore the same view, and two format strings in two files
+    //  is how they stop being.
+    {
+        string   pose = ScreenshotMetadata::FormatScenePose (m_sceneView.orbitYawRad,
+                                                             m_sceneView.orbitPitchRad,
+                                                             m_sceneView.zoom,
+                                                             m_sceneView.panX,
+                                                             m_sceneView.panY);
 
-    m_sceneViewReadout.SetText        (text);
+        m_sceneViewReadout.SetText (wstring (pose.begin(), pose.end()).c_str());
+    }
+
+
     m_sceneViewReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
     m_sceneViewReadout.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     m_sceneViewReadout.SetDpi         (m_scaler.GetDpi());
@@ -9530,6 +9539,86 @@ void EmulatorShell::ServiceCaptureRequest (CapturePoint atPoint)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BuildScreenshotFacts
+//
+//  Gathers what a screenshot can say about itself. Collecting only -- WHICH of
+//  these a given mode actually emits is the composer's decision, and it is
+//  made in core where a test can reach it.
+//
+//  Every value here already has an owner elsewhere and is reused rather than
+//  re-derived: the version string is the one the WOZ creator stamp uses, the
+//  monitor key is the one the user's CRT overrides are filed under, and the
+//  pose comes from the same formatter as the on-screen readout. That is what
+//  keeps a screenshot's account of itself from drifting away from the rest of
+//  the application.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ScreenshotFacts EmulatorShell::BuildScreenshotFacts (ScreenshotMode mode, const SYSTEMTIME & when) const
+{
+    ScreenshotFacts          facts;
+    TIME_ZONE_INFORMATION    tz     = {};
+    DWORD                    tzKind = 0;
+    size_t                   mIndex = 0;
+    const CrtParams &        crt    = m_d3dRenderer.GetCrtParams();
+
+
+
+    facts.mode               = mode;
+    facts.versionString      = string ("Casso ") + VERSION_STRING;
+    facts.when               = when;
+    facts.machineDisplayName = m_config.name;
+
+    //  The offset the timestamp is expressed in. GetTimeZoneInformation
+    //  reports Bias as minutes to ADD to local time to reach UTC, which is the
+    //  opposite sign from the one RFC 1123 prints, and daylight time carries
+    //  its own extra bias on top.
+    tzKind = GetTimeZoneInformation (&tz);
+
+    if (tzKind != TIME_ZONE_ID_INVALID)
+    {
+        LONG   bias = tz.Bias + ((tzKind == TIME_ZONE_ID_DAYLIGHT) ? tz.DaylightBias : tz.StandardBias);
+
+        facts.utcOffsetMinutes = (int) -bias;
+    }
+
+    //  The key the user's CRT overrides are filed under, taken from the cache
+    //  the render path already keeps rather than re-resolved: resolving the
+    //  monitor costs a path lookup, a file read and a JSON parse.
+    mIndex = (size_t) m_colorMode.load (std::memory_order_acquire);
+
+    if (mIndex < kCrtModeCount)
+    {
+        facts.monitorKey = m_crtOverrideKeys[mIndex];
+    }
+
+    if (DeskSceneActive())
+    {
+        facts.scenePose = ScreenshotMetadata::FormatScenePose (m_sceneView.orbitYawRad,
+                                                               m_sceneView.orbitPitchRad,
+                                                               m_sceneView.zoom,
+                                                               m_sceneView.panX,
+                                                               m_sceneView.panY);
+    }
+
+    facts.crt.brightness        = crt.brightness;
+    facts.crt.contrast          = crt.contrast;
+    facts.crt.gamma             = crt.gamma;
+    facts.crt.scanlineIntensity = crt.scanlineIntensity;
+    facts.crt.bloomStrength     = crt.bloomStrength;
+    facts.crt.bloomRadius       = crt.bloomRadius;
+    facts.crt.colorBleedWidth   = crt.colorBleedWidth;
+    facts.crt.persistence       = crt.persistence;
+
+    return facts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TakeScreenshot
 //
 //  Resolve what the user asked for, get the pixels, deliver them, say what
@@ -9608,6 +9697,8 @@ void EmulatorShell::TakeScreenshot()
 
     plan = ScreenshotPlan::Resolve (inputs,
                [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
+
+    textChunks = ScreenshotMetadata::Compose (BuildScreenshotFacts (inputs.mode, now));
 
 
     sources.hwnd             = m_hwnd;
