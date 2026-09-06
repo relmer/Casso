@@ -56,6 +56,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.presentSyncInterval   = params.presentSyncInterval;
     hostParams.createNoActivate      = params.createNoActivate;
     hostParams.placeBesideOwner      = params.placeBesideOwner;
+    hostParams.centerOnOwner         = params.centerOnOwner;
 
     m_source = std::make_unique<DxuiHwndSource>();
     m_source->SetClient (this);

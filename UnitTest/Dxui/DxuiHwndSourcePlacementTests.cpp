@@ -208,6 +208,60 @@ public:
 
 
     //
+    //  A modal centers on the owner's frame: half the size difference on
+    //  each side, both axes.
+    //
+    TEST_METHOD (CenteredOnOwnerSplitsTheSizeDifference)
+    {
+        POINT  p = DxuiHwndSource::CenterOnOwner (GetRect (400, 200, 1200, 800), GetSize (500, 300), s_kWork);
+
+
+        AssertPoint (550, 350, p, L"centered on the owner in both axes");
+    }
+
+
+    //
+    //  An owner hanging off the left of its monitor would center the dialog
+    //  partly off-screen, so the clamp pulls it back onto the work area --
+    //  no longer centered, but whole.
+    //
+    TEST_METHOD (CenteredOnAnOffScreenOwnerStaysWhole)
+    {
+        POINT  p = DxuiHwndSource::CenterOnOwner (GetRect (-300, 100, 500, 700), GetSize (500, 300), s_kWork);
+
+
+        AssertPoint (0, 250, p, L"pulled onto the work area's left edge");
+    }
+
+
+    //
+    //  A maximized owner is the work area, so the dialog centers on the
+    //  monitor -- and the taskbar-shortened work area is what it centers
+    //  in, which sits it a little above the monitor's own center.
+    //
+    TEST_METHOD (CenteredOnAMaximizedOwnerCentersOnTheWorkArea)
+    {
+        POINT  p = DxuiHwndSource::CenterOnOwner (s_kWork, GetSize (500, 300), s_kWork);
+
+
+        AssertPoint (710, 370, p, L"centered in the work area");
+    }
+
+
+    //
+    //  An owner taller than the work area would push a centered dialog off
+    //  the bottom; the clamp keeps its button row above the taskbar.
+    //
+    TEST_METHOD (CenteredOnATallOwnerClampsIntoTheWorkArea)
+    {
+        POINT  p = DxuiHwndSource::CenterOnOwner (GetRect (400, 600, 1200, 2000), GetSize (500, 300), s_kWork);
+
+
+        AssertPoint (550, 740, p, L"bottom meets work.bottom");
+    }
+
+
+    //
     //  Tops align with the owner, but a low-sitting owner would push the
     //  window's bottom under the taskbar, so the clamp lifts it back.
     //

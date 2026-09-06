@@ -83,6 +83,12 @@ public:
         // WS_POPUP window never gets, landing it in the primary monitor's
         // top-left corner. Requires ownerHwnd.
         bool                placeBesideOwner  = false;
+
+        // Open the window centered on the owner instead of taking the OS
+        // cascade position, which ignores the owner entirely. Where a
+        // modal belongs. Clamped to the owner's monitor work area.
+        // Requires ownerHwnd; placeBesideOwner wins if both are set.
+        bool                centerOnOwner     = false;
     };
 
 

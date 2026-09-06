@@ -6321,6 +6321,12 @@ int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
+    // Centered on the emulator window rather than on the OS cascade, which
+    // ignores the owner: the Help modals opened at the cascade's top-left
+    // corner, half off the window that raised them. A modal belongs where
+    // the user is already looking.
+    params.centerOnOwner            = true;
+
     hr = dlg.Create (params);
     CHRA (hr);
 
@@ -6723,6 +6729,12 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    // Centered on the emulator window rather than on the OS cascade, which
+    // ignores the owner: the Help modals opened at the cascade's top-left
+    // corner, half off the window that raised them. A modal belongs where
+    // the user is already looking.
+    params.centerOnOwner            = true;
 
     hr = dlg.Create (params);
     CHRA (hr);

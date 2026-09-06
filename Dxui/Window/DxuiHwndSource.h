@@ -201,6 +201,17 @@ public:
         // corner of the primary monitor. Ignored when
         // useInitialWindowRectPx supplies a placement outright.
         bool                     placeBesideOwner         = false;
+
+        // When true (and ownerHwnd is set), the window opens centered on
+        // the owner's frame instead of taking the OS cascade position --
+        // where a modal belongs: the user's attention is already on the
+        // window that raised it. Clamped to the owner's monitor work
+        // area, so a dialog centered on a partly off-screen owner still
+        // opens whole and above the taskbar. Ignored when
+        // useInitialWindowRectPx supplies a placement outright, and when
+        // placeBesideOwner is also set (beside wins -- the two ask for
+        // different places, and only a caller mistake sets both).
+        bool                     centerOnOwner            = false;
     };
 
 
@@ -234,6 +245,16 @@ public:
     //  Tops align with the owner, then clamp.
     //
     static POINT  PlaceBesideOwner (const RECT & ownerRect, const SIZE & windowSizePx, const RECT & work);
+
+    //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Returns the top-left for a window of `windowSizePx`
+    //  centered on `ownerRect`, then clamped into `work` -- the OWNER's
+    //  monitor work area, so an owner hanging off a screen edge, or one
+    //  larger than the window's monitor, still yields a whole dialog
+    //  above the taskbar rather than a half-visible one.
+    //
+    static POINT  CenterOnOwner    (const RECT & ownerRect, const SIZE & windowSizePx, const RECT & work);
 
     //
     //  Adopt mode — wrap an existing HWND that the caller continues
@@ -598,10 +619,18 @@ private:
     // excludes the taskbar.
     static void           NudgeWindowOnScreen (HWND hwnd);
 
-    // Win32 half of the beside-the-owner placement: owner frame + owner
-    // monitor work area in, PlaceBesideOwner's answer out. False when
-    // there is no owner or the system will not say where it is.
-    static bool           TryGetOwnerSidePlacement (HWND ownerHwnd, const SIZE & windowSizePx, POINT & outTopLeft);
+    // Which owner-relative placement TryGetOwnerPlacement computes.
+    enum class OwnerPlacement
+    {
+        Beside,     // flush against a side of the owner (PlaceBesideOwner)
+        Centered,   // centered on the owner (CenterOnOwner)
+    };
+
+    // Win32 half of both owner-relative placements: owner frame + owner
+    // monitor work area in, the chosen geometry helper's answer out. False
+    // when there is no owner or the system will not say where it is.
+    static bool           TryGetOwnerPlacement (HWND ownerHwnd, const SIZE & windowSizePx,
+                                                OwnerPlacement mode, POINT & outTopLeft);
 
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();
