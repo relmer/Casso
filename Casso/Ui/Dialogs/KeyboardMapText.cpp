@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "KeyboardMapText.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -34,8 +35,17 @@ std::vector<DialogTextRun> KeyboardMapText::BuildBody (const Machine & machine)
 
     if (machine.hasAppleKeys)
     {
-        row.text = L"Left Alt";   row.rightText = L"Open Apple";    body.push_back (row);
-        row.text = L"Right Alt";  row.rightText = L"Closed Apple";  body.push_back (row);
+        // Glyph and words together. The keycaps carry only the apples, so the
+        // glyph is what the reader will be hunting for on the keyboard, but
+        // the two differ by fill alone and a reader who has not met them
+        // cannot tell which is which from the picture. The words say which.
+        row.text      = L"Left Alt";
+        row.rightText = std::wstring (s_kpszOpenApple) + L" Open Apple";
+        body.push_back (row);
+
+        row.text      = L"Right Alt";
+        row.rightText = std::wstring (s_kpszClosedApple) + L" Closed Apple";
+        body.push_back (row);
     }
 
     // True of every model: the Apple has no separate backspace key, so the

@@ -35,6 +35,22 @@ public:
     HRESULT  Initialize       (ID3D11Device * pDevice);
     void     Shutdown         ();
 
+    // Hand DirectWrite a font covering a private-use range. Every string drawn
+    // afterward resolves those codepoints to it, so a caller puts the character
+    // in an ordinary wide string and nothing else has to know a second font
+    // exists -- no family argument, no separate draw call, no measuring around
+    // it.
+    //
+    // Static because renderers are per window: the main window, every popup and
+    // every modal each build their own, so registering against an instance
+    // would leave the glyphs to whichever window happened to be first. Call it
+    // once at startup, before any window exists; a format built beforehand
+    // keeps the fallback it was made with.
+    static HRESULT  AddSymbolFont (const void * pFontBytes,
+                                   size_t       byteCount,
+                                   uint32_t     firstCodepoint,
+                                   uint32_t     lastCodepoint);
+
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
                                UINT           dpiY);
@@ -277,6 +293,12 @@ private:
     int                               m_iconBitmapH        = 0;
 
     ComPtr<IDWriteFactory>            m_dwriteFactory;
+
+    // Set by AddSymbolFont, and shared by every renderer in the process. The
+    // collection is held only to keep the fallback's reference to it valid;
+    // nothing looks a family up in it by name.
+    static inline ComPtr<IDWriteFontCollection1>  s_symbolFonts;
+    static inline ComPtr<IDWriteFontFallback>     s_fontFallback;
 
     std::map<TextFormatKey,
              ComPtr<IDWriteTextFormat>>  m_formatCache;

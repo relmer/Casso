@@ -152,6 +152,14 @@
 #define IDR_THEME_RETRO_FONT_OFL            351
 #define IDR_THEME_RETRO_FONT_TODO           352
 
+// Casso's own symbol font: the Open and Closed Apple keycap glyphs at
+// U+E000 / U+E001. Unlike the theme fonts above it is never extracted to
+// disk -- AssetBootstrap::RegisterSymbolFont hands the bytes straight to
+// DirectWrite, since chrome that names a key must render whether or not the
+// asset directory survived. Built from Assets/Apple by
+// scripts/GenSymbolFont.py.
+#define IDR_FONT_SYMBOLS                    360
+
 // Embedded 3D reference model for the printer panel's skeuomorphic scene
 // (Printer3DScene) -- the user's own Tinkercad CAD model of the ImageWriter
 // II, exported as OBJ+MTL. See Resources/Models/ImageWriterII/.
