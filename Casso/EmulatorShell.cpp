@@ -9594,11 +9594,12 @@ ScreenshotFacts EmulatorShell::BuildScreenshotFacts (ScreenshotMode mode, const 
 
     if (DeskSceneActive())
     {
-        facts.scenePose = ScreenshotMetadata::FormatScenePose (m_sceneView.orbitYawRad,
-                                                               m_sceneView.orbitPitchRad,
-                                                               m_sceneView.zoom,
-                                                               m_sceneView.panX,
-                                                               m_sceneView.panY);
+        facts.hasScenePose  = true;
+        facts.orbitYawRad   = m_sceneView.orbitYawRad;
+        facts.orbitPitchRad = m_sceneView.orbitPitchRad;
+        facts.zoom          = m_sceneView.zoom;
+        facts.panX          = m_sceneView.panX;
+        facts.panY          = m_sceneView.panY;
     }
 
     facts.crt.brightness        = crt.brightness;

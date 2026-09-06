@@ -59,8 +59,17 @@ struct ScreenshotFacts
     SYSTEMTIME        when              = {};
     int               utcOffsetMinutes  = 0;
     string            monitorKey;                       // CrtResolver::MakeKey output
-    string            scenePose;                        // the readout's own format
     CaptureCrtParams  crt;
+
+    // The scene view as NUMBERS, not as the readout's sentence. Each one
+    // becomes its own entry, so a reader restoring a view reads five values
+    // instead of parsing a line.
+    bool              hasScenePose      = false;
+    float             orbitYawRad       = 0.0f;
+    float             orbitPitchRad     = 0.0f;
+    float             zoom              = 1.0f;
+    float             panX              = 0.0f;
+    float             panY              = 0.0f;
 };
 
 
@@ -91,18 +100,16 @@ public:
     // from the entry set that carries it.
     static string  FormatCreationTime (const SYSTEMTIME & when, int utcOffsetMinutes);
 
-    // The CRT summary value. Public for the same reason.
-    static string  FormatCrtParams (const CaptureCrtParams & crt);
-
-    // The scene view written down: orbit in DEGREES, zoom, and pan.
-    //
-    // SHARED WITH THE ON-SCREEN POSE READOUT, which is the point. A pose read
-    // out of a file and one read off an old screenshot have to be the same
-    // text or they do not restore the same view, and two format strings in two
-    // files is how they stop being. Angles arrive in radians because that is
-    // what the scene holds; degrees are what a person can act on.
+    // The scene view as one line, for the ON-SCREEN READOUT only. The file
+    // records the same view as separate numeric entries instead -- a reader
+    // restoring a pose wants five values, not a sentence to parse -- so this
+    // no longer has a second caller and is not what a screenshot carries.
+    // Angles arrive in radians because that is what the scene holds; degrees
+    // are what a person can act on.
     static string  FormatScenePose (float yawRad, float pitchRad,
                                     float zoom, float panX, float panY);
+
+    static float   RadiansToDegrees (float radians);
 
 private:
     static string  FormatFloat (float value, int decimals);

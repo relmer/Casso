@@ -44,15 +44,38 @@ colliding with registered keywords now or later.
 
 `--` means the entry is not written for that mode. Entries are written in this order.
 
+**One value per keyword.** The guarantee below operates on *keywords*: a composite value's
+internal grammar sits outside it, so adding a parameter to a blob would silently change
+the shape of something a reader had learned to parse, in a document that promises exactly
+that will not happen. A field per keyword puts every value under the guarantee that is
+actually written down.
+
+Casso's own keywords are **sentence case**, with `CRT` upper because it is an initialism.
+The three registered keywords are title case because the PNG specification spells them
+that way, not because Casso chose it.
+
 | # | Keyword | `scene` | `crt` | `raw` |
 |---|---|---|---|---|
 | 1 | `Software` | `Casso 1.22.0` | same | same |
 | 2 | `Source` | `Apple //e` | same | same |
 | 3 | `Creation Time` | `Sat, 05 Sep 2026 14:32:07 -0700` | same | same |
-| 4 | `Casso Capture` | `scene` | `crt` | `raw` |
-| 5 | `Casso Monitor` | `AppleMonitorII/GreenMono` | same | same |
-| 6 | `Casso Scene Pose` | `yaw 12.5  pitch -8.0  zoom 1.00  pan 0.000 0.000` | -- | -- |
-| 7 | `Casso CRT` | `brightness 1.00  contrast 1.05  gamma 1.00  scanlines 0.35  bloom 0.50/1.00  bleed 0.00  persistence 0.20` | same | -- |
+| 4 | `Casso capture` | `scene` | `crt` | `raw` |
+| 5 | `Casso monitor` | `AppleMonitorII/color` | same | same |
+| 6 | `Casso scene yaw` | `12.5` | -- | -- |
+| 7 | `Casso scene pitch` | `-8.0` | -- | -- |
+| 8 | `Casso scene zoom` | `1.00` | -- | -- |
+| 9 | `Casso scene pan X` | `0.000` | -- | -- |
+| 10 | `Casso scene pan Y` | `0.000` | -- | -- |
+| 11 | `Casso CRT brightness` | `1.05` | same | -- |
+| 12 | `Casso CRT contrast` | `1.00` | same | -- |
+| 13 | `Casso CRT gamma` | `1.00` | same | -- |
+| 14 | `Casso CRT scanlines` | `0.20` | same | -- |
+| 15 | `Casso CRT bloom strength` | `0.25` | same | -- |
+| 16 | `Casso CRT bloom radius` | `0.80` | same | -- |
+| 17 | `Casso CRT bleed` | `0.00` | same | -- |
+| 18 | `Casso CRT persistence` | `0.00` | same | -- |
+
+Totals: **18** entries for `scene`, **13** for `crt`, **5** for `raw`.
 
 ## Entry definitions
 
@@ -76,10 +99,13 @@ The capture's local wall-clock time in RFC 1123 form, including the UTC offset. 
 because filenames are routinely changed on upload and the timestamp in the name does not
 survive that.
 
-### 4. `Casso Capture`
+The offset's sign belongs to the hour while the minutes stay positive, which is what a
+half-hour zone west of Greenwich (`-0330`) gets wrong when written with a bare division.
+
+### 4. `Casso capture`
 
 The capture mode token: `scene`, `crt` or `raw`. Identical to the stored preference
-token, so a report saying `Casso Capture: raw` maps directly onto the radio the user
+token, so a report saying `Casso capture: raw` maps directly onto the radio the user
 selected.
 
 **This is the entry that most changes how a file is read.** Without it a flat 560x384
@@ -87,7 +113,7 @@ image attached to an issue is ambiguous between "the reporter chose raw mode" an
 CRT chain produced nothing", and a picture-only capture is ambiguous between "chrome is
 missing" and "chrome was never in scope".
 
-### 5. `Casso Monitor`
+### 5. `Casso monitor`
 
 The monitor's frozen catalog identifier joined to the active color mode, in the exact
 form produced by `CrtResolver::MakeKey` -- which is the key that monitor's CRT
@@ -95,29 +121,41 @@ adjustments are stored under in the user's preferences
 (`Casso/Config/GlobalUserPrefs.h:126`). The string in the file is therefore the string
 you look the user's adjustments up by.
 
+Note the real form is lowercase in its second half (`AppleMonitorII/color`), because that
+is what `MakeKey` emits; it is a key, not a label.
+
 Emitted for `raw` as well. The tube did not touch those pixels, but the color mode did --
 the monochrome tint is applied in the framebuffer
 (`CassoEmuCore/Video/MonochromeTint.h`) -- and one key is easier to read than a
 conditional half-key.
 
-### 6. `Casso Scene Pose`
+### 6-10. `Casso scene *`
 
-Orbit yaw and pitch in degrees, zoom, and pan, written in the **same format string** the
-on-screen pose readout uses (`Casso/EmulatorShell.cpp:2426`). One formatter, so a pose
-read out of a file and a pose read off an old screenshot are the same text and restore
-the same view.
+The scene view as five numbers: orbit yaw and pitch in **degrees** to a tenth (the finest
+step a drag produces), zoom to two decimals, and pan to three (which is what separates
+two positions that look alike but frame differently).
 
-`scene` only: the other two modes have no scene and therefore no pose.
+`scene` captures only: the other two modes have no scene, and a pose recorded against a
+picture is a fact about nothing. All five are skipped together when the desk scene has
+not composed yet, rather than emitted as five zeros -- which would read as a real view
+pointing at the origin.
 
-### 7. `Casso CRT`
+Degrees rather than the radians the scene holds, because a person restoring a view acts
+in degrees. The on-screen pose readout still renders its own one-line form; the file does
+not use it.
 
-The resolved CRT parameters actually in force for the captured image. Present for the
-same reason as the pose: "the effects render wrong" is the bug class these two modes
-exist to report, and without the parameters the reader cannot distinguish a shader fault
-from a slider set oddly.
+### 11-18. `Casso CRT *`
 
-`raw` emits nothing, because no CRT parameters were applied to that image and claiming
-otherwise would assert something false.
+The resolved CRT parameters actually in force for the captured image, one per entry.
+Present for the same reason as the pose: "the effects render wrong" is the bug class
+these modes exist to report, and without the parameters the reader cannot distinguish a
+shader fault from a slider set oddly.
+
+Bloom carries strength and radius separately, because either alone says little about what
+the halation looked like.
+
+`raw` emits none of them, because no CRT parameters were applied to that image and
+claiming otherwise would assert something false.
 
 ## Excluded, deliberately
 

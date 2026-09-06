@@ -51,7 +51,12 @@ namespace ScreenshotMetadataTests
         f.when               = FixedTime();
         f.utcOffsetMinutes   = -420;                       // -0700
         f.monitorKey         = "AppleMonitorII/GreenMono";
-        f.scenePose          = "yaw 12.5  pitch -8.0  zoom 1.00  pan 0.000 0.000";
+        f.hasScenePose       = true;
+        f.orbitYawRad        = 0.2181662f;      // 12.5 degrees
+        f.orbitPitchRad      = -0.1396263f;     // -8.0 degrees
+        f.zoom               = 1.0f;
+        f.panX               = 0.0f;
+        f.panY               = 0.0f;
         return f;
     }
 
@@ -98,29 +103,57 @@ namespace ScreenshotMetadataTests
         //  The per-mode entry set
         //
 
-        TEST_METHOD (SceneEmitsAllSevenEntriesInContractOrder)
+        TEST_METHOD (SceneEmitsEveryEntryInContractOrder)
         {
             vector<MetadataEntry>   e = ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Scene));
+            const char *            expected[] = {
+                "Software", "Source", "Creation Time", "Casso capture", "Casso monitor",
+                "Casso scene yaw", "Casso scene pitch", "Casso scene zoom",
+                "Casso scene pan X", "Casso scene pan Y",
+                "Casso CRT brightness", "Casso CRT contrast", "Casso CRT gamma",
+                "Casso CRT scanlines", "Casso CRT bloom strength", "Casso CRT bloom radius",
+                "Casso CRT bleed", "Casso CRT persistence" };
+            size_t                  i = 0;
 
-            Assert::AreEqual ((size_t) 7, e.size());
-            Assert::AreEqual (string ("Software"),         e[0].keyword);
-            Assert::AreEqual (string ("Source"),           e[1].keyword);
-            Assert::AreEqual (string ("Creation Time"),    e[2].keyword);
-            Assert::AreEqual (string ("Casso Capture"),    e[3].keyword);
-            Assert::AreEqual (string ("Casso Monitor"),    e[4].keyword);
-            Assert::AreEqual (string ("Casso Scene Pose"), e[5].keyword);
-            Assert::AreEqual (string ("Casso CRT"),        e[6].keyword);
+            Assert::AreEqual (std::size (expected), e.size());
+
+            for (i = 0; i < e.size(); i++)
+            {
+                Assert::AreEqual (string (expected[i]), e[i].keyword);
+            }
         }
 
 
-        TEST_METHOD (CrtEmitsSixWithoutTheScenePose)
+        // One value per keyword, so adding a parameter later is a new entry --
+        // which the contract permits -- rather than a changed grammar inside
+        // an existing one, which it does not cover.
+        TEST_METHOD (EveryValueIsASingleFieldNotABlob)
+        {
+            vector<MetadataEntry>   e = ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Scene));
+            size_t                  i = 0;
+
+            for (i = 0; i < e.size(); i++)
+            {
+                if (e[i].keyword.rfind ("Casso scene", 0) == 0
+                 || e[i].keyword.rfind ("Casso CRT", 0) == 0)
+                {
+                    Assert::IsTrue (e[i].value.find (' ') == string::npos,
+                                    ToWide (e[i].keyword + " = " + e[i].value).c_str());
+                    Assert::IsTrue (e[i].value.find ('/') == string::npos);
+                }
+            }
+        }
+
+
+        TEST_METHOD (CrtEmitsThirteenWithoutTheScenePose)
         {
             vector<MetadataEntry>   e = ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Crt));
 
-            Assert::AreEqual ((size_t) 6, e.size());
-            Assert::IsFalse (Has (e, "Casso Scene Pose"),
+            Assert::AreEqual ((size_t) 13, e.size());
+            Assert::IsFalse (Has (e, "Casso scene yaw"),
                 L"A picture capture has no scene, so a pose would describe nothing");
-            Assert::IsTrue (Has (e, "Casso CRT"));
+            Assert::IsTrue (Has (e, "Casso CRT brightness"));
+            Assert::IsTrue (Has (e, "Casso CRT persistence"));
         }
 
 
@@ -129,8 +162,8 @@ namespace ScreenshotMetadataTests
             vector<MetadataEntry>   e = ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Raw));
 
             Assert::AreEqual ((size_t) 5, e.size());
-            Assert::IsFalse (Has (e, "Casso Scene Pose"));
-            Assert::IsFalse (Has (e, "Casso CRT"),
+            Assert::IsFalse (Has (e, "Casso scene yaw"));
+            Assert::IsFalse (Has (e, "Casso CRT brightness"),
                 L"No CRT parameters were applied, so claiming any would be false");
         }
 
@@ -138,11 +171,11 @@ namespace ScreenshotMetadataTests
         TEST_METHOD (TheCaptureTokenMatchesTheMode)
         {
             Assert::AreEqual (string ("scene"),
-                ValueOf (ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Scene)), "Casso Capture"));
+                ValueOf (ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Scene)), "Casso capture"));
             Assert::AreEqual (string ("crt"),
-                ValueOf (ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Crt)), "Casso Capture"));
+                ValueOf (ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Crt)), "Casso capture"));
             Assert::AreEqual (string ("raw"),
-                ValueOf (ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Raw)), "Casso Capture"));
+                ValueOf (ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Raw)), "Casso capture"));
         }
 
 
@@ -152,21 +185,21 @@ namespace ScreenshotMetadataTests
         TEST_METHOD (EveryModeCarriesTheMonitorKey)
         {
             Assert::AreEqual (string ("AppleMonitorII/GreenMono"),
-                ValueOf (ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Raw)), "Casso Monitor"));
+                ValueOf (ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Raw)), "Casso monitor"));
         }
 
 
         // The desk scene may not have composed yet. A blank value is worse
         // than an absent entry -- it asserts a pose of nothing.
-        TEST_METHOD (AnEmptyPoseIsSkippedRatherThanEmitted)
+        TEST_METHOD (AnUncomposedPoseIsSkippedRatherThanEmittedAsZeros)
         {
             ScreenshotFacts   f = MakeFacts (ScreenshotMode::Scene);
-            f.scenePose = "";
+            f.hasScenePose = false;
 
             vector<MetadataEntry>   e = ScreenshotMetadata::Compose (f);
 
-            Assert::AreEqual ((size_t) 6, e.size());
-            Assert::IsFalse (Has (e, "Casso Scene Pose"));
+            Assert::AreEqual ((size_t) 13, e.size());
+            Assert::IsFalse (Has (e, "Casso scene yaw"));
         }
 
 
@@ -207,21 +240,40 @@ namespace ScreenshotMetadataTests
         }
 
 
-        TEST_METHOD (CrtParamsAreFixedWidthSoTwoCapturesMatchByteForByte)
+        TEST_METHOD (PoseValuesAreDegreesAtTheReadoutPrecision)
         {
-            CaptureCrtParams   crt;
-            crt.brightness        = 1.0f;
-            crt.contrast          = 1.05f;
-            crt.gamma             = 1.0f;
-            crt.scanlineIntensity = 0.35f;
-            crt.bloomStrength     = 0.5f;
-            crt.bloomRadius       = 1.0f;
-            crt.colorBleedWidth   = 0.0f;
-            crt.persistence       = 0.2f;
+            vector<MetadataEntry>   e = ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Scene));
 
-            Assert::AreEqual (string ("brightness 1.00  contrast 1.05  gamma 1.00  scanlines 0.35"
-                                      "  bloom 0.50/1.00  bleed 0.00  persistence 0.20"),
-                              ScreenshotMetadata::FormatCrtParams (crt));
+            Assert::AreEqual (string ("12.5"),  ValueOf (e, "Casso scene yaw"));
+            Assert::AreEqual (string ("-8.0"),  ValueOf (e, "Casso scene pitch"));
+            Assert::AreEqual (string ("1.00"),  ValueOf (e, "Casso scene zoom"));
+            Assert::AreEqual (string ("0.000"), ValueOf (e, "Casso scene pan X"));
+        }
+
+
+        TEST_METHOD (CrtValuesAreFixedWidthSoTwoCapturesMatchByteForByte)
+        {
+            ScreenshotFacts   f = MakeFacts (ScreenshotMode::Crt);
+            f.crt.brightness        = 1.0f;
+            f.crt.contrast          = 1.05f;
+            f.crt.scanlineIntensity = 0.35f;
+            f.crt.bloomStrength     = 0.5f;
+
+            vector<MetadataEntry>   e = ScreenshotMetadata::Compose (f);
+
+            Assert::AreEqual (string ("1.00"), ValueOf (e, "Casso CRT brightness"));
+            Assert::AreEqual (string ("1.05"), ValueOf (e, "Casso CRT contrast"));
+            Assert::AreEqual (string ("0.35"), ValueOf (e, "Casso CRT scanlines"));
+            Assert::AreEqual (string ("0.50"), ValueOf (e, "Casso CRT bloom strength"));
+        }
+
+
+        // The readout keeps its one-line form; the file does not use it.
+        TEST_METHOD (TheReadoutFormatIsStillAvailableForTheOnScreenPose)
+        {
+            Assert::AreEqual (string ("yaw 12.5  pitch -8.0  zoom 1.00  pan 0.000 0.000"),
+                              ScreenshotMetadata::FormatScenePose (0.2181662f, -0.1396263f,
+                                                                   1.0f, 0.0f, 0.0f));
         }
 
 

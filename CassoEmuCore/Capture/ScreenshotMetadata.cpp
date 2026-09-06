@@ -12,10 +12,34 @@ static constexpr char  s_kKeyCreationTime[] = "Creation Time";
 
 // Casso's own, prefixed so they cannot collide with a keyword the format
 // registers later.
-static constexpr char  s_kKeyCapture[]      = "Casso Capture";
-static constexpr char  s_kKeyMonitor[]      = "Casso Monitor";
-static constexpr char  s_kKeyScenePose[]    = "Casso Scene Pose";
-static constexpr char  s_kKeyCrt[]          = "Casso CRT";
+//
+// SENTENCE CASE, with CRT kept upper because it is an initialism. The
+// registered keywords above are title case because the specification spells
+// them that way, not because Casso chose it.
+//
+// ONE VALUE PER ENTRY, deliberately. The contract promises that entries may
+// be added but never renamed or repurposed, and that promise operates on
+// KEYWORDS -- a composite value's internal grammar sits outside it, so adding
+// a CRT parameter later would silently change the shape of something a reader
+// had learned to parse. A parameter per keyword puts every one of them under
+// the guarantee that is actually written down.
+static constexpr char  s_kKeyCapture[]      = "Casso capture";
+static constexpr char  s_kKeyMonitor[]      = "Casso monitor";
+
+static constexpr char  s_kKeySceneYaw[]     = "Casso scene yaw";
+static constexpr char  s_kKeyScenePitch[]   = "Casso scene pitch";
+static constexpr char  s_kKeySceneZoom[]    = "Casso scene zoom";
+static constexpr char  s_kKeyScenePanX[]    = "Casso scene pan X";
+static constexpr char  s_kKeyScenePanY[]    = "Casso scene pan Y";
+
+static constexpr char  s_kKeyCrtBrightness[]    = "Casso CRT brightness";
+static constexpr char  s_kKeyCrtContrast[]      = "Casso CRT contrast";
+static constexpr char  s_kKeyCrtGamma[]         = "Casso CRT gamma";
+static constexpr char  s_kKeyCrtScanlines[]     = "Casso CRT scanlines";
+static constexpr char  s_kKeyCrtBloomStrength[] = "Casso CRT bloom strength";
+static constexpr char  s_kKeyCrtBloomRadius[]   = "Casso CRT bloom radius";
+static constexpr char  s_kKeyCrtBleed[]         = "Casso CRT bleed";
+static constexpr char  s_kKeyCrtPersistence[]   = "Casso CRT persistence";
 
 // RFC 1123 spells both in English regardless of the machine's locale, so
 // these are tables rather than anything locale-aware.
@@ -41,7 +65,20 @@ static constexpr int   s_kMinutesPerHour = 60;
 
 string ScreenshotMetadata::FormatFloat (float value, int decimals)
 {
-    return std::vformat (decimals == 1 ? "{:.1f}" : "{:.2f}", std::make_format_args (value));
+    const char *   spec = "{:.2f}";
+
+
+
+    if (decimals == 1)
+    {
+        spec = "{:.1f}";
+    }
+    else if (decimals == 3)
+    {
+        spec = "{:.3f}";
+    }
+
+    return std::vformat (spec, std::make_format_args (value));
 }
 
 
@@ -103,29 +140,15 @@ string ScreenshotMetadata::FormatCreationTime (const SYSTEMTIME & when, int utcO
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FormatCrtParams
+//  RadiansToDegrees
 //
-//  The effect settings that produced the image, in one line.
-//
-//  Present for the same reason as the scene pose: "the effects render wrong"
-//  is the bug class the processed modes exist to report, and without the
-//  numbers a reader cannot tell a shader fault from a slider set oddly.
-//
-//  Bloom carries both of its numbers as strength/radius, because either alone
-//  says little about what the halation actually looked like.
+//  The scene holds radians; a person restoring a view thinks in degrees.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-string ScreenshotMetadata::FormatCrtParams (const CaptureCrtParams & crt)
+float ScreenshotMetadata::RadiansToDegrees (float radians)
 {
-    return "brightness "  + FormatFloat (crt.brightness, 2)
-         + "  contrast "  + FormatFloat (crt.contrast, 2)
-         + "  gamma "     + FormatFloat (crt.gamma, 2)
-         + "  scanlines " + FormatFloat (crt.scanlineIntensity, 2)
-         + "  bloom "     + FormatFloat (crt.bloomStrength, 2)
-         + "/"            + FormatFloat (crt.bloomRadius, 2)
-         + "  bleed "     + FormatFloat (crt.colorBleedWidth, 2)
-         + "  persistence " + FormatFloat (crt.persistence, 2);
+    return radians * 180.0f / (float) std::numbers::pi;
 }
 
 
@@ -148,13 +171,9 @@ string ScreenshotMetadata::FormatCrtParams (const CaptureCrtParams & crt)
 string ScreenshotMetadata::FormatScenePose (float yawRad, float pitchRad,
                                             float zoom, float panX, float panY)
 {
-    float   yawDeg   = yawRad   * 180.0f / (float) std::numbers::pi;
-    float   pitchDeg = pitchRad * 180.0f / (float) std::numbers::pi;
-
-
-
     return std::format ("yaw {:.1f}  pitch {:.1f}  zoom {:.2f}  pan {:.3f} {:.3f}",
-                        yawDeg, pitchDeg, zoom, panX, panY);
+                        RadiansToDegrees (yawRad), RadiansToDegrees (pitchRad),
+                        zoom, panX, panY);
 }
 
 
@@ -179,8 +198,13 @@ string ScreenshotMetadata::FormatScenePose (float yawRad, float pitchRad,
 //                so emitting them would assert something false about the
 //                image the reader is holding.
 //
-//  An empty pose is skipped even in scene mode: the desk scene may not have
-//  composed yet, and a blank value is worse than an absent entry.
+//  A pose the scene has not composed yet is skipped whole rather than emitted
+//  as five zeros, which would read as a real view pointing at the origin.
+//
+//  Angles are degrees to a tenth -- the finest step a drag produces -- and pan
+//  to three decimals, which is what separates two positions that look alike
+//  but frame differently. Fixed decimals throughout, so two captures of one
+//  setup produce byte-identical text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,14 +220,25 @@ vector<MetadataEntry> ScreenshotMetadata::Compose (const ScreenshotFacts & facts
     entries.push_back ({ s_kKeyCapture,      ScreenshotModeToken::Format (facts.mode) });
     entries.push_back ({ s_kKeyMonitor,      facts.monitorKey });
 
-    if (facts.mode == ScreenshotMode::Scene && !facts.scenePose.empty())
+    if (facts.mode == ScreenshotMode::Scene && facts.hasScenePose)
     {
-        entries.push_back ({ s_kKeyScenePose, facts.scenePose });
+        entries.push_back ({ s_kKeySceneYaw,   FormatFloat (RadiansToDegrees (facts.orbitYawRad),   1) });
+        entries.push_back ({ s_kKeyScenePitch, FormatFloat (RadiansToDegrees (facts.orbitPitchRad), 1) });
+        entries.push_back ({ s_kKeySceneZoom,  FormatFloat (facts.zoom, 2) });
+        entries.push_back ({ s_kKeyScenePanX,  FormatFloat (facts.panX, 3) });
+        entries.push_back ({ s_kKeyScenePanY,  FormatFloat (facts.panY, 3) });
     }
 
     if (facts.mode != ScreenshotMode::Raw)
     {
-        entries.push_back ({ s_kKeyCrt, FormatCrtParams (facts.crt) });
+        entries.push_back ({ s_kKeyCrtBrightness,    FormatFloat (facts.crt.brightness, 2) });
+        entries.push_back ({ s_kKeyCrtContrast,      FormatFloat (facts.crt.contrast, 2) });
+        entries.push_back ({ s_kKeyCrtGamma,         FormatFloat (facts.crt.gamma, 2) });
+        entries.push_back ({ s_kKeyCrtScanlines,     FormatFloat (facts.crt.scanlineIntensity, 2) });
+        entries.push_back ({ s_kKeyCrtBloomStrength, FormatFloat (facts.crt.bloomStrength, 2) });
+        entries.push_back ({ s_kKeyCrtBloomRadius,   FormatFloat (facts.crt.bloomRadius, 2) });
+        entries.push_back ({ s_kKeyCrtBleed,         FormatFloat (facts.crt.colorBleedWidth, 2) });
+        entries.push_back ({ s_kKeyCrtPersistence,   FormatFloat (facts.crt.persistence, 2) });
     }
 
     return entries;
