@@ -25,23 +25,25 @@ static constexpr uint32_t kGreen = 0xFF00FF00u;
 static constexpr uint32_t kBlack = 0xFF000000u;
 static constexpr uint32_t kWhite = 0xFFFFFFFFu;
 
-// Lo-res color table (must match AppleLoResMode.cpp exactly — both use
-// B8G8R8A8 byte layout matching the swap chain format)
+// Lo-res color table. Spelled out rather than read from kAppleColors, so a
+// slip in the one canonical table is still caught here. Colors 3, 6, 9 and
+// 12 are the four HGR reaches by artifact and carry HGR's values -- see the
+// "Why ONE table" note in Video/NtscColorTable.h.
 static const uint32_t kExpectedLoRes[16] =
 {
     0xFF000000,   //  0: Black
     0xFFDD2266,   //  1: Magenta
     0xFF000099,   //  2: Dark Blue
-    0xFFDD0044,   //  3: Purple
+    0xFFFF44FD,   //  3: Purple
     0xFF002200,   //  4: Dark Green
     0xFF555555,   //  5: Gray 1
-    0xFF0022CC,   //  6: Medium Blue
+    0xFF14CFFF,   //  6: Medium Blue
     0xFF66AAFF,   //  7: Light Blue
     0xFF885500,   //  8: Brown
-    0xFFFF4400,   //  9: Orange
+    0xFFFF6A3C,   //  9: Orange
     0xFFAAAAAA,   // 10: Gray 2
     0xFFFF8888,   // 11: Pink
-    0xFF00DD00,   // 12: Light Green
+    0xFF14F53C,   // 12: Light Green
     0xFFFFFF00,   // 13: Yellow
     0xFF44FFDD,   // 14: Aquamarine
     0xFFFFFFFF,   // 15: White
@@ -929,7 +931,7 @@ public:
     {
         MemoryBus           bus;
         uint64_t            hash      = 0;
-        constexpr uint64_t  kExpected = 0x1084304075270825ULL;
+        constexpr uint64_t  kExpected = 0x70B77A5253607225ULL;
 
 
 
@@ -988,6 +990,15 @@ public:
         // AppleDoubleHiResModeTests::DHR_TechnotePatternsDecodeToTheir-
         // Colors holds the decode against the technote's own table, so
         // this golden no longer stands alone.
+        //
+        // Updated 2026-09-05 alongside the palette consolidation. HGR
+        // and lo-res/DHGR carried separate tables that disagreed on the
+        // four colors they share -- HGR violet and lo-res "Purple" were
+        // 41 degrees of hue apart, though the hardware makes them the
+        // same subcarrier phase at the same amplitude. The sixteen now
+        // live once in Video/NtscColorTable.h, and colors 3, 6, 9 and 12
+        // took HGR's NTSC-derived values, so every cell of this pattern
+        // in one of those colors changes.
 
         Assert::AreEqual (kExpected, hash,
             std::format (L"DHR golden hash mismatch: got 0x{:016X}", hash).c_str());
