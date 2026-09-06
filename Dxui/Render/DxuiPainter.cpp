@@ -530,6 +530,126 @@ void DxuiPainter::OutlineRect (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OutlineRoundedRect
+//
+//  A rounded ring, drawn scanline by scanline as the region between two
+//  concentric rounded rects: the requested one and the same one inset by the
+//  stroke thickness.
+//
+//  Scanlines rather than four straight edges plus four arcs, because the
+//  difference-of-two-shapes formulation has no seams to get wrong -- a corner
+//  arc butted against an edge segment shows a notch wherever the two disagree
+//  by a fraction of a pixel, and at a 1.5px stroke that fraction is most of
+//  the stroke.
+//
+//  Rows in the straight band contribute two thin vertical spans; rows in the
+//  corner bands walk inward with the circle; rows within the thickness of the
+//  top or bottom edge are solid all the way across. Every span goes through
+//  FillSpanAA, so the curve arrives feathered rather than stair-stepped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::OutlineRoundedRect (
+    float     xPx,
+    float     yPx,
+    float     widthPx,
+    float     heightPx,
+    float     radiusPx,
+    float     thicknessPx,
+    uint32_t  argbColor)
+{
+    float  t     = (thicknessPx > 0.0f) ? thicknessPx : 1.0f;
+    float  rOut  = radiusPx;
+    float  rIn   = 0.0f;
+    float  half  = 0.0f;
+    int    rows  = 0;
+    int    i     = 0;
+    //  How far a rounded rect's edge lies inside its bounding box at the
+    //  given scanline: zero along the straight run, and the circle's own
+    //  inset within a corner band.
+    auto   inset = [] (float top, float height, float radius, float cy) -> float
+    {
+        float  dy = 0.0f;
+        float  sq = 0.0f;
+
+        if (radius <= 0.0f)
+        {
+            return 0.0f;
+        }
+
+        if (cy < top + radius)
+        {
+            dy = (top + radius) - cy;
+        }
+        else if (cy > top + height - radius)
+        {
+            dy = cy - (top + height - radius);
+        }
+        else
+        {
+            return 0.0f;
+        }
+
+        sq = radius * radius - dy * dy;
+
+        return radius - ((sq > 0.0f) ? sqrtf (sq) : 0.0f);
+    };
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (widthPx <= 0.0f || heightPx <= 0.0f)
+    {
+        return;
+    }
+
+    //  A radius past half the shorter side is not a rounder rectangle, it is
+    //  a differently wrong one -- clamp to the pill.
+    half = (widthPx < heightPx ? widthPx : heightPx) * 0.5f;
+    rOut = (rOut > half) ? half : ((rOut < 0.0f) ? 0.0f : rOut);
+    rIn  = rOut - t;
+    rIn  = (rIn > 0.0f) ? rIn : 0.0f;
+
+    rows = (int) ceilf (heightPx);
+
+    for (i = 0; i < rows; i++)
+    {
+        float  rowY  = yPx + (float) i;
+        float  rowH  = 1.0f;
+        float  cy    = rowY + 0.5f;
+        float  dxOut = inset (yPx, heightPx, rOut, cy);
+        float  left  = xPx + dxOut;
+        float  right = xPx + widthPx - dxOut;
+
+        if (rowY + rowH > yPx + heightPx)
+        {
+            rowH = (yPx + heightPx) - rowY;
+        }
+
+        if (cy >= yPx + t && cy < yPx + heightPx - t)
+        {
+            float  dxIn   = inset (yPx + t, heightPx - 2.0f * t, rIn, cy);
+            float  inLeft = xPx + t + dxIn;
+            float  inRite = xPx + widthPx - t - dxIn;
+
+            FillSpanAA (left,   inLeft, rowY, rowH, argbColor);
+            FillSpanAA (inRite, right,  rowY, rowH, argbColor);
+        }
+        else
+        {
+            //  Within the top or bottom edge: the stroke spans the row.
+            FillSpanAA (left, right, rowY, rowH, argbColor);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FillCircleApprox
 //
 //  Approximates a filled circle using horizontal slices. Inexpensive

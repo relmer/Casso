@@ -3,6 +3,8 @@
 
 #include "DxuiRadio.h"
 
+#include "Core/DxuiFocusRing.h"
+
 
 
 
@@ -245,8 +247,6 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 {
     constexpr float  s_kBoxSizeDip    = 16.0f;
     constexpr float  s_kDotInsetDip   = 4.0f;
-    constexpr float  s_kFocusInsetDip = -2.0f;
-    constexpr float  s_kFocusThickDip = 1.0f;
     constexpr float  s_kLabelGapDip   = 6.0f;
     constexpr float  s_kFontDip       = 13.0f;
     // The first line of a described option. The label sits in this band, the
@@ -262,8 +262,6 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     size_t   n          = m_options.size();
     float    boxSize    = m_scaler.ToPxf (s_kBoxSizeDip);
     float    dotInset   = m_scaler.ToPxf (s_kDotInsetDip);
-    float    focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
-    float    focusThick = m_scaler.ToPxf (s_kFocusThickDip);
     float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
     float    fontDip    = m_scaler.ToPxf (s_kFontDip);
     uint32_t textColor  = m_enabled ? theme.Foreground() : theme.ForegroundDisabled();
@@ -298,16 +296,6 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
             painter.FillCircleApprox (cx, cy, innerR, dotColor);
         }
 
-        if (m_focused && m_selected == i)
-        {
-            painter.OutlineRect (boxLeft + focusInset,
-                                 boxTop  + focusInset,
-                                 boxSize - focusInset * 2.0f,
-                                 boxSize - focusInset * 2.0f,
-                                 focusThick,
-                                 theme.FocusRing());
-        }
-
         float   textLeft  = boxLeft + boxSize + labelGap;
         float   textWidth = (float) (opt.rect.right - opt.rect.left) - boxSize - labelGap;
         float   rowHeight = (float) (opt.rect.bottom - opt.rect.top);
@@ -328,6 +316,23 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  The ring encloses the CIRCLE AND ITS LABEL, on the label's line.
+        //  An option is one control; ringing the 16 DIP circle alone marked
+        //  the smallest part of it. The description is left outside: it is
+        //  explanatory text, not the control, and a ring two lines tall in a
+        //  three-option group is a block, not a mark.
+        if (m_focused && m_selected == i)
+        {
+            DxuiFocusRing::AroundRun (painter, text, opt.label, fontDip, DxuiTheme::kBodyFace,
+                                      boxLeft,
+                                      textLeft,
+                                      (float) opt.rect.top,
+                                      labelH,
+                                      boxSize,
+                                      m_scaler,
+                                      theme.FocusRing());
+        }
 
         if (!opt.description.empty())
         {
@@ -369,13 +374,6 @@ void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 
 
 

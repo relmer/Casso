@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiButton.h"
+#include "Core/DxuiFocusRing.h"
 #include "Theme/DxuiColor.h"
 
 
@@ -181,7 +182,10 @@ bool DxuiButton::OnKey (WPARAM vk)
 //  whatever the theme's button colors are.
 //
 //  The focus ring insets NEGATIVELY -- it is drawn just outside the bounds, so
-//  it never eats into the button's own edge or its label.
+//  it never eats into the button's own edge or its label. The link variant is
+//  the exception: its ring is a rounded rect measured to the drawn text, since
+//  a link's bounds are the row it was given rather than the shape the user
+//  sees.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,14 +253,23 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
+        //
+        //  The ring hugs the TEXT, not the box. A link's box is whatever the
+        //  layout gave it -- for a path row, the whole content width -- so a
+        //  ring drawn on the bounds is a large square frame around a short
+        //  run of words, which reads as a text field rather than as focus,
+        //  and collides with whatever sits on the next row.
+        //
         if (m_focused)
         {
-            painter.OutlineRect ((float) m_boundsDip.left + m_scaler.ToPxf (s_kFocusInsetPx),
-                                 (float) m_boundsDip.top  + m_scaler.ToPxf (s_kFocusInsetPx),
-                                 (float) (m_boundsDip.right  - m_boundsDip.left) - m_scaler.ToPxf (s_kFocusInsetPx) * 2.0f,
-                                 (float) (m_boundsDip.bottom - m_boundsDip.top)  - m_scaler.ToPxf (s_kFocusInsetPx) * 2.0f,
-                                 m_scaler.ToPxf (s_kFocusRingPx),
-                                 theme.FocusRing());
+            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
+                                      (float) m_boundsDip.left,
+                                      (float) m_boundsDip.left,
+                                      (float) m_boundsDip.top,
+                                      (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                      0.0f,
+                                      m_scaler,
+                                      theme.FocusRing());
         }
     }
 

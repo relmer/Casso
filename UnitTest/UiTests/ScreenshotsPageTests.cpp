@@ -103,15 +103,15 @@ public:
     // the user could not tell where their files go without leaving the page.
     TEST_METHOD (AnUnsetFolderShowsTheDefaultPath)
     {
-        Assert::AreEqual (std::wstring (L"C:\Pics\Casso Screenshots"),
-                          ScreenshotsPage::FolderForDisplay ("", L"C:\Pics\Casso Screenshots"));
+        Assert::AreEqual (std::wstring (L"C:\\Pics\\Casso Screenshots"),
+                          ScreenshotsPage::FolderForDisplay ("", L"C:\\Pics\\Casso Screenshots"));
     }
 
 
     TEST_METHOD (AConfiguredFolderIsShownInsteadOfTheDefault)
     {
-        Assert::AreEqual (std::wstring (L"D:\Shots"),
-                          ScreenshotsPage::FolderForDisplay ("D:\Shots", L"C:\Pics\Casso Screenshots"));
+        Assert::AreEqual (std::wstring (L"D:\\Shots"),
+                          ScreenshotsPage::FolderForDisplay ("D:\\Shots", L"C:\\Pics\\Casso Screenshots"));
     }
 
 
@@ -120,11 +120,11 @@ public:
     TEST_METHOD (ALongPathIsReturnedWhole)
     {
         std::wstring   shown = ScreenshotsPage::FolderForDisplay (
-            "C:\Users\somebody\OneDrive\Documents\Emulation\Captures\Casso", L"");
+            "C:\\Users\\somebody\\OneDrive\\Documents\\Emulation\\Captures\\Casso", L"");
 
-        Assert::AreEqual (std::wstring (L"C:\Users\somebody\OneDrive\Documents\Emulation\Captures\Casso"),
+        Assert::AreEqual (std::wstring (L"C:\\Users\\somebody\\OneDrive\\Documents\\Emulation\\Captures\\Casso"),
                           shown);
-        Assert::IsTrue (shown.find (L" 26") == std::wstring::npos, L"no ellipsis is added here");
+        Assert::IsTrue (shown.find (L"\x2026") == std::wstring::npos, L"no ellipsis is added here");
     }
 
 

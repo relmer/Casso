@@ -3,6 +3,7 @@
 
 #include "DxuiCheckbox.h"
 
+#include "Core/DxuiFocusRing.h"
 #include "Core/UnicodeSymbols.h"
 
 
@@ -155,8 +156,6 @@ void DxuiCheckbox::Toggle()
 void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr float  s_kBoxSizeDip    = 16.0f;
-    constexpr float  s_kFocusInsetDip = -2.0f;
-    constexpr float  s_kFocusThickDip = 1.0f;
     constexpr float  s_kLabelGapDip   = 6.0f;
     constexpr float  s_kFontDip       = 13.0f;
     uint32_t         glyphColor       = 0;
@@ -166,8 +165,6 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     HRESULT  hr          = S_OK;
     float    boxSize     = m_scaler.ToPxf (s_kBoxSizeDip);
-    float    focusInset  = m_scaler.ToPxf (s_kFocusInsetDip);
-    float    focusThick  = m_scaler.ToPxf (s_kFocusThickDip);
     float    labelGap    = m_scaler.ToPxf (s_kLabelGapDip);
     float    fontDip     = m_scaler.ToPxf (s_kFontDip);
     float    boxLeft     = (float) m_boundsDip.left;
@@ -211,16 +208,6 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
-        if (m_focused)
-        {
-            painter.OutlineRect (boxLeft + focusInset,
-                                 boxTop  + focusInset,
-                                 boxSize - focusInset * 2.0f,
-                                 boxSize - focusInset * 2.0f,
-                                 focusThick,
-                                 theme.FocusRing());
-        }
-
         labelX = boxLeft + boxSize + labelGap;
         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
         std::wstring  drawn  = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
@@ -241,6 +228,22 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                               DxuiFontWeight::Normal,
                               !m_singleLineLabel);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  The ring encloses the BOX AND ITS LABEL. A checkbox is one control
+        //  and the label is most of what the user is looking at, so ringing
+        //  the 16 DIP box alone marked something other than the thing that
+        //  had focus.
+        if (m_focused)
+        {
+            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
+                                      boxLeft,
+                                      labelX,
+                                      (float) m_boundsDip.top,
+                                      (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                      boxSize,
+                                      m_scaler,
+                                      theme.FocusRing());
+        }
     }
 }
 

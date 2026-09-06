@@ -145,6 +145,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Core\DxuiFocusRing.cpp" />
     <ClCompile Include="Core\DxuiTextElide.cpp" />
     <ClCompile Include="Core\DxuiFrameRate.cpp" />
     <ClCompile Include="Core\DxuiAbsoluteLayout.cpp" />
@@ -204,6 +205,7 @@
   <ItemGroup>
     <ClInclude Include="Dxui.h" />
     <ClInclude Include="Pch.h" />
+    <ClInclude Include="Core\DxuiFocusRing.h" />
     <ClInclude Include="Core\DxuiTextElide.h" />
     <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
     <ClInclude Include="Core\DxuiAnimation.h" />
