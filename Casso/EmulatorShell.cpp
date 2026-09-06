@@ -1598,10 +1598,23 @@ void EmulatorShell::ApplySavedBezelTilt()
 void EmulatorShell::PersistBezelTilt()
 {
     const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
+    float                radians = m_deskScene.BezelTiltRad();
 
 
 
-    m_globalPrefs.monitorTilt[std::string (monitor.configName)] = m_deskScene.BezelTiltRad();
+    // A SQUARE-ON MONITOR IS THE ABSENCE OF AN ENTRY, not an entry reading
+    // zero. The file is meant to carry only the monitors the user has
+    // actually moved, and a reset that wrote a zero would leave the entry
+    // there forever, saying the user had posed this tube when they had put
+    // it back.
+    if (radians == 0.0f)
+    {
+        m_globalPrefs.monitorTilt.erase (std::string (monitor.configName));
+    }
+    else
+    {
+        m_globalPrefs.monitorTilt[std::string (monitor.configName)] = radians;
+    }
 
     if (m_userConfigStore != nullptr)
     {
@@ -2241,6 +2254,17 @@ void EmulatorShell::ResetSceneView()
     m_sceneView = DeskSceneView {};
 
     m_deskScene.SetBezelTilt (0.0f);
+
+    // AND THE RESET IS PERSISTED, because the tilt it undoes was. Every other
+    // thing this function puts back lives only for the run, so reset had no
+    // reason to touch a file -- but the bezel was saved the moment the user
+    // let go of it, and leaving that entry behind made "start over" last until
+    // the next launch and no further.
+    if (tilted)
+    {
+        PersistBezelTilt();
+    }
+
     InvalidateSceneComposition();
 }
 
@@ -3799,6 +3823,39 @@ void EmulatorShell::ApplyPersistedChromePrefs()
 
 
     LoadMachineUiPrefs (doc, uiPrefs);
+
+    // NO SAVED COLOR MEANS THE MONITOR'S OWN. The machine names the monitor
+    // it ships with and the monitor owns its phosphor, so an untouched //c
+    // comes up green because a Monitor //c is green -- not because anything
+    // wrote "green" into a preference file for it.
+    //
+    // Applied ABOVE the guard below, because a machine carrying no
+    // $cassoUiPrefs block at all is precisely the case where the monitor is
+    // the only thing that can answer. Returning early for it left the shell
+    // at the Color it constructs with, which is why a brand-new install came
+    // up color exactly once: the window position written on the way out gave
+    // the block something to hold, and the second launch reached this line
+    // and found green.
+    {
+        int  modeIdx = MonitorCatalog::PhosphorSettingsIndex (
+                           MonitorCatalog::ForMachineJson (doc));
+
+        if (uiPrefs != nullptr)
+        {
+            hrOpt = uiPrefs->GetString ("colorMode", colorMode);
+
+            if (SUCCEEDED (hrOpt))
+            {
+                if      (colorMode == "color") { modeIdx = 0; }
+                else if (colorMode == "green") { modeIdx = 1; }
+                else if (colorMode == "amber") { modeIdx = 2; }
+                else if (colorMode == "white") { modeIdx = 3; }
+            }
+        }
+
+        SetColorModeLive (modeIdx);
+    }
+
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
     // Each key below is optional: a fresh machine omits it, which the
@@ -3806,26 +3863,6 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // untouched. We probe with hrOpt and apply only on success, so a
     // missing key keeps the built-in default -- a genuine corrupt-file
     // error already propagated out of LoadMachineUiPrefs above.
-    // NO SAVED COLOR MEANS THE MONITOR'S OWN. The machine names the monitor
-    // it ships with and the monitor owns its phosphor, so an untouched //c
-    // comes up green because a Monitor //c is green -- not because anything
-    // wrote "green" into a preference file for it.
-    {
-        int  modeIdx = MonitorCatalog::PhosphorSettingsIndex (
-                           MonitorCatalog::ForMachineJson (doc));
-
-        hrOpt = uiPrefs->GetString ("colorMode", colorMode);
-
-        if (SUCCEEDED (hrOpt))
-        {
-            if      (colorMode == "color") { modeIdx = 0; }
-            else if (colorMode == "green") { modeIdx = 1; }
-            else if (colorMode == "amber") { modeIdx = 2; }
-            else if (colorMode == "white") { modeIdx = 3; }
-        }
-
-        SetColorModeLive (modeIdx);
-    }
 
     // Speed mode (authentic / double / maximum) lives in the same UI prefs and,
     // like colorMode, must be pushed into CpuManager at boot. SwitchMachine

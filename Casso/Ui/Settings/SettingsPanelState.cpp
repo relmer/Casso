@@ -3,6 +3,8 @@
 #include "SettingsPanelState.h"
 
 
+#include "../../Config/MonitorCatalog.h"
+
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 
@@ -993,6 +995,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     size_t              i              = 0;
     JsonType            mergedRootType = JsonType::Null;
     bool                hasUiPrefs     = false;
+    SettingsColorMode   monitorColor   = SettingsColorMode::Color;
 
 
 
@@ -1001,6 +1004,18 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs   = SettingsUiPrefs {};
     hasUiPrefs = mergedJson.HasObject (kpszUiPrefsKey, uiObj);
+
+    // THE COLOR MODE'S DEFAULT IS THE MONITOR'S PHOSPHOR, not the struct's.
+    // Every other field's default is a constant, so the struct can carry it;
+    // this one is a property of the tube the machine ships with, which only
+    // the merged document knows. Seeded before the guard below so a machine
+    // with no saved block at all still opens Settings showing what is
+    // actually on screen. It used to open showing Color, and since the sheet
+    // applies every page on OK, changing the speed dropped the picture out of
+    // green.
+    monitorColor       = (SettingsColorMode) MonitorCatalog::PhosphorSettingsIndex (
+                             MonitorCatalog::ForMachineJson (mergedJson));
+    outPrefs.colorMode = monitorColor;
 
     // No $cassoUiPrefs in the file -- struct defaults stand.
     BAIL_OUT_IF (!hasUiPrefs, S_OK);
@@ -1012,8 +1027,8 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
         SettingsSpeedMode::Authentic);
 
     outPrefs.colorMode = ColorFromString (
-        GetStringOpt (*uiObj, "colorMode", "color"),
-        SettingsColorMode::Color);
+        GetStringOpt (*uiObj, "colorMode", ColorToString (monitorColor)),
+        monitorColor);
 
     outPrefs.writeMode = WriteModeFromString (
         GetStringOpt (*uiObj, "writeMode", "buffer-and-flush"),

@@ -8,6 +8,18 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A fresh install came up in color, then switched to green on the second
+  launch.** The default color mode is the phosphor of the monitor the machine
+  ships with, but the boot path skipped it for a machine with nothing saved
+  yet.
+- **Opening Settings and changing anything knocked the picture out of green.**
+  The sheet read an unsaved color mode as Color rather than as the monitor's,
+  and OK applied that back onto the running machine.
+- **Ctrl+0 reset the monitor's tilt without saving the reset,** so the bezel
+  came back tilted at the next launch.
+
 ## [1.23.0]: The one with... wow, that's a lot of stuff!
 
 ### Added

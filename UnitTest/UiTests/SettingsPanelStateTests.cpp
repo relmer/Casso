@@ -164,6 +164,33 @@ public:
         }
     })JSON";
 
+    // A block that exists but carries no colorMode: what one launch of a
+    // fresh install leaves behind once the window position is written out.
+    const char * kFixtureJsonNoColor = R"JSON({
+        "$cassoMachineVersion": 1,
+        "name": "TestMachine",
+        "cpu": "6502",
+        "timing": { "clockSpeed": 1023000 },
+        "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+        "$cassoUiPrefs": {
+            "speedMode": "double"
+        }
+    })JSON";
+
+
+    // The user deliberately picking Color on a green tube.
+    const char * kFixtureJsonColorPicked = R"JSON({
+        "$cassoMachineVersion": 1,
+        "name": "TestMachine",
+        "cpu": "6502",
+        "timing": { "clockSpeed": 1023000 },
+        "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+        "$cassoUiPrefs": {
+            "colorMode": "color"
+        }
+    })JSON";
+
+
     TEST_METHOD (Load_Defaults_NotDirty_NoResetRequired)
     {
         SettingsPanelState  st;
@@ -361,10 +388,83 @@ public:
 
         Assert::IsFalse (st.IsDirty());
         Assert::IsTrue  (st.GetPrefs().speedMode          == SettingsSpeedMode::Authentic);
-        Assert::IsTrue  (st.GetPrefs().colorMode          == SettingsColorMode::Color);
+        Assert::IsTrue  (st.GetPrefs().colorMode          == SettingsColorMode::Green,
+                         L"the baseline is the monitor's phosphor, not Color");
         Assert::IsTrue  (st.GetPrefs().writeMode          == SettingsWriteMode::BufferAndFlush);
         Assert::IsTrue  (st.GetPrefs().floppySoundEnabled == true);
         Assert::IsFalse (st.GetPrefs().writeProtect[1]);
+    }
+
+
+    // A machine with no $cassoUiPrefs block at all -- a fresh install, before
+    // anything has been saved for it. The sheet has to open showing the
+    // phosphor of the monitor the machine ships with, because that is what is
+    // on screen; a struct default of Color made the sheet disagree with the
+    // picture, and since OK applies every page, changing the SPEED knocked the
+    // monitor out of green.
+    TEST_METHOD (ColorMode_NoUiPrefsBlock_TakesTheMonitorsPhosphor)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue  (st.GetPrefs().colorMode == SettingsColorMode::Green);
+        Assert::IsFalse (st.IsDirty(), L"a derived default is still the baseline");
+    }
+
+
+    // The same for a block that exists but says nothing about color, which is
+    // what one launch of a fresh install leaves behind: the window position
+    // gets written on the way out and the block starts existing.
+    TEST_METHOD (ColorMode_UiPrefsWithoutColor_TakesTheMonitorsPhosphor)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJsonNoColor);
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.GetPrefs().speedMode == SettingsSpeedMode::Double,
+                        L"the rest of the block still reads");
+        Assert::IsTrue (st.GetPrefs().colorMode == SettingsColorMode::Green);
+    }
+
+
+    // A DELIBERATE Color still wins. The monitor decides the default, never
+    // the answer: a user who picked color on a green tube keeps it.
+    TEST_METHOD (ColorMode_SavedColorOutranksTheMonitor)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJsonColorPicked);
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.GetPrefs().colorMode == SettingsColorMode::Color);
+    }
+
+
+    // The whole round trip the bug ran through: open a machine that has never
+    // saved a color, change something unrelated, hit OK. What the sheet
+    // applies and writes must be the monitor's green, not the struct's color.
+    TEST_METHOD (Apply_WithNoSavedColor_KeepsTheMonitorsPhosphor)
+    {
+        SettingsPanelState  st;
+        JsonValue           v       = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsUiPrefs     reloaded;
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSpeedMode (SettingsSpeedMode::Maximum);
+
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        Assert::IsTrue (sink.lastColor == SettingsColorMode::Green,
+                        L"OK must not push the picture back to color");
+
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        Assert::IsTrue (reloaded.colorMode == SettingsColorMode::Green,
+                        L"and must not write color into the file either");
     }
 
 
