@@ -19,8 +19,8 @@ Entries before versioning was introduced use dates only.
   the CRT parameters and the scene pose in its own metadata, and never a
   filesystem path or anything identifying the host. Closes #132.
 - **A speech demo disk**, in hi-res and double hi-res: three film lines and Daisy
-  Bell through the SSI 263A, with HAL's eye pulsing on each syllable. Boot
-  `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk`.
+  Bell through the SSI 263A, under a HAL 9000 panel whose eye pulses on each
+  syllable. Boot `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk`.
 - **The assembler can now write a binary directly into a disk image.** `--disk <image>` places
   the binary onto a volume instead of to a file on the host, and the binary can be run
   automatically at boot with `--startup`. The binary's origin comes directly
