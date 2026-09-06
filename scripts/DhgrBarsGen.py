@@ -7,8 +7,10 @@ Output:
   Apple2/Demos/dhgr-bars-main.bin  (8 KB — DHGR main RAM bytes for $2000-$3FFF)
 
 DHGR layout reminder:
-  - 560 dots wide x 192 rows, monochrome representation; 4 dots = 1 nibble,
-    LSB-first along the row, selecting one of 16 colors
+  - 560 dots wide x 192 rows, monochrome representation; 4 dots = 1 nibble
+    selecting one of 16 colors. Dot j of a cell carries bit (j + 1) & 3, so
+    the LAST dot is the color's low bit -- the technote's order, and what
+    AppleDoubleHiResMode decodes
   - 80 bytes per scanline, interleaved: aux[0] main[0] aux[1] main[1] ...
   - 7 dots packed per byte, bit 0 = leftmost, bit 7 ignored
   - Row offset uses the same HGR formula:
@@ -46,7 +48,7 @@ def build_row() -> tuple[bytes, bytes]:
     main = bytearray(ROW_BYTES)
     for d in range(DOT_WIDTH):
         nibble = color_at_dot(d)
-        bit_in_nibble = d - ((d // 4) * 4)
+        bit_in_nibble = (d + 1) % 4
         bit_value = (nibble >> bit_in_nibble) & 1
         if bit_value == 0:
             continue
