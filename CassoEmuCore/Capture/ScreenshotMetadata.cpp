@@ -6,8 +6,13 @@
 
 
 // PNG-registered keywords, carrying their registered meanings.
+//
+// NOT "Source". The specification defines it as the DEVICE used to create the
+// image -- a scanner or a camera -- and nothing captured this: Casso
+// synthesized it, and the device that wrote the file is the host PC. The
+// emulated machine goes in a Casso keyword below, where it claims nothing the
+// format did not intend.
 static constexpr char  s_kKeySoftware[]     = "Software";
-static constexpr char  s_kKeySource[]       = "Source";
 static constexpr char  s_kKeyCreationTime[] = "Creation Time";
 
 // Casso's own, prefixed so they cannot collide with a keyword the format
@@ -24,6 +29,7 @@ static constexpr char  s_kKeyCreationTime[] = "Creation Time";
 // had learned to parse. A parameter per keyword puts every one of them under
 // the guarantee that is actually written down.
 static constexpr char  s_kKeyCapture[]      = "Casso capture";
+static constexpr char  s_kKeyMachine[]      = "Casso machine";
 static constexpr char  s_kKeyMonitor[]      = "Casso monitor";
 
 static constexpr char  s_kKeySceneYaw[]     = "Casso scene yaw";
@@ -159,12 +165,13 @@ float ScreenshotMetadata::RadiansToDegrees (float radians)
 //
 //  FormatScenePose
 //
-//  One spelling of the pose, for the readout on the picture and the entry in
-//  the file both.
+//  The pose as one line, FOR THE ON-SCREEN READOUT ONLY. The file records the
+//  same view as separate numeric entries, because a reader restoring a pose
+//  wants values rather than a sentence to parse.
 //
-//  The precisions are the readout's own and are kept: a tenth of a degree is
-//  the finest orbit step a drag produces, and three decimals of pan is what
-//  distinguishes two positions that look the same but frame differently.
+//  The precisions match the entries': a tenth of a degree is the finest orbit
+//  step a drag produces, and three decimals of pan is what distinguishes two
+//  positions that look the same but frame differently.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,17 +193,16 @@ string ScreenshotMetadata::FormatScenePose (float yawRad, float pitchRad,
 //
 //  The contract's entry set for this mode, in the contract's order.
 //
-//  Three entries are unconditional -- who made the file, what machine it came
-//  from, and when. Two more describe the setup: which mode, and which monitor
-//  under which color mode. The last two are conditional and the conditions
+//  Five entries are unconditional -- what wrote the file and when, then the
+//  setup it came from: which mode, which machine, which monitor under which
+//  color mode. The two GROUPS after them are conditional, and the conditions
 //  are the whole point:
 //
-//    Scene Pose  scene captures only. The other modes have no scene, and a
-//                pose recorded against a picture would be a fact about
-//                nothing.
-//    CRT         the two processed modes. Raw had no CRT parameters applied,
-//                so emitting them would assert something false about the
-//                image the reader is holding.
+//    scene *   scene captures only. The other modes have no scene, and a pose
+//              recorded against a picture would be a fact about nothing.
+//    CRT *     the two processed modes. Raw had no CRT parameters applied, so
+//              emitting them would assert something false about the image the
+//              reader is holding.
 //
 //  A pose the scene has not composed yet is skipped whole rather than emitted
 //  as five zeros, which would read as a real view pointing at the origin.
@@ -215,9 +221,9 @@ vector<MetadataEntry> ScreenshotMetadata::Compose (const ScreenshotFacts & facts
 
 
     entries.push_back ({ s_kKeySoftware,     facts.versionString });
-    entries.push_back ({ s_kKeySource,       facts.machineDisplayName });
     entries.push_back ({ s_kKeyCreationTime, FormatCreationTime (facts.when, facts.utcOffsetMinutes) });
     entries.push_back ({ s_kKeyCapture,      ScreenshotModeToken::Format (facts.mode) });
+    entries.push_back ({ s_kKeyMachine,      facts.machineDisplayName });
     entries.push_back ({ s_kKeyMonitor,      facts.monitorKey });
 
     if (facts.mode == ScreenshotMode::Scene && facts.hasScenePose)

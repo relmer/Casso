@@ -36,9 +36,17 @@ knowledge of Casso.
 **Keyword constraints** (PNG specification): 1-79 characters, Latin-1, no leading,
 trailing, or consecutive spaces. All keywords below comply.
 
-**Namespacing**: `Software`, `Source` and `Creation Time` are PNG-registered keywords and
-carry their registered meanings. Casso-specific entries are prefixed `Casso ` to avoid
-colliding with registered keywords now or later.
+**Namespacing**: `Software` and `Creation Time` are PNG-registered keywords and carry
+their registered meanings. Everything else is prefixed `Casso ` to avoid colliding with
+keywords the format registers now or later.
+
+**`Source` is deliberately NOT used.** The specification defines it as the *device* used
+to create the image -- a scanner or a camera. Nothing captured a screenshot: Casso
+synthesized it, and the device that wrote the file is the host PC. The emulated machine
+is a fact about the subject, not about capture hardware, so it goes in `Casso machine`
+where it claims nothing the format did not intend. (`Source` is also close to unused in
+the wild -- cameras write EXIF and PNG gained a dedicated `eXIf` chunk in 1.5 -- so
+borrowing it would have bought little visibility in exchange for the stretch.)
 
 ## Entries by capture mode
 
@@ -57,9 +65,9 @@ that way, not because Casso chose it.
 | # | Keyword | `scene` | `crt` | `raw` |
 |---|---|---|---|---|
 | 1 | `Software` | `Casso 1.22.0` | same | same |
-| 2 | `Source` | `Apple //e` | same | same |
-| 3 | `Creation Time` | `Sat, 05 Sep 2026 14:32:07 -0700` | same | same |
-| 4 | `Casso capture` | `scene` | `crt` | `raw` |
+| 2 | `Creation Time` | `Sat, 05 Sep 2026 14:32:07 -0700` | same | same |
+| 3 | `Casso capture` | `scene` | `crt` | `raw` |
+| 4 | `Casso machine` | `Apple //e` | same | same |
 | 5 | `Casso monitor` | `AppleMonitorII/color` | same | same |
 | 6 | `Casso scene yaw` | `12.5` | -- | -- |
 | 7 | `Casso scene pitch` | `-8.0` | -- | -- |
@@ -85,15 +93,7 @@ Totals: **18** entries for `scene`, **13** for `crt`, **5** for `raw`.
 stamp (`CassoEmuCore/Devices/Disk/WozLoader.cpp:59`), so there is one spelling of "who
 made this" across every artifact Casso authors.
 
-### 2. `Source`
-
-The emulated machine's own display name, taken from the `name` field of its machine JSON
-(`Apple //e`, `Apple ][+`, `Apple //c`) -- never the internal identifier (`Apple2e`).
-
-The PNG specification defines `Source` as the device used to create the image. An
-emulated Apple II is exactly that.
-
-### 3. `Creation Time`
+### 2. `Creation Time`
 
 The capture's local wall-clock time in RFC 1123 form, including the UTC offset. Present
 because filenames are routinely changed on upload and the timestamp in the name does not
@@ -102,7 +102,7 @@ survive that.
 The offset's sign belongs to the hour while the minutes stay positive, which is what a
 half-hour zone west of Greenwich (`-0330`) gets wrong when written with a bare division.
 
-### 4. `Casso capture`
+### 3. `Casso capture`
 
 The capture mode token: `scene`, `crt` or `raw`. Identical to the stored preference
 token, so a report saying `Casso capture: raw` maps directly onto the radio the user
@@ -112,6 +112,11 @@ selected.
 image attached to an issue is ambiguous between "the reporter chose raw mode" and "the
 CRT chain produced nothing", and a picture-only capture is ambiguous between "chrome is
 missing" and "chrome was never in scope".
+
+### 4. `Casso machine`
+
+The emulated machine's own display name, taken from the `name` field of its machine JSON
+(`Apple //e`, `Apple ][+`, `Apple //c`) -- never the internal identifier (`Apple2e`).
 
 ### 5. `Casso monitor`
 

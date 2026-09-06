@@ -107,7 +107,7 @@ namespace ScreenshotMetadataTests
         {
             vector<MetadataEntry>   e = ScreenshotMetadata::Compose (MakeFacts (ScreenshotMode::Scene));
             const char *            expected[] = {
-                "Software", "Source", "Creation Time", "Casso capture", "Casso monitor",
+                "Software", "Creation Time", "Casso capture", "Casso machine", "Casso monitor",
                 "Casso scene yaw", "Casso scene pitch", "Casso scene zoom",
                 "Casso scene pan X", "Casso scene pan Y",
                 "Casso CRT brightness", "Casso CRT contrast", "Casso CRT gamma",
