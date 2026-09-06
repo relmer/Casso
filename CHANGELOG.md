@@ -98,6 +98,9 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **Lo-res and double hi-res drew colors 3, 6, 9 and 12 differently from
+  hi-res.** All three modes now share one palette, so the four change on
+  screen in lo-res and double hi-res.
 - Replaced shadowed paddle mode text with a docked message bar.
 - **The input device icons were drawn larger than the rest of the command
   bar's.** They now match the other icons' size and stroke weight, and the

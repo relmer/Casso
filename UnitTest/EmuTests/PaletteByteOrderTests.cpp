@@ -26,8 +26,10 @@ using namespace Casso::Video;
 //      that bit us twice).
 //    * Anyone "fixing" a palette literal by swapping R/B without
 //      flipping the surface format in the same change.
-//    * Drift between the LoRes / DHGR tables (which are duplicated
-//      identically by design).
+//    * Drift in the one canonical table in Video/NtscColorTable.h,
+//      which lo-res, DHGR and HGR all now index. HGR's named
+//      constants are aliases into it, so asserting them here also
+//      pins colors 3, 6, 9 and 12 of that table.
 //
 //  If you ever switch the framebuffer format, you must update both
 //  Video/PixelFormat.h and the palette literals, and the test will

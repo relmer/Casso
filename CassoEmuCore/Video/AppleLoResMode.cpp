@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AppleLoResMode.h"
+#include "NtscColorTable.h"
 
 
 
@@ -8,34 +9,12 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Apple II Lo-Res 16-Color Palette (RGBA)
+//  Apple II Lo-Res color
+//
+//  A nibble per block, straight into the machine's sixteen colors. Those
+//  live in Video/NtscColorTable.h; lo-res names no colors of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-// Apple //e LoRes 16-color palette in B8G8R8A8 byte layout (matches the
-// DXGI_FORMAT_B8G8R8A8_UNORM swap chain set up in D3DRenderer.cpp). Byte 0
-// = B, byte 1 = G, byte 2 = R, byte 3 = A; the little-endian uint32_t hex
-// literal therefore reads as 0xAARRGGBB. See Video/PixelFormat.h for the
-// project-wide byte-order convention.
-static const uint32_t kLoResColors[16] =
-{
-    0xFF000000,   //  0: Black       RGB(  0,  0,  0)
-    0xFFDD2266,   //  1: Magenta     RGB(221, 34,102)
-    0xFF000099,   //  2: Dark Blue   RGB(  0,  0,153)
-    0xFFDD0044,   //  3: Purple      RGB(221,  0, 68)
-    0xFF002200,   //  4: Dark Green  RGB(  0, 34,  0)
-    0xFF555555,   //  5: Gray 1      RGB( 85, 85, 85)
-    0xFF0022CC,   //  6: Medium Blue RGB(  0, 34,204)
-    0xFF66AAFF,   //  7: Light Blue  RGB(102,170,255)
-    0xFF885500,   //  8: Brown       RGB(136, 85,  0)
-    0xFFFF4400,   //  9: Orange      RGB(255, 68,  0)
-    0xFFAAAAAA,   // 10: Gray 2      RGB(170,170,170)
-    0xFFFF8888,   // 11: Pink        RGB(255,136,136)
-    0xFF00DD00,   // 12: Light Green RGB(  0,221,  0)
-    0xFFFFFF00,   // 13: Yellow      RGB(255,255,  0)
-    0xFF44FFDD,   // 14: Aquamarine  RGB( 68,255,221)
-    0xFFFFFFFF,   // 15: White       RGB(255,255,255)
-};
 
 
 
@@ -135,8 +114,8 @@ void AppleLoResMode::Render (
         {
             Byte data = (videoRam ? videoRam[static_cast<Word> (rowAddr + col)] : m_bus.ReadByte (static_cast<Word> (rowAddr + col)));
 
-            uint32_t topColor    = kLoResColors[data & 0x0F];
-            uint32_t bottomColor = kLoResColors[(data >> 4) & 0x0F];
+            uint32_t topColor    = kAppleColors[data & 0x0F];
+            uint32_t bottomColor = kAppleColors[(data >> 4) & 0x0F];
 
             int loResRow1 = textRow * 2;
             int loResRow2 = textRow * 2 + 1;
