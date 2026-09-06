@@ -11,84 +11,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiCheckbox::EllipsizeToWidth
-//
-//  Longest prefix of `label` that fits `maxWidth` with a trailing ellipsis;
-//  returns `label` unchanged when it already fits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DxuiCheckbox::EllipsizeToWidth (IDxuiTextRenderer  & text,
-                                             const std::wstring & label,
-                                             float                fontDip,
-                                             float                maxWidth)
-{
-    HRESULT       hr     = S_OK;
-    float         w      = 0.0f;
-    float         h      = 0.0f;
-    size_t        lo     = 0;
-    size_t        hi     = 0;
-    size_t        mid    = 0;
-    std::wstring  cand;
-    std::wstring  result;
-    bool          fits   = false;
-
-
-
-    const wchar_t * const  kEllipsis = L"\x2026";   // …
-
-    hi = label.size();
-    result = label;
-    fits = (label.empty() || maxWidth <= 0.0f);
-
-    // An empty label or a nonsense width has nothing to trim, and a label
-    // that already fits is returned whole -- both leave `result` as-is.
-    if (!fits)
-    {
-        hr = text.MeasureString (label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        fits = (w <= maxWidth);
-    }
-
-    if (!fits)
-    {
-        // Binary search for the longest prefix that still fits once the
-        // ellipsis is appended. Measuring is the expensive part, so this is
-        // log(n) calls rather than walking the label a character at a time.
-        while (lo < hi)
-        {
-            mid  = (lo + hi + 1) / 2;
-            cand = label.substr (0, mid) + kEllipsis;
-
-            hr = text.MeasureString (cand.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            if (w <= maxWidth)
-            {
-                lo = mid;
-            }
-            else
-            {
-                hi = mid - 1;
-            }
-        }
-
-        // Not even one character plus the ellipsis fits: show the ellipsis
-        // alone rather than an empty cell.
-        result = (lo == 0) ? std::wstring (kEllipsis)
-                           : label.substr (0, lo) + kEllipsis;
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HitTest
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,8 +223,10 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         labelX = boxLeft + boxSize + labelGap;
         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
-        std::wstring  drawn  = m_singleLineLabel ? EllipsizeToWidth (text, m_label, fontDip, labelW)
-                                                 : m_label;
+        std::wstring  drawn  = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+                                                       labelW,
+                                                       m_singleLineLabel ? DxuiElide::Tail
+                                                                         : DxuiElide::None);
 
         hr = text.DrawString (drawn.c_str(),
                               labelX,
