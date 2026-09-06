@@ -369,8 +369,8 @@ public:
 
         lores.Render (nullptr, fb.data(), fbW, fbH);
 
-        // Lo-res palette color 7 = Light Blue (kLoResColors[7] = 0xFF66AAFF)
-        // Lo-res palette color 13 = Yellow (kLoResColors[13] = 0xFFFFFF00)
+        // Lo-res palette color 7 = Light Blue (kAppleColors[7] = 0xFF66AAFF)
+        // Lo-res palette color 13 = Yellow (kAppleColors[13] = 0xFFFFFF00)
         expectedTop = 0xFF66AAFFu; // color index 7
         expectedBottom = 0xFFFFFF00u; // color index 13
 

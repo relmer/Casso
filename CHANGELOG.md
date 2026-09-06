@@ -9,6 +9,15 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
+- **Screenshots are saved to a file, and can be taken of the CRT-processed
+  picture rather than only the raw framebuffer.** The camera button, `Edit >
+  Copy screenshot` and Ctrl+Alt+C now write a PNG into
+  `Pictures\Casso Screenshots` as well as copying to the clipboard, and a
+  capture mode on `Settings > Printing and Screenshots` chooses among the full
+  scene, the screen alone with its CRT effects applied, and the raw 560x384
+  image at its native resolution. Each PNG carries the machine, the monitor,
+  the CRT parameters and the scene pose in its own metadata, and never a
+  filesystem path or anything identifying the host. Closes #132.
 - **A speech demo disk**, in hi-res and double hi-res: three film lines and Daisy
   Bell through the SSI 263A, with HAL's eye pulsing on each syllable. Boot
   `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk`.
@@ -132,9 +141,16 @@ Entries before versioning was introduced use dates only.
   full-width contour with a hard edge, and every later pass inherited them.
   Fullscreen made each band wider and easier to see. The chain now works in ten
   bits, which costs no extra bandwidth, and dithers once on the final blit to
-  the back buffer. The desk scene's plates dither at their own eight-bit write
-  for the same reason. Measured on the boot screen: 582 of 601 rows were a
-  single flat code across the full width, and none are now.
+  the back buffer; the desk scene's plates dither at their own eight-bit write
+  for the same reason, and the blits that merely carry a finished plate leave
+  it alone. Measured fullscreen on the boot screen, counting rows that are a
+  single flat code across the full width: 582 of 601 before, and at most a
+  handful now.
+- **The casso-rocks image was regenerated**, dithered against the updated
+  palette.
+- **Lo-res and double hi-res color 4 (Dark Green) drew very nearly black.**
+  It was the least saturated color in the palette by a wide margin; it is now
+  a dark green.
 - **The //e and //c could not type lowercase.** Every letter was folded to
   uppercase on its way to the keyboard latch, on machines whose whole keyboard
   advance was lowercase. Pasted text was folded the same way.

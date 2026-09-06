@@ -284,7 +284,7 @@ def generate_lores_bars_lores ():
     # sit at the correct band.
     #
     # Used by the bootable demo disk to verify the renderer's
-    # 16-entry LoRes palette (AppleLoResMode::kLoResColors) is
+    # 16-entry palette (NtscColorTable.h::kAppleColors) is
     # wired up correctly after the R/B byte-order fix.
     out = bytearray (LORES_PAGE_BYTES)
 
@@ -313,12 +313,14 @@ def generate_dhgr_bands ():
     # per byte across an aux+main pair (aux holds even-x byte
     # columns, main holds odd-x; together one byte-pair covers 14
     # contiguous pixels), and 4 consecutive pixels make one 16-color
-    # "cell" with the color nibble in LSB-first bit order. So a
-    # solid stripe of color C wants every pixel in that row to read
-    # out as bit `(P % 4)` of C, where P is the absolute pixel index.
+    # "cell". Dot j of a cell carries bit (j + 1) & 3 of the color, so
+    # the LAST dot is the low bit -- the technote's order, and what
+    # AppleDoubleHiResMode decodes. A solid stripe of color C wants
+    # every pixel to read out as bit `((P + 1) % 4)` of C, where P is
+    # the absolute pixel index.
     #
     # Used by the bootable demo disk to verify the DHGR 16-entry
-    # palette (AppleDoubleHiResMode::kDhrColors) is wired up
+    # palette (NtscColorTable.h::kAppleColors) is wired up
     # correctly after the R/B byte-order fix.
     aux  = bytearray (HGR_BYTES)
     main = bytearray (HGR_BYTES)
@@ -339,9 +341,9 @@ def generate_dhgr_bands ():
             aux_byte  = 0
             main_byte = 0
             for bit in range (7):
-                if c_bits[(aux_pixel0  + bit) % 4]:
+                if c_bits[(aux_pixel0  + bit + 1) % 4]:
                     aux_byte  |= (1 << bit)
-                if c_bits[(main_pixel0 + bit) % 4]:
+                if c_bits[(main_pixel0 + bit + 1) % 4]:
                     main_byte |= (1 << bit)
 
             aux [base + byte_pair] = aux_byte

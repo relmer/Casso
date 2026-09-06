@@ -151,5 +151,90 @@ public:
         Assert::AreEqual (-1, g.HitTest (10, 10));
         Assert::IsFalse (g.OnLButtonDown (10, 10));
     }
+
+
+    //
+    //  Per-option descriptions. For option sets whose labels cannot carry
+    //  their own meaning -- where a one-word label is a token to guess at.
+    //
+
+    TEST_METHOD (Description_DefaultsEmptyAndChangesNothing)
+    {
+        DxuiRadioGroup  g;
+        g.SetOptions (MakeTwoOptions());
+
+        Assert::IsTrue (g.GetOptions()[0].description.empty());
+        Assert::AreEqual (0, g.HitTest (10, 10));
+        Assert::IsTrue (g.OnLButtonDown (10, 10));
+        Assert::IsTrue (g.OnLButtonUp   (10, 10));
+        Assert::AreEqual (0, g.GetSelected());
+    }
+
+
+    TEST_METHOD (Description_RoundTripsThroughSetOptions)
+    {
+        DxuiRadioGroup                g;
+        std::vector<DxuiRadioOption>  opts = MakeTwoOptions();
+
+        opts[0].description = L"The whole desk, as it looks";
+
+        g.SetOptions (opts);
+
+        Assert::AreEqual (std::wstring (L"The whole desk, as it looks"),
+                          g.GetOptions()[0].description);
+        Assert::IsTrue (g.GetOptions()[1].description.empty(),
+            L"Describing one option must not describe its neighbors");
+    }
+
+
+    // Hit testing is rect-based, so a described option -- which the caller
+    // gives a taller rect -- must still select over its whole height, not
+    // just the label line.
+    TEST_METHOD (Description_TallerRectStaysFullyClickable)
+    {
+        DxuiRadioGroup                g;
+        std::vector<DxuiRadioOption>  opts;
+
+        opts.push_back (MakeOpt (0,  0, 200, 44, L"Scene"));
+        opts.push_back (MakeOpt (0, 44, 200, 88, L"Raw"));
+        opts[0].description = L"Desk, monitor and drives";
+        opts[1].description = L"The framebuffer, unprocessed";
+
+        g.SetOptions (opts);
+
+        Assert::AreEqual (0, g.HitTest (10,  4), L"label line of the first");
+        Assert::AreEqual (0, g.HitTest (10, 38), L"description line of the first");
+        Assert::AreEqual (1, g.HitTest (10, 48), L"label line of the second");
+        Assert::AreEqual (1, g.HitTest (10, 84), L"description line of the second");
+    }
+
+
+    // The description exists because the label alone does not say what the
+    // option means. A reader given only the label is left with exactly the
+    // guess the description was added to remove.
+    TEST_METHOD (Description_IsPartOfTheAccessibleName)
+    {
+        DxuiRadioGroup                g;
+        std::vector<DxuiRadioOption>  opts = MakeTwoOptions();
+
+        opts[0].description = L"Desk, monitor and drives";
+        g.SetOptions (opts);
+        g.SetSelected (0);
+
+        std::wstring  name = g.GetAccessibleName();
+
+        Assert::IsTrue (name.find (L"A") != std::wstring::npos);
+        Assert::IsTrue (name.find (L"Desk, monitor and drives") != std::wstring::npos);
+    }
+
+
+    TEST_METHOD (Description_AbsentLeavesTheAccessibleNameAsTheLabel)
+    {
+        DxuiRadioGroup  g;
+        g.SetOptions (MakeTwoOptions());
+        g.SetSelected (1);
+
+        Assert::AreEqual (std::wstring (L"B"), g.GetAccessibleName());
+    }
 };
 

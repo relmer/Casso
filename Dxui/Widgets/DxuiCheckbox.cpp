@@ -3,85 +3,8 @@
 
 #include "DxuiCheckbox.h"
 
+#include "Core/DxuiFocusRing.h"
 #include "Core/UnicodeSymbols.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiCheckbox::EllipsizeToWidth
-//
-//  Longest prefix of `label` that fits `maxWidth` with a trailing ellipsis;
-//  returns `label` unchanged when it already fits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DxuiCheckbox::EllipsizeToWidth (IDxuiTextRenderer  & text,
-                                             const std::wstring & label,
-                                             float                fontDip,
-                                             float                maxWidth)
-{
-    HRESULT       hr     = S_OK;
-    float         w      = 0.0f;
-    float         h      = 0.0f;
-    size_t        lo     = 0;
-    size_t        hi     = 0;
-    size_t        mid    = 0;
-    std::wstring  cand;
-    std::wstring  result;
-    bool          fits   = false;
-
-
-
-    const wchar_t * const  kEllipsis = L"\x2026";   // …
-
-    hi = label.size();
-    result = label;
-    fits = (label.empty() || maxWidth <= 0.0f);
-
-    // An empty label or a nonsense width has nothing to trim, and a label
-    // that already fits is returned whole -- both leave `result` as-is.
-    if (!fits)
-    {
-        hr = text.MeasureString (label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        fits = (w <= maxWidth);
-    }
-
-    if (!fits)
-    {
-        // Binary search for the longest prefix that still fits once the
-        // ellipsis is appended. Measuring is the expensive part, so this is
-        // log(n) calls rather than walking the label a character at a time.
-        while (lo < hi)
-        {
-            mid  = (lo + hi + 1) / 2;
-            cand = label.substr (0, mid) + kEllipsis;
-
-            hr = text.MeasureString (cand.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            if (w <= maxWidth)
-            {
-                lo = mid;
-            }
-            else
-            {
-                hi = mid - 1;
-            }
-        }
-
-        // Not even one character plus the ellipsis fits: show the ellipsis
-        // alone rather than an empty cell.
-        result = (lo == 0) ? std::wstring (kEllipsis)
-                           : label.substr (0, lo) + kEllipsis;
-    }
-
-    return result;
-}
 
 
 
@@ -233,8 +156,6 @@ void DxuiCheckbox::Toggle()
 void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr float  s_kBoxSizeDip    = 16.0f;
-    constexpr float  s_kFocusInsetDip = -2.0f;
-    constexpr float  s_kFocusThickDip = 1.0f;
     constexpr float  s_kLabelGapDip   = 6.0f;
     constexpr float  s_kFontDip       = 13.0f;
     uint32_t         glyphColor       = 0;
@@ -244,8 +165,6 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     HRESULT  hr          = S_OK;
     float    boxSize     = m_scaler.ToPxf (s_kBoxSizeDip);
-    float    focusInset  = m_scaler.ToPxf (s_kFocusInsetDip);
-    float    focusThick  = m_scaler.ToPxf (s_kFocusThickDip);
     float    labelGap    = m_scaler.ToPxf (s_kLabelGapDip);
     float    fontDip     = m_scaler.ToPxf (s_kFontDip);
     float    boxLeft     = (float) m_boundsDip.left;
@@ -289,20 +208,12 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
-        if (m_focused)
-        {
-            painter.OutlineRect (boxLeft + focusInset,
-                                 boxTop  + focusInset,
-                                 boxSize - focusInset * 2.0f,
-                                 boxSize - focusInset * 2.0f,
-                                 focusThick,
-                                 theme.FocusRing());
-        }
-
         labelX = boxLeft + boxSize + labelGap;
         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
-        std::wstring  drawn  = m_singleLineLabel ? EllipsizeToWidth (text, m_label, fontDip, labelW)
-                                                 : m_label;
+        std::wstring  drawn  = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+                                                       labelW,
+                                                       m_singleLineLabel ? DxuiElide::Tail
+                                                                         : DxuiElide::None);
 
         hr = text.DrawString (drawn.c_str(),
                               labelX,
@@ -317,6 +228,22 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                               DxuiFontWeight::Normal,
                               !m_singleLineLabel);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  The ring encloses the BOX AND ITS LABEL. A checkbox is one control
+        //  and the label is most of what the user is looking at, so ringing
+        //  the 16 DIP box alone marked something other than the thing that
+        //  had focus.
+        if (m_focused)
+        {
+            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
+                                      boxLeft,
+                                      labelX,
+                                      (float) m_boundsDip.top,
+                                      (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                      boxSize,
+                                      m_scaler,
+                                      theme.FocusRing());
+        }
     }
 }
 

@@ -2,6 +2,8 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiToggle.h"
+
+#include "Core/DxuiFocusRing.h"
 #include "Theme/DxuiColor.h"
 
 
@@ -176,8 +178,6 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     constexpr float     s_kPillWidthDip  = 36.0f;
     constexpr float     s_kPillHeightDip = 18.0f;
     constexpr float     s_kThumbInsetDip = 3.0f;
-    constexpr float     s_kFocusInsetDip = -2.0f;
-    constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kLabelGapDip   = 8.0f;
     constexpr float     s_kFontDip       = 13.0f;
     constexpr float     s_kPillRatio     = 3.0f;    // WCAG 1.4.11 min contrast of pill vs white thumb
@@ -188,8 +188,6 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     float    pillW      = m_scaler.ToPxf (s_kPillWidthDip);
     float    pillH      = m_scaler.ToPxf (s_kPillHeightDip);
     float    thumbInset = m_scaler.ToPxf (s_kThumbInsetDip);
-    float    focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
-    float    focusThick = m_scaler.ToPxf (s_kFocusThickDip);
     float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
     float    fontDip    = m_scaler.ToPxf (s_kFontDip);
     float    pillLeft   = (float) m_boundsDip.left;
@@ -234,20 +232,12 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         painter.FillCircleApprox (rightCx, cy,      capR,          pillColor);
         painter.FillCircleApprox (thumbCx, cy,      thumbR,        thumbColor);
 
-        if (m_focused)
-        {
-            painter.OutlineRect (pillLeft + focusInset,
-                                 pillTop  + focusInset,
-                                 pillW    - focusInset * 2.0f,
-                                 pillH    - focusInset * 2.0f,
-                                 focusThick,
-                                 focusArgb);
-        }
-
         // An unlabeled toggle narrates its own state instead, so the pill is
         // never left with nothing beside it.
-        hr = text.DrawString (m_label.empty() ? (m_checked ? L"On" : L"Off")
-                                              : m_label.c_str(),
+        std::wstring   shown = m_label.empty() ? (m_checked ? L"On" : L"Off")
+                                               : m_label;
+
+        hr = text.DrawString (shown.c_str(),
                               pillLeft + pillW + labelGap,
                               (float) m_boundsDip.top,
                               (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
@@ -258,6 +248,21 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  The ring encloses the PILL AND ITS LABEL. Same rule as the
+        //  checkbox and the radio: the control is the pair, and an unlabeled
+        //  toggle narrates its own state, so there is always a run to ring.
+        if (m_focused)
+        {
+            DxuiFocusRing::AroundRun (painter, text, shown, fontDip, DxuiTheme::kBodyFace,
+                                      pillLeft,
+                                      pillLeft + pillW + labelGap,
+                                      (float) m_boundsDip.top,
+                                      (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                      pillH,
+                                      m_scaler,
+                                      focusArgb);
+        }
     }
 }
 

@@ -3,6 +3,8 @@
 
 #include "DxuiRadio.h"
 
+#include "Core/DxuiFocusRing.h"
+
 
 
 
@@ -221,9 +223,10 @@ void DxuiRadioGroup::Commit (int newIndex)
 //  Draws each option: the circle, the selected dot, the focus ring, and the
 //  label.
 //
-//  The circle is vertically CENTERED in its option rect rather than
-//  top-aligned, so a row whose label wraps to two lines keeps its control
-//  beside the text block instead of floating at the top of it.
+//  The circle centers on the LABEL, not on the option rect. For a plain
+//  option those are the same thing. For a described one they are not: the box
+//  is two lines tall, and centering on it would float the circle down between
+//  the label and the description, pointing at neither.
 //
 //  Circles are drawn with the painter's polygon approximation because the
 //  painter has no true circle primitive -- it is a solid-triangle batcher, and
@@ -244,10 +247,13 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 {
     constexpr float  s_kBoxSizeDip    = 16.0f;
     constexpr float  s_kDotInsetDip   = 4.0f;
-    constexpr float  s_kFocusInsetDip = -2.0f;
-    constexpr float  s_kFocusThickDip = 1.0f;
     constexpr float  s_kLabelGapDip   = 6.0f;
     constexpr float  s_kFontDip       = 13.0f;
+    // The first line of a described option. The label sits in this band, the
+    // BUTTON CENTERS ON IT, and the description gets whatever the caller's
+    // rect has left over. Centering the button on the whole box instead would
+    // float it down beside the description, pointing at neither line.
+    constexpr float  s_kLabelLineDip  = 20.0f;
 
 
 
@@ -256,8 +262,6 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     size_t   n          = m_options.size();
     float    boxSize    = m_scaler.ToPxf (s_kBoxSizeDip);
     float    dotInset   = m_scaler.ToPxf (s_kDotInsetDip);
-    float    focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
-    float    focusThick = m_scaler.ToPxf (s_kFocusThickDip);
     float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
     float    fontDip    = m_scaler.ToPxf (s_kFontDip);
     uint32_t textColor  = m_enabled ? theme.Foreground() : theme.ForegroundDisabled();
@@ -273,8 +277,10 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         float                    cy      = 0.0f;
         float                    outerR  = 0.0f;
         float                    innerR  = 0.0f;
-        float               boxTop   = (float) opt.rect.top
-                                       + ((float) (opt.rect.bottom - opt.rect.top) - boxSize) * 0.5f;
+        float               labelBand = opt.description.empty()
+                                        ? (float) (opt.rect.bottom - opt.rect.top)
+                                        : m_scaler.ToPxf (s_kLabelLineDip);
+        float               boxTop    = (float) opt.rect.top + (labelBand - boxSize) * 0.5f;
         cx = boxLeft + boxSize * 0.5f;
         cy = boxTop  + boxSize * 0.5f;
         outerR = boxSize * 0.5f;
@@ -290,27 +296,63 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
             painter.FillCircleApprox (cx, cy, innerR, dotColor);
         }
 
-        if (m_focused && m_selected == i)
-        {
-            painter.OutlineRect (boxLeft + focusInset,
-                                 boxTop  + focusInset,
-                                 boxSize - focusInset * 2.0f,
-                                 boxSize - focusInset * 2.0f,
-                                 focusThick,
-                                 theme.FocusRing());
-        }
+        float   textLeft  = boxLeft + boxSize + labelGap;
+        float   textWidth = (float) (opt.rect.right - opt.rect.left) - boxSize - labelGap;
+        float   rowHeight = (float) (opt.rect.bottom - opt.rect.top);
+        float   labelH    = opt.description.empty() ? rowHeight : m_scaler.ToPxf (s_kLabelLineDip);
 
+        //  An undescribed option centers its label in the whole row, exactly
+        //  as before. A described one puts the label on the first line and
+        //  gives the rest to the description, so adding descriptions to one
+        //  option in a group does not shift the others.
         hr = text.DrawString (opt.label.c_str(),
-                              boxLeft + boxSize + labelGap,
+                              textLeft,
                               (float) opt.rect.top,
-                              (float) (opt.rect.right - opt.rect.left) - boxSize - labelGap,
-                              (float) (opt.rect.bottom - opt.rect.top),
+                              textWidth,
+                              labelH,
                               textColor,
                               fontDip,
                               DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  The ring encloses the CIRCLE AND ITS LABEL, on the label's line.
+        //  An option is one control; ringing the 16 DIP circle alone marked
+        //  the smallest part of it. The description is left outside: it is
+        //  explanatory text, not the control, and a ring two lines tall in a
+        //  three-option group is a block, not a mark.
+        if (m_focused && m_selected == i)
+        {
+            DxuiFocusRing::AroundRun (painter, text, opt.label, fontDip, DxuiTheme::kBodyFace,
+                                      boxLeft,
+                                      textLeft,
+                                      (float) opt.rect.top,
+                                      labelH,
+                                      boxSize,
+                                      m_scaler,
+                                      theme.FocusRing());
+        }
+
+        if (!opt.description.empty())
+        {
+            //  Muted, and disabled-muted when the group is: a description
+            //  that stayed sharp while its label dimmed would read as the
+            //  live part of a dead control.
+            uint32_t   descColor = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+
+            hr = text.DrawString (opt.description.c_str(),
+                                  textLeft,
+                                  (float) opt.rect.top + labelH,
+                                  textWidth,
+                                  rowHeight - labelH,
+                                  descColor,
+                                  fontDip,
+                                  DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Left,
+                                  DxuiTextVAlign::Top);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 }
 
@@ -332,13 +374,6 @@ void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 
 
 
@@ -423,7 +458,13 @@ bool DxuiRadioGroup::OnKey (const DxuiKeyEvent & ev)
 //
 //  DxuiRadioGroup::GetAccessibleName  (IDxuiControl override)
 //
-//  Returns the label of the selected option (or empty if no selection).
+//  Returns the label of the selected option (or empty if no selection),
+//  followed by its description where it has one.
+//
+//  THE DESCRIPTION IS PART OF THE NAME, not decoration. It exists precisely
+//  because the label alone does not say what the option means -- so a reader
+//  given the label by itself is left with the same guess the description was
+//  added to remove, which is the one user who can least afford it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,7 +479,15 @@ std::wstring DxuiRadioGroup::GetAccessibleName() const
 
     if (hasSelection)
     {
-        name = m_options[(size_t) m_selected].label;
+        const DxuiRadioOption &  opt = m_options[(size_t) m_selected];
+
+        name = opt.label;
+
+        if (!opt.description.empty())
+        {
+            name += L". ";
+            name += opt.description;
+        }
     }
 
     return name;

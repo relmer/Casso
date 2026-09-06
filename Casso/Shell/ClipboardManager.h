@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/MemoryBus.h"
+#include "Capture/CapturedImage.h"
 
 
 class AppleKeyboard;
@@ -45,7 +46,15 @@ public:
     // read as 80 interleaved columns (aux = even, main = odd); otherwise the
     // plain 40-column main page is read.
     void  CopyScreenText     (HWND hwnd, const Byte * auxRam) const;
-    void  CopyScreenshot     (HWND hwnd);
+
+    // Puts an already-captured image on the clipboard as a CF_DIB. The pixels
+    // come IN rather than being read from the framebuffer here, because what a
+    // screenshot contains is now a user setting -- this class copies what it
+    // is given and no longer decides what that is.
+    //
+    // Returns false when the clipboard could not be opened or filled, which
+    // the caller records: a clipboard failure must not cost the file.
+    bool  CopyScreenshot     (HWND hwnd, const CapturedImage & image);
     void  PasteFromClipboard (HWND hwnd);
 
     // `cyclesElapsed` is the emulated-cycle budget of the slice about to run

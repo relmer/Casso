@@ -4,6 +4,8 @@
 
 #include "CrtPostProcess.h"
 
+#include "Capture/CapturedImage.h"
+
 
 
 
@@ -81,6 +83,24 @@ public:
     // has run). Non-owning; valid until Shutdown or the next resize.
     ID3D11ShaderResourceView * GetSceneContentSrv () const { return m_sceneSrv.Get(); }
 
+    // Where the picture actually landed inside that offscreen target on the
+    // last UploadAndCompositeOffscreen. The scene samples this sub-rect onto
+    // the glass, and a Crt capture reads the same region -- so it is recorded
+    // rather than recomputed, which is how the two would drift apart.
+    // Empty until the offscreen path has run.
+    RECT GetScenePictureRect () const { return m_scenePictureRectPx; }
+
+    // Screenshot readback. Both bring a rectangle of already-rendered pixels
+    // back to the CPU; the caller has driven the frame and has NOT presented
+    // yet, because a presented flip-model back buffer's contents are
+    // discarded by definition.
+    //
+    // The staging resources are created per call and released with the call.
+    // A retained copy would mean a full back-buffer copy every frame, forever,
+    // to serve an action taken at human frequency.
+    HRESULT CaptureBackBufferRegion (const RECT & regionPx, CapturedImage & outImage);
+    HRESULT CaptureSceneTargetRegion (const RECT & regionPx, CapturedImage & outImage);
+
     HRESULT ToggleFullscreen (HWND hwnd);
 
     // Live-wire path for CRT params (brightness, scanlines, bloom,
@@ -91,6 +111,11 @@ public:
     // (e.g., tests, headless boot) the field stays at its in-struct
     // defaults so the renderer behaves like a passthrough.
     void SetCrtParams    (const CrtParams & params) { m_crtParams     = params; }
+
+    // What the chain is running right now -- the pair to the setter above, so
+    // a screenshot records the parameters that produced the image rather than
+    // re-resolving them and possibly getting a different answer.
+    const CrtParams & GetCrtParams () const         { return m_crtParams; }
 
     // Pixel-space rectangle inside the host swap-chain back buffer
     // where the Apple ][ framebuffer should composite. EmulatorShell
@@ -175,6 +200,13 @@ private:
     // PICTURE, not the window -- see UploadAndCompositeOffscreen.
     HRESULT EnsureSceneContentTarget (int width, int height);
 
+    // Copies `regionPx` of `source` into a staging texture and maps it out to
+    // tightly packed, top-down BGRA. Clamps the region to the source's real
+    // extent, so a stale rect costs pixels rather than a device removal.
+    HRESULT ReadBackRegion (ID3D11Texture2D * source,
+                            const RECT      & regionPx,
+                            CapturedImage   & outImage);
+
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
     // IDXGISwapChain2 (rather than the base IDXGISwapChain) gives us
@@ -192,8 +224,9 @@ private:
     ComPtr<ID3D11Texture2D>          m_sceneTex;
     ComPtr<ID3D11RenderTargetView>   m_sceneRtv;
     ComPtr<ID3D11ShaderResourceView> m_sceneSrv;
-    int                              m_sceneTexW = 0;
-    int                              m_sceneTexH = 0;
+    int                              m_sceneTexW          = 0;
+    int                              m_sceneTexH          = 0;
+    RECT                             m_scenePictureRectPx = {};
     ComPtr<ID3D11SamplerState>       m_sampler;
     ComPtr<ID3D11VertexShader>       m_vertexShader;
     ComPtr<ID3D11PixelShader>        m_pixelShader;

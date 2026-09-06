@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -247,6 +247,11 @@
     <ClCompile Include="Devices\Disk\WozLoader.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskBuilder.cpp" />
     <ClCompile Include="Devices\Disk\StockBootDisks.cpp" />
+    <ClCompile Include="Capture\CaptureOutcome.cpp" />
+    <ClCompile Include="Capture\CapturedImage.cpp" />
+    <ClCompile Include="Capture\ScreenshotMode.cpp" />
+    <ClCompile Include="Capture\ScreenshotMetadata.cpp" />
+    <ClCompile Include="Capture\ScreenshotPlan.cpp" />
     <ClCompile Include="Cli\CommandLine.cpp" />
     <ClCompile Include="Cli\Win32DiskFileIo.cpp" />
     <ClCompile Include="Cli\DiskCommand.cpp" />
@@ -300,6 +305,7 @@
     <ClCompile Include="Devices\Printer\PrinterEngine.cpp" />
     <ClCompile Include="Devices\Printer\PrinterPreviewModel.cpp" />
     <ClCompile Include="Devices\Printer\PngCodec.cpp" />
+    <ClCompile Include="Devices\Printer\PngMetadata.cpp" />
     <ClCompile Include="Devices\Printer\PrintJobPersistence.cpp" />
     <ClCompile Include="Devices\Printer\PrintFileNaming.cpp" />
     <ClCompile Include="Devices\Printer\PrintDelivery.cpp" />
@@ -369,6 +375,11 @@
     <ClInclude Include="Devices\Disk\WozMetadata.h" />
     <ClInclude Include="Devices\Disk\BlankDiskBuilder.h" />
     <ClInclude Include="Devices\Disk\StockBootDisks.h" />
+    <ClInclude Include="Capture\CaptureOutcome.h" />
+    <ClInclude Include="Capture\CapturedImage.h" />
+    <ClInclude Include="Capture\ScreenshotMode.h" />
+    <ClInclude Include="Capture\ScreenshotMetadata.h" />
+    <ClInclude Include="Capture\ScreenshotPlan.h" />
     <ClInclude Include="Cli\CommandLine.h" />
     <ClInclude Include="Cli\Win32DiskFileIo.h" />
     <ClInclude Include="Cli\DiskCommand.h" />
@@ -463,6 +474,7 @@
     <ClInclude Include="Devices\Printer\PrinterEngine.h" />
     <ClInclude Include="Devices\Printer\PrinterPreviewModel.h" />
     <ClInclude Include="Devices\Printer\PngCodec.h" />
+    <ClInclude Include="Devices\Printer\PngMetadata.h" />
     <ClInclude Include="Devices\Printer\PrintJobPersistence.h" />
     <ClInclude Include="Devices\Printer\PrintFileNaming.h" />
     <ClInclude Include="Devices\Printer\PrintDelivery.h" />

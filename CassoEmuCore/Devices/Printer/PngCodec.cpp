@@ -95,6 +95,106 @@ Error:
 
 HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & outPng)
 {
+    static const vector<MetadataEntry>   kNoChunks;
+
+
+
+    return EncodeRgba (image, dpi, kNoChunks, outPng);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteTextChunks
+//
+//  Each entry becomes a tEXt chunk under the frame's metadata query writer.
+//
+//  THE PROPVARIANT IS NEVER CLEARED, deliberately. `pszVal` points at the
+//  caller's own string rather than at memory this function allocated, and
+//  PropVariantClear would hand that pointer to CoTaskMemFree. WIC copies the
+//  value during SetMetadataByName, so the borrow only has to outlive the call;
+//  the fields are blanked afterwards so nothing downstream can free them.
+//
+//  Keywords are validated rather than trusted. Every keyword Casso writes is a
+//  compile-time constant, so a bad one is a programming error and asserts --
+//  and a silently dropped chunk would otherwise show up much later as a file
+//  that inexplicably says less than its siblings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PngCodec::WriteTextChunks (IWICBitmapFrameEncode * frame, const vector<MetadataEntry> & textChunks)
+{
+    HRESULT                            hr    = S_OK;
+    ComPtr<IWICMetadataQueryWriter>    writer;
+    PROPVARIANT                        value = {};
+    wstring                            query;
+    size_t                             i     = 0;
+    bool                               named = false;
+
+
+
+    BAIL_OUT_IF (textChunks.empty(), S_OK);
+
+    hr = frame->GetMetadataQueryWriter (&writer);
+    CHR (hr);
+
+    for (i = 0; i < textChunks.size(); i++)
+    {
+        const MetadataEntry &   entry = textChunks[i];
+
+        named = PngMetadata::IsValidKeyword (entry.keyword);
+        CBRAEx (named, E_INVALIDARG);
+
+        // THE BLOCK INDEX IS NOT OPTIONAL. PNG metadata is a list of blocks
+        // and each tEXt chunk is its own block, so an unindexed "/tEXt/..."
+        // query addresses the same block every time: three entries written
+        // that way return S_OK three times and leave one chunk in the file,
+        // the last one. The index is what makes them siblings.
+        //
+        // The keyword is ASCII by contract, so widening it a byte at a time is
+        // exact and needs no code page.
+        query.assign (std::format (L"/[{}]tEXt/{{str=", i));
+        query.append (entry.keyword.begin(), entry.keyword.end());
+        query.append (L"}");
+
+        PropVariantInit (&value);
+        value.vt     = VT_LPSTR;
+        value.pszVal = const_cast<LPSTR> (entry.value.c_str());
+
+        hr = writer->SetMetadataByName (query.c_str(), &value);
+
+        value.vt     = VT_EMPTY;
+        value.pszVal = nullptr;
+
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EncodeRgba
+//
+//  The metadata overload. See the three-argument form above for the pixel
+//  path; the only addition here is the tEXt pass, which must land after the
+//  frame is initialized and before it is committed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PngCodec::EncodeRgba (const RgbaImage &             image,
+                              int                           dpi,
+                              const vector<MetadataEntry> & textChunks,
+                              vector<Byte> &                outPng)
+{
     HRESULT                          hr      = S_OK;
     ComPtr<IWICImagingFactory>       factory;
     ComPtr<IWICBitmap>               bitmap;
@@ -145,6 +245,12 @@ HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & o
 
     res = (double) (dpi > 0 ? dpi : 96);
     hr  = frame->SetResolution (res, res);
+    CHR (hr);
+
+    // BEFORE WriteSource, not after. The PNG encoder emits chunks as the
+    // pixels stream through it, so a tEXt set afterwards is accepted -- the
+    // call returns S_OK -- and then simply does not appear in the output.
+    hr = WriteTextChunks (frame.Get(), textChunks);
     CHR (hr);
 
     rect.Width  = image.width;

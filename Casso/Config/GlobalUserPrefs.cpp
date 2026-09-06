@@ -4,6 +4,7 @@
 
 
 #include "MachineInputPrefs.h"
+#include "Capture/ScreenshotMode.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 
@@ -76,7 +77,10 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "printerAudioPanOverride",
     "printerAudioPan",
     "masterVolume",
-    "masterMuted"
+    "masterMuted",
+    "screenshotMode",
+    "screenshotSaveFile",
+    "screenshotFolder"
 };
 
 
@@ -1106,6 +1110,14 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("printOutputDpi",   JsonValue ((double) printOutputDpi));
     root.emplace_back ("printDotStyle",    JsonValue (printDotStyle));
 
+    // Screenshots. The mode is normalized on the way out: a value this build
+    // does not recognize was already read as the default, and writing it back
+    // verbatim would leave the file disagreeing with the running setting.
+    root.emplace_back ("screenshotMode",     JsonValue (string (ScreenshotModeToken::Format (
+                                                 ScreenshotModeToken::Parse (screenshotMode)))));
+    root.emplace_back ("screenshotSaveFile", JsonValue (screenshotSaveFile));
+    root.emplace_back ("screenshotFolder",   JsonValue (screenshotFolder));
+
     // Printer mechanical-audio prefs (FR-034).
     root.emplace_back ("printerAudioEnabled",     JsonValue (printerAudioEnabled));
     root.emplace_back ("printerAudioVolume",      JsonValue ((double) printerAudioVolume));
@@ -1298,6 +1310,11 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // Printing (host print services, FR-011); absent keys keep struct defaults.
     printOutputDpi   = GetIntOpt    (v, "printOutputDpi",   printOutputDpi);
     printDotStyle    = GetStringOpt (v, "printDotStyle",    printDotStyle);
+
+    // Screenshots; absent keys keep struct defaults.
+    screenshotMode     = GetStringOpt   (v, "screenshotMode",     screenshotMode);
+    screenshotSaveFile = TryGetBoolOpt  (v, "screenshotSaveFile", screenshotSaveFile);
+    screenshotFolder   = GetStringOpt   (v, "screenshotFolder",   screenshotFolder);
 
     // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
     // Legacy pre-toggle files stored the inverse `printerAudioMuted`; fall back

@@ -215,18 +215,19 @@ void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
 //
 //  CopyScreenshot
 //
-//  Copies the current emulator framebuffer to the clipboard as a CF_DIB.
+//  Copies an already-captured image to the clipboard as a CF_DIB.
 //
 //  CF_DIB is chosen over CF_BITMAP because it is device-independent: the
 //  bytes are self-describing and every paste target understands them, with no
 //  GDI object to create or leak.
 //
-//  Rows go out in REVERSE. A DIB with positive height is bottom-up by
-//  definition, while the framebuffer is stored top-down, so copying it
-//  straight through pastes the screen upside down.
+//  NO CONVERSION HAPPENS HERE. A 32bpp BI_RGB DIB is BGRA, which is what a
+//  CapturedImage already holds -- that is the whole reason it holds BGRA
+//  rather than RGBA, and the PNG encoder pays the one conversion instead.
 //
-//  The whole operation is done under the framebuffer lock, so the copy is one
-//  coherent frame rather than a tear across two.
+//  Rows go out in REVERSE. A DIB with positive height is bottom-up by
+//  definition, while a capture is stored top-down, so copying it straight
+//  through pastes the screen upside down.
 //
 //  Once the clipboard is open it MUST be closed on every path, which is why
 //  the two allocation failures fall through to the close rather than returning
@@ -234,10 +235,9 @@ void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::CopyScreenshot (HWND hwnd)
+bool ClipboardManager::CopyScreenshot (HWND hwnd, const CapturedImage & image)
 {
-    constexpr int   kBytesPerPixel    = 4;
-    constexpr WORD  kDibBitCount      = 32;
+    constexpr WORD  kDibBitCount = 32;
 
 
 
@@ -245,61 +245,65 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
     BITMAPINFOHEADER bih       = {};
     size_t           dataSize  = 0;
     size_t           totalSize = 0;
+    size_t           rowBytes  = 0;
     Byte           * pDest     = nullptr;
-    int              w         = m_framebufferWidth;
-    int              h         = m_framebufferHeight;
+    int              w         = image.widthPx;
+    int              h         = image.heightPx;
     int              y         = 0;
+    bool             copied    = false;
 
 
 
+    if (!image.IsValid())
     {
-        std::lock_guard<std::mutex>  lock (m_framebufferMutex);
-
-        dataSize  = static_cast<size_t> (w) * h * kBytesPerPixel;
-        totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
-
-        // Once the clipboard is open it MUST be closed on every path, so the
-        // two allocation failures below cannot simply return.
-        if (OpenClipboard (hwnd))
-        {
-            EmptyClipboard();
-
-            hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
-
-            if (hMem != nullptr)
-            {
-                pDest = static_cast<Byte *> (GlobalLock (hMem));
-            }
-
-            if (pDest != nullptr)
-            {
-                bih.biSize        = sizeof (bih);
-                bih.biWidth       = w;
-                bih.biHeight      = h;
-                bih.biPlanes      = 1;
-                bih.biBitCount    = kDibBitCount;
-                bih.biCompression = BI_RGB;
-                bih.biSizeImage   = static_cast<DWORD> (dataSize);
-
-                memcpy (pDest, &bih, sizeof (bih));
-                pDest += sizeof (bih);
-
-                // A DIB is bottom-up, so the framebuffer's rows go out in reverse.
-                for (y = h - 1; y >= 0; y--)
-                {
-                    memcpy (pDest,
-                            &m_uiFramebuffer[static_cast<size_t> (y) * w],
-                            static_cast<size_t> (w) * kBytesPerPixel);
-                    pDest += static_cast<size_t> (w) * kBytesPerPixel;
-                }
-
-                GlobalUnlock (hMem);
-                SetClipboardData (CF_DIB, hMem);
-            }
-
-            CloseClipboard();
-        }
+        return false;
     }
+
+    rowBytes  = static_cast<size_t> (w) * CapturedImage::kBytesPerPixel;
+    dataSize  = rowBytes * h;
+    totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
+
+    // Once the clipboard is open it MUST be closed on every path, so the
+    // two allocation failures below cannot simply return.
+    if (OpenClipboard (hwnd))
+    {
+        EmptyClipboard();
+
+        hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
+
+        if (hMem != nullptr)
+        {
+            pDest = static_cast<Byte *> (GlobalLock (hMem));
+        }
+
+        if (pDest != nullptr)
+        {
+            bih.biSize        = sizeof (bih);
+            bih.biWidth       = w;
+            bih.biHeight      = h;
+            bih.biPlanes      = 1;
+            bih.biBitCount    = kDibBitCount;
+            bih.biCompression = BI_RGB;
+            bih.biSizeImage   = static_cast<DWORD> (dataSize);
+
+            memcpy (pDest, &bih, sizeof (bih));
+            pDest += sizeof (bih);
+
+            // A DIB is bottom-up, so the capture's rows go out in reverse.
+            for (y = h - 1; y >= 0; y--)
+            {
+                memcpy (pDest, &image.bgra[static_cast<size_t> (y) * rowBytes], rowBytes);
+                pDest += rowBytes;
+            }
+
+            GlobalUnlock (hMem);
+            copied = (SetClipboardData (CF_DIB, hMem) != nullptr);
+        }
+
+        CloseClipboard();
+    }
+
+    return copied;
 }
 
 
