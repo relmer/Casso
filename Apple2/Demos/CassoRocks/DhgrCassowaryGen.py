@@ -52,22 +52,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import DemoImageLayout as Layout
 
 
-# Apple //e 16-color LoRes/DHGR palette (RGB), index = 4-bit color value.
-# Must match CassoEmuCore/Video/AppleLoResMode.cpp::kLoResColors.
+# Apple //e 16-color palette (RGB), index = 4-bit color value.
+# Must match CassoEmuCore/Video/NtscColorTable.h::kAppleColors, which every
+# video mode indexes. Dithering against a stale copy picks colors the
+# emulator will not draw.
 DHGR_PALETTE_RGB = [
     (  0,   0,   0),   #  0 Black
     (221,  34, 102),   #  1 Magenta
     (  0,   0, 153),   #  2 Dark Blue
-    (221,   0,  68),   #  3 Purple
-    (  0,  34,   0),   #  4 Dark Green
-    ( 85,  85,  85),   #  5 Grey 1
-    (  0,  34, 204),   #  6 Medium Blue
+    (255,  68, 253),   #  3 Purple
+    (  0, 132,  49),   #  4 Dark Green
+    ( 85,  85,  85),   #  5 Gray 1
+    ( 20, 207, 255),   #  6 Medium Blue
     (102, 170, 255),   #  7 Light Blue
     (136,  85,   0),   #  8 Brown
-    (255,  68,   0),   #  9 Orange
-    (170, 170, 170),   # 10 Grey 2
+    (255, 106,  60),   #  9 Orange
+    (170, 170, 170),   # 10 Gray 2
     (255, 136, 136),   # 11 Pink
-    (  0, 221,   0),   # 12 Light Green
+    ( 20, 245,  60),   # 12 Light Green
     (255, 255,   0),   # 13 Yellow
     ( 68, 255, 221),   # 14 Aquamarine
     (255, 255, 255),   # 15 White
@@ -164,6 +166,36 @@ def encode_dhgr(get_dot):
     return bytes(aux_buf), bytes(main_buf)
 
 
+def decode_dhgr(aux, main):
+    """Unpack 8 KB aux + 8 KB main back into a CELLS x ROWS index image.
+
+    Mirrors AppleDoubleHiResMode: a cell is four dots, and dot j carries
+    bit (j + 1) & 3 of the color. The preview is built from this rather
+    than from the cell canvas, so a cell nibble packed in the wrong order
+    reaches the preview instead of hiding behind it.
+
+    That is the whole of what it checks. The row offsets, the aux/main
+    interleave and the seven dots per byte come from encode_dhgr, so an
+    error in any of those is made twice and cancels: the preview would
+    still look right, and Casso, which addresses rows itself, would draw
+    something else entirely."""
+    img = Image.new("P", (Layout.CELLS, Layout.ROWS))
+    px  = img.load()
+
+    for row in range(Layout.ROWS):
+        base = Layout.hgr_row_offset(row)
+        dots = []
+        for byte_idx in range(Layout.DOTS // 7):
+            src  = aux if (byte_idx & 1) == 0 else main
+            byte = src[base + (byte_idx >> 1)]
+            dots.extend((byte >> bit) & 1 for bit in range(7))
+        for cell in range(Layout.CELLS):
+            d = dots[cell * 4:cell * 4 + 4]
+            px[cell, row] = (d[0] << 1) | (d[1] << 2) | (d[2] << 3) | d[3]
+
+    return img
+
+
 def main():
     #  The assets sit beside this script now, so the output folder is
     #  simply this one.
@@ -172,7 +204,7 @@ def main():
     color = build_color_cells()
     cpix  = color.load()
     c_aux, c_main = encode_dhgr(
-        lambda dot, row: (cpix[dot // 4, row] >> (dot % 4)) & 1)
+        lambda dot, row: (cpix[dot // 4, row] >> ((dot + 1) % 4)) & 1)
 
     mono  = build_mono_dots()
     mpix  = mono.load()
@@ -187,7 +219,9 @@ def main():
 
     # Previews at the on-screen aspect (560x384), each showing what its
     # own monitor would show.
-    color.convert("RGB").resize((Layout.DOTS, Layout.ROWS * 2), Image.NEAREST) \
+    shown = decode_dhgr(c_aux, c_main)
+    shown.putpalette(color.getpalette())
+    shown.convert("RGB").resize((Layout.DOTS, Layout.ROWS * 2), Image.NEAREST) \
          .save(out_dir / "dhgr-cassowary-preview.png")
     mono.convert("RGB").resize((Layout.DOTS, Layout.ROWS * 2), Image.NEAREST) \
         .save(out_dir / "dhgr-cassowary-mono-preview.png")
