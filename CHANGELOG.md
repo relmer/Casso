@@ -124,6 +124,17 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **Eight-bit scratch buffers banded the picture's dark gradients into flat
+  steps.** The CRT chain ran up to eight full-screen passes through eight-bit
+  intermediates, and the bloom halo around a line of text falls off over
+  hundreds of rows while spanning three or four code values -- so the first
+  pass to round it turned the ramp into three or four plateaus, each a
+  full-width contour with a hard edge, and every later pass inherited them.
+  Fullscreen made each band wider and easier to see. The chain now works in ten
+  bits, which costs no extra bandwidth, and dithers once on the final blit to
+  the back buffer. The desk scene's plates dither at their own eight-bit write
+  for the same reason. Measured on the boot screen: 582 of 601 rows were a
+  single flat code across the full width, and none are now.
 - **The //e and //c could not type lowercase.** Every letter was folded to
   uppercase on its way to the keyboard latch, on machines whose whole keyboard
   advance was lowercase. Pasted text was folded the same way.

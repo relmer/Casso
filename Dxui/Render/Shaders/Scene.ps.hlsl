@@ -103,6 +103,44 @@ float SmoothRand (float3 p, int salt)
     float  x11 = lerp (CellRand (c + int3 (0,1,1), salt), CellRand (c + int3 (1,1,1), salt), w.x);
     return lerp (lerp (x00, x10, w.y), lerp (x01, x11, w.y), w.z);
 }
+// THE SHADING IS FLOAT AND THE PLATE IS EIGHT BITS, and this is what stands
+// between them.
+//
+// A room light falls off with the square of distance, so out where the
+// backdrop meets the frame the gradient's slope is nearly flat: hundreds of
+// pixels share one code value, and the next hundreds share the next. Rounding
+// alone turns that into stripes -- a hard edge every time the value crosses a
+// half-step -- and the darkest tenth of the range, which is where a black case
+// on a dim desk spends all of its time, is exactly where sRGB spaces its codes
+// furthest apart. Fullscreen makes each stripe physically wider, and the plate
+// cache holds the whole thing perfectly still, so there is nothing left for the
+// eye to average away.
+//
+// Perturbing the value by under one code before it is rounded moves the
+// crossing off the contour and scatters it over the pixels around it. The
+// error is the same size it always was; it is simply no longer aligned into a
+// line. What replaces the stripes is grain a fraction of a code deep, which is
+// below what the eye resolves on a dark surface -- the banding is not so.
+//
+// TRIANGULAR, from two independent draws rather than one. A flat draw leaves
+// the residual error correlated with the signal, which keeps a ghost of the
+// contour visible right where the gradient is slowest -- which is the case
+// this exists for. Summing two decorrelates it outright.
+//
+// The value comes from the same integer hash the pebble finish uses, for the
+// same reason: exact bit arithmetic renders identically on every GPU, and it
+// depends on nothing but the pixel's own coordinates. No clock, no frame
+// counter. The grain is fixed to the plate, so a cached plate stays byte for
+// byte what it was and screenshot comparisons still mean something.
+float DitherOffset (float2 pixel)
+{
+    int3   c = int3 ((int) pixel.x, (int) pixel.y, 0);
+    float  a = CellRand (c, 11);
+    float  b = CellRand (c, 23);
+    // One offset for all three channels, not three. A neutral gray dithered
+    // per channel picks up faint color speckle; moved together it stays gray.
+    return (a + b - 1.0f) * (1.0f / 255.0f);
+}
 float4 main (PSIn input) : SV_TARGET
 {
     float4 texel = tex.Sample (samp, input.uv);
@@ -319,5 +357,5 @@ float4 main (PSIn input) : SV_TARGET
             }
         }
     }
-    return float4 (lit + input.emi, base.a);
+    return float4 (lit + input.emi + DitherOffset (input.pos.xy), base.a);
 }
