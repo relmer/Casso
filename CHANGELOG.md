@@ -8,7 +8,7 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
-## [1.23.0]: The one that finds its voice
+## [1.23.0]: The one with... wow, that's a lot of stuff!
 
 ### Added
 
