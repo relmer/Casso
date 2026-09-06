@@ -8,445 +8,334 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.23.0]: The one that finds its voice
+
 ### Added
-- **Screenshots are saved to a file, and can be taken of the CRT-processed
-  picture rather than only the raw framebuffer.** The camera button, `Edit >
-  Copy screenshot` and Ctrl+Alt+C now write a PNG into
-  `Pictures\Casso Screenshots` as well as copying to the clipboard, and a
-  capture mode on `Settings > Printing and Screenshots` chooses among the full
-  scene, the screen alone with its CRT effects applied, and the raw 560x384
-  image at its native resolution. Each PNG carries the machine, the monitor,
-  the CRT parameters and the scene pose in its own metadata, and never a
-  filesystem path or anything identifying the host. Closes #132.
-- **A speech demo disk**, in hi-res and double hi-res: three film lines and Daisy
-  Bell through the SSI 263A, under a HAL 9000 panel whose eye pulses on each
-  syllable. Boot `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk`.
-- **The assembler can now write a binary directly into a disk image.** `--disk <image>` places
-  the binary onto a volume instead of to a file on the host, and the binary can be run
-  automatically at boot with `--startup`. The binary's origin comes directly
-  from its assembly rather than a --load parameter. This reduces the dev inner
-  loop from six commands to three.
-- **Casso detects external changes to mounted disk images.** A build writing onto a
-  mounted image reaches the running guest with no eject and re-insert.
+
+- **A speech demo disk**, in hi-res and double hi-res: three film lines and
+  Daisy Bell through the SSI 263A, under a HAL 9000 panel whose eye pulses on
+  each syllable. Boot `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk`.
+- **The assembler writes its binary straight into a disk image.** `--disk
+  <image>` places the object on a volume instead of a host file, `--startup`
+  runs it at boot, and the origin comes from the assembly rather than a
+  restated `--load`. Source to a running machine in three commands, not six.
+- **Casso detects external changes to mounted disk images.** A build writing
+  onto a mounted image reaches the running guest with no eject and re-insert.
   `--on-change reload|reboot`, on both assembler dialects and on `disk put`,
-  specifies what happens; without it you get a prompt. The drive door opens
-  and closes with both sounds when the disk is swapped, and opens with its
-  sound when the file behind a mounted disk is deleted -- the same reactions a
-  hand-inserted or ejected disk gets, from one place.
-- **Merlin's `SAV` is implemented**, allowing one assembly to produce multiple
-  binaries. It writes the span accumulated since the previous save and
-  continues.
-- **Merlin now accepts multiple `DSK` directives**, so one assembly can write
-  several binaries, as `SAV` does.
-- **An assembly producing several outputs produces a listing for each**, named
-  after the object it describes, holding that object's code and the equates
-  above it. One listing spanning every output made a reader looking for one
-  program walk past the others.
-- **Merlin now supports `TYP`** to set the filesystem type for the output file,
-  specified as a ProDOS type byte.
-- **Conflict resolution when a mounted disk changes on both sides.** The 
-  external changes to the original disk image are kept, and local changes within
-  Casso are saved in a timestamped copy alongside it. Casso prompts the user to
-  pick which disk to mount in the drive.
+  specifies what happens; without it you get a prompt. The drive door reacts
+  with its sounds as it does to a disk swapped by hand.
+- **Conflict resolution when a mounted disk changes on both sides.** The
+  external changes are kept, Casso's own writes are saved to a timestamped
+  copy alongside, and Casso asks which to mount.
 - **A disk whose file is deleted or becomes unreadable offers to save what is
-  still in memory.** Casso writes a complete image to wherever you choose and
-  the drive keeps running on it. Decline and the drive is emptied, since the
-  file behind it is gone.
-- **Frame rate and scene pose readouts** on the View menu, off by default.
-- **Theme and monitor-color pickers on the command bar**, beside Settings. Both
-  preview live as you move down the menu, by mouse or by arrow key, and put
-  back what was there if you dismiss it. A picked theme and color mode are
-  remembered.
+  still in memory.** Casso writes a complete image wherever you choose and the
+  drive keeps running on it. Decline and the drive is emptied.
+- **Merlin gains `SAV`, multiple `DSK` directives and `TYP`,** so one assembly
+  can produce several binaries, each with its own ProDOS file type. An
+  assembly with several outputs now produces a listing per object, named after
+  the binary it describes and holding that object's code and equates.
+- **GH #132: screenshots are saved to a file, and can be taken of the
+  CRT-processed picture rather than only the raw framebuffer.** The camera
+  button, `Edit > Copy screenshot` and Ctrl+Alt+C write a PNG into
+  `Pictures\Casso Screenshots` as well as copying to the clipboard. A capture
+  mode on `Settings > Printing and Screenshots` chooses among the full scene,
+  the screen alone with its CRT effects applied, and the raw 560x384 image at
+  native resolution. Each PNG carries the machine, the monitor, the CRT
+  parameters and the scene pose in its own metadata, and never a filesystem
+  path or anything identifying the host. Saving can be turned off and the
+  folder changed.
+- **Theme and monitor-color pickers on the command bar**, beside Settings.
+  Both preview live as you move down the menu, by mouse or by arrow key, and
+  put back what was there if you dismiss it. The pick is remembered.
 - **A full screen button on the command bar**, before Screenshot, which reads
   "Exit full screen" once you are in it.
+- **Frame rate and scene pose readouts** on the View menu, off by default.
 
 ### Changed
-- **Casso's windows now open next to the emulator** instead of at a Windows
-  cascade position. Settings and the disk picker sit against its left edge, the
-  printer preview against its right, and dialogs open centered on it.
-- **Reset view (Ctrl+0) no longer moves the window**, only its size and the
-  scene pose.
-- **Ctrl+R no longer resets the machine.** It was a second binding for the menu's
-  Ctrl+Shift+R, and because the shell claimed the keystroke, no Apple program
-  could ever receive a Ctrl+R of its own. Reset keeps its menu accelerator.
-- **The keyboard map now describes the machine you are running, in aligned
-  columns.** Rows name only keys that machine actually has, so a ][+ is no
-  longer told about the open Apple key, Delete or the up and down arrows it does not
-  have, and the dialog sizes itself to what is left. Key, arrow and meaning
-  line up in three columns.
-- **Casso draws the Apple keys as the keycaps do.** Wherever the chrome names
-  the open or closed Apple key -- the keyboard map, the //c reset tip, the
-  input event panel -- the apple symbol now sits beside the words, so a reader
-  can match the text to the key under their finger. The two keycaps differ
-  only by fill, which no shipping font can express, so Casso embeds a
-  two-glyph font of its own and teaches DirectWrite to reach for it -- the
-  symbols are ordinary characters, and work anywhere text does.
-- **The keyboard map now carries only what the menus cannot say.** Its list of
-  emulator shortcuts repeated six accelerators the menus already print beside
-  their own items, while omitting eleven others, so it read as a complete list
-  and was not one. Gone too are the rows mapping keys to themselves. What
-  remains is the Apple-specific part: the open and closed Apple keys, which
-  keys the ][ and ][+ do not have, and the joystick mapping.
-- **Replaced full screen icons with diagonal arrows.**
-- **The command bar now narrows one button at a time.** As the window shrinks,
+
+- **Mockingboard speech runs at the rate the datasheet specifies.** It ran 75%
+  too slow, so any speech a title produces is faster and higher in tempo than
+  in earlier releases. The speech smoke-test disk moves to the chip's slowest
+  rate, the nearest the hardware reaches to its original pacing.
+- **Direct-boot disks load about six times faster.** `disk create --boot` laid
+  the payload down in ascending sector order and the loader lost a revolution
+  per sector; it now reads every other sector, so a track costs two
+  revolutions instead of sixteen. A 38-sector demo boots in 4.2s, not 10.7s.
+- **Merlin's `-l` listing flag takes multiple files,** named after the binaries
+  they generate. Listings no longer go to stdout.
+- **The command bar narrows one button at a time.** As the window shrinks,
   buttons drop their labels from the right, so the leftmost keep their names
   longest and nothing is pushed off the end. The input devices give up their
   LED row for a single icon at the same point, and the theme, monitor-color
   and input menus check the setting they are on, so a collapsed button still
   says where it stands.
 - **2D themes now use a richer drive widget.** The disk name is the control,
-  and its LED tracks where the head is sitting on the disk rather than only
-  showing that the drive is busy. Clicking the name ejects the disk and offers
-  a new one, which used to take a trip to the Disk menu.
-- **Direct-boot disks load about six times faster.** `disk create --boot` laid the
-  payload down in ascending sector order, and the loader lost a whole revolution
-  waiting for each one; it now reads every other sector, so a track costs two
-  revolutions instead of sixteen. A 38-sector demo boots in 4.2s rather than 10.7s.
-- **The "disk modified outside Casso" notices were rewritten.** The disk and its
-  drive lead on a line of their own instead of appearing in every sentence, and
-  all four notices report the copy the same way: your disk is renamed, and the
-  new name is given once.
-- **A machine's `monitor` key takes a vendor-qualified identifier.** `MonitorII`
-  and `MonitorIIc` are now `AppleMonitorII` and `AppleMonitorIIc`. The catalog
-  will hold tubes from more than one maker, so each identifier carries whose it
-  is. A machine JSON carrying an old identifier falls back to the default
-  monitor.
-- **Massively faster startup.** Reduced startup time from ~20s (debug build) to 
-  under 1s, and the executable is ~80% smaller by prebuilding object meshes, 
-  optimizing tesselation, and precompiling shaders. 
-- **Merlin's `-l` listing flag supports multiple files.** Listings are named 
-  the same as the binaries they generate. Removed support for writing listings
-  to stdout.
-- **The input mapping is now remembered per machine** rather than globally, so a
+  and its LED tracks where the head is sitting rather than only showing that
+  the drive is busy. Clicking the name ejects the disk and offers a new one,
+  which used to take a trip to the Disk menu.
+- **Replaced the full screen icons with diagonal arrows.**
+- **The pointer-capture and screenshot notices moved out of the middle of
+  the picture.** Both were shadowed text across the bottom of the viewport,
+  which read as a caption over a flat theme's black field and, over a
+  screenshot, put the one part of the shot that is about Casso into the
+  photograph. They are a message bar under the docked chrome now, hanging over
+  the picture behind a thin scrim so the picture keeps its height. The desk
+  scene keeps a shadowed caption for pointer capture, moved clear of the
+  drives onto the lower part of the CRT.
+- **Massively faster startup.** Startup drops from ~20s (debug build) to under
+  1s and the executable is ~80% smaller, by prebuilding object meshes,
+  optimizing tessellation and precompiling shaders.
+- **Casso's windows open next to the emulator** rather than at a Windows
+  cascade position. Settings and the disk picker sit against its left edge,
+  the printer preview against its right, and dialogs open centered on it.
+- **The keyboard map describes the machine you are running, in aligned
+  columns,** and carries only what the menus cannot say. Rows name only keys
+  that machine actually has, so a ][+ is no longer told about the open Apple
+  key, Delete or the arrows it lacks, and the dialog sizes itself to what is
+  left. Gone are six accelerators the menus already print and the rows mapping
+  keys to themselves.
+- **Casso draws the Apple keys as the keycaps do.** Wherever the chrome names
+  the open or closed Apple key, the apple symbol now sits beside the words.
+  The two keycaps differ only by fill, which no shipping font can express, so
+  Casso embeds a two-glyph font of its own; the symbols are ordinary
+  characters and work anywhere text does.
+- **Ctrl+R no longer resets the machine.** It duplicated the menu's
+  Ctrl+Shift+R, and because the shell claimed the keystroke no Apple program
+  could receive a Ctrl+R of its own.
+- **The input mapping is remembered per machine** rather than globally, so a
   //e set up for a joystick and a //c using its mouse each keep their own.
-- **Ctrl-0 now also resets the bezel tilt** with the view.
-- **Casso uses the show state passed by its launcher**, so a background launch
-  no longer takes the foreground.
-- **Window placement is saved only when the user moves or resizes the window.**
-- **Themes are listed most skeuomorphic first** in Settings -- Skeuomorphic,
-  RetroTerminal, then DarkModern -- rather than alphabetically.
+- **A machine's `monitor` key takes a vendor-qualified identifier.**
+  `MonitorII` and `MonitorIIc` are now `AppleMonitorII` and `AppleMonitorIIc`.
+  A machine JSON carrying an old identifier falls back to the default monitor.
+- **Themes are listed most skeuomorphic first** in Settings rather than
+  alphabetically.
+- **Casso uses the show state passed by its launcher,** so a background launch
+  no longer takes the foreground, and window placement is saved only when the
+  user moves or resizes the window.
 - **A drive's door opens from anywhere in the finger notch.** In the 3D themes
-  the whole recess the door lies in takes the click, on the Disk ][ and the
-  Disk //c alike, rather than only the stretch of it the door covers. The
-  notch is the feature the eye finds on the face, and it stays put and stays
-  large -- where an open door has swung up into the case, or travelled out
-  over the //c's lid as a bar a few millimeters tall.
+  the whole recess takes the click, on the Disk ][ and the Disk //c alike,
+  rather than only the stretch of it the door covers.
 
 ### Fixed
+
+- **The synthesized voice was missing its fundamental.** The glottal source
+  broke at 805 Hz, inside the pitch range instead of well below it, so lip
+  radiation tilted the output upward across the whole F1 region. Measured
+  against a recording of a real SSI-263: the chip's voiced spectrum falls
+  monotonically from the fundamental at about -8 dB/octave, ours was flat. The
+  break now sits below the pitch range and follows the device rate, which also
+  stops timbre depending on the listener's audio hardware.
+- **Voiced fricatives came out as sonorants, so Z sounded like L.** The
+  phoneme table collapsed the chip's two source amplitudes into one, and
+  frication was cascaded through the vowel formants, so Z's own F2 stood as a
+  low-pass in front of its own hiss. Frication now runs in a parallel branch
+  with the two amplitudes kept apart, putting 33 dB between Z and L where
+  there had been none.
+- **Fricatives were harsh, and the voice was too bright throughout.** The
+  noise source was smoothed only to 8 kHz, so it was very nearly white, and
+  was then run through a high-pass that brightened it further. That high-pass
+  is gone, the source is band-limited, and the output low-pass is tightened to
+  match the real chip. Across six bands, mean error against that recording
+  falls from 9.9 dB to 4.9 dB.
+- **The voice chip's request line reaches the second 6522, not the first.**
+  Each speech socket interrupts through the other channel's VIA, so the chip
+  at $Cn40 latches CA1 on the VIA at $Cn80-$CnFF. Casso raised it on the first
+  one, where an interrupt-driven speech driver never looks, and where the
+  speech writes would have clobbered the register it was watching.
+- **The Mockingboard's speech registers no longer read back the voice chip.**
+  $Cn40-$Cn44 are decoded for writes only; a read returns the first 6522.
+  Casso spliced the chip's request bit into D7, so software that polled for it
+  worked here and hung on a real board. Reading it back is a Phasor facility.
+- **Powering the voice chip down clicked.** Its output was cut mid-cycle
+  rather than falling over the release, so every spoken line ended on a click.
 - **Eight-bit scratch buffers banded the picture's dark gradients into flat
   steps.** The CRT chain ran up to eight full-screen passes through eight-bit
-  intermediates, and the bloom halo around a line of text falls off over
-  hundreds of rows while spanning three or four code values -- so the first
-  pass to round it turned the ramp into three or four plateaus, each a
-  full-width contour with a hard edge, and every later pass inherited them.
-  Fullscreen made each band wider and easier to see. The chain now works in ten
-  bits, which costs no extra bandwidth, and dithers once on the final blit to
-  the back buffer; the desk scene's plates dither at their own eight-bit write
-  for the same reason, and the blits that merely carry a finished plate leave
-  it alone. Measured fullscreen on the boot screen, counting rows that are a
-  single flat code across the full width: 582 of 601 before, and at most a
-  handful now.
-- **The casso-rocks image was regenerated**, dithered against the updated
+  intermediates, and a bloom halo falling off over hundreds of rows spans
+  three or four code values, so the first pass to round it turned the ramp
+  into that many full-width contours and every later pass inherited them.
+  Fullscreen made each band wider. The chain now works in ten bits, which
+  costs no extra bandwidth, and dithers once on the final blit; the desk
+  scene's plates dither at their own eight-bit write, and blits that merely
+  carry a finished plate leave it alone. Measured fullscreen on the boot
+  screen, counting rows that are a single flat code across the full width: 582
+  of 601 before, at most a handful now.
+- **Bloom washed out dithered pictures.** It was applied to every pixel rather
+  than to bright ones, so on dithered artwork every dark gap had a lit
+  neighbor and the gaps filled. Only pixels above a brightness threshold feed
+  the bloom now, which is what a phosphor does.
+- **Bloom and color bleed changed with the window size.** Both were measured
+  in output pixels, so the same settings tightened as the window grew. They
+  are measured in pixels of the emulated screen now and cover the same share
+  of the picture everywhere.
+- **The bloom radius slider offered a range nobody could use,** running to 10
+  in whole steps where the useful span ends around 4. It runs 0.5 to 4.0 and
+  drags in tenths. The color bleed width likewise rounded to whole pixels,
+  which pinned every theme at 1 px; it reads and drags to a tenth.
+- **Changing one CRT setting no longer freezes the others,** and switching
+  themes applies the new theme's CRT defaults. Touching any Display control
+  used to pin the whole block as a user override, so every later theme change
+  was ignored. Restore defaults also skipped the per-machine overrides merged
+  on top of a theme's base values.
+- **Double hi-res colors now match the hardware.** The color clock runs one
+  dot ahead of the byte boundary, so the last dot of a cell is the color's low
+  bit; reading the dots as a plain binary number showed magenta as brown and
+  orange as green, on every real double hi-res picture.
+- **Lo-res, double hi-res and hi-res now share one palette.** Colors 3, 6, 9
+  and 12 were drawn differently by mode, and color 4 (Dark Green) drew very
+  nearly black. The casso-rocks image was regenerated against the corrected
   palette.
-- **Lo-res and double hi-res color 4 (Dark Green) drew very nearly black.**
-  It was the least saturated color in the palette by a wide margin; it is now
-  a dark green.
+- **80-column text under mixed mode doubled the aux column** while a program
+  had PAGE2 on for its own aux writes. The overlay read main through the bus,
+  which 80STORE bends to aux; it reads the bank directly now.
+- **The wrong number of scanlines was drawn outside the 3D desk scene.** The
+  192 lines an Apple II draws were spread over the whole window rather than
+  the picture, so the count followed the window size: 104 at 900 pixels, 141
+  at 1500. Every presentation draws 192.
+- **Full screen hid the top and bottom of the picture on a widescreen
+  display.** The camera was placed so the monitor's glass covered the screen,
+  and the glass is about 1.4:1, so 16:9 cropped about a dozen scanlines at
+  each end. The camera now moves back far enough to fit the whole picture;
+  beyond about 3:2 only the tube is drawn, against black.
 - **The //e and //c could not type lowercase.** Every letter was folded to
   uppercase on its way to the keyboard latch, on machines whose whole keyboard
   advance was lowercase. Pasted text was folded the same way.
 - **The ][ and ][+ received keys their keyboard has no way to send.** Up and
-  down arrows, TAB and DELETE all arrived with the //e, but the host has them
-  and Casso passed them straight through. Pressing one on those machines is
-  now a no-op: nothing latches, and $C010 no longer reports a key held. Which
-  keys a machine has is asked of the key itself, so Ctrl+I, Ctrl+J and Ctrl+K
-  keep working on a ][+ even though they send the same codes as the //e keys
-  it lacks.
-- **The input events panel's two paddle view combo boxes let the buttons behind
-  them show through their open list.** Their menus now open in a top-level popup
-  window, as every other combo box in Casso already did.
-- **Lo-res and double hi-res drew colors 3, 6, 9 and 12 differently from
-  hi-res.** All three modes now share one palette, so the four change on
-  screen in lo-res and double hi-res.
-- Replaced shadowed paddle mode text with a docked message bar.
-- **The input device icons were drawn larger than the rest of the command
-  bar's.** They now match the other icons' size and stroke weight, and the
-  mouse uses MDL2's own glyph.
-- **Switching to an Apple //c through Settings left the mouse out of the input
-  devices.** The bar lays out again whenever mouse availability changes.
-- **Unlit input LEDs were too dark to make out.** They now use the tint a
-  disabled checkbox fills with.
-- **The full screen top edge revealed only the command toolbar, leaving the menu
-  bar unreachable.** The menu bar now rides down with the toolbar, above it, in
-  the order the windowed chrome stacks them.
-- **A held key repeated far too fast above 1x speed, and at Maximum too fast to
-  type against at all.** The keyboard's auto-repeat cadence was counted in
-  emulated cycles, so the emulation speed dragged it along: Double repeated at
-  twice the rate off half the delay, and Maximum, which runs uncapped, turned a
-  held key into hundreds of characters a second. It is timed in real seconds
-  now, as the //e's own keyboard encoder is, so the ~0.5s delay and ~15
-  characters a second hold at every speed.
-- **Tooltips kept the theme that was live when the window was built.** Switching
-  themes in Settings recolored the rest of the chrome but left the toolbar, //c
-  switch-bar and drive tooltips in the outgoing palette -- skeuomorphic blue
-  balloons over RetroTerminal green.
-- **Ejecting or quitting could throw away writes while saying they were safe.**
-  If another program had rewritten a mounted image and Casso could not save
-  your version beside it, the message said your writes were still in memory --
-  and then the drive was emptied, or the program exited. Ejecting now asks
-  first, offering to save the disk wherever you choose, and quitting asks the
-  same thing through its own dialog. Decline, and the message says plainly that
-  the changes are going.
-- **A disk that could not be moved out of the way was sometimes only announced,
-  never offered anywhere to go.** When a program rewrites a mounted image and
-  the guest has written too, Casso saves the guest's version to a copy beside
-  the original -- and if that copy cannot be written, it asks where to put it
-  instead. It only asked when the change was noticed by the file watcher;
-  noticed instead by the guest's own write, the same failure was a message with
-  no way to act on it. Both now ask. The two moments that cannot ask, because
-  the disk or the program is on its way out, still say so plainly.
-- **The same disk image could be put in both drives at once.** Each drive held
-  its own copy of it from that moment, so whichever wrote last overwrote the
-  other's changes, and one change from outside Casso raised the conflict twice.
-  The second drive now refuses it and says which drive has it.
-- **Answering the "disk modified outside Casso" question could act on the wrong
-  disk.** The answer was carried out against whatever was in the drive, so
-  taking the disk out and putting another in while the question stood moved the
-  new disk onto the departed one's timestamped copy -- which the next write
-  then overwrote. A change arriving from a build under the open question also
-  swapped the disk out from under it, leaving "keep your current version"
-  meaning the other program's version. A question now holds the drive until it
-  is answered, and the answer lands on whatever is on disk when it comes.
+  down arrows, TAB and DELETE all arrived with the //e. Pressing one is now a
+  no-op: nothing latches, and $C010 no longer reports a key held. Which keys a
+  machine has is asked of the key itself, so Ctrl+I, Ctrl+J and Ctrl+K keep
+  working on a ][+.
+- **A held key repeated far too fast above 1x speed, and at Maximum too fast
+  to type against at all.** Auto-repeat was counted in emulated cycles, so
+  emulation speed dragged it along. It is timed in real seconds now, as the
+  //e's own encoder is, so the ~0.5s delay and ~15 characters a second hold at
+  every speed.
+- **Ejecting or quitting could throw away writes while saying they were
+  safe.** If another program had rewritten a mounted image and Casso could not
+  save your version beside it, the message said your writes were still in
+  memory, and then the drive was emptied or the program exited. Both now offer
+  to save the disk wherever you choose, and a decline says plainly that the
+  changes are going.
+- **Two Casso instances sharing a disk image could corrupt it.** Saving writes
+  a temporary beside the image and renames it over the original, and the
+  temporary's name came from the image path alone, so both instances used the
+  same one.
+- **The same disk image could be mounted in both drives at once.** Each drive
+  held its own copy from that moment, so whichever wrote last overwrote the
+  other. The second drive now refuses it and says which drive has it.
+- **Answering the "disk modified outside Casso" question could act on the
+  wrong disk,** because the answer was carried out against whatever was in the
+  drive. A question now holds the drive until it is answered, and the answer
+  lands on whatever is on disk when it comes.
 - **The question never appeared if any dialog was open.** Settings, a file
   picker or the About box swallowed it, and that drive was never asked about
-  again until the disk was ejected. Notifications and mount results went the
-  same way. The same held when the question was raised before the main window
-  existed.
-- **Pressing Enter on "mounted disk has been removed" discarded the disk.** So
-  did closing the dialog. With the file gone, the copy in the drive was the
-  only one left. Both now offer to save it, and only an explicit Discard lets
-  it go.
-- **A disk found missing partway through a reload offered buttons that did
-  nothing.** The offer to save it went to the notice strip, which routes no
-  answers. It is a question now, like the one raised when a change is first
-  noticed.
-- **A dismissed "disk modified outside Casso" question dated the next copy
-  after it.** Putting the question reserves the name the preserved copy
-  would take, stamped with that moment. Waving the question away left the
-  name held, so a genuine conflict hours later filed the guest's disk under
-  the old timestamp -- and under a name another file may have taken since.
-  The same went for the question raised when a copy could not be written,
-  and a reservation no longer outlives the disk it was made for: neither
-  eject cleared one, so the next disk into that drive filed its own copy
-  under the departed disk's name.
-- **The joystick / paddle / mouse indicator dots on the command bar stayed blue
-  under every theme.** They painted from a hardcoded copy of the DarkModern
-  palette, so they kept its blue while the drive LEDs beside them went red on
-  Skeuomorphic and green on RetroTerminal. They now follow the theme's LED
-  colors like the rest of the chrome.
-- **Tooltips could lose their last glyph.** A balloon sized a hair too narrow
-  wrapped the tail onto a second line it had no room to show, so a tip ending
-  in something short and breakable came up looking truncated.
-- **The command bar's Reset and Power tooltips said only what the button said.**
-  They now specify the machine they act on, and Reset gives the open-apple
-  chord for a cold boot -- the only place the chord is shown.
-- **The volume and mute settings were not saved**, so both came back at their
-  old values on the next launch.
-- **Pressing OK in Settings reset preferences that its pages do not show**,
-  including the //c case-switch positions.
-- **The startup download dialog broke "OpenEmulator (GitHub)" across two lines.**
-  Its source column was a fixed width that stood a few pixels short of the
-  drive-audio origin. The column is now measured from the labels the list
-  carries, growing only into room the asset names do not need.
-- **Two false claims in the notice shown after a changed disk was reloaded.**
-  It reported a renamed copy that was never written, and named CassoCli
-  whatever program had changed the file.
-- **A window with no client area buried the screen in assertion dialogs.**
-  Every control laid out against a minimized window came out zero DIPs wide,
-  and a text field insetting that by its own padding passed a NEGATIVE width to
-  DirectWrite, which refuses one. Being a paint, it failed again every frame:
-  launching Casso minimized with the boot-disk picker due stacked some thirty
-  modal assertion boxes within seconds, and minimizing the picker while it was
-  open did the same. Text is no longer drawn into a box with no area, and a
-  failed assertion is now shown once per run and never on top of another one --
-  the task-modal box was pumping the very paint whose failure raised it.
-- **Unchecking a second drive was not correctly persisted.** The drive left the
-  desk as it should, but came back the next time Settings opened, and on the
-  next launch.
-- **Full-screen mode hid the top and bottom of the picture on a widescreen
-  display.** The camera was placed so the monitor's glass covered the screen,
-  and the glass is about 1.4:1, so on 16:9 the top and bottom of the glass were
-  cropped and the picture with them -- about a dozen scanlines at each end, in
-  text mode as well as graphics. The camera now moves back far enough to fit
-  the whole picture. Up to about 3:2 the glass still covers the screen as
-  before; beyond that only the tube is drawn, against black, without the case,
-  bezel or power lamp.
-- **Double hi-res colors now match the hardware.** The color clock runs one dot
-  ahead of the byte boundary, so the last dot of a cell is the color's low bit;
-  reading the dots as a plain binary number showed magenta as brown and orange
-  as green, on every real double hi-res picture.
-- **80-column text under mixed mode no longer doubles the aux column** while a
-  program has PAGE2 on for its own aux writes. The overlay read main through
-  the bus, which 80STORE bends to aux; it now reads the bank directly.
-- **The synthesized voice was missing its fundamental.** The glottal source broke at
-  805 Hz, inside the pitch range instead of well below it, so lip radiation tilted the
-  output upward across the whole F1 region. Measured against a recording of a real
-  SSI-263: the chip's voiced spectrum falls monotonically from the fundamental at about
-  -8 dB/octave, ours was flat. The break now sits below the pitch range and follows the
-  device rate rather than being a fixed coefficient, which also stops timbre depending on
-  the listener's audio hardware.
-- **The voice chip's request line reaches the second 6522, not the first.** Each speech
-  socket interrupts through the other channel's VIA, so the chip at $Cn40 latches CA1 on
-  the VIA at $Cn80-$CnFF. Casso raised it on the first one, where an interrupt-driven
-  speech driver never looks -- and where the speech writes, which alias onto that same
-  VIA, would have clobbered the register it was watching.
-- **The Mockingboard's speech registers no longer read back the voice chip.** $Cn40-$Cn44
-  are decoded for writes only; a read returns the first 6522, which answers across the
-  whole of $Cn00-$Cn7F. Casso spliced the chip's request bit into D7, so software that
-  polled for it worked here and hung on a real board. Reading it back is a Phasor
-  facility. The speech demo and smoke test, which polled exactly that way, now count
-  each phoneme's duration out instead.
-- **Voiced fricatives came out as sonorants -- Z sounded like L.** The phoneme table
-  collapsed the chip's two source amplitudes into one, and frication was cascaded through
-  the vowel formants, so Z's own F2 stood as a low-pass in front of its own hiss.
-  Frication now runs in a parallel branch with the two amplitudes kept apart, putting
-  33 dB between Z and L where there had been none.
-- **Fricatives were harsh, and the voice was too bright throughout.** The noise source
-  was smoothed only to 8 kHz, so it was very nearly white, and it was then run through a
-  high-pass that brightened it further. That high-pass is gone, the source is band-limited,
-  and the output low-pass is tightened to match the real chip, whose 3-6 kHz energy sits
-  36 dB under its voice band where ours sat 28 dB under. Across six bands, mean error
-  against that recording falls from 9.9 dB to 4.9 dB.
-- **Powering the voice chip down clicked.** Its output was cut mid-cycle rather
-  than falling over the release, so every spoken line ended on a click.
-- **Changing one CRT setting no longer freezes the others.** Every setting left
-  alone keeps following the monitor preset and the active theme.
-- **The color bleed width now shows the width in effect.** It rounded to whole
-  pixels, which put every theme's width at 1 px and left the setting stuck
-  there once dragged. It reads and drags to a tenth of a pixel.
-- **The preferences file grew a duplicate monitor-tilt entry on every save.** The
-  key was both read directly and swept up as an unknown key, so each save wrote
-  one more copy than the last. Existing files repair themselves on the next save.
-- **GH #137: audio follows a change of the default output device.** The output
-  device was resolved once at startup, so selecting a different speaker or
-  headset left the sound on the old one until the next launch. Sounds are
-  re-decoded when the new device runs at a different sample rate.
-- **The Settings dialog now opens adjacent to the main window.**
-- **Audio broke up on interfaces running at very high sample rates.** Casso sizes its
-  pending-audio backlog from the rate the endpoint reports, and that calculation
-  overflowed above roughly 252 kHz. The 352.8 and 384 kHz rates some professional
-  interfaces run at wrapped it to about a third of the intended depth, so the mixer
-  ran dry and the speaker and Mockingboard stuttered.
-- **Mockingboard speech ran 75% too slow.** Every phoneme sounded for 1.75x its
-  documented length, because the voice chip's duration countdown was measured
-  in the chip's own clock while being drained in CPU cycles. Speech now runs at
-  the rate the datasheet specifies, so any speech a title produces is faster
-  and higher in tempo than in earlier releases. The speech smoke-test disk moves
-  to the chip's slowest rate, which is as near its original pacing as the
-  hardware reaches.
-- **The mounted disk's name drew through the monitor's case.** The name under each
-  3D drive was chrome painted after the scene, so it had no depth and nothing could
-  stand in front of it. Orbiting until the monitor came between the camera and a
-  drive left the name floating over the case. It is a camera-facing quad in the
-  scene now, sized to a fixed number of screen pixels and depth tested like any
-  other surface, so the case cuts it exactly where the case crosses it. The name
-  keeps the size it reads at from every pose, which is why it was taken out of the
-  scene the first time. The full screen overlay strip has nothing in front of its
-  drives and keeps the chrome label it had.
-- **Casso started up regardless of what was on its command line.** A mistyped flag,
-  a misspaced one, a stray disk image path and `--help` were all discarded in
-  silence and the emulator booted as though nothing had been asked, so
-  `Casso --machine Apple2e --dsik1 work.dsk` ran whatever disk was mounted last.
-  An argument Casso cannot read now stops startup and shows the reason above the
-  full usage text, and every form of `--help` shows that text and exits.
-- **A settings file Casso could not read was overwritten anyway.** It is now saved
-  as `UserPrefs.<date-time>.original.json` and a fresh one started, so the original
-  is still there to repair. If it cannot be set aside, nothing is written over it.
-- **Settings changes that could not be saved reported success.** The Settings sheet
-  closed as though it had written them, and Cancel had nothing left to revert to.
-  A save that cannot go through now says so and leaves the sheet where it was.
-- **Old settings files that could not be read cost you the ones that could.** One
-  unreadable file failed the whole upgrade, and every readable file beside it was
-  then left unread for good. Casso now carries across what it can and reports what
-  it left behind.
-- **Global settings could be reset to defaults on launch.** A remembered disk whose
-  file was gone made startup rewrite the preferences file to clear the stale path,
-  and that write replaced the whole global section with built-in defaults.
-- **Restore defaults ignored a theme's per-machine values.** It read the theme's base
-  CRT defaults and skipped the machine overrides merged on top. On an Apple //e running
-  Retro Terminal it seeded the base numbers instead of the //e variant's. Those wrong
-  values then stuck, because Restore defaults also marks the monitor as user-set.
-- **Bloom washed out dithered pictures.** It was applied to every pixel rather than
-  to bright ones, so a dark pixel next to a lit one was lifted along with it. On
-  dithered artwork every dark gap has a lit neighbor, so the gaps filled and the
-  dither stopped reading as tone. Only pixels above a brightness threshold feed the
-  bloom now, which is what a phosphor does.
-- **The bloom radius slider offered a range nobody could use.** It ran to 10 in whole
-  steps, where the useful span ends around 4 and the setting wants half-pixel
-  resolution. It now runs 0.5 to 4.0 and drags in tenths.
-- **Settings text was white on the Retro Terminal and Dark Modern themes.** A label
-  built as a plain member and given its words afterward painted with a hard-coded
-  white rather than the theme's own text color. Whole settings pages are built that
-  way, so both flat themes read as white on green or white on graphite.
-- **The scene compass stayed on screen under the flat themes.** It is the control for
-  turning the 3D desk, and the flat themes have no desk to turn. Switching to one from
-  a skeuomorphic theme left the arrows painted over the picture.
-- **The 3D CRT monitor checkbox is gone on the flat themes.** They never draw the
-  monitor, so the setting had nothing to apply to. The rows below it close the gap.
+  again. Notifications and mount results went the same way, as did a question
+  raised before the main window existed.
+- **A dismissed question dated the next copy after it.** Putting the question
+  reserves the timestamped name a preserved copy would take, and waving it
+  away left the name held, so a genuine conflict hours later filed the guest's
+  disk under the old timestamp. A reservation no longer outlives the disk it
+  was made for.
+- **Pressing Enter on "mounted disk has been removed" discarded the disk,** as
+  did closing the dialog, when the copy in the drive was the only one left.
+  Both now offer to save it, and only an explicit Discard lets it go.
+- **A disk that could not be moved out of the way was sometimes announced with
+  nowhere to go.** When the rescue copy cannot be written Casso asks where to
+  put it instead; it only asked when the change came from the file watcher,
+  not when the guest's own write found it. A missing disk found partway
+  through a reload likewise offered buttons that did nothing, because the
+  offer went to the notice strip, which routes no answers.
+- **The "disk modified outside Casso" notices were rewritten,** and carried
+  two false claims: a renamed copy that was never written, and CassoCli named
+  as whatever program had changed the file. The disk and its drive now lead on
+  a line of their own and all four notices report the copy the same way.
+- **A settings file Casso could not read was overwritten anyway.** It is saved
+  as `UserPrefs.<date-time>.original.json` and a fresh one started; if it
+  cannot be set aside, nothing is written over it.
+- **Settings changes that could not be saved reported success.** The sheet
+  closed as though it had written them, leaving Cancel nothing to revert to.
+- **Old settings files that could not be read cost you the ones that could.**
+  One unreadable file failed the whole upgrade. Casso now carries across what
+  it can and reports what it left behind.
+- **Global settings could be reset to defaults on launch.** A remembered disk
+  whose file was gone made startup rewrite the preferences to clear the stale
+  path, and that write replaced the whole global section with defaults.
+- **Pressing OK in Settings reset preferences that its pages do not show,**
+  including the //c case-switch positions. The volume and mute settings were
+  not saved at all, and unchecking a second drive did not persist. The
+  preferences file also grew a duplicate monitor-tilt entry on every save;
+  existing files repair themselves on the next save.
+- **Casso started up regardless of what was on its command line.** A mistyped
+  flag, a misspaced one, a stray disk image path and `--help` were all
+  discarded in silence, so `Casso --machine Apple2e --dsik1 work.dsk` ran
+  whatever disk was mounted last. An argument Casso cannot read now stops
+  startup and shows the reason above the full usage text, and every form of
+  `--help` shows that text and exits.
 - **A failed stock boot-disk download is reported instead of exiting or doing
-  nothing.** The boot and insert disk pickers report the reason and come back,
-  so the user can try again, pick another disk, or back out. A startup failure
-  that used to be queued for a window that never appeared is shown before
-  Casso exits.
-- **The `disk create --bootable` diagnostic for a missing master instructs the
-  user to open Casso and use the disk picker to download it.** It used to
-  instruct a first run of the emulator, which downloads nothing.
-- **Switching themes now applies the new theme's CRT defaults.** A theme
-  carries brightness, scanline, bloom and color-bleed defaults, but once any
-  Display control had been touched the whole block was pinned as a user
-  override and every later theme change was ignored. Picking a theme now
-  adopts its defaults, on Apply now and on OK, and the Display page's sliders
-  and its default badges follow. Cancel puts the old theme's defaults back
-  with the old theme.
+  nothing.** The boot and insert disk pickers report the reason and come back.
+  A startup failure that used to be queued for a window that never appeared is
+  shown before Casso exits. The `disk create --bootable` diagnostic for a
+  missing master now points at Casso's disk picker rather than a first run of
+  the emulator, which downloads nothing.
+- **GH #137: audio follows a change of the default output device.** It was
+  resolved once at startup, so selecting a different speaker left the sound on
+  the old one until the next launch. Sounds are re-decoded when the new device
+  runs at a different sample rate.
+- **Audio broke up on interfaces running at very high sample rates.** The
+  pending-audio backlog is sized from the rate the endpoint reports, and that
+  calculation overflowed above roughly 252 kHz, so 352.8 and 384 kHz wrapped
+  it to about a third of the intended depth.
 - **Full screen now hides the chrome in every theme.** Dark Modern and Retro
   Terminal kept the caption, menu bar and drive bar around a stretched
-  picture. They now collapse the way the desk scene does: the picture fills
-  the screen, the toolbar slides in from the top edge, and the drives slide
-  up from the bottom edge or on the View menu's strip command.
-- **The Dark Modern and Retro Terminal themes drew a stale input-mode bar.**
-  The joystick, paddle and mouse selector moved to the command toolbar, but
-  the flat themes kept a second copy in a band above the drive widgets. That
-  band and its code are gone, so the drives sit directly under the picture
-  and the window is 43 dp shorter. The F10 focus ring now walks the menu
-  titles and the drives.
-- **Two Casso instances sharing a disk image could corrupt it.** Saving an
-  image writes a temporary file beside it and then renames that over the
-  original. The temporary's name came from the image path alone, so both
-  instances used the same one and could overwrite each other's before the
-  rename put it in place.
-- **Monitor II**: tube-to-bezel gap at steep angles, the bezel opening's
+  picture. They now collapse the way the desk scene does. The top-edge reveal
+  also brought the toolbar without the menu bar, leaving it unreachable; the
+  menu bar rides down above it now.
+- **The flat themes drew a stale input-mode bar.** The joystick, paddle and
+  mouse selector moved to the command toolbar, but a second copy stayed in a
+  band above the drive widgets. That band is gone, so the drives sit directly
+  under the picture and the window is 43 dp shorter.
+- **Settings text was white on the Retro Terminal and Dark Modern themes.** A
+  label built as a plain member and given its words afterward painted with a
+  hard-coded white rather than the theme's own text color, and whole settings
+  pages are built that way.
+- **The input indicator dots stayed blue under every theme,** painting from a
+  hardcoded copy of the DarkModern palette while the drive LEDs beside them
+  followed the theme. The input icons were also drawn larger than the rest of
+  the command bar's, unlit LEDs were too dark to make out, and switching to an
+  Apple //c through Settings left the mouse out of the row.
+- **Tooltips kept the theme that was live when the window was built,** could
+  lose their last glyph to a balloon sized a hair too narrow, and the Reset
+  and Power tips said only what the button said. The tips now name the machine
+  they act on, and Reset gives the open-apple chord for a cold boot.
+- **The scene compass and the 3D CRT monitor checkbox showed under the flat
+  themes,** which draw no desk for either to act on.
+- **The mounted disk's name drew through the monitor's case.** The name under
+  each 3D drive was chrome painted after the scene, so nothing could stand in
+  front of it. It is a camera-facing quad in the scene now, sized to a fixed
+  number of screen pixels and depth tested like any other surface, so the case
+  cuts it exactly where the case crosses it.
+- **The input events panel's two paddle view combo boxes let the buttons
+  behind them show through their open list.** Their menus open in a top-level
+  popup window, as every other combo box in Casso already did.
+- **A window with no client area buried the screen in assertion dialogs.**
+  Every control laid out against a minimized window came out zero DIPs wide,
+  and a text field insetting that by its own padding passed a negative width
+  to DirectWrite, which refuses one. Being a paint, it failed again every
+  frame. Text is no longer drawn into a box with no area, and a failed
+  assertion is shown once per run and never on top of another one.
+- **Ctrl+0 puts the whole view back**: the window to 100%, the machine facing
+  front, the scene at its default zoom and the bezel tilt reset. Resetting the
+  window and resetting the scene used to be two commands on two chords, one of
+  which did nothing at all under the flat themes.
+- **The startup download dialog broke "OpenEmulator (GitHub)" across two
+  lines.** Its source column was a fixed width; it is measured from the labels
+  the list carries now.
+- **Monitor II model**: tube-to-bezel gap at steep angles, the bezel opening's
   contour, power LED spill onto the case beside its notch, power button and
   funnel seating.
-- **Chrome text could be painted over by the controls under it.**
 - **The write-protect padlock beside a disk's name in the 3D scene was
-  distorted.** Changed to use the emoji lock character to avoid conflicts 
-  with the text shadow effect and improve overall icon clarity. The 2D drive
-  widget now uses the same padlock.
-- **Bloom and color bleed changed with the window size.** Both were measured in
-  output pixels, so the same settings tightened as the window grew and looked
-  different again on the 3D desk scene. They are now measured in pixels of the
-  emulated screen and cover the same share of the picture everywhere. A radius
-  keeps the size it had at 100% zoom, so larger windows get more spread than
-  before and smaller ones less.
-- **Ctrl+0 puts the whole view back**: the window to 100%, the machine facing
-  front, and the scene at its default zoom. Resetting the window and resetting
-  the scene used to be two commands on two chords, one of which did nothing at
-  all under the flat themes. There is one command now, and it works in every
-  theme.
-- **The wrong number of scanlines was drawn outside the 3D desk scene.** The
-  192 lines an Apple II draws were spread over the whole window rather than
-  over the picture, so the letterbox bars took a share of them and the count
-  followed the window size. A 900 pixel window drew 104 and a 1500 pixel window
-  drew 141. Every presentation now draws 192.
+  distorted.** It uses the emoji lock character now, to avoid conflicting with
+  the text shadow effect. The 2D drive widget uses the same padlock.
+- **Chrome text could be painted over by the controls under it.**
 
 ## [1.22.0]: The one with nibble support
 

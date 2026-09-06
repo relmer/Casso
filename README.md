@@ -66,6 +66,90 @@ the other, so the demo ships both and your answer picks one:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
+### It finds its voice (1.23)
+
+The Mockingboard's SSI 263A is synthesized from the chip's registers rather
+than played back from recordings, and this release is where that synthesis
+stopped approximating and started matching. Measured against a recording of
+real silicon, mean error across six bands falls from 9.9 dB to 4.9 dB.
+
+**It was running 75% too slow.** The voice chip's duration countdown was
+measured in the chip's own clock while being drained in CPU cycles, so every
+phoneme sounded for 1.75x its documented length. Speech in any title that uses
+the board is faster and higher in tempo than it was in earlier releases.
+
+**The voice had no fundamental.** The glottal source broke at 805 Hz, inside
+the pitch range instead of well below it, so lip radiation tilted the output
+upward across the whole first-formant region: a real SSI-263 falls
+monotonically from the fundamental at about -8 dB/octave, and ours was flat.
+Voiced fricatives fared worse. The phoneme table collapsed the chip's two
+source amplitudes into one and cascaded frication through the vowel formants,
+so Z's own second formant stood as a low-pass in front of its own hiss and Z
+came out sounding like L. Frication runs in a parallel branch now with both
+amplitudes kept apart, putting 33 dB between the two.
+
+**And it was wired to the wrong VIA.** Each speech socket interrupts through
+the other channel's 6522, so a chip at `$Cn40` latches CA1 on the VIA at
+`$Cn80-$CnFF`. Casso raised it on the first one, where no interrupt-driven
+speech driver ever looks. The speech registers also read back the chip's
+request bit, which no real board does, so software that polled for it worked
+here and hung on hardware.
+
+**A speech demo disk ships with it.** Boot
+`Apple2/Demos/mockingboard-speech-demo-dhgr.dsk` for three film lines and
+Daisy Bell, spoken and sung under a HAL 9000 panel whose eye pulses on each
+syllable and holds through a sung note. Each character gets its own
+articulation, and HAL's vocal tract is scaled down a sixth while he speaks.
+There is a hi-res version of the same demo beside it, and
+`mockingboard-speech-test.dsk` is the smaller smoke test.
+
+<p align="center"><img src="Assets/demo-speech-hal.png" alt="The speech demo on the Apple //e desk scene: a HAL 9000 panel in double hi-res, its eye lit orange to a white center, with the caption DAISY DAISY and the legend MOCKINGBOARD SPEECH CHIP" width="700" /></p>
+
+Singing is the part that cannot be faked. An emulator that plays recorded
+phonemes can say the words, but only one that synthesizes from the registers
+can put them on a melody, because pitch is the 12-bit inflection value and not
+a property of a recording.
+
+**Source to a running machine in three commands.** The assembler writes its
+object straight onto a disk image with `--disk`, runs it at boot with
+`--startup`, and takes the load address from the assembly rather than a
+restated `--load` that nothing checked. Casso then notices when a build
+rewrites an image it has mounted and reloads or reboots without an eject and
+re-insert. If both sides changed the disk, the external version is kept and
+yours is preserved in a timestamped copy alongside, with Casso asking which to
+mount. Merlin gained `SAV`, multiple `DSK` and `TYP` in the same pass, so one
+assembly can produce several typed binaries with a listing each.
+
+**Screenshots go to a file, and can be of the CRT-processed picture.** The
+toolbar camera, **Edit → Copy screenshot** and **Ctrl+Alt+C** write a PNG into
+`Pictures\Casso Screenshots` as well as the clipboard, in one of three modes:
+the whole desk scene, the screen alone with its CRT effects applied, or the raw
+560x384 image at native resolution. Each file carries what it was a picture
+of, machine, monitor, CRT settings and scene pose, in its own metadata, and
+never a filesystem path or anything identifying the host.
+
+**The command bar picks up the things you actually change.** Theme and
+monitor-color pickers sit beside Settings and preview live as you move down the
+menu, by mouse or by arrow key, putting back what was there if you dismiss it.
+A full screen button sits before Screenshot. As the window narrows the bar
+gives up one button's label at a time from the right, so the leftmost keep
+their names longest and nothing is pushed off the end, and a collapsed menu
+still checks the setting it is on.
+
+**The dark half of the picture stopped banding.** The CRT chain ran up to eight
+full-screen passes through eight-bit intermediates. A bloom halo falls off over
+hundreds of rows while spanning only three or four code values, so the first
+pass to round it turned that ramp into three or four full-width contours with
+hard edges, and every later pass inherited them; full screen made each band
+wider. The chain works in ten bits now, at no extra bandwidth, and dithers once
+on the final blit. Counting rows that are a single flat code across the full
+width, on the boot screen full screen: 582 of 601 before, at most a handful
+now.
+
+**Startup dropped from about twenty seconds to under one,** and the executable
+is about 80% smaller, by prebuilding the object meshes, optimizing tessellation
+and precompiling the shaders.
+
 ### The skeuomorphic theme goes to 11 (1.21)
 
 The skeuomorphic theme used to be a picture of a monitor drawn around the
