@@ -52,22 +52,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import DemoImageLayout as Layout
 
 
-# Apple //e 16-color LoRes/DHGR palette (RGB), index = 4-bit color value.
-# Must match CassoEmuCore/Video/AppleLoResMode.cpp::kLoResColors.
+# Apple //e 16-color palette (RGB), index = 4-bit color value.
+# Must match CassoEmuCore/Video/NtscColorTable.h::kAppleColors, which every
+# video mode indexes. Dithering against a stale copy picks colors the
+# emulator will not draw.
 DHGR_PALETTE_RGB = [
     (  0,   0,   0),   #  0 Black
     (221,  34, 102),   #  1 Magenta
     (  0,   0, 153),   #  2 Dark Blue
-    (221,   0,  68),   #  3 Purple
-    (  0,  34,   0),   #  4 Dark Green
-    ( 85,  85,  85),   #  5 Grey 1
-    (  0,  34, 204),   #  6 Medium Blue
+    (255,  68, 253),   #  3 Purple
+    (  0, 132,  49),   #  4 Dark Green
+    ( 85,  85,  85),   #  5 Gray 1
+    ( 20, 207, 255),   #  6 Medium Blue
     (102, 170, 255),   #  7 Light Blue
     (136,  85,   0),   #  8 Brown
-    (255,  68,   0),   #  9 Orange
-    (170, 170, 170),   # 10 Grey 2
+    (255, 106,  60),   #  9 Orange
+    (170, 170, 170),   # 10 Gray 2
     (255, 136, 136),   # 11 Pink
-    (  0, 221,   0),   # 12 Light Green
+    ( 20, 245,  60),   # 12 Light Green
     (255, 255,   0),   # 13 Yellow
     ( 68, 255, 221),   # 14 Aquamarine
     (255, 255, 255),   # 15 White
