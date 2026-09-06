@@ -287,9 +287,9 @@ void CommandToolbar::WireMenus()
 //
 //  Reset and Power say which machine they act on, so the tips are composed
 //  rather than fixed. Reset's also carries the cold-boot chord on a line of its
-//  own, written as the keycap symbol alone: the chord is a picture of what to
-//  hold, and spelling the key out beside its own symbol only made the line wrap.
-//  Which host key that is stays, since nothing else here says it.
+//  own, written as the two keycaps and nothing else: a chord is a picture of
+//  what to hold. Which host key stands in for the apple is the keyboard map's
+//  job, and repeating it in every tip that mentions the key made each one wrap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,7 +300,7 @@ void CommandToolbar::RebuildActionTips()
 
 
     GetEntry (Entry::Reset).tip = L"Reset the " + machine + L".\n" +
-                                  s_kpszOpenApple + L" (left Alt) + Reset to cold boot.";
+                                  s_kpszOpenApple + L" + Reset to cold boot.";
     GetEntry (Entry::Power).tip = L"Power-cycle the " + machine;
 }
 
