@@ -184,7 +184,7 @@ folder and confirm the file lands there.
 - [X] T053 Run `pwsh scripts/CheckStyle.ps1 -Mode Tree` and clear every hit; CI runs this on every master push
 - [X] T054 Build clean with zero warnings in Debug and Release on x64, and confirm ARM64 builds; ARM64 is build-only, there is no device to run on
 - [X] T055 Run the full suite in both configurations; confirm `UnitTest.dll` is newer than the build before trusting the result
-- [ ] T056 Push and watch CI to completion; Code Analysis is not reproducible locally, so a local `-RunCodeAnalysis` pass is not evidence this gate passed
+- [X] T056 Push and watch CI to completion; Code Analysis is not reproducible locally, so a local `-RunCodeAnalysis` pass is not evidence this gate passed
 
 ---
 
