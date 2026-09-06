@@ -56,18 +56,23 @@ float DitherOffset (float2 pixel)
 float4 main (PSInput i) : SV_TARGET
 {
     float4 c = tex.Sample (sam, i.uv);
-// NOT AT THE RAILS. Dither scatters a rounding error, and a value already
-// sitting exactly on a representable code has none to scatter -- black is
-// 0.0 in both formats and lands on 0 whatever we do. Offsetting it anyway
-// can only push it UP, because the clamp eats the half of the distribution
-// that would have pushed it down, so an area of true black comes back a
-// tenth speckled with code 1. The letterbox bars, the blanking around the
-// picture and the floor of every scanline trough are all that value, and a
-// haze over them is precisely what shows on an OLED or in a dark room.
+// EVERY PIXEL, INCLUDING THE NEARLY-BLACK ONES.
 //
-// Fading the offset out over the last code either side leaves the interior
-// -- everything the banding actually lives in -- dithered at full strength,
-// and hands the rails back their exact values.
-    c.rgb += DitherOffset (i.pos.xy) * saturate (min (c.rgb, 1.0 - c.rgb) * 255.0);
+// This was once faded out over the last code either side of the rails, to
+// stop the offset lifting true black off zero. That was aimed at the wrong
+// cause: isolating it showed the letterbox measured 90.34% pure black with
+// the offset multiplied out entirely against 90.32% with it on. What lifts
+// those bars is the chain's ten-bit scratch keeping the bloom spill past the
+// picture edge that eight bits used to truncate away -- a real value, faintly
+// lit, not noise.
+//
+// The fade meanwhile cost something real. The source is ten bits now, so the
+// halo's outer falloff lives at values BETWEEN zero and one eight-bit code:
+// a genuine gradient carrying genuine rounding error, and precisely where
+// sRGB spaces its codes furthest apart. Scaling the offset from zero to one
+// across that span dithered the faintest, most band-prone part of the picture
+// at a fraction of the amplitude it needed, leaving its residual error still
+// correlated with the signal -- which is the condition that draws a contour.
+    c.rgb += DitherOffset (i.pos.xy);
     return c;
 }

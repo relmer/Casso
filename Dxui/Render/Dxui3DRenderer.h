@@ -412,6 +412,18 @@ private:
     ComPtr<ID3D11Texture2D>           m_contentTex;
     ComPtr<ID3D11ShaderResourceView>  m_contentSrv;
     ID3D11ShaderResourceView *        m_externalSrv = nullptr;   // non-owning
+
+    // Whether this draw's pixels are being QUANTIZED or merely CARRIED.
+    //
+    // Shaded geometry arrives at the target as float and has to round to
+    // eight bits, so it dithers. A composite blit does not: the plate it
+    // lays down is already eight-bit, already dithered when it was drawn,
+    // and going to the same depth again -- there is no error left to
+    // scatter, so an offset there is noise laid over an exact copy, and
+    // laid over the plate's own grain at that. Nothing in the vertex data
+    // separates the two (a composite quad and the picture quad both carry
+    // opaque white and a zero normal), so the distinction is stated.
+    bool                              m_ditherOutput = true;
     ComPtr<ID3D11Texture2D>           m_whiteTex;
     ComPtr<ID3D11ShaderResourceView>  m_whiteSrv;
 

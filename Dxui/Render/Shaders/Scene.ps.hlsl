@@ -12,7 +12,7 @@ cbuffer Light : register(b1)
     float4 l1;        // xyz light 1
     float4 eye;       // xyz DIRECTION toward the viewer
     float4 parm;      // x refDist, y span, z gain, w specStrength
-    float4 parm2;     // x specPower
+    float4 parm2;     // x specPower, y 1 when this draw quantizes (see below)
     float4 ambUp;     // xyz ceiling bounce
     float4 ambDown;   // xyz desk bounce
     float4 lampPos;   // xyz, w refDist
@@ -357,6 +357,19 @@ float4 main (PSIn input) : SV_TARGET
             }
         }
     }
+// ONLY WHERE THIS DRAW IS ACTUALLY QUANTIZING, which parm2.y says.
+//
+// This shader runs for the plate COMPOSITES too -- CompositeFullTarget hands
+// its full-target quad to the same pipeline, carrying opaque white and a zero
+// normal, which is indistinguishable from the picture quad by vertex data
+// alone. Those blits move a plate that is already eight bits and was already
+// dithered when it was drawn, into a target of the same depth: there is no
+// rounding error left to scatter, so an offset there is noise over an exact
+// copy, and it lands on top of the plate's own grain. A bezel pixel was taking
+// the offset twice, once at plate render and again at composite, which is two
+// triangular distributions summing to about 1.4x the amplitude this is tuned
+// for -- on exactly the dark case the dither exists to smooth.
+//
 // GATED ON ALPHA, NOT SCALED BY IT.
 //
 // The blend is ONE / INV_SRC_ALPHA, so this fragment's rgb is added to the
@@ -374,6 +387,7 @@ float4 main (PSIn input) : SV_TARGET
 // distinguishes it, so zero alpha is what the gate tests -- anything with even
 // one code of coverage is a layer that genuinely lands on the plate and takes
 // the full offset.
-    return float4 (lit + input.emi + DitherOffset (input.pos.xy) * saturate (base.a * 255.0f),
+    return float4 (lit + input.emi
+                     + DitherOffset (input.pos.xy) * saturate (base.a * 255.0f) * parm2.y,
                    base.a);
 }
