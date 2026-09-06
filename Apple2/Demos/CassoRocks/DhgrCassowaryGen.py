@@ -174,7 +174,7 @@ def main():
     color = build_color_cells()
     cpix  = color.load()
     c_aux, c_main = encode_dhgr(
-        lambda dot, row: (cpix[dot // 4, row] >> (dot % 4)) & 1)
+        lambda dot, row: (cpix[dot // 4, row] >> ((dot + 1) % 4)) & 1)
 
     mono  = build_mono_dots()
     mpix  = mono.load()
