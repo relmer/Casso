@@ -124,12 +124,9 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
-- **The casso-rocks cassowary came out in the wrong colors.** Its generator
-  packed each cell's four dots in the wrong order, rotating every color one
-  step around the palette.
-- **The casso-rocks cassowary was dithered against colors Casso no longer
-  draws.** Its double hi-res picture is generated again from the current
-  palette.
+- **The casso-rocks cassowary appeared in the wrong colors.** Its double
+  hi-res picture is generated again, and shows what the demo was authored
+  to show.
 - **Lo-res and double hi-res color 4 (Dark Green) drew very nearly black.**
   It was the least saturated color in the palette by a wide margin; it is now
   a dark green.
