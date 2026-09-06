@@ -124,6 +124,9 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **Lo-res and double hi-res color 4 (Dark Green) drew very nearly black.**
+  It was the least saturated color in the palette by a wide margin; it is now
+  a dark green.
 - **The //e and //c could not type lowercase.** Every letter was folded to
   uppercase on its way to the keyboard latch, on machines whose whole keyboard
   advance was lowercase. Pasted text was folded the same way.
