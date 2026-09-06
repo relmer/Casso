@@ -111,9 +111,9 @@ shows the CRT-processed scene without chrome or overlays, and matches the clipbo
 - [X] T022 [US1] Add the synchronous capture paint to `Casso/EmulatorShell.h/.cpp`: set a capture-pending request, drive `InvalidateRect` + `UpdateWindow` through the existing `WM_PAINT` entry point, and service it at the frame position data-model.md's Frame ordering table gives for the plan's source, reading back before Present
 - [X] T023 [US1] Route `IDM_EDIT_COPY_SCREENSHOT` in `Casso/Shell/WindowCommandManager.cpp` through `ScreenshotCapture` with a plan resolved from preferences, replacing the direct `ClipboardManager::CopyScreenshot` call (near line 595)
 - [X] T024 [US1] In `Casso/Shell/ScreenshotCapture.cpp`, obtain the Pictures folder via `SHGetKnownFolderPath (FOLDERID_Pictures, …)` and **pass it into** `ScreenshotPlan::Resolve`; perform `create_directories` only when the returned plan sets `folderMustBeCreated`. The exe supplies the folder and does the syscall; it composes no path and decides no policy
-- [ ] T025 [US1] Display `CaptureOutcome::DescribeResult`'s text through `DxuiHudNotice` in `Casso/EmulatorShell.cpp`, covering success, **refusal** (the minimized-window edge case, FR-008 and spec Edge Cases) and failure alike -- one notice path, no wording chosen at the call site
+- [X] T025 [US1] Display `CaptureOutcome::DescribeResult`'s text through `DxuiHudNotice` in `Casso/EmulatorShell.cpp`, covering success, **refusal** (the minimized-window edge case, FR-008 and spec Edge Cases) and failure alike -- one notice path, no wording chosen at the call site
 - [X] T026 [US1] Run the two sinks independently in `Casso/Shell/ScreenshotCapture.cpp` so neither failure prevents the other (FR-018), recording both results in the `CaptureOutcome`
-- [ ] T027 [US1] Validate manually per [quickstart.md](quickstart.md) Scenario 1, with the frame-rate and pose readouts switched on so their absence from the capture is proven, and watch the emulated machine across a single capture and a ten-capture burst for any stall (SC-004)
+- [X] T027 [US1] Validate manually per [quickstart.md](quickstart.md) Scenario 1, with the frame-rate and pose readouts switched on so their absence from the capture is proven, and watch the emulated machine across a single capture and a ten-capture burst for any stall (SC-004)
 
 **Checkpoint**: GH #132's core complaint is fixed and screenshots are files. This is a
 shippable increment on its own.
@@ -178,12 +178,12 @@ folder and confirm the file lands there.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T050 Work the full edge-case table in [quickstart.md](quickstart.md) Scenario 6, and confirm FR-035: the feature's only exposure is the three settings plus the single toolbar button, single menu item and single shortcut, all following the selected mode -- no second command was added anywhere
-- [ ] T051 [P] Add the CHANGELOG entry under `[Unreleased]` in `CHANGELOG.md`, stating the net user-visible effect and referencing `Closes #132`; no entry for the spec check-in itself
-- [ ] T052 [P] Add a README headline entry for screenshots in `README.md` -- user-visible news only, no detail
-- [ ] T053 Run `pwsh scripts/CheckStyle.ps1 -Mode Tree` and clear every hit; CI runs this on every master push
-- [ ] T054 Build clean with zero warnings in Debug and Release on x64, and confirm ARM64 builds; ARM64 is build-only, there is no device to run on
-- [ ] T055 Run the full suite in both configurations; confirm `UnitTest.dll` is newer than the build before trusting the result
+- [X] T050 Work the full edge-case table in [quickstart.md](quickstart.md) Scenario 6, and confirm FR-035: the feature's only exposure is the three settings plus the single toolbar button, single menu item and single shortcut, all following the selected mode -- no second command was added anywhere
+- [X] T051 [P] Add the CHANGELOG entry under `[Unreleased]` in `CHANGELOG.md`, stating the net user-visible effect and referencing `Closes #132`; no entry for the spec check-in itself
+- [X] T052 [P] Add a README headline entry for screenshots in `README.md` -- user-visible news only, no detail
+- [X] T053 Run `pwsh scripts/CheckStyle.ps1 -Mode Tree` and clear every hit; CI runs this on every master push
+- [X] T054 Build clean with zero warnings in Debug and Release on x64, and confirm ARM64 builds; ARM64 is build-only, there is no device to run on
+- [X] T055 Run the full suite in both configurations; confirm `UnitTest.dll` is newer than the build before trusting the result
 - [ ] T056 Push and watch CI to completion; Code Analysis is not reproducible locally, so a local `-RunCodeAnalysis` pass is not evidence this gate passed
 
 ---
