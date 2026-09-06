@@ -330,6 +330,7 @@ DxuiPanZoom::Config PrinterPanel::GetPanZoomConfig()
 HRESULT PrinterPanel::Create (
     HINSTANCE              hInstance,
     HWND                   hwndOwner,
+    HWND                   hwndPlacementAnchor,
     ID3D11Device         * device,
     ID3D11DeviceContext  * context,
     const CassoTheme     * theme)
@@ -393,6 +394,16 @@ HRESULT PrinterPanel::Create (
     // here and the latched key auto-repeats "]" forever. The menu-open path
     // still focuses it via an activating Show() right after creation.
     params.createNoActivate = true;
+
+    // Beside the emulator, right side first -- the opposite side from the
+    // Settings sheet and the disk picker, so a user with both open reads
+    // one on each flank of the machine instead of one on top of the other.
+    // Measured against the anchor rather than the owner: this window is
+    // deliberately UNOWNED (see the no-activate note above and the z-order
+    // one in ShowPrinterPanel), so without the anchor it would have
+    // nothing to sit beside and would center on the screen.
+    params.placement           = DxuiWindowPlacement::BesideOwnerRight;
+    params.placementAnchorHwnd = hwndPlacementAnchor;
 
     hr = DxuiWindow::Create (params);
     CHR (hr);

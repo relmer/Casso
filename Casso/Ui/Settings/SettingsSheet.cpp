@@ -184,7 +184,7 @@ HRESULT SettingsSheet::OpenModeless (
     // of the primary monitor. When neither side fits the sheet stays on the
     // emulator's monitor and overlaps it; splitting across two screens or
     // wandering onto another one is the worse outcome.
-    params.placeBesideOwner         = true;
+    params.placement                = DxuiWindowPlacement::BesideOwnerLeft;
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);

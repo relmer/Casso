@@ -133,6 +133,10 @@ public:
     }
 
 
+    DxuiHwndSource::OwnerSide  Left() { return DxuiHwndSource::OwnerSide::Left; }
+    DxuiHwndSource::OwnerSide  Right() { return DxuiHwndSource::OwnerSide::Right; }
+
+
     //
     //  The preferred placement: flush against the owner's left edge, tops
     //  aligned, whenever the whole frame still fits on the owner's monitor.
@@ -140,7 +144,7 @@ public:
     //
     TEST_METHOD (BesideOwnerPrefersTheLeftEdge)
     {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (600, 100, 1400, 700), GetSize (500, 600), s_kWork);
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (600, 100, 1400, 700), GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (100, 100, p, L"flush against the owner's left edge");
@@ -153,10 +157,38 @@ public:
     //
     TEST_METHOD (BesideOwnerFallsBackToTheRightEdge)
     {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 900, 700), GetSize (500, 600), s_kWork);
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 900, 700), GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (900, 100, p, L"flush against the owner's right edge");
+    }
+
+
+    //
+    //  The same owner, asked for the right side instead: both sides fit,
+    //  so the preference is the whole of the answer. The printer panel
+    //  opens on this side so it does not land on top of the Settings
+    //  sheet.
+    //
+    TEST_METHOD (BesideOwnerHonorsARightPreference)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (600, 100, 1400, 700), GetSize (500, 600), s_kWork, Right());
+
+
+        AssertPoint (1400, 100, p, L"flush against the owner's right edge");
+    }
+
+
+    //
+    //  A right preference still falls back to the left when the right will
+    //  not fit -- a preference, not a demand.
+    //
+    TEST_METHOD (BesideOwnerRightFallsBackToTheLeftEdge)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (1300, 100, 1900, 700), GetSize (500, 600), s_kWork, Right());
+
+
+        AssertPoint (800, 100, p, L"flush against the owner's left edge");
     }
 
 
@@ -167,8 +199,8 @@ public:
     //
     TEST_METHOD (BesideOwnerOverlapsOnTheRoomierSide)
     {
-        POINT  left  = DxuiHwndSource::PlaceBesideOwner (GetRect (200, 100, 1800, 900), GetSize (500, 600), s_kWork);
-        POINT  right = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 1700, 900), GetSize (500, 600), s_kWork);
+        POINT  left  = DxuiHwndSource::PlaceBesideOwner (GetRect (200, 100, 1800, 900), GetSize (500, 600), s_kWork, Left());
+        POINT  right = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 1700, 900), GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (0,    100, left,  L"more room left: pinned to the work-area left edge");
@@ -182,7 +214,7 @@ public:
     //
     TEST_METHOD (BesideMaximizedOwnerStaysOnItsMonitor)
     {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (s_kWork, GetSize (500, 600), s_kWork);
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (s_kWork, GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (1420, 0, p, L"overlapping the maximized owner, still on its monitor");
@@ -200,7 +232,8 @@ public:
     {
         POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (-1800, 100, -1200, 700),
                                                      GetSize (500, 600),
-                                                     GetRect (-1920, 0, 0, 1080));
+                                                     GetRect (-1920, 0, 0, 1080),
+                                                     Left());
 
 
         AssertPoint (-1200, 100, p, L"beside the owner on the left-hand monitor");
@@ -267,7 +300,7 @@ public:
     //
     TEST_METHOD (BesideOwnerClampsTheBottomIntoTheWorkArea)
     {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 700, 900, 1000), GetSize (500, 600), s_kWork);
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 700, 900, 1000), GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (900, 440, p, L"bottom meets work.bottom; the side placement holds");

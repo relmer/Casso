@@ -77,18 +77,18 @@ public:
         // still focuses them on demand.
         bool                createNoActivate  = false;
 
-        // Open the window flush against the owner's left edge (or its
-        // right, when the left will not fit on the owner's monitor)
-        // instead of taking the OS cascade position -- which a composited
-        // WS_POPUP window never gets, landing it in the primary monitor's
-        // top-left corner. Requires ownerHwnd.
-        bool                placeBesideOwner  = false;
+        // Where the window opens: beside the owner, centered on it, or
+        // centered on the screen -- instead of the OS cascade position,
+        // which ignores the owner entirely and which a composited
+        // WS_POPUP window never gets at all (it lands in the primary
+        // monitor's top-left corner). Every mode but CenteredOnScreen
+        // needs a window to measure against. See DxuiWindowPlacement.
+        DxuiWindowPlacement placement           = DxuiWindowPlacement::Default;
 
-        // Open the window centered on the owner instead of taking the OS
-        // cascade position, which ignores the owner entirely. Where a
-        // modal belongs. Clamped to the owner's monitor work area.
-        // Requires ownerHwnd; placeBesideOwner wins if both are set.
-        bool                centerOnOwner     = false;
+        // The window `placement` measures against when that is not the
+        // owner -- for a window that wants to open beside another without
+        // being owned by it. Defaults to ownerHwnd when null.
+        HWND                placementAnchorHwnd = nullptr;
     };
 
 

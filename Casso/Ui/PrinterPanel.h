@@ -59,8 +59,11 @@ public:
     PrinterPanel  ();
     ~PrinterPanel () override;
 
+    // `hwndPlacementAnchor` is the window the panel opens beside without
+    // being owned by it -- ownership would z-lock the preview above Casso.
     HRESULT  Create (HINSTANCE              hInstance,
                      HWND                   hwndOwner,
+                     HWND                   hwndPlacementAnchor,
                      ID3D11Device         * device,
                      ID3D11DeviceContext  * context,
                      const CassoTheme     * theme);

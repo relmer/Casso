@@ -26,6 +26,34 @@ enum class DxuiMessageResult;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiWindowPlacement
+//
+//  Where a window opens, for the callers that will not take the OS cascade.
+//  The cascade ignores the owner entirely, and a WS_POPUP window does not
+//  even get one -- CW_USEDEFAULT means 0,0 for a popup -- so anything that
+//  belongs near the window that raised it has to say so.
+//
+//  Each owner-relative mode is clamped to the OWNER's monitor work area, so
+//  none of them can put a window on a neighboring monitor, split it across
+//  two, or slide it under the taskbar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DxuiWindowPlacement
+{
+    Default,           // the OS cascade (0,0 for a WS_POPUP window)
+    BesideOwnerLeft,   // flush against the owner's left edge, its right when the left will not fit
+    BesideOwnerRight,  // flush against the owner's right edge, its left when the right will not fit
+    CenteredOnOwner,   // centered on the owner's frame -- where a modal belongs
+    CenteredOnScreen,  // centered on the work area, for a window with no owner to sit near
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHwndSource
 //
 //  Top-level Win32 host window that owns the HWND, the D3D11 device,
@@ -192,26 +220,18 @@ public:
         // that wants it focused shows it with an activating Show().
         bool                     createNoActivate         = false;
 
-        // When true (and ownerHwnd is set), the window opens flush
-        // against the owner's left edge, or its right edge when the
-        // left does not fit on the owner's monitor, instead of taking
-        // the OS cascade position. A composited (WS_POPUP) window gets
-        // no cascade at all -- CW_USEDEFAULT means 0,0 for a popup --
-        // so without this the Settings sheet opened in the top-left
-        // corner of the primary monitor. Ignored when
-        // useInitialWindowRectPx supplies a placement outright.
-        bool                     placeBesideOwner         = false;
+        // Where the window opens. The owner-relative modes need a window
+        // to measure against and degrade to CenteredOnScreen without one.
+        // Ignored when useInitialWindowRectPx supplies a placement
+        // outright.
+        DxuiWindowPlacement      placement                = DxuiWindowPlacement::Default;
 
-        // When true (and ownerHwnd is set), the window opens centered on
-        // the owner's frame instead of taking the OS cascade position --
-        // where a modal belongs: the user's attention is already on the
-        // window that raised it. Clamped to the owner's monitor work
-        // area, so a dialog centered on a partly off-screen owner still
-        // opens whole and above the taskbar. Ignored when
-        // useInitialWindowRectPx supplies a placement outright, and when
-        // placeBesideOwner is also set (beside wins -- the two ask for
-        // different places, and only a caller mistake sets both).
-        bool                     centerOnOwner            = false;
+        // The window `placement` measures against, when that is not the
+        // owner. Ownership and placement are separate questions: the
+        // printer preview is a PEER of the emulator window (owning it
+        // would z-lock it above Casso forever) yet still wants to open
+        // beside it. Defaults to ownerHwnd when null.
+        HWND                     placementAnchorHwnd      = nullptr;
     };
 
 
@@ -234,17 +254,28 @@ public:
     static POINT  ClampToWorkArea  (const RECT & windowRect, const RECT & work);
 
     //
+    //  Which side of the owner PlaceBesideOwner tries first. The other
+    //  side is the fallback, so this is a preference, not a demand.
+    //
+    enum class OwnerSide
+    {
+        Left,
+        Right,
+    };
+
+    //
     //  Pure placement geometry (no Win32 calls, so it is unit-tested
     //  directly). Returns the top-left for a window of `windowSizePx`
-    //  placed beside `ownerRect`: flush against the owner's left edge
-    //  when the whole frame then fits in `work`, else flush against its
-    //  right edge, else overlapping the owner on whichever side has more
-    //  room, pinned to that edge of `work` so the overlap is as small as
-    //  the monitor allows. `work` is the OWNER's monitor work area, so
-    //  the result never lands on a second monitor or under the taskbar.
-    //  Tops align with the owner, then clamp.
+    //  placed beside `ownerRect`: flush against the `preferred` side of
+    //  the owner when the whole frame then fits in `work`, else flush
+    //  against the other side, else overlapping the owner on whichever
+    //  side has more room, pinned to that edge of `work` so the overlap
+    //  is as small as the monitor allows. `work` is the OWNER's monitor
+    //  work area, so the result never lands on a second monitor or under
+    //  the taskbar. Tops align with the owner, then clamp.
     //
-    static POINT  PlaceBesideOwner (const RECT & ownerRect, const SIZE & windowSizePx, const RECT & work);
+    static POINT  PlaceBesideOwner (const RECT & ownerRect, const SIZE & windowSizePx, const RECT & work,
+                                    OwnerSide preferred);
 
     //
     //  Pure placement geometry (no Win32 calls, so it is unit-tested
@@ -619,18 +650,14 @@ private:
     // excludes the taskbar.
     static void           NudgeWindowOnScreen (HWND hwnd);
 
-    // Which owner-relative placement TryGetOwnerPlacement computes.
-    enum class OwnerPlacement
-    {
-        Beside,     // flush against a side of the owner (PlaceBesideOwner)
-        Centered,   // centered on the owner (CenterOnOwner)
-    };
-
-    // Win32 half of both owner-relative placements: owner frame + owner
-    // monitor work area in, the chosen geometry helper's answer out. False
-    // when there is no owner or the system will not say where it is.
-    static bool           TryGetOwnerPlacement (HWND ownerHwnd, const SIZE & windowSizePx,
-                                                OwnerPlacement mode, POINT & outTopLeft);
+    // Win32 half of every non-Default placement: owner frame + owner
+    // monitor work area in, the chosen geometry helper's answer out.
+    // With no owner every mode degrades to CenteredOnScreen on the
+    // primary monitor. False only when the system will not say where the
+    // owner or its monitor is, which leaves the caller on its default
+    // placement path.
+    static bool           TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowSizePx,
+                                                 DxuiWindowPlacement mode, POINT & outTopLeft);
 
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();

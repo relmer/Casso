@@ -778,6 +778,11 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         params.insetContentBelowCaption = true;
         params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
+        // Centered on the screen, not on an owner: this runs before there
+        // is an emulator window to sit near, and it is the only thing the
+        // user is looking at when it does.
+        params.placement                = DxuiWindowPlacement::CenteredOnScreen;
+
         hrCreate = dlg.Create (params);
 
         // No window means no way to ask, and the assets may be required to

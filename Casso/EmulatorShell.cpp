@@ -6320,12 +6320,13 @@ int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
     // Centered on the emulator window rather than on the OS cascade, which
     // ignores the owner: the Help modals opened at the cascade's top-left
     // corner, half off the window that raised them. A modal belongs where
     // the user is already looking.
-    params.centerOnOwner            = true;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
     hr = dlg.Create (params);
     CHRA (hr);
@@ -6734,7 +6735,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     // ignores the owner: the Help modals opened at the cascade's top-left
     // corner, half off the window that raised them. A modal belongs where
     // the user is already looking.
-    params.centerOnOwner            = true;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
     hr = dlg.Create (params);
     CHRA (hr);
@@ -7036,6 +7037,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         // (always-on-top of Casso); a peer can be sent behind Casso normally.
         hr = m_printerPanel->Create (hInstance,
                                      nullptr,
+                                     m_hwnd,     // placement anchor only -- not an owner
                                      m_d3dRenderer.GetDevice(),
                                      m_d3dRenderer.GetContext(),
                                      &m_chromeTheme);
