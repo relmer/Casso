@@ -26,9 +26,11 @@ static constexpr int    s_kOptionGapDp     = 14;
 static constexpr int    s_kAfterRadiosDp   = 22;
 
 static constexpr int    s_kBrowseWidthDp   = 100;
-static constexpr int    s_kLinkWidthDp     = 260;
-static constexpr int    s_kLinkGapDp       = 10;
-static constexpr size_t s_kFolderMaxChars  = 42;
+
+// Browse sits BELOW the path rather than beside it, which hands the whole
+// content width to the link. A path is long and a button is not, and putting
+// them on one line spent the path's room on a control that never needed it.
+static constexpr size_t s_kFolderMaxChars  = 64;
 
 
 
@@ -324,13 +326,12 @@ void ScreenshotsPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     }
 
     m_saveFile.SetRect  (MakeRect (x, y, labelWidth + checkWidth, rowHeight));
-    m_saveFile.SetLabel (L"Save a file as well as copying");
+    m_saveFile.SetLabel (L"Save to a file as well as copying to the clipboard");
     y += rowHeight + sectionGap;
 
     {
-        int   linkW   = scaler.ToPx (s_kLinkWidthDp);
+        int   linkW   = (rect.right - rect.left) - (controlsX - rect.left) - pad;
         int   browseW = scaler.ToPx (s_kBrowseWidthDp);
-        int   gap     = scaler.ToPx (s_kLinkGapDp);
 
         m_folderLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
         m_folderLabel.SetText (L"Folder:");
@@ -338,9 +339,10 @@ void ScreenshotsPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_folderLink.SetVariant (DxuiButton::Variant::Link);
         m_folderLink.Layout     (MakeRect (controlsX, y, linkW, rowHeight));
         RefreshFolderText();
+        y += rowHeight;
 
         m_browseFolder.SetLabel (L"Browse...");
-        m_browseFolder.Layout   (MakeRect (controlsX + linkW + gap, y, browseW, rowHeight));
+        m_browseFolder.Layout   (MakeRect (controlsX, y, browseW, rowHeight));
 
         y += rowHeight + sectionGap;
     }
