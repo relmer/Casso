@@ -163,7 +163,7 @@ jobs:
 
     permissions:
       contents: write   # push the tag + create the release
-      id-token: write   # OIDC federation to Azure Trusted Signing
+      id-token: write   # OIDC federation to Azure Artifact Signing
 
     # The Entra federated credential is registered against a subject that names
     # this environment, so the name here is part of the auth, not a label.
@@ -316,12 +316,12 @@ jobs:
       # side by side, and an ARM64 PE signs on an x64 runner like any other.
       - name: Sign the staged binaries
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
-        uses: azure/trusted-signing-action@v0.5.0
+        uses: azure/artifact-signing-action@v2.0.0
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           endpoint: https://wcus.codesigning.azure.net/
-          trusted-signing-account-name: relmer-signing
+          signing-account-name: relmer-signing
           certificate-profile-name: relmer-public
           files-folder: ${{ github.workspace }}/staging
           files-folder-filter: exe

@@ -16,7 +16,7 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
-- **Release binaries are signed** with Azure Trusted Signing, so Windows stops
+- **Release binaries are signed** with Azure Artifact Signing, so Windows stops
   warning about an unknown publisher. A build with no signing secrets ships
   unsigned with a warning rather than failing.
 
