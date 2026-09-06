@@ -357,15 +357,23 @@ float4 main (PSIn input) : SV_TARGET
             }
         }
     }
-// SCALED BY ALPHA, because the target is premultiplied. The blend is
-// ONE / INV_SRC_ALPHA, so whatever this returns in rgb is added to the plate
-// outright -- a fragment carrying zero alpha contributes zero only as long as
-// its rgb is zero too. The picture's depth stamp is exactly that fragment: the
-// picture's own triangles with every channel zeroed, drawn to write depth and
-// nothing else. Unscaled dither turned that no-op into a speckle laid over the
-// whole picture region, and graded the contact shadow's transparent edge
-// lighter than black. Premultiplying the offset the same way the color is
-// premultiplied leaves both alone and still dithers every opaque surface at
-// full strength.
-    return float4 (lit + input.emi + DitherOffset (input.pos.xy) * base.a, base.a);
+// GATED ON ALPHA, NOT SCALED BY IT.
+//
+// The blend is ONE / INV_SRC_ALPHA, so this fragment's rgb is added to the
+// plate outright: dst = src + dst * (1 - a). The dither therefore reaches the
+// destination at full strength WHATEVER the alpha, and it is the destination's
+// rounding it exists to scatter -- so scaling it by alpha simply under-dithers
+// every translucent layer by that factor. The glass tint and its sheen cover
+// nearly the whole screen at low alpha, and scaling put the banding straight
+// back into them.
+//
+// What actually has to be excluded is the one fragment that carries no color
+// at all: the picture's depth stamp is its own triangles with every channel
+// zeroed, drawn to write depth and change no pixel, and unscaled dither turned
+// that no-op into a speckle over the entire picture region. Zero alpha is what
+// distinguishes it, so zero alpha is what the gate tests -- anything with even
+// one code of coverage is a layer that genuinely lands on the plate and takes
+// the full offset.
+    return float4 (lit + input.emi + DitherOffset (input.pos.xy) * saturate (base.a * 255.0f),
+                   base.a);
 }
