@@ -362,13 +362,14 @@ LPCWSTR InputDebugPanel::GetButtonAnnotation (Word address, bool mouseButtonAtC0
 
     switch (address)
     {
-        // The two Apple keys carry their keycap symbols, since that is what
-        // the reader is looking at on the keyboard. Built on first use: a
-        // named glyph constant cannot join a string literal.
+        // The two Apple keys are their keycap symbols and nothing else.
+        // Words beside a symbol that already says the same thing only cost
+        // column width here; the keyboard map is where the pair is taught.
+        // Built on first use: a named glyph constant cannot join a literal.
         case s_kOpenAppleAddress:
         {
             static const std::wstring  openApple =
-                std::wstring (s_kpszOpenApple) + L" open Apple/Btn0";
+                std::wstring (s_kpszOpenApple) + L"/Btn0";
 
             text = openApple.c_str();
             break;
@@ -377,7 +378,7 @@ LPCWSTR InputDebugPanel::GetButtonAnnotation (Word address, bool mouseButtonAtC0
         case s_kClosedAppleAddress:
         {
             static const std::wstring  closedApple =
-                std::wstring (s_kpszClosedApple) + L" closed Apple/Btn1 (bow)";
+                std::wstring (s_kpszClosedApple) + L"/Btn1 (bow)";
 
             text = closedApple.c_str();
             break;

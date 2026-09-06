@@ -326,7 +326,7 @@ const wchar_t * Apple2cSwitchBar::GetResetTip()
     static const std::wstring  tip =
         std::wstring (L"Reset. Inert on its own, like the real //c key.\n"
                       L"Hold Ctrl and click to reset; add ") +
-        s_kpszOpenApple + L" open Apple (left Alt) to cold-boot.";
+        s_kpszOpenApple + L" (left Alt) to cold-boot.";
 
 
 
