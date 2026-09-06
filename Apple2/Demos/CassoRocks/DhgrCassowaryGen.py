@@ -166,6 +166,30 @@ def encode_dhgr(get_dot):
     return bytes(aux_buf), bytes(main_buf)
 
 
+def decode_dhgr(aux, main):
+    """Unpack 8 KB aux + 8 KB main back into a CELLS x ROWS index image.
+
+    Mirrors AppleDoubleHiResMode: a cell is four dots, and dot j carries
+    bit (j + 1) & 3 of the color. The preview is built from this rather
+    than from the cell canvas, so a packing error shows up in the preview
+    instead of hiding behind it."""
+    img = Image.new("P", (Layout.CELLS, Layout.ROWS))
+    px  = img.load()
+
+    for row in range(Layout.ROWS):
+        base = Layout.hgr_row_offset(row)
+        dots = []
+        for byte_idx in range(Layout.DOTS // 7):
+            src  = aux if (byte_idx & 1) == 0 else main
+            byte = src[base + (byte_idx >> 1)]
+            dots.extend((byte >> bit) & 1 for bit in range(7))
+        for cell in range(Layout.CELLS):
+            d = dots[cell * 4:cell * 4 + 4]
+            px[cell, row] = (d[0] << 1) | (d[1] << 2) | (d[2] << 3) | d[3]
+
+    return img
+
+
 def main():
     #  The assets sit beside this script now, so the output folder is
     #  simply this one.
@@ -189,7 +213,9 @@ def main():
 
     # Previews at the on-screen aspect (560x384), each showing what its
     # own monitor would show.
-    color.convert("RGB").resize((Layout.DOTS, Layout.ROWS * 2), Image.NEAREST) \
+    shown = decode_dhgr(c_aux, c_main)
+    shown.putpalette(color.getpalette())
+    shown.convert("RGB").resize((Layout.DOTS, Layout.ROWS * 2), Image.NEAREST) \
          .save(out_dir / "dhgr-cassowary-preview.png")
     mono.convert("RGB").resize((Layout.DOTS, Layout.ROWS * 2), Image.NEAREST) \
         .save(out_dir / "dhgr-cassowary-mono-preview.png")
