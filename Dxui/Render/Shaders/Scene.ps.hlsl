@@ -357,5 +357,15 @@ float4 main (PSIn input) : SV_TARGET
             }
         }
     }
-    return float4 (lit + input.emi + DitherOffset (input.pos.xy), base.a);
+// SCALED BY ALPHA, because the target is premultiplied. The blend is
+// ONE / INV_SRC_ALPHA, so whatever this returns in rgb is added to the plate
+// outright -- a fragment carrying zero alpha contributes zero only as long as
+// its rgb is zero too. The picture's depth stamp is exactly that fragment: the
+// picture's own triangles with every channel zeroed, drawn to write depth and
+// nothing else. Unscaled dither turned that no-op into a speckle laid over the
+// whole picture region, and graded the contact shadow's transparent edge
+// lighter than black. Premultiplying the offset the same way the color is
+// premultiplied leaves both alone and still dithers every opaque surface at
+// full strength.
+    return float4 (lit + input.emi + DitherOffset (input.pos.xy) * base.a, base.a);
 }

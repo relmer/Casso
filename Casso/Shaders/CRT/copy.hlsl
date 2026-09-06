@@ -56,6 +56,18 @@ float DitherOffset (float2 pixel)
 float4 main (PSInput i) : SV_TARGET
 {
     float4 c = tex.Sample (sam, i.uv);
-    c.rgb += DitherOffset (i.pos.xy);
+// NOT AT THE RAILS. Dither scatters a rounding error, and a value already
+// sitting exactly on a representable code has none to scatter -- black is
+// 0.0 in both formats and lands on 0 whatever we do. Offsetting it anyway
+// can only push it UP, because the clamp eats the half of the distribution
+// that would have pushed it down, so an area of true black comes back a
+// tenth speckled with code 1. The letterbox bars, the blanking around the
+// picture and the floor of every scanline trough are all that value, and a
+// haze over them is precisely what shows on an OLED or in a dark room.
+//
+// Fading the offset out over the last code either side leaves the interior
+// -- everything the banding actually lives in -- dithered at full strength,
+// and hands the rails back their exact values.
+    c.rgb += DitherOffset (i.pos.xy) * saturate (min (c.rgb, 1.0 - c.rgb) * 255.0);
     return c;
 }
