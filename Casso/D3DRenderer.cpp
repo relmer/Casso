@@ -535,15 +535,23 @@ HRESULT D3DRenderer::EnsureSceneContentTarget (int width, int height)
     desc.Height           = (UINT) height;
     desc.MipLevels        = 1;
     desc.ArraySize        = 1;
-    // TEN BITS, to match the chain that fills it. This target is not an
-    // output -- the desk scene SAMPLES it, magnified, onto the curved glass --
-    // so eight bits here would round the bloom halo flat again at the one
-    // boundary between a chain that carries it in ten and a magnification
-    // that makes every step of it wider. That is the same rounding the chain's
-    // own precision exists to avoid, and no dither downstream can undo it: the
-    // plate's dither would be scattering a ramp that had already become
-    // stairs.
-    desc.Format           = DXGI_FORMAT_R10G10B10A2_UNORM;
+    // EIGHT BITS, deliberately, even though the chain that fills it now works
+    // in ten.
+    //
+    // This target looks like scratch and is not: it is where the picture
+    // becomes eight-bit for the desk scene, and the glass is sized to sample
+    // it at roughly one texel per pixel, so the dither the final CRT pass
+    // lays down here lands almost exactly on the output grid. Ten bits here
+    // moves that boundary downstream to the glass draw instead, which is a
+    // magnifying sample through a curved mesh -- the dither would arrive
+    // smeared and off-grid, and the rounding it was meant to scatter would
+    // happen somewhere it no longer covers.
+    //
+    // Widening this was tried and reverted: it put the banding back on the
+    // desk scene, which is the presentation the whole fix exists for. The flat
+    // path is unaffected either way -- it never touches this target, and its
+    // final blit goes straight to the back buffer.
+    desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
     desc.SampleDesc.Count = 1;
     desc.Usage            = D3D11_USAGE_DEFAULT;
     desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
