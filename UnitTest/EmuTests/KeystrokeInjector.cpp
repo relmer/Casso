@@ -80,7 +80,7 @@ HRESULT KeystrokeInjector::InjectKey (
     hr = WaitForStrobeClear (core, cycleBudget);
     CHR (hr);
 
-    core.keyboard->PressKeyRaw (ch);
+    core.keyboard->PressKey (ch);
 
     hr = WaitForStrobeClear (core, cycleBudget);
     CHR (hr);

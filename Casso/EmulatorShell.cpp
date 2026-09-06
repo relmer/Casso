@@ -3648,6 +3648,7 @@ void EmulatorShell::SyncToolbarState()
     }
 
     m_toolbar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
+    m_switchBar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
     m_toolbar.SetFullscreen         (m_d3dRenderer.IsFullscreen());
     m_toolbar.SetMonitorColorIndex  (colorIndex);
 
@@ -6607,20 +6608,22 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 
 int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 {
-    constexpr int       s_kBaseWidthDip     = 440;
-    constexpr int       s_kMaxWidthDip      = 760;
-    constexpr int       s_kChromeHeightDip  = 108;   // caption + content pad*2 + button row
-    constexpr int       s_kMinHeightDip     = 120;
-    constexpr int       s_kMaxHeightDip     = 620;
-    constexpr int       s_kIconSrcPx        = 256;
-    constexpr int       s_kDefaultIconDip   = 48;
-    constexpr int       s_kGlyphSizeDip     = 32;
-    constexpr wchar_t   s_kchGlyphInfo      = L'\uE946';   // MDL2 Info
-    constexpr wchar_t   s_kchGlyphWarning   = L'\uE7BA';   // MDL2 Warning
-    constexpr wchar_t   s_kchGlyphError     = L'\uEA39';   // MDL2 ErrorBadge
-    constexpr uint32_t  s_kGlyphArgbInfo    = 0xFF4A9EDB;
-    constexpr uint32_t  s_kGlyphArgbWarning = 0xFFF5A623;
-    constexpr uint32_t  s_kGlyphArgbError   = 0xFFE5424D;
+    constexpr int       s_kBaseWidthDip       = 440;
+    constexpr int       s_kMaxWidthDip        = 760;
+    constexpr int       s_kMinContentWidthDip = 280;   // floor for a self-sizing body
+    constexpr int       s_kBodyPadDip         = 56;   // content inset, both sides
+    constexpr int       s_kChromeHeightDip    = 108;   // caption + content pad*2 + button row
+    constexpr int       s_kMinHeightDip       = 120;
+    constexpr int       s_kMaxHeightDip       = 620;
+    constexpr int       s_kIconSrcPx          = 256;
+    constexpr int       s_kDefaultIconDip     = 48;
+    constexpr int       s_kGlyphSizeDip       = 32;
+    constexpr wchar_t   s_kchGlyphInfo        = L'\uE946';   // MDL2 Info
+    constexpr wchar_t   s_kchGlyphWarning     = L'\uE7BA';   // MDL2 Warning
+    constexpr wchar_t   s_kchGlyphError       = L'\uEA39';   // MDL2 ErrorBadge
+    constexpr uint32_t  s_kGlyphArgbInfo      = 0xFF4A9EDB;
+    constexpr uint32_t  s_kGlyphArgbWarning   = 0xFFF5A623;
+    constexpr uint32_t  s_kGlyphArgbError     = 0xFFE5424D;
 
 
 
@@ -6688,7 +6691,28 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         widthDip += DxuiButtonRow::GetWidthForLabel (button.label) + DxuiButtonRow::kGapDip;
     }
 
-    widthDip = std::clamp (widthDip - DxuiButtonRow::kGapDip, s_kBaseWidthDip, s_kMaxWidthDip);
+    widthDip -= DxuiButtonRow::kGapDip;
+
+    // A body of aligned column rows knows how wide it wants to be, and that
+    // width varies with what the running machine actually has. Let it set the
+    // width -- floor included, so a short body gives a small dialog rather
+    // than a standard-width one with a column of air down the right. Prose
+    // bodies report 0 (they wrap to whatever they are given) and keep the
+    // standard width.
+    {
+        int  bodyDip = content->GetPreferredWidthDip();
+
+        if (bodyDip > 0)
+        {
+            bodyDip += s_kBodyPadDip;
+            widthDip = (widthDip > bodyDip) ? widthDip : bodyDip;
+            widthDip = std::clamp (widthDip, s_kMinContentWidthDip, s_kMaxWidthDip);
+        }
+        else
+        {
+            widthDip = std::clamp (widthDip, s_kBaseWidthDip, s_kMaxWidthDip);
+        }
+    }
 
     dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
 
@@ -11823,9 +11847,11 @@ void EmulatorShell::OpenSettings()
 //  HandleHostMetaShortcut
 //
 //  Consume host-meta keys that never reach the emulated //e keyboard: menu
-//  mnemonic navigation, F10 menu focus, Ctrl+V paste, and Ctrl+Shift+R reset.
-//  Returns true when the key was claimed. An unmatched Alt+key deliberately
-//  falls through so combos like Ctrl+Alt+R still reach the reset path.
+//  mnemonic navigation, F10 menu focus, and Ctrl+V paste. Returns true when
+//  the key was claimed. Every accelerator the menu advertises is dispatched
+//  from the accelerator table instead, so nothing here duplicates one; an
+//  unmatched Alt+key deliberately falls through, since Alt is the //e's
+//  Open / Closed Apple and belongs to the guest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11856,11 +11882,6 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
         // line (the classic paste-then-SYNTAX-ERROR).
         m_swallowMetaChar = true;
         m_clipboardManager->PasteFromClipboard (m_hwnd);
-    }
-    else if (vk == 'R' && ctrlHeld && !(GetKeyState (VK_SHIFT) & 0x8000))
-    {
-        m_swallowMetaChar = true;
-        PostCommand (IDM_MACHINE_RESET);
     }
     else
     {
@@ -11919,50 +11940,63 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MapVkToAppleControlCode
+//  TryMapVkToSpecialKey
 //
-//  Translate a host arrow/Escape/Delete virtual key into its //e control
-//  code. Returns 0 for keys that have no direct //e control-code mapping.
+//  Name the Apple key a host virtual key stands for, reporting false when it
+//  stands for none. Which code that key sends -- and whether the running
+//  machine even has it -- is the keyboard device's to answer, not the
+//  shell's, so this stops at the key's identity.
+//
+//  TAB is deliberately here rather than left to its WM_CHAR. Routed as a key
+//  it can be refused on a ][+, which has no TAB; routed as the character $09
+//  it would be indistinguishable from Ctrl+I, which that keyboard does send.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte EmulatorShell::MapVkToAppleControlCode (WPARAM vk)
+bool EmulatorShell::TryMapVkToSpecialKey (WPARAM vk, AppleSpecialKey & outKey)
 {
-    Byte  appleCode = 0;
+    bool  mapped = true;
 
 
 
     switch (vk)
     {
-        case VK_LEFT:
-            appleCode = kAppleKeyLeft;
-            break;
-
-        case VK_RIGHT:
-            appleCode = kAppleKeyRight;
-            break;
-
-        case VK_UP:
-            appleCode = kAppleKeyUp;
-            break;
-
-        case VK_DOWN:
-            appleCode = kAppleKeyDown;
-            break;
-
-        case VK_ESCAPE:
-            appleCode = kAppleKeyEscape;
-            break;
-
-        case VK_DELETE:
-            appleCode = kAppleKeyDelete;
-            break;
+        case VK_LEFT:   outKey = AppleSpecialKey::Left;   break;
+        case VK_RIGHT:  outKey = AppleSpecialKey::Right;  break;
+        case VK_UP:     outKey = AppleSpecialKey::Up;     break;
+        case VK_DOWN:   outKey = AppleSpecialKey::Down;   break;
+        case VK_TAB:    outKey = AppleSpecialKey::Tab;    break;
+        case VK_ESCAPE: outKey = AppleSpecialKey::Escape; break;
+        case VK_DELETE: outKey = AppleSpecialKey::Delete; break;
 
         default:
+            mapped = false;
             break;
     }
 
-    return appleCode;
+    return mapped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DoesSpecialKeySynthesizeChar
+//
+//  Whether Windows also manufactures a WM_CHAR for this key, which then has
+//  to be swallowed so the key is not delivered twice -- or, on a machine that
+//  refused the key, delivered after all.
+//
+//  Only TAB ($09) and Escape ($1B) are character keys in Windows' eyes; the
+//  arrows and DELETE produce a keydown and nothing else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::DoesSpecialKeySynthesizeChar (AppleSpecialKey key)
+{
+    return key == AppleSpecialKey::Tab || key == AppleSpecialKey::Escape;
 }
 
 
@@ -12023,6 +12057,16 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool     isRepeat      = (lParam & s_kPreviousKeyDownLParamBit) != 0;
 
 
+
+    // The swallow is a ONE-SHOT owned by this keydown, and clearing it here
+    // is what keeps it one. Windows does not always follow a keydown with the
+    // WM_CHAR its setters assume: an Alt-held key arrives as WM_SYSKEYDOWN
+    // (routed here just like WM_KEYDOWN) and yields WM_SYSCHAR, which reaches
+    // no handler at all. A flag left armed by one of those would eat the next
+    // ordinary character the user typed. Windows queues a keydown's character
+    // before the next keydown, so a swallow that is still wanted is always
+    // consumed before this runs again.
+    m_swallowMetaChar = false;
 
     // 0. Esc exits paddle mode: releases the mouse capture (cursor
     //    reappears) and returns the input mapping to Off, matching the
@@ -12233,32 +12277,53 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 
     if (hasKeyboard && ev.kind == DxuiKeyEventKind::Down)
     {
-        WPARAM  vk        = ev.vk;
-        Byte    appleCode = 0;
+        WPARAM           vk         = ev.vk;
+        Byte             appleCode  = 0;
+        AppleSpecialKey  specialKey = AppleSpecialKey::Left;
+        bool             isSpecial  = TryMapVkToSpecialKey (vk, specialKey);
+        bool             hasTheKey  = !isSpecial ||
+                                      m_refs.keyboard->MapSpecialKey (specialKey) != 0;
 
-        m_refs.keyboard->SetKeyDown (true);
+        // A named key the running machine's keyboard does not have was never
+        // pressed as far as the guest is concerned, so it must not raise
+        // any-key-down either -- $C010 reporting a key held while $C000 holds
+        // nothing is a state the hardware cannot be in.
+        if (hasTheKey)
+        {
+            m_refs.keyboard->SetKeyDown (true);
+        }
+
         ApplyAppleModifierKeys (vk, true);
 
-        // Arrow / Escape / Delete map to //e control codes. Gated on the
-        // auto-repeat bit so the host OS repeat never reaches the latch; a
-        // fresh press arms the $C000 strobe once and registers the key for
-        // the emulator's own authentic //e auto-repeat cadence
-        // (TickAutoRepeat). With "Map Arrows to Joystick" on (and a game-port
-        // paddle bank present), arrow keys are withheld from the keyboard
-        // latch so a held direction cannot flood $C000 and starve a joystick
-        // game's reads.
-        if (!ev.repeat)
+        // TAB and Escape reach us twice: once as this keydown, and again as
+        // the WM_CHAR Windows manufactures from it. The key route below is
+        // the authoritative one -- it is the only one that can tell the TAB
+        // key from Ctrl+I, which sends the same $09 -- so the character is
+        // swallowed. Set on repeats too, since each repeated keydown brings
+        // its own character along. Nothing here depends on that character
+        // actually arriving: OnKeyDown clears the flag on the way in, so an
+        // Alt-held TAB or Escape, whose WM_SYSCHAR never reaches OnChar,
+        // cannot leave it armed for the next key.
+        if (isSpecial && DoesSpecialKeySynthesizeChar (specialKey))
         {
-            appleCode = MapVkToAppleControlCode (vk);
+            m_swallowMetaChar = true;
+        }
 
-            if (driveJoystick && IsArrowVk (vk))
-            {
-                appleCode = 0;
-            }
+        // Arrows / TAB / Escape / DELETE are delivered as KEYS, and the
+        // device decides both which code each sends and whether this machine
+        // has it at all. Gated on the auto-repeat bit so the host OS repeat
+        // never reaches the latch; a fresh press arms the $C000 strobe once
+        // and registers the key for the emulator's own authentic //e
+        // auto-repeat cadence (Tick). With "Map Arrows to Joystick" on (and a
+        // game-port paddle bank present), arrow keys are withheld from the
+        // keyboard latch so a held direction cannot flood $C000 and starve a
+        // joystick game's reads.
+        if (!ev.repeat && isSpecial && !(driveJoystick && IsArrowVk (vk)))
+        {
+            appleCode = m_refs.keyboard->PressSpecialKey (specialKey);
 
             if (appleCode != 0)
             {
-                m_refs.keyboard->PressKey (appleCode);
                 m_refs.keyboard->BeginKeyRepeat (appleCode);
             }
         }
@@ -12293,15 +12358,29 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     }
     else if (hasKeyboard && ev.kind == DxuiKeyEventKind::Up)
     {
-        WPARAM  vk = ev.vk;
+        WPARAM           vk         = ev.vk;
+        AppleSpecialKey  specialKey = AppleSpecialKey::Left;
+        bool             isSpecial  = TryMapVkToSpecialKey (vk, specialKey);
+        bool             hasTheKey  = !isSpecial ||
+                                      m_refs.keyboard->MapSpecialKey (specialKey) != 0;
 
-        m_refs.keyboard->SetKeyDown (false);
+        // The same question the press asked, asked again: a key this machine
+        // does not have was never pressed, so its release must not undo the
+        // state some other key is still holding. Gating only the press left
+        // the up arrow on a ][+ able to clear any-key-down, and disarm the
+        // repeat, while a real key was still down -- $C010 reporting nothing
+        // held while $C000 holds a character.
+        if (hasTheKey)
+        {
+            m_refs.keyboard->SetKeyDown (false);
 
-        // Disarm auto-repeat on release. The //e latch holds a single key,
-        // so a key-up always ends the current repeat; this also clears any
-        // stale armed key so a later non-character press (e.g. a bare
-        // modifier) can never resurrect the previous character's repeat.
-        m_refs.keyboard->BeginKeyRepeat (0);
+            // Disarm auto-repeat on release. The //e latch holds a single
+            // key, so a key-up always ends the current repeat; this also
+            // clears any stale armed key so a later non-character press
+            // (e.g. a bare modifier) can never resurrect the previous
+            // character's repeat.
+            m_refs.keyboard->BeginKeyRepeat (0);
+        }
 
         // Release the //e Open/Closed-Apple and Shift modifiers as the host
         // releases the physical keys.
@@ -13248,9 +13327,10 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 
 
-    // A host-meta shortcut (Ctrl+V paste, Ctrl+R reset) claimed the keydown,
-    // but Windows synthesized its control character anyway; swallow exactly
-    // that one char so it never types into the guest.
+    // A host-meta shortcut (Ctrl+V paste), or a special key already
+    // delivered by name (TAB, Escape), claimed the keydown, but Windows
+    // synthesized its control character anyway; swallow exactly that one
+    // char so it never reaches the guest a second time.
     if (m_swallowMetaChar)
     {
         m_swallowMetaChar = false;

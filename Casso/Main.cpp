@@ -718,6 +718,7 @@ int WINAPI wWinMain (
         HRESULT  hrBoot   = AssetBootstrap::EnsureMachineConfigs (hInstance);
         HRESULT  hrThemes = S_OK;
         HRESULT  hrSounds = S_OK;
+        HRESULT  hrFont   = S_OK;
 
 
 
@@ -734,6 +735,12 @@ int WINAPI wWinMain (
         // configs and themes so the printer preview has audio on first launch.
         hrSounds = AssetBootstrap::EnsureImageWriterSounds (hInstance);
         IGNORE_RETURN_VALUE (hrSounds, S_OK);
+
+        // Register the Apple keycap glyphs with DirectWrite before any window
+        // exists, since a text format caches the fallback it was built with
+        // and the renderers are per window.
+        hrFont = AssetBootstrap::RegisterSymbolFont (hInstance);
+        IGNORE_RETURN_VALUE (hrFont, S_OK);
     }
 
     // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.

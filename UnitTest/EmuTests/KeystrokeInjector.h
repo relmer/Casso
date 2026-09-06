@@ -12,18 +12,17 @@
 //
 //  KeystrokeInjector
 //
-//  Phase 7 (T068). Injects ASCII keystrokes into an //e EmulatorCore via
-//  Apple2eKeyboard::PressKeyRaw, pumping CPU cycles between strokes
-//  until the ROM consumes the strobe. Apple //e accepts lowercase from
-//  the full keyboard so PressKeyRaw is used directly (the base
-//  PressKey translates to uppercase, which would silently break tests
-//  that mean to inject `]` or other non-letter glyphs).
+//  Injects ASCII keystrokes into an //e EmulatorCore via
+//  Apple2eKeyboard::PressKey, pumping CPU cycles between strokes until the
+//  ROM consumes the strobe. The //e keyboard passes lowercase through, so
+//  what is injected is what the guest latches; the ][ / ][+ keyboard would
+//  fold it to uppercase, which is why this injector is //e-only.
 //
 //  Caller responsibilities:
 //    - The machine must already be powered on with the ROM idling at the
 //      keyboard polling loop. Call core.RunCycles (...) for cold-boot
 //      first, then InjectString.
-//    - All injected characters use 7-bit ASCII; PressKeyRaw sets bit 7
+//    - All injected characters use 7-bit ASCII; PressKey sets bit 7
 //      (the strobe) internally.
 //
 ////////////////////////////////////////////////////////////////////////////////

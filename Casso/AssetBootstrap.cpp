@@ -1015,6 +1015,47 @@ HRESULT AssetBootstrap::EnsureImageWriterSounds (HINSTANCE hInstance)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RegisterSymbolFont
+//
+//  Points DirectWrite at the embedded symbol font for the Apple keycap
+//  codepoints, so `s_kpszOpenApple` and `s_kpszClosedApple` render as glyphs
+//  wherever chrome puts them in a string.
+//
+//  Registered, not extracted: the theme fonts above go to disk because a theme
+//  is a directory a user can edit, while this one is chrome that has to work
+//  whatever became of the asset directory. The bytes come straight from the
+//  module image and DirectWrite copies them, so nothing here outlives the call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::RegisterSymbolFont (HINSTANCE hInstance)
+{
+    HRESULT           hr       = S_OK;
+    span<const Byte>  bytes;
+    bool              embedded = false;
+
+
+
+    bytes    = ExtractResource (hInstance, IDR_FONT_SYMBOLS);
+    embedded = !bytes.empty();
+    CBRA (embedded);
+
+    hr = DxuiTextRenderer::AddSymbolFont (bytes.data(),
+                                          bytes.size(),
+                                          s_kSymbolFontFirst,
+                                          s_kSymbolFontLast);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetAssetBaseDirectory
 //
 //  Returns %LOCALAPPDATA%\Casso\ -- the single, user-writable root for

@@ -4,6 +4,7 @@
 
 #include "CassoTheme.h"
 #include "CommandToolbar.h"
+#include "Core/UnicodeSymbols.h"
 #include "InputDeviceGlyphs.h"
 
 #include "../../Resource.h"
@@ -285,19 +286,24 @@ void CommandToolbar::WireMenus()
 //  CommandToolbar::RebuildActionTips
 //
 //  Reset and Power say which machine they act on, so the tips are composed
-//  rather than fixed. Reset's also carries the open-apple chord, which is the
-//  only place in the chrome that surfaces it.
+//  rather than fixed. Reset's also carries the reboot chord on a line of its
+//  own, written as the two keycaps and nothing else: a chord is a picture of
+//  what to hold. Which host key stands in for the apple is the keyboard map's
+//  job, and repeating it in every tip that mentions the key made each one wrap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandToolbar::RebuildActionTips()
 {
     std::wstring  machine = m_machineName.empty() ? std::wstring (L"machine") : m_machineName;
+    std::wstring  apple   = DxuiTextRenderer::HasSymbolFont()
+                                ? std::wstring (s_kpszOpenApple)
+                                : std::wstring (L"Open Apple");
 
 
 
-    GetEntry (Entry::Reset).tip = L"Reset the " + machine +
-                                  L". Open-apple (left alt) + Reset to cold boot.";
+    GetEntry (Entry::Reset).tip = L"Reset the " + machine + L".\n" +
+                                  apple + L" + Reset to reboot.";
     GetEntry (Entry::Power).tip = L"Power-cycle the " + machine;
 }
 

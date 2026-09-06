@@ -67,6 +67,10 @@ class JsonValue;
 class SalvageDialogContent;
 struct MonitorSpec;
 
+// Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
+// key classifiers can name it without dragging the device header in.
+enum class AppleSpecialKey;
+
 
 
 
@@ -472,13 +476,14 @@ private:
     void    OnViewportBoundsChanged       (const RECT & boundsPx);
 
     // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
-    // keys (menu navigation, paste, reset); ApplyAppleModifierKeys mirrors
-    // the host Alt/Shift state onto the //e Open/Closed-Apple and Shift soft
-    // switches; MapVkToAppleControlCode and IsArrowVk are pure VK classifiers.
-    bool        HandleHostMetaShortcut  (WPARAM vk, bool ctrlHeld, bool altHeld);
-    void        ApplyAppleModifierKeys  (WPARAM vk, bool keyDown);
-    static Byte MapVkToAppleControlCode (WPARAM vk);
-    static bool IsArrowVk               (WPARAM vk);
+    // keys (menu navigation, paste); ApplyAppleModifierKeys mirrors the host
+    // Alt/Shift state onto the //e Open/Closed-Apple and Shift soft switches;
+    // TryMapVkToSpecialKey and IsArrowVk are pure VK classifiers.
+    bool        HandleHostMetaShortcut       (WPARAM vk, bool ctrlHeld, bool altHeld);
+    void        ApplyAppleModifierKeys       (WPARAM vk, bool keyDown);
+    static bool TryMapVkToSpecialKey         (WPARAM vk, AppleSpecialKey & outKey);
+    static bool DoesSpecialKeySynthesizeChar (AppleSpecialKey key);
+    static bool IsArrowVk                    (WPARAM vk);
 
     // Stage the emulated joystick axes from the host arrow keys.
     void    UpdateJoystickAxesFromKeys ();

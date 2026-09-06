@@ -214,15 +214,69 @@ void Apple2eKeyboard::EmitHostButton (int index, bool pressed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PressKeyRaw
+//  TranslateTypedChar
 //
-//  IIe keyboard supports lowercase — don't force uppercase.
+//  The //e keyboard types lowercase, so a typed character passes through in
+//  the case it arrived in. Folding it would make ProDOS and AppleWorks
+//  unusable on the machines whose keyboard advance was lowercase.
+//
+//  The //c keyboard-layout switch is NOT applied here. It remaps the encoder
+//  rather than the case, it must not touch injected text, and it needs the
+//  host layout for context, so the shell applies MapTypedChar to physical
+//  keystrokes before they ever reach the latch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eKeyboard::PressKeyRaw (Byte asciiChar)
+Byte Apple2eKeyboard::TranslateTypedChar (Byte ch) const
 {
-    PressKey (asciiChar);
+    return ch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MapSpecialKey
+//
+//  The //e keyboard has every key the base class lacks: four-way cursor
+//  control, TAB and DELETE, all of which arrived with this model. The //c
+//  inherits the same key set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eKeyboard::MapSpecialKey (AppleSpecialKey key) const
+{
+    Byte  code = AppleKeyboard::MapSpecialKey (key);
+
+
+
+    switch (key)
+    {
+        case AppleSpecialKey::Up:
+            code = kAppleKeyUp;
+            break;
+
+        case AppleSpecialKey::Down:
+            code = kAppleKeyDown;
+            break;
+
+        case AppleSpecialKey::Tab:
+            code = kAppleKeyTab;
+            break;
+
+        case AppleSpecialKey::Delete:
+            code = kAppleKeyDelete;
+            break;
+
+        default:
+            // Left, Right and Escape are shared with the ][ / ][+, so the
+            // base class already resolved them.
+            break;
+    }
+
+    return code;
 }
 
 

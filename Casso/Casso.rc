@@ -43,6 +43,10 @@ IDR_THEME_RETRO_FONT_TTF           RCDATA "..\\Resources\\Themes\\RetroTerminal\
 IDR_THEME_RETRO_FONT_OFL           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\OFL.txt"
 IDR_THEME_RETRO_FONT_TODO          RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\TODO_FONTS.md"
 
+// Symbol font for the open and closed Apple glyphs, registered with DirectWrite
+// at startup rather than extracted (AssetBootstrap::RegisterSymbolFont).
+IDR_FONT_SYMBOLS                   RCDATA "..\\Resources\\Fonts\\CassoSymbols.ttf"
+
 // Embedded 3D reference model for the printer panel's skeuomorphic scene --
 // the user's Tinkercad CAD model of the ImageWriter II (OBJ+MTL).
 IDR_MODEL_IMAGEWRITER_MESH         RCDATA "ImageWriterII.dmesh"
