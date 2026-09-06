@@ -2258,7 +2258,7 @@ void WindowCommandManager::OnHelpCommand (int id)
                 L"Ctrl+Shift+P -> Power cycle\n"
                 L"Pause -> Pause/resume\n"
                 L"F11 -> Step (when paused)\n"
-                L"Alt+Enter -> Fullscreen\n"
+                L"Alt+Enter -> Full screen\n"
                 L"Ctrl+0 -> Reset view (window size, scene pose and zoom)",
                 false, L"" });
             def.buttons.push_back ({ L"OK", 0, true, true });

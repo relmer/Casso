@@ -48,10 +48,11 @@ Entries before versioning was introduced use dates only.
   preview live as you move down the menu, by mouse or by arrow key, and put
   back what was there if you dismiss it. A picked theme and color mode are
   remembered.
-- **A fullscreen button on the command bar**, before Screenshot, which reads
-  "Exit fullscreen" once you are in it.
+- **A full screen button on the command bar**, before Screenshot, which reads
+  "Exit full screen" once you are in it.
 
 ### Changed
+- **Replaced full screen icons with diagonal arrows.**
 - **The command bar now narrows one button at a time.** As the window shrinks,
   buttons drop their labels from the right, so the leftmost keep their names
   longest and nothing is pushed off the end. The input devices give up their
@@ -105,7 +106,7 @@ Entries before versioning was introduced use dates only.
   devices.** The bar lays out again whenever mouse availability changes.
 - **Unlit input LEDs were too dark to make out.** They now use the tint a
   disabled checkbox fills with.
-- **The fullscreen top edge revealed only the command toolbar, leaving the menu
+- **The full screen top edge revealed only the command toolbar, leaving the menu
   bar unreachable.** The menu bar now rides down with the toolbar, above it, in
   the order the windowed chrome stacks them.
 - **A held key repeated far too fast above 1x speed, and at Maximum too fast to
@@ -280,7 +281,7 @@ Entries before versioning was introduced use dates only.
   scene now, sized to a fixed number of screen pixels and depth tested like any
   other surface, so the case cuts it exactly where the case crosses it. The name
   keeps the size it reads at from every pose, which is why it was taken out of the
-  scene the first time. The fullscreen overlay strip has nothing in front of its
+  scene the first time. The full screen overlay strip has nothing in front of its
   drives and keeps the chrome label it had.
 - **Casso started up regardless of what was on its command line.** A mistyped flag,
   a misspaced one, a stray disk image path and `--help` were all discarded in
@@ -337,7 +338,7 @@ Entries before versioning was introduced use dates only.
   adopts its defaults, on Apply now and on OK, and the Display page's sliders
   and its default badges follow. Cancel puts the old theme's defaults back
   with the old theme.
-- **Fullscreen now hides the chrome in every theme.** Dark Modern and Retro
+- **Full screen now hides the chrome in every theme.** Dark Modern and Retro
   Terminal kept the caption, menu bar and drive bar around a stretched
   picture. They now collapse the way the desk scene does: the picture fills
   the screen, the toolbar slides in from the top edge, and the drives slide
