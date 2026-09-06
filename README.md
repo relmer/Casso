@@ -118,9 +118,16 @@ scene, the screen with its CRT effects applied, or the raw picture at its
 native resolution.
 
 **The command bar offers quick access to the things you change most**: full
-screen, theme, and monitor color. In full screen the menu, command bar and
-drive widgets hide and slide back into view when you reach for them, now in
-every theme rather than only on the desk scene.
+screen, theme, and monitor color. In full screen the menu bar, command bar and
+drive widgets all hide and slide back into view when you reach for them. The
+menu bar is new to that reveal, having previously stayed out of reach behind
+the toolbar, and the whole behavior now works in every theme rather than only
+on the desk scene.
+
+**The flat themes get a richer drive widget.** Its activity LED shows where the
+head is sitting on the disk rather than only that the drive is busy, and the
+disk name is itself the control: click it to eject and pick another, which used
+to mean a trip to the Disk menu.
 
 **Startup dropped from about twenty seconds to under one,** and the executable
 is about 80% smaller, by prebuilding the object meshes, optimizing tessellation
