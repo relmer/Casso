@@ -284,7 +284,7 @@ def generate_lores_bars_lores ():
     # sit at the correct band.
     #
     # Used by the bootable demo disk to verify the renderer's
-    # 16-entry LoRes palette (AppleLoResMode::kLoResColors) is
+    # 16-entry palette (NtscColorTable.h::kAppleColors) is
     # wired up correctly after the R/B byte-order fix.
     out = bytearray (LORES_PAGE_BYTES)
 
@@ -318,7 +318,7 @@ def generate_dhgr_bands ():
     # out as bit `(P % 4)` of C, where P is the absolute pixel index.
     #
     # Used by the bootable demo disk to verify the DHGR 16-entry
-    # palette (AppleDoubleHiResMode::kDhrColors) is wired up
+    # palette (NtscColorTable.h::kAppleColors) is wired up
     # correctly after the R/B byte-order fix.
     aux  = bytearray (HGR_BYTES)
     main = bytearray (HGR_BYTES)
