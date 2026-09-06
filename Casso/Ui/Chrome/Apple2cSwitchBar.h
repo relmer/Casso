@@ -64,6 +64,10 @@ public:
     // Latching-switch + indicator state, fed by the shell. "In" == pressed
     // in (active): 80/40 in selects 80-column startup ($C060), keyboard in
     // selects the Dvorak layout.
+    // The reset tip says which machine it resets, so the bar is told the
+    // display name the command bar already carries.
+    void  SetMachineDisplayName (const std::wstring & displayName);
+
     void  SetEightyFortyIn (bool in) { m_eightyFortyIn = in; }
     void  SetKeyboardIn    (bool in) { m_keyboardIn    = in; }
     void  SetDiskActive    (bool on) { m_diskActive    = on; }
@@ -160,10 +164,26 @@ private:
     static constexpr const wchar_t * kLabelPower    = L"power";
     static constexpr const wchar_t * kLabelReset    = L"reset";
 
-    // Assembled rather than a literal, because the open Apple glyph arrives
-    // as a named constant and a constant cannot join a string literal at
-    // compile time. Built once on first use.
-    static const wchar_t *  GetResetTip();
+    // Assembled rather than a literal: the machine name is not known until
+    // runtime, and the open Apple glyph arrives as a named constant, which
+    // cannot join a string literal at compile time. Rebuilt whenever the name
+    // changes and held so the tooltip can be handed a pointer.
+    void  RebuildResetTip() const;
+
+    // Answers before SetMachineDisplayName has ever been called, which is the
+    // state the bar is in for the first frames after a machine is built.
+    const wchar_t * ResetTip() const
+    {
+        if (m_resetTip.empty())
+        {
+            RebuildResetTip();
+        }
+
+        return m_resetTip.c_str();
+    }
+
+    std::wstring          m_machineName;
+    mutable std::wstring  m_resetTip;
     static constexpr wchar_t  kTipEighty[] =
         L"80/40 column switch. Pressed in selects 80-column startup;\n"
         L"software reads it at $C060. Takes effect when a disk boots.";

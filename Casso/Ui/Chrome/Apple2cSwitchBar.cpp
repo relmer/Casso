@@ -313,24 +313,47 @@ Apple2cSwitchBar::Part Apple2cSwitchBar::GetPartAt (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetResetTip
+//  SetMachineDisplayName
 //
-//  The reset tip, carrying the open Apple keycap symbol beside the words. A
-//  named glyph constant cannot join a string literal at compile time, so the
-//  tip is assembled once on first use rather than declared as one.
+//  The reset tip says which machine it resets, so the bar is told the name the
+//  command bar already carries, and rebuilds only when it changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * Apple2cSwitchBar::GetResetTip()
+void Apple2cSwitchBar::SetMachineDisplayName (const std::wstring & displayName)
 {
-    static const std::wstring  tip =
-        std::wstring (L"Reset. Inert on its own, like the real //c key.\n"
-                      L"Hold Ctrl and click to reset; add ") +
-        s_kpszOpenApple + L" to cold-boot.";
+    if (displayName != m_machineName)
+    {
+        m_machineName = displayName;
+        RebuildResetTip();
+    }
+}
 
 
 
-    return tip.c_str();
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebuildResetTip
+//
+//  Two chords, one per line, because that is what the key does: nothing on its
+//  own, a reset with Ctrl, a reboot with Ctrl and the open Apple key. The
+//  Apple key is written as its keycap symbol rather than by name -- the reader
+//  is looking for that symbol on the keyboard, and the keyboard map is where
+//  the pair is taught.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cSwitchBar::RebuildResetTip() const
+{
+    std::wstring  machine = m_machineName.empty() ? std::wstring (L"machine")
+                                                  : m_machineName;
+
+
+
+    m_resetTip = L"Ctrl + Reset to reset the " + machine + L"\n" +
+                 L"Ctrl + " + s_kpszOpenApple + L" + Reset to reboot";
 }
 
 
@@ -352,7 +375,7 @@ const wchar_t * Apple2cSwitchBar::GetTooltipTextAt (int x, int y) const
 
     switch (GetPartAt (x, y))
     {
-        case Part::Reset:       tip = GetResetTip(); break;
+        case Part::Reset:       tip = ResetTip();    break;
         case Part::EightyForty: tip = kTipEighty;    break;
         case Part::Keyboard:    tip = kTipKeyboard;  break;
         default:                                     break;

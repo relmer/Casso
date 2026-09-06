@@ -3648,6 +3648,7 @@ void EmulatorShell::SyncToolbarState()
     }
 
     m_toolbar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
+    m_switchBar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
     m_toolbar.SetFullscreen         (m_d3dRenderer.IsFullscreen());
     m_toolbar.SetMonitorColorIndex  (colorIndex);
 
