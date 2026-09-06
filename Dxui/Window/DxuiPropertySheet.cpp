@@ -189,6 +189,21 @@ void DxuiPropertySheet::SetActivePage (int index)
     }
 
     m_pages[(size_t) index]->OnActivated();
+
+    //  THE TAB ORDER IS A SNAPSHOT AND HAS JUST GONE STALE.
+    //
+    //  DxuiFocusManager::Rebuild walks the visible subtree, and the only other
+    //  call to it is in BeginDialogMode -- so without this the order stays
+    //  whatever it was when the sheet opened: the controls of page 0, forever.
+    //  Every other page's controls were absent from it, and page 0's remained
+    //  in it after being hidden, which meant Tab on any other tab landed on a
+    //  control the user could not see and Space then operated it. Observed as
+    //  a machine dropdown opening from the Screenshots tab.
+    //
+    //  Focus falls back to the tab strip, which is where the user's attention
+    //  already is, having just changed tabs.
+    RefreshFocusOrder (m_tabs);
+
     Invalidate();
 
 Error:

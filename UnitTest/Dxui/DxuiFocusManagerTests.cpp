@@ -192,5 +192,102 @@ public:
         focus.PopScope();
         Assert::AreEqual (static_cast<void *> (&outer), static_cast<void *> (focus.GetFocusedControl()));
     }
-};
 
+
+    //
+    //  Visibility changes AFTER the order was built.
+    //
+    //  The tab order is a snapshot. A property sheet switching pages shows one
+    //  subtree and hides another, and until Rebuild is called again the order
+    //  still holds the hidden controls and still lacks the shown ones -- which
+    //  put Tab on a control the user could not see and let Space operate it.
+    //  Observed as a machine dropdown opening from the Screenshots tab.
+    //
+
+    TEST_METHOD (HidingAPage_LeavesTheOrderStaleUntilRebuilt)
+    {
+        DxuiPanel          panel;
+        DxuiPanel       &  pageA = panel.Add<DxuiPanel>();
+        DxuiPanel       &  pageB = panel.Add<DxuiPanel>();
+        MockDxuiControl &  ctlA  = pageA.Add<MockDxuiControl>();
+        MockDxuiControl &  ctlB  = pageB.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+        ctlA.SetBounds (MakeRect (0,  0, 50, 20));
+        ctlB.SetBounds (MakeRect (0, 30, 50, 50));
+        pageB.SetVisible (false);
+
+        focus.Attach (&panel);
+        focus.Rebuild();
+
+        Assert::AreEqual ((size_t) 1, focus.GetTabOrderCount());
+        Assert::AreEqual (static_cast<void *> (&ctlA), static_cast<void *> (focus.GetTabOrderAt (0)));
+
+        // Switch pages the way a sheet does, WITHOUT rebuilding.
+        pageA.SetVisible (false);
+        pageB.SetVisible (true);
+
+        Assert::AreEqual ((size_t) 1, focus.GetTabOrderCount());
+        Assert::AreEqual (static_cast<void *> (&ctlA), static_cast<void *> (focus.GetTabOrderAt (0)),
+            L"the stale order still holds the control on the now-hidden page");
+    }
+
+
+    TEST_METHOD (RebuildAfterAPageSwitch_SwapsTheOrderOver)
+    {
+        DxuiPanel          panel;
+        DxuiPanel       &  pageA = panel.Add<DxuiPanel>();
+        DxuiPanel       &  pageB = panel.Add<DxuiPanel>();
+        MockDxuiControl &  ctlA  = pageA.Add<MockDxuiControl>();
+        MockDxuiControl &  ctlB  = pageB.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+        ctlA.SetBounds (MakeRect (0,  0, 50, 20));
+        ctlB.SetBounds (MakeRect (0, 30, 50, 50));
+        pageB.SetVisible (false);
+
+        focus.Attach (&panel);
+        focus.Rebuild();
+
+        pageA.SetVisible (false);
+        pageB.SetVisible (true);
+        focus.Rebuild();
+
+        Assert::AreEqual ((size_t) 1, focus.GetTabOrderCount());
+        Assert::AreEqual (static_cast<void *> (&ctlB), static_cast<void *> (focus.GetTabOrderAt (0)),
+            L"only the visible page's control is reachable");
+    }
+
+
+    // Tab must not land on a hidden control even when focus started on one:
+    // the rescue is the caller's, but the order must not offer it either.
+    TEST_METHOD (AfterRebuild_TabCannotReachAHiddenPage)
+    {
+        DxuiPanel          panel;
+        DxuiPanel       &  pageA = panel.Add<DxuiPanel>();
+        DxuiPanel       &  pageB = panel.Add<DxuiPanel>();
+        MockDxuiControl &  ctlA  = pageA.Add<MockDxuiControl>();
+        MockDxuiControl &  ctlB  = pageB.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+        ctlA.SetBounds (MakeRect (0,  0, 50, 20));
+        ctlB.SetBounds (MakeRect (0, 30, 50, 50));
+        pageB.SetVisible (false);
+
+        focus.Attach (&panel);
+        focus.Rebuild();
+        focus.SetFocused (&ctlA);
+
+        pageA.SetVisible (false);
+        pageB.SetVisible (true);
+        focus.Rebuild();
+
+        focus.HandleKey (DxuiFocusKey::Tab);
+
+        Assert::AreEqual (static_cast<void *> (&ctlB), static_cast<void *> (focus.GetFocusedControl()),
+            L"Tab from a now-hidden control lands on the visible page");
+    }
+};

@@ -1055,12 +1055,54 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RefreshFocusOrder
+//
+//  Re-walks the visible tree for Tab traversal, and rescues focus if it was
+//  left on something that has just become invisible.
+//
+//  BeginDialogMode builds the order once, which is right for a dialog whose
+//  contents never change shape. It is wrong the moment part of the tree is
+//  shown or hidden afterwards: the hidden controls stay in the order and the
+//  newly shown ones are absent from it, so Tab reaches what cannot be seen
+//  and misses what can.
+//
+//  Rebuilding on the visibility change rather than on each Tab keeps the walk
+//  on the event that actually invalidates the answer -- page switches are
+//  rare, keystrokes are not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::RefreshFocusOrder (IDxuiControl * fallback)
+{
+    IDxuiControl *   focused = nullptr;
+
+
+
+    m_focus.Rebuild();
+
+    focused = m_focus.GetFocusedControl();
+
+    if (focused != nullptr && !focused->IsVisible())
+    {
+        m_focus.SetFocused (fallback);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BeginDialogMode
 //
 //  Shared setup for modal and modeless dialogs: remember the default
 //  button, clear any stale modal result, wire the buttons, and attach /
 //  rebuild the focus manager so Tab traversal, Enter, and Escape all
 //  run through the dialog contract.
+//
+//  The order it builds is a SNAPSHOT; a subclass that later shows or hides
+//  part of the tree calls RefreshFocusOrder above.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

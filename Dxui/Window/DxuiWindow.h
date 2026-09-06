@@ -208,6 +208,19 @@ public:
 
 protected:
     //
+    //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
+    //  the dialog enters dialog mode. A subclass that later SHOWS OR HIDES part
+    //  of that tree -- a property sheet switching pages, a group collapsing --
+    //  must say so, or Tab keeps walking controls the user can no longer see
+    //  and Space keeps operating them.
+    //
+    //  `fallback` receives focus when the control that had it is no longer
+    //  visible; pass the thing the user's attention is on. A null fallback
+    //  simply drops focus rather than leaving it somewhere invisible.
+    //
+    void  RefreshFocusOrder (IDxuiControl * fallback);
+
+    //
     //  Subclass hooks. OnCreate fires once the backend + HWND exist
     //  (populate children here). OnWindowClose fires on the caption
     //  close box / WM_CLOSE (default hides -- non-modal); override to
