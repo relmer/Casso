@@ -35,7 +35,7 @@ static const uint32_t kExpectedLoRes[16] =
     0xFFDD2266,   //  1: Magenta
     0xFF000099,   //  2: Dark Blue
     0xFFFF44FD,   //  3: Purple
-    0xFF002200,   //  4: Dark Green
+    0xFF008431,   //  4: Dark Green
     0xFF555555,   //  5: Gray 1
     0xFF14CFFF,   //  6: Medium Blue
     0xFF66AAFF,   //  7: Light Blue
@@ -931,7 +931,7 @@ public:
     {
         MemoryBus           bus;
         uint64_t            hash      = 0;
-        constexpr uint64_t  kExpected = 0x70B77A5253607225ULL;
+        constexpr uint64_t  kExpected = 0xCA435A6ACE344825ULL;
 
 
 
@@ -999,6 +999,12 @@ public:
         // live once in Video/NtscColorTable.h, and colors 3, 6, 9 and 12
         // took HGR's NTSC-derived values, so every cell of this pattern
         // in one of those colors changes.
+        //
+        // Updated again 2026-09-06 for color 4 (Dark Green), which was
+        // RGB(0, 34, 0) -- luminance 0.078 and chroma 0.079, the lowest
+        // saturation in the table by a factor of three, so the color drew
+        // very nearly black. It is now RGB(0, 132, 49).  This pattern
+        // contains color 4 cells, so the hash moves with it.
 
         Assert::AreEqual (kExpected, hash,
             std::format (L"DHR golden hash mismatch: got 0x{:016X}", hash).c_str());

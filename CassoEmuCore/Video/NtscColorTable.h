@@ -66,7 +66,7 @@ inline constexpr uint32_t kAppleColors[16] =
     0xFFDD2266,   //  1: Magenta      RGB(221, 34,102)
     0xFF000099,   //  2: Dark Blue    RGB(  0,  0,153)
     0xFFFF44FD,   //  3: Purple       RGB(255, 68,253)  = HGR violet
-    0xFF002200,   //  4: Dark Green   RGB(  0, 34,  0)
+    0xFF008431,   //  4: Dark Green   RGB(  0,132, 49)
     0xFF555555,   //  5: Gray 1       RGB( 85, 85, 85)
     0xFF14CFFF,   //  6: Medium Blue  RGB( 20,207,255)  = HGR blue
     0xFF66AAFF,   //  7: Light Blue   RGB(102,170,255)
