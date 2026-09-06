@@ -184,13 +184,13 @@ HRESULT SettingsSheet::OpenModeless (
     // dim the panel and reveal the emulator through the overlap region.
     params.composited               = true;
 
-    // Open alongside the emulator window (its right edge, or its left when
-    // the right will not fit on that monitor) rather than wherever the OS
+    // Open alongside the emulator window (its left edge, or its right when
+    // the left will not fit on that monitor) rather than wherever the OS
     // would drop it -- which for a WS_POPUP window is the top-left corner
     // of the primary monitor. When neither side fits the sheet stays on the
     // emulator's monitor and overlaps it; splitting across two screens or
     // wandering onto another one is the worse outcome.
-    params.placeBesideOwner         = true;
+    params.placement                = DxuiWindowPlacement::BesideOwnerLeft;
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);
@@ -395,6 +395,10 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetWriteProtectSource ([this] (int driveIndex) -> WriteProtectInfo
     {
         return m_emuShell->GetDriveWriteProtect (driveIndex);
+    });
+    m_themePage->SetDriveActivitySource ([this] (int driveIndex, DriveWidgetState & outState)
+    {
+        m_emuShell->SampleDriveActivity (driveIndex, outState);
     });
     // Drive the preview's disk presence off the STAGED config so toggling the
     // Disk ][ controller on the Machine tab updates the preview immediately --

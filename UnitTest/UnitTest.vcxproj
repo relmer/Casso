@@ -517,7 +517,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="..\Casso\Ui\Chrome\InputDeviceSelector.cpp">
+    <ClCompile Include="..\Casso\Ui\Chrome\InputDeviceGlyphs.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
@@ -593,7 +593,7 @@
     <ClCompile Include="EmuTests\CreateDiskChoicesTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
     <ClCompile Include="UiTests\HardwarePageTests.cpp" />
-    <ClCompile Include="UiTests\InputDeviceSelectorTests.cpp" />
+    <ClCompile Include="UiTests\InputDeviceGlyphsTests.cpp" />
     <ClCompile Include="UiTests\Apple2cSwitchBarTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
     <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
@@ -644,6 +644,7 @@
     <ClCompile Include="DiskMruTests.cpp" />
     <ClCompile Include="RepoCheckoutTests.cpp" />
     <ClCompile Include="DriveLabelTruncationTests.cpp" />
+    <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
     <ClCompile Include="Disk2DebugPanelLayoutTests.cpp" />
     <ClCompile Include="..\Casso\Shell\DiskMru.cpp">
@@ -651,6 +652,10 @@
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="..\Casso\Ui\Chrome\DriveLabelTruncation.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Dialogs\KeyboardMapText.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>

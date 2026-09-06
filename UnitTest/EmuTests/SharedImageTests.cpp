@@ -92,10 +92,25 @@ public:
         //  want of somewhere to put the other one.
         bool                                           refusePreserve = false;
 
+        //  Makes the ask sink report that the question never reached anywhere
+        //  it could be answered -- what the shell returns when it has no
+        //  window yet, or when the post fails.
+        bool                                           askSinkDelivers = true;
+
+        //  The path the shutdown rescue dialog returns, and how many times it
+        //  was raised. An empty path stands for the user declining.
+        std::string                                    rescueChoice;
+        int                                            rescuesAsked = 0;
+
         //  What the store reported and did.
         std::vector<ChangePrompt>                      reports;
         std::vector<ChangePrompt>                      questions;
         int                                            restarts = 0;
+
+        //  How many times the store has read an image file. Reading is the
+        //  expensive half of noticing a change, so a test can hold this still
+        //  to prove nothing is being re-read on every tick.
+        int                                            reads = 0;
 
         //  Every bay change the store announced, in order, so a test can prove
         //  the one signal the shell reacts to fires on each path.
@@ -110,6 +125,8 @@ public:
             store.SetImageReader ([this] (const string & path, vector<Byte> & bytes) -> HRESULT
             {
                 auto  found = files.find (path);
+
+                reads++;
 
                 if (found == files.end())
                 {
@@ -161,9 +178,34 @@ public:
                 reports.push_back (prompt);
             });
 
-            store.SetAskSink ([this] (int, int, const ChangePrompt & prompt)
+            store.SetAskSink ([this] (int, int, const ChangePrompt & prompt) -> bool
             {
                 questions.push_back (prompt);
+
+                return askSinkDelivers;
+            });
+
+            //  The blocking last-chance dialog. Present from the start, the way
+            //  the shell installs it, so a test that wants it declined simply
+            //  leaves rescueChoice empty.
+            store.SetRescueSink ([this] (const std::string &, std::string & outPath) -> bool
+            {
+                rescuesAsked++;
+
+                if (rescueChoice.empty())
+                {
+                    return false;
+                }
+
+                //  Picking somewhere else is what makes the write work: the
+                //  folder this store chose for itself is the one that refused
+                //  it. Without this the rig would refuse the user's choice too
+                //  and the test would prove the opposite of what it says.
+                refusePreserve = false;
+
+                outPath = rescueChoice;
+
+                return true;
             });
 
             store.SetMachineRestartCallback ([this] () { restarts++; });
@@ -407,6 +449,396 @@ public:
                         L"and the insertion stays theirs");
     }
 
+    //  A QUESTION WAVED AWAY GIVES ITS NAME BACK. Putting the question reserves
+    //  a preserved name stamped with that moment, and a copy written under a
+    //  name it is handed uses it as it stands. Holding the reservation through
+    //  a dismissal meant a genuine conflict an hour later filed the guest's
+    //  disk under an hour-old timestamp.
+    TEST_METHOD (AnIgnoredQuestionDoesNotNameTheNextCopyAfterIt)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  Something rewrote the file and said nothing about why, so it asks.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"which reserves a name without writing anything to it");
+
+        //  "Leave it alone."
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Ignore);
+
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"and dismissing it writes nothing either");
+
+        //  An hour goes by. The guest writes, and the file changes underneath
+        //  it -- a real conflict this time, with a copy to make.
+        rig.wallClock += 3600;
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
+                          L"the guest's version goes to a file of its own");
+
+        {
+            const std::string  stale = PreservedCopy::MakePath (
+                                           kImagePath,
+                                           PreservedCopy::MakeStamp (rig.wallClock - 3600), 0);
+            const std::string  fresh = PreservedCopy::MakePath (
+                                           kImagePath,
+                                           PreservedCopy::MakeStamp (rig.wallClock), 0);
+
+            Assert::AreNotEqual (stale, rig.PreservedPaths()[0],
+                                 L"not under the name the dismissed question had reserved");
+            Assert::AreEqual (fresh, rig.PreservedPaths()[0],
+                              L"but under one stamped with the moment the copy was made");
+        }
+    }
+
+    //  The other question that reserves a name and can end without a copy: the
+    //  one raised when the copy could not be written. Dismissing it leaves the
+    //  name it tried standing, and the next copy inherited it.
+    TEST_METHOD (ADismissedSaveFailureDoesNotNameTheNextCopyAfterIt)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  The guest has written, the file changed underneath it, and the copy
+        //  that would settle the conflict cannot be written.
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"a copy that cannot be written is a question, not a notice");
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"and nothing reached the disk under the name it tried");
+
+        //  "Leave it alone" rather than "Save as...".
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Ignore);
+
+        //  An hour later the conflict is real again, and this time it can write.
+        rig.wallClock     += 3600;
+        rig.refusePreserve = false;
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
+
+        {
+            const std::string  stale = PreservedCopy::MakePath (
+                                           kImagePath,
+                                           PreservedCopy::MakeStamp (rig.wallClock - 3600), 0);
+
+            Assert::AreNotEqual (stale, rig.PreservedPaths()[0],
+                                 L"not under the name the failed write had tried");
+            Assert::AreEqual (PreservedCopy::MakePath (
+                                  kImagePath,
+                                  PreservedCopy::MakeStamp (rig.wallClock), 0),
+                              rig.PreservedPaths()[0],
+                              L"but under one stamped with the moment the copy was made");
+        }
+    }
+
+    //  ONE FILE, ONE DRIVE. Two bays on one file each hold their own copy of
+    //  the disk, and a flush writes the whole image -- so from the guest's
+    //  first write each drive overwrites whatever the other saved. One
+    //  external change raises the conflict twice and puts two dialogs up.
+    TEST_METHOD (AFileAlreadyInADriveIsRefusedByTheOther)
+    {
+        Rig             rig;
+        MountDiagnosis  diagnosis;
+        HRESULT         hr = S_OK;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        hr = rig.store.Mount (kSlot, kDrive + 1, kImagePath, diagnosis);
+
+        Assert::IsTrue (FAILED (hr), L"the second drive refuses it");
+        Assert::IsTrue (diagnosis.failure == MountFailure::AlreadyMounted);
+        Assert::AreEqual (kDrive, diagnosis.occupiedDrive,
+                          L"and specifies which drive has it");
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive + 1));
+
+        //  The message specifies which drive has it rather than leaving the
+        //  reader to look in both.
+        Assert::IsTrue (diagnosis.Describe().find ("drive 1") != std::string::npos);
+    }
+
+
+
+    //  AND PUTTING THE SAME FILE BACK INTO THE SAME DRIVE IS NOT THAT. A
+    //  machine switch and a reload both re-mount, so the bay being mounted
+    //  into is the one bay the check does not look at.
+    TEST_METHOD (AReMountOfTheSameFileIntoItsOwnDriveStillWorks)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath),
+                         L"the same file back into the drive that has it");
+
+        Assert::IsTrue (rig.store.IsMounted (kSlot, kDrive));
+    }
+
+
+
+    //  AND THE DRIVE IT LEFT IS FREE AGAIN.
+    TEST_METHOD (EjectingAFileLetsTheOtherDriveTakeIt)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.Eject (kSlot, kDrive);
+
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive + 1, kImagePath));
+
+        Assert::IsTrue (rig.store.IsMounted (kSlot, kDrive + 1));
+    }
+
+
+
+    //  A QUESTION THAT NEVER REACHED ANYBODY DOES NOT COUNT AS ONE. The shell
+    //  posts it to its own window, and it installs the sink before that window
+    //  exists; a post can also fail on a full queue. The bay used to be marked
+    //  as having a question outstanding either way, and since nothing acts on
+    //  a bay while one stands, that bay went silent until it was ejected.
+    TEST_METHOD (AQuestionThatCouldNotBePutLeavesTheBayStillListening)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.askSinkDelivers = false;
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"the sink was called");
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->IsAskOutstanding(),
+                         L"but nothing is waiting on an answer nobody can give");
+
+        //  So the next change is acted on rather than swallowed.
+        rig.askSinkDelivers = true;
+
+        rig.WriteImage (kImagePath, 0x33);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size(),
+                          L"the bay is still listening");
+    }
+
+
+
+    //  A QUESTION ON SCREEN OWNS THE BAY UNTIL IT IS ANSWERED. Mount and eject
+    //  both clear the outstanding-question flag, so a disk that leaves the
+    //  drive takes its question with it and the answer has nothing left to
+    //  apply. Acting anyway carried the answer onto whatever went in next:
+    //  "keep the one I have" moved the new bay onto the departed disk's rescue
+    //  copy, which the next flush then wrote over.
+    TEST_METHOD (AnAnswerToAQuestionAboutADiskThatHasLeftIsDropped)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        //  The user takes the disk out and puts one back, and only then
+        //  reaches for the dialog that is still on screen.
+        rig.store.Eject (kSlot, kDrive);
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld, "");
+
+        Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                          L"nothing is reported about a disk that is gone");
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"and nothing is written on its behalf");
+        Assert::AreEqual (std::string (kImagePath), rig.store.GetSourcePath (kSlot, kDrive),
+                          L"the disk now in the drive keeps its own file");
+    }
+
+
+
+    //  AND A LATER CHANGE WAITS BEHIND THE ANSWER, however it arrived. A
+    //  stated intent used to skip the question entirely -- it needs no answer
+    //  of its own -- and swapped the disk out from under the dialog, so
+    //  "keep your current version" came to mean the other program's version.
+    TEST_METHOD (AStatedIntentWaitsWhileAQuestionStands)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        {
+            const Byte  held = FirstTrackByte (rig.store);
+
+            rig.WriteImage (kImagePath, 0x33);
+            rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
+
+            Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                              L"and it is not asked a second time");
+            Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                              L"nor reported over the top of the question");
+            Assert::AreEqual ((int) held, (int) FirstTrackByte (rig.store),
+                              L"the disk under the dialog is the one it asked about");
+        }
+
+        //  Answering lands the newest bytes, not the ones the question was
+        //  composed from. Nibblization makes a fill byte unrecognizable on the
+        //  track, so what each fill looks like there is measured rather than
+        //  written down.
+        {
+            Rig  reference;
+
+            reference.WriteImage (kImagePath, 0x33);
+            AssertSucceeded (reference.store.Mount (kSlot, kDrive, kImagePath));
+
+            rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace, "");
+
+            Assert::AreEqual ((int) FirstTrackByte (reference.store),
+                              (int) FirstTrackByte (rig.store),
+                              L"the answer takes up whatever is on disk when it comes");
+        }
+    }
+
+
+
+    //  AND THE FILE IS NOT RE-READ WHILE THE USER READS THE QUESTION. The
+    //  change stays pending by design until an answer arrives, so every idle
+    //  tick used to read the whole image and nibblize it before reaching the
+    //  point where an outstanding question was noticed.
+    TEST_METHOD (AStandingQuestionDoesNotReReadTheImage)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        {
+            const int  before = rig.reads;
+
+            rig.nowMs += 5000;
+            rig.store.ApplyPendingReload();
+            rig.store.ApplyPendingReload();
+            rig.store.ApplyPendingReload();
+
+            Assert::AreEqual (before, rig.reads,
+                              L"an idle tick under a standing question reads nothing");
+        }
+    }
+
+
+
+    //  AND A RESERVATION DOES NOT OUTLIVE THE DISK IT WAS MADE FOR. Neither
+    //  eject clears one, which costs nothing while the bay stands empty --
+    //  nothing reads a reservation on an empty bay. The disk mounted next is
+    //  what inherited it, and filed its own copy under the name and the moment
+    //  belonging to a disk that had already left the drive.
+    TEST_METHOD (AReservationDoesNotOutliveTheDiskItWasMadeFor)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        //  A question goes up, reserving a name stamped with this moment, and
+        //  the user takes the disk out instead of answering it.
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        rig.store.Eject (kSlot, kDrive);
+
+        //  An hour later a disk goes back in, and it conflicts on its own.
+        rig.wallClock += 3600;
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+
+        Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
+
+        Assert::AreNotEqual (PreservedCopy::MakePath (
+                                 kImagePath,
+                                 PreservedCopy::MakeStamp (rig.wallClock - 3600), 0),
+                             rig.PreservedPaths()[0],
+                             L"not under the name reserved for the disk that left");
+        Assert::AreEqual (PreservedCopy::MakePath (
+                              kImagePath,
+                              PreservedCopy::MakeStamp (rig.wallClock), 0),
+                          rig.PreservedPaths()[0],
+                          L"but under one belonging to the disk that is in the drive");
+    }
+
 
 
 
@@ -548,6 +980,230 @@ public:
                           L"the file still holds the external version");
         Assert::IsTrue (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
                         L"and the guest's writes are still in memory");
+    }
+
+
+
+    //  AND THE REFUSAL IS PUT AS A QUESTION, the same one the watcher side
+    //  puts. Which end notices the collision first is timing the user cannot
+    //  see, and it used to decide whether they were offered somewhere else to
+    //  put the disk or merely told the write had not happened.
+    TEST_METHOD (AFlushThatCannotKeepTheDisplacedVersionAsksWhereToPutIt)
+    {
+        Rig          rig;
+        HRESULT      hrFlush = S_OK;
+        std::string  chosen  = "C:\\elsewhere\\Rescued.dsk";
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+
+        hrFlush = rig.store.Flush (kSlot, kDrive);
+
+        Assert::IsTrue (FAILED (hrFlush));
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"asked, not merely announced");
+        Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                          L"and not put where no answer can be given");
+
+        //  "Save as..." and nothing else destructive.
+        Assert::AreEqual ((size_t) 2, rig.questions[0].answers.size());
+        Assert::IsTrue (rig.questions[0].answers[0].action == ChangeAction::PreserveCopy);
+        Assert::IsTrue (rig.questions[0].answers[rig.questions[0].safeAnswer].action
+                            == ChangeAction::Ignore);
+
+        //  And answering it puts the disk where the user chose, with the drive
+        //  still running on it.
+        rig.refusePreserve = false;
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+
+        Assert::AreEqual (chosen, rig.store.GetSourcePath (kSlot, kDrive),
+                          L"the drive reads and writes the rescued file now");
+        Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0],
+                          L"and the original still holds the external version");
+    }
+
+
+
+    //  AND AN EJECT THAT CANNOT KEEP IT WAITS TO BE TOLD WHAT TO DO. Emptying
+    //  the bay is what destroys a disk whose copy has nowhere to go, so the one
+    //  moment the user must be asked is the moment it was about to happen. Both
+    //  answers end with the drive empty, so nothing is stuck in it.
+    TEST_METHOD (AnEjectThatCannotKeepTheDisplacedVersionAsksBeforeEmptyingTheDrive)
+    {
+        Rig          rig;
+        std::string  chosen = "C:\\elsewhere\\Rescued.dsk";
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+
+        rig.store.Eject (kSlot, kDrive);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"asked, because the drive is about to be emptied");
+        Assert::IsTrue (rig.store.IsMounted (kSlot, kDrive),
+                        L"and the disk is still there while the question stands");
+
+        //  Neither answer is a dismissal: the drive empties either way, and
+        //  the safe one is the one that keeps the disk.
+        Assert::AreEqual ((size_t) 2, rig.questions[0].answers.size());
+        Assert::IsTrue (rig.questions[0].answers[0].action == ChangeAction::PreserveCopy);
+        Assert::IsTrue (rig.questions[0].answers[1].action == ChangeAction::Discard);
+        Assert::AreEqual ((size_t) 0, rig.questions[0].safeAnswer);
+
+        rig.refusePreserve = false;
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
+                         L"the eject finishes once it has an answer");
+        Assert::IsTrue (rig.files.count (chosen) != 0,
+                        L"and the disk went where the user said");
+    }
+
+
+
+    //  AND DISCARDING FINISHES THE EJECT TOO. Left dirty, the eject would find
+    //  the same collision and put the same question up again, and a disk the
+    //  user had just thrown away would be one they could not throw away.
+    TEST_METHOD (DiscardingAtAnEjectEmptiesTheDriveRatherThanAskingAgain)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+
+        rig.store.Eject (kSlot, kDrive);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size());
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard, "");
+
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
+                         L"the drive empties");
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"and is not asked about a second time");
+        Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0],
+                          L"the file keeps the other program's version");
+    }
+
+
+
+    //  AND A DISK NOBODY CAN BE ASKED ABOUT STILL COMES OUT. Without a sink
+    //  there is no question to wait for, and a bay that waited anyway would be
+    //  one the user could never empty.
+    TEST_METHOD (AnEjectWithNothingToAskStillEmptiesTheDrive)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve  = true;
+        rig.askSinkDelivers = false;
+
+        rig.store.Eject (kSlot, kDrive);
+
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
+                         L"a question that could not be put does not hold the disk in");
+    }
+
+
+
+    //  THE LAST FLUSH OF THE PROCESS ASKS THROUGH A DIALOG THAT BLOCKS. There
+    //  is no pump left to deliver a posted question and no thread to act on the
+    //  answer, but the apartment is still up -- so the asking and the writing
+    //  both happen inside the call that found the problem.
+    TEST_METHOD (ShutdownAsksWhereToPutADiskItCannotOtherwiseSave)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+        rig.rescueChoice   = "C:\\elsewhere\\OnTheWayOut.dsk";
+
+        //  The flush itself still reports failure, and truthfully: the file it
+        //  was asked to write keeps the other program's version. What changed
+        //  is where the guest's disk went.
+        HRESULT  hrFlush = rig.store.FlushAllForShutdown();
+
+        Assert::IsTrue (FAILED (hrFlush));
+
+        Assert::AreEqual (1, rig.rescuesAsked,
+                          L"asked once, on the way out");
+        Assert::AreEqual ((size_t) 0, rig.questions.size(),
+                          L"and not through the route that needs an answer later");
+        Assert::IsTrue (rig.files.count (rig.rescueChoice) != 0,
+                        L"the disk is on disk where the user said");
+        Assert::IsFalse (rig.store.GetImage (kSlot, kDrive)->IsDirty(),
+                         L"and nothing is left waiting to be written");
+    }
+
+
+
+    //  AND DECLINING IS ALLOWED. What must not happen is being told the writes
+    //  are safe in memory that is about to be released.
+    TEST_METHOD (ADeclinedShutdownRescueLeavesNothingBehindToWrite)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+
+        //  rescueChoice left empty: the user closed the picker.
+        rig.store.FlushAllForShutdown();
+
+        Assert::AreEqual (1, rig.rescuesAsked);
+        Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
+                          L"nothing was written anywhere");
+        Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0],
+                          L"and the file keeps the other program's version");
     }
 
 
@@ -846,7 +1502,7 @@ public:
             rig->Stamp (kImagePath);
             rig->FireAndSettle (kImagePath);
 
-            rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+            rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
             Assert::IsTrue (!rig->bayChanges.empty());
             Assert::IsTrue (rig->bayChanges.back() == BayChange::Ejected);
@@ -1057,8 +1713,6 @@ public:
 
             rig.WriteImage (kImagePath, (Byte) (0x20 + round));
             rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
-
-            rig.store.ClearChangeReport (kSlot, kDrive);
         }
 
         //  A one-second stamp cannot keep the accumulate-rather-than-overwrite
@@ -1125,7 +1779,7 @@ public:
                         L"a user whose file was deleted needs to be told it is gone");
 
         //  Present, but not this disk any more.
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
@@ -1182,6 +1836,44 @@ public:
 
 
 
+    //  A FILE FOUND GONE WHILE ACTING IS ASKED ABOUT, NOT REPORTED. The user
+    //  answers "take up the new version", the re-read finds the file has since
+    //  been deleted, and what is left to offer is the same pair the watcher
+    //  would have offered. Sent to the notice bar instead, both buttons did
+    //  nothing: the bar routes no answers.
+    TEST_METHOD (ALostFileFoundWhileActingIsAskedNotReported)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath);
+
+        Assert::AreEqual ((size_t) 1, rig.questions.size(),
+                          L"an unexplained change is a question");
+
+        //  Gone between the question and the answer.
+        rig.files.erase (kImagePath);
+        rig.Stamp (kImagePath);
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 2, rig.questions.size(),
+                          L"asked again, about the file that has gone");
+        Assert::AreEqual ((size_t) 0, rig.reports.size(),
+                          L"and not put where no answer can be given");
+
+        Assert::AreEqual ((size_t) 2, rig.questions[1].answers.size());
+        Assert::IsTrue (rig.questions[1].answers[0].action == ChangeAction::PreserveCopy);
+        Assert::IsTrue (rig.questions[1].answers[1].action == ChangeAction::Discard);
+    }
+
+
+
     TEST_METHOD (DecliningToSaveStillEmptiesTheDrive)
     {
         Rig  rig;
@@ -1195,7 +1887,7 @@ public:
         rig.Stamp (kImagePath);
         rig.FireAndSettle (kImagePath);
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
         Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive));
         Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
@@ -1331,13 +2023,7 @@ public:
         rig.WriteImage (kImagePath, 0x44);
         rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
-        //  THE NOTICE STAYS STANDING, which is what tells the shell to re-word
-        //  the one already up rather than raise a second. Three builds before
-        //  the developer looks back at the emulator are three pick-ups and one
-        //  notice.
-        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->IsReportStanding());
-
-        //  AND EVERY ONE OF THEM IS REPORTED, so the wording can follow what
+        //  EVERY ONE OF THEM IS REPORTED, so the wording can follow what
         //  actually happened. Emitting only the first kept one notice at the
         //  cost of it going stale -- measured, a reload followed by a restart
         //  left it advising a reboot that had already been done.
@@ -1347,9 +2033,6 @@ public:
         //  when the report first appeared.
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity()
                             .Matches (rig.identities[kImagePath]));
-
-        rig.store.ClearChangeReport (kSlot, kDrive);
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->IsReportStanding());
     }
 
 

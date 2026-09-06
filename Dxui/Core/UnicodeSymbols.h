@@ -26,6 +26,7 @@ static constexpr LPCWSTR s_kpszCheckMark     = L"\x2713";       // U+2713 CHECK 
 static constexpr LPCWSTR s_kpszTriangleUp    = L"\x25B2";       // U+25B2 BLACK UP-POINTING TRIANGLE (▲)
 static constexpr LPCWSTR s_kpszTriangleDown  = L"\x25BC";       // U+25BC BLACK DOWN-POINTING TRIANGLE (▼)
 static constexpr LPCWSTR s_kpszTriangleRight = L"\x25B6";       // U+25B6 BLACK RIGHT-POINTING TRIANGLE (▶)
+static constexpr LPCWSTR s_kpszRightArrow    = L"\x2192";       // U+2192 RIGHTWARDS ARROW
 static constexpr LPCWSTR s_kpszMultiplyX     = L"\x00D7";       // U+00D7 MULTIPLICATION SIGN (×), window-close glyph
 static constexpr LPCWSTR s_kpszRocket        = L"\U0001F680";   // U+1F680 ROCKET (🚀)
 static constexpr LPCWSTR s_kpszStar          = L"\x2B50";       // U+2B50 WHITE MEDIUM STAR (gold via color-emoji font)
@@ -36,3 +37,20 @@ static constexpr LPCWSTR s_kpszLock          = L"\U0001F512";   // U+1F512 LOCK 
 static constexpr LPCWSTR s_kpszMdl2Play      = L"\xE768";       // U+E768 Segoe MDL2 Play
 static constexpr LPCWSTR s_kpszMdl2Copy      = L"\xE8C8";       // U+E8C8 Segoe MDL2 Copy
 static constexpr LPCWSTR s_kpszMdl2Accept    = L"\xE73E";       // U+E73E Segoe MDL2 Accept (check mark)
+
+// Casso's own symbol font (Resources/Fonts/CassoSymbols.ttf, embedded and
+// registered by AssetBootstrap::RegisterSymbolFont). These need no family at
+// the call site: the renderer maps the range below onto that font through
+// DirectWrite fallback, so they read as ordinary characters in any string.
+//
+// The two Apple keys of a //e or //c keyboard. Both keycaps carry the same
+// apple and only the fill tells them apart, which is why no shipping font
+// has the pair.
+static constexpr LPCWSTR s_kpszOpenApple     = L"\xE000";       // U+E000 open Apple (outline)
+static constexpr LPCWSTR s_kpszClosedApple   = L"\xE001";       // U+E001 closed Apple (filled)
+
+// The range registered for that font. Keep it tight: the private use area is
+// shared with Segoe MDL2 above, and a mapping that reached those codepoints
+// would steal them.
+static constexpr uint32_t s_kSymbolFontFirst = 0xE000;
+static constexpr uint32_t s_kSymbolFontLast  = 0xE001;

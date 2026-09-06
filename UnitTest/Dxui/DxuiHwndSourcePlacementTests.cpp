@@ -133,13 +133,31 @@ public:
     }
 
 
+    DxuiHwndSource::OwnerSide  Left() { return DxuiHwndSource::OwnerSide::Left; }
+    DxuiHwndSource::OwnerSide  Right() { return DxuiHwndSource::OwnerSide::Right; }
+
+
     //
-    //  The preferred placement: flush against the owner's right edge, tops
+    //  The preferred placement: flush against the owner's left edge, tops
     //  aligned, whenever the whole frame still fits on the owner's monitor.
+    //  Both sides fit this owner, which is what makes it a preference test.
     //
-    TEST_METHOD (BesideOwnerPrefersTheRightEdge)
+    TEST_METHOD (BesideOwnerPrefersTheLeftEdge)
     {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 900, 700), GetSize (500, 600), s_kWork);
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (600, 100, 1400, 700), GetSize (500, 600), s_kWork, Left());
+
+
+        AssertPoint (100, 100, p, L"flush against the owner's left edge");
+    }
+
+
+    //
+    //  An owner near the left edge leaves no room on that side, so the
+    //  window goes to the owner's right rather than off the monitor.
+    //
+    TEST_METHOD (BesideOwnerFallsBackToTheRightEdge)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 900, 700), GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (900, 100, p, L"flush against the owner's right edge");
@@ -147,12 +165,27 @@ public:
 
 
     //
-    //  An owner near the right edge leaves no room on that side, so the
-    //  window goes to the owner's left rather than off the monitor.
+    //  The same owner, asked for the right side instead: both sides fit,
+    //  so the preference is the whole of the answer. The printer panel
+    //  opens on this side so it does not land on top of the Settings
+    //  sheet.
     //
-    TEST_METHOD (BesideOwnerFallsBackToTheLeftEdge)
+    TEST_METHOD (BesideOwnerHonorsARightPreference)
     {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (1300, 100, 1900, 700), GetSize (500, 600), s_kWork);
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (600, 100, 1400, 700), GetSize (500, 600), s_kWork, Right());
+
+
+        AssertPoint (1400, 100, p, L"flush against the owner's right edge");
+    }
+
+
+    //
+    //  A right preference still falls back to the left when the right will
+    //  not fit -- a preference, not a demand.
+    //
+    TEST_METHOD (BesideOwnerRightFallsBackToTheLeftEdge)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (1300, 100, 1900, 700), GetSize (500, 600), s_kWork, Right());
 
 
         AssertPoint (800, 100, p, L"flush against the owner's left edge");
@@ -166,8 +199,8 @@ public:
     //
     TEST_METHOD (BesideOwnerOverlapsOnTheRoomierSide)
     {
-        POINT  left  = DxuiHwndSource::PlaceBesideOwner (GetRect (200, 100, 1800, 900), GetSize (500, 600), s_kWork);
-        POINT  right = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 1700, 900), GetSize (500, 600), s_kWork);
+        POINT  left  = DxuiHwndSource::PlaceBesideOwner (GetRect (200, 100, 1800, 900), GetSize (500, 600), s_kWork, Left());
+        POINT  right = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 1700, 900), GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (0,    100, left,  L"more room left: pinned to the work-area left edge");
@@ -181,7 +214,7 @@ public:
     //
     TEST_METHOD (BesideMaximizedOwnerStaysOnItsMonitor)
     {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (s_kWork, GetSize (500, 600), s_kWork);
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (s_kWork, GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (1420, 0, p, L"overlapping the maximized owner, still on its monitor");
@@ -192,15 +225,72 @@ public:
     //  The work area is the OWNER's monitor, so an owner on a secondary
     //  screen to the left of the primary keeps its dialog there: the fit
     //  test is against that monitor's edges, negative coordinates and all.
+    //  That monitor's left edge rules out the left side, so this one lands
+    //  on the fallback.
     //
     TEST_METHOD (BesideOwnerStaysOnASecondaryMonitor)
     {
         POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (-1800, 100, -1200, 700),
                                                      GetSize (500, 600),
-                                                     GetRect (-1920, 0, 0, 1080));
+                                                     GetRect (-1920, 0, 0, 1080),
+                                                     Left());
 
 
         AssertPoint (-1200, 100, p, L"beside the owner on the left-hand monitor");
+    }
+
+
+    //
+    //  A modal centers on the owner's frame: half the size difference on
+    //  each side, both axes.
+    //
+    TEST_METHOD (CenteredOnOwnerSplitsTheSizeDifference)
+    {
+        POINT  p = DxuiHwndSource::CenterOnOwner (GetRect (400, 200, 1200, 800), GetSize (500, 300), s_kWork);
+
+
+        AssertPoint (550, 350, p, L"centered on the owner in both axes");
+    }
+
+
+    //
+    //  An owner hanging off the left of its monitor would center the dialog
+    //  partly off-screen, so the clamp pulls it back onto the work area --
+    //  no longer centered, but whole.
+    //
+    TEST_METHOD (CenteredOnAnOffScreenOwnerStaysWhole)
+    {
+        POINT  p = DxuiHwndSource::CenterOnOwner (GetRect (-300, 100, 500, 700), GetSize (500, 300), s_kWork);
+
+
+        AssertPoint (0, 250, p, L"pulled onto the work area's left edge");
+    }
+
+
+    //
+    //  A maximized owner is the work area, so the dialog centers on the
+    //  monitor -- and the taskbar-shortened work area is what it centers
+    //  in, which sits it a little above the monitor's own center.
+    //
+    TEST_METHOD (CenteredOnAMaximizedOwnerCentersOnTheWorkArea)
+    {
+        POINT  p = DxuiHwndSource::CenterOnOwner (s_kWork, GetSize (500, 300), s_kWork);
+
+
+        AssertPoint (710, 370, p, L"centered in the work area");
+    }
+
+
+    //
+    //  An owner taller than the work area would push a centered dialog off
+    //  the bottom; the clamp keeps its button row above the taskbar.
+    //
+    TEST_METHOD (CenteredOnATallOwnerClampsIntoTheWorkArea)
+    {
+        POINT  p = DxuiHwndSource::CenterOnOwner (GetRect (400, 600, 1200, 2000), GetSize (500, 300), s_kWork);
+
+
+        AssertPoint (550, 740, p, L"bottom meets work.bottom");
     }
 
 
@@ -210,7 +300,7 @@ public:
     //
     TEST_METHOD (BesideOwnerClampsTheBottomIntoTheWorkArea)
     {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 700, 900, 1000), GetSize (500, 600), s_kWork);
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 700, 900, 1000), GetSize (500, 600), s_kWork, Left());
 
 
         AssertPoint (900, 440, p, L"bottom meets work.bottom; the side placement holds");

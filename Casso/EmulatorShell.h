@@ -28,9 +28,7 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/CommandToolbar.h"
-#include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
@@ -56,6 +54,8 @@
 #include "WasapiAudio.h"
 #include "Window/DxuiHwndSource.h"
 #include "Widgets/DxuiActionBanner.h"
+#include "Widgets/DxuiHudNotice.h"
+#include "Widgets/DxuiInfoBanner.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
@@ -69,6 +69,10 @@ class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
 struct MonitorSpec;
+
+// Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
+// key classifiers can name it without dragging the device header in.
+enum class AppleSpecialKey;
 
 
 
@@ -197,6 +201,12 @@ public:
     // --no-image-watch and read by the two places that install notification.
     void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
     bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
+
+    // Text put in front of the window caption, so one of several open windows
+    // can be told from the others at a glance. Undocumented; set from --title
+    // and read by UpdateWindowTitle. Set before the window exists, so it does
+    // not refresh the caption itself.
+    void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
     bool IsTracing        () const { return m_traceCapacity > 0; }
     void DumpTrace        (const wstring & reason);
 
@@ -291,6 +301,7 @@ private:
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
@@ -329,6 +340,12 @@ private:
     // clipboard, write the PNG if saving is on, and say what happened.
     // Bound to the toolbar camera, Edit > Copy screenshot, and Ctrl+Alt+C.
     void TakeScreenshot();
+
+    // Hands the //e keyboard the real time that has passed since the previous
+    // CPU-thread frame, which is what its auto-repeat cadence runs on. Not
+    // driven off the guest clock: Double would then repeat twice as fast and
+    // Maximum, which is uncapped, faster than anyone can type against.
+    void TickKeyboardAutoRepeat();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
 
     // Presentation pacing + render-skip gate (rationale in the .cpp).
@@ -467,13 +484,14 @@ private:
     void    OnViewportBoundsChanged       (const RECT & boundsPx);
 
     // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
-    // keys (menu navigation, paste, reset); ApplyAppleModifierKeys mirrors
-    // the host Alt/Shift state onto the //e Open/Closed-Apple and Shift soft
-    // switches; MapVkToAppleControlCode and IsArrowVk are pure VK classifiers.
-    bool        HandleHostMetaShortcut  (WPARAM vk, bool ctrlHeld, bool altHeld);
-    void        ApplyAppleModifierKeys  (WPARAM vk, bool keyDown);
-    static Byte MapVkToAppleControlCode (WPARAM vk);
-    static bool IsArrowVk               (WPARAM vk);
+    // keys (menu navigation, paste); ApplyAppleModifierKeys mirrors the host
+    // Alt/Shift state onto the //e Open/Closed-Apple and Shift soft switches;
+    // TryMapVkToSpecialKey and IsArrowVk are pure VK classifiers.
+    bool        HandleHostMetaShortcut       (WPARAM vk, bool ctrlHeld, bool altHeld);
+    void        ApplyAppleModifierKeys       (WPARAM vk, bool keyDown);
+    static bool TryMapVkToSpecialKey         (WPARAM vk, AppleSpecialKey & outKey);
+    static bool DoesSpecialKeySynthesizeChar (AppleSpecialKey key);
+    static bool IsArrowVk                    (WPARAM vk);
 
     // Stage the emulated joystick axes from the host arrow keys.
     void    UpdateJoystickAxesFromKeys ();
@@ -607,6 +625,12 @@ public:
     // mouse buttons onto the emulated fire buttons.
     void    StartPaddleCapture     ();
     void    StopPaddleCapture      ();
+
+    // Confines the pointer to the client and parks it in the middle, which is
+    // what "captured" means to the user. Shared by the grab and by the re-take
+    // after a cancel the layout caused.
+    void    ClipPaddleCursorToClient ();
+
     void    UpdatePaddleFromMouse  (int xClient, int yClient);
     void    PushPaddlePosition     ();
     void    PushPaddleButton       (int index, bool pressed);
@@ -685,6 +709,31 @@ private:
         }
 
         return m_driveWidgetState[(size_t) driveIndex].writeProtect;
+    }
+
+    // Head position and activity for the Settings -> Theme preview, copied
+    // into the caller's state rather than returned, because the live state
+    // holds atomics and cannot be copied whole. Without it the preview's
+    // drives are built from a default-constructed state, whose head position
+    // is the "unknown" -1 that PaintCompactHeadBar deliberately refuses to
+    // draw a core for -- so a 2D theme's activity indicator showed the bare
+    // rail and nothing else. Index 0 is drive 1.
+    void  SampleDriveActivity (int driveIndex, DriveWidgetState & outState) const
+    {
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return;
+        }
+
+        const DriveWidgetState &  st = m_driveWidgetState[(size_t) driveIndex];
+
+        outState.headQuarterTrack.store (st.headQuarterTrack.load (std::memory_order_relaxed),
+                                         std::memory_order_relaxed);
+        outState.motorOn.store    (st.motorOn.load    (std::memory_order_relaxed),
+                                   std::memory_order_relaxed);
+        outState.diskActive.store (st.diskActive.load (std::memory_order_relaxed),
+                                   std::memory_order_relaxed);
+        outState.lastActiveMs = st.lastActiveMs;
     }
 
     // Base directory for user preferences. SettingsPanel.CommitApply
@@ -906,7 +955,7 @@ private:
     // //c switch strip -- so the glass-fill scene owns the whole client.
     void    SetChromeHiddenForFullscreenScene (bool hidden);
 
-    // The pointer-capture banner and the fullscreen top-edge toolbar reveal,
+    // The pointer-capture banner and the fullscreen top-edge chrome reveal,
     // both driven from the per-frame UI upkeep.
     void    SyncCaptureBanner    ();
     void    SyncFrameRateReadout ();
@@ -914,7 +963,7 @@ private:
     // The scene pose across the middle of the picture, so a screenshot of a
     // render fault carries the angle it was taken from.
     void    SyncSceneViewReadout ();
-    void    TickFullscreenToolbar();
+    void    TickFullscreenTopChrome();
 
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
@@ -1054,6 +1103,11 @@ private:
     // How tall the notice's band is right now: zero when nothing is being
     // reported, and the height its wrapped text needs when something is.
     int     GetChangeBandThicknessPx (int clientWidthPx) const;
+
+    // How tall the capture bar's band is right now: zero unless the pointer is
+    // held, and zero in fullscreen, where there are no bands at all and the
+    // bar rides under the toolbar reveal instead.
+    int     GetCaptureBandThicknessPx (int clientWidthPx) const;
 
     // Re-docks the chrome after the notice's band appears or goes.
     //
@@ -1210,6 +1264,7 @@ private:
     unique_ptr<class Prng>  m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
+    wstring                m_titlePrefix;                 // --title (undocumented)
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
     D3DRenderer            m_d3dRenderer;
@@ -1230,10 +1285,20 @@ private:
     std::array<DriveWidget, 2>  m_driveChrome;
 
     // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
-    // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
-    // Reset / Power. Its printer button carries the status light (the old
-    // standalone PrinterIndicator is deleted).
+    // Settings / theme + monitor-color pickers / Printer (+status LED) /
+    // master Volume + Mute / Input / Fullscreen / Screenshot / Reset / Power.
+    // Its printer button carries the status light (the old standalone
+    // PrinterIndicator is deleted).
     CommandToolbar      m_toolbar;
+
+    // Theme ids in the toolbar picker's row order, so a picked row resolves
+    // to the id ThemeManager wants. Rebuilt whenever the catalog is.
+    std::vector<std::string>  m_toolbarThemeIds;
+
+    void  WireToolbarPickers          ();
+    void  RefreshToolbarThemeList     ();
+    void  SyncToolbarState            ();
+    void  PersistColorModeForMachine  (int settingsColorModeIndex);
 
     // The pure model deriving the printer LED state from the worker's live
     // signals, plus the last state pushed to the toolbar so a transition
@@ -1331,7 +1396,6 @@ private:
     // reaches for once the program starts misbehaving, and a notice that faded
     // would take that action with it.
     DxuiActionBanner            m_changeBanner;
-    int                         m_changeBannerDrive = -1;
 
     //  When the change band closes itself, and the frame that last looked.
     //  Zero means it stands until dismissed. Hovering does not extend the
@@ -1340,11 +1404,6 @@ private:
     //  what was left when it arrived.
     int64_t                     m_changeBannerHideAtMs = 0;
     int64_t                     m_changeBannerTickMs   = 0;
-
-    // What each of the banner's buttons means, in the order they were drawn.
-    // The labels and the meanings are both core's; keeping the meanings beside
-    // the buttons is what stops the shell from inventing one.
-    std::vector<ChangeAction>   m_changeBannerActions;
 
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
@@ -1403,12 +1462,20 @@ private:
     // filesystem parsing or text measurement.
     std::array<std::string, 2>  m_sceneLabelPath;
 
-    // "Paddle Mode -- press Esc to release the mouse", on screen for as long
-    // as the capture holds. The joystick button carries the same words, but
+    // "Press Esc to release the mouse and exit paddle mode", on screen for as
+    // long as the capture holds. The joystick button carries the same words, but
     // it is chrome: fullscreen hides it, and a captured pointer with the
     // cursor gone and no way out shown is how a user ends up killing the
-    // process. This rides above the picture in both presentations.
-    DxuiHudNotice              m_captureBanner;
+    // process. A message bar rather than a caption over the picture: it says
+    // something and asks nothing, which is what an info banner is, and the
+    // chrome under the command strip is the one place it covers nothing.
+    DxuiInfoBanner             m_captureBar;
+
+    // An opaque panel behind it, the way the drive bar has one. The banner's
+    // own fill is a tint meant to sit on chrome, and the bar does not: it
+    // hangs over the picture, and over the desk scene the monitor read
+    // straight through the words.
+    DxuiSurface                m_captureBarSurface;
 
     //  A SCREENSHOT IN FLIGHT.
     //
@@ -1486,12 +1553,12 @@ private:
 
     void  LayoutSceneCompass ();
 
-    // The fullscreen toolbar reveal, the drive strip's bargain mirrored
-    // along the top edge: shown while the pointer is up there, hidden once
-    // it leaves and the grace expires.
-    bool                       m_fsToolbarShown    = false;
-    int64_t                    m_fsToolbarLeftMs   = 0;
-    int64_t                    m_fsToolbarAnimMs   = 0;   // slide start
+    // The fullscreen menu-bar-and-toolbar reveal, the drive strip's bargain
+    // mirrored along the top edge: shown while the pointer is up there,
+    // hidden once it leaves and the grace expires.
+    bool                       m_fsTopChromeShown  = false;
+    int64_t                    m_fsTopChromeLeftMs = 0;
+    int64_t                    m_fsTopChromeAnimMs = 0;   // slide start
 
     // Chrome layout via DxuiDockLayout. The three bands carry the title
     // bar, nav strip, and drive bar pixel thicknesses in their GetBounds();
@@ -1531,6 +1598,34 @@ private:
     // Zero height when nothing is being reported, so every other machine and
     // every quiet session is laid out exactly as before.
     ChromeBand               m_changeBand;
+
+    // The capture bar's own band, docked directly under the change notice so
+    // both sit below the command strip. Zero height whenever the pointer is
+    // not held, which is every ordinary session.
+    ChromeBand               m_captureBand;
+
+    // Whether the one authoritative layout pass (OnSize) is running, so a
+    // notice band cannot ask for another from inside it. See
+    // ReflowChromeForChangeBand.
+    bool                     m_inChromeLayout = false;
+
+    // Set when a capture band was found standing with no capture behind it,
+    // and cleared by the re-dock at the top of the next frame. A flag rather
+    // than the re-dock itself, because the sync that spots it runs inside the
+    // frame the re-dock would repaint.
+    bool                     m_captureBandStale = false;
+
+    // When the capture's own band was last docked, on the monotonic clock.
+    // The resize that follows bounces WM_CANCELMODE back at whoever holds the
+    // pointer, and that one cancel is ours to ignore -- see OnCancelMode.
+    // Zeroed once it has been used, so exactly one is ever swallowed.
+    int64_t                  m_captureReflowMs = 0;
+
+    // How long after that dock a cancel is still credibly its echo. Long
+    // enough to cover a settle pass on a slow frame, short enough that a real
+    // takeover arriving later is never mistaken for it.
+    static constexpr int64_t s_kCaptureReflowEchoMs = 750;
+
     ChromeBand               m_driveBand;
     ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;
@@ -1867,6 +1962,12 @@ private:
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;
+
+    // When the //e keyboard's auto-repeat cadence was last advanced, and the
+    // sub-microsecond remainder that advance left behind. Zero before the
+    // first CPU-thread frame, which starts the interval rather than reporting
+    // one. CPU-thread-only.
+    chrono::steady_clock::time_point  m_lastKeyRepeatSteady = {};
 
     // Host sample rate the loaded sounds were decoded at, 0 before the first
     // load. Compared against the live device rate each frame so a reopen onto

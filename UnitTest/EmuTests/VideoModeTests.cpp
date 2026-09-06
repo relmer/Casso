@@ -9,6 +9,7 @@
 #include "Video/AppleHiResMode.h"
 #include "Video/AppleDoubleHiResMode.h"
 #include "Video/CharacterRomData.h"
+#include "Video/NtscColorTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1480,9 +1481,11 @@ public:
     {
         const int              fbW      = 560;
         const int              fbH      = 384;
-        const uint32_t         kMagenta = 0xFFDD2266;
-        const uint32_t         kOrange  = 0xFFFF4400;
-        const uint32_t         kViolet  = 0xFFDD0044;
+        // By color number, not by literal: this test pins the dot->color
+        // rotation, so it must not also fail when the palette is retuned.
+        const uint32_t         kMagenta = kAppleColors[1];
+        const uint32_t         kOrange  = kAppleColors[9];
+        const uint32_t         kViolet  = kAppleColors[3];
         MemoryBus              bus;
         RamDevice              ram (0x0000, 0x5FFF);
         std::vector<Byte>      auxBuf (0x10000, 0x00);

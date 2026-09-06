@@ -37,12 +37,23 @@ public:
     };
 
     using SelectFn = std::function<void (int index)>;
+    using ClosedFn = std::function<void (bool committed)>;
 
     ~DxuiPopupMenu() override = default;
 
     void  SetDpi      (UINT dpi)                { m_scaler.SetDpi (dpi); }
     void  SetTheme    (const IDxuiTheme * th)   { m_theme = th; }
     void  SetOnSelect (SelectFn fn)             { m_onSelect = std::move (fn); }
+
+    // Fired whenever the highlighted row changes, by pointer or by arrow
+    // key, for a caller that PREVIEWS what the row would do.
+    void  SetOnHighlightChange (SelectFn fn)    { m_onHighlight = std::move (fn); }
+
+    // Fired once per visible -> hidden edge, BEFORE the select callback (see
+    // OnLButtonUp on why the hide comes first). `committed` says whether the
+    // closing gesture picked a row, which is what lets a previewing caller
+    // put the old value back on a dismissal without undoing a pick.
+    void  SetOnClosed          (ClosedFn fn)    { m_onClosed = std::move (fn); }
 
     //
     //  Opt-in popup hosting (FR-054 / FR-061). When a host window is
@@ -94,6 +105,7 @@ private:
     static constexpr float  kFontDip          = 13.0f;
 
     int   HitTestIndex    (int x, int y) const;
+    void  SetHover        (int index);
     void  PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
     void  RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void  OnPopupMove     (POINT localPx);
@@ -102,6 +114,9 @@ private:
 
     std::vector<Item>    m_items;
     SelectFn             m_onSelect;
+    SelectFn             m_onHighlight;
+    ClosedFn             m_onClosed;
+    bool                 m_committing  = false;   // a pick is closing the menu
     const IDxuiTheme   * m_theme       = nullptr;
     int                  m_hover       = -1;
     int                  m_pressed     = -1;

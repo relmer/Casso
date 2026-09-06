@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "Apple2cSwitchBar.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -145,8 +146,8 @@ void Apple2cSwitchBar::ShearGradH (
 //  MeasureLabel
 //
 //  Width of a silk-screen label in pixels. Uses the text renderer when one is
-//  wired; before it exists (early layout) falls back to a fixed-pitch estimate,
-//  matching the InputDeviceSelector contract.
+//  wired; before it exists (early layout) falls back to a fixed-pitch
+//  estimate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -312,6 +313,58 @@ Apple2cSwitchBar::Part Apple2cSwitchBar::GetPartAt (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetMachineDisplayName
+//
+//  The reset tip says which machine it resets, so the bar is told the name the
+//  command bar already carries, and rebuilds only when it changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cSwitchBar::SetMachineDisplayName (const std::wstring & displayName)
+{
+    if (displayName != m_machineName)
+    {
+        m_machineName = displayName;
+        RebuildResetTip();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebuildResetTip
+//
+//  Two chords, one per line, because that is what the key does: nothing on its
+//  own, a reset with Ctrl, a reboot with Ctrl and the open Apple key. The
+//  Apple key is written as its keycap symbol rather than by name -- the reader
+//  is looking for that symbol on the keyboard, and the keyboard map is where
+//  the pair is taught.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cSwitchBar::RebuildResetTip() const
+{
+    std::wstring  machine = m_machineName.empty() ? std::wstring (L"machine")
+                                                  : m_machineName;
+    std::wstring  apple   = DxuiTextRenderer::HasSymbolFont()
+                                ? std::wstring (s_kpszOpenApple)
+                                : std::wstring (L"Open Apple");
+
+
+
+    m_resetTip = L"Ctrl + Reset to reset the " + machine + L"\n" +
+                 L"Ctrl + " + apple + L" + Reset to reboot";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTooltipTextAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,10 +378,10 @@ const wchar_t * Apple2cSwitchBar::GetTooltipTextAt (int x, int y) const
 
     switch (GetPartAt (x, y))
     {
-        case Part::Reset:       tip = kTipReset;    break;
-        case Part::EightyForty: tip = kTipEighty;   break;
-        case Part::Keyboard:    tip = kTipKeyboard; break;
-        default:                                    break;
+        case Part::Reset:       tip = ResetTip();    break;
+        case Part::EightyForty: tip = kTipEighty;    break;
+        case Part::Keyboard:    tip = kTipKeyboard;  break;
+        default:                                     break;
     }
 
     return tip;

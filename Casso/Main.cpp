@@ -622,6 +622,7 @@ int WINAPI wWinMain (
     wstring                              machineName;
     wstring                              disk1Path;
     wstring                              disk2Path;
+    wstring                              titlePrefix;
     size_t                               traceCapacity = 0;
     bool                                 noImageWatch  = false;
     int                                  exitCode      = 0;
@@ -690,10 +691,15 @@ int WINAPI wWinMain (
     machineName   = TextEncoding::NarrowToWide (parsed.machine);
     disk1Path     = TextEncoding::NarrowToWide (parsed.disk1);
     disk2Path     = TextEncoding::NarrowToWide (parsed.disk2);
+    titlePrefix   = TextEncoding::NarrowToWide (parsed.titlePrefix);
     traceCapacity = parsed.traceEntries;
     noImageWatch  = parsed.noImageWatch;
 
     shell->SetImageWatchDisabled (noImageWatch);
+
+    // --title: set before the window exists, so the first caption the shell
+    // composes already carries the launcher's label.
+    shell->SetWindowTitlePrefix (titlePrefix);
 
     // --trace: size the CPU ring and install the crash-time dump filter
     // before the CPU thread starts, so an illegal-opcode/__debugbreak or
@@ -712,6 +718,7 @@ int WINAPI wWinMain (
         HRESULT  hrBoot   = AssetBootstrap::EnsureMachineConfigs (hInstance);
         HRESULT  hrThemes = S_OK;
         HRESULT  hrSounds = S_OK;
+        HRESULT  hrFont   = S_OK;
 
 
 
@@ -728,6 +735,12 @@ int WINAPI wWinMain (
         // configs and themes so the printer preview has audio on first launch.
         hrSounds = AssetBootstrap::EnsureImageWriterSounds (hInstance);
         IGNORE_RETURN_VALUE (hrSounds, S_OK);
+
+        // Register the Apple keycap glyphs with DirectWrite before any window
+        // exists, since a text format caches the fallback it was built with
+        // and the renderers are per window.
+        hrFont = AssetBootstrap::RegisterSymbolFont (hInstance);
+        IGNORE_RETURN_VALUE (hrFont, S_OK);
     }
 
     // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.

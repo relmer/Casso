@@ -7,6 +7,8 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
+#include "../Ui/Dialogs/KeyboardMapText.h"
+#include "Devices/AppleKeyboard.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"
@@ -754,9 +756,11 @@ void WindowCommandManager::OnMachineCommand (int id)
 //  the framebuffer scaling policy for the whole shell, so this command cannot
 //  disagree with what a normal resize would produce.
 //
-//  The result is centered on the window's CURRENT monitor, not the primary, so
-//  Ctrl+0 does not fling the window across a multi-monitor desktop. It is a
-//  no-op while fullscreen, where the size is not the window's to choose.
+//  Reset-view resets the SIZE and the scene pose, never the position: the
+//  window stays exactly where the user put it. Sizing it around a fixed
+//  top-left also keeps the caption where the pointer already is, so the fit
+//  to the work area below is about the size alone. It is a no-op while
+//  fullscreen, where the size is not the window's to choose.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -766,8 +770,6 @@ void WindowCommandManager::OnViewCommand (int id)
     MONITORINFO mi    = { sizeof (mi) };
     int         w     = 0;
     int         h     = 0;
-    int         x     = 0;
-    int         y     = 0;
 
 
 
@@ -905,24 +907,27 @@ void WindowCommandManager::OnViewCommand (int id)
 
                 // The 100%-emulator framing can ask for a window larger than
                 // the display -- more so now that the scene is a full desk
-                // rather than a bare framebuffer. Fit it to the work area
-                // and let the placement rule hold the caption's top-left on
-                // screen; centering is what gives way, not reachability.
-                // Without this the oversized window was centered on the work
-                // area, which put its top-left off the top-left of it: a
-                // window the pointer could no longer grab.
+                // rather than a bare framebuffer. Fit the SIZE to the work
+                // area, uniformly, so an oversized reset shrinks to the
+                // monitor instead of running off it.
+                //
+                // Only the size: SWP_NOMOVE holds the top-left where the
+                // user dragged it. Resetting the view used to re-center the
+                // window on its monitor, which moved a window the user had
+                // deliberately parked -- a reset of the VIEW has no business
+                // moving the window. Keeping the top-left is also what keeps
+                // the caption reachable, which is why the fit needs no
+                // position rule of its own any more.
                 hMon = MonitorFromWindow (m_shell.m_hwnd, MONITOR_DEFAULTTONEAREST);
 
                 if (hMon != nullptr && GetMonitorInfo (hMon, &mi))
                 {
-                    RECT  placed = WindowPlacementProfile::FitToWorkArea (mi.rcWork, w, h);
+                    RECT  sized = WindowPlacementProfile::FitToWorkArea (mi.rcWork, w, h);
 
-                    x = (int) placed.left;
-                    y = (int) placed.top;
-                    w = (int) (placed.right  - placed.left);
-                    h = (int) (placed.bottom - placed.top);
+                    w = (int) (sized.right  - sized.left);
+                    h = (int) (sized.bottom - sized.top);
 
-                    SetWindowPos (m_shell.m_hwnd, nullptr, x, y, w, h, SWP_NOZORDER);
+                    SetWindowPos (m_shell.m_hwnd, nullptr, 0, 0, w, h, SWP_NOZORDER | SWP_NOMOVE);
                 }
             }
 
@@ -1164,6 +1169,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
     hr = dialog.Create (params);
     CHRA (hr);
@@ -2241,26 +2247,19 @@ void WindowCommandManager::OnHelpCommand (int id)
     {
         case IDM_HELP_KEYMAP:
         {
-            DialogDefinition def = {};
+            DialogDefinition          def     = {};
+            KeyboardMapText::Machine  machine = {};
+
+            // Read the capabilities off the live devices rather than a model
+            // name, so a machine gains its row the moment it gains the
+            // hardware. The //e keyboard is what carries the two Apple keys.
+            machine.hasAppleKeys = m_shell.m_refs.iieKeyboard != nullptr;
+            machine.hasGamePort  = m_shell.m_refs.iieSoftSwitches != nullptr ||
+                                   m_shell.m_refs.gamePort != nullptr;
+
             def.title = L"Keyboard map";
             def.icon  = DialogIcon::Info;
-            def.body.push_back ({
-                L"PC key mapping:\n\n"
-                L"Arrow keys -> Apple ][ cursor movement\n"
-                L"Enter -> Return\n"
-                L"Escape -> Escape\n"
-                L"Delete -> Delete\n"
-                L"Ctrl+Reset -> Warm reset\n"
-                L"Left Alt -> Open Apple (//e)\n"
-                L"Right Alt -> Closed Apple (//e)\n\n"
-                L"Emulator controls:\n"
-                L"Ctrl+Shift+R -> Reset\n"
-                L"Ctrl+Shift+P -> Power cycle\n"
-                L"Pause -> Pause/resume\n"
-                L"F11 -> Step (when paused)\n"
-                L"Alt+Enter -> Fullscreen\n"
-                L"Ctrl+0 -> Reset view (window size, scene pose and zoom)",
-                false, L"" });
+            def.body  = KeyboardMapText::BuildBody (machine);
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
             break;

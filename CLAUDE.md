@@ -36,6 +36,22 @@ branch that does not start with three digits.
 **`ProDosReader` and `ProDosFileWriter` are declared inside `ProDosSkeleton.h`,**
 so a survey by filename misses them. DOS 3.3 has no reader at all.
 
+**The pre-push hook cannot catch an orphaned `////` banner, so run
+`scripts/CheckStyle.ps1 -Mode Tree` before every master merge.** The hook calls
+CheckStyle diff-scoped -- `-Against <base> -Revision <sha>`, not `-Mode Tree` --
+so it reports only on lines added in the pushed range. A banner is orphaned by
+editing its *surroundings*, and the signature it belongs to is never one of
+those lines -- so the violation is invisible to the hook and fails
+the tree sweep that CI runs on every master push. Both ways this has happened
+were ordinary edits: a new function inserted immediately after an existing one
+took over its banner, and a function that shared a banner with its neighbour
+was separated from it when the neighbour's body grew. 2026-09-05, merge
+`63642607`, two CS0014s in `CommandToolbar.cpp`; master was red for everyone
+until `d9a9d6f1`, and the session that merged on top of it inherited a failing
+style job. The companion rule for the insertion case -- splice ahead of the
+`////` banner, never ahead of the signature -- is real but only covers the
+author who knows they are splicing.
+
 ## Corrections
 
 **The unpadded span is AS65's behavior; the padded 64 KB image is the

@@ -128,6 +128,26 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // Anything in the WM_APP range, which is the range an application posts to
+    // its own window and no one else uses.
+    //
+    // A CLIENT THAT POSTS TO ITSELF MUST BE REACHABLE FROM EVERY PUMP, not
+    // only its own. A modal dialog runs a GetMessage/DispatchMessage loop of
+    // its own, so a message the client's outer loop picks off before dispatch
+    // is a message that vanishes for as long as any dialog is open -- and one
+    // carrying a heap payload leaks with it. Handling it here means
+    // DispatchMessage delivers it from whichever pump is running.
+    //
+    // Return ``Handled`` for a message this client knows; ``NotHandled``
+    // otherwise, so the host falls through to DefWindowProc.
+    virtual DxuiMessageResult  OnAppMessage     (UINT msg, WPARAM wParam, LPARAM lParam)
+    {
+        UNREFERENCED_PARAMETER (msg);
+        UNREFERENCED_PARAMETER (wParam);
+        UNREFERENCED_PARAMETER (lParam);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_DRAWITEM. wParam = control id; lParam = DRAWITEMSTRUCT *.
     // The client is responsible for drawing the owner-drawn item
     // and should return TRUE (as LRESULT) to indicate the item

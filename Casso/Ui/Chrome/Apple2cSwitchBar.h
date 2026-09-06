@@ -32,11 +32,11 @@ class IDxuiTheme;
 //  key) when in and proud (a raised, highlit key) when out. The disk-use LED
 //  lights on drive activity, the power LED is lit whenever the machine is on.
 //
-//  Like the other Casso chrome (DriveWidget, InputDeviceSelector), this control
-//  is manually hit-tested and actioned by EmulatorShell rather than through the
-//  Dxui auto-input path; it exposes GetPartAt/HitTest for that routing. It reads
-//  CassoTheme only for text color fallbacks; the case palette is fixed so the
-//  strip always reads as the //c case regardless of the active UI theme.
+//  Like the drive widgets, this control is manually hit-tested and actioned
+//  by EmulatorShell rather than through the Dxui auto-input path; it exposes
+//  GetPartAt/HitTest for that routing. It reads CassoTheme only for text color
+//  fallbacks; the case palette is fixed so the strip always reads as the //c
+//  case regardless of the active UI theme.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +64,10 @@ public:
     // Latching-switch + indicator state, fed by the shell. "In" == pressed
     // in (active): 80/40 in selects 80-column startup ($C060), keyboard in
     // selects the Dvorak layout.
+    // The reset tip says which machine it resets, so the bar is told the
+    // display name the command bar already carries.
+    void  SetMachineDisplayName (const std::wstring & displayName);
+
     void  SetEightyFortyIn (bool in) { m_eightyFortyIn = in; }
     void  SetKeyboardIn    (bool in) { m_keyboardIn    = in; }
     void  SetDiskActive    (bool on) { m_diskActive    = on; }
@@ -72,7 +76,7 @@ public:
     bool  IsEightyFortyIn  () const { return m_eightyFortyIn; }
     bool  IsKeyboardIn     () const { return m_keyboardIn; }
 
-    // Interaction state (mirrors InputDeviceSelector's owner-driven model).
+    // Interaction state: the owner drives it (see the class comment).
     void  SetHovered    (bool hovered)   { m_hovered = hovered; if (!hovered) { m_hoverPart = Part::None; } }
     void  SetHoverPoint (int x, int y)   { m_hoverPart = GetPartAt (x, y); }
     void  SetPressedPart (Part part)     { m_pressedPart = part; }
@@ -83,9 +87,9 @@ public:
 
     const wchar_t * GetTooltipTextAt (int x, int y) const;
 
-    // IDxuiControl. boundsDip is the FULL band rect (left..right x top..bottom),
-    // unlike InputDeviceSelector's center-anchor contract — the strip fills the
-    // whole band and anchors its two groups to the left and right edges.
+    // IDxuiControl. boundsDip is the FULL band rect (left..right x top..bottom)
+    // rather than a center anchor: the strip fills the whole band and anchors
+    // its two groups to the left and right edges.
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
@@ -160,9 +164,26 @@ private:
     static constexpr const wchar_t * kLabelPower    = L"power";
     static constexpr const wchar_t * kLabelReset    = L"reset";
 
-    static constexpr wchar_t  kTipReset[] =
-        L"Reset. Inert on its own, like the real //c key.\n"
-        L"Hold Ctrl and click to reset; add Open-Apple (left Alt) to cold-boot.";
+    // Assembled rather than a literal: the machine name is not known until
+    // runtime, and the open Apple glyph arrives as a named constant, which
+    // cannot join a string literal at compile time. Rebuilt whenever the name
+    // changes and held so the tooltip can be handed a pointer.
+    void  RebuildResetTip() const;
+
+    // Answers before SetMachineDisplayName has ever been called, which is the
+    // state the bar is in for the first frames after a machine is built.
+    const wchar_t * ResetTip() const
+    {
+        if (m_resetTip.empty())
+        {
+            RebuildResetTip();
+        }
+
+        return m_resetTip.c_str();
+    }
+
+    std::wstring          m_machineName;
+    mutable std::wstring  m_resetTip;
     static constexpr wchar_t  kTipEighty[] =
         L"80/40 column switch. Pressed in selects 80-column startup;\n"
         L"software reads it at $C060. Takes effect when a disk boots.";

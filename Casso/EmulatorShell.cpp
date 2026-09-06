@@ -49,6 +49,7 @@
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/Dialogs/SalvageDialogContent.h"
+#include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Cli/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
@@ -220,23 +221,23 @@ static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 // that keeps changing size while it moves reads as chrome coming unglued.
 static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 
-// The pointer-capture banner: how to get the mouse back, said for as long as
-// it is held. Low on the picture, where a paddle game's action is not.
-//
-// The band is deliberately taller than the line it holds: the halo behind
-// the text spreads past the ink, and a rect fitted to the glyphs would clip
-// its own shadow against the edges.
-static constexpr int     s_kCaptureBannerHeightDp   = 44;
-static constexpr int     s_kCaptureBannerInsetDp    = 16;
-static constexpr float   s_kCaptureBannerFontDip    = DxuiHudNotice::kFontDip;
+// The pointer-capture notice: how to get the mouse back, said for as long as
+// it is held. The bar sizes itself to this text; nothing here places it.
+static const wchar_t * const  s_kpszCaptureNotice =
+    L"Press Esc to release the mouse and exit paddle mode";
 
 // How long the screenshot result stays up. Long enough to read a filename
 // without hunting for it, short enough that it is gone before the next thing
 // the user wants to look at.
 static constexpr int64_t s_kScreenshotNoticeMs      = 4000;
 
-static const std::wstring         s_kCaptureBanner =
-    std::wstring (L"Paddle Mode ") + s_kchEmDash + L" press Esc to release the mouse";
+// The screenshot notice's own band. Taller than the line it holds: the halo
+// behind the text spreads past the ink, and a rect fitted to the glyphs would
+// clip its own shadow against the edges.
+static constexpr int     s_kScreenshotNoticeHeightDp = 44;
+static constexpr int     s_kScreenshotNoticeInsetDp  = 16;
+static constexpr float   s_kScreenshotNoticeFontDip  = DxuiHudNotice::kFontDip;
+
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //
@@ -808,7 +809,13 @@ EmulatorShell::~EmulatorShell()
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
-    hrFlush = m_diskStore.FlushAll();
+    //
+    // THE SHUTDOWN VARIANT, because this runs after the message loop has
+    // exited and the CPU thread has stopped, so a posted question would never
+    // be delivered and its answer would never be acted on. It runs on this
+    // thread with OLE still initialized -- OleUninitialize is below -- so the
+    // store asks through a blocking file dialog instead.
+    hrFlush = m_diskStore.FlushAllForShutdown();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:
@@ -1068,6 +1075,10 @@ void EmulatorShell::RegisterChromeDock()
     // Under the toolbar and above the picture, because a notice about the disk
     // in the drive belongs with the controls rather than over the screen.
     m_chromeDock.SetDock (m_changeBand,  DxuiDock::Top);
+
+    // Under the change notice, so a capture that starts while a disk question
+    // stands does not push the question off the top of the chrome.
+    m_chromeDock.SetDock (m_captureBand, DxuiDock::Top);
     m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
     // Registered AFTER the drive band so the dock peels the drive bar off the
     // very bottom first and the //c switch strip lands just above it (between
@@ -2295,15 +2306,15 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 
     m_host->SetCaptionVisible (!hidden);
     m_mainMenu.SetVisible (!hidden);
-    // The toolbar comes back on its own in fullscreen, summoned by the top
-    // edge -- so hiding the chrome parks it and TickFullscreenToolbar owns
-    // it from there.
+    // The menu bar and toolbar come back on their own in fullscreen, summoned
+    // by the top edge -- so hiding the chrome parks them and
+    // TickFullscreenTopChrome owns them from there.
     m_toolbar.SetVisible (!hidden);
 
     if (hidden)
     {
-        m_fsToolbarShown  = false;
-        m_fsToolbarLeftMs = 0;
+        m_fsTopChromeShown  = false;
+        m_fsTopChromeLeftMs = 0;
     }
 
     // The band surface only exists for the 2D chrome; under the desk scene
@@ -2337,48 +2348,101 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 //  Paddle mode takes the mouse: the cursor is hidden and clipped to the
 //  window, and the only release is a key the user has to already know. The
 //  joystick button says so -- and fullscreen hides the joystick button, which
-//  leaves a captured pointer, no cursor, and nothing on screen to read. This
-//  says it over the picture instead, in both presentations, and goes away the
-//  moment the capture does.
+//  leaves a captured pointer, no cursor, and nothing on screen to read. The
+//  notice goes away the moment the capture does.
+//
+//  A MESSAGE BAR IN THE CHROME, NOT A CAPTION ON THE PICTURE. It was shadowed
+//  text laid over the viewport, which reads as a caption only where there is
+//  something photographic under it -- and even on the desk scene the only
+//  places left to put it were on the drives, on their name strips, or in the
+//  middle of the CRT. The bar says the same words in the one place that is
+//  nobody else's: the chrome under the command strip, the same in every theme
+//  and in fullscreen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncCaptureBanner()
 {
-    RECT  client = {};
-    RECT  rc     = {};
+    RECT   client = {};
+    RECT   rc     = {};
+    RECT   strip  = {};
+    LONG   top    = 0;
+    float  width  = 0.0f;
 
 
 
     if (!m_paddleCaptured || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        m_captureBanner.SetVisible (false);
+        m_captureBar.SetVisible        (false);
+        m_captureBarSurface.SetVisible (false);
+
+        //  A BAND LEFT BEHIND, NOTED FOR THE NEXT FRAME. The height is claimed
+        //  and released where the capture starts and ends, but the capture is
+        //  also dropped from OnCancelMode / OnKillFocus, which can fire from
+        //  INSIDE a layout pass -- and a re-dock asked for from in there is
+        //  refused, because the pass would be calling itself. Without this the
+        //  picture would stay short, under an empty strip, until some
+        //  unrelated resize came along.
+        //
+        //  FLAGGED, NOT DONE HERE: this runs inside the frame the re-dock
+        //  would repaint, and a layout pass drives a synchronous WM_PAINT.
+        //  TryPresentUiFrame acts on it at the top of the next frame, where
+        //  the change band's own expiry already re-docks from.
+        if (m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen()
+            && m_captureBand.GetBounds().bottom > m_captureBand.GetBounds().top)
+        {
+            m_captureBandStale = true;
+        }
+
         return;
     }
 
-    // ABOVE THE BOTTOM CHROME, not on it. Hung from the client's own bottom
-    // edge the notice straddled the switch bar, half over the scene and half
-    // over a shell band, reading as neither. Measured off the switch band
-    // rather than the drive band: under the desk scene the drive band is
-    // empty -- the scene owns the drives -- so it reports nothing to sit
-    // above. The picture is not available either; the CRT pass paints over
-    // this chrome.
+    //  THE GRAB, PUT BACK IF THE OS TOOK IT WITHOUT SAYING SO. Between the
+    //  band docking and any cancel the window manager decides to send, the
+    //  capture can go while everything the shell knows says it is still held.
+    //  OnCancelMode covers the cancel it can identify; this covers the rest,
+    //  by simply asking. It fires only while this window is the foreground one
+    //  and the shell still believes the pointer is held, and costs one
+    //  GetCapture per frame while paddling -- nothing at all otherwise.
+    if (GetCapture() != m_hwnd && GetForegroundWindow() == m_hwnd)
     {
-        RECT  bar    = m_switchBand.GetBounds();
-        LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
-                     ? bar.top : client.bottom;
+        SetCapture (m_hwnd);
+        ClipPaddleCursorToClient();
+    }
+
+    //  A DOCKED BAND WHEN THERE ARE BANDS: the dock gives it the client width
+    //  under the command strip and the picture gives up the height, the same
+    //  bargain the external-change notice makes. Taking the band's rect rather
+    //  than computing a second one is what keeps the bar and the picture from
+    //  disagreeing about where the chrome ends.
+    //
+    //  IN FULLSCREEN THERE ARE NO BANDS -- the picture owns the whole client --
+    //  so the bar hangs off the top edge instead, following the toolbar's
+    //  reveal down and back up so it stays under the command strip wherever
+    //  that strip currently is.
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        rc = m_captureBand.GetBounds();
+    }
+    else
+    {
+        strip = m_toolbar.GetBounds();
+        top   = (m_toolbar.IsVisible() && strip.bottom > client.top) ? strip.bottom
+                                                                     : client.top;
+        width = (float) (client.right - client.left);
 
         rc.left   = client.left;
         rc.right  = client.right;
-        rc.bottom = bottom - m_scaler.ToPx (s_kCaptureBannerInsetDp);
-        rc.top    = rc.bottom - m_scaler.ToPx (s_kCaptureBannerHeightDp);
+        rc.top    = top;
+        rc.bottom = top + (LONG) m_captureBar.GetPreferredHeightPx (width, m_scaler);
     }
 
-    m_captureBanner.SetText        (s_kCaptureBanner);
-    m_captureBanner.SetFontSizeDip (s_kCaptureBannerFontDip);
-    m_captureBanner.SetDpi         (m_scaler.GetDpi());
-    m_captureBanner.Layout         (rc, m_scaler);
-    m_captureBanner.SetVisible     (true);
+    m_captureBarSurface.Layout     (rc, m_scaler);
+    m_captureBarSurface.SetVisible (true);
+
+    m_captureBar.SetDpi     (m_scaler.GetDpi());
+    m_captureBar.Layout     (rc, m_scaler);
+    m_captureBar.SetVisible (true);
 }
 
 
@@ -2499,9 +2563,9 @@ void EmulatorShell::SyncFrameRateReadout()
         return;
     }
 
-    // ABOVE THE BOTTOM CHROME, by the capture banner's rule and for its
-    // reason: hung from the client edge the readout straddles the switch
-    // bar, half over the scene and half over a shell band.
+    // ABOVE THE BOTTOM CHROME, not on it: hung from the client edge the
+    // readout straddles the switch bar, half over the scene and half over a
+    // shell band, reading as neither.
     //
     // MEASURED OFF THE CHROME, NEVER OFF THE SCENE. Anchored to the toolbar
     // band this drifted up and down while the scene was being orbited: the
@@ -2566,33 +2630,38 @@ static int64_t MirroredSlideStart (int64_t nowMs, int64_t animStartMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::TickFullscreenToolbar
+//  EmulatorShell::TickFullscreenTopChrome
 //
-//  The command toolbar on the same bargain the drive strip has at the bottom:
-//  the pointer at the top edge slides it down, leaving slides it away.
+//  The menu bar and the command toolbar on the same bargain the drive strip
+//  has at the bottom: the pointer at the top edge slides them down, leaving
+//  slides them away. They travel as one band, menu above toolbar, in the
+//  order the windowed chrome stacks them.
 //
 //  Laid out here rather than by the chrome dock, because in fullscreen there
-//  are no bands -- the scene owns the whole client, and the toolbar is an
-//  overlay across its top rather than a strip the viewport makes room for.
+//  are no bands -- the scene owns the whole client, and this is an overlay
+//  across its top rather than a strip the viewport makes room for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::TickFullscreenToolbar()
+void EmulatorShell::TickFullscreenTopChrome()
 {
-    RECT     client = {};
-    POINT    cursor = {};
-    int      bandH  = 0;
-    bool     want   = false;
-    int64_t  nowMs  = 0;
+    RECT     client    = {};
+    POINT    cursor    = {};
+    int      menuH     = 0;
+    int      toolbarH  = 0;
+    int      bandH     = 0;
+    bool     want      = false;
+    int64_t  nowMs     = 0;
 
 
 
     if (!m_d3dRenderer.IsFullscreen() || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        if (m_fsToolbarShown)
+        if (m_fsTopChromeShown)
         {
-            m_fsToolbarShown = false;
-            m_toolbar.SetVisible (false);
+            m_fsTopChromeShown = false;
+            m_mainMenu.SetVisible (false);
+            m_toolbar.SetVisible  (false);
         }
 
         return;
@@ -2602,40 +2671,42 @@ void EmulatorShell::TickFullscreenToolbar()
                 std::chrono::steady_clock::now().time_since_epoch()).count();
 
     m_toolbar.PlanForWidth (client.right - client.left, m_scaler);
-    bandH = m_scaler.ToPx (m_toolbar.GetBandDp());
+    menuH    = DxuiMenuBar::GetStripHeightPx (m_scaler.GetDpi());
+    toolbarH = m_scaler.ToPx (m_toolbar.GetBandDp());
+    bandH    = menuH + toolbarH;
 
     if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
     {
         // The edge zone summons; the whole band holds it open, so the
         // pointer can travel down onto the buttons without dismissing them.
-        want = m_fsToolbarShown ? (cursor.y <= bandH)
-                                : (cursor.y <= m_scaler.ToPx (s_kStripEdgeZoneDp));
+        want = m_fsTopChromeShown ? (cursor.y <= bandH)
+                                  : (cursor.y <= m_scaler.ToPx (s_kStripEdgeZoneDp));
     }
 
-    // A menu opened from the toolbar keeps it up regardless of where the
-    // pointer wandered to reach the menu's items.
+    // An open menu keeps the band up regardless of where the pointer
+    // wandered to reach the dropdown's items, which hang below it.
     want = want || m_mainMenu.IsOpen();
 
     if (want)
     {
-        m_fsToolbarLeftMs = 0;
+        m_fsTopChromeLeftMs = 0;
     }
-    else if (m_fsToolbarShown && m_fsToolbarLeftMs == 0)
+    else if (m_fsTopChromeShown && m_fsTopChromeLeftMs == 0)
     {
-        m_fsToolbarLeftMs = nowMs;
+        m_fsTopChromeLeftMs = nowMs;
     }
 
-    if (!want && m_fsToolbarShown &&
-        nowMs - m_fsToolbarLeftMs >= FullscreenStripState::kAutoHideGraceMs)
+    if (!want && m_fsTopChromeShown &&
+        nowMs - m_fsTopChromeLeftMs >= FullscreenStripState::kAutoHideGraceMs)
     {
-        m_fsToolbarShown  = false;
-        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
+        m_fsTopChromeShown  = false;
+        m_fsTopChromeAnimMs = MirroredSlideStart (nowMs, m_fsTopChromeAnimMs);
         m_d3dRenderer.MarkRedrawNeeded();
     }
-    else if (want && !m_fsToolbarShown)
+    else if (want && !m_fsTopChromeShown)
     {
-        m_fsToolbarShown  = true;
-        m_fsToolbarAnimMs = MirroredSlideStart (nowMs, m_fsToolbarAnimMs);
+        m_fsTopChromeShown  = true;
+        m_fsTopChromeAnimMs = MirroredSlideStart (nowMs, m_fsTopChromeAnimMs);
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
@@ -2644,18 +2715,22 @@ void EmulatorShell::TickFullscreenToolbar()
     // rather than blinking into place. Reversing mid-slide keeps the current
     // position (see MirroredSlideStart) instead of snapping to the far end.
     {
-        float  t        = std::clamp ((float) (nowMs - m_fsToolbarAnimMs) /
+        float  t        = std::clamp ((float) (nowMs - m_fsTopChromeAnimMs) /
                                       (float) FullscreenStripState::kSlideMs, 0.0f, 1.0f);
-        float  progress = m_fsToolbarShown ? t : 1.0f - t;
+        float  progress = m_fsTopChromeShown ? t : 1.0f - t;
         int    top      = client.top - (int) ((1.0f - progress) * (float) bandH);
 
         if (progress <= 0.0f)
         {
-            m_toolbar.SetVisible (false);
+            m_mainMenu.SetVisible (false);
+            m_toolbar.SetVisible  (false);
             return;
         }
 
-        m_toolbar.Layout     (RECT{ client.left, top, client.right, top + bandH }, m_scaler);
+        m_mainMenu.Layout     (RECT{ client.left, top, client.right, top + menuH }, m_scaler);
+        m_mainMenu.SetVisible (true);
+
+        m_toolbar.Layout     (RECT{ client.left, top + menuH, client.right, top + bandH }, m_scaler);
         m_toolbar.SetVisible (true);
 
         if (t < 1.0f)
@@ -3398,6 +3473,233 @@ void EmulatorShell::RecordActiveMachineSelection()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WireToolbarPickers
+//
+//  The command bar's theme and monitor-color pickers, wired to the same
+//  live-apply channels the Settings panel drives so the two behave alike.
+//
+//  A HIGHLIGHT PREVIEWS: it activates the theme (or the color treatment)
+//  without writing anything down, because moving the pointer down a list is
+//  not a choice. The toolbar replays that same sink with the row the list
+//  opened on when the list is dismissed, which is what snaps the chrome and
+//  the picture back.
+//
+//  A PICK COMMITS, which is where the choice reaches the prefs file: the
+//  theme into GlobalUserPrefs, the color mode into the machine's UI prefs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::WireToolbarPickers()
+{
+    m_toolbar.SetPopupHost (m_host.get());
+
+    m_toolbar.SetThemeSinks (
+        [this] (int index)
+        {
+            HRESULT  hrTheme = S_OK;
+            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
+
+            if (inRange)
+            {
+                hrTheme = ApplyThemeLive (m_toolbarThemeIds[index]);
+                IGNORE_RETURN_VALUE (hrTheme, S_OK);
+            }
+        },
+        [this] (int index)
+        {
+            HRESULT  hrTheme = S_OK;
+            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
+
+            if (inRange)
+            {
+                hrTheme = ApplyAndPersistTheme (m_toolbarThemeIds[index]);
+                IGNORE_RETURN_VALUE (hrTheme, S_OK);
+            }
+        });
+
+    m_toolbar.SetMonitorSinks (
+        [this] (int index)
+        {
+            SetColorModeLive (index);
+        },
+        [this] (int index)
+        {
+            SetColorModeLive              (index);
+            PersistColorModeForMachine    (index);
+        });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PersistColorModeForMachine
+//
+//  Writes the picked color mode into the machine's UI prefs, the same key
+//  the Settings panel saves on OK. The View menu's color commands
+//  deliberately do not persist -- they are a momentary look -- but a picker
+//  that shows the current value has to remember the one it was given.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
+{
+    HRESULT                                         hr      = S_OK;
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+    const char *                                    text    = nullptr;
+    bool                                            inRange = settingsColorModeIndex >= 0 &&
+                                                              settingsColorModeIndex <= (int) SettingsColorMode::White;
+
+
+
+    if (m_userConfigStore == nullptr || m_currentMachineName.empty() || !inRange)
+    {
+        return;
+    }
+
+    text = SettingsPanelState::ColorToString ((SettingsColorMode) settingsColorModeIndex);
+    entries.emplace_back ("colorMode", JsonValue (std::string (text)));
+
+    hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs,
+                                          m_currentMachineName, entries);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshToolbarThemeList
+//
+//  Fills the toolbar's theme picker from the discovered catalog and keeps the
+//  parallel id vector that turns a picked row back into a theme id.
+//
+//  The rows are REPLACED only when the catalog itself changed. This runs from
+//  the theme-change listener, which also fires for every live preview -- and
+//  replacing the rows resets the selection, which would destroy the row the
+//  picker has to snap back to when the list is dismissed. An unchanged
+//  catalog therefore only moves the selection, which the toolbar in turn
+//  drops while its list is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefreshToolbarThemeList()
+{
+    std::vector<std::wstring>  displayNames;
+    std::vector<std::string>   ids;
+    std::string                activeName;
+    int                        activeIndex = -1;
+    int                        row         = 0;
+
+
+
+    if (m_themeManager == nullptr)
+    {
+        return;
+    }
+
+    activeName = m_themeManager->GetActiveThemeName();
+
+    for (const LoadedTheme & theme : m_themeManager->GetAvailableThemes())
+    {
+        if (theme.name == activeName)
+        {
+            activeIndex = row;
+        }
+
+        ids.push_back (theme.name);
+        displayNames.emplace_back (theme.name.begin(), theme.name.end());
+        row++;
+    }
+
+    if (ids != m_toolbarThemeIds)
+    {
+        m_toolbarThemeIds = std::move (ids);
+        m_toolbar.SetThemes (displayNames, activeIndex);
+    }
+    else if (activeIndex >= 0)
+    {
+        m_toolbar.SetThemeIndex (activeIndex);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncToolbarState
+//
+//  Pushes the state the toolbar mirrors rather than owns: which machine the
+//  Reset / Power tips talk about, which way the fullscreen button points, and
+//  where the two pickers sit. The pickers can be moved from the menu, from
+//  Settings and from a machine switch, so the sync runs every UI frame; the
+//  toolbar drops it while a list is open, since an open list is mid-preview
+//  and owns its own value until it closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncToolbarState()
+{
+    ColorMode  mode       = m_colorMode.load (std::memory_order_acquire);
+    RECT       client     = {};
+    int        colorIndex = 0;
+    int        themeIndex = -1;
+    int        row        = 0;
+
+
+
+    switch (mode)
+    {
+        case ColorMode::GreenMono: colorIndex = 1; break;
+        case ColorMode::AmberMono: colorIndex = 2; break;
+        case ColorMode::WhiteMono: colorIndex = 3; break;
+        default:                   colorIndex = 0; break;
+    }
+
+    if (m_themeManager != nullptr)
+    {
+        const std::string &  activeName = m_themeManager->GetActiveThemeName();
+
+        for (const std::string & id : m_toolbarThemeIds)
+        {
+            if (id == activeName)
+            {
+                themeIndex = row;
+            }
+
+            row++;
+        }
+    }
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &client))
+    {
+        m_toolbar.SetHostClientRect (client);
+    }
+
+    m_toolbar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
+    m_switchBar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
+    m_toolbar.SetFullscreen         (m_d3dRenderer.IsFullscreen());
+    m_toolbar.SetMonitorColorIndex  (colorIndex);
+
+    if (themeIndex >= 0)
+    {
+        m_toolbar.SetThemeIndex (themeIndex);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SubscribeAndActivateTheme
 //
 //  Two orderings here, both load-bearing.
@@ -3437,6 +3739,12 @@ void EmulatorShell::SubscribeAndActivateTheme()
     {
         m_chromeTheme = CassoTheme::MakeByName (t.name);
         ApplyThemeToChrome (m_chromeTheme);
+
+        // The command bar's theme picker is built from this catalog, and the
+        // manager outlives every other path that can change the active theme
+        // (the picker itself, Settings, a fallback activation), so this is
+        // the one place that sees all of them.
+        RefreshToolbarThemeList();
     });
 
     // Tell the theme manager which machine is active BEFORE the
@@ -4187,7 +4495,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveBandSurface);
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
-    m_host->GetRoot().Adopt (m_captureBanner);
     m_host->GetRoot().Adopt (m_screenshotNotice);
     m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneViewReadout);
@@ -4236,6 +4543,24 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_toolbar);
     m_host->GetRoot().Adopt (m_switchBar);
     m_host->GetRoot().Adopt (m_changeBanner);
+    //  The backing goes in FIRST: the root paints its children in the order
+    //  they were adopted, so the panel lands under the words rather than over
+    //  them.
+    m_captureBarSurface.SetToken (DxuiSurface::Token::Background);
+    m_host->GetRoot().Adopt (m_captureBarSurface);
+    m_host->GetRoot().Adopt (m_captureBar);
+
+    //  FIXED WORDS, SET ONCE. The bar says the same thing every time it is up,
+    //  and its band is measured from that text before the bar has ever been
+    //  shown -- so the text cannot wait until the first capture to exist.
+    m_captureBar.SetText     (s_kpszCaptureNotice);
+    m_captureBar.SetSeverity (DxuiInfoBanner::Severity::Info);
+
+    //  CENTERED, because this bar spans the window rather than sitting in a
+    //  dialog: one short line held against the leading edge of a wide strip
+    //  reads as something that failed to lay out.
+    m_captureBar.SetCentered (true);
+    m_captureBar.SetVisible  (false);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -4344,6 +4669,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
     m_toolbar.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
     m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
+
+    // The theme + monitor-color pickers, and the catalog behind the first of
+    // them. Both option lists render through the host popup pool for the same
+    // reason the menu bar's does: they hang off the strip over the viewport.
+    WireToolbarPickers();
+    RefreshToolbarThemeList();
+    SyncToolbarState();
     m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -4709,6 +5041,7 @@ void EmulatorShell::SyncChromeBands()
     // Measuring against the viewport is what put the text off the edge: the
     // picture keeps its own aspect and can be wider than the window.
     m_changeBand.SetBounds  (RECT{ 0, 0, 0, GetChangeBandThicknessPx (m_lastClientWidthPx) });
+    m_captureBand.SetBounds (RECT{ 0, 0, 0, GetCaptureBandThicknessPx (m_lastClientWidthPx) });
     m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (driveBandDp) });
     m_switchBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.ToPx (switchBandDp) });
 }
@@ -4730,7 +5063,8 @@ void EmulatorShell::SyncChromeBands()
 RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 {
     IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_changeBand,
-                               &m_driveBand, &m_switchBand, &m_centerBand };
+                               &m_captureBand, &m_driveBand, &m_switchBand,
+                               &m_centerBand };
 
 
 
@@ -4951,7 +5285,13 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 SIZE EmulatorShell::GetClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
 {
-    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_switchBand };
+    //  THE SAME BANDS ComputeViewportRect DOCKS, or this is not its inverse.
+    //  The two notice bands were missing: with either one up, every client
+    //  size answered here -- the minimum tracking size, the window a machine
+    //  or theme change resizes to -- came out short by the notice's height,
+    //  and the viewport it was supposed to preserve shrank by exactly that.
+    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_changeBand,
+                               &m_captureBand, &m_driveBand, &m_switchBand };
 
 
 
@@ -6018,6 +6358,11 @@ int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
+    // Centered on the emulator window rather than on the OS cascade, which
+    // ignores the owner. A dialog asking what to do about the disk in the
+    // machine belongs over the machine, not wherever the cascade reached.
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
     hr = dlg.Create (params);
     CHRA (hr);
 
@@ -6305,20 +6650,22 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 
 int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 {
-    constexpr int       s_kBaseWidthDip     = 440;
-    constexpr int       s_kMaxWidthDip      = 760;
-    constexpr int       s_kChromeHeightDip  = 108;   // caption + content pad*2 + button row
-    constexpr int       s_kMinHeightDip     = 120;
-    constexpr int       s_kMaxHeightDip     = 620;
-    constexpr int       s_kIconSrcPx        = 256;
-    constexpr int       s_kDefaultIconDip   = 48;
-    constexpr int       s_kGlyphSizeDip     = 32;
-    constexpr wchar_t   s_kchGlyphInfo      = L'\uE946';   // MDL2 Info
-    constexpr wchar_t   s_kchGlyphWarning   = L'\uE7BA';   // MDL2 Warning
-    constexpr wchar_t   s_kchGlyphError     = L'\uEA39';   // MDL2 ErrorBadge
-    constexpr uint32_t  s_kGlyphArgbInfo    = 0xFF4A9EDB;
-    constexpr uint32_t  s_kGlyphArgbWarning = 0xFFF5A623;
-    constexpr uint32_t  s_kGlyphArgbError   = 0xFFE5424D;
+    constexpr int       s_kBaseWidthDip       = 440;
+    constexpr int       s_kMaxWidthDip        = 760;
+    constexpr int       s_kMinContentWidthDip = 280;   // floor for a self-sizing body
+    constexpr int       s_kBodyPadDip         = 56;   // content inset, both sides
+    constexpr int       s_kChromeHeightDip    = 108;   // caption + content pad*2 + button row
+    constexpr int       s_kMinHeightDip       = 120;
+    constexpr int       s_kMaxHeightDip       = 620;
+    constexpr int       s_kIconSrcPx          = 256;
+    constexpr int       s_kDefaultIconDip     = 48;
+    constexpr int       s_kGlyphSizeDip       = 32;
+    constexpr wchar_t   s_kchGlyphInfo        = L'\uE946';   // MDL2 Info
+    constexpr wchar_t   s_kchGlyphWarning     = L'\uE7BA';   // MDL2 Warning
+    constexpr wchar_t   s_kchGlyphError       = L'\uEA39';   // MDL2 ErrorBadge
+    constexpr uint32_t  s_kGlyphArgbInfo      = 0xFF4A9EDB;
+    constexpr uint32_t  s_kGlyphArgbWarning   = 0xFFF5A623;
+    constexpr uint32_t  s_kGlyphArgbError     = 0xFFE5424D;
 
 
 
@@ -6386,7 +6733,28 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         widthDip += DxuiButtonRow::GetWidthForLabel (button.label) + DxuiButtonRow::kGapDip;
     }
 
-    widthDip = std::clamp (widthDip - DxuiButtonRow::kGapDip, s_kBaseWidthDip, s_kMaxWidthDip);
+    widthDip -= DxuiButtonRow::kGapDip;
+
+    // A body of aligned column rows knows how wide it wants to be, and that
+    // width varies with what the running machine actually has. Let it set the
+    // width -- floor included, so a short body gives a small dialog rather
+    // than a standard-width one with a column of air down the right. Prose
+    // bodies report 0 (they wrap to whatever they are given) and keep the
+    // standard width.
+    {
+        int  bodyDip = content->GetPreferredWidthDip();
+
+        if (bodyDip > 0)
+        {
+            bodyDip += s_kBodyPadDip;
+            widthDip = (widthDip > bodyDip) ? widthDip : bodyDip;
+            widthDip = std::clamp (widthDip, s_kMinContentWidthDip, s_kMaxWidthDip);
+        }
+        else
+        {
+            widthDip = std::clamp (widthDip, s_kBaseWidthDip, s_kMaxWidthDip);
+        }
+    }
 
     dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
 
@@ -6397,6 +6765,12 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    // Centered on the emulator window rather than on the OS cascade, which
+    // ignores the owner: the Help modals opened at the cascade's top-left
+    // corner, half off the window that raised them. A modal belongs where
+    // the user is already looking.
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
     hr = dlg.Create (params);
     CHRA (hr);
@@ -6467,6 +6841,23 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // in-window strip and the popup-backed dropdown render with chrome
     // colors (the old per-frame apply path is dead post-T129).
     m_mainMenu.ApplyChromeColors (theme);
+
+    // Tooltips cache their surface colors instead of reading the theme at
+    // paint time -- the popup path hands its background to the popup host at
+    // Show, before any painter exists -- so a theme swap has to re-seed them
+    // here. Without this the balloons kept the palette that was live when the
+    // window was built, leaving skeuomorphic blue tips over a green
+    // RetroTerminal chrome.
+    m_toolbarTooltip.SetTheme   (theme);
+    m_switchBarTooltip.SetTheme (theme);
+    m_driveTooltip.SetTheme     (theme);
+
+    // A balloon that is already up was sized and cleared with the outgoing
+    // colors, and nothing repaints its background. Take it down; the next
+    // hover raises it in the new palette.
+    m_toolbarTooltip.HideImmediate();
+    m_switchBarTooltip.HideImmediate();
+    m_driveTooltip.HideImmediate();
 
     // Every path applies the new thickness; only the window resize is
     // conditional. Min/max/fullscreen windows are skipped because the user
@@ -6681,6 +7072,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         // (always-on-top of Casso); a peer can be sent behind Casso normally.
         hr = m_printerPanel->Create (hInstance,
                                      nullptr,
+                                     m_hwnd,     // placement anchor only -- not an owner
                                      m_d3dRenderer.GetDevice(),
                                      m_d3dRenderer.GetContext(),
                                      &m_chromeTheme);
@@ -7645,101 +8037,6 @@ int EmulatorShell::RunMessageLoop()
             // no WM_SIZE / OnSize would otherwise re-evaluate it).
             // A notification raised off the UI thread. lParam owns a
             // heap-allocated copy of the text, handed over by ShowNotification.
-            // A mount that ran on the CPU thread wants its damage report raised
-            // here, where a modal can be built.
-            if (msg.message == WM_APP_REPORT_DAMAGE)
-            {
-                ReportDamagedMount ((int) msg.wParam);
-                continue;
-            }
-
-            // Likewise the salvage flow: the Disk menu dispatches it from the
-            // CPU thread, and it builds a modal.
-            if (msg.message == WM_APP_RUN_SALVAGE)
-            {
-                RunSalvageFlow ((int) msg.wParam);
-                continue;
-            }
-
-            // One mount's outcome, from whichever thread ran it. lParam owns a
-            // heap-allocated copy, handed over by OnMountCompleted. Startup
-            // mounts land here too, which is what keeps a bad --disk1 from
-            // raising a dialog before this loop existed to run it.
-            if (msg.message == WM_APP_MOUNT_COMPLETED)
-            {
-                MountCompletion *  carried = reinterpret_cast<MountCompletion *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    HandleMountCompletion (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            // A disk changed outside Casso. The store decided on the thread
-            // that owns disk writes; both of these build UI, so they land
-            // here. lParam owns a heap-allocated notice in each case.
-            if (msg.message == WM_APP_CHANGE_REPORT)
-            {
-                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    ShowChangeBanner (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_CHANGE_ASK)
-            {
-                ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    AskAboutChange (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_NOTIFY_USER)
-            {
-                wstring *  carried = reinterpret_cast<wstring *> (msg.lParam);
-
-                if (carried != nullptr)
-                {
-                    ShowNotification (*carried);
-                    delete carried;
-                }
-
-                continue;
-            }
-
-            if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
-            {
-                UpdateWindowTitle();
-                ReflowChromeForMachineChange();
-
-                // The machine may now sit in front of a different monitor,
-                // which changes every override key. This is the UI-thread
-                // side of the switch; SwitchMachine runs on the CPU thread
-                // and must not do file work or race the render path.
-                RefreshCrtOverrideKeys();
-
-                // A switch adopts the machine's own input mapping and may
-                // change the default pointer mode, both on the CPU thread,
-                // which defers their UI reflection here. Sync the selector
-                // state on the UI thread; it is idempotent when nothing
-                // changed.
-                SyncSelectorState();
-                continue;
-            }
-
             // Modeless Settings: let the sheet claim its dialog-navigation keys
             // (Tab / Enter / Escape) first (Dxui's IsDialogMessage equivalent).
             if (m_settingsSheet != nullptr && m_settingsSheet->ProcessDialogMessage (msg))
@@ -7839,6 +8136,15 @@ bool EmulatorShell::TryPresentUiFrame()
 
     ExpireChangeBannerIfDue();
 
+    //  The capture band a lost grab left standing, given back -- here, at the
+    //  top of the frame, because re-docking repaints and nothing has been
+    //  composed yet. See SyncCaptureBanner for what sets this.
+    if (m_captureBandStale)
+    {
+        m_captureBandStale = false;
+        ReflowChromeForChangeBand();
+    }
+
     // Copy latest framebuffer under lock, then present with vsync
     {
         lock_guard<mutex> lock (m_framebufferMutex);
@@ -7884,13 +8190,17 @@ bool EmulatorShell::TryPresentUiFrame()
         m_diskManager->UpdateDriveWidgets();
     }
 
-    // The capture banner and the fullscreen toolbar reveal, both per-frame
+    // The capture bar and the fullscreen top chrome's reveal, both per-frame
     // because both answer where the pointer is right now.
+    //
+    // THE TOP CHROME FIRST: in fullscreen the capture bar hangs under the
+    // toolbar, and bounds the tick has not written yet put the bar where the
+    // strip was last frame -- visibly trailing it through the reveal.
+    TickFullscreenTopChrome();
     SyncCaptureBanner();
     SyncCaptureNotice();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
-    TickFullscreenToolbar();
 
 
     for (const DriveWidgetState & st : m_driveWidgetState)
@@ -8234,6 +8544,16 @@ bool EmulatorShell::TryPresentUiFrame()
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
+    // An open toolbar picker previews live, so it needs the same treatment:
+    // a highlight change alters the chrome or the picture, and without a
+    // forced present the preview would wait for the next unrelated redraw.
+    SyncToolbarState();
+
+    if (m_toolbar.IsMenuOpen())
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     // Drive the chrome tooltip dwell timers (joystick button, toolbar,
     // //c switch strip, drive widgets); each shows / hides its popup once
     // the open / close delay elapses after a hover.
@@ -8507,10 +8827,6 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                     m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
                 }
 
-                if (m_refs.keyboard != nullptr)
-                {
-                    m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
-                }
             }
 
             break;
@@ -8861,11 +9177,6 @@ void EmulatorShell::StepInstructionWhilePaused()
         m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
     }
 
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
-    }
-
     RunOneFrame();
     PublishFramebuffer();
 }
@@ -9193,6 +9504,74 @@ void EmulatorShell::DestroyFrameReadyEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TickKeyboardAutoRepeat
+//
+//  Advances the //e keyboard's auto-repeat cadence by the real time since the
+//  previous CPU-thread frame.
+//
+//  The cadence used to be counted in guest cycles, ticked once per
+//  instruction. That reads as authentic and is not: the //e's repeat is
+//  generated in the keyboard encoder, off an oscillator that knows nothing
+//  about the 6502, and a typist's finger rests in real seconds either way. So
+//  the guest clock dragged it along -- Double repeated at twice the rate off
+//  half the delay, and Maximum, which runs uncapped at tens of times real,
+//  turned a held key into hundreds of characters a second and made the
+//  machine impossible to type on.
+//
+//  Once a frame is resolution enough for a 500 ms delay and a 15 cps rate,
+//  and the clock read replaces one call per instruction. The stamp is
+//  advanced by the whole microseconds handed over rather than set to now, so
+//  the sub-microsecond remainder is carried instead of being dropped every
+//  frame -- at Maximum speed the frames are short enough for that to matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TickKeyboardAutoRepeat()
+{
+    chrono::steady_clock::time_point  now      = chrono::steady_clock::now();
+    int64_t                           elapsed  = 0;
+
+
+
+    if (m_refs.keyboard == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastKeyRepeatSteady == chrono::steady_clock::time_point{})
+    {
+        // First frame since the machine came up: start the interval here
+        // rather than report the whole time since the epoch as elapsed.
+        m_lastKeyRepeatSteady = now;
+        return;
+    }
+
+    elapsed = chrono::duration_cast<chrono::microseconds> (now - m_lastKeyRepeatSteady).count();
+
+    if (elapsed <= 0)
+    {
+        return;
+    }
+
+    m_lastKeyRepeatSteady += chrono::microseconds (elapsed);
+
+    // An hour of stall does not fit the 32-bit interval the device takes, and
+    // the device caps anything past the initial delay at one repeat anyway, so
+    // capping here loses nothing and keeps the cast honest.
+    if (elapsed > static_cast<int64_t> (AppleKeyboard::kKeyRepeatDelayUs))
+    {
+        elapsed = AppleKeyboard::kKeyRepeatDelayUs;
+    }
+
+    m_refs.keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecuteCpuSlices
 //
 //  One emulated frame's worth of CPU time, cut into ~1023-cycle slices.
@@ -9252,6 +9631,10 @@ void EmulatorShell::ExecuteCpuSlices()
     // IsInitialized, so the gate below would otherwise keep the reopen from
     // ever running (GH #137).
     m_wasapiAudio.ServiceEndpointChanges();
+
+    // Real time, not the cycle budget below: the keyboard's repeat cadence is
+    // the one thing in this frame that must not follow the emulated clock.
+    TickKeyboardAutoRepeat();
 
     audioActive = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
 
@@ -9320,11 +9703,6 @@ void EmulatorShell::ExecuteCpuSlices()
             if (m_refs.mockingboard != nullptr)
             {
                 m_refs.mockingboard->Tick (cycles);
-            }
-
-            if (m_refs.keyboard != nullptr)
-            {
-                m_refs.keyboard->Tick (cycles);
             }
         }
 
@@ -9421,16 +9799,17 @@ void EmulatorShell::SyncCaptureNotice()
         LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
                      ? bar.top : client.bottom;
 
-        //  One banner height above the mouse-capture line, so the two stack
-        //  rather than overprint when both are up.
+        //  Straight above the switch band. Nothing to stack over: the
+        //  pointer-capture notice is a docked bar in the chrome, and in
+        //  fullscreen it hangs off the TOP edge, so the bottom of the
+        //  picture is this notice's alone either way.
         rc.left   = client.left;
         rc.right  = client.right;
-        rc.bottom = bottom - m_scaler.ToPx (s_kCaptureBannerInsetDp)
-                           - m_scaler.ToPx (s_kCaptureBannerHeightDp);
-        rc.top    = rc.bottom - m_scaler.ToPx (s_kCaptureBannerHeightDp);
+        rc.bottom = bottom - m_scaler.ToPx (s_kScreenshotNoticeInsetDp);
+        rc.top    = rc.bottom - m_scaler.ToPx (s_kScreenshotNoticeHeightDp);
     }
 
-    m_screenshotNotice.SetFontSizeDip (s_kCaptureBannerFontDip);
+    m_screenshotNotice.SetFontSizeDip (s_kScreenshotNoticeFontDip);
     m_screenshotNotice.SetDpi         (m_scaler.GetDpi());
     m_screenshotNotice.Layout         (rc, m_scaler);
     m_screenshotNotice.SetVisible     (true);
@@ -9447,9 +9826,9 @@ void EmulatorShell::SyncCaptureNotice()
 //  HIDE WHAT DESCRIBES THE APPLICATION; CAPTURE WHAT DESCRIBES THE MACHINE.
 //
 //  The compass is a control, the two readouts are diagnostics, and the
-//  mouse-capture banner is a transient piece of state -- none of them are part
-//  of the machine on the desk, and all four sit inside the viewport where a
-//  Scene capture would otherwise collect them.
+//  pointer-capture bar is a transient piece of state -- none of them are part
+//  of the machine on the desk, and each can sit inside the viewport where a
+//  Scene capture would otherwise collect it.
 //
 //  A useful side effect: a scene capture no longer depends on which
 //  diagnostics happen to be switched on, so two captures of the same view are
@@ -9464,7 +9843,12 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
         m_sceneCompass.SetVisible     (false);
         m_fpsReadout.SetVisible       (false);
         m_sceneViewReadout.SetVisible (false);
-        m_captureBanner.SetVisible    (false);
+        //  The pointer-capture bar is docked chrome in a window, and a
+        //  Scene capture takes the viewport, so there it is already out of
+        //  frame. In FULLSCREEN there are no bands and the bar hangs off the
+        //  top edge, inside the picture -- which is the case this covers.
+        m_captureBar.SetVisible        (false);
+        m_captureBarSurface.SetVisible (false);
 
         //  Including this one. Two captures inside the notice's few seconds
         //  would otherwise photograph the first one's filename.
@@ -11782,6 +12166,29 @@ void EmulatorShell::ReleaseGuestKeys()
 
 DxuiMessageResult EmulatorShell::OnCancelMode()
 {
+
+    //  THE ECHO OF OUR OWN LAYOUT IS NOT A TAKEOVER. Docking the capture bar
+    //  resizes the picture, and Windows answers a resize by cancelling the
+    //  mode of whoever holds the pointer -- so the pass that makes room for
+    //  the notice saying the mouse is held would be the thing that lets it go.
+    //
+    //  Exactly ONE cancel is swallowed, only just after that dock, and only
+    //  while this window is still the foreground one with no menu open. Every
+    //  other cancel -- a modal, a secure desktop, a real takeover -- releases
+    //  the pointer as it always did, which is what keeps a hidden cursor from
+    //  being stranded behind someone else's window.
+    if (m_paddleCaptured && m_captureReflowMs != 0
+        && ChangeBannerNowMs() - m_captureReflowMs <= s_kCaptureReflowEchoMs
+        && GetForegroundWindow() == m_hwnd
+        && !m_mainMenu.IsOpen())
+    {
+        m_captureReflowMs = 0;
+        SetCapture (m_hwnd);
+        ClipPaddleCursorToClient();
+
+        return DxuiMessageResult::Handled;
+    }
+
     StopPaddleCapture();
     return DxuiMessageResult::NotHandled;
 }
@@ -11900,9 +12307,11 @@ void EmulatorShell::OpenSettings()
 //  HandleHostMetaShortcut
 //
 //  Consume host-meta keys that never reach the emulated //e keyboard: menu
-//  mnemonic navigation, F10 menu focus, Ctrl+V paste, and Ctrl+Shift+R reset.
-//  Returns true when the key was claimed. An unmatched Alt+key deliberately
-//  falls through so combos like Ctrl+Alt+R still reach the reset path.
+//  mnemonic navigation, F10 menu focus, and Ctrl+V paste. Returns true when
+//  the key was claimed. Every accelerator the menu advertises is dispatched
+//  from the accelerator table instead, so nothing here duplicates one; an
+//  unmatched Alt+key deliberately falls through, since Alt is the //e's
+//  Open / Closed Apple and belongs to the guest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11933,11 +12342,6 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
         // line (the classic paste-then-SYNTAX-ERROR).
         m_swallowMetaChar = true;
         m_clipboardManager->PasteFromClipboard (m_hwnd);
-    }
-    else if (vk == 'R' && ctrlHeld && !(GetKeyState (VK_SHIFT) & 0x8000))
-    {
-        m_swallowMetaChar = true;
-        PostCommand (IDM_MACHINE_RESET);
     }
     else
     {
@@ -11996,50 +12400,63 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MapVkToAppleControlCode
+//  TryMapVkToSpecialKey
 //
-//  Translate a host arrow/Escape/Delete virtual key into its //e control
-//  code. Returns 0 for keys that have no direct //e control-code mapping.
+//  Name the Apple key a host virtual key stands for, reporting false when it
+//  stands for none. Which code that key sends -- and whether the running
+//  machine even has it -- is the keyboard device's to answer, not the
+//  shell's, so this stops at the key's identity.
+//
+//  TAB is deliberately here rather than left to its WM_CHAR. Routed as a key
+//  it can be refused on a ][+, which has no TAB; routed as the character $09
+//  it would be indistinguishable from Ctrl+I, which that keyboard does send.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte EmulatorShell::MapVkToAppleControlCode (WPARAM vk)
+bool EmulatorShell::TryMapVkToSpecialKey (WPARAM vk, AppleSpecialKey & outKey)
 {
-    Byte  appleCode = 0;
+    bool  mapped = true;
 
 
 
     switch (vk)
     {
-        case VK_LEFT:
-            appleCode = kAppleKeyLeft;
-            break;
-
-        case VK_RIGHT:
-            appleCode = kAppleKeyRight;
-            break;
-
-        case VK_UP:
-            appleCode = kAppleKeyUp;
-            break;
-
-        case VK_DOWN:
-            appleCode = kAppleKeyDown;
-            break;
-
-        case VK_ESCAPE:
-            appleCode = kAppleKeyEscape;
-            break;
-
-        case VK_DELETE:
-            appleCode = kAppleKeyDelete;
-            break;
+        case VK_LEFT:   outKey = AppleSpecialKey::Left;   break;
+        case VK_RIGHT:  outKey = AppleSpecialKey::Right;  break;
+        case VK_UP:     outKey = AppleSpecialKey::Up;     break;
+        case VK_DOWN:   outKey = AppleSpecialKey::Down;   break;
+        case VK_TAB:    outKey = AppleSpecialKey::Tab;    break;
+        case VK_ESCAPE: outKey = AppleSpecialKey::Escape; break;
+        case VK_DELETE: outKey = AppleSpecialKey::Delete; break;
 
         default:
+            mapped = false;
             break;
     }
 
-    return appleCode;
+    return mapped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DoesSpecialKeySynthesizeChar
+//
+//  Whether Windows also manufactures a WM_CHAR for this key, which then has
+//  to be swallowed so the key is not delivered twice -- or, on a machine that
+//  refused the key, delivered after all.
+//
+//  Only TAB ($09) and Escape ($1B) are character keys in Windows' eyes; the
+//  arrows and DELETE produce a keydown and nothing else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::DoesSpecialKeySynthesizeChar (AppleSpecialKey key)
+{
+    return key == AppleSpecialKey::Tab || key == AppleSpecialKey::Escape;
 }
 
 
@@ -12101,12 +12518,30 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 
 
+    // The swallow is a ONE-SHOT owned by this keydown, and clearing it here
+    // is what keeps it one. Windows does not always follow a keydown with the
+    // WM_CHAR its setters assume: an Alt-held key arrives as WM_SYSKEYDOWN
+    // (routed here just like WM_KEYDOWN) and yields WM_SYSCHAR, which reaches
+    // no handler at all. A flag left armed by one of those would eat the next
+    // ordinary character the user typed. Windows queues a keydown's character
+    // before the next keydown, so a swallow that is still wanted is always
+    // consumed before this runs again.
+    m_swallowMetaChar = false;
+
     // 0. Esc exits paddle mode: releases the mouse capture (cursor
     //    reappears) and returns the input mapping to Off, matching the
     //    "Esc to exit" hint on the widget.
     if (m_pointerMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
     {
         SetPointerMapping (InputMappingMode::Off);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // An open toolbar picker is modal in practice: it owns arrows, Enter and
+    //    Escape so browsing the rows previews rather than typing into the //e.
+    if (m_toolbar.IsMenuOpen())
+    {
+        (void) m_toolbar.HandleKey (vk);
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -12302,31 +12737,53 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 
     if (hasKeyboard && ev.kind == DxuiKeyEventKind::Down)
     {
-        WPARAM  vk        = ev.vk;
-        Byte    appleCode = 0;
+        WPARAM           vk         = ev.vk;
+        Byte             appleCode  = 0;
+        AppleSpecialKey  specialKey = AppleSpecialKey::Left;
+        bool             isSpecial  = TryMapVkToSpecialKey (vk, specialKey);
+        bool             hasTheKey  = !isSpecial ||
+                                      m_refs.keyboard->MapSpecialKey (specialKey) != 0;
 
-        m_refs.keyboard->SetKeyDown (true);
+        // A named key the running machine's keyboard does not have was never
+        // pressed as far as the guest is concerned, so it must not raise
+        // any-key-down either -- $C010 reporting a key held while $C000 holds
+        // nothing is a state the hardware cannot be in.
+        if (hasTheKey)
+        {
+            m_refs.keyboard->SetKeyDown (true);
+        }
+
         ApplyAppleModifierKeys (vk, true);
 
-        // Arrow / Escape / Delete map to //e control codes. Gated on the
-        // auto-repeat bit so the host OS repeat never reaches the latch; a
-        // fresh press arms the $C000 strobe once and registers the key for
-        // the emulator's own authentic //e auto-repeat cadence (Tick). With
-        // "Map Arrows to Joystick" on (and a game-port paddle bank present),
-        // arrow keys are withheld from the keyboard latch so a held
-        // direction cannot flood $C000 and starve a joystick game's reads.
-        if (!ev.repeat)
+        // TAB and Escape reach us twice: once as this keydown, and again as
+        // the WM_CHAR Windows manufactures from it. The key route below is
+        // the authoritative one -- it is the only one that can tell the TAB
+        // key from Ctrl+I, which sends the same $09 -- so the character is
+        // swallowed. Set on repeats too, since each repeated keydown brings
+        // its own character along. Nothing here depends on that character
+        // actually arriving: OnKeyDown clears the flag on the way in, so an
+        // Alt-held TAB or Escape, whose WM_SYSCHAR never reaches OnChar,
+        // cannot leave it armed for the next key.
+        if (isSpecial && DoesSpecialKeySynthesizeChar (specialKey))
         {
-            appleCode = MapVkToAppleControlCode (vk);
+            m_swallowMetaChar = true;
+        }
 
-            if (driveJoystick && IsArrowVk (vk))
-            {
-                appleCode = 0;
-            }
+        // Arrows / TAB / Escape / DELETE are delivered as KEYS, and the
+        // device decides both which code each sends and whether this machine
+        // has it at all. Gated on the auto-repeat bit so the host OS repeat
+        // never reaches the latch; a fresh press arms the $C000 strobe once
+        // and registers the key for the emulator's own authentic //e
+        // auto-repeat cadence (Tick). With "Map Arrows to Joystick" on (and a
+        // game-port paddle bank present), arrow keys are withheld from the
+        // keyboard latch so a held direction cannot flood $C000 and starve a
+        // joystick game's reads.
+        if (!ev.repeat && isSpecial && !(driveJoystick && IsArrowVk (vk)))
+        {
+            appleCode = m_refs.keyboard->PressSpecialKey (specialKey);
 
             if (appleCode != 0)
             {
-                m_refs.keyboard->PressKey (appleCode);
                 m_refs.keyboard->BeginKeyRepeat (appleCode);
             }
         }
@@ -12361,15 +12818,29 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     }
     else if (hasKeyboard && ev.kind == DxuiKeyEventKind::Up)
     {
-        WPARAM  vk = ev.vk;
+        WPARAM           vk         = ev.vk;
+        AppleSpecialKey  specialKey = AppleSpecialKey::Left;
+        bool             isSpecial  = TryMapVkToSpecialKey (vk, specialKey);
+        bool             hasTheKey  = !isSpecial ||
+                                      m_refs.keyboard->MapSpecialKey (specialKey) != 0;
 
-        m_refs.keyboard->SetKeyDown (false);
+        // The same question the press asked, asked again: a key this machine
+        // does not have was never pressed, so its release must not undo the
+        // state some other key is still holding. Gating only the press left
+        // the up arrow on a ][+ able to clear any-key-down, and disarm the
+        // repeat, while a real key was still down -- $C010 reporting nothing
+        // held while $C000 holds a character.
+        if (hasTheKey)
+        {
+            m_refs.keyboard->SetKeyDown (false);
 
-        // Disarm auto-repeat on release. The //e latch holds a single key,
-        // so a key-up always ends the current repeat; this also clears any
-        // stale armed key so a later non-character press (e.g. a bare
-        // modifier) can never resurrect the previous character's repeat.
-        m_refs.keyboard->BeginKeyRepeat (0);
+            // Disarm auto-repeat on release. The //e latch holds a single
+            // key, so a key-up always ends the current repeat; this also
+            // clears any stale armed key so a later non-character press
+            // (e.g. a bare modifier) can never resurrect the previous
+            // character's repeat.
+            m_refs.keyboard->BeginKeyRepeat (0);
+        }
 
         // Release the //e Open/Closed-Apple and Shift modifiers as the host
         // releases the physical keys.
@@ -12982,42 +13453,29 @@ void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  StartPaddleCapture
+//  ClipPaddleCursorToClient
 //
-//  Hides and confines the cursor to the client area, parks it at center,
-//  and begins relative tracking. No-op unless the mode is Paddle, the
-//  window owns the foreground, and capture isn't already active. The
-//  current (held) paddle position is pushed so a re-grab after an Esc
-//  release resumes from where the dial was left.
+//  The pointer confined to the picture and parked in the middle -- the half of
+//  "captured" the user can see. Kept apart from StartPaddleCapture because the
+//  clip has to be laid on twice: once at the grab, and again when a cancel the
+//  chrome's own layout raised has to be taken back (see OnCancelMode).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StartPaddleCapture()
+void EmulatorShell::ClipPaddleCursorToClient()
 {
-    HRESULT  hr      = S_OK;
-    RECT     client  = {};
-    POINT    topLeft = {};
-    POINT    botRt   = {};
-    RECT     clip    = {};
-    POINT    center  = {};
+    RECT   client  = {};
+    POINT  topLeft = {};
+    POINT  botRt   = {};
+    RECT   clip    = {};
+    POINT  center  = {};
 
 
 
-    BAIL_OUT_IF (m_pointerMode != InputMappingMode::Paddle, S_OK);
-    BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
-    BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
-    BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
-
-    m_paddleCaptured = true;
-
-    SetCapture (m_hwnd);
-
-    // Drive the per-thread ShowCursor counter negative so the arrow hides.
-    while (ShowCursor (FALSE) >= 0)
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
+        return;
     }
-
-    GetClientRect (m_hwnd, &client);
 
     topLeft.x = client.left;
     topLeft.y = client.top;
@@ -13036,6 +13494,65 @@ void EmulatorShell::StartPaddleCapture()
     center.y = (client.bottom - client.top)  / 2;
     ClientToScreen (m_hwnd, &center);
     SetCursorPos (center.x, center.y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartPaddleCapture
+//
+//  Hides and confines the cursor to the client area, parks it at center,
+//  and begins relative tracking. No-op unless the mode is Paddle, the
+//  window owns the foreground, and capture isn't already active. The
+//  current (held) paddle position is pushed so a re-grab after an Esc
+//  release resumes from where the dial was left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StartPaddleCapture()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_pointerMode != InputMappingMode::Paddle, S_OK);
+    BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
+    BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
+    BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
+
+    m_paddleCaptured = true;
+
+    //  THE BAND IS CLAIMED BEFORE THE MOUSE IS, and the order is the point.
+    //  Docking resizes the picture, and Windows answers a resize by cancelling
+    //  the mode of whoever holds the pointer -- so the layout runs while there
+    //  is no grab to lose, and the grab is taken once it has settled. Traced
+    //  in that order, no cancel arrives at all; the two guards below exist for
+    //  the case where one does anyway.
+    //
+    //  NOT IN FULLSCREEN, where the band is zero however this ends: the bar
+    //  hangs off the top edge there instead. A layout pass would be a settle
+    //  of the whole scene plus a synchronous repaint for no change at all --
+    //  and one caller of this grab is the fullscreen strip's own tick, which
+    //  runs inside the frame the repaint would re-enter.
+    m_captureReflowMs = 0;
+
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        ReflowChromeForChangeBand();
+        m_captureReflowMs = ChangeBannerNowMs();
+    }
+
+    SetCapture (m_hwnd);
+
+    // Drive the per-thread ShowCursor counter negative so the arrow hides.
+    while (ShowCursor (FALSE) >= 0)
+    {
+    }
+
+    ClipPaddleCursorToClient();
 
     PushPaddlePosition();
 
@@ -13081,6 +13598,13 @@ void EmulatorShell::StopPaddleCapture()
 
     PushPaddleButton (0, false);
     PushPaddleButton (1, false);
+
+    //  ...and the picture takes the height back -- windowed, where it gave any
+    //  up. See StartPaddleCapture for why fullscreen is left alone.
+    if (!m_d3dRenderer.IsFullscreen())
+    {
+        ReflowChromeForChangeBand();
+    }
 
 Error:
     return;
@@ -13246,7 +13770,8 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 //                    withheld from the latch
 //    OS auto-repeat  the host repeat rate would flood $C000 and confuse games
 //                    that poll it; the emulated //e generates its own repeat
-//                    in CPU time (AppleKeyboard::Tick) from the single latch
+//                    in real time (AppleKeyboard::TickAutoRepeat) from the
+//                    single latch
 //
 //  What survives goes through the viewport, not straight to the keyboard, so
 //  characters travel the same Dxui path as the key transitions (FR-034).
@@ -13262,9 +13787,10 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 
 
-    // A host-meta shortcut (Ctrl+V paste, Ctrl+R reset) claimed the keydown,
-    // but Windows synthesized its control character anyway; swallow exactly
-    // that one char so it never types into the guest.
+    // A host-meta shortcut (Ctrl+V paste), or a special key already
+    // delivered by name (TAB, Escape), claimed the keydown, but Windows
+    // synthesized its control character anyway; swallow exactly that one
+    // char so it never reaches the guest a second time.
     if (m_swallowMetaChar)
     {
         m_swallowMetaChar = false;
@@ -13293,7 +13819,8 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // OS auto-repeat: the host repeat rate would flood $C000 and confuse
     // real-time games that poll it. A fresh press is latched once and
     // registered for the emulator's own authentic //e auto-repeat cadence
-    // (driven in CPU time by AppleKeyboard::Tick).
+    // (driven in real time by AppleKeyboard::TickAutoRepeat, so the emulation
+    // speed does not move it).
     bool  isGuestChar = m_refs.keyboard != nullptr &&
                         !overlayOwnsIt &&
                         !isRepeat &&
@@ -13372,6 +13899,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
 
     UNREFERENCED_PARAMETER (widthPx);
+
+    m_inChromeLayout = true;
 
     // A resize restretches the window; drop any open menu so its
     // window-anchored popup is not left stranded.
@@ -13530,6 +14059,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
     }
 
+    m_inChromeLayout = false;
+
     return DxuiMessageResult::NotHandled;
 }
 
@@ -13621,6 +14152,9 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 //  still sitting on screen. It uses the same " - " separator as the machine
 //  name so the whole caption reads as one list rather than two grammars.
 //
+//  An undocumented --title puts a launcher's own label in front of all of it,
+//  which is what lets several windows running the same machine be told apart.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::UpdateWindowTitle()
@@ -13646,7 +14180,18 @@ void EmulatorShell::UpdateWindowTitle()
 
     BAIL_OUT_IF (isOffThread, S_OK);
 
-    title = L"Casso";
+    //  The launcher's label, ahead of everything the emulator has to say about
+    //  itself. FIRST because that is the half of a caption a taskbar button or
+    //  an Alt+Tab thumbnail still has room for once it truncates, and the whole
+    //  reason the label was passed in is to tell one window from several
+    //  identical ones.
+    if (!m_titlePrefix.empty())
+    {
+        title += m_titlePrefix;
+        title += L" - ";
+    }
+
+    title += L"Casso";
 
     if (!m_config.name.empty())
     {
@@ -14498,7 +15043,11 @@ void EmulatorShell::InstallChangeReporting()
         }
     });
 
-    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    //  THE POST IS THE DELIVERY, so whether it succeeded is what the store is
+    //  told. This sink is installed before the window exists and posting can
+    //  fail on a full queue, and a bay left believing a question is on screen
+    //  that nobody ever saw is a bay nothing acts on again until it is ejected.
+    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt) -> bool
     {
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
@@ -14506,28 +15055,45 @@ void EmulatorShell::InstallChangeReporting()
             !PostMessageW (m_hwnd, WM_APP_CHANGE_ASK, 0, (LPARAM) carried))
         {
             delete carried;
+
+            return false;
         }
+
+        return true;
+    });
+
+    //  THE LAST-CHANCE ROUTE, and the only one the store has once the message
+    //  loop has gone. It runs on this thread, inside the apartment OleInitialize
+    //  set up, so the picker works exactly as it does from a question -- and
+    //  unlike a question, this returns the answer rather than posting for it.
+    m_diskStore.SetRescueSink ([this] (const std::string & imagePath,
+                                       std::string & outPath) -> bool
+    {
+        std::wstring  chosen;
+
+        if (!AskWhereToSaveLostDisk (imagePath, chosen))
+        {
+            return false;
+        }
+
+        outPath = fs::path (chosen).string();
+
+        return true;
     });
 
     m_changeBanner.SetSeverity (DxuiInfoBanner::Severity::Info);
     m_changeBanner.SetVisible  (false);
 
+    //  EVERY BUTTON ON THE STRIP DISMISSES IT, and that is all any of them
+    //  does. Only questions carry answers worth acting on, and questions go to
+    //  a dialog -- the strip routes nothing back, which is why a lost-file
+    //  prompt sent here had two buttons that did nothing. Dismissing it and
+    //  its countdown running out are the same thing.
     m_changeBanner.SetOnAction ([this] (size_t index)
     {
-        //  What the button means came from core with its label. The shell
-        //  reads it back rather than assuming, so a banner that grows a second
-        //  action does not need this rewritten.
-        ChangeAction  action = (index < m_changeBannerActions.size())
-                                   ? m_changeBannerActions[index]
-                                   : ChangeAction::Ignore;
+        UNREFERENCED_PARAMETER (index);
 
-        //  Dismissing it and its countdown running out are the same thing.
         HideChangeBanner();
-
-        if (action == ChangeAction::Restart)
-        {
-            PostCommand (IDM_MACHINE_RESET);
-        }
     });
 
     return;
@@ -14560,18 +15126,13 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
 
 
 
-    m_changeBannerActions.clear();
-
     for (i = 0; i < notice.prompt.answers.size(); i++)
     {
         labels.push_back (notice.prompt.answers[i].label);
-        m_changeBannerActions.push_back (notice.prompt.answers[i].action);
     }
 
     m_changeBanner.SetText    (notice.prompt.message);
     m_changeBanner.SetActions (labels);
-
-    m_changeBannerDrive = notice.drive;
 
     //  RE-ARMED ON EVERY CHANGE, not only the first. A later change re-words
     //  the strip already on screen, and a countdown left running from the
@@ -14584,12 +15145,6 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
     //  Replaced rather than stacked: a standing report absorbs later changes,
     //  so a second one re-words the strip already on screen.
     m_changeBanner.SetVisible (!labels.empty());
-
-    if (labels.empty())
-    {
-        m_diskStore.ClearChangeReport (notice.slot, notice.drive);
-        m_changeBannerDrive = -1;
-    }
 
     //  The band just changed height, so everything below it moves and the
     //  picture is rescaled into what is left. Nothing here positions the
@@ -14630,7 +15185,10 @@ void EmulatorShell::ReflowChromeForChangeBand()
 
     DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
 
-    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    //  NEVER FROM INSIDE THE PASS IT RUNS. Losing the pointer capture re-docks,
+    //  and the capture is dropped from OnCancelMode / OnKillFocus, which a
+    //  resize itself can raise -- so the layout would call itself.
+    if (m_inChromeLayout || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
         return;
     }
@@ -14679,6 +15237,50 @@ int EmulatorShell::GetChangeBandThicknessPx (int clientWidthPx) const
     height = m_changeBanner.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
 
     return (int) height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetCaptureBandThicknessPx
+//
+//  How tall the capture bar's band is.
+//
+//  ZERO WHILE THE POINTER IS FREE, so every session that never grabs it is
+//  laid out exactly as before.
+//
+//  ZERO IN FULLSCREEN TOO, where there are no bands at all: the picture owns
+//  the whole client and the bar hangs off the top edge under the toolbar
+//  reveal instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
+{
+    IDxuiTextRenderer *  text = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+
+
+
+    if (!m_paddleCaptured || m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
+    {
+        return 0;
+    }
+
+    //  MEASURED WHEN THERE IS A RENDERER TO ASK, because the bar centers its
+    //  text and a centered banner picks its line width from that measurement.
+    //  The estimate behind GetPreferredHeightPx is an AVERAGE glyph width: a
+    //  wide face measures past it, and a height taken from it would reserve a
+    //  line fewer than the paint lays down. The estimate stays as the fallback
+    //  for the moments before the renderer exists.
+    if (text != nullptr)
+    {
+        return (int) m_captureBar.GetMeasuredHeightPx (*text, (float) clientWidthPx, m_scaler);
+    }
+
+    return (int) m_captureBar.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
 }
 
 
@@ -14754,16 +15356,18 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
     for (i = 0; i < notice.prompt.answers.size(); i++)
     {
-        bool  isLast = (i + 1 == notice.prompt.answers.size());
+        bool  isSafe = (i == notice.prompt.safeAnswer);
 
-        //  The last answer is the one that changes nothing, so it is the
-        //  default and the close-box result: dismissing a question about a
-        //  disk must not act on it.
+        //  THE PROMPT CARRIES THE INDEX OF ITS OWN SAFE ANSWER, and that is
+        //  the default and the close-box result: dismissing a question about a
+        //  disk must not cost the user anything. Which answer that is differs
+        //  by question, and taking it to be the last one threw away a disk that
+        //  had no file left to go back to.
         def.buttons.push_back (DialogButton { notice.prompt.answers[i].label,
-                                              (int) i, isLast, isLast, false });
+                                              (int) i, isSafe, isSafe, false });
     }
 
-    def.closeBoxResult = (int) (notice.prompt.answers.size() - 1);
+    def.closeBoxResult = (int) notice.prompt.safeAnswer;
 
     //  THE QUESTION STANDS UNTIL IT IS ANSWERED. Saving needs a destination,
     //  and only this thread can ask for one; but a picker the user backs out of
@@ -14779,7 +15383,7 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
         if (choice < 0 || choice >= (int) notice.prompt.answers.size())
         {
-            choice = (int) (notice.prompt.answers.size() - 1);
+            choice = (int) notice.prompt.safeAnswer;
         }
 
         chosen = notice.prompt.answers[choice].action;
@@ -14948,6 +15552,136 @@ void EmulatorShell::InstallIntentMessageFilter()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::OnAppMessage
+//
+//  The messages this shell posts to its own window.
+//
+//  HERE RATHER THAN IN RunMessageLoop, WHICH IS THE WHOLE POINT. That loop
+//  picked every one of these off before DispatchMessage, so they existed only
+//  while it was the pump that was running -- and any modal dialog runs a pump
+//  of its own. A question about a changed disk arriving while a picker or the
+//  About box was open reached DefWindowProc, its heap payload leaked, and the
+//  store had already recorded that a question was outstanding, so it never
+//  asked again: that bay stayed stuck with a pending change until it was
+//  ejected. A mount completing under the same dialog went the same way, and
+//  the user was never told it had failed. Reached from the window procedure,
+//  every pump delivers them.
+//
+//  A QUESTION ARRIVING UNDER A MODAL THEREFORE OPENS AS A NESTED MODAL, which
+//  is ordinary Win32 -- a disabled owner still receives posted messages -- and
+//  better than the alternative of not being told at all.
+//
+//  EACH lParam OWNS A HEAP PAYLOAD handed over by whoever posted it, and this
+//  is where it is freed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    // A disk changed outside Casso. The store decided on the thread that owns
+    // disk writes; both of these build UI, so they land here.
+    if (msg == WM_APP_CHANGE_REPORT)
+    {
+        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowChangeBanner (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_CHANGE_ASK)
+    {
+        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+
+        if (carried != nullptr)
+        {
+            AskAboutChange (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_NOTIFY_USER)
+    {
+        wstring *  carried = reinterpret_cast<wstring *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowNotification (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A mount that ran on the CPU thread wants its damage report raised here,
+    // where a modal can be built.
+    if (msg == WM_APP_REPORT_DAMAGE)
+    {
+        ReportDamagedMount ((int) wParam);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // Likewise the salvage flow: the Disk menu dispatches it from the CPU
+    // thread, and it builds a modal.
+    if (msg == WM_APP_RUN_SALVAGE)
+    {
+        RunSalvageFlow ((int) wParam);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // One mount's outcome, from whichever thread ran it. Startup mounts land
+    // here too, which is what keeps a bad --disk1 from raising a dialog before
+    // there was a pump to run it.
+    if (msg == WM_APP_MOUNT_COMPLETED)
+    {
+        MountCompletion *  carried = reinterpret_cast<MountCompletion *> (lParam);
+
+        if (carried != nullptr)
+        {
+            HandleMountCompletion (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_DXUI_UPDATE_TITLE)
+    {
+        UpdateWindowTitle();
+        ReflowChromeForMachineChange();
+
+        // The machine may now sit in front of a different monitor, which
+        // changes every override key. This is the UI-thread side of the
+        // switch; SwitchMachine runs on the CPU thread and must not do file
+        // work or race the render path.
+        RefreshCrtOverrideKeys();
+
+        // A switch adopts the machine's own input mapping and may change the
+        // default pointer mode, both on the CPU thread, which defers their UI
+        // reflection here. Sync the selector state on the UI thread; it is
+        // idempotent when nothing changed.
+        SyncSelectorState();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::OnCopyData
 //
 //  A writing tool saying what its change to a mounted image meant.
@@ -15011,12 +15745,6 @@ void EmulatorShell::HideChangeBanner()
 {
     m_changeBanner.SetVisible (false);
     m_changeBannerHideAtMs = 0;
-
-    if (m_changeBannerDrive >= 0)
-    {
-        m_diskStore.ClearChangeReport (6, m_changeBannerDrive);
-        m_changeBannerDrive = -1;
-    }
 
     ReflowChromeForChangeBand();
 

@@ -23,8 +23,35 @@ static constexpr Byte kAppleKeyLeft    = 0x08;   // Backspace / cursor left
 static constexpr Byte kAppleKeyRight   = 0x15;   // NAK / cursor right
 static constexpr Byte kAppleKeyUp      = 0x0B;   // VT / cursor up
 static constexpr Byte kAppleKeyDown    = 0x0A;   // LF / cursor down
+static constexpr Byte kAppleKeyTab     = 0x09;   // HT / tab
 static constexpr Byte kAppleKeyEscape  = 0x1B;   // Escape
 static constexpr Byte kAppleKeyDelete  = 0x7F;   // Delete
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleSpecialKey
+//
+//  A key on the Apple keyboard identified by the key itself rather than by
+//  the character it sends. Which of these a machine physically has differs by
+//  model, and that question cannot be asked of the code alone: a ][+ has no
+//  TAB key, yet Ctrl+I on that same keyboard still sends $09.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class AppleSpecialKey
+{
+    Left,
+    Right,
+    Up,
+    Down,
+    Tab,
+    Escape,
+    Delete,
+};
 
 
 
@@ -55,6 +82,12 @@ public:
     // Called from EmulatorShell when a key event arrives (UI thread)
     void PressKey (Byte asciiChar);
 
+    // Which code this machine's keyboard sends for a named key, or 0 when it
+    // has no such key. PressSpecialKey latches it and returns the same, so a
+    // caller can tell an absent key from a pressed one.
+    virtual Byte MapSpecialKey   (AppleSpecialKey key) const;
+    Byte         PressSpecialKey (AppleSpecialKey key);
+
     // Check if the strobe is clear (CPU has consumed the previous key)
     bool IsStrobeClear () const { return (m_latchedKey.load (memory_order_acquire) & 0x80) == 0; }
 
@@ -72,17 +105,21 @@ public:
 
     // Authentic Apple //e keyboard auto-repeat cadence: a held key arms
     // the $C000 strobe once, waits ~half a second, then re-arms it at
-    // ~15 characters per second. Expressed in CPU cycles off the nominal
-    // //e clock so the timing is deterministic and host-independent.
-    static constexpr uint32_t kKeyRepeatClockHz      = 1020484;
+    // ~15 characters per second. Measured in real elapsed microseconds,
+    // not emulated cycles: the //e generates its repeat in the keyboard
+    // encoder, off an oscillator of its own, so the cadence a typist
+    // feels does not follow the CPU clock. Timing it in guest cycles made
+    // Double speed repeat twice as fast and Maximum speed -- which runs
+    // uncapped, tens of times real -- repeat far faster than anyone can
+    // type against.
     static constexpr uint32_t kKeyRepeatDelayMs      = 500;
     static constexpr uint32_t kKeyRepeatRateHz       = 15;
     static constexpr uint32_t kMillisecondsPerSecond = 1000;
-    static constexpr uint32_t kKeyRepeatDelayCycles =
-        static_cast<uint32_t> (static_cast<uint64_t> (kKeyRepeatClockHz) *
-                               kKeyRepeatDelayMs / kMillisecondsPerSecond);
-    static constexpr uint32_t kKeyRepeatIntervalCycles =
-        kKeyRepeatClockHz / kKeyRepeatRateHz;
+    static constexpr uint32_t kMicrosecondsPerSecond = 1000000;
+    static constexpr uint32_t kKeyRepeatDelayUs =
+        kKeyRepeatDelayMs * (kMicrosecondsPerSecond / kMillisecondsPerSecond);
+    static constexpr uint32_t kKeyRepeatIntervalUs =
+        kMicrosecondsPerSecond / kKeyRepeatRateHz;
 
     // Arm the emulated //e keyboard auto-repeat for a freshly-pressed key
     // (UI thread). The host OS auto-repeat is suppressed by the shell; the
@@ -96,17 +133,23 @@ public:
     // fast-path, matching the Disk2 event-sink convention.
     void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
 
-    // Advance the auto-repeat timer by one instruction's worth of CPU
-    // cycles (CPU thread). Re-arms the $C000 strobe with the held key
-    // after the initial delay and then at the steady repeat rate, but
-    // only while the key remains physically down (any-key-down set).
-    void Tick (uint32_t cpuCycles);
+    // Advance the auto-repeat timer by the real time that has passed since
+    // the previous call (CPU thread). Re-arms the $C000 strobe with the
+    // held key after the initial delay and then at the steady repeat rate,
+    // but only while the key remains physically down (any-key-down set).
+    // Elapsed time beyond the initial delay is clamped, so a pause or a
+    // breakpoint cannot bank up a burst of repeats to fire on resume.
+    void TickAutoRepeat (uint32_t elapsedMicroseconds);
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
-private:
-    Byte TranslateToUppercase (Byte ch) const;
+protected:
+    // Fold one TYPED character to the case this keyboard can send. Never
+    // drops: what a key sends is a separate question from which keys exist,
+    // and only MapSpecialKey answers the latter.
+    virtual Byte TranslateTypedChar (Byte ch) const;
 
+private:
     // Producer-side coalesced emit helpers (CPU thread). Each fires the
     // matching sink callback only when the observed value changed, so a
     // tight poll loop produces one event per transition.
@@ -120,12 +163,13 @@ private:
     atomic<bool>   m_anyKeyDown{false};
 
     // Auto-repeat state. m_repeatKey is written by the UI thread (arm /
-    // disarm) and read by the CPU thread (Tick); the cadence accumulator,
-    // phase flag, and last-seen key are touched only by Tick.
+    // disarm) and read by the CPU thread (TickAutoRepeat); the cadence
+    // accumulator, phase flag, and last-seen key are touched only by
+    // TickAutoRepeat.
     atomic<Byte>   m_repeatKey{0};
-    uint32_t       m_repeatAccumCycles = 0;
-    bool           m_repeatStarted     = false;
-    Byte           m_lastRepeatKey     = 0;
+    uint32_t       m_repeatAccumUs = 0;
+    bool           m_repeatStarted = false;
+    Byte           m_lastRepeatKey = 0;
 
 protected:
     // Input Debug panel sink (null when no panel is open). Plain pointer

@@ -113,6 +113,170 @@ public:
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Per-machine key set. Two questions, kept separate on purpose:
+    //  which KEYS a keyboard has (MapSpecialKey / PressSpecialKey), and
+    //  what a TYPED character becomes once it has it (PressKey). Conflating
+    //  them silently eats Ctrl+I / Ctrl+J / Ctrl+K on a ][+, which send the
+    //  same $09 / $0A / $0B as the //e's TAB and up / down arrows.
+    //
+    //  Every enumerator is listed in both machines' expectation tables, so
+    //  adding one to AppleSpecialKey fails to compile here until both
+    //  machines say what it does.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    struct SpecialKeyCase
+    {
+        AppleSpecialKey  key;
+        Byte             code;      // 0 = this machine has no such key
+        const wchar_t *  name;
+    };
+
+    static constexpr SpecialKeyCase  kTwoPlusKeys[] =
+    {
+        { AppleSpecialKey::Left,   kAppleKeyLeft,   L"Left"   },
+        { AppleSpecialKey::Right,  kAppleKeyRight,  L"Right"  },
+        { AppleSpecialKey::Escape, kAppleKeyEscape, L"Escape" },
+        { AppleSpecialKey::Up,     0,               L"Up"     },
+        { AppleSpecialKey::Down,   0,               L"Down"   },
+        { AppleSpecialKey::Tab,    0,               L"Tab"    },
+        { AppleSpecialKey::Delete, 0,               L"Delete" },
+    };
+
+    static constexpr SpecialKeyCase  kTwoeKeys[] =
+    {
+        { AppleSpecialKey::Left,   kAppleKeyLeft,   L"Left"   },
+        { AppleSpecialKey::Right,  kAppleKeyRight,  L"Right"  },
+        { AppleSpecialKey::Escape, kAppleKeyEscape, L"Escape" },
+        { AppleSpecialKey::Up,     kAppleKeyUp,     L"Up"     },
+        { AppleSpecialKey::Down,   kAppleKeyDown,   L"Down"   },
+        { AppleSpecialKey::Tab,    kAppleKeyTab,    L"Tab"    },
+        { AppleSpecialKey::Delete, kAppleKeyDelete, L"Delete" },
+    };
+
+    //  Drives one machine's whole key set through PressSpecialKey: every key
+    //  it has must latch its code, and every key it lacks must leave the
+    //  latch untouched -- strobe still clear, no data.
+    template <typename TKeyboard, size_t N>
+    static void AssertSpecialKeySet (const SpecialKeyCase (& cases)[N],
+                                     const wchar_t * machine)
+    {
+        for (const SpecialKeyCase & c : cases)
+        {
+            TKeyboard  kbd;
+            Byte       latched = 0;
+            Byte       val     = 0;
+
+            latched = kbd.PressSpecialKey (c.key);
+            val     = kbd.Read (0xC000);
+
+            Assert::AreEqual (c.code, latched,
+                std::format (L"{}: PressSpecialKey({}) must report ${:02X}",
+                    machine, c.name, c.code).c_str());
+            Assert::AreEqual (c.code, kbd.MapSpecialKey (c.key),
+                std::format (L"{}: MapSpecialKey({}) must agree with the press",
+                    machine, c.name).c_str());
+
+            if (c.code == 0)
+            {
+                Assert::AreEqual (static_cast<Byte> (0x00), val,
+                    std::format (L"{}: {} is not one of its keys, so nothing "
+                                 L"may reach the latch", machine, c.name).c_str());
+            }
+            else
+            {
+                Assert::AreEqual (c.code, static_cast<Byte> (val & 0x7F),
+                    std::format (L"{}: {} must latch ${:02X}",
+                        machine, c.name, c.code).c_str());
+                Assert::IsTrue ((val & 0x80) != 0,
+                    std::format (L"{}: {} must arm the strobe",
+                        machine, c.name).c_str());
+            }
+        }
+    }
+
+    TEST_METHOD (SpecialKeySet_TwoPlus_AcceptsItsOwnAndRefusesTheRest)
+    {
+        AssertSpecialKeySet<AppleKeyboard> (kTwoPlusKeys, L"][+");
+    }
+
+    TEST_METHOD (SpecialKeySet_Twoe_AcceptsEveryKey)
+    {
+        AssertSpecialKeySet<Apple2eKeyboard> (kTwoeKeys, L"//e");
+    }
+
+    //  The typed-character route, swept across the whole 7-bit range so no
+    //  code is silently special-cased. The ][+ folds letters and passes
+    //  everything else; nothing is ever dropped, which is what keeps Ctrl+I
+    //  ($09), Ctrl+J ($0A) and Ctrl+K ($0B) working on a keyboard that has
+    //  the Ctrl and letter keys but no TAB or vertical arrows.
+    TEST_METHOD (TypedChars_TwoPlus_FoldCaseAndDropNothing)
+    {
+        for (Byte ch = 0x01; ch <= 0x7F; ch++)
+        {
+            AppleKeyboard  kbd;
+            Byte           expected = (ch >= 'a' && ch <= 'z')
+                                          ? static_cast<Byte> (ch - ('a' - 'A'))
+                                          : ch;
+            Byte           val      = 0;
+
+            kbd.PressKey (ch);
+
+            val = kbd.Read (0xC000);
+
+            Assert::AreEqual (expected, static_cast<Byte> (val & 0x7F),
+                std::format (L"][+: typing ${:02X} must latch ${:02X}",
+                    ch, expected).c_str());
+            Assert::IsTrue ((val & 0x80) != 0,
+                std::format (L"][+: typing ${:02X} must arm the strobe", ch).c_str());
+        }
+    }
+
+    //  The //e types the same range with no folding at all.
+    TEST_METHOD (TypedChars_Twoe_PassThroughUnchanged)
+    {
+        for (Byte ch = 0x01; ch <= 0x7F; ch++)
+        {
+            Apple2eKeyboard  kbd;
+            Byte             val = 0;
+
+            kbd.PressKey (ch);
+
+            val = kbd.Read (0xC000);
+
+            Assert::AreEqual (ch, static_cast<Byte> (val & 0x7F),
+                std::format (L"//e: typing ${:02X} must latch it unchanged", ch).c_str());
+            Assert::IsTrue ((val & 0x80) != 0,
+                std::format (L"//e: typing ${:02X} must arm the strobe", ch).c_str());
+        }
+    }
+
+    //  The regression the split exists to prevent. On a ][+ these are Ctrl
+    //  plus a letter the keyboard really has, and they collide with codes the
+    //  //e sends from keys the ][+ lacks. Gating on the CODE would eat them.
+    TEST_METHOD (ControlLetters_CollidingWithTwoeKeys_StillTypeOnTwoPlus)
+    {
+        const Byte  chords[] = { kAppleKeyTab,     // Ctrl+I
+                                 kAppleKeyDown,    // Ctrl+J
+                                 kAppleKeyUp };    // Ctrl+K
+
+        for (Byte ch : chords)
+        {
+            AppleKeyboard  kbd;
+            Byte           val = 0;
+
+            kbd.PressKey (ch);
+
+            val = kbd.Read (0xC000);
+
+            Assert::AreEqual (ch, static_cast<Byte> (val & 0x7F),
+                std::format (L"][+: Ctrl+letter sending ${:02X} must still type, "
+                             L"even though the //e key sending it is absent", ch).c_str());
+        }
+    }
+
     TEST_METHOD (ReturnKey_Produces0D)
     {
         AppleKeyboard  kbd;
@@ -324,6 +488,19 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////
 
+    TEST_METHOD (LowercaseSurvives_OnTwoe)
+    {
+        Apple2eKeyboard  kbd;
+        Byte             val = 0;
+
+        kbd.PressKey ('a');
+
+        val = kbd.Read (0xC000);
+
+        Assert::AreEqual (static_cast<Byte> ('a'), static_cast<Byte> (val & 0x7F),
+            L"The //e keyboard types lowercase; 'a' must not fold to 'A'");
+    }
+
     TEST_METHOD (OpenAppleReadable_C061)
     {
         Apple2eKeyboard  kbd;
@@ -500,11 +677,13 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  Authentic //e keyboard auto-repeat (driven by AppleKeyboard::Tick
-    //  in emulated CPU time). The shell suppresses the host OS repeat and
-    //  arms a single character via BeginKeyRepeat; the device regenerates
-    //  the real ~500ms delay then ~15 cps cadence, re-arming the $C000
-    //  strobe, but only while the key remains physically down.
+    //  Authentic //e keyboard auto-repeat (driven by
+    //  AppleKeyboard::TickAutoRepeat in REAL time -- the //e generates its
+    //  repeat in the keyboard encoder, so neither Double nor Maximum speed
+    //  moves it). The shell suppresses the host OS repeat and arms a single
+    //  character via BeginKeyRepeat; the device regenerates the ~500ms delay
+    //  then ~15 cps cadence, re-arming the $C000 strobe, but only while the
+    //  key remains physically down.
     //
     ////////////////////////////////////////////////////////////////////////
 
@@ -518,13 +697,13 @@ public:
 
         // Consume the initial press strobe and register the armed key.
         kbd.Read (0xC010);
-        kbd.Tick (1);
+        kbd.TickAutoRepeat (1);
 
         Assert::IsTrue (kbd.IsStrobeClear(),
             L"Registering the armed key must not re-arm the strobe");
 
         // Advance to just shy of the pre-repeat delay: still no repeat.
-        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles - 2);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs - 2);
 
         Assert::IsTrue (kbd.IsStrobeClear(),
             L"No repeat strobe should fire before the initial delay elapses");
@@ -540,10 +719,10 @@ public:
         kbd.BeginKeyRepeat('A');
 
         kbd.Read (0xC010);
-        kbd.Tick (1);
+        kbd.TickAutoRepeat (1);
 
         // Cross the initial delay threshold in one accumulation step.
-        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
 
         Assert::IsFalse (kbd.IsStrobeClear(),
             L"Strobe must re-arm once the initial repeat delay elapses");
@@ -563,20 +742,20 @@ public:
         kbd.BeginKeyRepeat('A');
 
         kbd.Read (0xC010);
-        kbd.Tick (1);
+        kbd.TickAutoRepeat (1);
 
         // First repeat after the long initial delay.
-        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
         kbd.Read (0xC010);
 
         // The faster steady interval (shorter than the initial delay) now
         // governs subsequent repeats.
         Assert::IsTrue (
-            AppleKeyboard::kKeyRepeatIntervalCycles <
-            AppleKeyboard::kKeyRepeatDelayCycles,
+            AppleKeyboard::kKeyRepeatIntervalUs <
+            AppleKeyboard::kKeyRepeatDelayUs,
             L"Steady repeat interval must be shorter than the initial delay");
 
-        kbd.Tick (AppleKeyboard::kKeyRepeatIntervalCycles);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatIntervalUs);
 
         Assert::IsFalse (kbd.IsStrobeClear(),
             L"Strobe must re-arm again after one steady repeat interval");
@@ -591,8 +770,8 @@ public:
         kbd.BeginKeyRepeat('A');
 
         kbd.Read (0xC010);
-        kbd.Tick (1);
-        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles);
+        kbd.TickAutoRepeat (1);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
         kbd.Read (0xC010);
 
         // Physical release: any-key-down clears and the shell disarms the
@@ -600,7 +779,7 @@ public:
         kbd.SetKeyDown    (false);
         kbd.BeginKeyRepeat(0);
 
-        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
 
         Assert::IsTrue (kbd.IsStrobeClear(),
             L"Releasing the key must stop auto-repeat");
@@ -615,8 +794,8 @@ public:
         kbd.BeginKeyRepeat('A');
         kbd.Read (0xC010);
 
-        kbd.Tick (1);
-        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
+        kbd.TickAutoRepeat (1);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
 
         Assert::IsTrue (kbd.IsStrobeClear(),
             L"Auto-repeat must not fire unless the key is physically held");
@@ -631,15 +810,43 @@ public:
         kbd.BeginKeyRepeat('A');
 
         kbd.Read (0xC010);
-        kbd.Tick (1);
+        kbd.TickAutoRepeat (1);
 
         // Disarm (arm value 0) before the delay elapses: even with the key
         // still flagged down, no repeat should fire.
         kbd.BeginKeyRepeat(0);
-        kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatDelayUs);
 
         Assert::IsTrue (kbd.IsStrobeClear(),
             L"Disarming auto-repeat must suppress further repeats");
+    }
+
+    TEST_METHOD (AutoRepeat_LongStallYieldsOneRepeat)
+    {
+        AppleKeyboard  kbd;
+        uint32_t       oneMinuteUs = 60 * AppleKeyboard::kMicrosecondsPerSecond;
+
+
+
+        kbd.PressKey      ('A');
+        kbd.SetKeyDown    (true);
+        kbd.BeginKeyRepeat('A');
+
+        kbd.Read (0xC010);
+        kbd.TickAutoRepeat (1);
+
+        // A pause, a breakpoint or a stalled thread hands the device a minute
+        // in one call. That is one repeat, not a banked burst: the strobe
+        // re-arms once and the interval that follows starts from scratch.
+        kbd.TickAutoRepeat (oneMinuteUs);
+        Assert::IsFalse (kbd.IsStrobeClear(),
+            L"A long stall must still produce a repeat");
+
+        kbd.Read (0xC010);
+
+        kbd.TickAutoRepeat (AppleKeyboard::kKeyRepeatIntervalUs - 2);
+        Assert::IsTrue (kbd.IsStrobeClear(),
+            L"A long stall must not bank repeats to fire early afterwards");
     }
 
 
@@ -787,7 +994,7 @@ public:
 
         kbd.PressKey (kbd.MapTypedChar ('k'));
 
-        Assert::AreEqual<Byte> ('T', static_cast<Byte> (kbd.Read (0xC000) & 0x7F),
-            L"typing 'k' with the Dvorak switch in must latch 't' (upcased at $C000)");
+        Assert::AreEqual<Byte> ('t', static_cast<Byte> (kbd.Read (0xC000) & 0x7F),
+            L"typing 'k' with the Dvorak switch in must latch 't', in the case typed");
     }
 };

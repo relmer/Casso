@@ -125,6 +125,165 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AddSymbolFont
+//
+//  Registers an in-memory font and teaches DirectWrite's fallback to reach for
+//  it across one codepoint range.
+//
+//  Fallback rather than a font collection on the format: a format names exactly
+//  one family, so putting the symbol font in the collection would mean either a
+//  collection holding both it and every system face, or callers switching
+//  family mid-sentence and laying the pieces out themselves. Fallback is the
+//  mechanism DirectWrite already runs for any character the chosen font lacks,
+//  so a private-use codepoint dropped into a Segoe UI string comes back as our
+//  glyph, correctly positioned, and MeasureString accounts for it. Emoji in
+//  these dialogs already arrive this way, off the system mappings.
+//
+//  The custom mapping is added BEFORE the system ones, since the builder takes
+//  the first match; appending it would let the system's private-use handling
+//  answer first.
+//
+//  The family is read back off the loaded font rather than passed in, so the
+//  font file stays the single authority on what it is called.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::AddSymbolFont (
+    const void  * pFontBytes,
+    size_t        byteCount,
+    uint32_t      firstCodepoint,
+    uint32_t      lastCodepoint)
+{
+    HRESULT                                hr              = S_OK;
+    IUnknown                             * factoryRaw      = nullptr;
+    ComPtr<IDWriteFactory>                 dwrite;
+    ComPtr<IDWriteFactory5>                factory;
+    ComPtr<IDWriteInMemoryFontFileLoader>  loader;
+    ComPtr<IDWriteFontFile>                fontFile;
+    ComPtr<IDWriteFontSetBuilder1>         setBuilder;
+    ComPtr<IDWriteFontSet>                 fontSet;
+    ComPtr<IDWriteFontCollection1>         collection;
+    ComPtr<IDWriteFontFamily>              family;
+    ComPtr<IDWriteLocalizedStrings>        familyNames;
+    ComPtr<IDWriteFontFallbackBuilder>     fallbackBuilder;
+    ComPtr<IDWriteFontFallback>            systemFallback;
+    ComPtr<IDWriteFontFallback>            fallback;
+    DWRITE_UNICODE_RANGE                   range           = {};
+    UINT32                                 familyCount     = 0;
+    UINT32                                 nameLength      = 0;
+    std::wstring                           familyName;
+    const wchar_t                        * targetFamily    = nullptr;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRAEx (pFontBytes, E_INVALIDARG);
+    CBRAEx (byteCount > 0, E_INVALIDARG);
+    CBRAEx (firstCodepoint <= lastCodepoint, E_INVALIDARG);
+
+    // The shared factory hands back the same object every renderer already
+    // holds, so no instance is needed to register against it.
+    hr = DWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED,
+                              __uuidof (IDWriteFactory),
+                              &factoryRaw);
+    CHRA (hr);
+
+    dwrite.Attach (static_cast<IDWriteFactory *> (factoryRaw));
+
+    hr = dwrite.As (&factory);
+    CHRA (hr);
+
+    hr = factory->CreateInMemoryFontFileLoader (&loader);
+    CHRA (hr);
+
+    hr = factory->RegisterFontFileLoader (loader.Get());
+    CHRA (hr);
+
+    // A null owner means DirectWrite copies the bytes, so the caller's buffer
+    // does not have to outlive this call.
+    hr = loader->CreateInMemoryFontFileReference (factory.Get(),
+                                                 pFontBytes,
+                                                 static_cast<UINT32> (byteCount),
+                                                 nullptr,
+                                                 &fontFile);
+    CHRA (hr);
+
+    hr = factory->CreateFontSetBuilder (&setBuilder);
+    CHRA (hr);
+
+    hr = setBuilder->AddFontFile (fontFile.Get());
+    CHRA (hr);
+
+    hr = setBuilder->CreateFontSet (&fontSet);
+    CHRA (hr);
+
+    hr = factory->CreateFontCollectionFromFontSet (fontSet.Get(), &collection);
+    CHRA (hr);
+
+    familyCount = collection->GetFontFamilyCount();
+    CBRA (familyCount > 0);
+
+    hr = collection->GetFontFamily (0, &family);
+    CHRA (hr);
+
+    hr = family->GetFamilyNames (&familyNames);
+    CHRA (hr);
+
+    // Sized from the string rather than a fixed buffer: a font whose family
+    // name did not fit would fail the whole registration over a name nothing
+    // reads but the mapping below.
+    hr = familyNames->GetStringLength (0, &nameLength);
+    CHRA (hr);
+
+    familyName.resize (static_cast<size_t> (nameLength) + 1);
+
+    hr = familyNames->GetString (0, familyName.data(),
+                                 static_cast<UINT32> (familyName.size()));
+    CHRA (hr);
+
+    targetFamily = familyName.c_str();
+
+    hr = factory->CreateFontFallbackBuilder (&fallbackBuilder);
+    CHRA (hr);
+
+    range.first = firstCodepoint;
+    range.last  = lastCodepoint;
+
+    hr = fallbackBuilder->AddMapping (&range,
+                                      1,
+                                      &targetFamily,
+                                      1,
+                                      collection.Get(),
+                                      nullptr,
+                                      nullptr,
+                                      1.0f);
+    CHRA (hr);
+
+    hr = factory->GetSystemFontFallback (&systemFallback);
+    CHRA (hr);
+
+    hr = fallbackBuilder->AddMappings (systemFallback.Get());
+    CHRA (hr);
+
+    hr = fallbackBuilder->CreateFontFallback (&fallback);
+    CHRA (hr);
+
+    // Published last, together: until this point a failure would have left
+    // the collection reading as loaded while no format could ever use it.
+    s_symbolFonts  = collection;
+    s_fontFallback = fallback;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Shutdown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -853,6 +1012,17 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
                                                 L"en-us",
                                                 &format);
         CHRA (hr);
+
+        if (s_fontFallback)
+        {
+            ComPtr<IDWriteTextFormat1>  format1;
+
+            hr = format.As (&format1);
+            CHRA (hr);
+
+            hr = format1->SetFontFallback (s_fontFallback.Get());
+            CHRA (hr);
+        }
 
         m_formatCache[key] = format;
         *outFormat         = format.Get();

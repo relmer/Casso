@@ -2,6 +2,7 @@
 
 #include "AppleDoubleHiResMode.h"
 #include "AppleHiResMode.h"
+#include "NtscColorTable.h"
 
 
 
@@ -9,38 +10,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Apple //e Double Hi-Res 16-Color Palette (RGBA)
+//  Apple //e Double Hi-Res color
 //
-//  Sather UTAIIe Tab 8.5 DHR palette. 4-bit nibble (LSB first
-//  per scanline bit order) selects one of 16 colors. Mirrors the lo-res
-//  palette ordering so DHR with all-aux=0 main=0 produces black, and
-//  all-on aux=$7F main=$7F produces white.
+//  Sather UTAIIe Tab 8.5 DHR palette. A 4-bit nibble selects one of the
+//  machine's sixteen colors, which live in Video/NtscColorTable.h -- DHR
+//  names no colors of its own. All dots dark decodes to color 0 (black) and
+//  all dots lit to color 15 (white).
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-// Apple //e DHGR 16-color palette in B8G8R8A8 byte layout (matches the
-// DXGI_FORMAT_B8G8R8A8_UNORM swap chain). Same convention as
-// AppleLoResMode::kLoResColors — see Video/PixelFormat.h for the
-// project-wide byte-order convention.
-static const uint32_t kDhrColors[16] =
-{
-    0xFF000000,   //  0: Black
-    0xFFDD2266,   //  1: Magenta
-    0xFF000099,   //  2: Dark Blue
-    0xFFDD0044,   //  3: Purple
-    0xFF002200,   //  4: Dark Green
-    0xFF555555,   //  5: Gray 1
-    0xFF0022CC,   //  6: Medium Blue
-    0xFF66AAFF,   //  7: Light Blue
-    0xFF885500,   //  8: Brown
-    0xFFFF4400,   //  9: Orange
-    0xFFAAAAAA,   // 10: Gray 2
-    0xFFFF8888,   // 11: Pink
-    0xFF00DD00,   // 12: Light Green
-    0xFFFFFF00,   // 13: Yellow
-    0xFF44FFDD,   // 14: Aqua
-    0xFFFFFFFF,   // 15: White
-};
 
 
 
@@ -240,7 +217,7 @@ void AppleDoubleHiResMode::Render (
                        | (dots[cell + 2] ? 8 : 0)
                        | (dots[cell + 3] ? 1 : 0);
 
-            color = kDhrColors[paletteIdx];
+            color = kAppleColors[paletteIdx];
 
             for (int dotInCell = 0; dotInCell < 4; dotInCell++)
             {
