@@ -214,26 +214,28 @@ CYLON_HZ   = 72.0         # a Centurion: low, level, and not in a hurry
 RATE_CYLON = 0x50
 
 def cylon():
-    """A Centurion line from the 1978 pilot. The stress in "command" is the
-    show's own: the pitch climbs into the last syllable and settles.
+    """A Centurion line from the 1978 pilot, on one pitch from end to end.
 
-    The address that follows is a subordinate naming his superior, so it goes
-    the other way -- below where the line started and level, with none of the
-    climb. "Imperious" carries its stress on the second syllable, ih-PEER-ee-us,
-    and the diphthong is spelled the way "greetings" spells the same vowel.
+    A Centurion has no prosody at all, and the earlier draft of this line had
+    a great deal of it: six pitch escapes spanning 70 to 94 Hz, a range of
+    five semitones, with a 3.7-semitone leap onto the last syllable of
+    "command". Written as English stress, heard as a person. The whole line is
+    one pitch escape now, and the only contrast left is duration -- vowels
+    long, consonants short -- which segments the syllables without pitching
+    them.
     """
-    c = lambda f: setp(f, RATE_CYLON)
     s = clear_caption()
-    s += c(CYLON_HZ) + cap("BY") + [P("B", QUICK), P("AH1", LONG), P("I", SHORT)]
-    s += cap("YOUR")             + [P("Y", SHORT), P("OO", MED), P("R1", SHORT)]
-    s += c(76.0) + cap("COMMAND,") + [P("K", QUICK), P("UH3", SHORT), P("M", SHORT)]
-    s += c(94.0)                 + [P("AE", LONG), P("AE", MED)]
-    s += c(82.0)                 + [P("N", MED), P("D", QUICK), P("PA", MED)]
-    s += c(74.0) + cap("IMPERIOUS") + [P("I", SHORT), P("M", SHORT), P("P", QUICK),
-                                       P("E", LONG), P("R1", SHORT), P("E", SHORT),
-                                       P("UH2", SHORT), P("S", SHORT)]
-    s += c(70.0) + cap("LEADER.") + [P("L1", SHORT), P("E", LONG), P("D", QUICK),
-                                     P("ER", MED), P("PA", LONG)]
+    s += setp(CYLON_HZ, RATE_CYLON)
+    s += cap("BY")        + [P("B", QUICK), P("AH1", LONG), P("I", SHORT)]
+    s += cap("YOUR")      + [P("Y", SHORT), P("OO", MED), P("R1", SHORT)]
+    s += cap("COMMAND,")  + [P("K", QUICK), P("UH3", SHORT), P("M", SHORT),
+                             P("AE", LONG), P("AE", MED),
+                             P("N", MED), P("D", QUICK), P("PA", MED)]
+    s += cap("IMPERIOUS") + [P("I", SHORT), P("M", SHORT), P("P", QUICK),
+                             P("E", LONG), P("R1", SHORT), P("E", SHORT),
+                             P("UH2", SHORT), P("S", SHORT)]
+    s += cap("LEADER.")   + [P("L1", SHORT), P("E", LONG), P("D", QUICK),
+                             P("ER", MED), P("PA", LONG)]
     return s
 
 
