@@ -10,7 +10,6 @@
 #include "Widgets/DxuiInfoBanner.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiRadio.h"
 #include "Widgets/DxuiToggle.h"
 #include "Widgets/DxuiSlider.h"
 
@@ -57,7 +56,7 @@ class DxuiHwndSource;
 class PrintingPage : public DxuiPropertyPage
 {
 public:
-    explicit PrintingPage (std::wstring title = L"Printing and Screenshots");
+    explicit PrintingPage (std::wstring title = L"Printing");
 
     // Backing store; seeds the controls and wires their change callbacks.
     void  SetPrefs             (GlobalUserPrefs * prefs);
@@ -82,41 +81,6 @@ public:
     DxuiCheckbox       & GetPanOverrideCheckbox ()       { return m_panOverride;  }
     DxuiSlider         & GetPanSlider           ()       { return m_pan;          }
     DxuiButton         & ResetButton            ()       { return m_reset;        }
-    DxuiRadioGroup     & GetCaptureModeRadios   ()       { return m_captureMode;  }
-
-    // Capture-mode token <-> radio index. The radio order is scene / crt /
-    // raw, default first; the mapping is explicit rather than a cast so that
-    // reordering the radios cannot silently repoint a stored setting.
-    //
-    // Public because it IS the logic on this page -- the rest is widget
-    // plumbing Dxui already tests -- and a mapping that cannot be pinned
-    // without a device and a window is a mapping nothing pins.
-    static int          CaptureModeToIndex (const std::string & token);
-    static const char * IndexToCaptureMode (int index);
-
-    // What the folder row shows. An empty preference means "the default", so
-    // the row shows the default's real path rather than nothing -- a blank
-    // field would read as unset when it is in fact working.
-    //
-    // Long paths keep their last two components behind an ellipsis: the tail
-    // is what tells one configured folder from another, and the head is the
-    // part every path on the machine has in common.
-    static std::wstring FolderForDisplay (const std::string & configured,
-                                          const std::wstring & defaultFolder,
-                                          size_t               maxChars);
-
-    // Folder actions the page cannot perform itself -- both open shell UI, so
-    // the shell installs them.
-    using FolderFn = std::function<void ()>;
-    void  SetOnBrowseFolder (FolderFn fn) { m_onBrowseFolder = std::move (fn); }
-    void  SetOnOpenFolder   (FolderFn fn) { m_onOpenFolder   = std::move (fn); }
-
-    // The default destination, so the folder row can show it when no folder
-    // has been configured. Set by the sheet when it opens the page.
-    void  SetDefaultScreenshotFolder (const std::wstring & path) { m_defaultShotFolder = path; }
-
-    DxuiToggle         & GetSaveFileToggle      ()       { return m_saveFile;     }
-    DxuiButton         & GetBrowseFolderButton  ()       { return m_browseFolder; }
 
 private:
     static RECT  MakeRect        (int l, int t, int w, int h);
@@ -129,11 +93,6 @@ private:
     // volume + manual-pan controls follow the master toggle, and the pan
     // slider additionally follows the manual-pan checkbox.
     void  ApplyEnabledState     ();
-
-    // Puts the current destination on the folder row. Called from Layout and
-    // Rebuild both, since the sheet supplies the default and the prefs after
-    // the first layout has already run.
-    void  RefreshFolderText     ();
 
     // Put every pref on the page back to the GlobalUserPrefs field defaults
     // and re-sync the widgets (explicitly -- NOT via Rebuild, which would
@@ -158,24 +117,4 @@ private:
     DxuiSlider    m_pan;
 
     DxuiButton    m_reset;
-
-    //  Screenshots. Second section on the page: printing stays first so a
-    //  user navigating to printer settings still lands on them.
-    DxuiLabel       m_screenshotHeading;
-    DxuiLabel       m_captureModeLabel;
-    DxuiRadioGroup  m_captureMode;
-
-    //  Saving, and where. The folder row is a CHILD of the toggle: with
-    //  saving off there is no file to have a folder for, so the row dims
-    //  rather than sitting there inviting a change that does nothing.
-    DxuiLabel       m_saveFileLabel;
-    DxuiToggle      m_saveFile;
-    DxuiLabel       m_folderLabel;
-    DxuiLabel       m_folderPath;
-    DxuiButton      m_browseFolder;
-    DxuiButton      m_openFolder;
-
-    FolderFn        m_onBrowseFolder;
-    FolderFn        m_onOpenFolder;
-    std::wstring    m_defaultShotFolder;
 };

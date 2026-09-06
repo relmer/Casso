@@ -221,9 +221,10 @@ void DxuiRadioGroup::Commit (int newIndex)
 //  Draws each option: the circle, the selected dot, the focus ring, and the
 //  label.
 //
-//  The circle is vertically CENTERED in its option rect rather than
-//  top-aligned, so a row whose label wraps to two lines keeps its control
-//  beside the text block instead of floating at the top of it.
+//  The circle centers on the LABEL, not on the option rect. For a plain
+//  option those are the same thing. For a described one they are not: the box
+//  is two lines tall, and centering on it would float the circle down between
+//  the label and the description, pointing at neither.
 //
 //  Circles are drawn with the painter's polygon approximation because the
 //  painter has no true circle primitive -- it is a solid-triangle batcher, and
@@ -248,10 +249,11 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     constexpr float  s_kFocusThickDip = 1.0f;
     constexpr float  s_kLabelGapDip   = 6.0f;
     constexpr float  s_kFontDip       = 13.0f;
-    // The first line of a described option. The label sits in this band and
-    // the description gets whatever the caller's rect has left over.
+    // The first line of a described option. The label sits in this band, the
+    // BUTTON CENTERS ON IT, and the description gets whatever the caller's
+    // rect has left over. Centering the button on the whole box instead would
+    // float it down beside the description, pointing at neither line.
     constexpr float  s_kLabelLineDip  = 20.0f;
-    constexpr float  s_kDescFontDip   = 11.0f;
 
 
 
@@ -277,8 +279,10 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         float                    cy      = 0.0f;
         float                    outerR  = 0.0f;
         float                    innerR  = 0.0f;
-        float               boxTop   = (float) opt.rect.top
-                                       + ((float) (opt.rect.bottom - opt.rect.top) - boxSize) * 0.5f;
+        float               labelBand = opt.description.empty()
+                                        ? (float) (opt.rect.bottom - opt.rect.top)
+                                        : m_scaler.ToPxf (s_kLabelLineDip);
+        float               boxTop    = (float) opt.rect.top + (labelBand - boxSize) * 0.5f;
         cx = boxLeft + boxSize * 0.5f;
         cy = boxTop  + boxSize * 0.5f;
         outerR = boxSize * 0.5f;
@@ -338,7 +342,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                   textWidth,
                                   rowHeight - labelH,
                                   descColor,
-                                  m_scaler.ToPxf (s_kDescFontDip),
+                                  fontDip,
                                   DxuiTheme::kBodyFace,
                                   DxuiTextHAlign::Left,
                                   DxuiTextVAlign::Top);

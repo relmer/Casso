@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/Settings/PrintingPage.h"
+#include "Ui/Settings/ScreenshotsPage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -10,7 +10,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintingPageTests
+//  ScreenshotsPageTests
 //
 //  The capture-mode mapping between the stored token and the radio's index.
 //
@@ -24,23 +24,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (PrintingPageTests)
+TEST_CLASS (ScreenshotsPageTests)
 {
 public:
 
     TEST_METHOD (CaptureModeToIndex_MapsEachToken)
     {
-        Assert::AreEqual (0, PrintingPage::CaptureModeToIndex ("scene"));
-        Assert::AreEqual (1, PrintingPage::CaptureModeToIndex ("crt"));
-        Assert::AreEqual (2, PrintingPage::CaptureModeToIndex ("raw"));
+        Assert::AreEqual (0, ScreenshotsPage::CaptureModeToIndex ("scene"));
+        Assert::AreEqual (1, ScreenshotsPage::CaptureModeToIndex ("crt"));
+        Assert::AreEqual (2, ScreenshotsPage::CaptureModeToIndex ("raw"));
     }
 
 
     TEST_METHOD (IndexToCaptureMode_MapsEachIndex)
     {
-        Assert::AreEqual ("scene", PrintingPage::IndexToCaptureMode (0));
-        Assert::AreEqual ("crt",   PrintingPage::IndexToCaptureMode (1));
-        Assert::AreEqual ("raw",   PrintingPage::IndexToCaptureMode (2));
+        Assert::AreEqual ("scene", ScreenshotsPage::IndexToCaptureMode (0));
+        Assert::AreEqual ("crt",   ScreenshotsPage::IndexToCaptureMode (1));
+        Assert::AreEqual ("raw",   ScreenshotsPage::IndexToCaptureMode (2));
     }
 
 
@@ -51,10 +51,10 @@ public:
 
         for (i = 0; i < (int) std::size (tokens); i++)
         {
-            int   index = PrintingPage::CaptureModeToIndex (tokens[i]);
+            int   index = ScreenshotsPage::CaptureModeToIndex (tokens[i]);
 
             Assert::AreEqual (i, index);
-            Assert::AreEqual (tokens[i], PrintingPage::IndexToCaptureMode (index));
+            Assert::AreEqual (tokens[i], ScreenshotsPage::IndexToCaptureMode (index));
         }
     }
 
@@ -63,8 +63,8 @@ public:
     // ever stops being true the default option stops being the top one.
     TEST_METHOD (SceneIsFirstBecauseTheDefaultLeadsTheGroup)
     {
-        Assert::AreEqual (0, PrintingPage::CaptureModeToIndex ("scene"));
-        Assert::AreEqual ("scene", PrintingPage::IndexToCaptureMode (0));
+        Assert::AreEqual (0, ScreenshotsPage::CaptureModeToIndex ("scene"));
+        Assert::AreEqual ("scene", ScreenshotsPage::IndexToCaptureMode (0));
     }
 
 
@@ -73,8 +73,8 @@ public:
     // loader follows, so the page and the setting agree about an unknown value.
     TEST_METHOD (AnUnknownTokenSelectsTheDefault)
     {
-        Assert::AreEqual (0, PrintingPage::CaptureModeToIndex ("hologram"));
-        Assert::AreEqual (0, PrintingPage::CaptureModeToIndex (""));
+        Assert::AreEqual (0, ScreenshotsPage::CaptureModeToIndex ("hologram"));
+        Assert::AreEqual (0, ScreenshotsPage::CaptureModeToIndex (""));
     }
 
 
@@ -82,9 +82,9 @@ public:
     // parse would be worse than writing the default.
     TEST_METHOD (AnOutOfRangeIndexWritesTheDefaultToken)
     {
-        Assert::AreEqual ("scene", PrintingPage::IndexToCaptureMode (-1));
-        Assert::AreEqual ("scene", PrintingPage::IndexToCaptureMode (3));
-        Assert::AreEqual ("scene", PrintingPage::IndexToCaptureMode (99));
+        Assert::AreEqual ("scene", ScreenshotsPage::IndexToCaptureMode (-1));
+        Assert::AreEqual ("scene", ScreenshotsPage::IndexToCaptureMode (3));
+        Assert::AreEqual ("scene", ScreenshotsPage::IndexToCaptureMode (99));
     }
 
 
@@ -98,14 +98,14 @@ public:
     TEST_METHOD (AnUnsetFolderShowsTheDefaultPath)
     {
         Assert::AreEqual (std::wstring (L"C:\\Pics\\Casso Screenshots"),
-                          PrintingPage::FolderForDisplay ("", L"C:\\Pics\\Casso Screenshots", 60));
+                          ScreenshotsPage::FolderForDisplay ("", L"C:\\Pics\\Casso Screenshots", 60));
     }
 
 
     TEST_METHOD (AConfiguredFolderIsShownInsteadOfTheDefault)
     {
         Assert::AreEqual (std::wstring (L"D:\\Shots"),
-                          PrintingPage::FolderForDisplay ("D:\\Shots", L"C:\\Pics\\Casso Screenshots", 60));
+                          ScreenshotsPage::FolderForDisplay ("D:\\Shots", L"C:\\Pics\\Casso Screenshots", 60));
     }
 
 
@@ -113,7 +113,7 @@ public:
     // path on the machine has in common, so the head is the half to lose.
     TEST_METHOD (ALongPathKeepsItsTailBehindAnEllipsis)
     {
-        std::wstring   shown = PrintingPage::FolderForDisplay (
+        std::wstring   shown = ScreenshotsPage::FolderForDisplay (
             "C:\\Users\\somebody\\OneDrive\\Documents\\Emulation\\Captures\\Casso",
             L"", 30);
 
@@ -127,7 +127,7 @@ public:
     // and is not, so the ellipsis lands on a separator.
     TEST_METHOD (TheEllipsisLandsOnAComponentBoundary)
     {
-        std::wstring   shown = PrintingPage::FolderForDisplay (
+        std::wstring   shown = ScreenshotsPage::FolderForDisplay (
             "C:\\Users\\somebody\\OneDrive\\Documents\\Emulation\\Captures\\Casso",
             L"", 30);
 
@@ -137,7 +137,7 @@ public:
 
     TEST_METHOD (AShortPathIsNotElided)
     {
-        std::wstring   shown = PrintingPage::FolderForDisplay ("D:\\Shots", L"", 30);
+        std::wstring   shown = ScreenshotsPage::FolderForDisplay ("D:\\Shots", L"", 30);
 
         Assert::AreEqual (std::wstring (L"D:\\Shots"), shown);
         Assert::IsTrue (shown.find (L"...") == std::wstring::npos);
@@ -148,7 +148,7 @@ public:
     // it still has to come back within budget rather than overflow the row.
     TEST_METHOD (ASingleOverlongComponentIsStillTrimmed)
     {
-        std::wstring   shown = PrintingPage::FolderForDisplay (
+        std::wstring   shown = ScreenshotsPage::FolderForDisplay (
             "D:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", L"", 20);
 
         Assert::IsTrue (shown.length() <= 20);
@@ -156,15 +156,12 @@ public:
     }
 
 
-    // The page's own default title carries both subjects. Printing keeps the
-    // first word so a user navigating to printer settings still recognizes it.
-    TEST_METHOD (ThePageTitleNamesBothSubjectsPrintingFirst)
+    // The tab is named for its subject; the page carries no heading repeating
+    // it.
+    TEST_METHOD (ThePageIsNamedForItsSubject)
     {
-        PrintingPage   page;
-        std::wstring   title = page.GetTitle();
+        ScreenshotsPage   page;
 
-        Assert::IsTrue (title.find (L"Printing") != std::wstring::npos);
-        Assert::IsTrue (title.find (L"Screenshots") != std::wstring::npos);
-        Assert::IsTrue (title.find (L"Printing") < title.find (L"Screenshots"));
+        Assert::AreEqual (std::wstring (L"Screenshots"), page.GetTitle());
     }
 };

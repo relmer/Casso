@@ -15,23 +15,6 @@ static constexpr int    s_kChildIndentDp   = 18;    // one nesting step (matches
 static constexpr int    s_kSectionGapDp    = 14;
 static constexpr int    s_kPagePadDp       = 16;
 
-// A described radio row: one line of label over one of description, which
-// needs roughly twice a plain row rather than the 28 an undescribed one takes.
-static constexpr int    s_kCaptureOptionHeightDp = 34;
-
-// The screenshots section runs tighter than the printing section above it:
-// the page carries both, and measured, the ordinary 14 DIP gap put the folder
-// row through the OK / Cancel bar. The rows are still a full row-height apart,
-// so it reads as a denser group rather than a cramped one.
-static constexpr int    s_kShotRowGapDp          = 8;
-
-// The folder row shares one line between the path and its two buttons, since
-// three rows do not fit in what the page has left.
-static constexpr int    s_kFolderPathWidthDp     = 200;
-static constexpr int    s_kFolderButtonWidthDp   = 88;
-static constexpr int    s_kFolderButtonGapDp     = 8;
-static constexpr size_t s_kFolderPathMaxChars    = 30;
-
 
 
 
@@ -49,72 +32,6 @@ RECT PrintingPage::MakeRect (int l, int t, int w, int h)
 
 
     return rc;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintingPage::CaptureModeToIndex
-//
-//  Stored token -> radio index, in the radio order: scene / crt / raw.
-//
-//  Spelled out rather than cast from the enum. The enum's declaration order
-//  and the radio's display order are two different things that happen to
-//  agree today, and a cast would quietly turn a change to either one into a
-//  wrong setting rather than a compile error.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int PrintingPage::CaptureModeToIndex (const std::string & token)
-{
-    int   index = 0;
-
-
-
-    if (token == "crt")
-    {
-        index = 1;
-    }
-    else if (token == "raw")
-    {
-        index = 2;
-    }
-
-    return index;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintingPage::IndexToCaptureMode
-//
-//  The inverse. An index outside the set resolves to the default rather than
-//  writing a token nothing can parse.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const char * PrintingPage::IndexToCaptureMode (int index)
-{
-    const char *   token = "scene";
-
-
-
-    if (index == 1)
-    {
-        token = "crt";
-    }
-    else if (index == 2)
-    {
-        token = "raw";
-    }
-
-    return token;
 }
 
 
@@ -163,101 +80,6 @@ PrintingPage::PrintingPage (std::wstring title)
     Adopt (m_panLabel);
     Adopt (m_pan);
     Adopt (m_reset);
-    Adopt (m_screenshotHeading);
-    Adopt (m_captureModeLabel);
-    Adopt (m_captureMode);
-    Adopt (m_saveFileLabel);
-    Adopt (m_saveFile);
-    Adopt (m_folderLabel);
-    Adopt (m_folderPath);
-    Adopt (m_browseFolder);
-    Adopt (m_openFolder);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintingPage::RefreshFolderText
-//
-//  Puts the current destination on the folder row.
-//
-//  Called from BOTH Layout and Rebuild, which is the point: the sheet supplies
-//  the default folder and the prefs after the page has already laid out once,
-//  so a Layout-only assignment leaves the row blank until something else
-//  provokes a re-layout -- and a blank row reads as a broken setting rather
-//  than an unset one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PrintingPage::RefreshFolderText()
-{
-    m_folderPath.SetText (FolderForDisplay (m_prefs != nullptr ? m_prefs->screenshotFolder : string(),
-                                            m_defaultShotFolder,
-                                            s_kFolderPathMaxChars));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrintingPage::FolderForDisplay
-//
-//  What the folder row says.
-//
-//  An unset preference means "the default", and the row shows the default's
-//  real path rather than an empty field -- blank reads as broken when the
-//  feature is in fact working, and the user cannot tell where their files are
-//  going without leaving the page.
-//
-//  A path too long for the row keeps its LAST components. The tail is what
-//  distinguishes one configured folder from another; the head is what every
-//  path on the machine has in common, so it is the half worth losing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring PrintingPage::FolderForDisplay (const std::string &  configured,
-                                             const std::wstring & defaultFolder,
-                                             size_t               maxChars)
-{
-    std::wstring   path;
-    size_t         cut  = std::wstring::npos;
-
-
-
-    if (configured.empty())
-    {
-        path = defaultFolder;
-    }
-    else
-    {
-        path.assign (configured.begin(), configured.end());
-    }
-
-    if (path.length() <= maxChars || maxChars < 8)
-    {
-        return path;
-    }
-
-    //  Walk back from the end to a separator, so the ellipsis lands on a
-    //  component boundary rather than mid-name.
-    cut = path.rfind (L'\\', path.length() - 1);
-
-    if (cut != std::wstring::npos && cut > 0)
-    {
-        cut = path.rfind (L'\\', cut - 1);
-    }
-
-    if (cut == std::wstring::npos || (path.length() - cut) > maxChars)
-    {
-        return L"..." + path.substr (path.length() - (maxChars - 3));
-    }
-
-    return L"..." + path.substr (cut);
 }
 
 
@@ -330,7 +152,6 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  resetWidth  = scaler.ToPx (s_kResetWidthDp);
     int  childIndent = scaler.ToPx (s_kChildIndentDp);
     int  sectionGap  = scaler.ToPx (s_kSectionGapDp);
-    int  shotGap     = scaler.ToPx (s_kShotRowGapDp);
     int  x           = rect.left + pad;
     int  y           = rect.top  + pad;
     int  controlsX   = x + labelWidth;
@@ -385,77 +206,6 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_reset.Layout   (MakeRect (controlsX, y, resetWidth, rowHeight));
     y += rowHeight + sectionGap;
 
-    //  SCREENSHOTS. Second section, below printing, on one page because both
-    //  answer the same question: where what Casso emits ends up on the host.
-    m_screenshotHeading.SetRect (MakeRect (x, y, bannerWidth, rowHeight));
-    m_screenshotHeading.SetText (L"Screenshots");
-    y += rowHeight + shotGap;
-
-    m_captureModeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_captureModeLabel.SetText (L"Capture:");
-
-    //  RADIOS, NOT A DROPDOWN, and described. The three modes are not
-    //  self-explanatory from a one-word label -- a user has no prior name for
-    //  the difference between the scene and the picture -- so each option
-    //  carries a line saying what it actually contains. Described options need
-    //  a taller row than a plain one, which the widget splits rather than
-    //  grows into.
-    {
-        int   optionH  = scaler.ToPx (s_kCaptureOptionHeightDp);
-        int   optionW  = (rect.right - rect.left) - (controlsX - rect.left) - pad;
-        int   optionY  = y;
-
-        std::vector<DxuiRadioOption>  options;
-
-        auto  addOption = [&] (const wchar_t * label, const wchar_t * description)
-        {
-            DxuiRadioOption   opt;
-
-            opt.rect        = MakeRect (controlsX, optionY, optionW, optionH);
-            opt.label       = label;
-            opt.description = description;
-            options.push_back (opt);
-            optionY += optionH;
-        };
-
-        addOption (L"Scene",   L"The desk as it looks: monitor, glass and drives.");
-        addOption (L"Picture", L"The screen with its CRT effects, nothing around it.");
-        addOption (L"Raw",     L"The unprocessed screen, always 560x384.");
-
-        m_captureMode.SetOptions (options);
-        m_captureMode.SetBounds  (MakeRect (controlsX, y, optionW, optionH * 3));
-
-        y = optionY + shotGap;
-    }
-
-    m_saveFileLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_saveFileLabel.SetText (L"Save a file:");
-    m_saveFile.SetRect      (MakeRect (controlsX, y, checkWidth, rowHeight));
-    y += rowHeight + shotGap;
-
-    //  The folder row: label, the path, then the two actions. One row rather
-    //  than three because the page has about a hundred DIP left below the
-    //  radios and three rows do not fit in it.
-    {
-        int   pathW   = scaler.ToPx (s_kFolderPathWidthDp);
-        int   btnW    = scaler.ToPx (s_kFolderButtonWidthDp);
-        int   gap     = scaler.ToPx (s_kFolderButtonGapDp);
-
-        m_folderLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
-        m_folderLabel.SetText (L"Folder:");
-
-        m_folderPath.SetRect (MakeRect (controlsX, y, pathW, rowHeight));
-        RefreshFolderText();
-
-        m_browseFolder.SetLabel (L"Browse...");
-        m_browseFolder.Layout   (MakeRect (controlsX + pathW + gap, y, btnW, rowHeight));
-
-        m_openFolder.SetLabel (L"Open");
-        m_openFolder.Layout   (MakeRect (controlsX + pathW + gap * 2 + btnW, y, btnW, rowHeight));
-
-        y += rowHeight + shotGap;
-    }
-
     m_dpiLabel.SetDpi      (dpi);
     m_dpi.SetDpi           (dpi);
     m_styleLabel.SetDpi    (dpi);
@@ -468,15 +218,6 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_panLabel.SetDpi      (dpi);
     m_pan.SetDpi           (dpi);
     m_reset.SetDpi         (dpi);
-    m_screenshotHeading.SetDpi (dpi);
-    m_captureModeLabel.SetDpi  (dpi);
-    m_captureMode.SetDpi       (dpi);
-    m_saveFileLabel.SetDpi     (dpi);
-    m_saveFile.SetDpi          (dpi);
-    m_folderLabel.SetDpi       (dpi);
-    m_folderPath.SetDpi        (dpi);
-    m_browseFolder.SetDpi      (dpi);
-    m_openFolder.SetDpi        (dpi);
 
     DxuiPanel::SetBounds (rect);
 }
@@ -511,40 +252,7 @@ void PrintingPage::Rebuild()
     m_volume.SetValue      (prefs->printerAudioVolume * 100.0f);
     m_panOverride.SetChecked (prefs->printerAudioPanOverride);
     m_pan.SetValue         (prefs->printerAudioPan * 100.0f);
-    m_captureMode.SetSelected (CaptureModeToIndex (prefs->screenshotMode));
     ApplyEnabledState      ();
-
-    m_saveFile.SetChecked (prefs->screenshotSaveFile);
-    RefreshFolderText();
-
-    m_captureMode.SetOnChange ([this, prefs] (int idx)
-    {
-        prefs->screenshotMode = IndexToCaptureMode (idx);
-        MarkDirty();
-    });
-
-    m_saveFile.SetOnChange ([this, prefs] (bool checked)
-    {
-        prefs->screenshotSaveFile = checked;
-        ApplyEnabledState();
-        MarkDirty();
-    });
-
-    m_browseFolder.SetOnClick ([this] ()
-    {
-        if (m_onBrowseFolder)
-        {
-            m_onBrowseFolder();
-        }
-    });
-
-    m_openFolder.SetOnClick ([this] ()
-    {
-        if (m_onOpenFolder)
-        {
-            m_onOpenFolder();
-        }
-    });
 
     m_dpi.SetSelect ([this, prefs] (int idx)
     {
@@ -736,17 +444,4 @@ void PrintingPage::ApplyEnabledState()
 
     m_volumeLabel.SetTextRole (childRole);
     m_panLabel.SetTextRole    (panRole);
-
-    //  With saving off there is no file to have a folder for, so the folder
-    //  row dims rather than sitting there inviting a change that does nothing.
-    {
-        bool          savingOn   = (m_prefs != nullptr) && m_prefs->screenshotSaveFile;
-        DxuiTextRole  folderRole = savingOn ? DxuiTextRole::Body : DxuiTextRole::Disabled;
-
-        m_browseFolder.SetEnabled (savingOn);
-        m_openFolder.SetEnabled   (savingOn);
-
-        m_folderLabel.SetTextRole (folderRole);
-        m_folderPath.SetTextRole  (folderRole);
-    }
 }

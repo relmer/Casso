@@ -425,6 +425,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Settings\ScreenshotsPage.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\Ui\Settings\PrintingPage.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -595,7 +599,7 @@
     <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
     <ClCompile Include="UiTests\CrtResolverTests.cpp" />
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
-    <ClCompile Include="UiTests\PrintingPageTests.cpp" />
+    <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\SceneCameraTests.cpp" />
     <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />
