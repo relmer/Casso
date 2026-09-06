@@ -6,8 +6,11 @@ on:
   pull_request:
     branches: [master]
 
+# Least privilege at the top; the `release` job widens this for itself. Signing
+# needs `id-token: write` to mint the OIDC token Azure trades for credentials,
+# and nothing else in this file has any business minting one.
 permissions:
-  contents: write   # required by `release` job to push tags + create releases
+  contents: read
 
 jobs:
   # Full-tree style audit. The pre-push hook checks only the lines a push
@@ -158,6 +161,21 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
 
+    permissions:
+      contents: write   # push the tag + create the release
+      id-token: write   # OIDC federation to Azure Trusted Signing
+
+    # The Entra federated credential is registered against a subject that names
+    # this environment, so the name here is part of the auth, not a label.
+    environment: Release
+
+    env:
+      # Lifted into `env` so the signing steps can gate on it: `secrets` is not
+      # available in an `if`, `env` is. Empty means this repo has not been given
+      # the signing secrets yet, and the release goes out UNSIGNED rather than
+      # turning every master push red.
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+
     steps:
       - uses: actions/checkout@v6
         with:
@@ -240,22 +258,110 @@ jobs:
           name: release-arm64
           path: ARM64/Release
 
-      - name: Package release zips
+      # Staged before signing, because what gets signed has to be what gets
+      # zipped -- signing the build output and then copying it is the same
+      # mistake as testing a binary you then rebuild.
+      - name: Stage release payloads
         if: steps.check.outputs.exists != 'true'
         shell: pwsh
         run: |
           $version = '${{ steps.ver.outputs.version }}'
           New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+
+          # THE DEMO DISKS ARE NAMED, NEVER GLOBBED. Apple2\Demos also holds
+          # commercial titles that are there to be tested against and may not be
+          # redistributed, so this list is an allowlist and a wildcard would ship
+          # them. Anything added here has to be a disk Casso's own sources build.
+          #
+          # Apple2\Demos beside the exe is not an arbitrary layout:
+          # AssetBootstrap::AppendBundledDemoDisks looks for exactly that
+          # directory starting at the executable's own, so a shipped build offers
+          # these in the disk picker with no code change.
+          $demos = @(
+            'casso-rocks.dsk',
+            'mockingboard-speech-demo-hgr.dsk',
+            'mockingboard-speech-demo-dhgr.dsk',
+            'mockingboard-test.dsk'
+          )
+
           foreach ($plat in @('x64', 'ARM64')) {
             $stagingDir = "staging/Casso-$version-$plat"
-            New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+            $demoDir    = Join-Path $stagingDir 'Apple2/Demos'
+            New-Item -ItemType Directory -Path $demoDir -Force | Out-Null
             Copy-Item "$plat/Release/Casso.exe"    $stagingDir
             Copy-Item "$plat/Release/CassoCli.exe" $stagingDir
             Copy-Item README.md                    $stagingDir
             Copy-Item CHANGELOG.md                 $stagingDir
             Copy-Item LICENSE                      $stagingDir
+
+            foreach ($disk in $demos) {
+              $src = Join-Path 'Apple2/Demos' $disk
+              if (-not (Test-Path $src)) { throw "Demo disk missing from the tree: $src" }
+              Copy-Item $src $demoDir
+            }
+          }
+
+          Get-ChildItem staging -Recurse -File |
+            ForEach-Object { Write-Host "  staged: $($_.FullName)" }
+
+      - name: Azure login (OIDC)
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # One call covers both platforms: the staging tree holds x64 and ARM64
+      # side by side, and an ARM64 PE signs on an x64 runner like any other.
+      - name: Sign the staged binaries
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          trusted-signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/staging
+          files-folder-filter: exe
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # A signing action that fails is loud; one that runs and leaves a file
+      # untouched is not. Four binaries ship, so four have to read Valid.
+      - name: Verify every binary is signed
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          $bad = @()
+          Get-ChildItem staging -Recurse -Filter *.exe | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            Write-Host "  $($_.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') { $bad += $_.FullName }
+          }
+          if ($bad) { throw "Unsigned or invalid after signing: $($bad -join ', ')" }
+
+      - name: Warn that the release is unsigned
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID == ''
+        shell: pwsh
+        run: |
+          Write-Host ('::warning::AZURE_CLIENT_ID is not set, so this release ships UNSIGNED and ' +
+                      'SmartScreen will warn on first run. Add the AZURE_CLIENT_ID, ' +
+                      'AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID secrets, and register a ' +
+                      'federated credential for ' +
+                      'repo:${{ github.repository }}:environment:Release.')
+
+      - name: Package release zips
+        if: steps.check.outputs.exists != 'true'
+        shell: pwsh
+        run: |
+          $version = '${{ steps.ver.outputs.version }}'
+          foreach ($plat in @('x64', 'ARM64')) {
             $zipName = "Casso-$version-$plat.zip"
-            Compress-Archive -Path $stagingDir -DestinationPath "artifacts/$zipName" -Force
+            Compress-Archive -Path "staging/Casso-$version-$plat" -DestinationPath "artifacts/$zipName" -Force
             Write-Host "Packaged: artifacts/$zipName"
           }
 

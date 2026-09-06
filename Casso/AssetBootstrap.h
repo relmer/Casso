@@ -70,9 +70,10 @@ public:
 
     static fs::path GetDiskDirectory();
 
-    // Append disk images bundled in the source tree's Apple2/Demos
-    // directory (present only in a repo build) to `mountable`, sorted and
-    // de-duplicated against existing entries. No-op in an installed layout.
+    // Append disk images bundled in an Apple2/Demos directory to
+    // `mountable`, sorted and de-duplicated against existing entries. A repo
+    // build finds the source tree's; a release zip ships its own beside the
+    // exe. No-op where neither is present.
     static void     AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable);
 
     // Append every supported disk image found in the folders that already

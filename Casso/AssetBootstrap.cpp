@@ -1140,18 +1140,19 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 //
 //  AppendBundledDemoDisks
 //
-//  Offers the repo's Apple2/Demos images in the disk picker, so a developer
-//  build always has something to boot.
+//  Offers the Apple2/Demos images in the disk picker, so a build always has
+//  something to boot. A repo build finds the source tree's copy up the walk;
+//  a release zip carries its own next to the exe, which the i=0 pass finds
+//  first. Both arrive here as the same directory, which is why the release
+//  packaging needed no code and must keep staging the disks under that name.
 //
 //  Two different cache lifetimes are at work here, and the split is the point.
 //
 //  The DIRECTORY is located once per process and remembered, including its
-//  absence. Demos ships in the source tree rather than an installed layout, so
-//  its location is purely a function of the exe path and the repo shape, and
-//  neither changes while the process runs. A miss means this is not a repo
-//  build -- which also cannot change at runtime -- so the walk-up is never
-//  re-attempted. std::nullopt records that absence distinctly from "not yet
-//  looked".
+//  absence. Its location is purely a function of the exe path and what was
+//  shipped or checked out around it, and neither changes while the process
+//  runs, so a miss is never re-attempted. std::nullopt records that absence
+//  distinctly from "not yet looked".
 //
 //  The CONTENTS are enumerated fresh on every open, because a user can drop a
 //  new image into that directory while Casso is running and the picker should
@@ -1174,19 +1175,20 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 
 
 
-    // Locate Apple2/Demos ONCE per process. It ships in the source tree, not
-    // an installed layout, so its location is purely a function of the exe
-    // path + repo layout -- neither changes while we run. A miss means this
-    // is not a repo build, and that can't change at runtime either, so we
-    // record the absence and never re-attempt the walk-up. `std::nullopt`
-    // means "no demos dir"; a value is the resolved directory.
+    // Locate Apple2/Demos ONCE per process. Its location is purely a function
+    // of the exe path and what sits around it -- neither changes while we run
+    // -- so a miss can't change at runtime either and we record the absence
+    // rather than re-walking. `std::nullopt` means "no demos dir"; a value is
+    // the resolved directory.
     static const std::optional<fs::path>  demosDir = [] () -> std::optional<fs::path>
     {
         fs::path     cursor = PathResolver::GetExecutableDirectory();
         error_code   ecDir;
 
-        // The exe runs from <repo>/<platform>/<config>/Casso.exe, so walk a
-        // few levels up from the exe (and also try the working directory).
+        // A release zip puts Apple2/Demos beside the exe, which is the first
+        // candidate tried. A repo build runs from
+        // <repo>/<platform>/<config>/Casso.exe, so keep walking up a few
+        // levels (and also try the working directory).
         for (int i = 0; i < 4 && !cursor.empty(); ++i)
         {
             fs::path  candidate = cursor / L"Apple2" / L"Demos";
@@ -1208,15 +1210,15 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
         return std::nullopt;
     } ();
 
-    // Not a repo build -- nothing to offer, and that will never change.
+    // Neither layout has one -- nothing to offer, and that will never change.
     if (!demosDir.has_value())
     {
         return;
     }
 
-    // Enumerate the directory fresh on every open: in a repo build the user
-    // can drop a new disk image into Apple2/Demos while Casso is running, and
-    // the picker should pick it up. Listing this small directory is cheap.
+    // Enumerate the directory fresh on every open: the user can drop a new
+    // disk image into Apple2/Demos while Casso is running, and the picker
+    // should pick it up. Listing this small directory is cheap.
     for (const fs::directory_entry & entry : fs::directory_iterator (*demosDir, ec))
     {
         error_code  ecFile;

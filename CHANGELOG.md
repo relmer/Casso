@@ -8,6 +8,18 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+
+- **The release zip carries four demo disks** under `Apple2\Demos`, where the
+  disk picker already looks: `casso-rocks`, the hi-res and double hi-res
+  Mockingboard speech demos, and the Mockingboard tone demo.
+
+### Changed
+
+- **Release binaries are signed** with Azure Trusted Signing, so Windows stops
+  warning about an unknown publisher. A build with no signing secrets ships
+  unsigned with a warning rather than failing.
+
 ### Fixed
 
 - **A fresh install came up in color, then switched to green on the second
