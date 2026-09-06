@@ -152,7 +152,7 @@
 #define IDR_THEME_RETRO_FONT_OFL            351
 #define IDR_THEME_RETRO_FONT_TODO           352
 
-// Casso's own symbol font: the Open and Closed Apple keycap glyphs at
+// Casso's own symbol font: the open and closed Apple keycap glyphs at
 // U+E000 / U+E001. Unlike the theme fonts above it is never extracted to
 // disk -- AssetBootstrap::RegisterSymbolFont hands the bytes straight to
 // DirectWrite, since chrome that names a key must render whether or not the

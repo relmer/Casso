@@ -54,10 +54,11 @@ Entries before versioning was introduced use dates only.
   longer told about Open Apple, Delete or the up and down arrows it does not
   have, and the dialog sizes itself to what is left. Key, arrow and meaning
   line up in three columns.
-- **The keyboard map draws the Apple keys as the keycaps do.** The Open and
-  Closed Apple rows now carry the apple symbols themselves beside the words, so
-  a reader can match the dialog to the key under their finger. The two keycaps
-  differ only by fill, which no shipping font can express, so Casso embeds a
+- **Casso draws the Apple keys as the keycaps do.** Wherever the chrome names
+  the open or closed Apple key -- the keyboard map, the //c reset tip, the
+  input event panel -- the apple symbol now sits beside the words, so a reader
+  can match the text to the key under their finger. The two keycaps differ
+  only by fill, which no shipping font can express, so Casso embeds a
   two-glyph font of its own and teaches DirectWrite to reach for it -- the
   symbols are ordinary characters, and work anywhere text does.
 - **The keyboard map now carries only what the menus cannot say.** Its list of

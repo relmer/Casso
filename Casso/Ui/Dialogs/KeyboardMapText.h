@@ -26,12 +26,11 @@ public:
     // row the moment it gains the hardware.
     struct Machine
     {
-        // Open and Closed Apple ($C061 / $C062), a //e addition.
+        // The open and closed Apple keys ($C061 / $C062), a //e addition.
+        // The other keys the //e added -- up and down arrows, TAB, DELETE --
+        // need no flag, because they all reach their Apple equivalent under
+        // the same name and a row saying so would teach nothing.
         bool  hasAppleKeys = false;
-
-        // The keys the //e added to the keyboard: up and down arrows, TAB
-        // and DELETE. All four arrived together, so one flag covers them.
-        bool  hasTwoeKeys = false;
 
         // A game port or //e soft-switch bank to drive, without which the
         // joystick mapping has nothing to move.

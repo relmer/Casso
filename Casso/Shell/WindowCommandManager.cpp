@@ -2248,18 +2248,10 @@ void WindowCommandManager::OnHelpCommand (int id)
 
             // Read the capabilities off the live devices rather than a model
             // name, so a machine gains its row the moment it gains the
-            // hardware. The //e keyboard is what carries Open / Closed Apple;
-            // MapSpecialKey answers for the keys that model added, without
-            // this dialog needing to know which model is running.
+            // hardware. The //e keyboard is what carries the two Apple keys.
             machine.hasAppleKeys = m_shell.m_refs.iieKeyboard != nullptr;
             machine.hasGamePort  = m_shell.m_refs.iieSoftSwitches != nullptr ||
                                    m_shell.m_refs.gamePort != nullptr;
-
-            if (m_shell.m_refs.keyboard != nullptr)
-            {
-                machine.hasTwoeKeys =
-                    m_shell.m_refs.keyboard->MapSpecialKey (AppleSpecialKey::Delete) != 0;
-            }
 
             def.title = L"Keyboard map";
             def.icon  = DialogIcon::Info;

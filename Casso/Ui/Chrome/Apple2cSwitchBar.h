@@ -160,9 +160,10 @@ private:
     static constexpr const wchar_t * kLabelPower    = L"power";
     static constexpr const wchar_t * kLabelReset    = L"reset";
 
-    static constexpr wchar_t  kTipReset[] =
-        L"Reset. Inert on its own, like the real //c key.\n"
-        L"Hold Ctrl and click to reset; add Open-Apple (left Alt) to cold-boot.";
+    // Assembled rather than a literal, because the open Apple glyph arrives
+    // as a named constant and a constant cannot join a string literal at
+    // compile time. Built once on first use.
+    static const wchar_t *  GetResetTip();
     static constexpr wchar_t  kTipEighty[] =
         L"80/40 column switch. Pressed in selects 80-column startup;\n"
         L"software reads it at $C060. Takes effect when a disk boots.";

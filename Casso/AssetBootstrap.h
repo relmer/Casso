@@ -46,7 +46,7 @@ public:
     // audio simply plays it as silence. CC BY 4.0 (Scott Lawrence / BleuLlama).
     static HRESULT  EnsureImageWriterSounds (HINSTANCE hInstance);
 
-    // Hand the embedded symbol font to DirectWrite, so the Open and Closed
+    // Hand the embedded symbol font to DirectWrite, so the open and closed
     // Apple codepoints render from it anywhere chrome names those keys.
     //
     // Unlike the assets above, nothing is written to disk: the font is

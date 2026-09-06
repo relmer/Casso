@@ -40,11 +40,11 @@ std::vector<DialogTextRun> KeyboardMapText::BuildBody (const Machine & machine)
         // the two differ by fill alone and a reader who has not met them
         // cannot tell which is which from the picture. The words say which.
         row.text      = L"Left Alt";
-        row.rightText = std::wstring (s_kpszOpenApple) + L" Open Apple";
+        row.rightText = std::wstring (s_kpszOpenApple) + L" open Apple";
         body.push_back (row);
 
         row.text      = L"Right Alt";
-        row.rightText = std::wstring (s_kpszClosedApple) + L" Closed Apple";
+        row.rightText = std::wstring (s_kpszClosedApple) + L" closed Apple";
         body.push_back (row);
     }
 
@@ -52,11 +52,6 @@ std::vector<DialogTextRun> KeyboardMapText::BuildBody (const Machine & machine)
     // host's reaches the left arrow, which is the one that erases.
     row.text = L"Backspace";  row.rightText = L"Left arrow, the Apple's backspace";
     body.push_back (row);
-
-    if (machine.hasTwoeKeys)
-    {
-        row.text = L"Delete";  row.rightText = L"Delete";  body.push_back (row);
-    }
 
     if (machine.hasGamePort)
     {

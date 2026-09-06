@@ -30,7 +30,6 @@ public:
         KeyboardMapText::Machine  m;
 
         m.hasAppleKeys = false;
-        m.hasTwoeKeys  = false;
         m.hasGamePort  = true;    // the ][+ has a game port
 
         return m;
@@ -42,7 +41,6 @@ public:
         KeyboardMapText::Machine  m;
 
         m.hasAppleKeys = true;
-        m.hasTwoeKeys  = true;
         m.hasGamePort  = true;
 
         return m;
@@ -85,12 +83,10 @@ public:
     {
         std::vector<DialogTextRun>  body = KeyboardMapText::BuildBody (MakeTwoPlus());
 
-        Assert::IsFalse (Mentions (body, L"Open Apple"),
-            L"the ][+ has no Open Apple key, so no row may name one");
-        Assert::IsFalse (Mentions (body, L"Closed Apple"),
-            L"the ][+ has no Closed Apple key, so no row may name one");
-        Assert::IsFalse (Mentions (body, L"Delete"),
-            L"DELETE arrived with the //e; the ][+ row must not exist");
+        Assert::IsFalse (Mentions (body, L"open Apple"),
+            L"the ][+ has no open Apple key, so no row may name one");
+        Assert::IsFalse (Mentions (body, L"closed Apple"),
+            L"the ][+ has no closed Apple key, so no row may name one");
     }
 
     TEST_METHOD (TwoPlus_StillNamesWhatItHas)
@@ -107,9 +103,8 @@ public:
     {
         std::vector<DialogTextRun>  body = KeyboardMapText::BuildBody (MakeTwoe());
 
-        Assert::IsTrue (Mentions (body, L"Open Apple"),   L"//e has Open Apple");
-        Assert::IsTrue (Mentions (body, L"Closed Apple"), L"//e has Closed Apple");
-        Assert::IsTrue (Mentions (body, L"Delete"),       L"//e has DELETE");
+        Assert::IsTrue (Mentions (body, L"open Apple"),   L"//e has an open Apple key");
+        Assert::IsTrue (Mentions (body, L"closed Apple"), L"//e has a closed Apple key");
     }
 
     //  The dialog sizes itself from the rows, so a machine with fewer keys
@@ -135,8 +130,26 @@ public:
 
         Assert::IsFalse (Mentions (body, L"Joystick"),
             L"with no game port there is nothing for the arrows to drive");
-        Assert::IsTrue (Mentions (body, L"Open Apple"),
+        Assert::IsTrue (Mentions (body, L"open Apple"),
             L"dropping the joystick rows must not disturb the key rows");
+    }
+
+    //  A row whose halves say the same thing teaches nothing: Delete meant
+    //  Delete, and each cursor key meant itself. Pinned as a rule rather than
+    //  as the absence of one row, so the next one to be written fails here.
+    TEST_METHOD (NoRowExplainsAKeyToItself)
+    {
+        for (const KeyboardMapText::Machine & m : { MakeTwoPlus(), MakeTwoe() })
+        {
+            for (const DialogTextRun & run : KeyboardMapText::BuildBody (m))
+            {
+                if (run.IsColumnRow())
+                {
+                    Assert::AreNotEqual (run.text, run.rightText,
+                        L"a row mapping a key to its own name says nothing");
+                }
+            }
+        }
     }
 
     //  Every key row is a column row, because the arrows have to line up.
@@ -144,8 +157,8 @@ public:
     {
         std::vector<DialogTextRun>  body = KeyboardMapText::BuildBody (MakeTwoe());
 
-        Assert::IsTrue (CountColumnRows (body) >= 4,
-            L"Open Apple, Closed Apple, Backspace and Delete are all column rows");
+        Assert::IsTrue (CountColumnRows (body) >= 3,
+            L"the two Apple keys and Backspace are all column rows");
 
         for (const DialogTextRun & run : body)
         {

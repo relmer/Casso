@@ -3,8 +3,8 @@ CassoSymbols.ttf
 
 A two-glyph symbol font holding the Apple II keycap symbols:
 
-    U+E000   Open Apple    (outline)
-    U+E001   Closed Apple  (filled)
+    U+E000   open Apple    (outline)
+    U+E001   closed Apple  (filled)
 
 Both glyphs come from one drawing. The closed apple is the artwork as drawn;
 the open apple is the same region hollowed out by an inward offset, so the two

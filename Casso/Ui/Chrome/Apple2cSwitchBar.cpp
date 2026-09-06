@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "Apple2cSwitchBar.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -312,6 +313,32 @@ Apple2cSwitchBar::Part Apple2cSwitchBar::GetPartAt (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetResetTip
+//
+//  The reset tip, carrying the open Apple keycap symbol beside the words. A
+//  named glyph constant cannot join a string literal at compile time, so the
+//  tip is assembled once on first use rather than declared as one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * Apple2cSwitchBar::GetResetTip()
+{
+    static const std::wstring  tip =
+        std::wstring (L"Reset. Inert on its own, like the real //c key.\n"
+                      L"Hold Ctrl and click to reset; add ") +
+        s_kpszOpenApple + L" open Apple (left Alt) to cold-boot.";
+
+
+
+    return tip.c_str();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTooltipTextAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,10 +352,10 @@ const wchar_t * Apple2cSwitchBar::GetTooltipTextAt (int x, int y) const
 
     switch (GetPartAt (x, y))
     {
-        case Part::Reset:       tip = kTipReset;    break;
-        case Part::EightyForty: tip = kTipEighty;   break;
-        case Part::Keyboard:    tip = kTipKeyboard; break;
-        default:                                    break;
+        case Part::Reset:       tip = GetResetTip(); break;
+        case Part::EightyForty: tip = kTipEighty;    break;
+        case Part::Keyboard:    tip = kTipKeyboard;  break;
+        default:                                     break;
     }
 
     return tip;

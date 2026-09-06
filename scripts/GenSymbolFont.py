@@ -1,4 +1,4 @@
-"""Build the two-glyph symbol font behind Casso's Open and Closed Apple keys.
+"""Build the two-glyph symbol font behind Casso's open and closed Apple keys.
 
     U+E000  open   (outline)
     U+E001  closed (filled)

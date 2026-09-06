@@ -46,8 +46,8 @@ static constexpr LPCWSTR s_kpszMdl2Accept    = L"\xE73E";       // U+E73E Segoe 
 // The two Apple keys of a //e or //c keyboard. Both keycaps carry the same
 // apple and only the fill tells them apart, which is why no shipping font
 // has the pair.
-static constexpr LPCWSTR s_kpszOpenApple     = L"\xE000";       // U+E000 Open Apple (outline)
-static constexpr LPCWSTR s_kpszClosedApple   = L"\xE001";       // U+E001 Closed Apple (filled)
+static constexpr LPCWSTR s_kpszOpenApple     = L"\xE000";       // U+E000 open Apple (outline)
+static constexpr LPCWSTR s_kpszClosedApple   = L"\xE001";       // U+E001 closed Apple (filled)
 
 // The range registered for that font. Keep it tight: the private use area is
 // shared with Segoe MDL2 above, and a mapping that reached those codepoints
