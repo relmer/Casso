@@ -231,12 +231,10 @@ static const wchar_t * const  s_kpszCaptureNotice =
 // the user wants to look at.
 static constexpr int64_t s_kScreenshotNoticeMs      = 4000;
 
-// The screenshot notice's own band. Taller than the line it holds: the halo
-// behind the text spreads past the ink, and a rect fitted to the glyphs would
-// clip its own shadow against the edges.
-static constexpr int     s_kScreenshotNoticeHeightDp = 44;
-static constexpr int     s_kScreenshotNoticeInsetDp  = 16;
-static constexpr float   s_kScreenshotNoticeFontDip  = DxuiHudNotice::kFontDip;
+// How much of the picture the notice's scrim lets through. Enough dimming
+// that a filename stays legible over a bright screen, little enough that what
+// was just captured is still visible behind the words describing it.
+static constexpr float   s_kScreenshotNoticeScrimAlpha = 0.82f;
 
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
@@ -4495,7 +4493,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_driveBandSurface);
     m_host->GetRoot().Adopt (m_driveChrome[0]);
     m_host->GetRoot().Adopt (m_driveChrome[1]);
-    m_host->GetRoot().Adopt (m_screenshotNotice);
     m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
@@ -4561,6 +4558,25 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  reads as something that failed to lay out.
     m_captureBar.SetCentered (true);
     m_captureBar.SetVisible  (false);
+
+    //  THE SCREENSHOT NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both
+    //  are up the result of the screenshot is the one on top -- it is the
+    //  newer of the two, and the older one is still readable in the strip
+    //  above it.
+    //
+    //  Its backing is a SCRIM rather than the panel color the capture bar
+    //  uses: this bar hangs over the picture instead of docking above it, and
+    //  filling that strip opaque would take a slice out of what the user is
+    //  looking at every time they photograph it.
+    m_screenshotNoticeScrim.SetToken   (DxuiSurface::Token::Background);
+    m_screenshotNoticeScrim.SetOpacity (s_kScreenshotNoticeScrimAlpha);
+    m_screenshotNoticeScrim.SetVisible (false);
+    m_host->GetRoot().Adopt (m_screenshotNoticeScrim);
+    m_host->GetRoot().Adopt (m_screenshotNotice);
+
+    m_screenshotNotice.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_screenshotNotice.SetCentered (true);
+    m_screenshotNotice.SetVisible  (false);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -9771,48 +9787,117 @@ void EmulatorShell::ShowCaptureNotice (const std::wstring & text)
 //
 //  Lay the notice out while it is live, and drop it once it expires.
 //
-//  It sits where the mouse-capture banner does, since both are transient
-//  messages about the window rather than about the machine -- but they are
-//  separate notices, because a screenshot taken with the paddle captured
-//  should not silently replace the words telling the user how to get their
-//  cursor back.
+//  ACROSS THE TOP, UNDER EVERYTHING DOCKED THERE. The chrome at the top of
+//  the window is where this window puts what it has to say about itself, and
+//  a screenshot's filename is exactly that -- the one part of a capture that
+//  is about the application rather than about the machine. Put over the
+//  picture it lands on whatever the user just photographed, and read as a
+//  caption on it.
+//
+//  IT OVERLAYS RATHER THAN DOCKS, which is the one way it differs from the
+//  pointer-capture bar beside it. That bar tracks a state and is worth the
+//  height it takes from the picture; this one is up for four seconds, and a
+//  band that appears and vanishes on a timer would reflow the machine twice
+//  for every screenshot. So it hangs UNDER the last docked band and covers a
+//  strip of picture, dimmed by a scrim rather than hidden behind a panel.
+//
+//  Separate from the pointer-capture bar, not a reuse of it: a screenshot
+//  taken with the paddle captured must not replace the words telling the user
+//  how to get their cursor back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncCaptureNotice()
 {
-    RECT      client = {};
-    RECT      rc     = {};
-    int64_t   nowMs  = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                           std::chrono::steady_clock::now().time_since_epoch()).count();
+    RECT                 client = {};
+    RECT                 rc     = {};
+    IDxuiTextRenderer *  text   = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    float                width  = 0.0f;
+    int64_t              nowMs  = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                      std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
     if (nowMs >= m_screenshotNoticeUntilMs || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        m_screenshotNotice.SetVisible (false);
+        m_screenshotNotice.SetVisible      (false);
+        m_screenshotNoticeScrim.SetVisible (false);
         return;
     }
 
-    {
-        RECT  bar    = m_switchBand.GetBounds();
-        LONG  bottom = (!m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
-                     ? bar.top : client.bottom;
+    width = (float) (client.right - client.left);
 
-        //  Straight above the switch band. Nothing to stack over: the
-        //  pointer-capture notice is a docked bar in the chrome, and in
-        //  fullscreen it hangs off the TOP edge, so the bottom of the
-        //  picture is this notice's alone either way.
-        rc.left   = client.left;
-        rc.right  = client.right;
-        rc.bottom = bottom - m_scaler.ToPx (s_kScreenshotNoticeInsetDp);
-        rc.top    = rc.bottom - m_scaler.ToPx (s_kScreenshotNoticeHeightDp);
+    rc.left  = client.left;
+    rc.right = client.right;
+    rc.top   = ComputeTopOverlayEdgePx (client);
+
+    //  MEASURED WHERE THERE IS A RENDERER TO ASK. The bar centers its text,
+    //  and a centered banner picks its line width from that measurement; the
+    //  estimate behind GetPreferredHeightPx works from an average glyph
+    //  width, so a wide face or a long path measures past it and the last
+    //  line lands outside the strip. The estimate stays as the fallback for
+    //  the frames before the renderer exists.
+    m_screenshotNotice.SetDpi (m_scaler.GetDpi());
+
+    rc.bottom = rc.top + (LONG) ((text != nullptr)
+                                 ? m_screenshotNotice.GetMeasuredHeightPx (*text, width, m_scaler)
+                                 : m_screenshotNotice.GetPreferredHeightPx (width, m_scaler));
+
+    m_screenshotNoticeScrim.Layout     (rc, m_scaler);
+    m_screenshotNoticeScrim.SetVisible (true);
+
+    m_screenshotNotice.Layout     (rc, m_scaler);
+    m_screenshotNotice.SetVisible (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeTopOverlayEdgePx
+//
+//  Where the picture starts, for something that wants to hang over the top of
+//  it without landing on the chrome.
+//
+//  IT ASKS THE BANDS RATHER THAN ADDING THEM UP. Which bands are at the top,
+//  and which of those are showing, varies by theme, by fullscreen and by
+//  whether the mouse is currently captured -- a count kept here would be a
+//  second copy of the dock's arithmetic, and the copy is the one that goes
+//  wrong. The lowest bottom edge among the bands that are up IS the answer,
+//  and it stays the answer when a band is added.
+//
+//  Fullscreen has no bands at all: the toolbar reveals itself over the
+//  picture and the pointer-capture bar hangs beneath it, and both are in the
+//  list for exactly that case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LONG EmulatorShell::ComputeTopOverlayEdgePx (const RECT & client) const
+{
+    const IDxuiControl * const  bands[] = { &m_mainMenu,
+                                            &m_toolbar,
+                                            &m_changeBanner,
+                                            &m_captureBarSurface,
+                                            &m_captureBar };
+    LONG                        top     = client.top;
+    RECT                        rc      = {};
+
+
+
+    for (const IDxuiControl * band : bands)
+    {
+        rc = band->GetBounds();
+
+        if (band->IsVisible() && rc.bottom > rc.top
+            && rc.top < client.bottom && rc.bottom > top)
+        {
+            top = rc.bottom;
+        }
     }
 
-    m_screenshotNotice.SetFontSizeDip (s_kScreenshotNoticeFontDip);
-    m_screenshotNotice.SetDpi         (m_scaler.GetDpi());
-    m_screenshotNotice.Layout         (rc, m_scaler);
-    m_screenshotNotice.SetVisible     (true);
+    return top;
 }
 
 
@@ -9852,7 +9937,8 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
 
         //  Including this one. Two captures inside the notice's few seconds
         //  would otherwise photograph the first one's filename.
-        m_screenshotNotice.SetVisible (false);
+        m_screenshotNotice.SetVisible      (false);
+        m_screenshotNoticeScrim.SetVisible (false);
     }
     else
     {

@@ -54,7 +54,6 @@
 #include "WasapiAudio.h"
 #include "Window/DxuiHwndSource.h"
 #include "Widgets/DxuiActionBanner.h"
-#include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiInfoBanner.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Window/IDxuiHostClient.h"
@@ -1519,14 +1518,32 @@ private:
     PendingCapture             m_pendingCapture;
 
     // The screenshot result notice: the filename on success, the reason
-    // otherwise. Its own notice rather than the mouse-capture banner's,
-    // because the two can be wanted at once and this one expires on a timer
-    // while that one tracks a state.
-    DxuiHudNotice              m_screenshotNotice;
+    // otherwise. Its own bar rather than the mouse-capture one's, because the
+    // two can be wanted at once and this one expires on a timer while that
+    // one tracks a state.
+    //
+    // A MESSAGE BAR ACROSS THE TOP, NOT A CAPTION ON THE PICTURE. It was
+    // shadowed text over the bottom of the viewport, which put a filename --
+    // the one thing here that is never about the machine -- in the middle of
+    // the photograph. It now reads as the same kind of thing the
+    // pointer-capture bar is, and says so by looking like it.
+    //
+    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. A docked band costs the
+    // picture its height, and a strip that comes and goes on a four-second
+    // timer would reflow the machine twice per screenshot. So this one hangs
+    // under whatever docked chrome is at the top and covers a little of the
+    // picture instead, with a scrim thin enough to read through.
+    DxuiInfoBanner             m_screenshotNotice;
+    DxuiSurface                m_screenshotNoticeScrim;
     int64_t                    m_screenshotNoticeUntilMs = 0;
 
     void  ShowCaptureNotice   (const std::wstring & text);
     void  SyncCaptureNotice   ();
+
+    // The lowest edge of whatever chrome is docked (or, in fullscreen,
+    // revealed) at the top of the client, which is where an overlay that
+    // wants to sit over the picture without covering the chrome begins.
+    LONG  ComputeTopOverlayEdgePx (const RECT & client) const;
 
     // Called from the two paint hooks at their own points in the frame; fills
     // the pending capture when the point matches what the plan asked for.
