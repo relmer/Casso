@@ -789,8 +789,9 @@ POINT DxuiHwndSource::CenterOnOwner (const RECT & ownerRect, const SIZE & window
 //  DxuiHwndSource::TryGetWindowPlacement
 //
 //  The Win32 half of every non-Default placement: reads the owner's frame
-//  and the work area of the monitor the owner is on, then hands both to
-//  the geometry helper the mode asks for. Returns false (leaving
+//  -- its RESTORED frame while it is minimized, which is where the user
+//  will see it -- and the work area of the monitor the owner is on, then
+//  hands both to the geometry helper the mode asks for. Returns false (leaving
 //  `outTopLeft` untouched) only when the system will not say where the
 //  owner or its monitor is, which leaves the caller on its default
 //  placement path.
@@ -805,22 +806,45 @@ POINT DxuiHwndSource::CenterOnOwner (const RECT & ownerRect, const SIZE & window
 bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowSizePx,
                                             DxuiWindowPlacement mode, POINT & outTopLeft)
 {
-    HRESULT      hr        = S_OK;
-    RECT         ownerRect = {};
-    HMONITOR     monitor   = nullptr;
-    MONITORINFO  info      = { sizeof (info) };
-    BOOL         gotOwner  = FALSE;
-    BOOL         gotInfo   = FALSE;
-    bool         placed    = false;
+    HRESULT         hr        = S_OK;
+    RECT            ownerRect = {};
+    HMONITOR        monitor   = nullptr;
+    MONITORINFO     info      = { sizeof (info) };
+    WINDOWPLACEMENT placement = {};
+    BOOL            gotOwner  = FALSE;
+    BOOL            gotInfo   = FALSE;
+    bool            placed    = false;
 
 
 
     if (ownerHwnd != nullptr)
     {
-        gotOwner = GetWindowRect (ownerHwnd, &ownerRect);
+        // A MINIMIZED window's GetWindowRect is the off-screen parking spot
+        // Windows gives iconic windows (around -32000,-32000), not where the
+        // user will see it -- placing against that lands every mode in the
+        // work area's top-left corner once the clamp is done with it. The
+        // restored rect is where the window is about to be, and windows do
+        // get created against a minimized Casso with nobody watching: the
+        // printer preview auto-opens when the guest resumes printing, and
+        // the disk watcher raises its prompt on an external change.
+        if (IsIconic (ownerHwnd))
+        {
+            placement.length = sizeof (placement);
+            gotOwner         = GetWindowPlacement (ownerHwnd, &placement);
+            ownerRect        = placement.rcNormalPosition;
+        }
+        else
+        {
+            gotOwner = GetWindowRect (ownerHwnd, &ownerRect);
+        }
+
         CWR (gotOwner);
 
-        monitor = MonitorFromWindow (ownerHwnd, MONITOR_DEFAULTTONEAREST);
+        // From the rect, not the window: while the owner is minimized the
+        // window itself is parked off-screen, so MonitorFromWindow would
+        // answer for that parking spot rather than for the monitor the
+        // restored window sits on. The two agree for a normal window.
+        monitor = MonitorFromRect (&ownerRect, MONITOR_DEFAULTTONEAREST);
     }
     else
     {
