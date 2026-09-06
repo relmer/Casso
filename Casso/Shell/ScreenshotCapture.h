@@ -75,6 +75,22 @@ public:
                              const CapturedImage &         image,
                              CaptureOutcome &              outOutcome);
 
+    // The destination when no folder is configured: <Pictures>\Casso
+    // Screenshots. Resolved here rather than in the plan because
+    // SHGetKnownFolderPath is a syscall and the resolver must stay drivable
+    // by a test; the plan takes the Pictures folder as an input.
+    static fs::path  DefaultFolder ();
+
+    // Shell UI the settings page cannot open for itself. Returns false when
+    // the user backs out, which is not a failure -- backing out of a picker
+    // means keeping what was already configured.
+    static bool  BrowseForFolder (HWND owner, fs::path & outFolder);
+
+    // Opens the screenshots folder in Explorer, creating it first if the
+    // feature has not written to it yet -- opening nothing would look broken
+    // when the setting is merely unused.
+    static void  RevealFolder (const string & configuredFolder);
+
 private:
     static HRESULT  CopyFramebuffer (const Sources & sources, CapturedImage & outImage);
 

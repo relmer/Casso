@@ -166,13 +166,13 @@ seven entries for `scene`, six for `crt`, five for `raw`, and nothing excluded.
 **Independent test**: Turn saving off and confirm clipboard-only; turn it on with a custom
 folder and confirm the file lands there.
 
-- [ ] T043 [US4] Add the "save a file as well as copying" toggle to the Screenshots section in `Casso/Ui/Settings/PrintingPage.h/.cpp`, bound to `screenshotSaveFile`
-- [ ] T044 [US4] Add the folder path display with Browse and Open actions as children of the toggle in `Casso/Ui/Settings/PrintingPage.h/.cpp`, disabled and dimmed when the toggle is off (FR-034)
-- [ ] T045 [US4] Implement the folder picker in `Casso/Shell/WindowCommandManager.cpp` using `IFileOpenDialog` with `FOS_PICKFOLDERS` -- new to this tree; the existing `CLSID_FileOpenDialog` use near line 1004 is a file picker (research.md R-016)
-- [ ] T046 [P] [US4] Implement the Open-folder action via `ShellExecuteW`, following the existing call in `Casso/Ui/Dialogs/DialogBodyContent.cpp` (near line 73)
-- [ ] T047 [US4] Honor `folderMustBeCreated` for a configured folder that has since been deleted, and surface an unrecoverable write failure through `CaptureOutcome`, in `Casso/Shell/ScreenshotCapture.cpp`
-- [ ] T048 [P] [US4] Extend `UnitTest/UiTests/PrintingPageTests.cpp` for the toggle gating its children, and `UnitTest/CaptureTests/ScreenshotPlanTests.cpp` for a custom folder overriding the default
-- [ ] T049 [US4] Validate manually per [quickstart.md](quickstart.md) Scenario 5
+- [X] T043 [US4] Add the "save a file as well as copying" toggle to the Screenshots section in `Casso/Ui/Settings/PrintingPage.h/.cpp`, bound to `screenshotSaveFile`
+- [X] T044 [US4] Add the folder path display with Browse and Open actions as children of the toggle in `Casso/Ui/Settings/PrintingPage.h/.cpp`, disabled and dimmed when the toggle is off (FR-034)
+- [X] T045 [US4] Implement the folder picker in `Casso/Shell/WindowCommandManager.cpp` using `IFileOpenDialog` with `FOS_PICKFOLDERS` -- new to this tree; the existing `CLSID_FileOpenDialog` use near line 1004 is a file picker (research.md R-016)
+- [X] T046 [P] [US4] Implement the Open-folder action via `ShellExecuteW`, following the existing call in `Casso/Ui/Dialogs/DialogBodyContent.cpp` (near line 73)
+- [X] T047 [US4] Honor `folderMustBeCreated` for a configured folder that has since been deleted, and surface an unrecoverable write failure through `CaptureOutcome`, in `Casso/Shell/ScreenshotCapture.cpp`
+- [X] T048 [P] [US4] Extend `UnitTest/UiTests/PrintingPageTests.cpp` for the toggle gating its children, and `UnitTest/CaptureTests/ScreenshotPlanTests.cpp` for a custom folder overriding the default
+- [X] T049 [US4] Validate manually per [quickstart.md](quickstart.md) Scenario 5
 
 ---
 

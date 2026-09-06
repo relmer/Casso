@@ -4,6 +4,7 @@
 
 #include "../../EmulatorShell.h"
 #include "../../Config/GlobalUserPrefs.h"
+#include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"
 #include "Widgets/DxuiLabel.h"
@@ -410,8 +411,29 @@ HRESULT SettingsSheet::OpenModeless (
     // Printing page: bind global prefs (resolution + dot style). Edits persist
     // / revert through the apply controller (SnapshotBaselines captures the
     // printing prefs too).
+    m_printingPage->SetDefaultScreenshotFolder (ScreenshotCapture::DefaultFolder().wstring());
     m_printingPage->SetPrefs (&prefs);
     m_printingPage->SetPrinterInfo (m_emuShell->GetPrinterBannerMessage());
+
+    //  Both actions open shell UI, which a settings page cannot do for
+    //  itself. The page owns the setting; the sheet owns the window that a
+    //  modal has to be parented to.
+    m_printingPage->SetOnBrowseFolder ([this, &prefs] ()
+    {
+        fs::path   picked;
+
+        if (ScreenshotCapture::BrowseForFolder (GetHwnd(), picked))
+        {
+            prefs.screenshotFolder = picked.string();
+            m_printingPage->Rebuild();
+            m_printingPage->MarkDirty();
+        }
+    });
+
+    m_printingPage->SetOnOpenFolder ([&prefs] ()
+    {
+        ScreenshotCapture::RevealFolder (prefs.screenshotFolder);
+    });
 
     // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();

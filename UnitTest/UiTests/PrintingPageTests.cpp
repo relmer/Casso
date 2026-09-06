@@ -88,6 +88,74 @@ public:
     }
 
 
+    //
+    //  The folder row's text
+    //
+
+    // An unset preference means "the default", and the row shows the default's
+    // real path. Blank would read as broken when the feature is working, and
+    // the user could not tell where their files go without leaving the page.
+    TEST_METHOD (AnUnsetFolderShowsTheDefaultPath)
+    {
+        Assert::AreEqual (std::wstring (L"C:\\Pics\\Casso Screenshots"),
+                          PrintingPage::FolderForDisplay ("", L"C:\\Pics\\Casso Screenshots", 60));
+    }
+
+
+    TEST_METHOD (AConfiguredFolderIsShownInsteadOfTheDefault)
+    {
+        Assert::AreEqual (std::wstring (L"D:\\Shots"),
+                          PrintingPage::FolderForDisplay ("D:\\Shots", L"C:\\Pics\\Casso Screenshots", 60));
+    }
+
+
+    // The tail distinguishes one folder from another; the head is what every
+    // path on the machine has in common, so the head is the half to lose.
+    TEST_METHOD (ALongPathKeepsItsTailBehindAnEllipsis)
+    {
+        std::wstring   shown = PrintingPage::FolderForDisplay (
+            "C:\\Users\\somebody\\OneDrive\\Documents\\Emulation\\Captures\\Casso",
+            L"", 30);
+
+        Assert::IsTrue (shown.rfind (L"...", 0) == 0, L"elided paths lead with an ellipsis");
+        Assert::IsTrue (shown.find (L"Casso") != std::wstring::npos, L"the leaf survives");
+        Assert::IsTrue (shown.find (L"somebody") == std::wstring::npos, L"the head is dropped");
+    }
+
+
+    // Cutting mid-name would produce something that looks like a real folder
+    // and is not, so the ellipsis lands on a separator.
+    TEST_METHOD (TheEllipsisLandsOnAComponentBoundary)
+    {
+        std::wstring   shown = PrintingPage::FolderForDisplay (
+            "C:\\Users\\somebody\\OneDrive\\Documents\\Emulation\\Captures\\Casso",
+            L"", 30);
+
+        Assert::AreEqual (std::wstring (L"...\\Captures\\Casso"), shown);
+    }
+
+
+    TEST_METHOD (AShortPathIsNotElided)
+    {
+        std::wstring   shown = PrintingPage::FolderForDisplay ("D:\\Shots", L"", 30);
+
+        Assert::AreEqual (std::wstring (L"D:\\Shots"), shown);
+        Assert::IsTrue (shown.find (L"...") == std::wstring::npos);
+    }
+
+
+    // A single component longer than the budget has no boundary to cut on;
+    // it still has to come back within budget rather than overflow the row.
+    TEST_METHOD (ASingleOverlongComponentIsStillTrimmed)
+    {
+        std::wstring   shown = PrintingPage::FolderForDisplay (
+            "D:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", L"", 20);
+
+        Assert::IsTrue (shown.length() <= 20);
+        Assert::IsTrue (shown.rfind (L"...", 0) == 0);
+    }
+
+
     // The page's own default title carries both subjects. Printing keeps the
     // first word so a user navigating to printer settings still recognizes it.
     TEST_METHOD (ThePageTitleNamesBothSubjectsPrintingFirst)

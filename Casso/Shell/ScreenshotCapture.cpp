@@ -13,6 +13,142 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DefaultFolder
+//
+//  <Pictures>\Casso Screenshots, beside <Pictures>\Casso Prints, so a user
+//  finds both of Casso's outputs in one place.
+//
+//  Empty when the known folder cannot be resolved. Callers treat that as "no
+//  default", which the plan already handles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path ScreenshotCapture::DefaultFolder()
+{
+    fs::path   folder;
+    PWSTR      raw = nullptr;
+    HRESULT    hr  = S_OK;
+
+
+
+    hr = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &raw);
+
+    if (SUCCEEDED (hr))
+    {
+        folder = fs::path (raw) / ScreenshotPlan::kFolderName;
+    }
+
+    if (raw != nullptr)
+    {
+        CoTaskMemFree (raw);
+    }
+
+    return folder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowseForFolder
+//
+//  The folder picker: IFileOpenDialog with FOS_PICKFOLDERS, which is the
+//  modern replacement for SHBrowseForFolder and the only file dialog in this
+//  tree that selects a directory rather than a file.
+//
+//  A cancel is reported as false rather than an error. Backing out of a picker
+//  means keeping what was already configured, which is a normal thing to do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ScreenshotCapture::BrowseForFolder (HWND owner, fs::path & outFolder)
+{
+    HRESULT                   hr      = S_OK;
+    ComPtr<IFileOpenDialog>   dialog;
+    ComPtr<IShellItem>        item;
+    PWSTR                     path    = nullptr;
+    DWORD                     options = 0;
+    bool                      picked  = false;
+
+
+
+    hr = CoCreateInstance (CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                           IID_PPV_ARGS (&dialog));
+    CHR (hr);
+
+    hr = dialog->GetOptions (&options);
+    CHR (hr);
+
+    hr = dialog->SetOptions (options | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
+    CHR (hr);
+
+    hr = dialog->Show (owner);
+    CHR (hr);
+
+    hr = dialog->GetResult (&item);
+    CHR (hr);
+
+    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &path);
+    CHR (hr);
+
+    outFolder = fs::path (path);
+    picked    = true;
+
+Error:
+    if (path != nullptr)
+    {
+        CoTaskMemFree (path);
+    }
+
+    return picked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RevealFolder
+//
+//  Opens the destination in Explorer.
+//
+//  Created first if it is not there. The folder does not exist until the first
+//  screenshot is written, and opening nothing would look broken when the
+//  setting is merely unused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ScreenshotCapture::RevealFolder (const string & configuredFolder)
+{
+    fs::path          folder;
+    std::error_code   ec;
+    INT_PTR           rc = 0;
+
+
+
+    folder = configuredFolder.empty() ? DefaultFolder() : fs::path (configuredFolder);
+
+    if (folder.empty())
+    {
+        return;
+    }
+
+    fs::create_directories (folder, ec);
+
+    rc = (INT_PTR) ShellExecuteW (nullptr, L"open", folder.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+
+    IGNORE_RETURN_VALUE (rc, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CopyFramebuffer
 //
 //  The Raw path: the emulated framebuffer straight out of memory.
