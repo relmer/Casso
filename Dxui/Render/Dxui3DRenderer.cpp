@@ -1077,9 +1077,13 @@ HRESULT Dxui3DRenderer::CompositeFullTarget (ID3D11ShaderResourceView * srv, int
     full.Height   = (float) height;
     full.MaxDepth = 1.0f;
 
-    m_externalSrv = srv;
-    hr            = DrawTriangles (quad, 6, identity, true, full, false);
-    m_externalSrv = saved;
+    // Carrying the plate, not quantizing it: it is already eight-bit and
+    // already dithered, so the offset would only add grain to an exact copy.
+    m_externalSrv  = srv;
+    m_ditherOutput = false;
+    hr             = DrawTriangles (quad, 6, identity, true, full, false);
+    m_ditherOutput = true;
+    m_externalSrv  = saved;
 
     CHRA (hr);
 
@@ -1303,7 +1307,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
             m_lighting.light1[0], m_lighting.light1[1], m_lighting.light1[2], 0.0f,
             m_lighting.eye[0],    m_lighting.eye[1],    m_lighting.eye[2],    0.0f,
             m_lighting.refDist,   m_lighting.span,      m_lighting.gain,      m_lighting.specStrength,
-            m_lighting.specPower, 0.0f, 0.0f, 0.0f,
+            m_lighting.specPower, m_ditherOutput ? 1.0f : 0.0f, 0.0f, 0.0f,
             m_lighting.ambientUp[0],   m_lighting.ambientUp[1],   m_lighting.ambientUp[2],   0.0f,
             m_lighting.ambientDown[0], m_lighting.ambientDown[1], m_lighting.ambientDown[2], 0.0f,
             m_lighting.lampPos[0], m_lighting.lampPos[1], m_lighting.lampPos[2], m_lighting.lampRefDist,

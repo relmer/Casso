@@ -561,7 +561,25 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
     td.Height           = static_cast<UINT> (height);
     td.MipLevels        = 1;
     td.ArraySize        = 1;
-    td.Format           = DXGI_FORMAT_R8G8B8A8_UNORM;
+    // TEN BITS, because up to eight passes round into these before anything
+    // is seen. Eight bits here is not the display's precision, it is the
+    // precision of the chain's SCRATCH -- and the bloom halo is the thing it
+    // cannot hold. The halo around a line of text falls off over hundreds of
+    // rows while spanning three or four code values, so eight bits flattens it
+    // into three or four plateaus with a hard edge between each, and every
+    // later pass inherits the plateaus rather than the ramp. Dithering the
+    // final blit cannot undo that: by then the gradient it would dither is
+    // already stairs.
+    //
+    // R10G10B10A2 is the same thirty-two bits per texel as R8G8B8A8, so the
+    // bandwidth these full-screen passes actually cost is unchanged -- it
+    // simply spends four of them on chroma instead of on an alpha nothing in
+    // the chain varies. Every pass writes alpha 1.0 (brightness passes the
+    // source's, and the emulator's framebuffer is opaque), which two bits hold
+    // exactly. Four times the levels is enough that the halo arrives at the
+    // final blit as a real ramp, which is what leaves the dither there
+    // something to scatter.
+    td.Format           = DXGI_FORMAT_R10G10B10A2_UNORM;
     td.SampleDesc.Count = 1;
     td.Usage            = D3D11_USAGE_DEFAULT;
     td.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;

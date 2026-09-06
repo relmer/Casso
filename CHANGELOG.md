@@ -133,6 +133,19 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **Eight-bit scratch buffers banded the picture's dark gradients into flat
+  steps.** The CRT chain ran up to eight full-screen passes through eight-bit
+  intermediates, and the bloom halo around a line of text falls off over
+  hundreds of rows while spanning three or four code values -- so the first
+  pass to round it turned the ramp into three or four plateaus, each a
+  full-width contour with a hard edge, and every later pass inherited them.
+  Fullscreen made each band wider and easier to see. The chain now works in ten
+  bits, which costs no extra bandwidth, and dithers once on the final blit to
+  the back buffer; the desk scene's plates dither at their own eight-bit write
+  for the same reason, and the blits that merely carry a finished plate leave
+  it alone. Measured fullscreen on the boot screen, counting rows that are a
+  single flat code across the full width: 582 of 601 before, and at most a
+  handful now.
 - **The casso-rocks image was regenerated**, dithered against the updated
   palette.
 - **Lo-res and double hi-res color 4 (Dark Green) drew very nearly black.**
