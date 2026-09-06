@@ -51,6 +51,12 @@ public:
                                    uint32_t     firstCodepoint,
                                    uint32_t     lastCodepoint);
 
+    // Whether AddSymbolFont succeeded. Chrome that shows a symbol INSTEAD of
+    // the words has to ask: registration is best-effort at startup, and
+    // without it a private-use codepoint draws as a missing-glyph box that
+    // names nothing at all.
+    static bool  HasSymbolFont () { return s_fontFallback != nullptr; }
+
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
                                UINT           dpiY);

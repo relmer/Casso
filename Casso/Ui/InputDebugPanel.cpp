@@ -369,7 +369,8 @@ LPCWSTR InputDebugPanel::GetButtonAnnotation (Word address, bool mouseButtonAtC0
         case s_kOpenAppleAddress:
         {
             static const std::wstring  openApple =
-                std::wstring (s_kpszOpenApple) + L"/Btn0";
+                (DxuiTextRenderer::HasSymbolFont() ? std::wstring (s_kpszOpenApple)
+                                                   : std::wstring (L"Open Apple")) + L"/Btn0";
 
             text = openApple.c_str();
             break;
@@ -378,7 +379,8 @@ LPCWSTR InputDebugPanel::GetButtonAnnotation (Word address, bool mouseButtonAtC0
         case s_kClosedAppleAddress:
         {
             static const std::wstring  closedApple =
-                std::wstring (s_kpszClosedApple) + L"/Btn1 (bow)";
+                (DxuiTextRenderer::HasSymbolFont() ? std::wstring (s_kpszClosedApple)
+                                                   : std::wstring (L"Closed Apple")) + L"/Btn1 (bow)";
 
             text = closedApple.c_str();
             break;

@@ -12358,15 +12358,29 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     }
     else if (hasKeyboard && ev.kind == DxuiKeyEventKind::Up)
     {
-        WPARAM  vk = ev.vk;
+        WPARAM           vk         = ev.vk;
+        AppleSpecialKey  specialKey = AppleSpecialKey::Left;
+        bool             isSpecial  = TryMapVkToSpecialKey (vk, specialKey);
+        bool             hasTheKey  = !isSpecial ||
+                                      m_refs.keyboard->MapSpecialKey (specialKey) != 0;
 
-        m_refs.keyboard->SetKeyDown (false);
+        // The same question the press asked, asked again: a key this machine
+        // does not have was never pressed, so its release must not undo the
+        // state some other key is still holding. Gating only the press left
+        // the up arrow on a ][+ able to clear any-key-down, and disarm the
+        // repeat, while a real key was still down -- $C010 reporting nothing
+        // held while $C000 holds a character.
+        if (hasTheKey)
+        {
+            m_refs.keyboard->SetKeyDown (false);
 
-        // Disarm auto-repeat on release. The //e latch holds a single key,
-        // so a key-up always ends the current repeat; this also clears any
-        // stale armed key so a later non-character press (e.g. a bare
-        // modifier) can never resurrect the previous character's repeat.
-        m_refs.keyboard->BeginKeyRepeat (0);
+            // Disarm auto-repeat on release. The //e latch holds a single
+            // key, so a key-up always ends the current repeat; this also
+            // clears any stale armed key so a later non-character press
+            // (e.g. a bare modifier) can never resurrect the previous
+            // character's repeat.
+            m_refs.keyboard->BeginKeyRepeat (0);
+        }
 
         // Release the //e Open/Closed-Apple and Shift modifiers as the host
         // releases the physical keys.

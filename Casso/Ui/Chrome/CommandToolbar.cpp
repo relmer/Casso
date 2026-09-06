@@ -296,11 +296,14 @@ void CommandToolbar::WireMenus()
 void CommandToolbar::RebuildActionTips()
 {
     std::wstring  machine = m_machineName.empty() ? std::wstring (L"machine") : m_machineName;
+    std::wstring  apple   = DxuiTextRenderer::HasSymbolFont()
+                                ? std::wstring (s_kpszOpenApple)
+                                : std::wstring (L"Open Apple");
 
 
 
     GetEntry (Entry::Reset).tip = L"Reset the " + machine + L".\n" +
-                                  s_kpszOpenApple + L" + Reset to reboot.";
+                                  apple + L" + Reset to reboot.";
     GetEntry (Entry::Power).tip = L"Power-cycle the " + machine;
 }
 

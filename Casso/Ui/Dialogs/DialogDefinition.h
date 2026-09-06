@@ -51,7 +51,9 @@ struct DialogTextRun
     // form a single vertical line whatever the rows say.
     std::wstring  rightText;
 
-    bool IsColumnRow () const { return !rightText.empty(); }
+    // A hyperlink wins: SetRuns tests this first, and a run carrying both
+    // would otherwise render as plain text with the URL silently dropped.
+    bool IsColumnRow () const { return !rightText.empty() && !isHyperlink; }
 };
 
 

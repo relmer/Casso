@@ -162,14 +162,17 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
     ComPtr<IDWriteFontFile>                fontFile;
     ComPtr<IDWriteFontSetBuilder1>         setBuilder;
     ComPtr<IDWriteFontSet>                 fontSet;
+    ComPtr<IDWriteFontCollection1>         collection;
     ComPtr<IDWriteFontFamily>              family;
     ComPtr<IDWriteLocalizedStrings>        familyNames;
     ComPtr<IDWriteFontFallbackBuilder>     fallbackBuilder;
     ComPtr<IDWriteFontFallback>            systemFallback;
+    ComPtr<IDWriteFontFallback>            fallback;
     DWRITE_UNICODE_RANGE                   range           = {};
     UINT32                                 familyCount     = 0;
-    wchar_t                                familyName[128] = {};
-    const wchar_t                        * targetFamily    = familyName;
+    UINT32                                 nameLength      = 0;
+    std::wstring                           familyName;
+    const wchar_t                        * targetFamily    = nullptr;
 
 
 
@@ -215,20 +218,31 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
     hr = setBuilder->CreateFontSet (&fontSet);
     CHRA (hr);
 
-    hr = factory->CreateFontCollectionFromFontSet (fontSet.Get(), &s_symbolFonts);
+    hr = factory->CreateFontCollectionFromFontSet (fontSet.Get(), &collection);
     CHRA (hr);
 
-    familyCount = s_symbolFonts->GetFontFamilyCount();
+    familyCount = collection->GetFontFamilyCount();
     CBRA (familyCount > 0);
 
-    hr = s_symbolFonts->GetFontFamily (0, &family);
+    hr = collection->GetFontFamily (0, &family);
     CHRA (hr);
 
     hr = family->GetFamilyNames (&familyNames);
     CHRA (hr);
 
-    hr = familyNames->GetString (0, familyName, ARRAYSIZE (familyName));
+    // Sized from the string rather than a fixed buffer: a font whose family
+    // name did not fit would fail the whole registration over a name nothing
+    // reads but the mapping below.
+    hr = familyNames->GetStringLength (0, &nameLength);
     CHRA (hr);
+
+    familyName.resize (static_cast<size_t> (nameLength) + 1);
+
+    hr = familyNames->GetString (0, familyName.data(),
+                                 static_cast<UINT32> (familyName.size()));
+    CHRA (hr);
+
+    targetFamily = familyName.c_str();
 
     hr = factory->CreateFontFallbackBuilder (&fallbackBuilder);
     CHRA (hr);
@@ -240,7 +254,7 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
                                       1,
                                       &targetFamily,
                                       1,
-                                      s_symbolFonts.Get(),
+                                      collection.Get(),
                                       nullptr,
                                       nullptr,
                                       1.0f);
@@ -252,8 +266,13 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
     hr = fallbackBuilder->AddMappings (systemFallback.Get());
     CHRA (hr);
 
-    hr = fallbackBuilder->CreateFontFallback (&s_fontFallback);
+    hr = fallbackBuilder->CreateFontFallback (&fallback);
     CHRA (hr);
+
+    // Published last, together: until this point a failure would have left
+    // the collection reading as loaded while no format could ever use it.
+    s_symbolFonts  = collection;
+    s_fontFallback = fallback;
 
 Error:
     return hr;

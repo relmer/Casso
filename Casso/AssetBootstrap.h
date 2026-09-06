@@ -54,9 +54,10 @@ public:
     // which key a machine has cannot depend on an asset directory that a user
     // may have moved, and the file is under two kilobytes.
     //
-    // Best-effort, like its neighbors. Without it those codepoints fall
-    // through to whatever the system offers for the private use area, which
-    // is a missing-glyph box -- ugly, but no worse than the words it replaced.
+    // Best-effort, like its neighbors. Chrome that draws the symbol instead
+    // of the words asks DxuiTextRenderer::HasSymbolFont first and writes the
+    // words when this failed, so a machine without the font still names the
+    // key rather than showing a missing-glyph box that says nothing.
     static HRESULT  RegisterSymbolFont    (HINSTANCE hInstance);
 
     // Returns the install root that contains (or should contain) the

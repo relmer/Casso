@@ -349,11 +349,14 @@ void Apple2cSwitchBar::RebuildResetTip() const
 {
     std::wstring  machine = m_machineName.empty() ? std::wstring (L"machine")
                                                   : m_machineName;
+    std::wstring  apple   = DxuiTextRenderer::HasSymbolFont()
+                                ? std::wstring (s_kpszOpenApple)
+                                : std::wstring (L"Open Apple");
 
 
 
     m_resetTip = L"Ctrl + Reset to reset the " + machine + L"\n" +
-                 L"Ctrl + " + s_kpszOpenApple + L" + Reset to reboot";
+                 L"Ctrl + " + apple + L" + Reset to reboot";
 }
 
 
