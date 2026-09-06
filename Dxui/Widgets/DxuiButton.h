@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -38,6 +39,12 @@ public:
     // non-theme color -- every fill/text derives from IDxuiTheme.
     enum class Variant { Default, Primary, Link };
     void  SetVariant  (Variant variant) { m_variant = variant; }
+
+    // How the label is trimmed when it does not fit the button's box. Off by
+    // default: most buttons are sized to their label, and a caller that has
+    // to show something longer than its box -- a path, a filename -- says so.
+    // The fitting is measured, not counted, so it holds for any face or DPI.
+    void  SetElide    (DxuiElide mode)   { m_elide = mode; }
     // Emphasizes a Default button (e.g. a dialog's default action) with a
     // themed accent outline, without promoting it to Primary.
     void  SetEmphasis (bool on) { m_emphasis = on; }
@@ -77,6 +84,7 @@ private:
     bool           m_visible     = true;
     DxuiDpiScaler  m_scaler;
     Variant        m_variant     = Variant::Default;
+    DxuiElide      m_elide       = DxuiElide::None;
     bool           m_emphasis    = false;
     int            m_commandId   = 0;
 };

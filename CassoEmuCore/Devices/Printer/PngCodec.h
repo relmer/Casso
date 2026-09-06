@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Printer/RgbaImage.h"
+#include "Devices/Printer/PngMetadata.h"
 
 
 
@@ -31,6 +32,17 @@ public:
     // 32bpp RGBA truecolor PNG, physical resolution stamped as pHYs (dpi).
     static HRESULT EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & outPng);
 
+    // As above, plus tEXt chunks. The codec WRITES WHAT IT IS HANDED and
+    // decides nothing about the content: which entries a given image deserves
+    // is a policy question, and it is answered by the caller.
+    //
+    // Every keyword must satisfy PngMetadata::IsValidKeyword. One that does
+    // not is a caller bug rather than bad data, so it asserts.
+    static HRESULT EncodeRgba (const RgbaImage &             image,
+                               int                           dpi,
+                               const vector<MetadataEntry> & textChunks,
+                               vector<Byte> &                outPng);
+
     // 8bpp palette-indexed PNG (lossless index preservation). `palette` holds
     // `paletteCount` (<=256) entries as 0xAARRGGBB; `indices` is width*height
     // bytes. Used for the persisted native-grid strip.
@@ -55,6 +67,8 @@ public:
     static HRESULT ReadDpi (const vector<Byte> & png, int & outDpi);
 
 private:
+    static HRESULT WriteTextChunks   (IWICBitmapFrameEncode *       frame,
+                                      const vector<MetadataEntry> & textChunks);
     static HRESULT CreateFactory     (ComPtr<IWICImagingFactory> & outFactory);
     static HRESULT DecodeFirstFrame  (const vector<Byte> &            png,
                                       ComPtr<IWICImagingFactory> &    outFactory,

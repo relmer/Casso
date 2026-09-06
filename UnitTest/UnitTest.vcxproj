@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -391,6 +391,11 @@
     <ClCompile Include="PrinterTests\PrinterHeadTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterEngineTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterPreviewModelTests.cpp" />
+    <ClCompile Include="CaptureTests\CaptureOutcomeTests.cpp" />
+    <ClCompile Include="CaptureTests\CapturedImageTests.cpp" />
+    <ClCompile Include="CaptureTests\ScreenshotModeTests.cpp" />
+    <ClCompile Include="CaptureTests\ScreenshotMetadataTests.cpp" />
+    <ClCompile Include="CaptureTests\ScreenshotPlanTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterPipelineTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterJobTests.cpp" />
     <ClCompile Include="PrinterTests\PngCodecTests.cpp" />
@@ -417,6 +422,14 @@
       <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="..\Casso\TrackSectorPredicate.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Settings\ScreenshotsPage.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Settings\PrintingPage.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
@@ -586,6 +599,7 @@
     <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
     <ClCompile Include="UiTests\CrtResolverTests.cpp" />
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
+    <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\SceneCameraTests.cpp" />
     <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />
@@ -600,6 +614,8 @@
     <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
     <ClCompile Include="Dxui\DxuiFrameRateTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextElideTests.cpp" />
+    <ClCompile Include="Dxui\DxuiLinkFocusRingTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourcePlacementTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceClientTests.cpp" />

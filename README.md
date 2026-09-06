@@ -306,6 +306,14 @@ from the View menu.
 
 <p align="center"><img src="Assets/feat-fullscreen.png" alt="Casso full screen: Lode Runner filling the whole display, with only the rounded corners of the glass left of the desk scene" width="100%" /></p>
 
+**Screenshots** land as a PNG in `Pictures\Casso Screenshots` and on the
+clipboard at the same time, from the toolbar camera, **Edit → Copy screenshot**
+or **Ctrl+Alt+C**. Three modes pick what a shot is of: the whole scene, the
+screen alone with its CRT effects, or the raw 560x384 image at native
+resolution. Each file carries what it was a picture of — machine, monitor,
+CRT settings and scene pose — in its own metadata, so a render bug dragged
+into an issue arrives with the settings that produced it.
+
 ### Themed chrome
 
 Casso's entire UI renders onto the same D3D11 framebuffer that draws the

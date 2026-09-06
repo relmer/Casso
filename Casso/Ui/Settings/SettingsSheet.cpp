@@ -4,6 +4,7 @@
 
 #include "../../EmulatorShell.h"
 #include "../../Config/GlobalUserPrefs.h"
+#include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"
 #include "Widgets/DxuiLabel.h"
@@ -14,11 +15,15 @@
 
 
 
-// Width is sized to the Display page, the widest page: its right-hand
-// "(monitor default)" annotation column ends ~568 DIP in, so 600 DIP leaves the
-// same ~32 DIP margin on the right as on the left. Every other page's controls
-// are narrower and fit inside this.
-static constexpr int    s_kSheetWidthDip     = 600;
+// Width was sized to the Display page, the widest page: its right-hand
+// "(monitor default)" annotation column ends ~568 DIP in, which 600 DIP cleared
+// with the same ~32 DIP margin on the right as on the left.
+//
+// WIDENED FOR THE SIXTH TAB. Screenshots brought the strip to six labels, and
+// its folder row carries a path beside a Browse button -- both want room the
+// old width did not have. Every page is left-aligned, so the extra width falls
+// on the right margin and no existing page moves.
+static constexpr int    s_kSheetWidthDip     = 720;
 static constexpr int    s_kSheetHeightDip    = 760;
 
 
@@ -68,6 +73,7 @@ void SettingsSheet::OnBuildPages()
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
+    m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
 
     // Amber "press OK to reboot" notice that fills the bottom-bar space left of
     // the OK / Cancel buttons whenever committing would power-cycle the machine
@@ -410,12 +416,36 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetPopupHost    (GetPopupHost());
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
+    m_shotsPage->SetPopupHost    (GetPopupHost());
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist
     // / revert through the apply controller (SnapshotBaselines captures the
     // printing prefs too).
     m_printingPage->SetPrefs (&prefs);
     m_printingPage->SetPrinterInfo (m_emuShell->GetPrinterBannerMessage());
+
+    m_shotsPage->SetDefaultFolder (ScreenshotCapture::DefaultFolder().wstring());
+    m_shotsPage->SetPrefs (&prefs);
+
+    //  Both actions open shell UI, which a settings page cannot do for
+    //  itself. The page owns the setting; the sheet owns the window that a
+    //  modal has to be parented to.
+    m_shotsPage->SetOnBrowseFolder ([this, &prefs] ()
+    {
+        fs::path   picked;
+
+        if (ScreenshotCapture::BrowseForFolder (GetHwnd(), picked))
+        {
+            prefs.screenshotFolder = picked.string();
+            m_shotsPage->Rebuild();
+            m_shotsPage->MarkDirty();
+        }
+    });
+
+    m_shotsPage->SetOnOpenFolder ([&prefs] ()
+    {
+        ScreenshotCapture::RevealFolder (prefs.screenshotFolder);
+    });
 
     // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();

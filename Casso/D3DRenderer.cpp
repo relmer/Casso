@@ -486,6 +486,11 @@ HRESULT D3DRenderer::UploadAndCompositeOffscreen (const uint32_t * framebuffer, 
     hr = RenderCrtFrame (m_sceneRtv.Get(), pictureRect, pictureW, pictureH);
     CHRA (hr);
 
+    // Remembered for the screenshot readback: a Crt capture wants exactly the
+    // region the picture was just rendered into, and recomputing it there
+    // would be a second copy of this path's geometry to keep in step.
+    m_scenePictureRectPx  = pictureRect;
+
     m_redrawForced        = false;
     m_lastPresentedParams = m_crtParams;
 
@@ -551,6 +556,192 @@ HRESULT D3DRenderer::EnsureSceneContentTarget (int width, int height)
 
     m_sceneTexW = width;
     m_sceneTexH = height;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadBackRegion
+//
+//  A rectangle of GPU pixels brought home.
+//
+//  THE FIRST READBACK IN THIS TREE. Everything else here uploads: every other
+//  Map in Casso and Dxui is WRITE_DISCARD. So the shape is worth stating --
+//  a GPU texture cannot be mapped for reading, and a staging texture cannot be
+//  a render target, which is why this is a copy followed by a map rather than
+//  either one alone.
+//
+//  ROW PITCH IS NOT WIDTH * 4. The driver pads rows to its own alignment, so
+//  the rows are copied one at a time out of the mapped span rather than in a
+//  single memcpy of the whole thing. Getting this wrong produces an image
+//  sheared diagonally, which looks like a rendering bug rather than a copy bug.
+//
+//  The region is clamped to what the source actually holds. Rects here come
+//  from panel layout that a resize may have moved on since, and a
+//  CopySubresourceRegion running off the end of a texture is a device-removal
+//  offense -- expensive for something a clamp handles.
+//
+//  Single exit is doing real work: the map MUST be released on every path, and
+//  an early return anywhere below leaves the texture mapped for the life of
+//  the process.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::ReadBackRegion (ID3D11Texture2D * source,
+                                     const RECT      & regionPx,
+                                     CapturedImage   & outImage)
+{
+    HRESULT                    hr        = S_OK;
+    D3D11_TEXTURE2D_DESC       srcDesc   = {};
+    D3D11_TEXTURE2D_DESC       dstDesc   = {};
+    D3D11_MAPPED_SUBRESOURCE   mapped    = {};
+    D3D11_BOX                  box       = {};
+    ComPtr<ID3D11Texture2D>    staging;
+    const Byte *               src       = nullptr;
+    Byte *                     dst       = nullptr;
+    LONG                       left      = 0;
+    LONG                       top       = 0;
+    LONG                       right     = 0;
+    LONG                       bottom    = 0;
+    int                        width     = 0;
+    int                        height    = 0;
+    int                        y         = 0;
+    size_t                     rowBytes  = 0;
+    bool                       mappedOk  = false;
+    bool                       haveSize  = false;
+
+
+
+    CBRAEx (source != nullptr, E_INVALIDARG);
+    CBRAEx (m_device != nullptr && m_context != nullptr, E_UNEXPECTED);
+
+    source->GetDesc (&srcDesc);
+
+    left   = max (0L, regionPx.left);
+    top    = max (0L, regionPx.top);
+    right  = min ((LONG) srcDesc.Width,  regionPx.right);
+    bottom = min ((LONG) srcDesc.Height, regionPx.bottom);
+
+    width  = (int) (right - left);
+    height = (int) (bottom - top);
+
+    haveSize = (width > 0) && (height > 0);
+    CBREx (haveSize, E_INVALIDARG);
+
+    dstDesc.Width          = (UINT) width;
+    dstDesc.Height         = (UINT) height;
+    dstDesc.MipLevels      = 1;
+    dstDesc.ArraySize      = 1;
+    dstDesc.Format         = srcDesc.Format;
+    dstDesc.SampleDesc.Count = 1;
+    dstDesc.Usage          = D3D11_USAGE_STAGING;
+    dstDesc.BindFlags      = 0;
+    dstDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    hr = m_device->CreateTexture2D (&dstDesc, nullptr, staging.GetAddressOf());
+    CHRA (hr);
+
+    box.left   = (UINT) left;
+    box.top    = (UINT) top;
+    box.front  = 0;
+    box.right  = (UINT) right;
+    box.bottom = (UINT) bottom;
+    box.back   = 1;
+
+    m_context->CopySubresourceRegion (staging.Get(), 0, 0, 0, 0, source, 0, &box);
+
+    hr = m_context->Map (staging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+    CHRA (hr);
+    mappedOk = true;
+
+    outImage.widthPx  = width;
+    outImage.heightPx = height;
+    rowBytes          = (size_t) width * CapturedImage::kBytesPerPixel;
+    outImage.bgra.resize (rowBytes * height);
+
+    src = (const Byte *) mapped.pData;
+    dst = outImage.bgra.data();
+
+    for (y = 0; y < height; y++)
+    {
+        memcpy (dst + ((size_t) y * rowBytes), src + ((size_t) y * mapped.RowPitch), rowBytes);
+    }
+
+Error:
+    if (mappedOk)
+    {
+        m_context->Unmap (staging.Get(), 0);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureBackBufferRegion
+//
+//  The composed window, which is where the desk scene exists -- the CRT
+//  chain's own target holds only the picture.
+//
+//  Must be called BEFORE Present. The swap chain is FLIP_DISCARD, so a
+//  presented back buffer's contents are undefined by definition and this would
+//  read whatever the queue happened to hand back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::CaptureBackBufferRegion (const RECT & regionPx, CapturedImage & outImage)
+{
+    HRESULT                   hr = S_OK;
+    ComPtr<ID3D11Texture2D>   backBuffer;
+
+
+
+    CBRAEx (m_swapChain != nullptr, E_UNEXPECTED);
+
+    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()));
+    CHRA (hr);
+
+    hr = ReadBackRegion (backBuffer.Get(), regionPx, outImage);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureSceneTargetRegion
+//
+//  The CRT chain's offscreen target: the picture with its effects and nothing
+//  around it. Only populated on the desk-scene path, so a caller reaching here
+//  under a flat theme has resolved the wrong source.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::CaptureSceneTargetRegion (const RECT & regionPx, CapturedImage & outImage)
+{
+    HRESULT   hr = S_OK;
+
+
+
+    CBRAEx (m_sceneTex != nullptr, E_UNEXPECTED);
+
+    hr = ReadBackRegion (m_sceneTex.Get(), regionPx, outImage);
+    CHR (hr);
 
 Error:
     return hr;

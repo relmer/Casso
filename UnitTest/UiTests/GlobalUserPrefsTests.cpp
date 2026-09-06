@@ -264,6 +264,117 @@ public:
     }
 
 
+    TEST_METHOD (Screenshot_DefaultsAreSceneAndSaving)
+    {
+        GlobalUserPrefs  prefs;
+
+        Assert::AreEqual (string ("scene"), prefs.screenshotMode);
+        Assert::AreEqual (true, prefs.screenshotSaveFile);
+        Assert::AreEqual (string (""), prefs.screenshotFolder,
+            L"Empty means the default destination, so the default can move later");
+    }
+
+
+    TEST_METHOD (Screenshot_RoundTrip)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     saved;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr;
+
+        saved.screenshotMode     = "raw";
+        saved.screenshotSaveFile = false;
+        saved.screenshotFolder   = "D:\\Shots";
+
+        hr = saved.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (string ("raw"), loaded.screenshotMode);
+        Assert::AreEqual (false, loaded.screenshotSaveFile);
+        Assert::AreEqual (string ("D:\\Shots"), loaded.screenshotFolder);
+    }
+
+
+    TEST_METHOD (Screenshot_MissingKeysKeepDefaults)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        HRESULT             hr;
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"X\"}");
+        AssertSucceeded (hr);
+
+        hr = prefs.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (string ("scene"), prefs.screenshotMode);
+        Assert::AreEqual (true, prefs.screenshotSaveFile);
+    }
+
+
+    // A known key with a value this build does not recognize is NOT an unknown
+    // key: it loads as the default and is written back normalized, so the file
+    // stops disagreeing with the setting that is actually in force.
+    TEST_METHOD (Screenshot_UnrecognizedModeNormalizesToScene)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        HRESULT             hr;
+        std::string         text;
+
+        GlobalUserPrefs     reloaded;
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"screenshotMode\":\"hologram\"}");
+        AssertSucceeded (hr);
+
+        hr = prefs.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = prefs.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
+        Assert::IsTrue (text.find ("hologram") == std::string::npos,
+            L"The unrecognized value must not be written back");
+
+        hr = reloaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+        Assert::AreEqual (string ("scene"), reloaded.screenshotMode);
+    }
+
+
+    // The two behaviors sit next to each other on purpose: an unknown KEY
+    // survives untouched while an unknown VALUE of a known key does not.
+    TEST_METHOD (Screenshot_UnknownKeysStillSurviveAlongsideTheNewOnes)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        HRESULT             hr;
+        std::string         text;
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{\"$cassoGlobalPrefsVersion\":1,"
+                              "\"screenshotMode\":\"crt\",\"screenshotBurst\":7}");
+        AssertSucceeded (hr);
+
+        hr = prefs.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = prefs.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
+        Assert::AreEqual (string ("crt"), prefs.screenshotMode);
+        Assert::IsTrue (text.find ("screenshotBurst") != std::string::npos,
+            L"A key a newer build wrote must round-trip untouched");
+    }
+
+
     TEST_METHOD (Save_PreservesExistingMachinesSection)
     {
         // Regression: GlobalUserPrefs::Save previously wrote a hardcoded

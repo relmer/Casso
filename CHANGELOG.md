@@ -9,6 +9,15 @@ Entries before versioning was introduced use dates only.
 ## [Unreleased]
 
 ### Added
+- **Screenshots are saved to a file, and can be taken of the CRT-processed
+  picture rather than only the raw framebuffer.** The camera button, `Edit >
+  Copy screenshot` and Ctrl+Alt+C now write a PNG into
+  `Pictures\Casso Screenshots` as well as copying to the clipboard, and a
+  capture mode on `Settings > Printing and Screenshots` chooses among the full
+  scene, the screen alone with its CRT effects applied, and the raw 560x384
+  image at its native resolution. Each PNG carries the machine, the monitor,
+  the CRT parameters and the scene pose in its own metadata, and never a
+  filesystem path or anything identifying the host. Closes #132.
 - **A speech demo disk**, in hi-res and double hi-res: three film lines and Daisy
   Bell through the SSI 263A, with HAL's eye pulsing on each syllable. Boot
   `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk`.

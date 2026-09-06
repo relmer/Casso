@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -79,11 +80,6 @@ public:
 
 private:
     void  Toggle();
-
-    static std::wstring  EllipsizeToWidth (IDxuiTextRenderer  & text,
-                                           const std::wstring & label,
-                                           float                fontDip,
-                                           float                maxWidth);
 
 
     std::wstring   m_label;

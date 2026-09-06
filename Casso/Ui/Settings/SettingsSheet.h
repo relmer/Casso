@@ -17,6 +17,7 @@
 #include "ThemePage.h"
 #include "DisplayPage.h"
 #include "PrintingPage.h"
+#include "ScreenshotsPage.h"
 
 
 class UserConfigStore;
@@ -202,11 +203,12 @@ private:
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only. m_hardwarePage hosts the merged "Machine" tab (machine
     // selector + CPU speed + hardware spec + device tree, GH #84).
-    HardwarePage * m_hardwarePage = nullptr;
-    DiskPage     * m_diskPage     = nullptr;
-    ThemePage    * m_themePage    = nullptr;
-    DisplayPage  * m_displayPage  = nullptr;
-    PrintingPage * m_printingPage = nullptr;
+    HardwarePage    * m_hardwarePage = nullptr;
+    DiskPage        * m_diskPage     = nullptr;
+    ThemePage       * m_themePage    = nullptr;
+    DisplayPage     * m_displayPage  = nullptr;
+    PrintingPage    * m_printingPage = nullptr;
+    ScreenshotsPage * m_shotsPage    = nullptr;
 
     // Registration index of the Disk page, so OnDialogTick can show / hide its
     // tab as the staged Disk ][ controller is toggled (#84 Phase B). -1 until

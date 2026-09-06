@@ -52,6 +52,23 @@ public:
                                      float    radiusPx,
                                      uint32_t argbColor)                        = 0;
 
+    // A rounded outline, for focus rings around text-shaped controls: a
+    // square ring around a run of text reads as a box the text sits in, and
+    // a link is not a box.
+    //
+    // Defaulted to the square outline rather than made pure, so a mock or a
+    // simpler painter is not obliged to implement arc slicing to compile --
+    // and so a painter that cannot round corners still draws a ring, which is
+    // the part that carries the meaning.
+    virtual void  OutlineRoundedRect (float    xPx,
+                                      float    yPx,
+                                      float    widthPx,
+                                      float    heightPx,
+                                      float    radiusPx,
+                                      float    thicknessPx,
+                                      uint32_t argbColor)
+    { (void) radiusPx; OutlineRect (xPx, yPx, widthPx, heightPx, thicknessPx, argbColor); }
+
     // Glyph-painting primitives (input-device selector). Defaulted
     // to no-ops on the interface so test mocks and simple painters compile
     // unchanged; the concrete DxuiPainter implements them with the same

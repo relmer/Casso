@@ -26,6 +26,7 @@ enum class RecordedPaintKind
     FillRect,
     FillGradientRect,
     OutlineRect,
+    OutlineRoundedRect,
     FillCircleApprox,
     FillConvexQuad,       // recorded as the quad's bounding box
     FillEllipseApprox,    // recorded as the ellipse's bounding box
@@ -40,7 +41,8 @@ struct RecordedPaintCall
     float              y            = 0.0f;
     float              width        = 0.0f;
     float              height       = 0.0f;
-    float              thickness    = 0.0f;     // OutlineRect only
+    float              thickness    = 0.0f;     // the outline kinds only
+    float              radius       = 0.0f;     // OutlineRoundedRect only
     uint32_t           argb         = 0;
     uint32_t           argbSecond   = 0;        // FillGradientRect bottom
 };
@@ -59,6 +61,7 @@ public:
     void  FillRect          (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbColor) override;
     void  FillGradientRect  (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbTop, uint32_t argbBottom) override;
     void  OutlineRect       (float xPx, float yPx, float widthPx, float heightPx, float thicknessPx, uint32_t argbColor) override;
+    void  OutlineRoundedRect (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, float thicknessPx, uint32_t argbColor) override;
     void  FillCircleApprox  (float cxPx, float cyPx, float radiusPx, uint32_t argbColor) override;
     void  FillConvexQuad    (float x0, float y0, float x1, float y1,
                              float x2, float y2, float x3, float y3, uint32_t argbColor) override;

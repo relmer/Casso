@@ -225,6 +225,17 @@ static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 // it is held. The bar sizes itself to this text; nothing here places it.
 static const wchar_t * const  s_kpszCaptureNotice =
     L"Press Esc to release the mouse and exit paddle mode";
+
+// How long the screenshot result stays up. Long enough to read a filename
+// without hunting for it, short enough that it is gone before the next thing
+// the user wants to look at.
+static constexpr int64_t s_kScreenshotNoticeMs      = 4000;
+
+// How much of the picture the notice's scrim lets through. Enough dimming
+// that a filename stays legible over a bright screen, little enough that what
+// was just captured is still visible behind the words describing it.
+static constexpr float   s_kScreenshotNoticeScrimAlpha = 0.82f;
+
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //
@@ -1464,6 +1475,12 @@ HRESULT EmulatorShell::InitializeRenderer()
         // persistent one (device lost) shows on screen and is handled by
         // the renderer's own device-reset path, not from here.
         IGNORE_RETURN_VALUE (hrComposite, S_OK);
+
+        //  A Crt capture belongs HERE, at the end of the composite and
+        //  before the chrome walk: the picture is finished and nothing has
+        //  painted over it yet. Waiting until after the panel tree would
+        //  collect the readouts and any chrome overlapping the viewport.
+        ServiceCaptureRequest (CapturePoint::AfterPicture);
     });
 
     // With the monitor opted out the drives are the only scene objects, and
@@ -1475,6 +1492,14 @@ HRESULT EmulatorShell::InitializeRenderer()
     {
         HRESULT  hrDrives = S_OK;
 
+
+        //  A Scene capture is taken at the TOP of this hook, ahead of the
+        //  early returns below -- it has to run whatever the monitor and
+        //  theme state, and by here the panel tree has painted and the scene
+        //  is whole. The drives rendered further down belong to the
+        //  monitor-off path, which is the one case this ordering gets wrong;
+        //  see the note in TakeScreenshot.
+        ServiceCaptureRequest (CapturePoint::AfterChrome);
 
         if (CrtMonitorActive() || !DeskSceneActive())
         {
@@ -2479,12 +2504,21 @@ void EmulatorShell::SyncSceneViewReadout()
         rc.bottom = cy + hh;
     }
 
-    swprintf_s (text, L"yaw %.1f  pitch %.1f  zoom %.2f  pan %.3f %.3f",
-                m_sceneView.orbitYawRad * 180.0f / 3.14159265f,
-                m_sceneView.orbitPitchRad * 180.0f / 3.14159265f,
-                m_sceneView.zoom, m_sceneView.panX, m_sceneView.panY);
+    //  ONE FORMATTER, shared with the screenshot metadata entry. A pose read
+    //  out of a file and one read off the picture have to be the same text or
+    //  they do not restore the same view, and two format strings in two files
+    //  is how they stop being.
+    {
+        string   pose = ScreenshotMetadata::FormatScenePose (m_sceneView.orbitYawRad,
+                                                             m_sceneView.orbitPitchRad,
+                                                             m_sceneView.zoom,
+                                                             m_sceneView.panX,
+                                                             m_sceneView.panY);
 
-    m_sceneViewReadout.SetText        (text);
+        m_sceneViewReadout.SetText (wstring (pose.begin(), pose.end()).c_str());
+    }
+
+
     m_sceneViewReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
     m_sceneViewReadout.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     m_sceneViewReadout.SetDpi         (m_scaler.GetDpi());
@@ -4524,6 +4558,25 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  reads as something that failed to lay out.
     m_captureBar.SetCentered (true);
     m_captureBar.SetVisible  (false);
+
+    //  THE SCREENSHOT NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both
+    //  are up the result of the screenshot is the one on top -- it is the
+    //  newer of the two, and the older one is still readable in the strip
+    //  above it.
+    //
+    //  Its backing is a SCRIM rather than the panel color the capture bar
+    //  uses: this bar hangs over the picture instead of docking above it, and
+    //  filling that strip opaque would take a slice out of what the user is
+    //  looking at every time they photograph it.
+    m_screenshotNoticeScrim.SetToken   (DxuiSurface::Token::Background);
+    m_screenshotNoticeScrim.SetOpacity (s_kScreenshotNoticeScrimAlpha);
+    m_screenshotNoticeScrim.SetVisible (false);
+    m_host->GetRoot().Adopt (m_screenshotNoticeScrim);
+    m_host->GetRoot().Adopt (m_screenshotNotice);
+
+    m_screenshotNotice.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_screenshotNotice.SetCentered (true);
+    m_screenshotNotice.SetVisible  (false);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -8161,6 +8214,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // strip was last frame -- visibly trailing it through the reveal.
     TickFullscreenTopChrome();
     SyncCaptureBanner();
+    SyncCaptureNotice();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
 
@@ -9689,6 +9743,498 @@ void EmulatorShell::ExecuteCpuSlices()
             m_refs.speaker->ClearTimestamps();
             m_refs.speaker->BeginFrame();
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowCaptureNotice
+//
+//  Post the screenshot result over the picture for a few seconds.
+//
+//  The text arrives already composed by CaptureOutcome::DescribeResult, which
+//  is deliberate: every branch of what to say about a capture is decided in
+//  core where a test can reach it, and this function chooses no wording.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowCaptureNotice (const std::wstring & text)
+{
+    int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                          std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
+    m_screenshotNotice.SetText (text);
+    m_screenshotNoticeUntilMs = nowMs + s_kScreenshotNoticeMs;
+
+    SyncCaptureNotice();
+
+    m_d3dRenderer.MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncCaptureNotice
+//
+//  Lay the notice out while it is live, and drop it once it expires.
+//
+//  ACROSS THE TOP, UNDER EVERYTHING DOCKED THERE. The chrome at the top of
+//  the window is where this window puts what it has to say about itself, and
+//  a screenshot's filename is exactly that -- the one part of a capture that
+//  is about the application rather than about the machine. Put over the
+//  picture it lands on whatever the user just photographed, and read as a
+//  caption on it.
+//
+//  IT OVERLAYS RATHER THAN DOCKS, which is the one way it differs from the
+//  pointer-capture bar beside it. That bar tracks a state and is worth the
+//  height it takes from the picture; this one is up for four seconds, and a
+//  band that appears and vanishes on a timer would reflow the machine twice
+//  for every screenshot. So it hangs UNDER the last docked band and covers a
+//  strip of picture, dimmed by a scrim rather than hidden behind a panel.
+//
+//  Separate from the pointer-capture bar, not a reuse of it: a screenshot
+//  taken with the paddle captured must not replace the words telling the user
+//  how to get their cursor back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncCaptureNotice()
+{
+    RECT                 client = {};
+    RECT                 rc     = {};
+    IDxuiTextRenderer *  text   = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    float                width  = 0.0f;
+    int64_t              nowMs  = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                      std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
+    if (nowMs >= m_screenshotNoticeUntilMs || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        m_screenshotNotice.SetVisible      (false);
+        m_screenshotNoticeScrim.SetVisible (false);
+        return;
+    }
+
+    width = (float) (client.right - client.left);
+
+    rc.left  = client.left;
+    rc.right = client.right;
+    rc.top   = ComputeTopOverlayEdgePx (client);
+
+    //  MEASURED WHERE THERE IS A RENDERER TO ASK. The bar centers its text,
+    //  and a centered banner picks its line width from that measurement; the
+    //  estimate behind GetPreferredHeightPx works from an average glyph
+    //  width, so a wide face or a long path measures past it and the last
+    //  line lands outside the strip. The estimate stays as the fallback for
+    //  the frames before the renderer exists.
+    m_screenshotNotice.SetDpi (m_scaler.GetDpi());
+
+    rc.bottom = rc.top + (LONG) ((text != nullptr)
+                                 ? m_screenshotNotice.GetMeasuredHeightPx (*text, width, m_scaler)
+                                 : m_screenshotNotice.GetPreferredHeightPx (width, m_scaler));
+
+    m_screenshotNoticeScrim.Layout     (rc, m_scaler);
+    m_screenshotNoticeScrim.SetVisible (true);
+
+    m_screenshotNotice.Layout     (rc, m_scaler);
+    m_screenshotNotice.SetVisible (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeTopOverlayEdgePx
+//
+//  Where the picture starts, for something that wants to hang over the top of
+//  it without landing on the chrome.
+//
+//  IT ASKS THE BANDS RATHER THAN ADDING THEM UP. Which bands are at the top,
+//  and which of those are showing, varies by theme, by fullscreen and by
+//  whether the mouse is currently captured -- a count kept here would be a
+//  second copy of the dock's arithmetic, and the copy is the one that goes
+//  wrong. The lowest bottom edge among the bands that are up IS the answer,
+//  and it stays the answer when a band is added.
+//
+//  Fullscreen has no bands at all: the toolbar reveals itself over the
+//  picture and the pointer-capture bar hangs beneath it, and both are in the
+//  list for exactly that case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LONG EmulatorShell::ComputeTopOverlayEdgePx (const RECT & client) const
+{
+    const IDxuiControl * const  bands[] = { &m_mainMenu,
+                                            &m_toolbar,
+                                            &m_changeBanner,
+                                            &m_captureBarSurface,
+                                            &m_captureBar };
+    LONG                        top     = client.top;
+    RECT                        rc      = {};
+
+
+
+    for (const IDxuiControl * band : bands)
+    {
+        rc = band->GetBounds();
+
+        if (band->IsVisible() && rc.bottom > rc.top
+            && rc.top < client.bottom && rc.bottom > top)
+        {
+            top = rc.bottom;
+        }
+    }
+
+    return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCaptureOverlaysHidden
+//
+//  HIDE WHAT DESCRIBES THE APPLICATION; CAPTURE WHAT DESCRIBES THE MACHINE.
+//
+//  The compass is a control, the two readouts are diagnostics, and the
+//  pointer-capture bar is a transient piece of state -- none of them are part
+//  of the machine on the desk, and each can sit inside the viewport where a
+//  Scene capture would otherwise collect it.
+//
+//  A useful side effect: a scene capture no longer depends on which
+//  diagnostics happen to be switched on, so two captures of the same view are
+//  the same image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
+{
+    if (hidden)
+    {
+        m_sceneCompass.SetVisible     (false);
+        m_fpsReadout.SetVisible       (false);
+        m_sceneViewReadout.SetVisible (false);
+        //  The pointer-capture bar is docked chrome in a window, and a
+        //  Scene capture takes the viewport, so there it is already out of
+        //  frame. In FULLSCREEN there are no bands and the bar hangs off the
+        //  top edge, inside the picture -- which is the case this covers.
+        m_captureBar.SetVisible        (false);
+        m_captureBarSurface.SetVisible (false);
+
+        //  Including this one. Two captures inside the notice's few seconds
+        //  would otherwise photograph the first one's filename.
+        m_screenshotNotice.SetVisible      (false);
+        m_screenshotNoticeScrim.SetVisible (false);
+    }
+    else
+    {
+        //  Restored by the layout pass that owns each one, rather than by
+        //  remembering four booleans here -- the pose readout and the frame
+        //  rate are driven by prefs, the compass by whether a scene is up,
+        //  and the banner by whether the mouse is captured. Re-deriving is
+        //  what keeps this from disagreeing with them.
+        LayoutSceneCompass();
+        SyncFrameRateReadout();
+        SyncSceneViewReadout();
+        SyncCaptureBanner();
+        SyncCaptureNotice();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServiceCaptureRequest
+//
+//  Called from both paint hooks. Fills the pending capture if this is the
+//  point in the frame the plan asked for, and does nothing otherwise.
+//
+//  Read failures are swallowed here on purpose: `captured` stays false and
+//  TakeScreenshot reports it once the frame is over. A paint hook is not a
+//  place to raise anything -- it runs inside the host's pump, with a frame
+//  half-built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ServiceCaptureRequest (CapturePoint atPoint)
+{
+    HRESULT   hr = S_OK;
+
+
+
+    if (!m_pendingCapture.armed || m_pendingCapture.captured)
+    {
+        return;
+    }
+
+    if (m_pendingCapture.at != atPoint)
+    {
+        return;
+    }
+
+    if (m_pendingCapture.from == CaptureSource::PictureTarget)
+    {
+        hr = m_d3dRenderer.CaptureSceneTargetRegion (m_pendingCapture.regionPx, m_pendingCapture.image);
+    }
+    else
+    {
+        hr = m_d3dRenderer.CaptureBackBufferRegion (m_pendingCapture.regionPx, m_pendingCapture.image);
+    }
+
+    m_pendingCapture.captured = SUCCEEDED (hr);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildScreenshotFacts
+//
+//  Gathers what a screenshot can say about itself. Collecting only -- WHICH of
+//  these a given mode actually emits is the composer's decision, and it is
+//  made in core where a test can reach it.
+//
+//  Every value here already has an owner elsewhere and is reused rather than
+//  re-derived: the version string is the one the WOZ creator stamp uses, the
+//  monitor key is the one the user's CRT overrides are filed under, and the
+//  pose comes from the same formatter as the on-screen readout. That is what
+//  keeps a screenshot's account of itself from drifting away from the rest of
+//  the application.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ScreenshotFacts EmulatorShell::BuildScreenshotFacts (ScreenshotMode mode, const SYSTEMTIME & when) const
+{
+    ScreenshotFacts          facts;
+    TIME_ZONE_INFORMATION    tz     = {};
+    DWORD                    tzKind = 0;
+    size_t                   mIndex = 0;
+    const CrtParams &        crt    = m_d3dRenderer.GetCrtParams();
+
+
+
+    facts.mode               = mode;
+    facts.versionString      = string ("Casso ") + VERSION_STRING;
+    facts.when               = when;
+    facts.machineDisplayName = m_config.name;
+
+    //  The offset the timestamp is expressed in. GetTimeZoneInformation
+    //  reports Bias as minutes to ADD to local time to reach UTC, which is the
+    //  opposite sign from the one RFC 1123 prints, and daylight time carries
+    //  its own extra bias on top.
+    tzKind = GetTimeZoneInformation (&tz);
+
+    if (tzKind != TIME_ZONE_ID_INVALID)
+    {
+        LONG   bias = tz.Bias + ((tzKind == TIME_ZONE_ID_DAYLIGHT) ? tz.DaylightBias : tz.StandardBias);
+
+        facts.utcOffsetMinutes = (int) -bias;
+    }
+
+    //  The key the user's CRT overrides are filed under, taken from the cache
+    //  the render path already keeps rather than re-resolved: resolving the
+    //  monitor costs a path lookup, a file read and a JSON parse.
+    mIndex = (size_t) m_colorMode.load (std::memory_order_acquire);
+
+    if (mIndex < kCrtModeCount)
+    {
+        facts.monitorKey = m_crtOverrideKeys[mIndex];
+    }
+
+    if (DeskSceneActive())
+    {
+        facts.hasScenePose  = true;
+        facts.orbitYawRad   = m_sceneView.orbitYawRad;
+        facts.orbitPitchRad = m_sceneView.orbitPitchRad;
+        facts.zoom          = m_sceneView.zoom;
+        facts.panX          = m_sceneView.panX;
+        facts.panY          = m_sceneView.panY;
+    }
+
+    facts.crt.brightness        = crt.brightness;
+    facts.crt.contrast          = crt.contrast;
+    facts.crt.gamma             = crt.gamma;
+    facts.crt.scanlineIntensity = crt.scanlineIntensity;
+    facts.crt.bloomStrength     = crt.bloomStrength;
+    facts.crt.bloomRadius       = crt.bloomRadius;
+    facts.crt.colorBleedWidth   = crt.colorBleedWidth;
+    facts.crt.persistence       = crt.persistence;
+
+    return facts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeScreenshot
+//
+//  Resolve what the user asked for, get the pixels, deliver them, say what
+//  happened.
+//
+//  THE PIXELS COME FROM ONE OF TWO PLACES, and which one decides the shape of
+//  this function. A Raw capture is a memcpy out of the framebuffer and needs
+//  no frame at all. The other two live on the GPU in a back buffer that
+//  FLIP_DISCARD throws away at Present, so they can only be read from inside a
+//  paint -- which is why this arms a request, drives one synchronous paint
+//  through the ordinary WM_PAINT path, and collects the result afterwards.
+//
+//  Driving the paint rather than waiting for the next natural one keeps the
+//  whole thing synchronous from the caller's point of view: the notice appears
+//  in the same turn the user pressed the button.
+//
+//  The overlays are hidden across that paint and restored immediately, which
+//  the user sees as a shutter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TakeScreenshot()
+{
+    HRESULT                     hr          = S_OK;
+    ScreenshotPlanInputs        inputs;
+    ScreenshotPlan              plan;
+    ScreenshotCapture::Sources  sources;
+    CaptureOutcome              outcome;
+    CapturedImage               image;
+    vector<MetadataEntry>       textChunks;
+    PWSTR                       picturesRaw = nullptr;
+    HRESULT                     hrPictures  = S_OK;
+    SYSTEMTIME                  now         = {};
+
+
+
+    GetLocalTime (&now);
+
+    hrPictures = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
+
+    if (SUCCEEDED (hrPictures))
+    {
+        inputs.defaultPicturesFolder = fs::path (picturesRaw);
+    }
+
+    inputs.mode            = ScreenshotModeToken::Parse (m_globalPrefs.screenshotMode);
+    inputs.saveFile        = m_globalPrefs.screenshotSaveFile;
+    inputs.folder          = fs::path (m_globalPrefs.screenshotFolder);
+    //  THE TWO RECTS ARE NOT THE SAME THING, and m_viewportBoundsPx is not
+    //  either of them under a desk scene. That member is the DxuiViewport
+    //  panel's bounds, which the scene layout puts on the GLASS -- measured,
+    //  594x378 inside a 1582x1116 client. Feeding it to both inputs made Scene
+    //  and Crt capture one identical crop of the monitor's face.
+    //
+    //  Scene   the whole area the scene is drawn into, which the composition
+    //          owns; the same rect the compass is inset from.
+    //  Crt     where the picture actually landed. With a desk scene that is a
+    //          sub-rect of the offscreen target, recorded by the renderer as
+    //          it drew; without one the chain composited straight into the
+    //          back buffer at its target bounds.
+    if (DeskSceneActive())
+    {
+        inputs.viewportPx = m_deskScene.Composition().viewportPx;
+        inputs.picturePx  = m_d3dRenderer.GetScenePictureRect();
+    }
+    else
+    {
+        inputs.viewportPx = m_viewportBoundsPx;
+        inputs.picturePx  = m_d3dRenderer.GetTargetBounds();
+
+        //  AND THE DRIVES, which in a flat theme are not in the viewport at
+        //  all -- they are widgets in a band docked under it, where the desk
+        //  scene models them inside the picture area. Full scene left them
+        //  out, which made it identical to Screen only in every flat theme.
+        //  The band's surface runs from its top to the bottom of the client,
+        //  so the union takes the switch bar between them as well: those
+        //  switches are the machine's too.
+        if (m_driveBandSurface.IsVisible())
+        {
+            inputs.machineChromePx = m_driveBandSurface.GetBounds();
+        }
+    }
+
+    inputs.framebufferSize = { kFramebufferWidth, kFramebufferHeight };
+    inputs.deskSceneActive = DeskSceneActive();
+    inputs.windowMinimized = (IsIconic (m_hwnd) != FALSE);
+    inputs.when            = now;
+
+    plan = ScreenshotPlan::Resolve (inputs,
+               [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
+
+    textChunks = ScreenshotMetadata::Compose (BuildScreenshotFacts (inputs.mode, now));
+
+
+    sources.hwnd             = m_hwnd;
+    sources.renderer         = &m_d3dRenderer;
+    sources.clipboard        = m_clipboardManager.get();
+    sources.framebuffer      = m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
+    sources.framebufferMutex = &m_framebufferMutex;
+    sources.framebufferSize  = { kFramebufferWidth, kFramebufferHeight };
+
+    if (plan.refusal == CaptureRefusal::None)
+    {
+        if (plan.source == CaptureSource::Framebuffer)
+        {
+            hr = ScreenshotCapture::AcquirePixels (plan, sources, image);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else
+        {
+            m_pendingCapture          = PendingCapture();
+            m_pendingCapture.armed    = true;
+            m_pendingCapture.from     = plan.source;
+            m_pendingCapture.regionPx = plan.sourceRectPx;
+            m_pendingCapture.at       = (inputs.mode == ScreenshotMode::Scene)
+                                        ? CapturePoint::AfterChrome
+                                        : CapturePoint::AfterPicture;
+
+            SetCaptureOverlaysHidden (true);
+
+            m_d3dRenderer.MarkRedrawNeeded();
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+            UpdateWindow   (m_hwnd);
+
+            SetCaptureOverlaysHidden (false);
+
+            if (m_pendingCapture.captured)
+            {
+                image = std::move (m_pendingCapture.image);
+            }
+
+            m_pendingCapture = PendingCapture();
+        }
+    }
+
+    hr = ScreenshotCapture::Deliver (plan, sources, textChunks, image, outcome);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    ShowCaptureNotice (CaptureOutcome::DescribeResult (outcome));
+
+    if (picturesRaw != nullptr)
+    {
+        CoTaskMemFree (picturesRaw);
     }
 }
 

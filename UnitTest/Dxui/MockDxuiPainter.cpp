@@ -85,6 +85,37 @@ void MockDxuiPainter::OutlineRect (float xPx, float yPx, float widthPx, float he
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OutlineRoundedRect
+//
+//  Recorded as its own kind rather than folded into OutlineRect, so a test
+//  can tell a rounded ring from a square one -- which is the whole difference
+//  between a focus ring on a link and a box drawn around it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockDxuiPainter::OutlineRoundedRect (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, float thicknessPx, uint32_t argbColor)
+{
+    RecordedPaintCall  call;
+
+
+
+    call.kind      = RecordedPaintKind::OutlineRoundedRect;
+    call.x         = xPx;
+    call.y         = yPx;
+    call.width     = widthPx;
+    call.height    = heightPx;
+    call.radius    = radiusPx;
+    call.thickness = thicknessPx;
+    call.argb      = argbColor;
+    m_calls.push_back (call);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FillCircleApprox
 //
 ////////////////////////////////////////////////////////////////////////////////
