@@ -46,6 +46,20 @@ public:
     // audio simply plays it as silence. CC BY 4.0 (Scott Lawrence / BleuLlama).
     static HRESULT  EnsureImageWriterSounds (HINSTANCE hInstance);
 
+    // Hand the embedded symbol font to DirectWrite, so the open and closed
+    // Apple codepoints render from it anywhere chrome names those keys.
+    //
+    // Unlike the assets above, nothing is written to disk: the font is
+    // registered straight out of the module image. Chrome that has to say
+    // which key a machine has cannot depend on an asset directory that a user
+    // may have moved, and the file is under two kilobytes.
+    //
+    // Best-effort, like its neighbors. Chrome that draws the symbol instead
+    // of the words asks DxuiTextRenderer::HasSymbolFont first and writes the
+    // words when this failed, so a machine without the font still names the
+    // key rather than showing a missing-glyph box that says nothing.
+    static HRESULT  RegisterSymbolFont    (HINSTANCE hInstance);
+
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The
     // downloader places freshly fetched ROMs at

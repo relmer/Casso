@@ -1,0 +1,33 @@
+CassoSymbols.ttf
+================
+
+A two-glyph symbol font holding the Apple II keycap symbols:
+
+    U+E000   open Apple    (outline)
+    U+E001   closed Apple  (filled)
+
+Both glyphs come from one drawing. The closed apple is the artwork as drawn;
+the open apple is the same region hollowed out by an inward offset, so the two
+are the same silhouette at the same size differing only in fill -- which is how
+the //e and //c keycaps tell the two Apple keys apart, and why no shipping font
+can stand in for this one.
+
+Artwork
+-------
+
+    Assets/Apple/apple-closed.svg
+    https://www.svgrepo.com/svg/69341/apple-logo
+    CC0 1.0 Universal (public domain dedication)
+
+CC0 asks for no attribution; this file records the origin anyway so the next
+person to touch the font knows where it came from and that it is free to
+change.
+
+Rebuilding
+----------
+
+    python scripts/GenSymbolFont.py
+
+Edit the SVG, or the weight of the hollowed line, and re-run. The font is
+embedded in Casso.exe as IDR_FONT_SYMBOLS and handed to DirectWrite at startup
+by AssetBootstrap::RegisterSymbolFont, so a rebuilt file needs no other change.

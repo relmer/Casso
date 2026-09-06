@@ -4,6 +4,7 @@
 
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiButton.h"
+#include "Core/UnicodeSymbols.h"
 
 
 static constexpr int      s_kLineHeightDip = 18;   // == DxuiTheme::BodyLineHeightDip, so a run's block matches real text line flow
@@ -13,6 +14,8 @@ static constexpr int      s_kGlyphGapDip   = 12;
 static constexpr size_t   s_kWrapColumns   = 52;
 static constexpr int      s_kShellExecOk   = 0;     // ignored ShellExecute result reset value
 static constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
+static constexpr int      s_kColGapDip     = 10;   // each side of the arrow column
+static constexpr int      s_kArrowColDip   = 16;   // the arrow glyph's own column
 
 
 
@@ -32,6 +35,9 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs)
 {
     m_items.clear();
     m_items.reserve (runs.size());
+
+    m_leftColDip  = 0;
+    m_rightColDip = 0;
 
     for (const DialogTextRun & run : runs)
     {
@@ -61,7 +67,35 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs)
 
         item.lines = lines;
 
-        if (run.isHyperlink)
+        if (run.IsColumnRow())
+        {
+            // Three cells so each can be positioned independently in Layout;
+            // one label with padding could not keep a column across rows.
+            DxuiLabel  &  left  = Add<DxuiLabel>();
+            DxuiLabel  &  arrow = Add<DxuiLabel>();
+            DxuiLabel  &  right = Add<DxuiLabel>();
+
+            left.SetText       (run.text);
+            left.SetTextRole   (DxuiTextRole::Body);
+            left.SetTextAlign  (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
+            arrow.SetText      (s_kpszRightArrow);
+            arrow.SetTextRole  (DxuiTextRole::Body);
+            arrow.SetTextAlign (DxuiTextHAlign::Center, DxuiTextVAlign::Top);
+
+            right.SetText      (run.rightText);
+            right.SetTextRole  (DxuiTextRole::Body);
+            right.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
+            item.widget      = &left;
+            item.arrowWidget = &arrow;
+            item.rightWidget = &right;
+            item.lines       = 1;   // a column row never wraps
+
+            m_leftColDip  = (std::max) (m_leftColDip,  EstimateTextWidthDip (run.text));
+            m_rightColDip = (std::max) (m_rightColDip, EstimateTextWidthDip (run.rightText));
+        }
+        else if (run.isHyperlink)
         {
             DxuiButton  &  link = Add<DxuiButton>();
             std::wstring   url  = run.hyperlinkUrl;
@@ -167,6 +201,59 @@ int DialogBodyContent::GetPreferredHeightDip() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DialogBodyContent::EstimateTextWidthDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DialogBodyContent::EstimateTextWidthDip (const std::wstring & text)
+{
+    constexpr float  kFontDip    = 13.0f;
+    constexpr float  kEstGlyphEm = 0.58f;
+
+
+
+    return static_cast<int> (text.size() * kFontDip * kEstGlyphEm);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogBodyContent::GetPreferredWidthDip
+//
+//  The width the column rows want: both cells at their widest, the arrow
+//  column, and the gaps around it. Zero when there are no column rows, which
+//  the caller reads as "no opinion" and keeps its own default width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DialogBodyContent::GetPreferredWidthDip() const
+{
+    int  width = 0;
+
+
+
+    if (m_leftColDip > 0 || m_rightColDip > 0)
+    {
+        width = m_leftColDip + s_kColGapDip + s_kArrowColDip + s_kColGapDip + m_rightColDip;
+
+        if (m_glyph != 0 && m_glyphSizeDip > 0)
+        {
+            width += m_glyphSizeDip + s_kGlyphGapDip;
+        }
+    }
+
+    return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DialogBodyContent::Layout
 //
 //  Stacks the run widgets top-down within the (physical-pixel) content
@@ -216,7 +303,25 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         int   hPx = item.lines * linePx;
         RECT  b   = { runsLeft, y, boundsPx.right, y + hPx };
 
-        if (item.widget != nullptr)
+        if (item.arrowWidget != nullptr)
+        {
+            // Column positions come from the shared widths, so every arrow
+            // lands on the same x whatever its row says.
+            int  leftPx  = scaler.ToPx (m_leftColDip);
+            int  colGap  = scaler.ToPx (s_kColGapDip);
+            int  arrowPx = scaler.ToPx (s_kArrowColDip);
+            int  arrowX  = runsLeft + leftPx + colGap;
+            int  rightX  = arrowX + arrowPx + colGap;
+
+            RECT  leftBox  = { runsLeft, y, runsLeft + leftPx,  y + hPx };
+            RECT  arrowBox = { arrowX,   y, arrowX + arrowPx,   y + hPx };
+            RECT  rightBox = { rightX,   y, boundsPx.right,     y + hPx };
+
+            item.widget->Layout      (leftBox,  scaler);
+            item.arrowWidget->Layout (arrowBox, scaler);
+            item.rightWidget->Layout (rightBox, scaler);
+        }
+        else if (item.widget != nullptr)
         {
             item.widget->Layout (b, scaler);
         }

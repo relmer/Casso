@@ -52,6 +52,27 @@ Entries before versioning was introduced use dates only.
   "Exit full screen" once you are in it.
 
 ### Changed
+- **Ctrl+R no longer resets the machine.** It was a second binding for the menu's
+  Ctrl+Shift+R, and because the shell claimed the keystroke, no Apple program
+  could ever receive a Ctrl+R of its own. Reset keeps its menu accelerator.
+- **The keyboard map now describes the machine you are running, in aligned
+  columns.** Rows name only keys that machine actually has, so a ][+ is no
+  longer told about the open Apple key, Delete or the up and down arrows it does not
+  have, and the dialog sizes itself to what is left. Key, arrow and meaning
+  line up in three columns.
+- **Casso draws the Apple keys as the keycaps do.** Wherever the chrome names
+  the open or closed Apple key -- the keyboard map, the //c reset tip, the
+  input event panel -- the apple symbol now sits beside the words, so a reader
+  can match the text to the key under their finger. The two keycaps differ
+  only by fill, which no shipping font can express, so Casso embeds a
+  two-glyph font of its own and teaches DirectWrite to reach for it -- the
+  symbols are ordinary characters, and work anywhere text does.
+- **The keyboard map now carries only what the menus cannot say.** Its list of
+  emulator shortcuts repeated six accelerators the menus already print beside
+  their own items, while omitting eleven others, so it read as a complete list
+  and was not one. Gone too are the rows mapping keys to themselves. What
+  remains is the Apple-specific part: the open and closed Apple keys, which
+  keys the ][ and ][+ do not have, and the joystick mapping.
 - **Replaced full screen icons with diagonal arrows.**
 - **The command bar now narrows one button at a time.** As the window shrinks,
   buttons drop their labels from the right, so the leftmost keep their names
@@ -98,6 +119,16 @@ Entries before versioning was introduced use dates only.
   over the //c's lid as a bar a few millimeters tall.
 
 ### Fixed
+- **The //e and //c could not type lowercase.** Every letter was folded to
+  uppercase on its way to the keyboard latch, on machines whose whole keyboard
+  advance was lowercase. Pasted text was folded the same way.
+- **The ][ and ][+ received keys their keyboard has no way to send.** Up and
+  down arrows, TAB and DELETE all arrived with the //e, but the host has them
+  and Casso passed them straight through. Pressing one on those machines is
+  now a no-op: nothing latches, and $C010 no longer reports a key held. Which
+  keys a machine has is asked of the key itself, so Ctrl+I, Ctrl+J and Ctrl+K
+  keep working on a ][+ even though they send the same codes as the //e keys
+  it lacks.
 - **The input events panel's two paddle view combo boxes let the buttons behind
   them show through their open list.** Their menus now open in a top-level popup
   window, as every other combo box in Casso already did.

@@ -7,6 +7,8 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
+#include "../Ui/Dialogs/KeyboardMapText.h"
+#include "Devices/AppleKeyboard.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"
@@ -2241,26 +2243,19 @@ void WindowCommandManager::OnHelpCommand (int id)
     {
         case IDM_HELP_KEYMAP:
         {
-            DialogDefinition def = {};
+            DialogDefinition          def     = {};
+            KeyboardMapText::Machine  machine = {};
+
+            // Read the capabilities off the live devices rather than a model
+            // name, so a machine gains its row the moment it gains the
+            // hardware. The //e keyboard is what carries the two Apple keys.
+            machine.hasAppleKeys = m_shell.m_refs.iieKeyboard != nullptr;
+            machine.hasGamePort  = m_shell.m_refs.iieSoftSwitches != nullptr ||
+                                   m_shell.m_refs.gamePort != nullptr;
+
             def.title = L"Keyboard map";
             def.icon  = DialogIcon::Info;
-            def.body.push_back ({
-                L"PC key mapping:\n\n"
-                L"Arrow keys -> Apple ][ cursor movement\n"
-                L"Enter -> Return\n"
-                L"Escape -> Escape\n"
-                L"Delete -> Delete\n"
-                L"Ctrl+Reset -> Warm reset\n"
-                L"Left Alt -> Open Apple (//e)\n"
-                L"Right Alt -> Closed Apple (//e)\n\n"
-                L"Emulator controls:\n"
-                L"Ctrl+Shift+R -> Reset\n"
-                L"Ctrl+Shift+P -> Power cycle\n"
-                L"Pause -> Pause/resume\n"
-                L"F11 -> Step (when paused)\n"
-                L"Alt+Enter -> Full screen\n"
-                L"Ctrl+0 -> Reset view (window size, scene pose and zoom)",
-                false, L"" });
+            def.body  = KeyboardMapText::BuildBody (machine);
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
             break;

@@ -3,6 +3,7 @@
 #include "InputDebugPanel.h"
 
 #include "Chrome/CassoTheme.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -361,8 +362,30 @@ LPCWSTR InputDebugPanel::GetButtonAnnotation (Word address, bool mouseButtonAtC0
 
     switch (address)
     {
-        case s_kOpenAppleAddress:   text = L"Open-Apple/Btn0";          break;
-        case s_kClosedAppleAddress: text = L"Closed-Apple/Btn1 (bow)";  break;
+        // The two Apple keys are their keycap symbols and nothing else.
+        // Words beside a symbol that already says the same thing only cost
+        // column width here; the keyboard map is where the pair is taught.
+        // Built on first use: a named glyph constant cannot join a literal.
+        case s_kOpenAppleAddress:
+        {
+            static const std::wstring  openApple =
+                (DxuiTextRenderer::HasSymbolFont() ? std::wstring (s_kpszOpenApple)
+                                                   : std::wstring (L"Open Apple")) + L"/Btn0";
+
+            text = openApple.c_str();
+            break;
+        }
+
+        case s_kClosedAppleAddress:
+        {
+            static const std::wstring  closedApple =
+                (DxuiTextRenderer::HasSymbolFont() ? std::wstring (s_kpszClosedApple)
+                                                   : std::wstring (L"Closed Apple")) + L"/Btn1 (bow)";
+
+            text = closedApple.c_str();
+            break;
+        }
+
 
         // Naming the //c's mouse button for what it is, and flagging the
         // inverted sense, so a reader is not left checking the datasheet.

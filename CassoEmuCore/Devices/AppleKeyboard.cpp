@@ -157,7 +157,7 @@ void AppleKeyboard::PressKey (Byte asciiChar)
 {
     // Store key with bit 7 set (strobe) in a single atomic write
     m_latchedKey.store (
-        TranslateToUppercase (asciiChar) | 0x80, memory_order_release);
+        TranslateTypedChar (asciiChar) | 0x80, memory_order_release);
 }
 
 
@@ -344,14 +344,98 @@ void AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TranslateToUppercase
+//  TranslateTypedChar
+//
+//  The ][ / ][+ keyboard is uppercase only, so a typed letter latches in
+//  upper case whatever the host sent.
+//
+//  This route NEVER drops a character, and the distinction is load-bearing.
+//  A typed character is whatever the encoder produced, and on this keyboard
+//  Ctrl+letter reaches $01-$1A: Ctrl+I sends $09, Ctrl+J $0A, Ctrl+K $0B --
+//  the same codes as the //e's TAB and up / down arrows, from keys the ][+
+//  really does have. Judging by the code would swallow them, so which keys a
+//  machine HAS is answered by MapSpecialKey, against the key, never here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleKeyboard::TranslateToUppercase (Byte ch) const
+Byte AppleKeyboard::TranslateTypedChar (Byte ch) const
 {
-    // Apple II/II+ keyboard is uppercase only
     return (ch >= 'a' && ch <= 'z') ? (Byte) (ch - ('a' - 'A')) : ch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MapSpecialKey
+//
+//  The code the ][ / ][+ keyboard sends for a named key, or 0 when the
+//  keyboard has no such key.
+//
+//  Its cursor control is left and right ONLY. Four-way arrows, TAB and
+//  DELETE all arrived with the //e, so a host pressing one of those is
+//  pressing a key this machine does not have, and nothing should reach the
+//  guest -- not the latch, and not any-key-down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleKeyboard::MapSpecialKey (AppleSpecialKey key) const
+{
+    Byte  code = 0;
+
+
+
+    switch (key)
+    {
+        case AppleSpecialKey::Left:
+            code = kAppleKeyLeft;
+            break;
+
+        case AppleSpecialKey::Right:
+            code = kAppleKeyRight;
+            break;
+
+        case AppleSpecialKey::Escape:
+            code = kAppleKeyEscape;
+            break;
+
+        default:
+            // Up, Down, Tab and Delete are //e keys; this keyboard has none
+            // of them, so they stay 0.
+            break;
+    }
+
+    return code;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PressSpecialKey
+//
+//  Latch a named key, doing nothing at all when this machine's keyboard has
+//  no such key. Returns the code latched, or 0, so the caller can tell the
+//  two apart and skip arming auto-repeat for a key that was never pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleKeyboard::PressSpecialKey (AppleSpecialKey key)
+{
+    Byte  code = MapSpecialKey (key);
+
+
+
+    if (code != 0)
+    {
+        PressKey (code);
+    }
+
+    return code;
 }
 
 
