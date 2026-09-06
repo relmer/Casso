@@ -193,8 +193,8 @@ public:
         bool                     createNoActivate         = false;
 
         // When true (and ownerHwnd is set), the window opens flush
-        // against the owner's right edge, or its left edge when the
-        // right does not fit on the owner's monitor, instead of taking
+        // against the owner's left edge, or its right edge when the
+        // left does not fit on the owner's monitor, instead of taking
         // the OS cascade position. A composited (WS_POPUP) window gets
         // no cascade at all -- CW_USEDEFAULT means 0,0 for a popup --
         // so without this the Settings sheet opened in the top-left
@@ -225,9 +225,9 @@ public:
     //
     //  Pure placement geometry (no Win32 calls, so it is unit-tested
     //  directly). Returns the top-left for a window of `windowSizePx`
-    //  placed beside `ownerRect`: flush against the owner's right edge
+    //  placed beside `ownerRect`: flush against the owner's left edge
     //  when the whole frame then fits in `work`, else flush against its
-    //  left edge, else overlapping the owner on whichever side has more
+    //  right edge, else overlapping the owner on whichever side has more
     //  room, pinned to that edge of `work` so the overlap is as small as
     //  the monitor allows. `work` is the OWNER's monitor work area, so
     //  the result never lands on a second monitor or under the taskbar.

@@ -134,28 +134,29 @@ public:
 
 
     //
-    //  The preferred placement: flush against the owner's right edge, tops
+    //  The preferred placement: flush against the owner's left edge, tops
     //  aligned, whenever the whole frame still fits on the owner's monitor.
+    //  Both sides fit this owner, which is what makes it a preference test.
     //
-    TEST_METHOD (BesideOwnerPrefersTheRightEdge)
+    TEST_METHOD (BesideOwnerPrefersTheLeftEdge)
+    {
+        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (600, 100, 1400, 700), GetSize (500, 600), s_kWork);
+
+
+        AssertPoint (100, 100, p, L"flush against the owner's left edge");
+    }
+
+
+    //
+    //  An owner near the left edge leaves no room on that side, so the
+    //  window goes to the owner's right rather than off the monitor.
+    //
+    TEST_METHOD (BesideOwnerFallsBackToTheRightEdge)
     {
         POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (100, 100, 900, 700), GetSize (500, 600), s_kWork);
 
 
         AssertPoint (900, 100, p, L"flush against the owner's right edge");
-    }
-
-
-    //
-    //  An owner near the right edge leaves no room on that side, so the
-    //  window goes to the owner's left rather than off the monitor.
-    //
-    TEST_METHOD (BesideOwnerFallsBackToTheLeftEdge)
-    {
-        POINT  p = DxuiHwndSource::PlaceBesideOwner (GetRect (1300, 100, 1900, 700), GetSize (500, 600), s_kWork);
-
-
-        AssertPoint (800, 100, p, L"flush against the owner's left edge");
     }
 
 
@@ -192,6 +193,8 @@ public:
     //  The work area is the OWNER's monitor, so an owner on a secondary
     //  screen to the left of the primary keeps its dialog there: the fit
     //  test is against that monitor's edges, negative coordinates and all.
+    //  That monitor's left edge rules out the left side, so this one lands
+    //  on the fallback.
     //
     TEST_METHOD (BesideOwnerStaysOnASecondaryMonitor)
     {

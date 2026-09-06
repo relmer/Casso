@@ -665,8 +665,8 @@ POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & wor
 //
 //  Pure placement geometry (declared in the header). Puts a window of
 //  `windowSizePx` alongside `ownerRect` rather than on top of it: flush
-//  against the owner's right edge when the whole frame then fits inside
-//  `work`, else flush against its left edge.
+//  against the owner's left edge when the whole frame then fits inside
+//  `work`, else flush against its right edge.
 //
 //  `work` is the OWNER's monitor work area, so neither side placement can
 //  put the window on a neighboring monitor or split it across two -- the
@@ -695,13 +695,13 @@ POINT DxuiHwndSource::PlaceBesideOwner (const RECT & ownerRect, const SIZE & win
 
 
 
-    if (rightSideX + windowSizePx.cx <= work.right)
-    {
-        placed.left = rightSideX;
-    }
-    else if (leftSideX >= work.left)
+    if (leftSideX >= work.left)
     {
         placed.left = leftSideX;
+    }
+    else if (rightSideX + windowSizePx.cx <= work.right)
+    {
+        placed.left = rightSideX;
     }
     else if (roomRight >= roomLeft)
     {
