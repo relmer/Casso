@@ -129,6 +129,9 @@ Entries before versioning was introduced use dates only.
   keys a machine has is asked of the key itself, so Ctrl+I, Ctrl+J and Ctrl+K
   keep working on a ][+ even though they send the same codes as the //e keys
   it lacks.
+- **The input events panel's two paddle view combo boxes let the buttons behind
+  them show through their open list.** Their menus now open in a top-level popup
+  window, as every other combo box in Casso already did.
 - Replaced shadowed paddle mode text with a docked message bar.
 - **The input device icons were drawn larger than the rest of the command
   bar's.** They now match the other icons' size and stroke weight, and the

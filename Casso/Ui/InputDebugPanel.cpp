@@ -855,8 +855,10 @@ void InputDebugPanel::OnCreate()
 
     ConfigureWidgets();
 
-    m_columnMenu.SetPopupHost (GetPopupHost());
-    m_tooltip.SetPopupHost    (GetPopupHost());
+    m_pairView[0]->SetPopupHost (GetPopupHost());
+    m_pairView[1]->SetPopupHost (GetPopupHost());
+    m_columnMenu.SetPopupHost   (GetPopupHost());
+    m_tooltip.SetPopupHost      (GetPopupHost());
 }
 
 
