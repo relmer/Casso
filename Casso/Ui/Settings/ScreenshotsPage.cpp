@@ -25,12 +25,10 @@ static constexpr int    s_kOptionGapDp     = 14;
 // checkbox below them is a separate question and wants to read that way.
 static constexpr int    s_kAfterRadiosDp   = 22;
 
-static constexpr int    s_kBrowseWidthDp   = 100;
-
 // Browse sits BELOW the path rather than beside it, which hands the whole
 // content width to the link. A path is long and a button is not, and putting
 // them on one line spent the path's room on a control that never needed it.
-static constexpr size_t s_kFolderMaxChars  = 64;
+static constexpr int    s_kBrowseWidthDp   = 100;
 
 
 
@@ -132,50 +130,22 @@ const char * ScreenshotsPage::IndexToCaptureMode (int index)
 //  feature is in fact working, and the user cannot tell where their files are
 //  going without leaving the page.
 //
-//  A path too long for the row keeps its LAST components. The tail is what
-//  distinguishes one configured folder from another; the head is what every
-//  path on the machine has in common, so it is the half worth losing.
+//  It returns the WHOLE path. Fitting it to the row is the link's job and
+//  happens in pixels at paint time; a character budget here would be a second
+//  answer to the same question, and the wrong one -- characters are off by up
+//  to a factor of three across a proportional face.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ScreenshotsPage::FolderForDisplay (const std::string &  configured,
-                                                const std::wstring & defaultFolder,
-                                                size_t               maxChars)
+                                                const std::wstring & defaultFolder)
 {
-    std::wstring   path;
-    size_t         cut  = std::wstring::npos;
-
-
-
     if (configured.empty())
     {
-        path = defaultFolder;
-    }
-    else
-    {
-        path.assign (configured.begin(), configured.end());
+        return defaultFolder;
     }
 
-    if (path.length() <= maxChars || maxChars < 8)
-    {
-        return path;
-    }
-
-    //  Walk back from the end to a separator, so the ellipsis lands on a
-    //  component boundary rather than mid-name.
-    cut = path.rfind (L'\\', path.length() - 1);
-
-    if (cut != std::wstring::npos && cut > 0)
-    {
-        cut = path.rfind (L'\\', cut - 1);
-    }
-
-    if (cut == std::wstring::npos || (path.length() - cut) > maxChars)
-    {
-        return L"..." + path.substr (path.length() - (maxChars - 3));
-    }
-
-    return L"..." + path.substr (cut);
+    return std::wstring (configured.begin(), configured.end());
 }
 
 
@@ -257,8 +227,7 @@ void ScreenshotsPage::SetPopupHost (DxuiHwndSource * host)
 void ScreenshotsPage::RefreshFolderText()
 {
     m_folderLink.SetLabel (FolderForDisplay (m_prefs != nullptr ? m_prefs->screenshotFolder : string(),
-                                             m_defaultFolder,
-                                             s_kFolderMaxChars));
+                                             m_defaultFolder));
 }
 
 
@@ -337,6 +306,7 @@ void ScreenshotsPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_folderLabel.SetText (L"Folder:");
 
         m_folderLink.SetVariant (DxuiButton::Variant::Link);
+        m_folderLink.SetElide   (DxuiElide::PathHead);
         m_folderLink.Layout     (MakeRect (controlsX, y, linkW, rowHeight));
         RefreshFolderText();
         y += rowHeight;

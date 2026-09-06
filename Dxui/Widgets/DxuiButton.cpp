@@ -233,7 +233,11 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
             linkColor = (linkColor & s_kDisabledMask);
         }
 
-        hr = text.DrawString (m_label.c_str(),
+        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+                                                       (float) (m_boundsDip.right - m_boundsDip.left),
+                                                       m_elide);
+
+        hr = text.DrawString (drawn.c_str(),
                               (float) m_boundsDip.left,
                               (float) m_boundsDip.top,
                               (float) (m_boundsDip.right  - m_boundsDip.left),
@@ -304,7 +308,12 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              borderColor);
     }
 
-    hr = text.DrawString (m_label.c_str(),
+    {
+        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+                                                       (float) (m_boundsDip.right - m_boundsDip.left),
+                                                       m_elide);
+
+        hr = text.DrawString (drawn.c_str(),
                           (float) m_boundsDip.left,
                           (float) m_boundsDip.top,
                           (float) (m_boundsDip.right  - m_boundsDip.left),
@@ -314,7 +323,8 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                           DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     if (m_focused)
     {

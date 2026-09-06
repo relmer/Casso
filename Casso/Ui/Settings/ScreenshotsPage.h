@@ -75,12 +75,12 @@ public:
     // the row shows the default's real path rather than nothing -- a blank
     // field would read as unset when it is in fact working.
     //
-    // Long paths keep their last two components behind an ellipsis: the tail
-    // is what tells one configured folder from another, and the head is the
-    // part every path on the machine has in common.
+    // NO TRUNCATION HERE. Fitting the path to the row is measured in pixels by
+    // the link itself at paint time (DxuiElide::PathHead), because only the
+    // renderer knows how wide a string actually is -- a character budget is
+    // off by up to a factor of three across a proportional face.
     static std::wstring FolderForDisplay (const std::string &  configured,
-                                          const std::wstring & defaultFolder,
-                                          size_t               maxChars);
+                                          const std::wstring & defaultFolder);
 
     // Test / wiring accessors.
     DxuiRadioGroup & GetCaptureModeRadios  () { return m_captureMode;  }

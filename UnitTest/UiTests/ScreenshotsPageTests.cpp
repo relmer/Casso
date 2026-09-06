@@ -91,73 +91,43 @@ public:
     //
     //  The folder row's text
     //
+    //  It resolves WHICH path to show and nothing else. Fitting that path to
+    //  the row is measured in pixels by the link at paint time, so there is no
+    //  character budget here to test -- and deliberately so: a second answer
+    //  to "does this fit" would be the wrong one, characters being off by up
+    //  to a factor of three across a proportional face.
+    //
 
     // An unset preference means "the default", and the row shows the default's
     // real path. Blank would read as broken when the feature is working, and
     // the user could not tell where their files go without leaving the page.
     TEST_METHOD (AnUnsetFolderShowsTheDefaultPath)
     {
-        Assert::AreEqual (std::wstring (L"C:\\Pics\\Casso Screenshots"),
-                          ScreenshotsPage::FolderForDisplay ("", L"C:\\Pics\\Casso Screenshots", 60));
+        Assert::AreEqual (std::wstring (L"C:\Pics\Casso Screenshots"),
+                          ScreenshotsPage::FolderForDisplay ("", L"C:\Pics\Casso Screenshots"));
     }
 
 
     TEST_METHOD (AConfiguredFolderIsShownInsteadOfTheDefault)
     {
-        Assert::AreEqual (std::wstring (L"D:\\Shots"),
-                          ScreenshotsPage::FolderForDisplay ("D:\\Shots", L"C:\\Pics\\Casso Screenshots", 60));
+        Assert::AreEqual (std::wstring (L"D:\Shots"),
+                          ScreenshotsPage::FolderForDisplay ("D:\Shots", L"C:\Pics\Casso Screenshots"));
     }
 
 
-    // The tail distinguishes one folder from another; the head is what every
-    // path on the machine has in common, so the head is the half to lose.
-    TEST_METHOD (ALongPathKeepsItsTailBehindAnEllipsis)
+    // Whole, however long. The link trims it to its own box; truncating here
+    // as well would fight that with a worse rule.
+    TEST_METHOD (ALongPathIsReturnedWhole)
     {
         std::wstring   shown = ScreenshotsPage::FolderForDisplay (
-            "C:\\Users\\somebody\\OneDrive\\Documents\\Emulation\\Captures\\Casso",
-            L"", 30);
+            "C:\Users\somebody\OneDrive\Documents\Emulation\Captures\Casso", L"");
 
-        Assert::IsTrue (shown.rfind (L"...", 0) == 0, L"elided paths lead with an ellipsis");
-        Assert::IsTrue (shown.find (L"Casso") != std::wstring::npos, L"the leaf survives");
-        Assert::IsTrue (shown.find (L"somebody") == std::wstring::npos, L"the head is dropped");
+        Assert::AreEqual (std::wstring (L"C:\Users\somebody\OneDrive\Documents\Emulation\Captures\Casso"),
+                          shown);
+        Assert::IsTrue (shown.find (L" 26") == std::wstring::npos, L"no ellipsis is added here");
     }
 
 
-    // Cutting mid-name would produce something that looks like a real folder
-    // and is not, so the ellipsis lands on a separator.
-    TEST_METHOD (TheEllipsisLandsOnAComponentBoundary)
-    {
-        std::wstring   shown = ScreenshotsPage::FolderForDisplay (
-            "C:\\Users\\somebody\\OneDrive\\Documents\\Emulation\\Captures\\Casso",
-            L"", 30);
-
-        Assert::AreEqual (std::wstring (L"...\\Captures\\Casso"), shown);
-    }
-
-
-    TEST_METHOD (AShortPathIsNotElided)
-    {
-        std::wstring   shown = ScreenshotsPage::FolderForDisplay ("D:\\Shots", L"", 30);
-
-        Assert::AreEqual (std::wstring (L"D:\\Shots"), shown);
-        Assert::IsTrue (shown.find (L"...") == std::wstring::npos);
-    }
-
-
-    // A single component longer than the budget has no boundary to cut on;
-    // it still has to come back within budget rather than overflow the row.
-    TEST_METHOD (ASingleOverlongComponentIsStillTrimmed)
-    {
-        std::wstring   shown = ScreenshotsPage::FolderForDisplay (
-            "D:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", L"", 20);
-
-        Assert::IsTrue (shown.length() <= 20);
-        Assert::IsTrue (shown.rfind (L"...", 0) == 0);
-    }
-
-
-    // The tab is named for its subject; the page carries no heading repeating
-    // it.
     TEST_METHOD (ThePageIsNamedForItsSubject)
     {
         ScreenshotsPage   page;
