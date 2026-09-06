@@ -171,8 +171,14 @@ def decode_dhgr(aux, main):
 
     Mirrors AppleDoubleHiResMode: a cell is four dots, and dot j carries
     bit (j + 1) & 3 of the color. The preview is built from this rather
-    than from the cell canvas, so a packing error shows up in the preview
-    instead of hiding behind it."""
+    than from the cell canvas, so a cell nibble packed in the wrong order
+    reaches the preview instead of hiding behind it.
+
+    That is the whole of what it checks. The row offsets, the aux/main
+    interleave and the seven dots per byte come from encode_dhgr, so an
+    error in any of those is made twice and cancels: the preview would
+    still look right, and Casso, which addresses rows itself, would draw
+    something else entirely."""
     img = Image.new("P", (Layout.CELLS, Layout.ROWS))
     px  = img.load()
 
