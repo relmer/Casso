@@ -47,6 +47,15 @@ enum class SaveFailureCause
 
     //  The file is gone, or is no longer readable as a disk.
     FileLost,
+
+    //  The same as ExternalChange, found as the disk was coming out of the
+    //  drive.
+    //
+    //  IT NEEDS ITS OWN ANSWERS. Everywhere else the disk stays in the drive
+    //  and dismissing costs nothing, because a later flush can try again.
+    //  Here the bay is about to be emptied, so declining is the end of that
+    //  disk -- and the offer has to say so rather than reading as "not now".
+    Ejecting,
 };
 
 
@@ -127,6 +136,20 @@ struct ChangePrompt
     //  failing to be, report something they did NOT ask for and stand until
     //  read.
     bool                       selfDismisses = false;
+
+    //  Which answer the default button and the close box both take.
+    //
+    //  DISMISSING A QUESTION MUST NOT COST THE USER ANYTHING, and which answer
+    //  that is depends on the question. It was the last one everywhere, on the
+    //  reasoning that the last one changes nothing -- true for a question
+    //  about a file that is still there, and exactly wrong for a question
+    //  about one that is gone: the last answer there is Discard, and the disk
+    //  it discards exists in memory and nowhere else. Enter, or the close box,
+    //  threw it away.
+    //
+    //  EVERY COMPOSER SETS IT, so a new prompt has to decide which of its
+    //  answers is safe rather than inherit a rule written for a different one.
+    size_t                     safeAnswer = 0;
 
     //  Whether there is anything to show at all. An action that needs no answer
     //  composes an empty prompt rather than a blank dialog.

@@ -105,17 +105,21 @@ public:
 
     // Authentic Apple //e keyboard auto-repeat cadence: a held key arms
     // the $C000 strobe once, waits ~half a second, then re-arms it at
-    // ~15 characters per second. Expressed in CPU cycles off the nominal
-    // //e clock so the timing is deterministic and host-independent.
-    static constexpr uint32_t kKeyRepeatClockHz      = 1020484;
+    // ~15 characters per second. Measured in real elapsed microseconds,
+    // not emulated cycles: the //e generates its repeat in the keyboard
+    // encoder, off an oscillator of its own, so the cadence a typist
+    // feels does not follow the CPU clock. Timing it in guest cycles made
+    // Double speed repeat twice as fast and Maximum speed -- which runs
+    // uncapped, tens of times real -- repeat far faster than anyone can
+    // type against.
     static constexpr uint32_t kKeyRepeatDelayMs      = 500;
     static constexpr uint32_t kKeyRepeatRateHz       = 15;
     static constexpr uint32_t kMillisecondsPerSecond = 1000;
-    static constexpr uint32_t kKeyRepeatDelayCycles =
-        static_cast<uint32_t> (static_cast<uint64_t> (kKeyRepeatClockHz) *
-                               kKeyRepeatDelayMs / kMillisecondsPerSecond);
-    static constexpr uint32_t kKeyRepeatIntervalCycles =
-        kKeyRepeatClockHz / kKeyRepeatRateHz;
+    static constexpr uint32_t kMicrosecondsPerSecond = 1000000;
+    static constexpr uint32_t kKeyRepeatDelayUs =
+        kKeyRepeatDelayMs * (kMicrosecondsPerSecond / kMillisecondsPerSecond);
+    static constexpr uint32_t kKeyRepeatIntervalUs =
+        kMicrosecondsPerSecond / kKeyRepeatRateHz;
 
     // Arm the emulated //e keyboard auto-repeat for a freshly-pressed key
     // (UI thread). The host OS auto-repeat is suppressed by the shell; the
@@ -129,11 +133,13 @@ public:
     // fast-path, matching the Disk2 event-sink convention.
     void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
 
-    // Advance the auto-repeat timer by one instruction's worth of CPU
-    // cycles (CPU thread). Re-arms the $C000 strobe with the held key
-    // after the initial delay and then at the steady repeat rate, but
-    // only while the key remains physically down (any-key-down set).
-    void Tick (uint32_t cpuCycles);
+    // Advance the auto-repeat timer by the real time that has passed since
+    // the previous call (CPU thread). Re-arms the $C000 strobe with the
+    // held key after the initial delay and then at the steady repeat rate,
+    // but only while the key remains physically down (any-key-down set).
+    // Elapsed time beyond the initial delay is clamped, so a pause or a
+    // breakpoint cannot bank up a burst of repeats to fire on resume.
+    void TickAutoRepeat (uint32_t elapsedMicroseconds);
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
@@ -157,12 +163,13 @@ private:
     atomic<bool>   m_anyKeyDown{false};
 
     // Auto-repeat state. m_repeatKey is written by the UI thread (arm /
-    // disarm) and read by the CPU thread (Tick); the cadence accumulator,
-    // phase flag, and last-seen key are touched only by Tick.
+    // disarm) and read by the CPU thread (TickAutoRepeat); the cadence
+    // accumulator, phase flag, and last-seen key are touched only by
+    // TickAutoRepeat.
     atomic<Byte>   m_repeatKey{0};
-    uint32_t       m_repeatAccumCycles = 0;
-    bool           m_repeatStarted     = false;
-    Byte           m_lastRepeatKey     = 0;
+    uint32_t       m_repeatAccumUs = 0;
+    bool           m_repeatStarted = false;
+    Byte           m_lastRepeatKey = 0;
 
 protected:
     // Input Debug panel sink (null when no panel is open). Plain pointer

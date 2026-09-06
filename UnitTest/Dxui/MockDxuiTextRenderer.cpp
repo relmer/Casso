@@ -187,6 +187,53 @@ HRESULT MockDxuiTextRenderer::MeasureString (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MeasureStringWrapped
+//
+//  A model, not a layout: the single-line width divided by the box is the
+//  line count, and the height is that many lines. Canned metrics are returned
+//  untouched -- a test that states a block's size means it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::MeasureStringWrapped (
+    const wchar_t * text,
+    float           fontSizeDip,
+    const wchar_t * fontFamily,
+    float           maxWidthDip,
+    float         & outWidthDip,
+    float         & outHeightDip)
+{
+    std::wstring  key    = (text != nullptr) ? text : L"";
+    auto          canned = m_cannedMetrics.find (key);
+    HRESULT       hr     = MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
+    int           lines  = 0;
+
+
+
+    if (FAILED (hr) || canned != m_cannedMetrics.end() || m_measureReturnsZero)
+    {
+        return hr;
+    }
+
+    if (maxWidthDip < 1.0f || outWidthDip <= maxWidthDip)
+    {
+        return hr;
+    }
+
+    lines = (int) std::ceil (outWidthDip / maxWidthDip);
+
+    outHeightDip *= (float) lines;
+    outWidthDip   = maxWidthDip;
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DrawIconBitmap
 //
 //  No-op for tests: paint paths in this phase don't exercise icon

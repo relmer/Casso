@@ -303,7 +303,9 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     //  Undocumented, and here rather than in a help table for that reason:
     //  this list is what makes `/no-image-watch` canonicalize like every other
     //  flag, and the help is generated from tables this one does not feed.
+    //  `title` is here on the same terms -- see CommandLineOptions.
     "no-image-watch",
+    "title",
 };
 
 
@@ -312,10 +314,10 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
 //  what canonicalizes a `/` form; this one is what the reader is shown, and a
 //  sweep holds the two together.
 //
-//  `no-image-watch` IS ABSENT ON PURPOSE, being a developer switch rather than
-//  an option a user has a reason to find. `--help` is here and is NOT in the
-//  table above, because IsHelpRequest matches its six forms exactly and has no
-//  `/` name to rewrite.
+//  `no-image-watch` AND `title` ARE ABSENT ON PURPOSE, being developer
+//  switches rather than options a user has a reason to find. `--help` is here
+//  and is NOT in the table above, because IsHelpRequest matches its six forms
+//  exactly and has no `/` name to rewrite.
 static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
 {
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
@@ -4322,6 +4324,10 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             parsed.noImageWatch = true;
         }
+        else if (arg == "--title" && hasValue)
+        {
+            parsed.titlePrefix = argv[++i];
+        }
         else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
         {
             RefuseEmulatorArgument (raw, arg, parsed);
@@ -4378,7 +4384,8 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
         //  take one.
         parsed.refusalMessage = "Error: unexpected argument " + raw;
     }
-    else if (canonical == "--machine" || canonical == "--disk1" || canonical == "--disk2")
+    else if (canonical == "--machine" || canonical == "--disk1"
+          || canonical == "--disk2"   || canonical == "--title")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }

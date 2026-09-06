@@ -44,6 +44,12 @@ Entries before versioning was introduced use dates only.
   the drive keeps running on it. Decline and the drive is emptied, since the
   file behind it is gone.
 - **Frame rate and scene pose readouts** on the View menu, off by default.
+- **Theme and monitor-color pickers on the command bar**, beside Settings. Both
+  preview live as you move down the menu, by mouse or by arrow key, and put
+  back what was there if you dismiss it. A picked theme and color mode are
+  remembered.
+- **A full screen button on the command bar**, before Screenshot, which reads
+  "Exit full screen" once you are in it.
 
 ### Changed
 - **Ctrl+R no longer resets the machine.** It was a second binding for the menu's
@@ -51,7 +57,7 @@ Entries before versioning was introduced use dates only.
   could ever receive a Ctrl+R of its own. Reset keeps its menu accelerator.
 - **The keyboard map now describes the machine you are running, in aligned
   columns.** Rows name only keys that machine actually has, so a ][+ is no
-  longer told about Open Apple, Delete or the up and down arrows it does not
+  longer told about the open Apple key, Delete or the up and down arrows it does not
   have, and the dialog sizes itself to what is left. Key, arrow and meaning
   line up in three columns.
 - **Casso draws the Apple keys as the keycaps do.** Wherever the chrome names
@@ -65,8 +71,15 @@ Entries before versioning was introduced use dates only.
   emulator shortcuts repeated six accelerators the menus already print beside
   their own items, while omitting eleven others, so it read as a complete list
   and was not one. Gone too are the rows mapping keys to themselves. What
-  remains is the Apple-specific part: the Open and Closed Apple keys, which
+  remains is the Apple-specific part: the open and closed Apple keys, which
   keys the ][ and ][+ do not have, and the joystick mapping.
+- **Replaced full screen icons with diagonal arrows.**
+- **The command bar now narrows one button at a time.** As the window shrinks,
+  buttons drop their labels from the right, so the leftmost keep their names
+  longest and nothing is pushed off the end. The input devices give up their
+  LED row for a single icon at the same point, and the theme, monitor-color
+  and input menus check the setting they are on, so a collapsed button still
+  says where it stands.
 - **2D themes now use a richer drive widget.** The disk name is the control,
   and its LED tracks where the head is sitting on the disk rather than only
   showing that the drive is busy. Clicking the name ejects the disk and offers
@@ -116,6 +129,88 @@ Entries before versioning was introduced use dates only.
   keys a machine has is asked of the key itself, so Ctrl+I, Ctrl+J and Ctrl+K
   keep working on a ][+ even though they send the same codes as the //e keys
   it lacks.
+- Replaced shadowed paddle mode text with a docked message bar.
+- **The input device icons were drawn larger than the rest of the command
+  bar's.** They now match the other icons' size and stroke weight, and the
+  mouse uses MDL2's own glyph.
+- **Switching to an Apple //c through Settings left the mouse out of the input
+  devices.** The bar lays out again whenever mouse availability changes.
+- **Unlit input LEDs were too dark to make out.** They now use the tint a
+  disabled checkbox fills with.
+- **The full screen top edge revealed only the command toolbar, leaving the menu
+  bar unreachable.** The menu bar now rides down with the toolbar, above it, in
+  the order the windowed chrome stacks them.
+- **A held key repeated far too fast above 1x speed, and at Maximum too fast to
+  type against at all.** The keyboard's auto-repeat cadence was counted in
+  emulated cycles, so the emulation speed dragged it along: Double repeated at
+  twice the rate off half the delay, and Maximum, which runs uncapped, turned a
+  held key into hundreds of characters a second. It is timed in real seconds
+  now, as the //e's own keyboard encoder is, so the ~0.5s delay and ~15
+  characters a second hold at every speed.
+- **Tooltips kept the theme that was live when the window was built.** Switching
+  themes in Settings recolored the rest of the chrome but left the toolbar, //c
+  switch-bar and drive tooltips in the outgoing palette -- skeuomorphic blue
+  balloons over RetroTerminal green.
+- **Ejecting or quitting could throw away writes while saying they were safe.**
+  If another program had rewritten a mounted image and Casso could not save
+  your version beside it, the message said your writes were still in memory --
+  and then the drive was emptied, or the program exited. Ejecting now asks
+  first, offering to save the disk wherever you choose, and quitting asks the
+  same thing through its own dialog. Decline, and the message says plainly that
+  the changes are going.
+- **A disk that could not be moved out of the way was sometimes only announced,
+  never offered anywhere to go.** When a program rewrites a mounted image and
+  the guest has written too, Casso saves the guest's version to a copy beside
+  the original -- and if that copy cannot be written, it asks where to put it
+  instead. It only asked when the change was noticed by the file watcher;
+  noticed instead by the guest's own write, the same failure was a message with
+  no way to act on it. Both now ask. The two moments that cannot ask, because
+  the disk or the program is on its way out, still say so plainly.
+- **The same disk image could be put in both drives at once.** Each drive held
+  its own copy of it from that moment, so whichever wrote last overwrote the
+  other's changes, and one change from outside Casso raised the conflict twice.
+  The second drive now refuses it and says which drive has it.
+- **Answering the "disk modified outside Casso" question could act on the wrong
+  disk.** The answer was carried out against whatever was in the drive, so
+  taking the disk out and putting another in while the question stood moved the
+  new disk onto the departed one's timestamped copy -- which the next write
+  then overwrote. A change arriving from a build under the open question also
+  swapped the disk out from under it, leaving "keep your current version"
+  meaning the other program's version. A question now holds the drive until it
+  is answered, and the answer lands on whatever is on disk when it comes.
+- **The question never appeared if any dialog was open.** Settings, a file
+  picker or the About box swallowed it, and that drive was never asked about
+  again until the disk was ejected. Notifications and mount results went the
+  same way. The same held when the question was raised before the main window
+  existed.
+- **Pressing Enter on "mounted disk has been removed" discarded the disk.** So
+  did closing the dialog. With the file gone, the copy in the drive was the
+  only one left. Both now offer to save it, and only an explicit Discard lets
+  it go.
+- **A disk found missing partway through a reload offered buttons that did
+  nothing.** The offer to save it went to the notice strip, which routes no
+  answers. It is a question now, like the one raised when a change is first
+  noticed.
+- **A dismissed "disk modified outside Casso" question dated the next copy
+  after it.** Putting the question reserves the name the preserved copy
+  would take, stamped with that moment. Waving the question away left the
+  name held, so a genuine conflict hours later filed the guest's disk under
+  the old timestamp -- and under a name another file may have taken since.
+  The same went for the question raised when a copy could not be written,
+  and a reservation no longer outlives the disk it was made for: neither
+  eject cleared one, so the next disk into that drive filed its own copy
+  under the departed disk's name.
+- **The joystick / paddle / mouse indicator dots on the command bar stayed blue
+  under every theme.** They painted from a hardcoded copy of the DarkModern
+  palette, so they kept its blue while the drive LEDs beside them went red on
+  Skeuomorphic and green on RetroTerminal. They now follow the theme's LED
+  colors like the rest of the chrome.
+- **Tooltips could lose their last glyph.** A balloon sized a hair too narrow
+  wrapped the tail onto a second line it had no room to show, so a tip ending
+  in something short and breakable came up looking truncated.
+- **The command bar's Reset and Power tooltips said only what the button said.**
+  They now specify the machine they act on, and Reset gives the open-apple
+  chord for a cold boot -- the only place the chord is shown.
 - **The volume and mute settings were not saved**, so both came back at their
   old values on the next launch.
 - **Pressing OK in Settings reset preferences that its pages do not show**,
@@ -217,7 +312,7 @@ Entries before versioning was introduced use dates only.
   scene now, sized to a fixed number of screen pixels and depth tested like any
   other surface, so the case cuts it exactly where the case crosses it. The name
   keeps the size it reads at from every pose, which is why it was taken out of the
-  scene the first time. The fullscreen overlay strip has nothing in front of its
+  scene the first time. The full screen overlay strip has nothing in front of its
   drives and keeps the chrome label it had.
 - **Casso started up regardless of what was on its command line.** A mistyped flag,
   a misspaced one, a stray disk image path and `--help` were all discarded in
@@ -274,7 +369,7 @@ Entries before versioning was introduced use dates only.
   adopts its defaults, on Apply now and on OK, and the Display page's sliders
   and its default badges follow. Cancel puts the old theme's defaults back
   with the old theme.
-- **Fullscreen now hides the chrome in every theme.** Dark Modern and Retro
+- **Full screen now hides the chrome in every theme.** Dark Modern and Retro
   Terminal kept the caption, menu bar and drive bar around a stretched
   picture. They now collapse the way the desk scene does: the picture fills
   the screen, the toolbar slides in from the top edge, and the drives slide

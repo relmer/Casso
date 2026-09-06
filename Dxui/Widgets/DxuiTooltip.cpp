@@ -228,10 +228,15 @@ void DxuiTooltip::ShowPopup()
     POINT                      botRight = {};
     HWND                       owner    = nullptr;
     HRESULT                    hr       = S_OK;
-    float                      textWDip = 0.0f;
-    float                      textHDip = 0.0f;
-    float                      boxWDip  = 0.0f;
-    float                      boxHDip  = 0.0f;
+    UINT                       dpi      = 0;
+    float                      fontPx   = 0.0f;
+    float                      maxWPx   = 0.0f;
+    float                      padXPx   = 0.0f;
+    float                      padYPx   = 0.0f;
+    float                      textWPx  = 0.0f;
+    float                      textHPx  = 0.0f;
+    float                      boxWPx   = 0.0f;
+    float                      boxHPx   = 0.0f;
     bool                       shows    = false;
 
 
@@ -257,29 +262,43 @@ void DxuiTooltip::ShowPopup()
 
     if (shows)
     {
-        // Size the balloon to its text, wrapping long messages instead of
-        // growing past the window edge. MeasureTextWrapped runs on the
-        // pooled popup's text renderer before Show builds the swap chain;
-        // if it is unavailable (test mode) fall back to a glyph-count
-        // estimate wrapped the same way.
-        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), m_fontDip, s_kFontFamily,
-                                                s_kMaxTextWidthDip, textWDip, textHDip);
-        if (FAILED (hr) || textWDip <= 0.0f)
-        {
-            float  estWDip  = (float) m_text.size() * m_fontDip * s_kEstCharWidthEm;
-            float  estLines = std::ceil (estWDip / s_kMaxTextWidthDip);
+        // MEASURED IN THE PIXELS IT WILL BE DRAWN IN, not in DIPs. RenderPopup
+        // draws at the DPI-scaled font, and a string's width at that size is
+        // not its width at 96 DPI scaled up -- hinting rounds each glyph. A
+        // balloon sized from the DIP measurement therefore came out a hair
+        // narrow, which is all DWrite needs to wrap at the last break
+        // opportunity and hide a trailing glyph on a second line the balloon
+        // has no room for. "Power-cycle the Apple //e" lost its "e" that way,
+        // to the break after the slashes.
+        dpi    = m_scaler.GetDpi();
+        dpi    = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
+        fontPx = m_scaler.ToPxf (m_fontDip);
+        maxWPx = m_scaler.ToPxf (s_kMaxTextWidthDip);
+        padXPx = m_scaler.ToPxf (s_kPadXDip);
+        padYPx = m_scaler.ToPxf (s_kPadYDip);
 
-            textWDip = std::min (estWDip, s_kMaxTextWidthDip);
-            textHDip = std::max (estLines, 1.0f) * m_fontDip * s_kEstLineHeightEm;
+        // The pooled popup's renderer is bound at 96 DPI, so its logical units
+        // ARE pixels and it measures whatever size it is handed. If it is
+        // unavailable (test mode) fall back to a glyph-count estimate wrapped
+        // the same way.
+        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, s_kFontFamily,
+                                                maxWPx, textWPx, textHPx);
+        if (FAILED (hr) || textWPx <= 0.0f)
+        {
+            float  estWPx   = (float) m_text.size() * fontPx * s_kEstCharWidthEm;
+            float  estLines = std::ceil (estWPx / maxWPx);
+
+            textWPx = std::min (estWPx, maxWPx);
+            textHPx = std::max (estLines, 1.0f) * fontPx * s_kEstLineHeightEm;
         }
 
-        if (textHDip <= 0.0f)
+        if (textHPx <= 0.0f)
         {
-            textHDip = m_fontDip * s_kEstLineHeightEm;
+            textHPx = fontPx * s_kEstLineHeightEm;
         }
 
-        boxWDip = std::ceil (textWDip) + s_kPadXDip * 2.0f;
-        boxHDip = std::ceil (textHDip) + s_kPadYDip * 2.0f;
+        boxWPx = std::ceil (textWPx) + padXPx * 2.0f;
+        boxHPx = std::ceil (textHPx) + padYPx * 2.0f;
 
         // Anchor arrives in client pixels; the popup wants screen pixels.
         topLeft.x  = m_anchor.left;
@@ -296,8 +315,11 @@ void DxuiTooltip::ShowPopup()
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
         showParams.shadow           = false;
-        showParams.sizeDip.cx       = (int) boxWDip;
-        showParams.sizeDip.cy       = (int) boxHDip;
+        // Show scales these back up by the owner DPI, so the trip into DIPs
+        // rounds UP -- rounding down here would hand back the pixel the
+        // measurement above exists to keep.
+        showParams.sizeDip.cx       = (int) std::ceil (boxWPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+        showParams.sizeDip.cy       = (int) std::ceil (boxHPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
         showParams.backgroundArgb   = m_bgArgb;
         showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
         showParams.onClosed         = [this] () { m_activePopup = nullptr; };

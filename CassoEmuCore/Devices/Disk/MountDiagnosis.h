@@ -41,6 +41,10 @@
 //                          nibble image has TWO valid lengths and different
 //                          arithmetic behind them; one clause cannot name both
 //                          sets of numbers without going vague about each.
+//      AlreadyMounted      the file is in another drive already. Refused
+//                          before anything is read: the bytes are not the
+//                          problem, and a second bay holding them would be a
+//                          second independent copy of the disk
 //      NotANibbleStream    a nibble image of an accepted length in which no
 //                          nibble assembles anywhere. This is the only content
 //                          check the format permits: it carries no signature,
@@ -62,6 +66,7 @@ enum class MountFailure
     Unrecognized,
     WrongSizeForNibble,
     NotANibbleStream,
+    AlreadyMounted,
 };
 
 
@@ -94,6 +99,11 @@ public:
     MountFailure  failure      = MountFailure::None;
     DiskFormat    format       = DiskFormat::Dsk;
     size_t        fileByteSize = 0;
+
+    //  Which drive already has the file, zero-based, for AlreadyMounted alone.
+    //  Specifying which one is the whole use of the message: "already mounted"
+    //  on its own sends the reader to look in both drives.
+    int           occupiedDrive = -1;
 
     bool    HasFailure () const { return failure != MountFailure::None; }
 

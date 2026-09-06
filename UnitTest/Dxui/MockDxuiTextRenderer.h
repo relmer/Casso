@@ -90,6 +90,17 @@ public:
                             float         & outWidthDip,
                             float         & outHeightDip) override;
 
+    //  Wrapped measurement, modeled rather than laid out: the single-line
+    //  width divided by the box gives the line count, so a caller can tell a
+    //  wrap from a fit. Canned metrics still win outright -- a test that
+    //  states the size of a block means that size, wrapped or not.
+    HRESULT  MeasureStringWrapped (const wchar_t * text,
+                                   float           fontSizeDip,
+                                   const wchar_t * fontFamily,
+                                   float           maxWidthDip,
+                                   float         & outWidthDip,
+                                   float         & outHeightDip) override;
+
     HRESULT  DrawIconBitmap (const uint32_t * srcBgraPremul,
                              int              srcWidthPx,
                              int              srcHeightPx,

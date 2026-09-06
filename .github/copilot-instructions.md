@@ -874,6 +874,32 @@ in conversation.
   fully drivable, because posted `WM_MOUSEMOVE` / `WM_LBUTTONDOWN` and
   `PrintWindow` capture need neither focus nor foreground. When the user
   asks to start Casso, launch it in the foreground as usual.
+- **Every agent launch of Casso passes `--title <label>`, without exception.**
+  Several sessions run at once, each in its own worktree, and every caption
+  otherwise reads `Casso - Apple //e`: the user cannot tell which window
+  belongs to which session, and you are the only thing that knows. The label
+  goes in front of the caption the emulator composes for itself.
+
+  The label is the **worktree directory name**, which is what you always know
+  and what the user can map back to a session:
+  `Split-Path -Leaf (git rev-parse --show-toplevel)`. In the primary checkout
+  that name is just `Casso` and says nothing, so pass the branch name there
+  instead. Undocumented, absent from `--help`, and present in every
+  configuration; it takes a value, so a bare `--title` refuses startup.
+
+  ```powershell
+  $label = Split-Path -Leaf (git rev-parse --show-toplevel)
+  # -WindowStyle Minimized belongs to the background rule above, not to this one
+  Start-Process .\x64\Debug\Casso.exe -WindowStyle Minimized -ArgumentList '--title', $label
+  ```
+
+  **A run the user asked for is labeled too.** The exception written here
+  first -- theirs is theirs, so leave it unmarked -- had the rule backwards.
+  Which session a window came from is exactly as hard to see when the user
+  asked for the launch as when they did not, and a build they requested is one
+  they will be looking at beside every other open instance. The
+  foreground/background rule above is the one that turns on who asked; this
+  one does not.
 
 ## Shell and Terminal Rules
 

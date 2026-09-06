@@ -28,12 +28,14 @@
 //  would read "unchanged" out of a stat that never ran. DiskImageSession carries
 //  a `stampRecorded` flag beside its own stamp for the same reason.
 //
-//  A SAME-SIZE OVERWRITE INSIDE THE FILESYSTEM'S TIMESTAMP RESOLUTION IS
-//  INVISIBLE HERE, and therefore invisible to everything built on it. Closing
-//  that would mean hashing the contents, which costs a full read of every
-//  mounted image on every commit, to catch a case that needs a writer to
-//  preserve the byte count exactly and land inside the same timestamp tick. The
-//  residual is recorded rather than hidden.
+//  A SAME-SIZE OVERWRITE INSIDE ONE TIMESTAMP TICK IS INVISIBLE HERE, and
+//  therefore invisible to everything built on it. The tick is what
+//  `last_write_time` counts in -- 100 nanoseconds on NTFS, two seconds on
+//  FAT32 -- so the window is wide enough to matter only on the older
+//  filesystem. Closing it would mean hashing the contents, which costs a full
+//  read of every mounted image on every commit, to catch a case that needs a
+//  writer to preserve the byte count exactly and land inside the same tick.
+//  The residual is recorded rather than hidden.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
