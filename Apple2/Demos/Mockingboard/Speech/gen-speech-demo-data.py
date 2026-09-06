@@ -19,6 +19,7 @@ DR 3 / 2 / 1 / 0. Vowels take the long classes and consonants the short ones, so
 syllables have the duration contrast the ear segments on.
 """
 
+import math
 import os
 import sys
 
@@ -151,21 +152,43 @@ def wargames():
     return s
 
 
+#  Every pitch escape in this line must carry RATE_HAL. $C442 holds the rate in
+#  its high nibble and pitch bits in its low, so a bare setp() would reset the
+#  chip to rate 0 partway through -- the same trap that once made the question
+#  run 1.6x slow.
+def hal_p(f):
+    return setp(f, RATE_HAL)
+
+
+#  The line was flat: one escape at the top and nothing after it, so all forty
+#  phonemes came out at HAL_HZ. It is delivered narrow rather than level now --
+#  two falling sentences inside about three semitones of 90 Hz, which is enough
+#  to stop it sounding like a readout without making it sound animated.
+#
+#      I'M  SOR RY   DAVE   I'M  A  FRAID  I   CAN'T  DO   THAT
+#       92   93  96   86     92  90   95   90    93   98    82
+#
+#  Two of those are the ones the ear objects to when they are wrong. SORRY and
+#  AFRAID are both iambs, so their SECOND syllable is the higher -- which is
+#  why each takes a second escape partway through the word, after the vowel
+#  that ends the first syllable. And the nuclear stress of the second sentence
+#  is on DO, not on CAN'T: the refusal is the point, not the inability.
 HAL = (
     clear_caption()
-    + setp(HAL_HZ, RATE_HAL)
-    + cap("I'M")   + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
-    + cap("SORRY,") + [P("S", SHORT), P("AW", LONG), P("R1", SHORT), P("E", MED),
-                       P("PA", MED)]                       # the comma
+    + hal_p(92.0) + cap("I'M")    + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
+    + hal_p(93.0) + cap("SORRY,") + [P("S", SHORT), P("AW", LONG)]
+    + hal_p(96.0)                 + [P("R1", SHORT), P("E", MED),
+                                     P("PA", MED)]         # the comma
     #  "Dave" is the diphthong the demo already spells out in "afraid" and in
     #  the song's "Daisy": A carries it and AY closes it.
-    + cap("DAVE.") + [P("D", QUICK), P("A", LONG), P("AY", SHORT), P("V", SHORT), P("PA", LONG)]
-    + cap("I'M")   + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
-    + cap("AFRAID")+ [P("UH3", QUICK), P("F", SHORT), P("R1", SHORT), P("A", LONG), P("AY", SHORT), P("D", QUICK)]
-    + cap("I")     + [P("AH1", MED), P("I", SHORT)]
-    + cap("CAN'T") + [P("PA", QUICK), P("K", QUICK), P("AE", LONG), P("N", SHORT), P("T", QUICK)]
-    + cap("DO")    + [P("D", QUICK), P("U", LONG)]
-    + cap("THAT.") + [P("THV", QUICK), P("AE", LONG), P("PA", QUICK), P("T", QUICK), P("PA", LONG)]
+    + hal_p(86.0) + cap("DAVE.")  + [P("D", QUICK), P("A", LONG), P("AY", SHORT), P("V", SHORT), P("PA", LONG)]
+    + hal_p(92.0) + cap("I'M")    + [P("AH1", LONG), P("I", SHORT), P("M", SHORT)]
+    + hal_p(90.0) + cap("AFRAID") + [P("UH3", QUICK)]
+    + hal_p(95.0)                 + [P("F", SHORT), P("R1", SHORT), P("A", LONG), P("AY", SHORT), P("D", QUICK)]
+    + hal_p(90.0) + cap("I")      + [P("AH1", MED), P("I", SHORT)]
+    + hal_p(93.0) + cap("CAN'T")  + [P("PA", QUICK), P("K", QUICK), P("AE", LONG), P("N", SHORT), P("T", QUICK)]
+    + hal_p(98.0) + cap("DO")     + [P("D", QUICK), P("U", LONG)]
+    + hal_p(82.0) + cap("THAT.")  + [P("THV", QUICK), P("AE", LONG), P("PA", QUICK), P("T", QUICK), P("PA", LONG)]
 )
 
 # ------------------------------------------------------------------ song ---
@@ -246,42 +269,125 @@ def row_base(y):
 
 
 # ------------------------------------------------ HAL's eye, hi-res ---
-#  280 x 160 above four text rows. The palette has no red; orange is the
-#  nearest thing, so the disc is orange, the bezel and pinpoint white. Every
-#  byte carries the high bit so the whole picture sits in the orange/blue group
-#  and no half-pixel shift appears at a boundary. Orange is the odd-x pixels,
-#  so a solid orange byte is $AA in an even byte column and $D5 in an odd one;
-#  white is every pixel on.
+#  280 x 160 above four text rows, the same eye as the double hi-res version
+#  and at the same proportions: a chrome bezel around a dome that is nearly
+#  all black, with the color gathered into a small lamp. Every byte carries
+#  the high bit, so the picture sits in the orange/blue group and no half-pixel
+#  shift appears at a boundary. Orange is the odd-x pixels and blue the even
+#  ones -- a solid run of either is $AA and $D5 turn about -- and white is
+#  every pixel on.
 #
-#  The flash is three concentric bands inside the disc. A vowel paints all
-#  three white at once and they decay orange from the outside in, so each
-#  syllable is a pulse that collapses toward the pinpoint. Bands are listed as
-#  row spans of whole bytes so a paint is a tight run of stores.
+#  Four levels, then: black, orange, blue and white. Gray has to be dithered,
+#  and only by ROWS: alternating PIXELS is what makes color in hi-res, so a
+#  checkerboard would come out orange rather than gray. The nameplate gets the
+#  blue it wants for free, since blue costs the same as orange here.
 HGR_W, HGR_H = 280, 160
-HGR_BLACK, HGR_WHITE, HGR_ORANGE = 0, 1, 2
-HGR_CX, HGR_CY, HGR_RX, HGR_RY = 139.5, 79.5, 70.0, 66.0   # pixels a shade wider than tall
-HGR_BANDS = [(0.06, 0.18), (0.18, 0.30), (0.30, 0.42)]     # innermost first, radius fractions
+HGR_BLACK, HGR_WHITE, HGR_ORANGE, HGR_BLUE = 0, 1, 2, 3
+
+#  A pixel is 1/280 of the width and a row 1/192 of the height, so a circle on
+#  a 4:3 screen wants rx = ry * (3/192) * (280/4).
+HGR_CY, HGR_RY = 91.0, 65.0
+HGR_CX, HGR_RX = 139.5, HGR_RY * 1.09375
+
+HGR_DOME = 0.775
+
+#  The lamp and the three rings a syllable lights, at the same radii as the
+#  double hi-res eye. With only four levels a ring steps to the next one up.
+HGR_GLOW = [(0.075, HGR_WHITE), (0.125, HGR_ORANGE), (0.185, "half"),
+            (0.295, "third")]
+HGR_BANDS = [(0.075, 0.125, HGR_WHITE), (0.125, 0.185, HGR_ORANGE),
+             (0.185, 0.245, "half")]
+
+HGR_ARCS = [(0.64, 0.030, 138.0, 26.0, HGR_WHITE),
+            (0.61, 0.022,  64.0, 18.0, "half"),
+            (0.53, 0.018,  16.0, 12.0, "third"),
+            (0.78, 0.018, 168.0, 10.0, "half")]
 
 
 def hgr_radius(x, y):
     return (((x - HGR_CX) / HGR_RX) ** 2 + ((y - HGR_CY) / HGR_RY) ** 2) ** 0.5
 
 
-def hgr_eye():
-    img = [[HGR_BLACK] * HGR_W for _ in range(HGR_H)]
-    for y in range(HGR_H):
-        for x in range(HGR_W):
-            r = hgr_radius(x, y)
-            if r <= 1.0:
-                img[y][x] = HGR_WHITE if r > 0.925 else HGR_ORANGE    # ~5 px bezel
-    # The pinpoint is whole byte cells, chosen by their centers, so no byte is
-    # part white and part orange. A mixed byte keeps its alternating orange
-    # bits when the bands around it go solid white, and read as a bracket.
-    for y in range(HGR_H):
-        for b in range(40):
-            if hgr_radius(b * 7 + 3, y) <= 0.06:
-                for i in range(7):
-                    img[y][b * 7 + i] = HGR_WHITE
+def hgr_angle(x, y):
+    return math.degrees(math.atan2(-(y - HGR_CY) / HGR_RY, (x - HGR_CX) / HGR_RX))
+
+
+def hgr_shade(name, y, warm):
+    """"half" and "third" are row dithers: the color on one row in two or one
+    in three, black on the rest. Warm shades dither orange and cool ones
+    white, which is the difference between the lamp's falloff and the bezel's
+    gray."""
+    if name not in ("half", "third"):
+        return name
+    lit = HGR_ORANGE if warm else HGR_WHITE
+    return lit if (y % (2 if name == "half" else 3)) == 0 else HGR_BLACK
+
+
+def hgr_chrome(r, theta, y):
+    """The bezel, shaded like the double hi-res one: part where the light
+    falls, part where the ring's own crown turns toward the viewer."""
+    if r > 0.968 or r < 0.812:
+        return hgr_shade("third", y, False)
+    lit = abs(math.cos(math.radians(theta - 118.0))) ** 1.3
+    crown = 1.0 - (abs(r - 0.902) / 0.056) ** 1.7
+    v = 0.62 * lit + 0.38 * crown
+    if v > 0.72:
+        return HGR_WHITE
+    if v > 0.40:
+        return hgr_shade("half", y, False)
+    return hgr_shade("third", y, False)
+
+
+def hgr_cell(x, y, lit):
+    r = hgr_radius(x, y)
+    if r > 1.0:
+        return HGR_BLACK
+    theta = hgr_angle(x, y)
+    if r > 0.80:
+        return hgr_chrome(r, theta, y)
+    if r > HGR_DOME:
+        return HGR_BLACK
+
+    s = r / HGR_DOME
+    c = HGR_BLACK
+    for radius, half, ang, span, color in HGR_ARCS:
+        if abs(s - radius) <= half and dh_arcgap(theta, ang) <= span:
+            c = hgr_shade(color, y, False)
+    for edge, color in HGR_GLOW:
+        if s <= edge:
+            c = hgr_shade(color, y, True)
+            break
+    for k, (lo, hi, bright) in enumerate(HGR_BANDS):
+        if k in lit and lo < s <= hi:
+            c = hgr_shade(bright, y, True)
+    return c
+
+
+def hgr_nameplate(img):
+    """The same plate as the double hi-res eye, at twice the horizontal
+    resolution, so every x doubles."""
+    for y in range(DH_PLATE_TOP, DH_PLATE_TOP + DH_PLATE_H):
+        for x in range(80, 200):
+            img[y][x] = HGR_BLUE
+    for y in range(DH_PLATE_TOP + 1, DH_PLATE_TOP + DH_PLATE_H - 1):
+        for x in range(140, 196):
+            img[y][x] = HGR_BLACK
+    for text, x0 in (("HAL", 92), ("9000", 148)):
+        for i, ch in enumerate(text):
+            glyph = DH_GLYPHS[ch]
+            for gy in range(7):
+                for gx in range(5):
+                    if glyph[gy][gx] == "0":
+                        continue
+                    for yy in range(int(round(gy * DH_ROW_SCALE)),
+                                    int(round((gy + 1) * DH_ROW_SCALE))):
+                        for dx in range(2):
+                            img[DH_TEXT_TOP + yy][x0 + (i * 6 + gx) * 2 + dx] = HGR_WHITE
+
+
+def hgr_eye(lit = frozenset()):
+    img = [[hgr_cell(x, y, lit) for x in range(HGR_W)] for y in range(HGR_H)]
+    hgr_nameplate(img)
     return img
 
 
@@ -292,7 +398,8 @@ def hgr_pack_row(row):
         for i in range(7):
             c = row[b * 7 + i]
             x = b * 7 + i
-            if c == HGR_WHITE or (c == HGR_ORANGE and (x & 1)):
+            if (c == HGR_WHITE or (c == HGR_ORANGE and (x & 1))
+                    or (c == HGR_BLUE and not (x & 1))):
                 val |= 1 << i
         out.append(val)
     return out
@@ -320,26 +427,49 @@ def hgr_rle(stream):
     return out + [0]
 
 
-def hgr_bands():
-    """Per band, the row spans of whole byte cells whose center lies in it."""
-    img = hgr_eye()
-    spans = [[] for _ in HGR_BANDS]
+def hgr_transition(src, dst):
+    """Spans of the bytes that differ between two pictures, carrying the new
+    values: (row, first column, bytes). One bank here, so no bank bit. A gap of
+    up to four bytes is bridged, since a span header costs more than that."""
+    spans = []
     for y in range(HGR_H):
-        for k, (lo, hi) in enumerate(HGR_BANDS):
-            run = None
-            for b in range(40):
-                r = hgr_radius(b * 7 + 3, y)
-                solid = all(img[y][b * 7 + i] == HGR_ORANGE for i in range(7))
-                inside = solid and lo <= r < hi
-                if inside and run is None:
-                    run = [b, 0]
-                if inside:
-                    run[1] += 1
-                if (not inside) and run is not None:
-                    spans[k].append((y, run[0], run[1])); run = None
-            if run is not None:
-                spans[k].append((y, run[0], run[1]))
+        a, b = hgr_pack_row(src[y]), hgr_pack_row(dst[y])
+        runs = []
+        for c in range(40):
+            if a[c] == b[c]:
+                continue
+            if runs and c - runs[-1][1] <= 4:
+                runs[-1][1] = c
+            else:
+                runs.append([c, c])
+        for c0, c1 in runs:
+            spans.append((y, c0, b[c0:c1 + 1]))
     return spans
+
+
+def hgr_span_bytes(spans):
+    data = []
+    for y, c0, vals in spans:
+        base = row_base(y)
+        data += [base & 0xFF, base >> 8, c0, len(vals)] + list(vals)
+    return data + [0, 0]
+
+
+def emit_paint_costs(costs):
+    """What the paints cost, so the delays around them can give the time back.
+    Both demos paint by copying spans now, so both charge the same way."""
+    flash = costs["eyeFlash"]
+    decays = [costs[n] for n in ("eyeDecay0", "eyeDecay1", "eyeDecay2")]
+    print("; What the paints cost, so the delays around them can give the time back:")
+    print("; speech units of 4096 cycles, and laps of the song's 1280-cycle delay loop")
+    print("; left in the unit after the paint. The decay tables are indexed by ring.")
+    print(f"FLASHU    = ${max(1, round(flash / SPEECH_UNIT)):02X}")
+    print(f"SNGFLASHL = ${max(1, SONG_LAPS - round(flash / SONG_LAP)):02X}")
+    print("decayUnits")
+    print(fmt([max(1, round(c / SPEECH_UNIT)) for c in decays]))
+    print("decayLaps")
+    print(fmt([max(1, SONG_LAPS - round(c / SONG_LAP)) for c in decays]))
+    print()
 
 
 def emit_eye_hgr():
@@ -357,32 +487,22 @@ def emit_eye_hgr():
     print("hgrRowHi")
     print(fmt([row_base(y) >> 8 for y in range(HGR_H)], 16))
     print()
-    sp = hgr_bands()
-    print("; The flash bands, innermost first. Each span is rowLo, rowHi, first byte")
-    print("; column, byte count; a rowHi of 0 ends the band.")
-    for k, s in enumerate(sp):
-        print(f"; band {k}: {len(s)} spans, {sum(n for _, _, n in s)} bytes")
-        print(f"glowBand{k}")
-        data = []
-        for y, b, n in s:
-            data += [row_base(y) & 0xFF, row_base(y) >> 8, b, n]
-        print(fmt(data + [0, 0, 0, 0], 16))
-    print()
-    #  The engine charges the delay after a paint for the time the paint took,
-    #  and does it the same way in both demos. Here there is nothing to charge:
-    #  a band is a fill rather than a copy, and BurnUnits already runs its inner
-    #  loop short by the eye's share. Saying so with a zero costs one subtract
-    #  and keeps the shared code free of a conditional.
-    print("; What a paint costs the delay that follows, in speech units and in")
-    print("; song laps left after it. Nothing, here: a band is a fill, and the")
-    print("; delay loop is already short by the eye's share.")
-    print("FLASHU    = $00")
-    print(f"SNGFLASHL = ${SONG_LAPS:02X}")
-    print("decayUnits")
-    print(fmt([0, 0, 0]))
-    print("decayLaps")
-    print(fmt([SONG_LAPS] * 3))
-    print()
+    rest = img
+    s3, s2, s1 = hgr_eye({0, 1, 2}), hgr_eye({0, 1}), hgr_eye({0})
+    print("; The flash and its three decay steps, outermost ring first. Each is the")
+    print("; bytes that change, as spans: rowLo, rowHi, first byte column, count,")
+    print("; then the count bytes; a rowHi of 0 ends the list.")
+    costs = {}
+    for name, a, b in (("eyeFlash", rest, s3), ("eyeDecay2", s3, s2),
+                       ("eyeDecay1", s2, s1), ("eyeDecay0", s1, rest)):
+        sp = hgr_transition(a, b)
+        nbytes = sum(len(v) for *_, v in sp)
+        costs[name] = CYC_PER_BYTE * nbytes + HGR_CYC_PER_SPAN * len(sp)
+        print(f"; {name}: {len(sp)} spans, {nbytes} bytes, about {costs[name]} cycles")
+        print(name)
+        print(fmt(hgr_span_bytes(sp), 16))
+        print()
+    emit_paint_costs(costs)
 
 
 # ----------------------------------------- HAL's eye, double hi-res ---
@@ -395,24 +515,53 @@ def emit_eye_hgr():
 #  lit, so the last dot is the color's low bit and the first three are bits 1
 #  to 3.
 #
-#  The eye is a gray bezel around a lens that shades magenta, orange, yellow
-#  to a white pinpoint. The flash is the three inner rings each stepping one
-#  shade brighter, and the decay steps them back from the outside in. A ring
-#  boundary rarely lands on a byte, so a paint cannot be a fill; it is a copy.
-#  The picture is rendered in each of its four states and, per transition, the
+#  The eye is a camera lens: a chrome bezel around a dome that is nearly all
+#  BLACK, with the color gathered into a small lamp at the middle. Filling the
+#  dome instead -- which is what this drew until the shape was compared against
+#  a frame of the film -- reads as a dartboard, because in the reference all
+#  but a fifth of the lens face is black and the eye is the light IN it.
+#
+#  The flash is the three rings around the lamp each stepping one shade
+#  brighter, and the decay steps them back from the outside in. A ring boundary
+#  rarely lands on a byte, so a paint cannot be a fill; it is a copy. The
+#  picture is rendered in each of its four states and, per transition, the
 #  bytes that change are emitted with their new values, as spans: rowLo,
 #  rowHi, column with bit 7 set for the auxiliary bank, count, then the
 #  bytes. A rowHi of 0 ends the list.
+#
+#  Keeping the lit area small is not only truer, it is cheaper: the flash went
+#  from about 22300 cycles to under 7000, and the delays around a paint have
+#  correspondingly less time to give back.
 DH_W, DH_H = 140, 160
-DH_BLACK, DH_MAGENTA, DH_ORANGE, DH_GRAY2, DH_YELLOW, DH_WHITE = 0, 1, 9, 10, 13, 15
-DH_CX, DH_CY, DH_RX, DH_RY = 69.5, 79.5, 35.0, 66.0   # cells twice as wide as a row is tall
-DH_ZONES = [(0.07, DH_WHITE), (0.18, DH_YELLOW), (0.42, DH_ORANGE),
-            (0.925, DH_MAGENTA), (1.0, DH_GRAY2)]
-#  The flash bands, innermost first: (inner radius, outer radius, lit color).
-#  Each lies within one zone and lights to the next shade in.
-DH_BANDS = [(0.07, 0.18, DH_WHITE), (0.18, 0.30, DH_YELLOW), (0.30, 0.42, DH_YELLOW)]
-#  Cycle costs of PaintStream, for the constants that give the time back.
-CYC_PER_BYTE, CYC_PER_SPAN = 19, 70
+DH_BLACK, DH_MAGENTA, DH_GRAY1, DH_LTBLUE = 0, 1, 5, 7
+DH_BROWN, DH_ORANGE, DH_GRAY2, DH_YELLOW, DH_WHITE = 8, 9, 10, 13, 15
+
+#  A cell is four of the 560 dots and a row is one of 192, so on a 4:3 screen
+#  a circle wants rx = ry * (3/192) * (140/4). The eye sits low enough to leave
+#  the nameplate its rows.
+DH_CY, DH_RY = 91.0, 65.0
+DH_CX, DH_RX = 69.5, DH_RY * 0.547
+
+DH_DOME = 0.775            # the dome's edge, as a fraction of the whole eye
+
+#  The lamp, and the three rings a syllable lights. Radii are fractions of the
+#  dome, and each ring lights to the next shade in.
+DH_GLOW = [(0.075, DH_WHITE), (0.125, DH_YELLOW), (0.185, DH_ORANGE),
+           (0.245, DH_MAGENTA)]
+DH_BANDS = [(0.075, 0.125, DH_WHITE), (0.125, 0.185, DH_YELLOW),
+            (0.185, 0.245, DH_ORANGE)]
+
+#  Specular arcs on the glass: (radius, half-thickness, center angle, half
+#  span, color), radius and thickness as fractions of the dome. Without them
+#  the dome reads as a hole rather than as something with a surface.
+DH_ARCS = [(0.64, 0.030, 138.0, 26.0, DH_WHITE),
+           (0.61, 0.022,  64.0, 18.0, DH_GRAY2),
+           (0.53, 0.018,  16.0, 12.0, DH_GRAY1),
+           (0.78, 0.018, 168.0, 10.0, DH_GRAY2)]
+
+#  Cycle costs of PaintStream, for the constants that give the time back. The
+#  hi-res one is a little cheaper per span: one bank, so no PAGE2 either side.
+CYC_PER_BYTE, CYC_PER_SPAN, HGR_CYC_PER_SPAN = 19, 70, 60
 SPEECH_UNIT, SONG_LAP, SONG_LAPS = 4096, 1280, 33
 
 
@@ -420,21 +569,119 @@ def dh_radius(x, y):
     return (((x - DH_CX) / DH_RX) ** 2 + ((y - DH_CY) / DH_RY) ** 2) ** 0.5
 
 
+def dh_angle(x, y):
+    """Degrees counterclockwise from the right, in the circularized space."""
+    return math.degrees(math.atan2(-(y - DH_CY) / DH_RY, (x - DH_CX) / DH_RX))
+
+
+def dh_arcgap(a, b):
+    d = abs((a - b) % 360.0)
+    return min(d, 360.0 - d)
+
+
+def dh_dither(y, a, b, n = 2):
+    """`b` on one row in n and `a` on the rest. A row stays one solid color, so
+    the run-length coder still packs it to nothing, and on a screen the rows
+    blend. Only pairs of matched brightness are worth dithering: magenta and
+    brown are seven points apart and read as one brick red, where anything over
+    black reads as stripes."""
+    return b if (y % n) == 0 else a
+
+
+def dh_chrome(r, theta, y):
+    """The bezel: a rounded metal ring. Brightness is part where the light
+    falls and part where the ring's own crown turns toward the viewer, so the
+    shade boundaries run ALONG the ring. Angle alone cuts it into pie
+    segments, which reads as a roulette wheel."""
+    if r > 0.968 or r < 0.812:
+        return DH_GRAY1                             # the lips, top and bottom
+    lit = abs(math.cos(math.radians(theta - 118.0))) ** 1.3
+    crown = 1.0 - (abs(r - 0.902) / 0.056) ** 1.7
+    v = 0.62 * lit + 0.38 * crown
+    if v > 0.80:
+        return DH_WHITE
+    if v > 0.62:
+        return dh_dither(y, DH_GRAY2, DH_WHITE)
+    if v > 0.34:
+        return DH_GRAY2
+    return DH_GRAY1
+
+
+def dh_cell(x, y, lit):
+    r = dh_radius(x, y)
+    if r > 1.0:
+        return DH_BLACK
+    theta = dh_angle(x, y)
+    if r > 0.80:
+        return dh_chrome(r, theta, y)
+    if r > DH_DOME:
+        return DH_BLACK                             # the dome sits inset
+
+    s = r / DH_DOME
+
+    #  The dome is black. Only close to the lamp does the glass take a warm
+    #  cast, and brown is the one dark warm color the sixteen offer.
+    c = DH_BLACK
+    if s <= 0.36:
+        c = DH_BROWN
+    if s <= 0.295:
+        c = dh_dither(y, DH_BROWN, DH_MAGENTA)
+
+    for radius, half, ang, span, color in DH_ARCS:
+        if abs(s - radius) <= half and dh_arcgap(theta, ang) <= span:
+            c = color
+
+    for edge, color in DH_GLOW:
+        if s <= edge:
+            c = color
+            break
+    for k, (lo, hi, bright) in enumerate(DH_BANDS):
+        if k in lit and lo < s <= hi:
+            c = bright
+    return c
+
+
+#  The nameplate. Blue with HAL, then a black inset with 9000, which is as
+#  much of the panel as there is room for once the eye has its rows: the
+#  speaker grille below the eye would land in the caption rows.
+DH_GLYPHS = {
+    "H": ("10001", "10001", "10001", "11111", "10001", "10001", "10001"),
+    "A": ("01110", "10001", "10001", "11111", "10001", "10001", "10001"),
+    "L": ("10000", "10000", "10000", "10000", "10000", "10000", "11111"),
+    "9": ("01110", "10001", "10001", "01111", "00001", "00010", "01100"),
+    "0": ("01110", "10001", "10011", "10101", "11001", "10001", "01110"),
+}
+DH_PLATE_TOP, DH_PLATE_H, DH_TEXT_TOP = 2, 17, 5
+DH_ROW_SCALE = 1.4         # rows are thinner than cells are wide
+
+
+def dh_text(img, s, x0, color):
+    for i, ch in enumerate(s):
+        glyph = DH_GLYPHS[ch]
+        for gy in range(7):
+            for gx in range(5):
+                if glyph[gy][gx] == "0":
+                    continue
+                for yy in range(int(round(gy * DH_ROW_SCALE)),
+                                int(round((gy + 1) * DH_ROW_SCALE))):
+                    img[DH_TEXT_TOP + yy][x0 + i * 6 + gx] = color
+
+
+def dh_nameplate(img):
+    for y in range(DH_PLATE_TOP, DH_PLATE_TOP + DH_PLATE_H):
+        for x in range(40, 100):
+            img[y][x] = DH_LTBLUE
+    for y in range(DH_PLATE_TOP + 1, DH_PLATE_TOP + DH_PLATE_H - 1):
+        for x in range(70, 98):
+            img[y][x] = DH_BLACK
+    dh_text(img, "HAL", 46, DH_WHITE)
+    dh_text(img, "9000", 74, DH_WHITE)
+
+
 def dh_cells(lit):
     """The picture, with the bands in `lit` one shade brighter."""
-    img = [[DH_BLACK] * DH_W for _ in range(DH_H)]
-    for y in range(DH_H):
-        for x in range(DH_W):
-            r = dh_radius(x, y)
-            c = DH_BLACK
-            for edge, color in DH_ZONES:
-                if r <= edge:
-                    c = color
-                    break
-            for k, (lo, hi, bright) in enumerate(DH_BANDS):
-                if k in lit and lo < r <= hi:
-                    c = bright
-            img[y][x] = c
+    img = [[dh_cell(x, y, lit) for x in range(DH_W)] for y in range(DH_H)]
+    dh_nameplate(img)
     return img
 
 
@@ -549,18 +796,7 @@ def emit_eye_dhgr():
         print(name)
         print(fmt(dh_span_bytes(sp), 16))
         print()
-    flash = costs["eyeFlash"]
-    decays = [costs[n] for n in ("eyeDecay0", "eyeDecay1", "eyeDecay2")]
-    print("; What the paints cost, so the delays around them can give the time back:")
-    print("; speech units of 4096 cycles, and laps of the song's 1280-cycle delay loop")
-    print("; left in the unit after the paint. The decay tables are indexed by ring.")
-    print(f"FLASHU    = ${max(1, round(flash / SPEECH_UNIT)):02X}")
-    print(f"SNGFLASHL = ${max(1, SONG_LAPS - round(flash / SONG_LAP)):02X}")
-    print("decayUnits")
-    print(fmt([max(1, round(c / SPEECH_UNIT)) for c in decays]))
-    print("decayLaps")
-    print(fmt([max(1, SONG_LAPS - round(c / SONG_LAP)) for c in decays]))
-    print()
+    emit_paint_costs(costs)
 
 
 #  A silence to close a sentence on, in delay units of about 41.5 ms each.
@@ -592,7 +828,8 @@ def emit_all(path, emit_eye, screen):
             emit("wargData", wargames(),
                  '"Shall we play a game?" -- declination, dip, then a drawn rise', tail = 7)
             emit("halData", HAL,
-                 '"I\'m sorry Mark. I\'m afraid I can\'t do that." -- slow and level', tail = 7)
+                 '"I\'m sorry Dave. I\'m afraid I can\'t do that." -- slow, and narrow'
+                 ' rather than level: two falling sentences, the stress on DO', tail = 7)
             emit("cylonData", cylon(),
                  '"By your command, Imperious Leader." -- a Centurion, low and level',
                  tail = 8)

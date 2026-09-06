@@ -124,33 +124,38 @@ CAPFIT   = 41              ; one past the width, for the fits-in-a-row test
 
 
 ; ============================================================================
-;  EyeFlash  -- a syllable: every flash band white at once
-;  EyeFlashQ -- EyeFlash if a vowel has queued one
-;  EyeDecay  -- one step of the flash collapsing inward: the outermost white
-;               band back to orange
-;  EyeRest   -- everything back to orange
-;  PaintBand -- band X, orange (TMP2 = 0) or white (TMP2 = 1)
+;  EyeFlash    -- a syllable: the three rings around the lamp each a shade
+;                 brighter
+;  EyeFlashQ   -- EyeFlash if a vowel has queued one
+;  EyeDecay    -- one step of the flash collapsing inward: the outermost lit
+;                 ring back to its resting shade
+;  EyeRest     -- everything back to rest
+;  PaintStream -- apply one transition list; SRCP points at it
 ;
-;  The bands are lists of row spans of whole bytes, so a paint is a tight run
-;  of stores. Orange is the odd-x pixels of the orange/blue group, which makes
-;  a solid orange byte $AA in an even byte column and $D5 in an odd one; the
-;  fill starts from the column's parity and toggles. White is every pixel on.
+;  A paint copies bytes rather than filling them, for two reasons: a ring
+;  boundary rarely lands on a byte, and the shades between black and white are
+;  row dithers rather than solid values. Filling was what this did while the
+;  eye was a disc of one color, and it is why the lamp could not be made small
+;  -- a fill works in whole bytes, and a ring a few pixels wide contains no
+;  whole byte at its sides.
 ;
-;  Each of the first three returns carry SET when it painted, which is the
-;  engine's signal to charge the delay that follows for the time it took. The
-;  hi-res charge is zero -- the delay loop is already short by the eye's share
-;  -- but the convention is the same, so the engine needs no conditional.
+;  Each transition is a list of spans: row address, first byte column, count,
+;  then the count bytes. One bank here, so unlike the double hi-res version
+;  there is no bank bit and no PAGE2 to steer with.
+;
+;  EyeFlash, EyeFlashQ and EyeDecay return carry set when they painted, so the
+;  caller can give the time back: FLASHU and decayUnits are in speech units and
+;  SNGFLASHL and decayLaps in song laps, all from the generator, which knows
+;  the byte counts.
 ; ============================================================================
 EyeFlash
     lda #$00
     sta FLASHQ
-    lda #$01
-    sta TMP2
-    ldx #$02
-ef_loop
-    jsr PaintBand
-    dex
-    bpl ef_loop
+    lda #<eyeFlash
+    sta SRCP
+    lda #>eyeFlash
+    sta SRCP+1
+    jsr PaintStream
     lda #$03
     sta GLOWPH
     lda #DECAYU
@@ -168,10 +173,12 @@ EyeDecay
     lda GLOWPH
     beq ed_none
     dec GLOWPH
-    ldx GLOWPH                  ; the ring, and PaintBand leaves it alone, so
-    lda #$00                    ;   the caller can index its cost by it
-    sta TMP2
-    jsr PaintBand
+    ldx GLOWPH
+    lda eyeDecayLo,x
+    sta SRCP
+    lda eyeDecayHi,x
+    sta SRCP+1
+    jsr PaintStream
     sec
     rts
 ed_none
@@ -186,64 +193,62 @@ er_loop
     bcs er_loop
     rts
 
-PaintBand
-    lda glowBandLo,x
-    sta SRCP
-    lda glowBandHi,x
-    sta SRCP+1
-pb_span
+PaintStream
+ps_span
     ldy #$00
     lda (SRCP),y                ; row, low
     sta EYEP
     iny
-    lda (SRCP),y                ; row, high: zero ends the band
-    beq pb_done
+    lda (SRCP),y                ; row, high: zero ends the list
+    beq ps_done
     sta EYEP+1
     iny
     lda (SRCP),y                ; first byte column
     sta TMP3
     iny
-    lda (SRCP),y                ; byte count
-    sta TMP
+    lda (SRCP),y                ; count
+    clc
+    adc TMP3
+    sta TMP                     ; the column past the last
+    ; Step past the header, then bias the source down by the first column so
+    ; that one index serves both the source and the row.
     lda SRCP
     clc
     adc #$04
     sta SRCP
-    bcc pb_fill
+    bcc ps_bias
     inc SRCP+1
-pb_fill
+ps_bias
+    lda SRCP
+    sec
+    sbc TMP3
+    sta SRCP
+    bcs ps_copy0
+    dec SRCP+1
+ps_copy0
     ldy TMP3
-    lda TMP2
-    bne pb_white
-    tya
-    and #$01
-    beq pb_even
-    lda #$D5
-    bne pb_orange               ; always
-pb_even
-    lda #$AA
-pb_orange
-    sta (EYEP),y
-    eor #$7F                    ; $AA <-> $D5
-    iny
-    dec TMP
-    bne pb_orange
-    beq pb_span                 ; always
-pb_white
-    lda #$FF
-pb_wloop
+ps_copy
+    lda (SRCP),y
     sta (EYEP),y
     iny
-    dec TMP
-    bne pb_wloop
-    jmp pb_span
-pb_done
+    cpy TMP
+    bne ps_copy
+    ; Unbias and step: the source sits at (bytes - first column), and the
+    ; bytes ran to the column past the last.
+    lda SRCP
+    clc
+    adc TMP
+    sta SRCP
+    bcc ps_span
+    inc SRCP+1
+    jmp ps_span
+ps_done
     rts
 
-glowBandLo
-    .byte <glowBand0,<glowBand1,<glowBand2
-glowBandHi
-    .byte >glowBand0,>glowBand1,>glowBand2
+eyeDecayLo
+    .byte <eyeDecay0,<eyeDecay1,<eyeDecay2
+eyeDecayHi
+    .byte >eyeDecay0,>eyeDecay1,>eyeDecay2
 
 
 ; ============================================================================
@@ -276,8 +281,9 @@ si_fill
     ; HAL's eye, unpacked from (count, byte) pairs across the 160 rows of the
     ; mixed-mode picture. A count with bit 7 set is an ALTERNATING run -- the
     ; byte and then its $7F complement, turn about -- which is how a solid
-    ; orange fill packs, since orange is $AA in one byte column and $D5 in the
-    ; next. The rows are not contiguous in memory, so the column is counted
+    ; run of one color packs, since orange is $AA in one byte column and $D5
+    ; in the next, and blue is the same pair the other way round. The rows are
+    ; not contiguous in memory, so the column is counted
     ; and the row pointer re-fetched at each row's end.
     lda #<eyeRle
     sta SRCP
@@ -326,7 +332,7 @@ rl_same
 rl_done
 
     ; Title on the bottom row, then park the caption cursor at the first
-    ; caption row. The picture starts with every band orange: at rest.
+    ; caption row. The picture starts at rest.
     ldy #$00
 si_title
     lda titleText,y

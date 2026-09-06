@@ -123,8 +123,9 @@ start
     ; that a short phoneme spans barely two pulses and no vowel is resolvable.
     ; Every stream opens with a pitch escape for exactly that reason.
 
-    ; ---- 1. HAL. A flat, deliberate line; the stream carries its own slower
-    ;         rate in the high nibble of its opening pitch escape. The tract is
+    ; ---- 1. HAL. A deliberate line, narrow rather than flat: the stream
+    ;         carries its own contour, and its own slower rate in the high
+    ;         nibble of every one of those pitch escapes. The tract is
     ;         scaled down a sixth while he speaks: pitch says how low a voice
     ;         is, the tract says how big the thing making it is, and the two
     ;         are separate registers. HAL wants the second one.
