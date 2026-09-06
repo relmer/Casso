@@ -104,6 +104,95 @@ namespace ScreenshotPlanTests
         }
 
 
+        //
+        //  Full scene takes in the machine's own chrome
+        //
+
+        // The defect: in a flat theme the drive widgets are not in the
+        // viewport at all -- they sit in a band docked under it -- so Full
+        // scene stopped at the picture's edge and came back identical to
+        // Screen only, missing the very thing the mode exists to include.
+        TEST_METHOD (SceneUnionsTheDriveBandUnderAFlatTheme)
+        {
+            ScreenshotPlanInputs   in = SceneThemeInputs();
+            in.deskSceneActive  = false;
+            in.viewportPx       = { 0, 60, 1280, 700 };
+            in.machineChromePx  = { 0, 700, 1280, 800 };
+
+            ScreenshotPlan   plan = ScreenshotPlan::Resolve (in, NothingExists);
+
+            Assert::AreEqual ((long) 60,   plan.sourceRectPx.top,    L"still starts at the picture");
+            Assert::AreEqual ((long) 800,  plan.sourceRectPx.bottom, L"and now reaches the drives");
+            Assert::AreEqual ((long) 1280, plan.sourceRectPx.right);
+        }
+
+
+        // A desk scene models the drives inside the viewport, so the shell
+        // passes nothing here and the rect must not move.
+        TEST_METHOD (SceneIsTheViewportAloneWhenThereIsNoSuchChrome)
+        {
+            ScreenshotPlanInputs   in = SceneThemeInputs();
+            in.viewportPx      = { 0, 60, 1280, 700 };
+            in.machineChromePx = {};
+
+            ScreenshotPlan   plan = ScreenshotPlan::Resolve (in, NothingExists);
+
+            Assert::AreEqual ((long) 60,  plan.sourceRectPx.top);
+            Assert::AreEqual ((long) 700, plan.sourceRectPx.bottom);
+        }
+
+
+        // Only Full scene widens. Screen only is the picture by definition,
+        // and widening it would make the two modes the same from the other
+        // direction.
+        TEST_METHOD (TheOtherTwoModesIgnoreTheMachineChrome)
+        {
+            ScreenshotPlanInputs   in = SceneThemeInputs();
+            in.deskSceneActive  = false;
+            in.picturePx        = { 340, 120, 940, 530 };
+            in.machineChromePx  = { 0, 700, 1280, 800 };
+
+            in.mode = ScreenshotMode::Crt;
+            ScreenshotPlan   crt = ScreenshotPlan::Resolve (in, NothingExists);
+            Assert::AreEqual ((long) 530, crt.sourceRectPx.bottom);
+
+            in.mode = ScreenshotMode::Raw;
+            ScreenshotPlan   raw = ScreenshotPlan::Resolve (in, NothingExists);
+            Assert::AreEqual ((long) 384, raw.sourceRectPx.bottom);
+        }
+
+
+        //
+        //  Union, on its own
+        //
+
+        // An empty rect means "there is no such thing right now". Unioning it
+        // as a region at the origin would drag every flat-theme capture up to
+        // the top-left corner of the window.
+        TEST_METHOD (UnionTreatsAnEmptyRectAsAbsentRatherThanAsTheOrigin)
+        {
+            RECT   real = { 100, 200, 300, 400 };
+
+            Assert::AreEqual ((long) 100, ScreenshotPlan::Union (real, RECT{}).left);
+            Assert::AreEqual ((long) 200, ScreenshotPlan::Union (real, RECT{}).top);
+            Assert::AreEqual ((long) 100, ScreenshotPlan::Union (RECT{}, real).left);
+            Assert::AreEqual ((long) 0,   ScreenshotPlan::Union (RECT{}, RECT{}).right);
+        }
+
+
+        TEST_METHOD (UnionTakesTheOuterEdgeOnEverySide)
+        {
+            RECT   a = { 10, 20, 100, 200 };
+            RECT   b = {  5, 50, 400,  60 };
+            RECT   u = ScreenshotPlan::Union (a, b);
+
+            Assert::AreEqual ((long) 5,   u.left);
+            Assert::AreEqual ((long) 20,  u.top);
+            Assert::AreEqual ((long) 400, u.right);
+            Assert::AreEqual ((long) 200, u.bottom);
+        }
+
+
         // Crt is the mode that splits: with a scene it can take the picture
         // straight from the chain's target, without one it must sub-rect the
         // back buffer before chrome paints.

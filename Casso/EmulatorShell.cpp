@@ -10073,6 +10073,18 @@ void EmulatorShell::TakeScreenshot()
     {
         inputs.viewportPx = m_viewportBoundsPx;
         inputs.picturePx  = m_d3dRenderer.GetTargetBounds();
+
+        //  AND THE DRIVES, which in a flat theme are not in the viewport at
+        //  all -- they are widgets in a band docked under it, where the desk
+        //  scene models them inside the picture area. Full scene left them
+        //  out, which made it identical to Screen only in every flat theme.
+        //  The band's surface runs from its top to the bottom of the client,
+        //  so the union takes the switch bar between them as well: those
+        //  switches are the machine's too.
+        if (m_driveBandSurface.IsVisible())
+        {
+            inputs.machineChromePx = m_driveBandSurface.GetBounds();
+        }
     }
 
     inputs.framebufferSize = { kFramebufferWidth, kFramebufferHeight };

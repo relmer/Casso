@@ -51,7 +51,7 @@ ScreenshotPlan ScreenshotPlan::Resolve (const ScreenshotPlanInputs &            
 
         case ScreenshotMode::Scene:
             plan.source       = CaptureSource::BackBufferRegion;
-            plan.sourceRectPx = inputs.viewportPx;
+            plan.sourceRectPx = Union (inputs.viewportPx, inputs.machineChromePx);
             break;
     }
 
@@ -84,4 +84,37 @@ ScreenshotPlan ScreenshotPlan::Resolve (const ScreenshotPlanInputs &            
     }
 
     return plan;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Union
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT ScreenshotPlan::Union (const RECT & a, const RECT & b)
+{
+    bool  aHasArea = (a.right > a.left) && (a.bottom > a.top);
+    bool  bHasArea = (b.right > b.left) && (b.bottom > b.top);
+
+
+
+    if (!bHasArea)
+    {
+        return a;
+    }
+
+    if (!aHasArea)
+    {
+        return b;
+    }
+
+    return RECT { (a.left   < b.left)   ? a.left   : b.left,
+                  (a.top    < b.top)    ? a.top    : b.top,
+                  (a.right  > b.right)  ? a.right  : b.right,
+                  (a.bottom > b.bottom) ? a.bottom : b.bottom };
 }

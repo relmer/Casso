@@ -282,9 +282,9 @@ void ScreenshotsPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
             optionY += optionH;
         };
 
-        addOption (L"Scene",   L"The desk as it looks: monitor, glass and drives.");
-        addOption (L"Picture", L"The screen with its CRT effects, nothing around it.");
-        addOption (L"Raw",     L"The unprocessed screen, always 560x384.");
+        addOption (L"Full scene",  L"The whole shebang, including theme elements");
+        addOption (L"Screen only", L"The screen itself, as you see it with CRT effects applied");
+        addOption (L"Raw image",   L"The unprocessed image, au naturel, at its native resolution");
 
         m_captureMode.SetOptions (options);
         m_captureMode.SetBounds  (MakeRect (controlsX, y, optionW, optionH * 3));

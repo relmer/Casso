@@ -77,6 +77,18 @@ struct ScreenshotPlanInputs
     fs::path        defaultPicturesFolder;             // the host's Pictures folder
     RECT            viewportPx            = {};        // the scene viewport
     RECT            picturePx             = {};        // where the picture lands in the target
+
+    // The machine's own chrome BELOW the picture, under a flat theme: the
+    // drive widgets and the switches. Empty under a desk scene, where the
+    // drives are modeled inside the viewport, and empty when the band is not
+    // shown.
+    //
+    // A Full scene capture unions it with the viewport, because in a flat
+    // theme the drives ARE the theme's rendering of the machine -- the same
+    // thing the desk scene draws in 3D -- and a capture that stopped at the
+    // picture's edge left them out of the one mode whose whole job is to
+    // include them.
+    RECT            machineChromePx       = {};
     SIZE            framebufferSize       = {};        // 560x384
     bool            deskSceneActive       = false;     // false for compact / flat themes
     bool            windowMinimized       = false;
@@ -127,4 +139,10 @@ struct ScreenshotPlan
     // filenames and the destination folder.
     static ScreenshotPlan  Resolve (const ScreenshotPlanInputs &              inputs,
                                     const function<bool (const fs::path &)> & exists);
+
+    // The smallest rect holding both, ignoring either one when it is empty.
+    // An empty rect here means "there is no such thing right now", not "a
+    // region at the origin", so unioning it in would drag the capture up to
+    // the top-left corner of the window.
+    static RECT  Union (const RECT & a, const RECT & b);
 };
