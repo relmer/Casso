@@ -474,6 +474,28 @@ jobs:
               exit 0
           }
 
+          # A TOKEN THAT IS NON-EMPTY IS NOT A TOKEN THAT WORKS. The gate above
+          # only proves the secret holds characters, which a placeholder does
+          # too. Ask GitHub who the token is and what it may do, before
+          # wingetcreate gets far enough to fail somewhere less legible.
+          #
+          # public_repo is what the submission needs: wingetcreate pushes a
+          # branch to the fork and opens a pull request with it.
+          $who = gh api user --jq '.login' 2>$null
+          if ($LASTEXITCODE -ne 0 -or -not $who) {
+              throw ('WINGET_PAT does not authenticate. Set it to a personal access ' +
+                     'token with the public_repo scope.')
+          }
+
+          $scopes = (gh api user --include 2>$null |
+                     Select-String -Pattern '^x-oauth-scopes:' |
+                     ForEach-Object { $_.Line -replace '(?i)^x-oauth-scopes:\s*', '' })
+          Write-Host "  token authenticates as $who; scopes: $scopes"
+
+          if ($scopes -and $scopes -notmatch 'public_repo|(^|,\s*)repo(,|$)') {
+              throw "WINGET_PAT lacks public_repo (scopes: $scopes)."
+          }
+
           # Bring the fork up to date first. wingetcreate branches from it, and
           # a fork months behind produces a PR full of other people's packages.
           gh api repos/relmer/winget-pkgs/merge-upstream -f branch=master
