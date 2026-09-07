@@ -595,6 +595,11 @@ your consent; the boot disk picker then offers the DOS 3.3 System Master and
 ProDOS Users Disk, which Casso downloads from the Asimov archive when one is
 picked.
 
+The release zip carries `Apple2\Demos` beside the executable, holding
+casso-rocks, the two Mockingboard speech demos and the tone demo, so the picker
+offers them and the paths below work from a downloaded build as well as a
+source tree.
+
 ```powershell
 # Launch the emulator (defaults to the Apple //e)
 Casso
