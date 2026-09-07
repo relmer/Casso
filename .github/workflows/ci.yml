@@ -463,51 +463,63 @@ jobs:
           $tag     = '${{ steps.ver.outputs.tag }}'
           $pkgId   = 'relmer.Casso'
 
+          # A TOKEN THAT IS NON-EMPTY IS NOT A TOKEN THAT WORKS. The gate on the
+          # step only proves the secret holds characters, which a placeholder
+          # does too. Ask GitHub who the token is and what it may do.
+          #
+          # First, so that every release reports on the token, including the
+          # ones that go on to no-op below. A credential is worth checking
+          # before the release that depends on it, not during.
+          #
+          # public_repo is what the submission needs: wingetcreate pushes a
+          # branch to the fork and opens a pull request with it. workflow is
+          # wanted too, for the fork sync rather than the manifest -- nothing
+          # written here goes under .github/workflows, but merge-upstream
+          # brings upstream's commits in as this token, and winget-pkgs changes
+          # its own workflow files often enough that a sync carries one.
+          $who = gh api user --jq '.login' 2>$null
+          $tokenOk = ($LASTEXITCODE -eq 0 -and $who)
+          $global:LASTEXITCODE = 0
+
+          if ($tokenOk) {
+              $scopes = (gh api user --include 2>$null |
+                         Select-String -Pattern '^x-oauth-scopes:' |
+                         ForEach-Object { $_.Line -replace '(?i)^x-oauth-scopes:\s*', '' })
+              $global:LASTEXITCODE = 0
+              Write-Host "  WINGET_PAT authenticates as $who; scopes: $scopes"
+
+              if ($scopes -and $scopes -notmatch 'public_repo|(^|,\s*)repo(,|$)') {
+                  $tokenOk = $false
+                  $tokenProblem = "the token lacks public_repo (scopes: $scopes)"
+              }
+              elseif ($scopes -and $scopes -notmatch '(^|,\s*)workflow(,|$)') {
+                  Write-Host ('::warning::WINGET_PAT has no workflow scope. The fork sync can ' +
+                              'fail when upstream has changed its own workflow files.')
+              }
+          }
+          else {
+              $tokenProblem = 'the token does not authenticate'
+          }
+
+          # `update` can only update a package that EXISTS. The first manifest
+          # for relmer.Casso is a `wingetcreate new` submitted by hand once.
           gh api "repos/microsoft/winget-pkgs/contents/manifests/r/relmer/Casso" *> $null
           $published = ($LASTEXITCODE -eq 0)
           $global:LASTEXITCODE = 0
 
           if (-not $published) {
+              if (-not $tokenOk) {
+                  Write-Host "::warning::WINGET_PAT will not work as it stands: $tokenProblem."
+              }
               Write-Host ("::notice::$pkgId is not in winget-pkgs yet, so there is nothing to " +
                           'update. Submit the first manifest once with `wingetcreate new`; ' +
                           'this step picks up from there by itself.')
               exit 0
           }
 
-          # A TOKEN THAT IS NON-EMPTY IS NOT A TOKEN THAT WORKS. The gate above
-          # only proves the secret holds characters, which a placeholder does
-          # too. Ask GitHub who the token is and what it may do, before
-          # wingetcreate gets far enough to fail somewhere less legible.
-          #
-          # public_repo is what the submission needs: wingetcreate pushes a
-          # branch to the fork and opens a pull request with it.
-          #
-          # workflow is wanted too, and the reason is the fork sync rather than
-          # the manifest. Nothing written here goes under .github/workflows, but
-          # merge-upstream brings upstream's commits into the fork as this
-          # token, and winget-pkgs changes its own workflow files often enough
-          # that a sync carrying one needs the scope. A warning rather than a
-          # hard gate, since the sync is best-effort and the submission itself
-          # does not need it.
-          $who = gh api user --jq '.login' 2>$null
-          if ($LASTEXITCODE -ne 0 -or -not $who) {
-              throw ('WINGET_PAT does not authenticate. Set it to a personal access ' +
-                     'token with the public_repo scope.')
-          }
-
-          $scopes = (gh api user --include 2>$null |
-                     Select-String -Pattern '^x-oauth-scopes:' |
-                     ForEach-Object { $_.Line -replace '(?i)^x-oauth-scopes:\s*', '' })
-          Write-Host "  token authenticates as $who; scopes: $scopes"
-
-          if ($scopes -and $scopes -notmatch 'public_repo|(^|,\s*)repo(,|$)') {
-              throw "WINGET_PAT lacks public_repo (scopes: $scopes)."
-          }
-
-          if ($scopes -and $scopes -notmatch '(^|,\s*)workflow(,|$)') {
-              Write-Host ('::warning::WINGET_PAT has no workflow scope. The fork sync below ' +
-                          'can fail when upstream has changed its own workflow files.')
-          }
+          # Past here the token is load-bearing, so a bad one is an error
+          # rather than a warning.
+          if (-not $tokenOk) { throw "WINGET_PAT cannot publish: $tokenProblem." }
 
           # Bring the fork up to date first. wingetcreate branches from it, and
           # a fork months behind produces a PR full of other people's packages.
