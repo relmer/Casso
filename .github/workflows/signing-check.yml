@@ -1,0 +1,90 @@
+name: Signing check
+
+# A dry run of the only two steps in the release path that can fail for
+# reasons the build never sees: the OIDC handshake with Entra, and the signing
+# call itself. It publishes nothing and touches no tag.
+#
+# THE POINT IS WHEN IT RUNS. The release job is gated on a version bump, so a
+# broken federated credential or a revoked role stays invisible until the
+# middle of a release, which is the worst moment to find it. This runs on a
+# button instead: press it after changing anything on the Azure side, or
+# before a release you care about.
+#
+# It deliberately lives in its own file rather than as a job in ci.yml, so
+# adding `workflow_dispatch` here does not give the 30-minute build matrix a
+# manual trigger it has no use for.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  sign-a-throwaway:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    # The same environment the release job names, because the environment is
+    # part of the OIDC subject. A dry run against a different subject would
+    # prove the wrong credential.
+    environment: release
+
+    steps:
+      - name: Make something to sign
+        shell: pwsh
+        run: |
+          # A REAL PE, not a placeholder file. Signing appends to a PE's
+          # security directory, so a text file with an .exe name proves
+          # nothing -- the tool would fail on the format rather than on the
+          # credential, which is the opposite of what this job is asking.
+          # The runner ships plenty; one gets copied, signed, and thrown away
+          # with the runner. Nothing here is redistributed.
+          New-Item -ItemType Directory -Path dryrun -Force | Out-Null
+          Copy-Item "$env:SystemRoot\System32\where.exe" dryrun\sample.exe
+          Set-ItemProperty dryrun\sample.exe -Name IsReadOnly -Value $false
+          Write-Host "before: $((Get-AuthenticodeSignature dryrun\sample.exe).SignerCertificate.Subject)"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign it
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/dryrun
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Report what came back
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature dryrun\sample.exe
+
+          Write-Host "status:    $($sig.Status)"
+          Write-Host "statusmsg: $($sig.StatusMessage)"
+          Write-Host "signer:    $($sig.SignerCertificate.Subject)"
+          Write-Host "issuer:    $($sig.SignerCertificate.Issuer)"
+          Write-Host "notAfter:  $($sig.SignerCertificate.NotAfter)"
+          Write-Host "timestamp: $($sig.TimeStamperCertificate.Subject)"
+
+          # A short NotAfter is expected and not a fault: these certificates
+          # live for days, which is what the countersignature is for -- the
+          # timestamp is what keeps a shipped binary trusted past it.
+          if ($sig.Status -eq 'NotSigned') {
+              throw 'The signing step ran and left the file unsigned.'
+          }
+
+          Write-Host ''
+          Write-Host 'Credential works. The release job will sign.'

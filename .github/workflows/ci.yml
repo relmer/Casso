@@ -332,7 +332,14 @@ jobs:
           timestamp-digest: SHA256
 
       # A signing action that fails is loud; one that runs and leaves a file
-      # untouched is not. Four binaries ship, so four have to read Valid.
+      # untouched is not. Four binaries ship, so four have to carry a
+      # signature.
+      #
+      # The bar is a signature that is PRESENT and matches the bytes, not a
+      # Status of Valid. Valid additionally asserts that this runner could
+      # build and trust the chain, which is a fact about the runner rather
+      # than about the release, and making it a gate would let a trust-store
+      # detail on a hosted image turn a good build red.
       - name: Verify every binary is signed
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
         shell: pwsh
@@ -340,10 +347,10 @@ jobs:
           $bad = @()
           Get-ChildItem staging -Recurse -Filter *.exe | ForEach-Object {
             $sig = Get-AuthenticodeSignature $_.FullName
-            Write-Host "  $($_.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
-            if ($sig.Status -ne 'Valid') { $bad += $_.FullName }
+            Write-Host "  $($_.Name): $($sig.Status) -- $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -in @('NotSigned', 'HashMismatch')) { $bad += $_.Name }
           }
-          if ($bad) { throw "Unsigned or invalid after signing: $($bad -join ', ')" }
+          if ($bad) { throw "Unsigned or tampered after signing: $($bad -join ', ')" }
 
       - name: Warn that the release is unsigned
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID == ''
