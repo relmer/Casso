@@ -46,6 +46,35 @@ jobs:
           Set-ItemProperty dryrun\sample.exe -Name IsReadOnly -Value $false
           Write-Host "before: $((Get-AuthenticodeSignature dryrun\sample.exe).SignerCertificate.Subject)"
 
+      # A SECRET THAT EXISTS AND A SECRET THAT HOLDS SOMETHING are different
+      # facts, and only the first one is visible from outside. `gh secret set`
+      # with no value reads stdin, so running it where stdin is closed stores
+      # an empty string and reports success -- after which the listing, the
+      # API and the web UI all show three healthy-looking secrets. Ask the
+      # question here, where the answer can say what is actually wrong,
+      # instead of letting it surface as azure/login complaining that
+      # client-id was not supplied.
+      - name: The secrets have to hold something
+        shell: pwsh
+        env:
+          CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+          TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          $empty = @()
+          foreach ($name in 'CLIENT_ID', 'TENANT_ID', 'SUBSCRIPTION_ID') {
+              $value = [Environment]::GetEnvironmentVariable($name)
+              $len   = if ($value) { $value.Length } else { 0 }
+              Write-Host "  AZURE_${name}: $len characters"
+              if ($len -eq 0) { $empty += "AZURE_$name" }
+          }
+          if ($empty) {
+              throw ("Empty: $($empty -join ', '). The secret exists but holds " +
+                     'nothing. Re-set it with an explicit value -- ' +
+                     '`gh secret set NAME --repo <repo> --body <guid>` -- or ' +
+                     'through Settings > Secrets and variables > Actions.')
+          }
+
       - name: Azure login (OIDC)
         uses: azure/login@v3
         with:
