@@ -13,6 +13,9 @@ Entries before versioning was introduced use dates only.
 - **The release zip carries four demo disks** under `Apple2\Demos`, where the
   disk picker already looks: `casso-rocks`, the hi-res and double hi-res
   Mockingboard speech demos, and the Mockingboard tone demo.
+- **`SHA256SUMS.txt` ships with each release,** covering both zips in the
+  format `sha256sum -c` reads.
+- **Casso publishes to winget** as `relmer.Casso`.
 
 ### Changed
 
