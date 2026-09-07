@@ -176,6 +176,7 @@ jobs:
       # the signing secrets yet, and the release goes out UNSIGNED rather than
       # turning every master push red.
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      WINGET_PAT:      ${{ secrets.WINGET_PAT }}
 
     steps:
       - uses: actions/checkout@v6
@@ -285,8 +286,15 @@ jobs:
             'mockingboard-test.dsk'
           )
 
+          # THE DIRECTORY INSIDE THE ZIP CARRIES NO VERSION, deliberately. The
+          # winget manifest addresses the binaries through it
+          # (NestedInstallerFiles: RelativeFilePath), and a version in that path
+          # would mean every release changed the path, which `wingetcreate
+          # update` does not rewrite -- it swaps URLs and hashes. Per-platform
+          # so extracting both still gives two directories. The zip's own name
+          # keeps the version, which is what identifies a download.
           foreach ($plat in @('x64', 'ARM64')) {
-            $stagingDir = "staging/Casso-$version-$plat"
+            $stagingDir = "staging/Casso-$plat"
             $demoDir    = Join-Path $stagingDir 'Apple2/Demos'
             New-Item -ItemType Directory -Path $demoDir -Force | Out-Null
             Copy-Item "$plat/Release/Casso.exe"    $stagingDir
@@ -369,9 +377,43 @@ jobs:
           $version = '${{ steps.ver.outputs.version }}'
           foreach ($plat in @('x64', 'ARM64')) {
             $zipName = "Casso-$version-$plat.zip"
-            Compress-Archive -Path "staging/Casso-$version-$plat" -DestinationPath "artifacts/$zipName" -Force
+            Compress-Archive -Path "staging/Casso-$plat" -DestinationPath "artifacts/$zipName" -Force
             Write-Host "Packaged: artifacts/$zipName"
           }
+
+      # The zips cannot be signed -- Authenticode lives inside a PE, and an
+      # archive has nowhere to put it. The four binaries inside carry their own
+      # signatures, so Windows still knows who published what a user runs; what
+      # a signature on the exe cannot vouch for is everything ELSE in the
+      # archive, the demo disks and the docs, or that the archive arrived whole.
+      # That is what this answers.
+      #
+      # The listing names the assets a person downloads, not the files inside
+      # them, since the download is the thing they can check before opening it.
+      #
+      # `<hash>  <name>` with two spaces and a bare filename is the sha256sum
+      # format, so `sha256sum -c SHA256SUMS.txt` verifies it as-is next to the
+      # downloads. Lowercase for the same reason: that is what the tools emit
+      # and what a reader comparing by eye will have in front of them.
+      - name: Checksum the release assets
+        if: steps.check.outputs.exists != 'true'
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem artifacts -Filter *.zip | Sort-Object Name | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          }
+
+          if (-not $lines) { throw 'No zips to checksum.' }
+
+          # No BOM and LF endings: a BOM breaks the first line for `sha256sum -c`,
+          # and the tool is likelier to be run on a machine that would rather not
+          # see CR either.
+          [IO.File]::WriteAllText(
+            (Join-Path (Get-Location) 'artifacts/SHA256SUMS.txt'),
+            ($lines -join "`n") + "`n",
+            (New-Object Text.UTF8Encoding $false))
+
+          Get-Content artifacts/SHA256SUMS.txt | ForEach-Object { Write-Host "  $_" }
 
       - name: Create release
         if: steps.check.outputs.exists != 'true'
@@ -395,8 +437,57 @@ jobs:
           }
           $bodyFile = Join-Path $env:RUNNER_TEMP 'release-body.md'
           Set-Content -Path $bodyFile -Value $body -Encoding utf8
-          gh release create $tag (Get-Item artifacts/*.zip).FullName `
+          gh release create $tag (Get-Item artifacts/*).FullName `
             --repo $env:GITHUB_REPOSITORY `
             --title $title `
             --notes-file $bodyFile `
             --target $env:GITHUB_SHA
+
+      # --- winget ---
+      #
+      # After the release, not before: wingetcreate downloads the assets from
+      # their published URLs to hash them, so they have to be live.
+      #
+      # `update` can only update a package that EXISTS. The first manifest for
+      # relmer.Casso is a `wingetcreate new` submitted by hand once; this step
+      # checks for it and says so rather than failing a release over a package
+      # nobody has published yet. Once that PR merges, this starts working on
+      # its own and needs no edit.
+      - name: Publish to winget
+        if: steps.check.outputs.exists != 'true' && env.WINGET_PAT != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_PAT }}
+        run: |
+          $version = '${{ steps.ver.outputs.version }}'
+          $tag     = '${{ steps.ver.outputs.tag }}'
+          $pkgId   = 'relmer.Casso'
+
+          gh api "repos/microsoft/winget-pkgs/contents/manifests/r/relmer/Casso" *> $null
+          $published = ($LASTEXITCODE -eq 0)
+          $global:LASTEXITCODE = 0
+
+          if (-not $published) {
+              Write-Host ("::notice::$pkgId is not in winget-pkgs yet, so there is nothing to " +
+                          'update. Submit the first manifest once with `wingetcreate new`; ' +
+                          'this step picks up from there by itself.')
+              exit 0
+          }
+
+          # Bring the fork up to date first. wingetcreate branches from it, and
+          # a fork months behind produces a PR full of other people's packages.
+          gh api repos/relmer/winget-pkgs/merge-upstream -f branch=master
+
+          $dest = "$env:RUNNER_TEMP\wingetcreate.exe"
+          Invoke-WebRequest -Uri 'https://aka.ms/wingetcreate/latest' -OutFile $dest -UseBasicParsing
+
+          $baseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag"
+
+          & $dest update $pkgId `
+            --version $version `
+            --urls "$baseUrl/Casso-$version-x64.zip" "$baseUrl/Casso-$version-ARM64.zip" `
+            --submit --token $env:GH_TOKEN
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "wingetcreate failed ($LASTEXITCODE). The release itself is published and unaffected."
+          }
