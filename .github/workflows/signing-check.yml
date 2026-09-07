@@ -32,19 +32,38 @@ jobs:
     environment: release
 
     steps:
-      - name: Make something to sign
+      # A REAL PE, and an UNSIGNED one, and neither half is optional.
+      #
+      # Real, because an Authenticode signature is embedded in the PE's
+      # certificate table rather than carried alongside it, so a text file
+      # named .exe fails on its format and says nothing about the credential.
+      #
+      # Unsigned, because the first version of this job copied a Windows
+      # binary and asked afterwards whether the file had a valid signature.
+      # It did -- Microsoft's, the one it arrived with. The job passed while
+      # signing had done nothing at all, which is the exact failure it exists
+      # to catch. A file that starts with no signature cannot answer that
+      # question wrongly.
+      #
+      # Compiling one is a minute of runner time and leaves nothing to
+      # assume; the apphost dotnet emits is unsigned.
+      - name: Build an unsigned binary to sign
         shell: pwsh
         run: |
-          # A REAL PE, not a placeholder file. Signing appends to a PE's
-          # security directory, so a text file with an .exe name proves
-          # nothing -- the tool would fail on the format rather than on the
-          # credential, which is the opposite of what this job is asking.
-          # The runner ships plenty; one gets copied, signed, and thrown away
-          # with the runner. Nothing here is redistributed.
-          New-Item -ItemType Directory -Path dryrun -Force | Out-Null
-          Copy-Item "$env:SystemRoot\System32\where.exe" dryrun\sample.exe
-          Set-ItemProperty dryrun\sample.exe -Name IsReadOnly -Value $false
-          Write-Host "before: $((Get-AuthenticodeSignature dryrun\sample.exe).SignerCertificate.Subject)"
+          dotnet new console -o sampleproj --name sample
+          dotnet publish sampleproj -c Release -o dryrun --nologo
+          if (-not (Test-Path dryrun\sample.exe)) {
+              Get-ChildItem dryrun | ForEach-Object { Write-Host "  $($_.Name)" }
+              throw 'dotnet did not produce dryrun\sample.exe'
+          }
+
+          $before = Get-AuthenticodeSignature dryrun\sample.exe
+          Write-Host "before: $($before.Status)"
+
+          # If this ever arrives signed, every assertion below is worthless.
+          if ($before.Status -ne 'NotSigned') {
+              throw "The sample was already signed ($($before.Status)); this job cannot prove anything with it."
+          }
 
       # A SECRET THAT EXISTS AND A SECRET THAT HOLDS SOMETHING are different
       # facts, and only the first one is visible from outside. `gh secret set`
@@ -108,11 +127,24 @@ jobs:
           Write-Host "notAfter:  $($sig.SignerCertificate.NotAfter)"
           Write-Host "timestamp: $($sig.TimeStamperCertificate.Subject)"
 
+          # The sample went in unsigned, so anything other than a signature
+          # coming back means the action ran and did nothing -- which it does
+          # quietly, and which is the whole reason this job exists.
+          if ($sig.Status -eq 'NotSigned') {
+              throw 'The signing step ran and left the file unsigned.'
+          }
+
+          # And it has to be OUR signature. A signer that is anyone else means
+          # the file being inspected is not the file that was signed.
+          if ($sig.SignerCertificate.Subject -match 'Microsoft Corporation') {
+              throw "Signed by $($sig.SignerCertificate.Subject) -- that is not this account's certificate."
+          }
+
           # A short NotAfter is expected and not a fault: these certificates
           # live for days, which is what the countersignature is for -- the
           # timestamp is what keeps a shipped binary trusted past it.
-          if ($sig.Status -eq 'NotSigned') {
-              throw 'The signing step ran and left the file unsigned.'
+          if (-not $sig.TimeStamperCertificate) {
+              Write-Host '::warning::Signed but not countersigned; the signature will stop verifying when the certificate expires.'
           }
 
           Write-Host ''
