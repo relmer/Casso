@@ -8,6 +8,8 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+## [1.23.1]: The one that boots green and ships signed
+
 ### Added
 
 - **The release zip carries four demo disks** under `Apple2\Demos`, where the
