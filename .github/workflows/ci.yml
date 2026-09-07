@@ -166,8 +166,9 @@ jobs:
       id-token: write   # OIDC federation to Azure Artifact Signing
 
     # The Entra federated credential is registered against a subject that names
-    # this environment, so the name here is part of the auth, not a label.
-    environment: Release
+    # this environment, so the name here is part of the auth, not a label --
+    # including its case, which the OIDC subject carries verbatim.
+    environment: release
 
     env:
       # Lifted into `env` so the signing steps can gate on it: `secrets` is not
@@ -352,7 +353,7 @@ jobs:
                       'SmartScreen will warn on first run. Add the AZURE_CLIENT_ID, ' +
                       'AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID secrets, and register a ' +
                       'federated credential for ' +
-                      'repo:${{ github.repository }}:environment:Release.')
+                      'repo:${{ github.repository }}:environment:release.')
 
       - name: Package release zips
         if: steps.check.outputs.exists != 'true'
