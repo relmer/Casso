@@ -481,6 +481,14 @@ jobs:
           #
           # public_repo is what the submission needs: wingetcreate pushes a
           # branch to the fork and opens a pull request with it.
+          #
+          # workflow is wanted too, and the reason is the fork sync rather than
+          # the manifest. Nothing written here goes under .github/workflows, but
+          # merge-upstream brings upstream's commits into the fork as this
+          # token, and winget-pkgs changes its own workflow files often enough
+          # that a sync carrying one needs the scope. A warning rather than a
+          # hard gate, since the sync is best-effort and the submission itself
+          # does not need it.
           $who = gh api user --jq '.login' 2>$null
           if ($LASTEXITCODE -ne 0 -or -not $who) {
               throw ('WINGET_PAT does not authenticate. Set it to a personal access ' +
@@ -494,6 +502,11 @@ jobs:
 
           if ($scopes -and $scopes -notmatch 'public_repo|(^|,\s*)repo(,|$)') {
               throw "WINGET_PAT lacks public_repo (scopes: $scopes)."
+          }
+
+          if ($scopes -and $scopes -notmatch '(^|,\s*)workflow(,|$)') {
+              Write-Host ('::warning::WINGET_PAT has no workflow scope. The fork sync below ' +
+                          'can fail when upstream has changed its own workflow files.')
           }
 
           # Bring the fork up to date first. wingetcreate branches from it, and
