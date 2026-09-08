@@ -342,6 +342,28 @@ namespace Via6522TestNs
         }
 
 
+        TEST_METHOD (Ca2OutputModeIsAcceptedAndLeavesTheCa1EdgeIntact)
+        {
+            Via6522   via;
+
+
+
+            // What an SSI-263 driver writes to arm the handshake: CA2 parked
+            // at a fixed output level in the same store that selects the CA1
+            // falling edge. The CA2 field is inert, but the write must be
+            // accepted -- this once asserted and stopped the machine.
+            via.WriteRegister (Via6522::kRegPcr, 0x0C);
+
+            Assert::AreEqual (0x0C, (int) via.ReadRegister (Via6522::kRegPcr),
+                              L"The CA2 mode field must read back as written");
+
+            via.SetCa1 (false);
+
+            Assert::AreEqual ((int) Via6522::kIrqCa1, (int) (via.GetIfr() & Via6522::kIrqCa1),
+                              L"and the falling-edge select must still latch CA1");
+        }
+
+
         TEST_METHOD (Cb1UsesItsOwnPcrBit)
         {
             Via6522   via;

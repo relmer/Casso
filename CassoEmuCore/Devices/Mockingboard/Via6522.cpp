@@ -194,10 +194,15 @@ void Via6522::WriteRegister (Byte reg, Byte value)
     case kRegPcr:
         // The CA1/CB1 active-edge selects are modeled -- a speech card drives
         // its ready line into one of them, and software must be able to choose
-        // the edge. The CA2/CB2 output modes remain unmodeled, so a write that
-        // configures one still asserts to surface the dependency.
+        // the edge. The CA2/CB2 output-mode fields are stored for read-back
+        // and are otherwise inert.
+        //
+        // Configuring one is NOT a fault: an SSI-263 driver parks CA2 at a
+        // fixed output level as part of arming the A/R handshake, and writes
+        // that field in the same store that selects the CA1 edge. This once
+        // asserted to surface the dependency, which meant a correct speech
+        // driver stopped the machine with a dialog at its first setup write.
         m_pcr = value;
-        CBRAEx ((value & ~kPcrModeled) == 0, E_INVALIDARG);
         break;
 
     case kRegIfr:

@@ -90,7 +90,8 @@ public:
     static constexpr Byte    kIerSetClear = 0x80;
 
     // PCR: bit 0 selects the CA1 active edge, bit 4 the CB1 active edge
-    // (0 = falling, 1 = rising). The CA2/CB2 mode fields are unmodeled.
+    // (0 = falling, 1 = rising). The CA2/CB2 mode fields are stored but
+    // inert; software programs them freely and the write is accepted.
     static constexpr Byte    kPcrCa1Rising = 0x01;
     static constexpr Byte    kPcrCb1Rising = 0x10;
     static constexpr Byte    kPcrModeled   = kPcrCa1Rising | kPcrCb1Rising;

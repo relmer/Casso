@@ -10,6 +10,11 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- **A Mockingboard speech driver stopped the machine with an assertion dialog
+  at its first setup write.** The 6522's peripheral control register treated
+  the CA2/CB2 output-mode fields as an unmodeled feature worth asserting on,
+  but an SSI-263 driver programs CA2 in the same store that selects the CA1
+  interrupt edge. Those fields stay inert; the write is now accepted.
 - **The Mockingboard's speech chip stayed silent for software that loaded a
   phoneme before taking the chip out of standby.** Leaving Power Down now
   sounds the phoneme already loaded, in the three modes the datasheet's mode
