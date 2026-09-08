@@ -12,177 +12,94 @@ from all-on and all-off cells is legible through either decode -- which
 is what lets each of the demo's cassowary images stay readable on the
 monitor it was NOT authored for.
 
-WHY CONSTRUCTED LETTERS, AND NOT A BITMAP FONT OR A REAL FACE. This drew
-a hand-cut 4-cell-wide bitmap font for a long time, on the argument that
-anti-aliased TrueType pushed through the color quantizer fringes on color
-and dissolves into the dither on monochrome. The argument holds against
-anti-aliased text and not against outlines: rendered large and then
-THRESHOLDED to whole cells, any curve lands on the same all-on / all-off
-grid a bitmap font does. What changed is the size. The title is now
-turned on its side, so its cap height is measured ACROSS the cell band --
-twenty cells -- rather than down seven scanlines. At that size the
-hand-cut font read as a stack of blocks.
+WHY A REAL FACE, AFTER A HAND-CUT BITMAP FONT. This drew a 4-cell-wide
+bitmap font for a long time, on the argument that anti-aliased TrueType
+pushed through the color quantizer fringes on color and dissolves into
+the dither on monochrome. The argument holds against anti-aliased text
+and not against the outlines: rendered large and then THRESHOLDED to
+whole cells, a face lands on the same all-on / all-off grid the bitmap
+font did. What changed is the size. The title is now turned on its side,
+so its cap height is measured ACROSS the cell band -- eighteen cells --
+rather than down seven scanlines, and at that size the hand-cut font read
+as a stack of blocks.
 
-There is no face in the tree to render instead: the theme fonts are
-one-byte placeholders. Rather than depend on whatever is installed on the
-machine that runs this, or commit a font binary for five letters, the
-letters are CONSTRUCTED from arcs and strokes at 1000 units of cap height
-and downsampled. They are geometric-sans caps, which is what a five-letter
-title on a machine like this wants anyway, and they are the same on every
-machine.
+WHY THIS FACE. Century Gothic is a geometric sans in the Futura line,
+which is the shape language the period's own poster lettering used, and
+its round caps stay round through the threshold where a grotesque's
+subtler curves go lumpy. Bold, because at eighteen cells a text weight
+comes out spindly and a monochrome monitor's bloom eats it.
+
+The font is READ OFF THE HOST rather than committed. Casso is a Windows
+project and these images are authored by hand and committed, so the
+generator runs on a developer's machine or not at all -- and if the face
+is missing it says so and stops rather than quietly substituting another
+one, which would change the shipped artwork without anyone deciding to.
 
 THE CELL IS NOT SQUARE. A cell is four dots wide and one scanline tall,
 which on the 560x384 the previews are drawn at is 4 units by 2: twice as
-wide as a scanline is tall. So the letters are constructed upright on a
-square grid and resampled onto the cell/scanline grid, and the aspect is
-dealt with once, here, rather than by hunting for proportions that happen
-to come out right after the squash.
+wide as a scanline is tall. So the text is set upright at whatever size
+the face likes and resampled onto the cell/scanline grid, and the aspect
+is dealt with once, here, rather than by hunting for a point size that
+happens to come out right after the squash.
 """
 
-import math
+from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
+
+#  Century Gothic Bold. Present on a machine with Microsoft Office, which
+#  is where the face ships; see the module docstring for why that is an
+#  acceptable dependency and what happens when it is not met.
+FONT_NAME = "GOTHICB.TTF"
+FONT_DIRS = [Path(r"C:\Windows\Fonts"),
+             Path.home() / "AppData/Local/Microsoft/Windows/Fonts"]
 
 CELL_UNITS     = 4     # a cell is four dots wide
 SCANLINE_UNITS = 2     # a scanline is two dots tall at the display's aspect
 
-#  Construction grid. Big enough that the downsample to twenty-odd cells
-#  is an area average rather than a point sample, which is what keeps the
-#  curves alive through the threshold.
-CAP     = 1000
-WEIGHT  = 150          # stroke, in cap units
-TRACK   = 70           # space between letters
-BEARING = 25           # space inside each letter's own box
+#  Big enough that the downsample to eighteen-odd cells is an area
+#  average rather than a point sample, which is what keeps the thin parts
+#  of a curve alive through the threshold.
+RENDER_PX = 400
 
 THRESHOLD = 128
 
-#  Advance widths, before bearings. Round letters are drawn a touch wider
-#  than the flat ones so they read the same size, the usual overshoot.
-#  Turned on its side the whole word has to fit 192 scanlines, so the
-#  setting is tighter than a geometric sans would normally be.
-WIDTHS = {'A': 800, 'C': 780, 'O': 800, 'S': 700}
 
+def font_path():
+    """Where the title face lives, or a message saying it does not."""
+    for d in FONT_DIRS:
+        candidate = d / FONT_NAME
+        if candidate.exists():
+            return candidate
 
-def _draw_o(draw, x, w):
-    draw.ellipse([x, 0, x + w, CAP], outline=255, width=WEIGHT)
-
-
-def _draw_c(draw, x, w):
-    #  PIL measures from 3 o'clock and sweeps clockwise, so 40 -> 320
-    #  runs down the right, around the bottom, up the left and over the
-    #  top, leaving the aperture on the right where a C wants it.
-    draw.arc([x, 0, x + w, CAP], 40, 320, fill=255, width=WEIGHT)
-
-
-#  The S's CENTERLINE, in its own box: x and y both 0..1, y downward,
-#  starting at the top-right terminal. Two bowls and a spine drawn as
-#  arcs read as a pair of C's kissing, because nothing actually crosses
-#  the waist; stroking a path does what the shape needs, and it is the
-#  only letter here whose skeleton is not a circle or a triangle.
-S_PATH = [(0.97, 0.20), (0.87, 0.05), (0.55, 0.00), (0.23, 0.06),
-          (0.05, 0.21), (0.09, 0.38), (0.33, 0.47), (0.67, 0.54),
-          (0.91, 0.63), (0.95, 0.79), (0.77, 0.94), (0.45, 1.00),
-          (0.13, 0.94), (0.03, 0.79)]
-
-
-def _spline(points, steps=12):
-    """A Catmull-Rom spline through `points`, sampled for stroking."""
-    pad = [points[0]] + list(points) + [points[-1]]
-    out = []
-
-    for i in range(len(pad) - 3):
-        p0, p1, p2, p3 = pad[i:i + 4]
-        for s in range(steps):
-            t  = s / float(steps)
-            t2 = t * t
-            t3 = t2 * t
-            out.append(tuple(
-                0.5 * ((2 * a1) +
-                       (-a0 + a2) * t +
-                       (2 * a0 - 5 * a1 + 4 * a2 - a3) * t2 +
-                       (-a0 + 3 * a1 - 3 * a2 + a3) * t3)
-                for a0, a1, a2, a3 in zip(p0, p1, p2, p3)))
-
-    out.append(points[-1])
-    return out
-
-
-def _draw_s(draw, x, w):
-    #  The centerline sits half a stroke inside the letter box on every
-    #  side, so the ink lands on the box rather than half a stroke past
-    #  it.
-    half = WEIGHT / 2.0
-    path = [(x + half + px * (w - WEIGHT), half + py * (CAP - WEIGHT))
-            for px, py in S_PATH]
-    points = _spline(path)
-
-    #  A dot at every sample as well as the polyline: PIL draws each
-    #  segment as its own quad, and consecutive quads leave hairline
-    #  seams inside the bend that the threshold would turn into holes.
-    draw.line(points, fill=255, width=WEIGHT)
-    for px, py in points:
-        draw.ellipse([px - half, py - half, px + half, py + half], fill=255)
-
-
-def _draw_a(draw, x, w):
-    #  Two legs and a bar, with the apex ROUNDED OVER: a triangle brought
-    #  to a true point puts a spike on top of a word whose other letters
-    #  all end bluntly, and at eighteen cells the point is the first
-    #  thing the threshold eats anyway.
-    #
-    #  The legs lean, so the width measured HORIZONTALLY that leaves a
-    #  stroke of WEIGHT across them is WEIGHT / cos(lean). Drawing them
-    #  as quads rather than thick lines is what puts the feet flat on the
-    #  baseline instead of cut square to the lean.
-    apex  = x + w / 2.0
-    lean  = (w / 2.0) / float(CAP)
-    inset = WEIGHT / 2.0 * (1.0 + lean * lean) ** 0.5
-    top   = inset                       # the apex cap's center
-
-    draw.polygon([(apex - inset, top), (apex + inset, top),
-                  (x + 2 * inset, CAP), (x, CAP)], fill=255)
-    draw.polygon([(apex - inset, top), (apex + inset, top),
-                  (x + w, CAP), (x + w - 2 * inset, CAP)], fill=255)
-    draw.ellipse([apex - inset, top - inset, apex + inset, top + inset],
-                 fill=255)
-
-    #  The bar reaches the legs' outer edges at its own height and no
-    #  further, so it does not hang off the sides.
-    bar  = CAP * 0.66
-    mid  = (bar + WEIGHT * 0.45 - top) / (CAP - top)
-    edge = (w / 2.0 - inset) * mid + inset
-    draw.rectangle([apex - edge, bar, apex + edge, bar + WEIGHT * 0.9],
-                   fill=255)
-
-
-_LETTERS = {'A': _draw_a, 'C': _draw_c, 'O': _draw_o, 'S': _draw_s}
+    raise FileNotFoundError(
+        f"{FONT_NAME} (Century Gothic Bold) not found in "
+        + ", ".join(str(d) for d in FONT_DIRS)
+        + ". It ships with Microsoft Office. Install it, or change "
+          "FONT_NAME here -- but a different face changes the shipped "
+          "artwork, so decide it rather than let it happen.")
 
 
 def _render_ink(text):
-    """`text` constructed upright and cropped to its ink, as an L image."""
-    boxes = [WIDTHS[ch] + 2 * BEARING for ch in text]
-    total = sum(boxes) + TRACK * (len(text) - 1)
+    """`text` set upright and cropped to its ink, as an L image."""
+    font  = ImageFont.truetype(str(font_path()), RENDER_PX)
+    probe = Image.new("L", (RENDER_PX * (len(text) + 2), RENDER_PX * 3), 0)
+    ImageDraw.Draw(probe).text((RENDER_PX, RENDER_PX), text,
+                               fill=255, font=font)
 
-    img  = Image.new("L", (total, CAP + 4), 0)
-    draw = ImageDraw.Draw(img)
-
-    x = 0
-    for ch, box in zip(text, boxes):
-        if ch not in _LETTERS:
-            raise ValueError(f"no construction for {ch!r}")
-        _LETTERS[ch](draw, x + BEARING, box - 2 * BEARING)
-        x += box + TRACK
-
-    ink = img.getbbox()
+    ink = probe.getbbox()
     if ink is None:
         raise ValueError(f"nothing drawn for {text!r}")
-    return img.crop(ink)
+    return probe.crop(ink)
 
 
 def measure_up(text, cap_cells):
     """How many scanlines `text` spans when turned a quarter turn to the
-    left at `cap_cells` of cap height."""
+    left at `cap_cells` of cap height.
+
+    All-caps text has no descenders, so the ink box IS the cap box and
+    the two agree."""
     w, h = _render_ink(text).size
     return max(1, round(w / h * cap_cells * CELL_UNITS / float(SCANLINE_UNITS)))
 
@@ -220,4 +137,3 @@ def stamp_up(text, left, cap_cells, rows_tall):
                 lit.add((left + across, top + length - 1 - along))
 
     return lit
-

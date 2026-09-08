@@ -12,8 +12,8 @@ Entries before versioning was introduced use dates only.
 
 - **The casso-rocks title turned sideways and got a haircut.** CASSO climbs the
   left edge hard against the picture instead of running across the top, so all
-  four cassowaries get the full 192 scanlines, and the letters are constructed
-  from arcs rather than a 7-row bitmap font scaled up.
+  four cassowaries get the full 192 scanlines, and it is set in a real face
+  thresholded onto the cell grid rather than a 7-row bitmap font scaled up.
 
 ## [1.23.1]: The one that boots green and ships signed
 

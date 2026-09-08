@@ -72,10 +72,10 @@ SRC = _repo_root() / "Assets" / "3a Mrs Cassowary closeup 8167.jpg"
 # wattles. HGR gets a tighter one -- see HgrCassowaryGen for why.
 CROP_PORTRAIT = (60, 40, 860, 1100)
 
-# The title, set in the CellCaption letters and turned a quarter turn to
+# The title, set in the CellCaption face and turned a quarter turn to
 # the left so it climbs the edge reading bottom to top. Turned, the CAP
 # HEIGHT is what costs cells and the length of the word is what costs
-# scanlines: eighteen cells of cap height sets CASSO 153 scanlines long,
+# scanlines: eighteen cells of cap height sets CASSO 158 scanlines long,
 # which fills the 192-line edge without running out of it.
 TITLE_TEXT = "CASSO"
 TITLE_CAP  = 18
