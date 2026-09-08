@@ -27,16 +27,17 @@ On the horizon:
 - Commodore VIC-20, 64
 
 The [casso-rocks demo disk](Apple2/Demos) asks which monitor you have and draws
-the cassowary for it. The same DHGR framebuffer means different things to a color
-screen and a monochrome one, and an image authored for either reads as noise on
-the other, so the demo ships both and your answer picks one:
+the cassowary for it: a color screen groups the same double hi-res framebuffer
+into 16-color cells, a monochrome one shows all 560 dots, and an image authored
+for either reads as noise on the other. Here it is in all three built-in themes:
 
 <table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/demo-dhgr-color.png" alt="The casso-rocks demo on an Apple //e with Monitor II set to color: the cassowary in 16-color DHGR, 140 color cells across" width="100%" /></td>
-  <td valign="top" width="50%"><img src="Assets/demo-dhgr-mono.png" alt="The same demo on an Apple //c green monochrome monitor: the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
+  <td valign="top" width="33%"><img src="Assets/theme-skeuomorphic.png" alt="The Skeuomorphic theme: the casso-rocks demo on a modeled Apple //e desk with Monitor II switched to color, the cassowary in 16-color double hi-res" width="100%" /></td>
+  <td valign="top" width="33%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the same demo on an amber monitor under flat dark chrome, the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
+  <td valign="top" width="33%"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /></td>
 </tr></table>
 
-<p align="center"><sub>Monitor II is a green-phosphor screen by default; on the //e above it has been switched to color so the 16-color encoding reads as color. The //c keeps its period green monochrome. The desk is one of three themes: Dark Modern and Retro Terminal are flat, and full screen is the picture alone. See <a href="#themed-chrome">Themed chrome</a>.</sub></p>
+<p align="center"><sub>Skeuomorphic on a color Monitor II, Dark Modern on amber, Retro Terminal on green. Themes hot-swap from <b>Settings &#8594; Theme</b> with no restart and no machine reset, and full screen is the picture alone. See <a href="#themed-chrome">Themed chrome</a>.</sub></p>
 
 `CassoCli` accelerates the retro development loop, with no need for third-party tools:
 
@@ -207,15 +208,10 @@ the slot. To keep GPU use low the scene is cached, and when the screen stops
 changing Casso stops drawing altogether.
 
 **If a desk is not what you want, two flat themes ship alongside it.** Dark
-Modern and Retro Terminal drop the room for a menu, a toolbar and a row of
-slim drive bar, so the picture gets the window. Switch from **Settings →
-Theme** with no restart and no machine reset; see
-[Themed chrome](#themed-chrome).
-
-<table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the casso-rocks cassowary in color under flat dark chrome, with a slim drive bar below the picture" width="100%" /></td>
-  <td valign="top" width="50%"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /></td>
-</tr></table>
+Modern and Retro Terminal drop the room for a menu, a toolbar and a slim drive
+bar, so the picture gets the window. Switch from **Settings → Theme** with no
+restart and no machine reset. Both are [at the top of this page](#casso), and
+[Themed chrome](#themed-chrome) has the details.
 
 ### Disk file access from the command line (1.20)
 
@@ -402,14 +398,11 @@ machine reset. Each ships under `Resources/Themes/<Name>/` with a `theme.json`
 describing colors, CRT defaults, drive visuals, and other UI tokens; see
 [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for the authoring surface.
 The two flat themes keep the chrome to a menu, a toolbar and a slim drive
-bar, so the picture gets the window:
+bar, so the picture gets the window; all three are
+[at the top of this page](#casso).
 
-<table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the casso-rocks cassowary in color under flat dark chrome, with a slim drive bar below the picture" width="100%" /></td>
-  <td valign="top" width="50%"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /></td>
-</tr></table>
-
-<p align="center"><sub>Retro Terminal turns the CRT effects up: scanlines at three quarters strength, a wide bloom and color bleed, all still yours to adjust on the Display tab.</sub></p>
+Retro Terminal turns the CRT effects up: scanlines at three quarters strength,
+a wide bloom and color bleed, all still yours to adjust on the Display tab.
 
 <p align="center"><img src="Assets/theme-retro-detail.png" alt="A 1:1 detail of the Retro Terminal picture: the CASSO title climbing the left edge, with visible scanlines and phosphor bloom" width="360" /></p>
 
