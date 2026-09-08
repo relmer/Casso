@@ -31,14 +31,18 @@ the cassowary for it: a color screen groups the same double hi-res framebuffer
 into 16-color cells, a monochrome one shows all 560 dots, and an image authored
 for either reads as noise on the other. Here it is in all three built-in themes:
 
-<table align="center" width="100%"><tr>
-  <td valign="top" width="25%"><img src="Assets/theme-skeuomorphic.png" alt="The Skeuomorphic theme on an Apple //e: the casso-rocks demo on a modeled desk with Monitor II switched to color, the cassowary in 16-color double hi-res" width="100%" /></td>
-  <td valign="top" width="25%"><img src="Assets/theme-skeuomorphic-2c.png" alt="The Skeuomorphic theme on an Apple //c: a Monitor //c over two Disk IIc drives, the cassowary dithered to one bit in green phosphor" width="100%" /></td>
-  <td valign="top" width="25%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the same demo on an amber monitor under flat dark chrome, the cassowary dithered to one bit across all 560 dots" width="100%" /></td>
-  <td valign="top" width="25%"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /></td>
-</tr></table>
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="50%" align="center"><img src="Assets/theme-skeuomorphic.png" alt="The Skeuomorphic theme on an Apple //e: the casso-rocks demo on a modeled desk with Monitor II switched to color, the cassowary in 16-color double hi-res" width="100%" /><br /><sub>Skeuomorphic on the //e</sub></td>
+  <td valign="top" width="50%" align="center"><img src="Assets/theme-skeuomorphic-2c.png" alt="The Skeuomorphic theme on an Apple //c: a Monitor //c over two Disk IIc drives, the cassowary dithered to one bit in green phosphor" width="100%" /><br /><sub>Skeuomorphic on the //c</sub></td>
+</tr>
+<tr>
+  <td valign="top" width="50%" align="center"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the same demo on an amber monitor under flat dark chrome, the cassowary dithered to one bit across all 560 dots" width="100%" /><br /><sub>Dark Modern on amber</sub></td>
+  <td valign="top" width="50%" align="center"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /><br /><sub>Retro Terminal on green</sub></td>
+</tr>
+</table>
 
-<p align="center"><sub>Skeuomorphic on a //e with Monitor II in color and on a //c with its period green monochrome, then Dark Modern on amber and Retro Terminal on green. Switching machines swaps the whole modeled stack. Themes hot-swap from <b>Settings &#8594; Theme</b> with no restart and no machine reset, and full screen is the picture alone. See <a href="#themed-chrome">Themed chrome</a>.</sub></p>
+<p align="center"><sub>Switching machines swaps the whole modeled stack. Themes hot-swap from <b>Settings &#8594; Theme</b> with no restart and no machine reset, and full screen is the picture alone. See <a href="#themed-chrome">Themed chrome</a>.</sub></p>
 
 `CassoCli` accelerates the retro development loop, with no need for third-party tools:
 
