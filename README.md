@@ -404,14 +404,14 @@ bar, so the picture gets the window; all three are
 
 Retro Terminal turns the CRT effects up: scanlines at three quarters strength,
 a wide bloom and color bleed, all still yours to adjust on the Display tab.
-Here is what that does, on two letters of the demo's title:
+Here is what that does, on one letter of the demo's title:
 
 <table align="center"><tr>
-  <td valign="top" align="center"><img src="Assets/theme-crt-off.png" alt="Two letters of the Retro Terminal title with the CRT effects switched off: flat green strokes with hard edges" width="400" /><br /><sub>effects off</sub></td>
-  <td valign="top" align="center"><img src="Assets/theme-crt-on.png" alt="The same two letters with the effects on: scanlines cutting through every stroke, and the bloom lighting the scanline gaps next to each lit pixel" width="400" /><br /><sub>effects on</sub></td>
+  <td valign="top" align="center"><img src="Assets/theme-crt-off.png" alt="A letter of the Retro Terminal title with the CRT effects switched off: flat green strokes with hard edges" width="400" /><br /><sub>effects off</sub></td>
+  <td valign="top" align="center"><img src="Assets/theme-crt-on.png" alt="The same letter with the effects on: scanlines cutting through every stroke, and the bloom lighting the scanline gaps next to each lit pixel" width="400" /><br /><sub>effects on</sub></td>
 </tr></table>
 
-<p align="center"><sub>The same pixels, one capture apart, doubled with nearest-neighbor so every screen pixel is a whole block. Nothing else changes: same picture, same phosphor, same brightness. Watch the scanline gaps immediately beside a lit pixel -- that is the bloom, and it is why the strokes look like they are glowing rather than merely striped. Solid strokes are the honest subject: on the dithered photo beside them the scanlines are hard to tell from the dither's own texture.</sub></p>
+<p align="center"><sub>The same pixels, one capture apart, doubled with nearest-neighbor so every screen pixel is a whole block. Nothing else changes: same picture, same phosphor, same brightness. Watch the scanline gaps immediately beside a lit pixel -- that is the bloom, and it is why the strokes look like they are glowing rather than merely striped.</sub></p>
 
 **The drives are Disk II models on the desk**, the same CAD objects as the
 monitor, with the DRIVE 1 and IN USE marks, the `disk ][` logotype and the
