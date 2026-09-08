@@ -18,11 +18,11 @@ start
     sta SCTL
     lda #$5C
     sta SCTL
-    lda #$06                    ; I10-I3 for ~112 Hz
-    sta SINF
-    lda #$8A                    ; rate 8 + I11 + I2-I0
+    lda #$71                    ; I10-I3; with I11 and I2-I0 below, I = 2955,
+    sta SINF                    ; which is 1022727 / (8 x (4096 - 2955)) = 112 Hz
+    lda #$8B                    ; rate 8 + I11 + I2-I0
     sta SRATE
-    lda #$D3
+    lda #$E6                    ; 1022727 / (2 x (256 - 230)) = a 19.7 KHz tract
     sta SFILT
 
     lda #<probeData

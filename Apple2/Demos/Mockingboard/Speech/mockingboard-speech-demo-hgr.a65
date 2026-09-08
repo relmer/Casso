@@ -337,7 +337,7 @@ rl_done
 si_title
     lda titleText,y
     beq si_capinit
-    sta TITLE+8,y
+    sta TITLE+5,y               ; 30 characters centered in 40 columns
     iny
     bne si_title
 

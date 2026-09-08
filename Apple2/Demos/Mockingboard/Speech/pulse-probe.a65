@@ -32,13 +32,13 @@ start
     sta SCTL
     lda #$5C                    ; CTL down, articulation 5, amplitude $C
     sta SCTL
-    lda #$06                    ; I10-I3 for about 112 Hz
-    sta SINF
-    lda #$D3
+    lda #$71                    ; I10-I3; with I11 and I2-I0 in the rate byte,
+    sta SINF                    ; I = 2955 = 1022727 / (8 x (4096 - 2955)) = 112 Hz
+    lda #$E6                    ; 1022727 / (2 x (256 - 230)) = a 19.7 KHz tract
     sta SFILT
 
     ; ---- section 1: rate 8 -------------------------------------------------
-    lda #$8A
+    lda #$8B                    ; rate 8 + I11 + I2-I0
     sta SRATE
     lda #$37                    ; 55 phonemes at 73 ms is about 4 seconds
     sta REPS
@@ -53,7 +53,7 @@ s1
     jsr Gap
 
     ; ---- section 2: rate 0 -------------------------------------------------
-    lda #$0A
+    lda #$0B                    ; rate 0 + I11 + I2-I0
     sta SRATE
     lda #$1B                    ; 27 phonemes at 146 ms is about 4 seconds
     sta REPS

@@ -44,11 +44,11 @@ CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
 ;  characters more than the tract does.
 CTLHAL  = $2C              ; articulation 2, a 60 ms glide -- warm, unhurried
 CTLCYL  = $7C              ; articulation 7, a 10 ms snap -- a machine moving
-FILTLO  = $B4              ; ~11.8 kHz tract clock -- a lower, heavier voice
-FILTHAL = $CB              ; ~16.9 kHz -- HAL's tract, a sixth longer than
+FILTLO  = $D5              ; ~11.9 kHz tract clock -- a lower, heavier voice
+FILTHAL = $E2              ; ~17.0 kHz -- HAL's tract, a sixth longer than
                            ;   nominal, which is size rather than pitch
-FILTNOM = $D3              ; ~19.9 kHz -- the datasheet's nominal setting
-FILTHI  = $E2              ; ~29.8 kHz -- a lighter, smaller voice
+FILTNOM = $E6              ; ~19.7 kHz -- the datasheet's nominal setting
+FILTHI  = $EF              ; ~30.1 kHz -- a lighter, smaller voice
 PHMASK  = $3F              ; the phoneme code within a phoneme byte
 VOWELMAX = $1C             ; codes $01-$1C are the vowels, the syllable nuclei
 DECAYU  = $08              ; spoken-path units between flash decay steps
@@ -620,7 +620,12 @@ capRowLo
 capRowHi
     .byte $06,$06,$07
 
+; "CASSO MOCKINGBOARD SPEECH DEMO" in high ASCII, 30 characters. Upper case
+; because the text page shows the primary character set: the lower-case
+; codes would need SETALTCHAR, which nothing here turns on.
 titleText
+    .byte $C3,$C1,$D3,$D3,$CF,$A0
     .byte $CD,$CF,$C3,$CB,$C9,$CE,$C7,$C2,$CF,$C1,$D2,$C4,$A0
-    .byte $D3,$D0,$C5,$C5,$C3,$C8,$A0,$C3,$C8,$C9,$D0
+    .byte $D3,$D0,$C5,$C5,$C3,$C8,$A0
+    .byte $C4,$C5,$CD,$CF
     .byte $00
