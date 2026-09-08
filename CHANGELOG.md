@@ -8,6 +8,12 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Changed
+
+- **The casso-rocks title turned sideways.** CASSO now climbs the left edge
+  instead of running across the top, so all four cassowaries get the full 192
+  scanlines.
+
 ## [1.23.1]: The one that boots green and ships signed
 
 ### Added

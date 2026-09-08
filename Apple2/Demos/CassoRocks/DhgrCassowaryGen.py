@@ -109,8 +109,8 @@ def build_color_cells():
                                 dither=Image.FLOYDSTEINBERG)
     pixels = quantized.load()
 
-    for row in Layout.band_rows():
-        for cell in range(Layout.CELLS):
+    for cell in Layout.band_units(Layout.CELLS):
+        for row in range(Layout.ROWS):
             pixels[cell, row] = CELL_BLACK
     for cell, row in Layout.chrome_cells():
         pixels[cell, row] = CELL_WHITE
@@ -126,12 +126,9 @@ def build_mono_dots():
     canvas.paste(photo, at)
     canvas = Layout.apply_tone(canvas, MONO_GAMMA, MONO_CONTRAST, MONO_SHARPEN)
 
-    dots   = Layout.dither_1bit(canvas)
+    dots   = Layout.dither_1bit(canvas,
+                                skip_cols=Layout.band_units(Layout.DOTS))
     pixels = dots.load()
-
-    for row in Layout.band_rows():
-        for x in range(Layout.DOTS):
-            pixels[x, row] = 0
 
     # The title is placed on the CELL grid even here, so it survives
     # the color decode too -- the cycle wraps, so a color monitor can

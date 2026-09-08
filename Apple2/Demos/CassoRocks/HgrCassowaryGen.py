@@ -36,11 +36,12 @@ collapses into vertical stripe texture, because a blurred metric cannot
 tell a stripe pattern from the right local density.
 
 WHY THE HGR PAIR IS CROPPED TIGHTER than the DHGR pair. The portrait
-crop letterboxes to about 121 of the 280 columns, and at half the
+crop letterboxes to about 145 of the 280 columns, and at half the
 horizontal resolution that is not enough bird. Cropping below the
-wattles gets it to about 164, and the background gets a depth-of-field
-blur so its dither goes smooth instead of noisy and the dots that are
-left are spent on the head.
+wattles gets it to about 197, which is most of the 224 the title band
+leaves, and the background gets a depth-of-field blur so its dither
+goes smooth instead of noisy and the dots that are left are spent on
+the head.
 """
 
 import sys
@@ -177,35 +178,49 @@ def choose_shifts(bits_row, target560, row):
     return out
 
 
+def band_bytes():
+    """How many bytes of each row the title band owns. It is a whole
+    number of them by construction; see DemoImageLayout."""
+    return Layout.band_width(Layout.HGR_PIX) // PIX_PER_BYTE
+
+
+def title_pixels():
+    """The title as row -> the HGR pixels it lights on that scanline.
+
+    The title is drawn, not dithered. One 140-grid cell is two HGR
+    pixels, and two adjacent lit pixels read as WHITE on a color monitor
+    and four lit half-dots on a monochrome one -- the same dual-decode
+    property the DHGR title relies on."""
+    rows = {}
+    for cell, row in Layout.chrome_cells():
+        rows.setdefault(row, set()).update((cell * 2, cell * 2 + 1))
+    return rows
+
+
 def build_mono():
     """The monochrome HGR framebuffer."""
-    band   = Layout.band_rows()
-    chrome = Layout.chrome_cells()
+    band  = Layout.band_units(Layout.HGR_PIX)
+    title = title_pixels()
 
     t280 = mono_target(Layout.HGR_PIX)
     t560 = mono_target(Layout.DOTS)
-    bits = Layout.dither_1bit(t280, skip_rows=band).load()
+    bits = Layout.dither_1bit(t280, skip_cols=band).load()
     fine = t560.load()
 
-    band_set = set(band)
-    out      = bytearray(8192)
+    out = bytearray(8192)
 
     for row in range(Layout.ROWS):
-        if row in band_set:
-            # The title band is drawn, not dithered. One 140-grid cell is
-            # two HGR pixels, and two adjacent lit pixels read as WHITE on
-            # a color monitor and four lit half-dots on a monochrome one --
-            # the same dual-decode property the DHGR title relies on.
-            rowbytes = bytearray(BYTES_PER_ROW)
-            for cell, r in chrome:
-                if r != row:
-                    continue
-                for px in (cell * 2, cell * 2 + 1):
-                    rowbytes[px // PIX_PER_BYTE] |= 1 << (px % PIX_PER_BYTE)
-        else:
-            bits_row   = [bits[x, row] != 0 for x in range(Layout.HGR_PIX)]
-            target_row = [fine[x, row] for x in range(Layout.DOTS)]
-            rowbytes   = choose_shifts(bits_row, target_row, row)
+        bits_row   = [bits[x, row] != 0 for x in range(Layout.HGR_PIX)]
+        target_row = [fine[x, row] for x in range(Layout.DOTS)]
+        rowbytes   = choose_shifts(bits_row, target_row, row)
+
+        # The band's bytes carry no photo, so drop whatever shift the
+        # fit picked for them: the title needs bit 7 clear to sit on the
+        # cell grid.
+        for b in range(band_bytes()):
+            rowbytes[b] = 0
+        for px in title.get(row, ()):
+            rowbytes[px // PIX_PER_BYTE] |= 1 << (px % PIX_PER_BYTE)
 
         base = Layout.hgr_row_offset(row)
         out[base : base + BYTES_PER_ROW] = rowbytes
@@ -219,25 +234,20 @@ def build_color():
     canvas, _, _ = photo_canvas(Layout.HGR_PIX, mono=False)
     pixels       = canvas.load()
 
-    band     = set(Layout.band_rows())
-    chrome   = Layout.chrome_cells()
-    out      = bytearray(8192)
+    first = band_bytes()
+    title = title_pixels()
+    out   = bytearray(8192)
 
     for row in range(Layout.ROWS):
-        base = Layout.hgr_row_offset(row)
+        base     = Layout.hgr_row_offset(row)
+        rowbytes = bytearray(BYTES_PER_ROW)
 
-        if row in band:
-            rowbytes = bytearray(BYTES_PER_ROW)
-            for cell, r in chrome:
-                if r != row:
-                    continue
-                for px in (cell * 2, cell * 2 + 1):
-                    rowbytes[px // PIX_PER_BYTE] |= 1 << (px % PIX_PER_BYTE)
-            out[base : base + BYTES_PER_ROW] = rowbytes
-            continue
+        for px in title.get(row, ()):
+            rowbytes[px // PIX_PER_BYTE] |= 1 << (px % PIX_PER_BYTE)
+        for col in range(first, BYTES_PER_ROW):
+            rowbytes[col] = HgrPreprocess.encode_byte(pixels, row, col)
 
-        for col in range(BYTES_PER_ROW):
-            out[base + col] = HgrPreprocess.encode_byte(pixels, row, col)
+        out[base : base + BYTES_PER_ROW] = rowbytes
 
     return bytes(out)
 

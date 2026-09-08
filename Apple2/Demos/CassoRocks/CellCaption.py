@@ -100,3 +100,39 @@ def stamp(text, top, cells_wide, scale=1):
         x += (len(rows[0]) + GAP) * scale
 
     return lit
+
+
+def stamp_up(text, left, rows_tall, scale=1):
+    """The set of (cell, row) positions `text` lights turned a quarter
+    turn to the left: it reads bottom to top, with the tops of the
+    glyphs facing the left edge. `left` is the first cell column it
+    occupies and it is centered down `rows_tall` scanlines.
+
+    The quarter turn is applied to the glyph bitmaps, not to a rendered
+    image, so every mark still lands on exactly one cell and the
+    all-on / all-off property the whole font exists for survives. What
+    swaps is which axis pays for it: a rotated line of text is
+    GLYPH_H cells wide and as many scanlines tall as it was cells long.
+    """
+    height = text_width(text) * scale
+    top    = (rows_tall - height) // 2
+    lit    = set()
+    y      = top + height          # the first glyph sits at the bottom
+
+    for i, ch in enumerate(text):
+        if i:
+            y -= GAP * scale
+        rows  = glyph(ch)
+        width = len(rows[0])
+        y    -= width * scale
+
+        for r in range(GLYPH_H):
+            for c in range(width):
+                if rows[r][c] != '#':
+                    continue
+                for sy in range(scale):
+                    for sx in range(scale):
+                        lit.add((left + r * scale + sx,
+                                 y + (width - 1 - c) * scale + sy))
+
+    return lit
