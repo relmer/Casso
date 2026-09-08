@@ -32,8 +32,13 @@ the 300-3000 Hz band, at exactly the timestamps the trace shows phoneme writes.
 AppleWin behaves the same way -- music, no voice -- so the demo is silent
 wherever the amplitude register is honored.
 
-The clobbering write lives in the shared `ssi263_detect.s`, which all three
-titles link, so expect the same on any of them that reaches detection.
+The clobbering write lives in the shared `ssi263_detect.s`, but whether it
+matters depends on the speech player layered above it, and they differ.
+WarGames' `ssi263_simple_speech.s` re-writes `CAA = $7F` -- amplitude $F -- from
+its interrupt handler on **every** phoneme, so it would recover the volume the
+detect routine dropped. Mist's player never touches `$C443` in the pacing loop
+(three writes to it in the whole traced run: `$5C`, `$80`, `$70`), which is why
+only Mist goes silent.
 
 **WarGames fails earlier, and differently.** It never executes its detection at
 all. Two CPU traces -- one complete from power-on to 22s, one covering the
