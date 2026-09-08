@@ -10,6 +10,13 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- **Mockingboard speech came out high and hurried.** The card left the voice
+  chip's external clock at the datasheet's colorburst-over-two suggestion, which
+  is generic advice for a standalone design rather than this card's rate -- the
+  board runs one clock net to every chip, the same system clock the two sound
+  generators already took. Everything derived from that clock was 1.75x off:
+  pitch and filter frequencies high, phonemes short. Measured against the Mist
+  demake's voiceover, the fundamental moves from 164 Hz to 94 Hz.
 - **Arming a Mockingboard timer the ordinary way stopped the machine with an
   assertion dialog.** The 6522's auxiliary control register asserted on every
   bit but Timer 1's continuous-mode select, so `LDA #$C0 / STA ACR` -- T1

@@ -39,8 +39,18 @@ MockingboardCard::MockingboardCard (int slot, MockingboardVariant variant)
     {
         m_speech = make_unique<Ssi263>();
 
-        // Tick is fed the CPU's cycle counts, so that -- not the voice chip's
-        // own XCK -- is the clock its phoneme countdown has to be measured in.
+        // The card drives the voice chip's XCK from the same system clock as
+        // the PSGs above -- one clock net feeds every chip on the board. The
+        // datasheet's colorburst-over-two suggestion is generic advice for a
+        // standalone design, and taking it as this card's rate left every
+        // XCK-derived quantity 1.75x off: pitch and filter frequencies high,
+        // phonemes short. Speech came out audibly thin and hurried.
+        m_speech->SetXckClock (static_cast<double> (kAppleCpuClock));
+
+        // Tick is fed the CPU's cycle counts. On this card that is the same
+        // rate as XCK, but the two stay separately stated because the class
+        // serves any card, and a board that clocked the chip differently would
+        // still count Tick in ITS machine's cycles.
         m_speech->SetTickClock (static_cast<double> (kAppleCpuClock));
     }
 
