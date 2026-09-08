@@ -64,14 +64,15 @@ Two tests cover it, both of which fail against the old code:
 `CtlTransitionSoundsThePhonemeLoadedWhilePoweredDown` and
 `DetectionSequenceGetsItsInterruptAtZeroAmplitude`.
 
-**No title in hand demonstrates the fix.** deater's `ssi263_detect.s` uses
-exactly the broken order, which is what sent us to the datasheet -- but a CPU
-trace of the shipped `wargames.dsk` shows the demo never executes that
-detection: across a complete power-on-to-22s trace and a second trace covering
-the closing monologue, there is not one access to the `$C4` page and not one
-IRQ. It prints the monologue as text and falls into a keyboard-poll loop at
-`$0D73`. The Mist demake's speech is byte-for-byte unchanged across the fix,
-because it writes DR/P after CTL is already low, as do our own speech disks and
-every `Ssi263Tests` case (they all route through the `StartSpeaking` helper).
-So the change rests on the datasheet and the two tests, not on observed
-software. See `Apple2/Demos/Deater/README.md`.
+**The Mist demake demonstrates it.** deater's `ssi263_detect.s` uses exactly
+this order, and a CPU trace of Mist shows the whole handshake working on the
+fixed build: `$C48C=$0C`, the attribute registers, `$C443=$80` (CTL high),
+`$C440=$C0` (DR/P loaded while powered down), `$C443=$70` (CTL low), `$C48E=$82`
+(arm CA1) -- then 124 iterations of read IFR2 / clear CA1 / write the next
+phoneme. That loop only runs when detection reported the chip, and the first
+A/R it waits on can only come from the CTL transition. Revert `LatchMode` and
+Mist derails where speech should start.
+
+Our own speech disks and every `Ssi263Tests` case write DR/P *after* CTL is
+already low -- they all route through the `StartSpeaking` helper -- which is
+why the whole suite passed over this for so long.

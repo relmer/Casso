@@ -18,6 +18,35 @@ live in <https://github.com/deater/dos33fsprogs>.
 
 All nine are 140 KB DOS-order images.
 
+## What these actually do, as of 2026-09-08
+
+**Mist speaks the phonemes but at volume zero, and the fault is upstream.**
+Everything on our side works: the card is detected, the CTL transition delivers
+the first A/R, the CA1 interrupt paces the loop, and 124 phonemes are
+synthesized. But Mist's init sets the amplitude field to `$C` and its detection
+routine then writes `$C443 = $70` -- CTL low, **amplitude 0** -- and the phoneme
+loop only ever touches `$C440`, so the amplitude is never restored. A chip that
+honors A3-A0 renders silence. Floor the amplitude at `$C` in a scratch build and
+the voiceover comes out: 159 Hz voiced, formants moving, 77-86% of the energy in
+the 300-3000 Hz band, at exactly the timestamps the trace shows phoneme writes.
+AppleWin behaves the same way -- music, no voice -- so the demo is silent
+wherever the amplitude register is honored.
+
+The clobbering write lives in the shared `ssi263_detect.s`, which all three
+titles link, so expect the same on any of them that reaches detection.
+
+**WarGames fails earlier, and differently.** It never executes its detection at
+all. Two CPU traces -- one complete from power-on to 22s, one covering the
+closing monologue -- show not a single access to the `$C4` page and not one IRQ.
+It prints "GREETINGS PROFESSOR FALKEN" and the rest as plain text, then sits in
+a keyboard-poll loop at `$0D73`. The detect routine's bytes *are* on the disk
+(offset `0x1B480`), so this is a routine that got assembled in with its call
+site missing -- a published image built from a state the speech was not wired
+up in. AppleWin is silent on it too. The amplitude bug above never gets a
+chance to bite here.
+
+**Peasant's Quest is untried.** It carries the same detect routine.
+
 ## Caveats
 
 **The Peasant's Quest floppies are untested upstream.** The download page says
