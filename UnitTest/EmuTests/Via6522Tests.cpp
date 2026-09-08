@@ -342,6 +342,35 @@ namespace Via6522TestNs
         }
 
 
+        TEST_METHOD (AcrPb7OutputIsAcceptedAndLeavesTimer1Continuous)
+        {
+            Via6522   via;
+
+
+
+            // The ordinary way to arm a Mockingboard timer: T1 continuous and
+            // PB7 output in one store. PB7 drives nothing on this card, but the
+            // write must be accepted -- this once asserted and stopped the
+            // machine on a title doing something routine.
+            via.WriteRegister (Via6522::kRegAcr,
+                               static_cast<Byte> (Via6522::kAcrT1Continuous
+                                                  | Via6522::kAcrT1Pb7Output));
+
+            Assert::AreEqual ((int) (Via6522::kAcrT1Continuous | Via6522::kAcrT1Pb7Output),
+                              (int) via.ReadRegister (Via6522::kRegAcr),
+                              L"The ACR must read back as written");
+
+            // Continuous mode still selected alongside the inert bit.
+            via.WriteRegister (Via6522::kRegT1CL, 0x10);
+            via.WriteRegister (Via6522::kRegT1CH, 0x00);
+
+            via.Tick (0x2000);
+
+            Assert::AreEqual ((int) Via6522::kIrqTimer1, (int) (via.GetIfr() & Via6522::kIrqTimer1),
+                              L"and Timer 1 must still reload and flag repeatedly");
+        }
+
+
         TEST_METHOD (Ca2OutputModeIsAcceptedAndLeavesTheCa1EdgeIntact)
         {
             Via6522   via;

@@ -182,13 +182,16 @@ void Via6522::WriteRegister (Byte reg, Byte value)
         break;
 
     case kRegAcr:
-        // Only the Timer1 mode bit is modeled. Any other ACR bit selects an
-        // unmodeled feature (T2 pulse counting, shift register, PB7 output,
-        // port input latching). Store the value for read-back, then assert so
-        // a debug build surfaces any title that actually configures one --
-        // in release the write is simply inert for the unmodeled bits.
+        // Only the Timer1 continuous-mode bit changes behavior here. The rest
+        // -- T2 pulse counting, the shift register, PB7 output, port input
+        // latching -- are stored for read-back and are otherwise inert.
+        //
+        // Configuring one is NOT a fault. `LDA #$C0 / STA ACR` is the ordinary
+        // way to arm a Mockingboard's timer, T1 continuous with PB7 output
+        // enabled in a single store, and PB7 drives nothing on this card. This
+        // once asserted on any bit but $40, which stopped the machine with a
+        // dialog on a title doing something entirely routine.
         m_acr = value;
-        CBRAEx ((value & ~kAcrT1Continuous) == 0, E_INVALIDARG);
         break;
 
     case kRegPcr:

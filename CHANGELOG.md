@@ -10,6 +10,12 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- **Arming a Mockingboard timer the ordinary way stopped the machine with an
+  assertion dialog.** The 6522's auxiliary control register asserted on every
+  bit but Timer 1's continuous-mode select, so `LDA #$C0 / STA ACR` -- T1
+  continuous with PB7 output, in one store -- was treated as a fault. PB7 drives
+  nothing on this card; the unmodeled bits stay inert and the write is now
+  accepted. Rescue Raiders trips it.
 - **A Mockingboard speech driver stopped the machine with an assertion dialog
   at its first setup write.** The 6522's peripheral control register treated
   the CA2/CB2 output-mode fields as an unmodeled feature worth asserting on,
