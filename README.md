@@ -206,6 +206,17 @@ Disk II swings on its cantilever, the Disk IIc slides back and lifts clear of
 the slot. To keep GPU use low the scene is cached, and when the screen stops
 changing Casso stops drawing altogether.
 
+**If a desk is not what you want, two flat themes ship alongside it.** Dark
+Modern and Retro Terminal drop the room for a menu, a toolbar and a row of
+compact drives, so the picture gets the window. Switch from **Settings →
+Theme** with no restart and no machine reset; see
+[Themed chrome](#themed-chrome).
+
+<table align="center" width="100%"><tr>
+  <td valign="top" width="50%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the casso-rocks cassowary in color under flat dark chrome, with two compact drive widgets in a row below the picture" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /></td>
+</tr></table>
+
 ### Disk file access from the command line (1.20)
 
 The build loop no longer leaves the machine. `CassoCli disk` makes a disk, reads
