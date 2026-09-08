@@ -37,8 +37,8 @@ for either reads as noise on the other. Here it is in all three built-in themes:
   <td valign="top" width="50%" align="center"><img src="Assets/theme-skeuomorphic-2c.png" alt="The Skeuomorphic theme on an Apple //c: a Monitor //c over two Disk IIc drives, the cassowary dithered to one bit in green phosphor" width="100%" /><br /><sub>Skeuomorphic on the //c</sub></td>
 </tr>
 <tr>
-  <td valign="top" width="50%" align="center"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the same demo on an amber monitor under flat dark chrome, the cassowary dithered to one bit across all 560 dots" width="100%" /><br /><sub>Dark Modern on amber</sub></td>
   <td valign="top" width="50%" align="center"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /><br /><sub>Retro Terminal on green</sub></td>
+  <td valign="top" width="50%" align="center"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the same demo on an amber monitor under flat dark chrome, the cassowary dithered to one bit across all 560 dots" width="100%" /><br /><sub>Dark Modern on amber</sub></td>
 </tr>
 </table>
 
