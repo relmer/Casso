@@ -101,7 +101,7 @@ def build_palette_image():
 def build_color_cells():
     """The 16-color image as a 140x192 P-mode canvas of palette indices."""
     canvas = Image.new("RGB", (Layout.CELLS, Layout.ROWS), (0, 0, 0))
-    photo, at = Layout.fit_photo(
+    photo, at, title, band = Layout.lay_out(
         Layout.load_photo("RGB", Layout.CROP_PORTRAIT), Layout.CELLS)
     canvas.paste(photo, at)
 
@@ -109,10 +109,10 @@ def build_color_cells():
                                 dither=Image.FLOYDSTEINBERG)
     pixels = quantized.load()
 
-    for cell in Layout.band_units(Layout.CELLS):
+    for cell in band:
         for row in range(Layout.ROWS):
             pixels[cell, row] = CELL_BLACK
-    for cell, row in Layout.chrome_cells():
+    for cell, row in title:
         pixels[cell, row] = CELL_WHITE
 
     return quantized
@@ -121,19 +121,18 @@ def build_color_cells():
 def build_mono_dots():
     """The monochrome image as a 560x192 L-mode canvas of 0 / 255 dots."""
     canvas = Image.new("L", (Layout.DOTS, Layout.ROWS), 0)
-    photo, at = Layout.fit_photo(
+    photo, at, title, band = Layout.lay_out(
         Layout.load_photo("L", Layout.CROP_PORTRAIT), Layout.DOTS)
     canvas.paste(photo, at)
     canvas = Layout.apply_tone(canvas, MONO_GAMMA, MONO_CONTRAST, MONO_SHARPEN)
 
-    dots   = Layout.dither_1bit(canvas,
-                                skip_cols=Layout.band_units(Layout.DOTS))
+    dots   = Layout.dither_1bit(canvas, skip_cols=band)
     pixels = dots.load()
 
     # The title is placed on the CELL grid even here, so it survives
     # the color decode too -- the cycle wraps, so a color monitor can
     # end up showing this image.
-    for cell, row in Layout.chrome_cells():
+    for cell, row in title:
         for dot in range(4):
             pixels[cell * 4 + dot, row] = 255
 

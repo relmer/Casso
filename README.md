@@ -208,12 +208,12 @@ changing Casso stops drawing altogether.
 
 **If a desk is not what you want, two flat themes ship alongside it.** Dark
 Modern and Retro Terminal drop the room for a menu, a toolbar and a row of
-compact drives, so the picture gets the window. Switch from **Settings →
+slim drive bar, so the picture gets the window. Switch from **Settings →
 Theme** with no restart and no machine reset; see
 [Themed chrome](#themed-chrome).
 
 <table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the casso-rocks cassowary in color under flat dark chrome, with two compact drive widgets in a row below the picture" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the casso-rocks cassowary in color under flat dark chrome, with a slim drive bar below the picture" width="100%" /></td>
   <td valign="top" width="50%"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /></td>
 </tr></table>
 
@@ -401,17 +401,17 @@ Retro Terminal) hot-swap from **Settings → Theme** with no restart and no
 machine reset. Each ships under `Resources/Themes/<Name>/` with a `theme.json`
 describing colors, CRT defaults, drive visuals, and other UI tokens; see
 [docs/themes/AUTHORING.md](docs/themes/AUTHORING.md) for the authoring surface.
-The two flat themes keep the chrome to a menu, a toolbar and a row of compact
-drives, so the picture gets the window:
+The two flat themes keep the chrome to a menu, a toolbar and a slim drive
+bar, so the picture gets the window:
 
 <table align="center" width="100%"><tr>
-  <td valign="top" width="50%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the casso-rocks cassowary in color under flat dark chrome, with two compact drive widgets in a row below the picture" width="100%" /></td>
+  <td valign="top" width="50%"><img src="Assets/theme-dark-modern.png" alt="The Dark Modern theme: the casso-rocks cassowary in color under flat dark chrome, with a slim drive bar below the picture" width="100%" /></td>
   <td valign="top" width="50%"><img src="Assets/theme-retro-terminal.png" alt="The Retro Terminal theme: the same demo in green phosphor with heavy scanlines and bloom, under green-tinted chrome" width="100%" /></td>
 </tr></table>
 
 <p align="center"><sub>Retro Terminal turns the CRT effects up: scanlines at three quarters strength, a wide bloom and color bleed, all still yours to adjust on the Display tab.</sub></p>
 
-<p align="center"><img src="Assets/theme-retro-detail.png" alt="A 1:1 detail of the Retro Terminal picture: the CASSO title with visible scanlines and phosphor bloom" width="640" /></p>
+<p align="center"><img src="Assets/theme-retro-detail.png" alt="A 1:1 detail of the Retro Terminal picture: the CASSO title climbing the left edge, with visible scanlines and phosphor bloom" width="360" /></p>
 
 **The drives are Disk II models on the desk**, the same CAD objects as the
 monitor, with the DRIVE 1 and IN USE marks, the `disk ][` logotype and the

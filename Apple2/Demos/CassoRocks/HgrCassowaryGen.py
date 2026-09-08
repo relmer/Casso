@@ -102,7 +102,7 @@ def photo_canvas(width, mono):
     """The photo, fitted into the page's photo box at `width` units."""
     canvas = Image.new("L" if mono else "RGB", (width, Layout.ROWS),
                        0 if mono else (0, 0, 0))
-    photo, at = Layout.fit_photo(
+    photo, at, _, _ = Layout.lay_out(
         Layout.load_photo("L" if mono else "RGB", CROP_HGR), width)
     canvas.paste(photo, at)
     return canvas, photo.size, at
@@ -178,29 +178,27 @@ def choose_shifts(bits_row, target560, row):
     return out
 
 
-def band_bytes():
-    """How many bytes of each row the title band owns. It is a whole
-    number of them by construction; see DemoImageLayout."""
-    return Layout.band_width(Layout.HGR_PIX) // PIX_PER_BYTE
-
-
-def title_pixels():
-    """The title as row -> the HGR pixels it lights on that scanline.
+def page():
+    """The page's title band, as (rows lit -> HGR pixels, band bytes).
 
     The title is drawn, not dithered. One 140-grid cell is two HGR
     pixels, and two adjacent lit pixels read as WHITE on a color monitor
     and four lit half-dots on a monochrome one -- the same dual-decode
-    property the DHGR title relies on."""
+    property the DHGR title relies on. The band is a whole number of
+    bytes by construction; see DemoImageLayout."""
+    _, _, title, band = Layout.lay_out(
+        Layout.load_photo("L", CROP_HGR), Layout.HGR_PIX)
+
     rows = {}
-    for cell, row in Layout.chrome_cells():
+    for cell, row in title:
         rows.setdefault(row, set()).update((cell * 2, cell * 2 + 1))
-    return rows
+    return rows, len(band) // PIX_PER_BYTE
 
 
 def build_mono():
     """The monochrome HGR framebuffer."""
-    band  = Layout.band_units(Layout.HGR_PIX)
-    title = title_pixels()
+    title, band_bytes = page()
+    band = range(band_bytes * PIX_PER_BYTE)
 
     t280 = mono_target(Layout.HGR_PIX)
     t560 = mono_target(Layout.DOTS)
@@ -217,7 +215,7 @@ def build_mono():
         # The band's bytes carry no photo, so drop whatever shift the
         # fit picked for them: the title needs bit 7 clear to sit on the
         # cell grid.
-        for b in range(band_bytes()):
+        for b in range(band_bytes):
             rowbytes[b] = 0
         for px in title.get(row, ()):
             rowbytes[px // PIX_PER_BYTE] |= 1 << (px % PIX_PER_BYTE)
@@ -234,9 +232,8 @@ def build_color():
     canvas, _, _ = photo_canvas(Layout.HGR_PIX, mono=False)
     pixels       = canvas.load()
 
-    first = band_bytes()
-    title = title_pixels()
-    out   = bytearray(8192)
+    title, first = page()
+    out          = bytearray(8192)
 
     for row in range(Layout.ROWS):
         base     = Layout.hgr_row_offset(row)

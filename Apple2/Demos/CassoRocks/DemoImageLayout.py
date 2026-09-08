@@ -25,6 +25,14 @@ columns beside the picture went unused. Turned a quarter turn left it
 climbs the left edge instead, out of a margin that was empty anyway,
 and the photo gets all 192 scanlines.
 
+The title and the picture are placed AS ONE GROUP, centered together,
+with the title hard against the picture's left edge. Centering them
+separately pools the leftover margin between them, which reads as a
+title that has drifted off on its own. The group's width depends on the
+crop, so the HGR pair and the DHGR pair land in different columns; the
+two images of a PAIR always agree, which is what the keystroke switches
+between.
+
 The images used to carry a caption naming the monitor they were drawn
 for, on the same grid and for the same reason. The demo asks which
 monitor it is talking to now, and shows the matching pair, so the
@@ -64,42 +72,27 @@ SRC = _repo_root() / "Assets" / "3a Mrs Cassowary closeup 8167.jpg"
 # wattles. HGR gets a tighter one -- see HgrCassowaryGen for why.
 CROP_PORTRAIT = (60, 40, 860, 1100)
 
-# The title, drawn in the CellCaption font at 3x and turned a quarter
-# turn to the left, so it climbs the left edge reading bottom to top.
-# Rotated, the glyph height is what costs cells and the text length is
-# what costs scanlines, so 3x fills the 192-line edge without crowding
-# the photo: 21 cells wide, 72 scanlines tall.
-TITLE_TEXT     = "CASSO"
-TITLE_SCALE    = 3
-TITLE_LEFT     = 3
+# The title, set in the CellCaption letters and turned a quarter turn to
+# the left so it climbs the edge reading bottom to top. Turned, the CAP
+# HEIGHT is what costs cells and the length of the word is what costs
+# scanlines: eighteen cells of cap height sets CASSO 153 scanlines long,
+# which fills the 192-line edge without running out of it.
+TITLE_TEXT = "CASSO"
+TITLE_CAP  = 18
+TITLE_GAP  = 3     # cells between the title and the picture
 
-# The band the title owns, ROUNDED UP TO A WHOLE NUMBER OF HGR BYTES.
-# Seven pixels to a byte and one half-dot shift shared across all of
-# them means a byte straddling the boundary would let the photo's shift
-# choice drag the title's last column half a dot off the cell grid, and
-# the title's whole legibility rests on staying on that grid. One cell
-# is two HGR pixels, so the band has to be a multiple of seven cells.
-_BAND_MIN      = TITLE_LEFT + CellCaption.GLYPH_H * TITLE_SCALE + 2
-TITLE_BAND_W   = ((_BAND_MIN + 6) // 7) * 7
+# The photo box: full height, and as wide as the crop makes it.
+PHOTO_TOP = 0
+PHOTO_H   = ROWS
 
-# The photo box: everything to the right of the band, full height.
-PHOTO_TOP      = 0
-PHOTO_H        = ROWS
-
-
-def band_units(canvas_w):
-    """The columns of a `canvas_w`-wide canvas the title band owns."""
-    return list(range(0, band_width(canvas_w)))
-
-
-def band_width(canvas_w):
-    """How wide the title band is in `canvas_w` units."""
-    return round(TITLE_BAND_W * canvas_w / float(CELLS))
-
-
-def chrome_cells():
-    """Every 140-grid cell the title lights."""
-    return CellCaption.stamp_up(TITLE_TEXT, TITLE_LEFT, ROWS, scale=TITLE_SCALE)
+# The picture's left edge is pinned to a multiple of SEVEN CELLS, which
+# is a whole number of HGR bytes. Seven pixels to a byte and one half-dot
+# shift shared across all of them means a byte holding both title and
+# photo would let the photo's shift choice drag the title's last column
+# half a dot off the cell grid -- and the title's whole legibility rests
+# on staying on that grid. One cell is two HGR pixels, so seven cells is
+# fourteen pixels is two bytes.
+_SNAP_CELLS = 7
 
 
 def load_photo(mode, crop):
@@ -108,27 +101,53 @@ def load_photo(mode, crop):
     return Image.open(SRC).convert(mode).crop(crop)
 
 
-def fit_photo(photo, canvas_w):
-    """Scale the photo to fill PHOTO_H scanlines at the display's aspect,
-    and return it with the top-left corner to paste it at.
+def photo_left_cells(photo):
+    """Which 140-grid cell the picture starts at.
+
+    Computed from the crop rather than from a rounded width, so both
+    images of a pair land in the same column whatever resolution each is
+    drawn at."""
+    src_w, src_h = photo.size
+    wide  = PHOTO_H * (src_w / src_h) * (CELLS / float(HGR_PIX))
+    group = TITLE_CAP + TITLE_GAP + wide
+    want  = (CELLS - group) / 2.0 + TITLE_CAP + TITLE_GAP
+
+    snapped = int(want / _SNAP_CELLS + 0.5) * _SNAP_CELLS
+    floor   = -(-(TITLE_CAP + TITLE_GAP) // _SNAP_CELLS) * _SNAP_CELLS
+    return max(floor, snapped)
+
+
+def lay_out(photo, canvas_w):
+    """Place the picture and the title on a `canvas_w`-wide page.
+
+    Returns the scaled picture, the corner to paste it at, the 140-grid
+    cells the title lights, and the columns left of the picture -- which
+    carry the title and nothing else, so they are cleared and kept out of
+    the dither.
 
     `canvas_w` is the horizontal resolution being drawn at. All of them
     span the same physical width as HGR's 280 pixels, so the scale from
     display pixels to canvas units is canvas_w / 280."""
-    band  = band_width(canvas_w)
-    avail = canvas_w - band
+    units = canvas_w / float(CELLS)
+    left  = round(photo_left_cells(photo) * units)
 
     src_w, src_h = photo.size
     new_h = PHOTO_H
     new_w = max(1, round(new_h * (src_w / src_h) * (canvas_w / float(HGR_PIX))))
 
-    if new_w > avail:
-        new_w = avail
+    if new_w > canvas_w - left:
+        new_w = canvas_w - left
         new_h = max(1, round(new_w * (src_h / src_w) * (float(HGR_PIX) / canvas_w)))
 
+    title = CellCaption.stamp_up(
+        TITLE_TEXT, photo_left_cells(photo) - TITLE_GAP - TITLE_CAP,
+        TITLE_CAP, ROWS)
+
     scaled = photo.resize((new_w, new_h), Image.LANCZOS)
-    return scaled, (band + (avail - new_w) // 2,
-                    PHOTO_TOP + (PHOTO_H - new_h) // 2)
+    return (scaled,
+            (left, PHOTO_TOP + (PHOTO_H - new_h) // 2),
+            title,
+            list(range(0, left)))
 
 
 def apply_tone(canvas, gamma, contrast, sharpen):
