@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.23.2]: The one that finds its voice
 
 ### Fixed
 
@@ -37,6 +37,12 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- **The bundled speech disks were retuned for the corrected clock, and the two
+  demos now caption themselves "CASSO MOCKINGBOARD SPEECH DEMO".** Every pitch,
+  and every vocal-tract filter, had been converted against the clock the card
+  was wrongly handing the voice chip, so all five disks spoke 1.75x low once
+  that was fixed -- HAL's lines worst, since his tract is deliberately longer
+  than nominal to begin with.
 - **The casso-rocks title turned sideways and got a haircut.** CASSO climbs the
   left edge hard against the picture instead of running across the top, so all
   four cassowaries get the full 192 scanlines, and it is set in a real face
