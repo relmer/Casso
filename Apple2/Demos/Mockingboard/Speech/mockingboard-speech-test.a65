@@ -47,12 +47,14 @@ SFILT   = $C444            ; vocal-tract filter clock
 MODEDR  = $C0              ; DR=11 in D7:6 -> A/R active, phoneme timing
 CTLUP   = $80              ; CTL set: Power Down
 CTLDN   = $5C              ; CTL clear, articulation 5, amplitude $C
-RATE    = $00              ; speech rate $0 in D7:4 -- the chip's slowest
-                           ; frame, 4096 x 16 / XCK = 36.6 ms, so each vowel
+RATE    = $0C              ; speech rate $0 in D7:4 -- the chip's slowest
+                           ; frame, 4096 x 16 / XCK = 64.1 ms, so each vowel
                            ; settles at its formant targets before the next
-                           ; phoneme starts; I11/I2-I0 = 0
-INFL    = $C9              ; I10-I3 for roughly a 90 Hz voice
-FILT    = $D3              ; roughly a 20 KHz tract clock
+                           ; phoneme starts. D3 and D2:0 carry I11 and I2-I0,
+                           ; which the pitch below needs set.
+INFL    = $4E              ; I10-I3; with I11 and I2-I0 above, I = 2676, which
+                           ; is 1022727 / (8 x (4096 - 2676)) = 90 Hz
+FILT    = $E6              ; 1022727 / (2 x (256 - 230)) = a 19.7 KHz tract
 
 ; -- Zero page ---------------------------------------------------------------
 IDX     = $06              ; index into the phoneme list

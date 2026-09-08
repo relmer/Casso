@@ -12,11 +12,17 @@ and $C442's HIGH nibble is the speech rate. Every pitch-low byte therefore folds
 the rate in; emitting a bare pitch there silently resets the chip to rate 0,
 which is what made the question run 1.6x slow.
 
-Durations: heard_ms = 4.005 * (16 - R) * (4 - D) under the current emulator
-(the phoneme countdown is loaded in XCK ticks and drained in 6502 cycles, an
-exact 14/8 = 1.75x overshoot). At rate 8 that gives 32 / 64 / 96 / 128 ms for
-DR 3 / 2 / 1 / 0. Vowels take the long classes and consonants the short ones, so
-syllables have the duration contrast the ear segments on.
+Durations: heard_ms = 4096 * (16 - R) * (4 - D) / XCK, which is 4.005 ms per
+unit. At rate 8 that gives 32 / 64 / 96 / 128 ms for DR 3 / 2 / 1 / 0. Vowels
+take the long classes and consonants the short ones, so syllables have the
+duration contrast the ear segments on.
+
+An earlier version of this note described that 4.005 as an emulator defect --
+"loaded in XCK ticks and drained in 6502 cycles, an exact 14/8 = 1.75x
+overshoot" -- and the pitch constant above was left at colorburst-over-two to
+match. Both readings were the wrong way round: the card clocks the chip from
+the system clock, so 4.005 ms is simply what a unit lasts, and the pitches here
+now convert against that same rate.
 """
 
 import math
@@ -29,7 +35,7 @@ import sys
 #  lengths in the HAL line.
 _HERE = os.path.dirname (os.path.abspath (__file__))
 
-XCK = 1789772.5
+XCK = 1022727.0
 K = XCK / 8.0
 
 PH = {

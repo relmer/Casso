@@ -4,50 +4,50 @@
 
 ; "Shall we play a game?" -- declination, dip, then a drawn rise
 wargData
-    .byte $FB,$00,$FD,$06,$6A,$FB,$0A,$C7
+    .byte $FB,$00,$FD,$71,$6B,$FB,$0A,$C7
     .byte $D2,$C5,$C5,$D4,$C9,$CE,$C7,$D3
     .byte $AC,$E6,$9E,$01,$E8,$87,$B9,$AF
-    .byte $40,$FD,$FD,$61,$FB,$09,$D0,$D2
+    .byte $40,$FD,$6C,$68,$FB,$09,$D0,$D2
     .byte $CF,$C6,$C5,$D3,$D3,$CF,$D2,$E7
-    .byte $9E,$9B,$B4,$4A,$B0,$5C,$FD,$EB
-    .byte $61,$FB,$07,$C6,$C1,$CC,$CB,$C5
+    .byte $9E,$9B,$B4,$4A,$B0,$5C,$FD,$61
+    .byte $6E,$FB,$07,$C6,$C1,$CC,$CB,$C5
     .byte $CE,$AE,$B4,$50,$A0,$E9,$9B,$78
-    .byte $00,$FC,$07,$FD,$F8,$61,$FB,$05
+    .byte $00,$FC,$07,$FD,$69,$6A,$FB,$05
     .byte $D3,$C8,$C1,$CC,$CC,$B2,$4C,$A2
-    .byte $FD,$ED,$67,$FB,$02,$D7,$C5,$A3
-    .byte $41,$FD,$E2,$65,$FB,$04,$D0,$CC
-    .byte $C1,$D9,$E7,$A1,$48,$85,$FD,$D0
-    .byte $60,$FB,$01,$C1,$DB,$FB,$05,$C7
-    .byte $C1,$CD,$C5,$BF,$FD,$C2,$62,$E6
-    .byte $FD,$D2,$62,$C8,$FD,$E1,$63,$C8
-    .byte $FD,$EF,$66,$C8,$FD,$FD,$64,$C8
-    .byte $FD,$0A,$6C,$C5,$FD,$16,$6F,$C5
-    .byte $FD,$22,$6C,$F7,$FD,$2D,$6D,$F7
-    .byte $FD,$38,$6A,$F7,$FD,$06,$8A,$00
+    .byte $FD,$63,$6B,$FB,$02,$D7,$C5,$A3
+    .byte $41,$FD,$5D,$68,$FB,$04,$D0,$CC
+    .byte $C1,$D9,$E7,$A1,$48,$85,$FD,$52
+    .byte $6A,$FB,$01,$C1,$DB,$FB,$05,$C7
+    .byte $C1,$CD,$C5,$BF,$FD,$4A,$6B,$E6
+    .byte $FD,$53,$6C,$C8,$FD,$5C,$6A,$C8
+    .byte $FD,$64,$6C,$C8,$FD,$6C,$6A,$C8
+    .byte $FD,$73,$6E,$C5,$FD,$7A,$6E,$C5
+    .byte $FD,$81,$6C,$F7,$FD,$87,$6F,$F7
+    .byte $FD,$8D,$6F,$F7,$FD,$71,$8B,$00
     .byte $FC,$07,$FF
 
 ; "I'm sorry Dave. I'm afraid I can't do that." -- slow, and narrow rather than level: two falling sentences, the stress on DO
 halData
-    .byte $FB,$00,$FD,$D0,$40,$FB,$03,$C9
-    .byte $A7,$CD,$0F,$87,$B7,$FD,$D3,$42
+    .byte $FB,$00,$FD,$52,$4A,$FB,$03,$C9
+    .byte $A7,$CD,$0F,$87,$B7,$FD,$54,$49
     .byte $FB,$06,$D3,$CF,$D2,$D2,$D9,$AC
-    .byte $B0,$10,$FD,$DC,$46,$9E,$41,$40
-    .byte $FD,$BA,$47,$FB,$05,$C4,$C1,$D6
+    .byte $B0,$10,$FD,$59,$4C,$9E,$41,$40
+    .byte $FD,$46,$49,$FB,$05,$C4,$C1,$D6
     .byte $C5,$AE,$E5,$08,$85,$B3,$00,$FD
-    .byte $D0,$40,$FB,$03,$C9,$A7,$CD,$0F
-    .byte $87,$B7,$FD,$C9,$42,$FB,$06,$C1
-    .byte $C6,$D2,$C1,$C9,$C4,$DB,$FD,$D9
-    .byte $45,$B4,$9E,$08,$85,$E5,$FD,$C9
-    .byte $42,$FB,$01,$C9,$4F,$87,$FD,$D3
-    .byte $42,$FB,$05,$C3,$C1,$CE,$A7,$D4
-    .byte $C0,$E9,$0C,$B8,$E8,$FD,$E2,$45
-    .byte $FB,$02,$C4,$CF,$E5,$16,$FD,$AB
-    .byte $40,$FB,$05,$D4,$C8,$C1,$D4,$AE
+    .byte $52,$4A,$FB,$03,$C9,$A7,$CD,$0F
+    .byte $87,$B7,$FD,$4E,$4C,$FB,$06,$C1
+    .byte $C6,$D2,$C1,$C9,$C4,$DB,$FD,$57
+    .byte $4E,$B4,$9E,$08,$85,$E5,$FD,$4E
+    .byte $4C,$FB,$01,$C9,$4F,$87,$FD,$54
+    .byte $49,$FB,$05,$C3,$C1,$CE,$A7,$D4
+    .byte $C0,$E9,$0C,$B8,$E8,$FD,$5D,$48
+    .byte $FB,$02,$C4,$CF,$E5,$16,$FD,$3D
+    .byte $49,$FB,$05,$D4,$C8,$C1,$D4,$AE
     .byte $F5,$0C,$C0,$E8,$00,$FC,$07,$FF
 
 ; "By your command, Imperious Leader." -- a Centurion, low and level
 cylonData
-    .byte $FB,$00,$FD,$7B,$55,$FB,$02,$C2
+    .byte $FB,$00,$FD,$22,$58,$FB,$02,$C2
     .byte $D9,$E4,$0F,$87,$FB,$04,$D9,$CF
     .byte $D5,$D2,$83,$53,$9E,$FB,$08,$C3
     .byte $CF,$CD,$CD,$C1,$CE,$C4,$AC,$E9
@@ -274,42 +274,42 @@ decayLaps
 songData
     .byte $FB,$00
     .byte $FB,$05,$C4,$C1,$C9,$D3,$D9
-    .byte $25,$71,$0B,$01,$08,$71,$0B,$17,$01,$71,$0B,$06   ; Dai   G3 3b
-    .byte $2F,$56,$0B,$03,$01,$56,$0B,$1B   ; sy    E3 3b
+    .byte $25,$AE,$0C,$01,$08,$AE,$0C,$17,$01,$AE,$0C,$06   ; Dai   G3 3b
+    .byte $2F,$9F,$08,$03,$01,$9F,$08,$1B   ; sy    E3 3b
     .byte $FB,$05,$C4,$C1,$C9,$D3,$D9
-    .byte $25,$2A,$0A,$01,$08,$2A,$0A,$17,$01,$2A,$0A,$06   ; Dai   C3 3b
-    .byte $2F,$E2,$05,$03,$01,$E2,$05,$1B   ; sy    G2 3b
+    .byte $25,$85,$0F,$01,$08,$85,$0F,$17,$01,$85,$0F,$06   ; Dai   C3 3b
+    .byte $2F,$5C,$0F,$03,$01,$5C,$0F,$1B   ; sy    G2 3b
     .byte $FB,$04,$C7,$C9,$D6,$C5
-    .byte $26,$01,$0E,$01,$07,$01,$0E,$07,$33,$01,$0E,$02   ; give  A2 1b
+    .byte $26,$6E,$0E,$01,$07,$6E,$0E,$07,$33,$6E,$0E,$02   ; give  A2 1b
     .byte $FB,$02,$CD,$C5
-    .byte $37,$1D,$0C,$02,$01,$1D,$0C,$08   ; me    B2 1b
+    .byte $37,$7E,$0D,$02,$01,$7E,$0D,$08   ; me    B2 1b
     .byte $FB,$04,$D9,$CF,$D5,$D2
-    .byte $03,$2A,$0A,$02,$11,$2A,$0A,$08   ; your  C3 1b
+    .byte $03,$85,$0F,$02,$11,$85,$0F,$08   ; your  C3 1b
     .byte $FB,$06,$C1,$CE,$D3,$D7,$C5,$D2
-    .byte $0C,$01,$0E,$11,$38,$01,$0E,$03   ; an    A2 2b
-    .byte $30,$2A,$0A,$03,$1C,$2A,$0A,$07   ; swer  C3 1b
+    .byte $0C,$6E,$0E,$11,$38,$6E,$0E,$03   ; an    A2 2b
+    .byte $30,$85,$0F,$03,$1C,$85,$0F,$07   ; swer  C3 1b
     .byte $FB,$02,$C4,$CF
-    .byte $25,$E2,$05,$01,$16,$E2,$05,$31   ; do    G2 5b
-    .byte $00,$E2,$05,$0A   ; rest  G2 1b
+    .byte $25,$5C,$0F,$01,$16,$5C,$0F,$31   ; do    G2 5b
+    .byte $00,$5C,$0F,$0A   ; rest  G2 1b
     .byte $FB,$03,$C9,$A7,$CD
-    .byte $0F,$41,$0C,$16,$07,$41,$0C,$04,$37,$41,$0C,$04   ; I'm   D3 3b
+    .byte $0F,$93,$09,$16,$07,$93,$09,$04,$37,$93,$09,$04   ; I'm   D3 3b
     .byte $FB,$04,$C8,$C1,$CC,$C6
-    .byte $2C,$71,$0B,$02,$0D,$71,$0B,$18,$34,$71,$0B,$04   ; half  G3 3b
+    .byte $2C,$AE,$0C,$02,$0D,$AE,$0C,$18,$34,$AE,$0C,$04   ; half  G3 3b
     .byte $FB,$05,$C3,$D2,$C1,$DA,$D9
-    .byte $29,$56,$0B,$01,$1E,$56,$0B,$02,$08,$56,$0B,$16,$01,$56,$0B,$05   ; cra   E3 3b
-    .byte $2F,$2A,$0A,$03,$01,$2A,$0A,$1B   ; zy    C3 3b
+    .byte $29,$9F,$08,$01,$1E,$9F,$08,$02,$08,$9F,$08,$16,$01,$9F,$08,$05   ; cra   E3 3b
+    .byte $2F,$85,$0F,$03,$01,$85,$0F,$1B   ; zy    C3 3b
     .byte $FB,$03,$C1,$CC,$CC
-    .byte $10,$01,$0E,$07,$22,$01,$0E,$03   ; all   A2 1b
+    .byte $10,$6E,$0E,$07,$22,$6E,$0E,$03   ; all   A2 1b
     .byte $FB,$03,$C6,$CF,$D2
-    .byte $34,$1D,$0C,$02,$11,$1D,$0C,$08   ; for   B2 1b
+    .byte $34,$7E,$0D,$02,$11,$7E,$0D,$08   ; for   B2 1b
     .byte $FB,$03,$D4,$C8,$C5
-    .byte $35,$2A,$0A,$01,$1A,$2A,$0A,$09   ; the   C3 1b
+    .byte $35,$85,$0F,$01,$1A,$85,$0F,$09   ; the   C3 1b
     .byte $FB,$04,$CC,$CF,$D6,$C5
-    .byte $20,$41,$0C,$02,$19,$41,$0C,$0F,$33,$41,$0C,$03   ; love  D3 2b
+    .byte $20,$93,$09,$02,$19,$93,$09,$0F,$33,$93,$09,$03   ; love  D3 2b
     .byte $FB,$02,$CF,$C6
-    .byte $1A,$56,$0B,$08,$33,$56,$0B,$02   ; of    E3 1b
+    .byte $1A,$9F,$08,$08,$33,$9F,$08,$02   ; of    E3 1b
     .byte $FB,$03,$D9,$CF,$D5
-    .byte $03,$41,$0C,$02,$14,$41,$0C,$26   ; you   D3 4b
+    .byte $03,$93,$09,$02,$14,$93,$09,$26   ; you   D3 4b
     .byte $FF
 
 ; total 460 units ~= 19.1 s
