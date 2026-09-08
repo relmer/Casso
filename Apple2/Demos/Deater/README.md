@@ -50,7 +50,26 @@ site missing -- a published image built from a state the speech was not wired
 up in. AppleWin is silent on it too. The amplitude bug above never gets a
 chance to bite here.
 
-**Peasant's Quest is untried.** It carries the same detect routine.
+**Peasant's Quest boots, plays music, and detects the chip.** The floppy set
+works despite the upstream warning. A complete power-on-to-45s trace shows the
+detect sequence and then, 13,629 instructions later, the interrupt handler
+answering it:
+
+```
+$C48C=$0C  $C443=$80  $C440=$C0  $C443=$70  $C48E=$82   detect_ssi263
+$C48D=$02  $C443=$80  $C440=$00  $C443=$70  $C48E=$02   mb_irq
+```
+
+That gap is ~41,000 cycles against the ~37,400 the datasheet formulas predict
+for a duration-3 phoneme at the default rate, so the A/R arrived when it should
+have. **This is the strongest confirmation of the CTL fix on real software**:
+`mb_irq` runs only if the request fired, and the request can only come from the
+CTL one-to-zero transition sounding the phoneme loaded while powered down.
+
+No speech followed in 45 s, and a second trace covering 54-120 s shows none
+either -- ten slot-4 writes in total, all of them the detect handshake. The
+speech is presumably tied to game events (the Trogdor scenes), which need typed
+input to reach.
 
 ## Caveats
 
