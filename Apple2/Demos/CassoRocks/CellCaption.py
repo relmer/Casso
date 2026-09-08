@@ -23,11 +23,11 @@ so its cap height is measured ACROSS the cell band -- eighteen cells --
 rather than down seven scanlines, and at that size the hand-cut font read
 as a stack of blocks.
 
-WHY THIS FACE. Century Gothic is a geometric sans in the Futura line,
-which is the shape language the period's own poster lettering used, and
-its round caps stay round through the threshold where a grotesque's
-subtler curves go lumpy. Bold, because at eighteen cells a text weight
-comes out spindly and a monochrome monitor's bloom eats it.
+WHY THIS FACE. Franklin Gothic is an American grotesque from 1902 whose
+caps are wide, even in color and squarely built, which is what a
+five-letter word wants when every stroke has to land on a cell boundary.
+Medium rather than the book weight: at eighteen cells a text weight comes
+out spindly and a monochrome monitor's bloom eats it.
 
 The font is READ OFF THE HOST rather than committed. Casso is a Windows
 project and these images are authored by hand and committed, so the
@@ -48,10 +48,11 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 
-#  Century Gothic Bold. Present on a machine with Microsoft Office, which
-#  is where the face ships; see the module docstring for why that is an
-#  acceptable dependency and what happens when it is not met.
-FONT_NAME = "GOTHICB.TTF"
+#  Franklin Gothic Medium, which ships with Windows itself rather than
+#  with an application, so any machine that can build Casso can redraw
+#  these. See the module docstring for what happens when it is missing
+#  anyway.
+FONT_NAME = "framd.ttf"
 FONT_DIRS = [Path(r"C:\Windows\Fonts"),
              Path.home() / "AppData/Local/Microsoft/Windows/Fonts"]
 
@@ -74,11 +75,11 @@ def font_path():
             return candidate
 
     raise FileNotFoundError(
-        f"{FONT_NAME} (Century Gothic Bold) not found in "
+        f"{FONT_NAME} (Franklin Gothic Medium) not found in "
         + ", ".join(str(d) for d in FONT_DIRS)
-        + ". It ships with Microsoft Office. Install it, or change "
-          "FONT_NAME here -- but a different face changes the shipped "
-          "artwork, so decide it rather than let it happen.")
+        + ". It ships with Windows. Install it, or change FONT_NAME "
+          "here -- but a different face changes the shipped artwork, so "
+          "decide it rather than let it happen.")
 
 
 def _render_ink(text):
