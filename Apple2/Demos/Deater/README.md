@@ -32,13 +32,36 @@ the 300-3000 Hz band, at exactly the timestamps the trace shows phoneme writes.
 AppleWin behaves the same way -- music, no voice -- so the demo is silent
 wherever the amplitude register is honored.
 
-The clobbering write lives in the shared `ssi263_detect.s`, but whether it
-matters depends on the speech player layered above it, and they differ.
-WarGames' `ssi263_simple_speech.s` re-writes `CAA = $7F` -- amplitude $F -- from
-its interrupt handler on **every** phoneme, so it would recover the volume the
-detect routine dropped. Mist's player never touches `$C443` in the pacing loop
-(three writes to it in the whole traced run: `$5C`, `$80`, `$70`), which is why
-only Mist goes silent.
+The clobbering write lives in the shared `ssi263_detect.s`. Whether it matters
+depends on the speech player layered above it: WarGames' `ssi263_simple_speech.s`
+re-writes `CAA = $7F` -- amplitude $F -- from its interrupt handler on every
+phoneme, which would recover the volume.
+
+**But that is the current GitHub source, not what shipped.** None of the nine
+images contains the byte sequence `A9 7F A2 43` that write assembles to, while
+three of them do carry the detect routine's `$70` tail. So every shipped disk
+here drops the amplitude and none of them restores it -- another sign that these
+images were published from trees the speech was not finished in.
+
+## Patches
+
+Byte patches that make a disk audible. Each site is the `lda #$70` immediate in
+`detect_ssi263`'s tail, found by the anchor `A9 C0 A2 40 20 ?? ?? A9 70 A2 43`;
+`$70` is CTL low with amplitude 0, and `$7C` is the same write with the
+datasheet's typical amplitude $C.
+
+| Image | Offsets | Patch | Status |
+|---|---|---|---|
+| `mist.dsk` | `0x4000`, `0x40B0` | `$70` -> `$7C` | **verified** -- the intro voiceover plays |
+| `peasant_disk1.dsk` | `0x9528` | `$70` -> `$7C` | untested; speech not yet reached |
+| `wargames.dsk` | `0x1B4B4`, `0x1B569` | `$70` -> `$7C` | moot -- detection never runs |
+
+The other six images carry no speech code at all.
+
+Patch a **copy**, never the checked-in image: these are upstream artifacts, and
+the table above is a record of what is wrong with them, not a change we make to
+them. The patched Mist disk is what produced the voiceover capture referenced in
+`specs/024-mockingboard-speech/datasheets/README.md`.
 
 **WarGames fails earlier, and differently.** It never executes its detection at
 all. Two CPU traces -- one complete from power-on to 22s, one covering the
