@@ -404,8 +404,14 @@ bar, so the picture gets the window; all three are
 
 Retro Terminal turns the CRT effects up: scanlines at three quarters strength,
 a wide bloom and color bleed, all still yours to adjust on the Display tab.
+Here is what that does, at 1:1 on the demo's title:
 
-<p align="center"><img src="Assets/theme-retro-detail.png" alt="A 1:1 detail of the Retro Terminal picture: the CASSO title climbing the left edge, with visible scanlines and phosphor bloom" width="360" /></p>
+<table align="center"><tr>
+  <td valign="top" align="center"><img src="Assets/theme-crt-off.png" alt="The Retro Terminal title at 1:1 with the CRT effects switched off: flat green strokes with hard edges" width="340" /><br /><sub>effects off</sub></td>
+  <td valign="top" align="center"><img src="Assets/theme-crt-on.png" alt="The same crop with the effects on: scanlines cutting through every stroke, and a phosphor bloom spreading into the black around them" width="340" /><br /><sub>effects on</sub></td>
+</tr></table>
+
+<p align="center"><sub>The same pixels, one capture apart. Nothing else changes: same picture, same phosphor, same brightness. Solid strokes are the honest subject here -- on the dithered photo beside them the scanlines are hard to tell from the dither's own texture.</sub></p>
 
 **The drives are Disk II models on the desk**, the same CAD objects as the
 monitor, with the DRIVE 1 and IN USE marks, the `disk ][` logotype and the
