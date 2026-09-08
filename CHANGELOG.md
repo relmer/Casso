@@ -8,6 +8,15 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Mockingboard's speech chip stayed silent for software that loaded a
+  phoneme before taking the chip out of standby.** Leaving Power Down now
+  sounds the phoneme already loaded, in the three modes the datasheet's mode
+  chart marks A/R-active, so a driver written in the datasheet's own register
+  order gets the interrupt it waits on instead of stalling before its first
+  word. Software that writes the phoneme after leaving standby is unaffected.
+
 ### Changed
 
 - **The casso-rocks title turned sideways and got a haircut.** CASSO climbs the

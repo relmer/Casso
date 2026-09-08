@@ -385,6 +385,57 @@ namespace Ssi263TestNs
         }
 
 
+        TEST_METHOD (CtlTransitionSoundsThePhonemeLoadedWhilePoweredDown)
+        {
+            Ssi263     chip;
+            uint32_t   cycles = 0;
+
+
+
+            // Load the duration/phoneme register while CTL is still high, then
+            // drop CTL. The mode chart marks this transition "A/R active", so
+            // the chip generates phoneme $08 without any further write.
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme,
+                                static_cast<Byte> ((Ssi263::kModePhonemeTransitioned
+                                                    << Ssi263::kDurationShift) | 0x08));
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x0C);
+
+            Assert::IsFalse (chip.IsSilent(),
+                             L"Leaving Power Down must start the loaded phoneme");
+
+            cycles = static_cast<uint32_t> (chip.GetPhonemeDurationSec() * kBareTickClockHz);
+
+            chip.Tick (cycles / 2);
+            Assert::IsFalse (chip.IsRequesting(), L"Must not request part-way through");
+
+            chip.Tick (cycles);
+            Assert::IsTrue (chip.IsRequesting(),
+                            L"A/R must assert once that phoneme has been generated");
+        }
+
+
+        TEST_METHOD (DetectionSequenceGetsItsInterruptAtZeroAmplitude)
+        {
+            Ssi263   chip;
+
+
+
+            // The published detection sequence: raise CTL, arm the transitioned
+            // mode, drop CTL with the amplitude at zero, then wait for A/R.
+            // Nothing is audible, but the request must still arrive -- this is
+            // how software decides whether a speech chip is fitted at all.
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp,        0x80);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme,  0xC0);
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp,        0x70);
+
+            chip.Tick (static_cast<uint32_t> (chip.GetPhonemeDurationSec()
+                                              * kBareTickClockHz) + 1);
+
+            Assert::IsTrue (chip.IsRequesting(),
+                            L"A silent phoneme must still request when it ends");
+        }
+
+
         TEST_METHOD (WritingNextPhonemeWithdrawsTheRequest)
         {
             Ssi263     chip;

@@ -1039,17 +1039,34 @@ float Ssi263::ResonateFricative (float input, double centerHz)
 //  LatchMode
 //
 //  Captures the operating mode on the CTL one-to-zero transition, from the
-//  duration bits as they stand at that instant. Leaving Power Down does not by
-//  itself sound anything -- software still has to write a phoneme.
+//  duration bits as they stand at that instant.
+//
+//  In the three modes the chart marks "A/R active" the transition also STARTS
+//  the phoneme already sitting in P5-P0: excitation and analog come back on,
+//  the chip generates that phoneme, and A/R falls when it is done. Only the
+//  DR1=DR0=LO row leaves the request line alone.
+//
+//  That is the only event the datasheet offers that can produce a FIRST A/R --
+//  it has software load the attribute registers after power up and then take
+//  CTL low -- so a driver written in that order, and detection code that spins
+//  on the interrupt, get nothing at all without this.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Ssi263::LatchMode()
 {
-    m_mode          = GetDurationSel();
-    m_request       = false;
-    m_sounding      = false;
-    m_phonemeCycles = 0.0;
+    m_mode = GetDurationSel();
+
+    if (m_mode == kModeArDisabled)
+    {
+        m_request       = false;
+        m_sounding      = false;
+        m_phonemeCycles = 0.0;
+
+        return;
+    }
+
+    BeginPhoneme();
 }
 
 
@@ -1060,8 +1077,10 @@ void Ssi263::LatchMode()
 //
 //  BeginPhoneme
 //
-//  Starts the phoneme just written and withdraws any outstanding request --
-//  the write IS the answer to the previous one.
+//  Starts the phoneme now in P5-P0 and withdraws any outstanding request. The
+//  pacing loop reaches here by writing the next phoneme, and that write IS the
+//  answer to the previous request; the CTL one-to-zero transition reaches here
+//  with whatever was loaded while the chip was powered down.
 //
 //  A phoneme after a pause GLIDES IN from wherever the tract was left, and
 //  does not snap to its own targets. Snapping was tried first, by zeroing the
