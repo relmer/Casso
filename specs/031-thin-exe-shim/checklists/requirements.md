@@ -49,6 +49,31 @@ here than they would on a normal feature.
   vendored `External/`. SC-001's floor is derived from the measured size of the
   code that must stay behind, so the target is checkable rather than aspirational.
 
+- **The first draft of this specification broke the principle it specifies.** It
+  measured the exe by counting which files mentioned a window handle, a graphics
+  type or an audio interface, and it enumerated those same APIs as the
+  "irreducible edge" that stays behind. That is the platform-boundary question
+  Principle VI forbids, reintroduced inside the document meant to enforce it,
+  and it was wrong on the facts as well: a graphics device on a software adapter
+  is drivable by a test, so the renderer and post-process chain are core work.
+  The count is gone, FR-003 is stated in terms of what a test could drive,
+  FR-004 bans naming a platform API as a justification anywhere, SC-001's target
+  dropped from 6,000 lines to 1,500 once the conceded floor went with it, and
+  User Story 7 exists to extract the code the first draft would have exempted.
+  Recorded here rather than fixed silently, because the same mistake is what
+  constitution 1.10.0 was written to correct.
+
+- **The second draft still conceded too much, and `TCDir` settled it.** Having
+  removed the API-token reasoning, the draft still granted the exe a list of
+  things that stay — the pump, the devices, the dialogs — and merely justified
+  the list differently. The owner's rule is that the exe holds one function at
+  most, and `TCDir` in the same source tree goes further: its exe project holds
+  *zero* code, `wmain` lives in `TCDirCore`, and the linker pulls it back out
+  because the project names `wmainCRTStartup` as its entry point symbol. That is
+  now FR-003 and FR-003a, and it removes the last surface an exemption argument
+  could attach to. User Story 8 exists to reach it, and SC-002 is a count of
+  functions in the exe, expected zero — a check that can actually fail.
+
 - **The slice ordering is a default and says so.** FR-005 binds each slice to
   being independently shippable; the P1 → P3 ordering is risk-and-dependency
   reasoning that planning may revise. This is recorded in Assumptions so a later
