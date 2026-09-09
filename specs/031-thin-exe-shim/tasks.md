@@ -19,9 +19,9 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 ## Phase 1: Setup
 
-- [ ] T001 Amend Principle VI in `.specify/memory/constitution.md` so "What Actually Stays" grants an executable no code at all, citing `TCDir`; in the same amendment correct the `crt-pi`, libretro `bloom` and `ntsc-adaptive` allowlist rows, whose Used By and Location still read `Casso` and `Casso/Shaders/`; bump the version and Last Amended date per the amendment process
-- [ ] T002 Record the branch-point measurement in `specs/031-thin-exe-shim/measurements.md`: per-project line counts, `Casso` `ClCompile`/`ClInclude` counts, and the 38 dual-compile entries
-- [ ] T003 Merge `origin/master` into the branch and confirm Debug and Release build before any file moves
+- [x] T001 Amend Principle VI in `.specify/memory/constitution.md` so "What Actually Stays" grants an executable no code at all, citing `TCDir`; in the same amendment correct the `crt-pi`, libretro `bloom` and `ntsc-adaptive` allowlist rows, whose Used By and Location still read `Casso` and `Casso/Shaders/`; bump the version and Last Amended date per the amendment process
+- [x] T002 Record the branch-point measurement in `specs/031-thin-exe-shim/measurements.md`: per-project line counts, `Casso` `ClCompile`/`ClInclude` counts, and the 38 dual-compile entries
+- [x] T003 Merge `origin/master` into the branch and confirm Debug and Release build before any file moves
 
 ---
 
@@ -30,8 +30,8 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 **Blocking**: every story phase writes into the structure these tasks create.
 
 - [ ] T004 Create the receiving directories in `CassoEmuCore/`: `Machines/Apple2/{Common,Apple2,Apple2Plus,Apple2e,Apple2eEnhanced,Apple2c}/`, `Config/`, `Shell/`, `Ui/{Chrome,Dialogs,Scene,Settings,Debug}/`, `Print/`, `Seams/`, `Gui/`
-- [ ] T005 Add a helper to `scripts/` that counts functions defined in a project's translation units, so SC-002 is a check that can fail rather than an inspection
-- [ ] T006 Add a helper to `scripts/` that reports remaining `..\Casso` `ClCompile` entries in `UnitTest/UnitTest.vcxproj`, for the per-phase measurement
+- [x] T005 Add a helper to `scripts/` that counts functions defined in a project's translation units, so SC-002 is a check that can fail rather than an inspection
+- [x] T006 Add a helper to `scripts/` that reports remaining `..\Casso` `ClCompile` entries in `UnitTest/UnitTest.vcxproj`, for the per-phase measurement
 
 ---
 
