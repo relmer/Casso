@@ -405,6 +405,8 @@
     <ClCompile Include="EmulatorShell.cpp" />
     <ClCompile Include="RichEditSquiggle.cpp" />
     <ClCompile Include="WasapiAudio.cpp" />
+    <ClCompile Include="Gui\GuiMain.cpp" />
+    <ClCompile Include="Cli\CliEntry.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>

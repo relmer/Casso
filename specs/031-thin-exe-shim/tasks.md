@@ -84,12 +84,12 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T029 [P] [US2] Move `TrackSectorPredicate` to `CassoEmuCore/Devices/Disk/` and update its project entries
 - [x] T030 [P] [US2] Move `DebugDialogProjection`, `Disk2DebugDialogState`, `InputDebugDialogState`, `InputEventDisplay`, `Disk2EventDisplay` to `CassoEmuCore/Ui/Debug/`
 - [x] T031 [P] [US2] Move `DiskSettings` to `CassoEmuCore/Config/` and `PerfStats` to `CassoEmuCore/Core/`
-- [ ] T032 [US2] Split `AssetBootstrap`: the resolution and catalog half moves to `CassoEmuCore/Config/`, the remainder stays until Story 8
+- [x] T032 [US2] Split `AssetBootstrap`: the resolution and catalog half moves to `CassoEmuCore/Config/`, the remainder stays until Story 8
 - [x] T033 [US2] Delete the corresponding `..\Casso` `ClCompile` entries from `UnitTest/UnitTest.vcxproj`
 - [x] T034 [P] [US2] Test: `TrackSectorPredicate` evaluated at its geometry boundaries matches the documented rule at each boundary
 - [x] T035 [P] [US2] Test: the debug projections format a synthetic event stream into exactly the expected rows, including the empty and overflow cases
 - [x] T036 [P] [US2] Tests for `DiskSettings`, `PerfStats` and the `AssetBootstrap` catalog half against synthetic inputs
-- [ ] T037 [US2] Run the per-phase gate and commit with the measurement
+- [x] T037 [US2] Run the per-phase gate and commit with the measurement
 
 ---
 
@@ -119,16 +119,16 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: mock sinks and a synthetic file system; assert dispatch, mount/eject, MRU ordering and encoded bytes.
 
-- [ ] T049 [US4] Move `Casso/Shell/` to `CassoEmuCore/Shell/`: `WindowCommandManager`, `MachineManager`, `DiskManager`, `CpuManager`, `ClipboardManager`, `ScreenshotCapture`, `DiskMru`, `WindowManager`, `ModernPrintDialog`
-- [ ] T050 [US4] Move `Casso/Print/` to `CassoEmuCore/Print/`
+- [x] T049 [US4] Move `Casso/Shell/` to `CassoEmuCore/Shell/`: `WindowCommandManager`, `MachineManager`, `DiskManager`, `CpuManager`, `ClipboardManager`, `ScreenshotCapture`, `DiskMru`, `WindowManager`, `ModernPrintDialog`
+- [x] T050 [US4] Move `Casso/Print/` to `CassoEmuCore/Print/`
 - [ ] T051 [US4] Introduce seams for the clipboard round-trip and the image encode, both sides in core, and place the OS-owned print and file dialogs behind seams as well
-- [ ] T052 [US4] Delete the `Shell/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj`
+- [x] T052 [US4] Delete the `Shell/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj`
 - [ ] T053 [P] [US4] Test: switching machines re-attaches an open debug panel to the new controller and audio source — the shipped fix that has no test guarding it
 - [ ] T054 [P] [US4] Test: an MRU list at capacity moves an already-present entry to the front without duplicating and without evicting an unrelated entry
 - [ ] T055 [P] [US4] Test: a screenshot captured from a synthetic framebuffer decodes back to the same pixels at the expected dimensions
 - [ ] T056 [P] [US4] Test: command dispatch and mount/eject outcomes against mock sinks
 - [ ] T057 [US4] Launch the emulator and confirm machine switch, mount, clipboard and capture behave as before
-- [ ] T058 [US4] Run the per-phase gate and commit with the measurement
+- [x] T058 [US4] Run the per-phase gate and commit with the measurement
 
 ---
 
@@ -138,18 +138,18 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: construct each state object directly, apply changes, assert state and emitted apply commands, with no painter and no window.
 
-- [ ] T059 [US5] Move `Casso/Ui/Settings/` to `CassoEmuCore/Ui/Settings/`
-- [ ] T060 [US5] Move `Casso/Ui/Chrome/` to `CassoEmuCore/Ui/Chrome/`
-- [ ] T061 [US5] Move `Casso/Ui/Scene/` to `CassoEmuCore/Ui/Scene/`
-- [ ] T062 [US5] Move `Casso/Ui/Dialogs/` to `CassoEmuCore/Ui/Dialogs/`
-- [ ] T063 [US5] Move the `Casso/Ui/` root files to `CassoEmuCore/Ui/`
-- [ ] T064 [US5] Delete the remaining `Ui/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj` and drop `..\Casso\Ui\Chrome` from its `AdditionalIncludeDirectories`
+- [x] T059 [US5] Move `Casso/Ui/Settings/` to `CassoEmuCore/Ui/Settings/`
+- [x] T060 [US5] Move `Casso/Ui/Chrome/` to `CassoEmuCore/Ui/Chrome/`
+- [x] T061 [US5] Move `Casso/Ui/Scene/` to `CassoEmuCore/Ui/Scene/`
+- [x] T062 [US5] Move `Casso/Ui/Dialogs/` to `CassoEmuCore/Ui/Dialogs/`
+- [x] T063 [US5] Move the `Casso/Ui/` root files to `CassoEmuCore/Ui/`
+- [x] T064 [US5] Delete the remaining `Ui/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj` and drop `..\Casso\Ui\Chrome` from its `AdditionalIncludeDirectories`
 - [ ] T065 [P] [US5] Test: a control disabled by another control's value changes enablement when the governing value changes, asserted without painting
 - [ ] T066 [P] [US5] Test: desk-scene layout places every element rectangle inside the scene bounds at every supported DPI
 - [ ] T067 [P] [US5] Test: settings page validation and the apply commands each page emits
 - [ ] T068 [P] [US5] Test: chrome state synchronization against synthetic machine state
 - [ ] T069 [US5] Launch the emulator and walk every Settings page, the chrome bands and the desk scene, confirming no visible change
-- [ ] T070 [US5] Run the per-phase gate and commit with the measurement
+- [x] T070 [US5] Run the per-phase gate and commit with the measurement
 
 ---
 
@@ -180,10 +180,10 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 - [ ] T081 [US7] Add a WARP-backed device and a readback path to `UnitTest`, with no window and no display; `Dxui` creates only `D3D_DRIVER_TYPE_HARDWARE` devices today
 - [ ] T082 [US7] Add golden-image storage and a pixel-exact comparison helper with no tolerance parameter (FR-008a)
-- [ ] T083 [US7] Move `Casso/Shaders/` to `CassoEmuCore/Shaders/` and relocate the `Shaders.targets` import, whose paths are relative to the importing project
+- [x] T083 [US7] Move `Casso/Shaders/` to `CassoEmuCore/Shaders/` and relocate the `Shaders.targets` import, whose paths are relative to the importing project
 - [ ] T084 [US7] Move `CrtPostProcess` and the pass structure, parameter resolution and compositing arithmetic to `CassoEmuCore/Render/`
 - [ ] T085 [US7] Move the audio mixing into `CassoEmuCore/Audio/`, leaving only handing finished samples to the endpoint
-- [ ] T086 [US7] Delete the `CrtPostProcess` `ClCompile` entry from `UnitTest/UnitTest.vcxproj`
+- [x] T086 [US7] Delete the `CrtPostProcess` `ClCompile` entry from `UnitTest/UnitTest.vcxproj`
 - [ ] T087 [P] [US7] Test: a synthetic framebuffer through the full pass chain matches its checked-in golden pixel-exact
 - [ ] T088 [P] [US7] Test: changing one CRT parameter changes the image in the documented direction
 - [ ] T089 [P] [US7] Test: a mixed span of sources at known gains and pans matches expected samples, including at the clipping boundary
@@ -199,15 +199,15 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: count functions in each project; the expected answer is zero. Both executables build and start.
 
-- [ ] T093 [US8] Move `wWinMain` from `Casso/Main.cpp` to `CassoEmuCore/Gui/`, along with everything else remaining in `Casso/`
-- [ ] T094 [US8] Set `<EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>` in every configuration of `Casso.vcxproj`
-- [ ] T095 [US8] Reduce `Casso.vcxproj` to `Casso.rc`, `resource.h` and one comment-only `Main.cpp`, removing all other `ClCompile` and `ClInclude` entries
-- [ ] T096 [US8] Write `Casso/Main.cpp` as the comment-only translation unit, whose haiku closes "CassoEmuCore" — five syllables (FR-003b)
-- [ ] T097 [US8] Move `main` from `CassoCli/CassoCli.cpp` into `CassoEmuCore/Cli/`, set `<EntryPointSymbol>mainCRTStartup</EntryPointSymbol>`, and reduce the project the same way
-- [ ] T098 [US8] Remove the `ProjectReference` to `Casso.vcxproj` from `UnitTest/UnitTest.vcxproj`, drop `..\Casso` from its `AdditionalIncludeDirectories`, and confirm zero `..\Casso` `ClCompile` entries remain
-- [ ] T099 [P] [US8] Test: the function count in each executable project is zero
-- [ ] T100 [US8] Build Debug and Release and confirm both executables link and start
-- [ ] T101 [US8] Run the per-phase gate and commit with the measurement
+- [x] T093 [US8] Move `wWinMain` from `Casso/Main.cpp` to `CassoEmuCore/Gui/`, along with everything else remaining in `Casso/`
+- [x] T094 [US8] Set `<EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>` in every configuration of `Casso.vcxproj`
+- [x] T095 [US8] Reduce `Casso.vcxproj` to `Casso.rc`, `resource.h` and one comment-only `Main.cpp`, removing all other `ClCompile` and `ClInclude` entries
+- [x] T096 [US8] Write `Casso/Main.cpp` as the comment-only translation unit, whose haiku closes "CassoEmuCore" — five syllables (FR-003b)
+- [x] T097 [US8] Move `main` from `CassoCli/CassoCli.cpp` into `CassoEmuCore/Cli/`, set `<EntryPointSymbol>mainCRTStartup</EntryPointSymbol>`, and reduce the project the same way
+- [x] T098 [US8] Remove the `ProjectReference` to `Casso.vcxproj` from `UnitTest/UnitTest.vcxproj`, drop `..\Casso` from its `AdditionalIncludeDirectories`, and confirm zero `..\Casso` `ClCompile` entries remain
+- [x] T099 [P] [US8] Test: the function count in each executable project is zero
+- [x] T100 [US8] Build Debug and Release and confirm both executables link and start
+- [x] T101 [US8] Run the per-phase gate and commit with the measurement
 
 ---
 

@@ -64,6 +64,22 @@ Each slice appends a row on completion.
 | 1 | Config + tests | 86,128 | 1,187 | 31 | 77,054 |
 | 9 | machine definitions | 86,128 | 1,187 | 31 | 77,638 |
 | 2 | strays (partial) | 84,151 | 1,150 | 28 | 78,270 |
+| 4-7 | the whole program moves | 944 | 4 | 1 | 160,410 |
+| 8 | linker targets | **5** | **0** | **0** | 161,273 |
+
+### Target status
+
+| Measure | Branch point | Target | Now |
+|---|---:|---:|---:|
+| `Casso` lines of code | 93,928 | 0 | **0** (5 comment lines) |
+| `Casso` functions | 1,235 | 0 | **0** |
+| `CassoCli` functions | 1 | 0 | **0** |
+| Dual-compiled sources | 38 | 0 | **0** |
+| `UnitTest` -> `Casso.vcxproj` | present | removed | **removed** |
+
+SC-001, SC-002, SC-002a and SC-003a are met. Each executable project holds one
+comment-only translation unit and its resource script, and names the CRT
+startup symbol so the linker recovers the entry point from the library.
 
 ### Slice 2 notes
 
