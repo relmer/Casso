@@ -86,13 +86,15 @@ merge commit or the code is on master instead.
 <!-- SPECKIT START -->
 ## Active feature
 
-**030-screenshot-capture** -- screenshot capture modes, file output, and metadata.
-Closes GH #132.
+**031-thin-exe-shim** -- move all 93,927 lines out of `Casso.exe` into
+`CassoEmuCore`, leaving both executables as linker targets holding no code.
+Closes GH #85.
 
-- Plan: `specs/030-screenshot-capture/plan.md`
-- Spec: `specs/030-screenshot-capture/spec.md`
-- Research: `specs/030-screenshot-capture/research.md`
-- Data model: `specs/030-screenshot-capture/data-model.md`
-- Metadata contract: `specs/030-screenshot-capture/contracts/screenshot-metadata.md`
-- Validation: `specs/030-screenshot-capture/quickstart.md`
+- Plan: `specs/031-thin-exe-shim/plan.md`
+- Spec: `specs/031-thin-exe-shim/spec.md`
+- Research: `specs/031-thin-exe-shim/research.md`
+- Data model: `specs/031-thin-exe-shim/data-model.md`
+- Executable contract: `specs/031-thin-exe-shim/contracts/executable-project.md`
+- Machine layout contract: `specs/031-thin-exe-shim/contracts/machine-layout.md`
+- Validation: `specs/031-thin-exe-shim/quickstart.md`
 <!-- SPECKIT END -->
