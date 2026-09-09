@@ -61,7 +61,18 @@ Each slice appends a row on completion.
 |---|---|---:|---:|---:|---:|
 | — | baseline | 93,928 | 1,235 | 38 | 69,247 |
 | 0 | machine hierarchy | 93,928 | 1,235 | 38 | 69,247 |
-| 1a | Config move | 86,128 | 1,187 | 31 | 77,054 |
+| 1 | Config + tests | 86,128 | 1,187 | 31 | 77,054 |
+
+### Slice 1 notes
+
+The coverage obligation (FR-009) was already largely met, by dual compilation
+rather than by linking. `CrtResolverTests`, `GlobalUserPrefsTests`,
+`MonitorCatalogTests`, `WindowPlacementProfileTests`, `MachineInputPrefsTests`
+and `UserConfigStoreTests` all existed and all now link the library instead of
+compiling a second copy. Only two of the story's acceptance scenarios were
+genuinely unasserted, and only those two tests were added; padding the rest
+with restatements of existing coverage would make FR-009 look satisfied without
+making anything safer.
 
 ### Slice 0 notes
 

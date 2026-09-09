@@ -694,4 +694,39 @@ public:
         Assert::IsTrue (text.find ("Maximum") != std::string::npos);
     }
 
+    TEST_METHOD (Load_WrongTypedBlock_FallsBackToDefaultsAndKeepsTheRest)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        HRESULT             hr;
+
+        //
+        // A block of the wrong TYPE is the case a missing block does not
+        // cover. Load_MissingFields_Tolerated proves an absent "crt" is fine;
+        // this proves a present but unusable one is too, because a hand-edited
+        // or half-written preferences file produces exactly this and it must
+        // not take the whole document down with it.
+        //
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{" 
+                              "\"$cassoGlobalPrefsVersion\":1,"
+                              "\"activeTheme\":\"DarkModern\","
+                              "\"crt\":\"not-an-object\","
+                              "\"showFrameRate\":true,"
+                              "\"keptByAStranger\":42"
+                              "}");
+        AssertSucceeded (hr);
+
+        hr = prefs.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr, L"a wrong-typed block must not fail the load");
+
+        //  The damaged subsystem falls back to its documented default.
+        Assert::AreEqual ((size_t) 0, prefs.crtOverrides.size(),
+                          L"crt overrides must default when the block is unusable");
+
+        //  Everything either side of it survives.
+        Assert::AreEqual (string ("DarkModern"), prefs.activeTheme);
+        Assert::IsTrue (prefs.showFrameRate,
+                        L"a key after the damaged block must still be read");
+    }
 };

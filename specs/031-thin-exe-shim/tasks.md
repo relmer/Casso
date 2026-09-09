@@ -63,15 +63,15 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: synthetic in-memory file system; no disk, no registry, no window.
 
-- [ ] T020 [US1] Move `Casso/Config/` to `CassoEmuCore/Config/`, taking the `IFileSystem` seam and `Win32FileSystem` together
-- [ ] T021 [US1] Update `CassoEmuCore.vcxproj`, `Casso.vcxproj` and include paths for the moved files
-- [ ] T022 [US1] Delete the `Config/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj` (`UserConfigStore`, `GlobalUserPrefs`, `WindowPlacementProfile`, `MachineInputPrefs`, `CrtResolver`) — linking replaces dual compilation
-- [ ] T023 [P] [US1] Test in `UnitTest/Config/`: a preferences document with a corrupt or absent block falls back to documented defaults, preserves the rest, and does not abort
-- [ ] T024 [P] [US1] Test in `UnitTest/Config/`: preference merge order across global, per-machine and override layers
-- [ ] T025 [P] [US1] Test in `UnitTest/Config/`: a saved window placement referring to a monitor arrangement that no longer exists restores onto a currently attached work area
-- [ ] T026 [P] [US1] Test in `UnitTest/Config/`: monitor catalog lookup and CRT override resolution against synthetic catalogs
-- [ ] T027 [US1] Launch the emulator and confirm every Settings page reads and writes as before
-- [ ] T028 [US1] Run the per-phase gate and commit with the measurement
+- [x] T020 [US1] Move `Casso/Config/` to `CassoEmuCore/Config/`, taking the `IFileSystem` seam and `Win32FileSystem` together
+- [x] T021 [US1] Update `CassoEmuCore.vcxproj`, `Casso.vcxproj` and include paths for the moved files
+- [x] T022 [US1] Delete the `Config/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj` (`UserConfigStore`, `GlobalUserPrefs`, `WindowPlacementProfile`, `MachineInputPrefs`, `CrtResolver`) — linking replaces dual compilation
+- [x] T023 [P] [US1] Test in `UnitTest/Config/`: a preferences document with a corrupt or absent block falls back to documented defaults, preserves the rest, and does not abort
+- [x] T024 [P] [US1] Test in `UnitTest/Config/`: preference merge order across global, per-machine and override layers
+- [x] T025 [P] [US1] Test in `UnitTest/Config/`: a saved window placement referring to a monitor arrangement that no longer exists restores onto a currently attached work area
+- [x] T026 [P] [US1] Test in `UnitTest/Config/`: monitor catalog lookup and CRT override resolution against synthetic catalogs
+- [x] T027 [US1] Launch the emulator and confirm every Settings page reads and writes as before
+- [x] T028 [US1] Run the per-phase gate and commit with the measurement
 
 ---
 
