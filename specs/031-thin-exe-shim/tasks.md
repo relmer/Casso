@@ -222,7 +222,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T111 [P] [US9] Define `Apple2e`, `Apple2eEnhanced` — identical device lists, differing only in CPU and ROM
 - [x] T112 [P] [US9] Define `Apple2c`, including the ROM bank that is currently wired from the executable
 - [x] T113 [US9] Add a definition lookup by model id and have machine construction take the invariant fields from it rather than from `MachineConfig`
-- [ ] T114 [US9] Remove `internalDevices`, keyboard layout, video modes, CPU and RAM from the JSON schema and from the embedded defaults; leave slots, ports and ROM overrides
+- [ ] T114 [US9] Remove `internalDevices`, keyboard layout, video modes, CPU and RAM from the JSON schema and from the embedded defaults; leave slots, ports and ROM overrides. Needs a `$cassoMachineVersion` bump and an upgrade path in `MachineConfigUpgrade`
 - [ ] T115 [US9] Remove `internalDevices` from the delta-merge in `CassoEmuCore/Config/UserConfigStore.cpp` (:2159, :2316) and bump the machine-definition version with an upgrade path
 - [x] T116 [US9] Rename device type strings to the `-family-` form and update the registry, the definitions and every test
 - [x] T117 [P] [US9] Test: a delta naming a different keyboard for the //c leaves the //c's own keyboard in place
@@ -230,6 +230,22 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [ ] T119 [P] [US9] Test: slot contents and attached peripherals set in JSON still take effect
 - [ ] T120 [US9] Launch the emulator, switch between all five machines, and confirm each still boots and behaves as before
 - [ ] T121 [US9] Run the per-phase gate and commit with the measurement
+
+### Machine classes (executed inside slices 4 and 6, not before)
+
+These absorb most of `MachineManager`, which User Story 4 extracts and User
+Story 6 finishes. Building them ahead of those slices would mean building the
+hierarchy, moving it, then rewiring the shell around it.
+
+- [ ] T128 [US9] Add `Apple2Machine` in `CassoEmuCore/Machines/Apple2/Common/`: speaker, game port, 40-column text, lo-res and hi-res, and a virtual slot count
+- [ ] T129 [US9] Add `Apple2e` deriving from it: aux bank, MMU, extended soft switches, full keyboard, 80-column text and double hi-res constructed in its own initialization
+- [ ] T130 [P] [US9] Add `Apple2` and `Apple2Plus` leaves; both are expected to be nearly empty, since their differences are a ROM file and a default slot card
+- [ ] T131 [P] [US9] Add `Apple2eEnhanced` deriving from `Apple2e`: the 65C02 and nothing else
+- [ ] T132 [US9] Add `Apple2c` deriving from `Apple2e` as a SIBLING of `Apple2eEnhanced`: 65C02, slot count zero, back-panel ports, ROM banking. Do not derive it from `Apple2eEnhanced`, which shipped a year later
+- [ ] T133 [US9] Move the `apple2e-family-mmu` special case (`MachineManager.cpp:266`) and `WireApple2cRomBank` (`:961`) into the machines that own them; the //e's MMU and the //c's ROM bank are wired from the executable today
+- [ ] T134 [US9] Replace the 14 `IsApple2c()` call sites with capability queries on the machine — which drive mesh, whether a switch band exists, whether a switch bar is shown — since every one of them is a presentation question, not an emulation one
+- [ ] T135 [US9] Delete `videoConfig.modes`: nothing in production reads it, `MachineManager` builds all five renderers unconditionally, and each machine's initialization now constructs its own
+- [ ] T136 [P] [US9] Tests: each machine reports its own slot count, CPU and renderers; an `Apple2` has no 80-column renderer; a //c has zero slots and a //e seven
 
 ---
 

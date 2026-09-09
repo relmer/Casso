@@ -77,6 +77,8 @@ So the hole is not a coverage hole. It is a boundary hole, and dual compilation 
 
 - Q: How should a device type name say which machines it serves? → A: With a `-family-` segment naming the model it debuted on. `apple2e-family-mmu` is the MMU introduced with the //e and used by every later machine in that line; `apple2-family-speaker` is the same part on all five.
 
+- Q: Should a machine be a data record or a class? → A: A class, in a hierarchy rooted in the order the machines were actually built. A model's initialization constructs what that model has, so a capability list stops being data that nothing enforces. The flat definition records are the step that closed the editable-hardware hole; the classes are where they end up.
+
 ## User Scenarios & Testing *(mandatory)*
 
 The "user" here is a Casso maintainer. Each story is an independently completable slice: it finishes on the feature branch on its own, leaves the emulator behaving identically, and adds test coverage where there was none. Slices are units of work and review, not units of release — see FR-006 for how they reach master. They are ordered so that the cheapest, least entangled code moves first and establishes the seam pattern the later slices reuse. User Story 0 precedes them all: it moves no code out of the exe, but it puts the destination directories in place so that every later slice lands its files where they belong the first time.
@@ -107,9 +109,31 @@ A maintainer cannot produce a machine that never existed by editing a preference
 
 `internalDevices`, the keyboard layout, the video modes, the CPU and the RAM layout are not configuration. Nobody chose them; they are what the machine is. Today they sit in each machine's JSON definition, and `UserConfigStore` merges user deltas into `internalDevices` specifically, so a delta can give a //c an `apple2-keyboard` or a ][ the //e soft switches and nothing refuses it.
 
-They move into a per-model definition in code. The devices are still built through `ComponentRegistry` by type string, so the factory pattern and the registry are unchanged; what moves is the decision of *which* devices a model has. What stays in JSON is what an owner could genuinely change on the physical machine: slot contents, port assignments and attached peripherals, and a ROM file override. The test is whether someone could have done it with a screwdriver.
+They move into code, in two steps. First a per-model definition record, which closes the hole: the devices are still built through `ComponentRegistry` by type string, so the factory pattern and the registry are unchanged, and only the decision of *which* devices a model has moves. Then those records become machine classes, and the decision stops being data at all.
+
+The hierarchy is rooted in the order the machines were built, because that is where the shared implementation actually comes from:
+
+```
+Apple2Machine
+├── Apple2                 1977
+├── Apple2Plus             1979
+└── Apple2e                1983   aux bank, MMU, extended soft switches,
+    │                             full keyboard, 80-column and double hi-res
+    ├── Apple2c            1984   65C02, zero slots, back-panel ports, ROM banking
+    └── Apple2eEnhanced    1985   65C02
+```
+
+The //c is a sibling of the Enhanced //e, not its parent or its child. It shipped a year earlier, and the Enhanced //e was Apple retrofitting the //c's 65C02 and ROMs back into the //e, so deriving either from the other inverts what happened. Their entire shared surface is one value, `cpu = 65C02`; their character ROMs differ. A base class holding one assignment costs a reader more than the duplicated line.
+
+Nothing in this family is *removed* by a derived machine. The //c's lack of slots is a count of zero, not a facet taken away, so no removal mechanism is built. One is added when a machine demands it and not before.
+
+A capability list disappears with the classes. `Apple2e`'s initialization constructs the 80-column and double hi-res renderers because having an aux bank and an MMU is what makes them possible — there is no list to keep in sync, and nothing can declare a capability the machine does not have.
+
+What stays in JSON is what an owner could genuinely change on the physical machine: slot contents, port assignments and attached peripherals, and a ROM file override. The test is whether someone could have done it with a screwdriver.
 
 Device type strings gain a `-family-` segment naming the model that introduced them, so a reader can tell from the name alone which machines a device serves.
+
+**Where the work happens**: the definition records land on their own. The classes do not: they absorb most of `MachineManager`, which User Story 4 extracts and User Story 6 finishes, so building them separately would mean building the hierarchy, moving it, then rewiring the shell around it. The class work is therefore done *inside* slices 4 and 6 rather than ahead of them.
 
 **Why this priority**: it is the correction that keeps the machine hierarchy honest. User Story 0 put machine code under its machine; this stops the machine's own composition from being rewritable by anyone with a text editor. It is independent of the extraction slices and can be scheduled around them.
 
@@ -372,6 +396,8 @@ This is the terminal slice and it is small: once the preceding slices have empti
 - **The reorganization sweep is deliberate scope, not drift.** Principle V limits changes to files explicitly required, and User Story 0 touches roughly two hundred files that this extraction would not otherwise have opened. It is included because the alternative considered — applying the hierarchy only to relocated files — leaves `Devices/` split between two conventions with no rule a later reader could infer, and because the sweep has to happen at some point regardless, at which time it would be strictly more expensive.
 
 - **The machine hierarchy does not itself untangle machine-generic from machine-specific code.** It relocates files so the boundary is visible and puts a rule in place that new code has to answer to. Where a file mixes both concerns, splitting it is a behavior-affecting change and belongs to a later specification; User Story 0 places such a file with the machine it currently assumes and leaves the mixture intact, so that the sweep stays mechanical per FR-005e.
+
+- **The hierarchy accommodates the next two models and defers the IIGS.** An Apple IIe Platinum (1987) is a leaf under `Apple2eEnhanced`, and a //c Plus (1988) a leaf under `Apple2c`, each adding a class and a definition without editing shared code. The IIGS is deliberately not placed. Its device-level overlap with the Enhanced //e is large — the whole //e memory map, the MMU semantics, every //e video mode, the speaker and game port, the 65C02 as a subset of the 65C816 — so a leaf position is defensible. What is not yet decidable is the cost: `MemoryBus` and `MemoryDevice` are 16-bit addressed across 12 implementers and 128 `Word address` signatures, and a 65C816 needs 24 bits over 256 banks. Where the IIGS sits is a question about the bus, not about machines, and the hierarchy is adjusted when that work is actually done.
 
 - **`MeshCreator` is out of scope.** It is a build-time tool, not a shipped executable: `Casso.vcxproj` builds it and then runs it during the Casso build to bake each `.mesh`/`.mtl` pair into the `.dmesh` the app loads, so it reaches no end user and is never in a release. FR-003's zero-lines rule and SC-002's function count apply to the executables that ship — `Casso.exe` and `CassoCli.exe` — and not to it. Recorded so a later reader does not read SC-002a as an oversight.
 
