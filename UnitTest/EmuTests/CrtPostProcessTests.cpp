@@ -130,18 +130,19 @@ private:
                                     const CrtParams        & params,
                                     std::vector<uint32_t>  & outPixels)
     {
-        HRESULT                           hr      = S_OK;
+        HRESULT                           hr         = S_OK;
         WarpRenderHarness                 harness;
         CrtPostProcess                    chain;
-        CrtParams                         adjusted = params;
+        CrtParams                         adjusted   = params;
         std::vector<uint32_t>             source ((size_t) s_kSourceW * s_kSourceH, sourceColor);
         ComPtr<ID3D11ShaderResourceView>  srv;
         ComPtr<ID3D11Texture2D>           target;
         ComPtr<ID3D11RenderTargetView>    rtv;
-        RECT                              viewport = { 0, 0, s_kTargetW, s_kTargetH };
-        bool                              fInit    = false;
+        RECT                              viewport   = { 0, 0, s_kTargetW, s_kTargetH };
+        bool                              fInit      = false;
+        bool                              fAvailable = harness.IsAvailable();
 
-        CBRAEx (harness.IsAvailable(), E_FAIL);
+        CBRA (fAvailable);
 
         hr = harness.MakeSource (s_kSourceW, s_kSourceH, source, srv);
         CHR (hr);
