@@ -445,6 +445,21 @@ struct MachineConfig
 class MachineConfigLoader
 {
 public:
+
+    // Overwrites the fields a shipped machine does not get to have an opinion
+    // about with the values from its definition in code: CPU, RAM layout,
+    // internal devices, video modes and keyboard layout. Whatever the JSON
+    // said about those is discarded, which is the point -- a preferences delta
+    // used to be able to give a //c an original keyboard and nothing refused
+    // it.
+    //
+    // A machine name with no definition behind it is left exactly as parsed.
+    // That is the documented way to add a machine: copy a definition, give it
+    // a new name, edit it. Such a machine is the author's to compose; a
+    // shipped one is not.
+    static void ApplyMachineDefinition (const string  & machineName,
+                                        MachineConfig & outConfig);
+
     // Callable that resolves a relative path given search directories.
     // Returns the resolved path, or empty path if not found.
     using FileResolver = function<fs::path (const vector<fs::path> &,
@@ -541,6 +556,7 @@ private:
     static HRESULT LoadInternalDevices (const JsonValue & devArray,
                                         MachineConfig   & outConfig,
                                         string          & outError);
+
 
     static HRESULT LoadSlots          (const JsonValue        & slotsArray,
                                        const string           & machineName,

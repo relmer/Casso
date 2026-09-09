@@ -217,16 +217,16 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: construct each model's definition directly and assert its devices, layout, video modes and CPU; assert a delta naming `internalDevices` changes nothing.
 
-- [ ] T109 [US9] Add `CassoEmuCore/Machines/IMachineDefinition.h` declaring the invariant surface a model supplies: internal devices, keyboard layout, video modes, CPU, RAM layout
-- [ ] T110 [P] [US9] Define `Apple2`, `Apple2Plus` in `CassoEmuCore/Machines/Apple2/<Model>/`, each returning its own device list
-- [ ] T111 [P] [US9] Define `Apple2e`, `Apple2eEnhanced` — identical device lists, differing only in CPU and ROM
-- [ ] T112 [P] [US9] Define `Apple2c`, including the ROM bank that is currently wired from the executable
-- [ ] T113 [US9] Add a definition lookup by model id and have machine construction take the invariant fields from it rather than from `MachineConfig`
+- [x] T109 [US9] Add `CassoEmuCore/Machines/IMachineDefinition.h` declaring the invariant surface a model supplies: internal devices, keyboard layout, video modes, CPU, RAM layout
+- [x] T110 [P] [US9] Define `Apple2`, `Apple2Plus` in `CassoEmuCore/Machines/Apple2/<Model>/`, each returning its own device list
+- [x] T111 [P] [US9] Define `Apple2e`, `Apple2eEnhanced` — identical device lists, differing only in CPU and ROM
+- [x] T112 [P] [US9] Define `Apple2c`, including the ROM bank that is currently wired from the executable
+- [x] T113 [US9] Add a definition lookup by model id and have machine construction take the invariant fields from it rather than from `MachineConfig`
 - [ ] T114 [US9] Remove `internalDevices`, keyboard layout, video modes, CPU and RAM from the JSON schema and from the embedded defaults; leave slots, ports and ROM overrides
 - [ ] T115 [US9] Remove `internalDevices` from the delta-merge in `CassoEmuCore/Config/UserConfigStore.cpp` (:2159, :2316) and bump the machine-definition version with an upgrade path
 - [ ] T116 [US9] Rename device type strings to the `-family-` form and update the registry, the definitions and every test
-- [ ] T117 [P] [US9] Test: a delta naming a different keyboard for the //c leaves the //c's own keyboard in place
-- [ ] T118 [P] [US9] Test: each model's definition reports the expected devices, layout, video modes and CPU
+- [x] T117 [P] [US9] Test: a delta naming a different keyboard for the //c leaves the //c's own keyboard in place
+- [x] T118 [P] [US9] Test: each model's definition reports the expected devices, layout, video modes and CPU
 - [ ] T119 [P] [US9] Test: slot contents and attached peripherals set in JSON still take effect
 - [ ] T120 [US9] Launch the emulator, switch between all five machines, and confirm each still boots and behaves as before
 - [ ] T121 [US9] Run the per-phase gate and commit with the measurement

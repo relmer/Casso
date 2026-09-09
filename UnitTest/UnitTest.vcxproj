@@ -619,6 +619,7 @@
     <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
     <ClCompile Include="Disk2DebugPanelLayoutTests.cpp" />
+    <ClCompile Include="EmuTests\MachineDefinitionTests.cpp" />
     <ClCompile Include="..\Casso\Shell\DiskMru.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>

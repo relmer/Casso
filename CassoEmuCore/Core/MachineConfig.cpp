@@ -4,6 +4,8 @@
 #include "JsonParser.h"
 #include "PathResolver.h"
 
+#include "Machines/MachineDefinitions.h"
+
 
 static constexpr int    kMinSlot       = 1;
 static constexpr int    kMaxSlot       = 7;
@@ -1073,8 +1075,52 @@ HRESULT MachineConfigLoader::Load (
     CHRF (hr, outError = "Missing required field: 'keyboard'");
     LoadKeyboardConfig (*pKeyboard, outConfig);
 
+    //
+    // Last, and deliberately last: a shipped machine's invariant hardware comes
+    // from its definition in code, whatever the document just said.
+    //
+    ApplyMachineDefinition (machineName, outConfig);
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfigLoader::ApplyMachineDefinition
+//
+//  Replaces the parsed values for a shipped machine's invariant hardware with
+//  the ones its definition declares.
+//
+//  This runs after every other field is parsed rather than instead of parsing
+//  them, so a malformed document is still reported as malformed. A file that
+//  says a //c has an apple2-keyboard is not an error to the parser -- it is
+//  well-formed and wrong -- and this is where being wrong stops mattering.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ApplyMachineDefinition (
+    const string  & machineName,
+    MachineConfig & outConfig)
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (machineName);
+
+
+
+    if (definition == nullptr)
+    {
+        return;
+    }
+
+    outConfig.cpu                = definition->cpu;
+    outConfig.ram                = definition->ram;
+    outConfig.internalDevices    = definition->internalDevices;
+    outConfig.videoConfig.modes  = definition->videoModes;
+    outConfig.keyboardType       = definition->keyboardType;
 }
 
 

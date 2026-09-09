@@ -323,6 +323,12 @@
     <ClCompile Include="Config\CrtResolver.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\ColorUtil.cpp" />
+    <ClCompile Include="Machines\MachineDefinitions.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2\Apple2Definition.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2Plus\Apple2PlusDefinition.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2e\Apple2eDefinition.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2eEnhanced\Apple2eEnhancedDefinition.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2c\Apple2cDefinition.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -506,6 +512,13 @@
     <ClInclude Include="Ui\ThemeLoader.h" />
     <ClInclude Include="UiUi\UiCommandTypes.h" />
     <ClInclude Include="Ui\ColorUtil.h" />
+    <ClInclude Include="Machines\MachineDefinition.h" />
+    <ClInclude Include="Machines\MachineDefinitions.h" />
+    <ClInclude Include="Machines\Apple2\Apple2\Apple2Definition.h" />
+    <ClInclude Include="Machines\Apple2\Apple2Plus\Apple2PlusDefinition.h" />
+    <ClInclude Include="Machines\Apple2\Apple2e\Apple2eDefinition.h" />
+    <ClInclude Include="Machines\Apple2\Apple2eEnhanced\Apple2eEnhancedDefinition.h" />
+    <ClInclude Include="Machines\Apple2\Apple2c\Apple2cDefinition.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
