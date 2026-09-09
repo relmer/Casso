@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "Devices/Mockingboard/Ssi263.h"
-#include "Devices/Mockingboard/Ssi263AudioSource.h"
+#include "Devices/Ssi263.h"
+#include "Machines/Apple2/Common/Ssi263AudioSource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

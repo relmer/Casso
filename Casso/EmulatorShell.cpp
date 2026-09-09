@@ -24,7 +24,7 @@
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
-#include "Devices/Mockingboard/MockingboardCard.h"
+#include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
 #include "Devices/Apple2cRomBank.h"

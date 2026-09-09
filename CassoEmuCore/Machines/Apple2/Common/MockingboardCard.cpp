@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "MockingboardCard.h"
+#include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Core/MachineConfig.h"
 
 

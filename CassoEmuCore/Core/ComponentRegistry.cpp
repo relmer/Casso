@@ -15,7 +15,7 @@
 #include "../Devices/Apple2eSoftSwitchBank.h"
 #include "../Devices/Acia6551.h"
 #include "../Devices/Printer/PrinterCard.h"
-#include "../Devices/Mockingboard/MockingboardCard.h"
+#include "Machines/Apple2/Common/MockingboardCard.h"
 
 
 

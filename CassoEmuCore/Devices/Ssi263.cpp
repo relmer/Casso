@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ssi263.h"
+#include "Devices/Ssi263.h"
 
 // Per-phoneme acoustic targets, indexed by phoneme code $00-$3F.
 //

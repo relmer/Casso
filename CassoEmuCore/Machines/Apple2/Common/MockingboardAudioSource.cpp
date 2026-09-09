@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "MockingboardAudioSource.h"
-#include "Ay8910.h"
+#include "Machines/Apple2/Common/MockingboardAudioSource.h"
+#include "Devices/Ay8910.h"
 
 
 

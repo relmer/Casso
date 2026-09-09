@@ -4,11 +4,11 @@
 
 #include "Core/MemoryDevice.h"
 #include "Core/IInterruptController.h"
-#include "Via6522.h"
-#include "Ay8910.h"
-#include "Ssi263.h"
-#include "MockingboardAudioSource.h"
-#include "Ssi263AudioSource.h"
+#include "Devices/Via6522.h"
+#include "Devices/Ay8910.h"
+#include "Devices/Ssi263.h"
+#include "Machines/Apple2/Common/MockingboardAudioSource.h"
+#include "Machines/Apple2/Common/Ssi263AudioSource.h"
 
 class MemoryBus;
 

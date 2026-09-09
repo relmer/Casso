@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "Ssi263AudioSource.h"
-#include "Ssi263.h"
+#include "Machines/Apple2/Common/Ssi263AudioSource.h"
+#include "Devices/Ssi263.h"
 
 
 
