@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Devices/AppleGamePort.h"
+#include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"

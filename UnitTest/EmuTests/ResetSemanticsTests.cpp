@@ -36,10 +36,10 @@ public:
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
-#include "Devices/LanguageCard.h"
-#include "Devices/Apple2eMmu.h"
-#include "Devices/Apple2eSoftSwitchBank.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Video/VideoTiming.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

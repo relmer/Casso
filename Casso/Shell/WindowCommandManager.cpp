@@ -8,7 +8,7 @@
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "../Ui/Dialogs/KeyboardMapText.h"
-#include "Devices/AppleKeyboard.h"
+#include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"

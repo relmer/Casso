@@ -5,7 +5,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/IMmu.h"
-#include "Devices/CxxxRomRouter.h"
+#include "Machines/Apple2/Common/CxxxRomRouter.h"
 
 
 

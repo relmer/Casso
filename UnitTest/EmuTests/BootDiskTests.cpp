@@ -10,8 +10,8 @@
 #include "KeystrokeInjector.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk2Controller.h"
-#include "Devices/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Video/AppleHiResMode.h"
 #include "TextScreenScraper.h"
 

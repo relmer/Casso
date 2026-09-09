@@ -1,8 +1,8 @@
 #include "Pch.h"
 
-#include "Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Audio/IDriveAudioSink.h"
-#include "IDisk2EventSink.h"
+#include "Machines/Apple2/Common/IDisk2EventSink.h"
 #include "Core/Prng.h"
 
 

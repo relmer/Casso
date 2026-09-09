@@ -1,10 +1,10 @@
 #include "Pch.h"
 
-#include "Apple2eKeyboard.h"
-#include "Apple2eSoftSwitchBank.h"
-#include "AppleMouse.h"
-#include "AppleSpeaker.h"
-#include "IInputEventSink.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Devices/IInputEventSink.h"
 
 
 

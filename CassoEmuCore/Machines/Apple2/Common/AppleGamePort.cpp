@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "AppleGamePort.h"
-#include "IInputEventSink.h"
+#include "Machines/Apple2/Common/AppleGamePort.h"
+#include "Devices/IInputEventSink.h"
 
 
 

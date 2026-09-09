@@ -10,7 +10,7 @@
 #include "Devices/Disk/TrackWritability.h"
 #include "Devices/Disk/VolumeImage.h"
 #include "Devices/Disk/WozLoader.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

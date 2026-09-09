@@ -2,7 +2,7 @@
 
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
-#include "Devices/Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Video/CharacterRomData.h"
 #include "FixtureProvider.h"
 

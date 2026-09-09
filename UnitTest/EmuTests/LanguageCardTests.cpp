@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
-#include "Devices/LanguageCard.h"
-#include "Devices/Apple2eMmu.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Devices/RamDevice.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

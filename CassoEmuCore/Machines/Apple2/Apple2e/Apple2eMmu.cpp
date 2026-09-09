@@ -1,12 +1,12 @@
 #include "Pch.h"
 
-#include "Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Core/MemoryBus.h"
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
-#include "Devices/LanguageCard.h"
-#include "Devices/AppleSoftSwitchBank.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 
 
 

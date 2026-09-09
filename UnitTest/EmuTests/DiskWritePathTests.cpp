@@ -4,7 +4,7 @@
 #include "HeadlessHost.h"
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Devices/Disk/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibbleImageCodec.h"

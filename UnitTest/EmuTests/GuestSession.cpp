@@ -4,7 +4,7 @@
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

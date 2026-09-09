@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "../CassoEmuCore/Devices/Disk2Event.h"
+#include "Machines/Apple2/Common/Disk2Event.h"
 
 
 

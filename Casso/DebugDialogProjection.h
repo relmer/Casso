@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "../CassoEmuCore/Devices/Disk2Event.h"
-#include "../CassoEmuCore/Devices/Disk2EventRing.h"
+#include "Machines/Apple2/Common/Disk2Event.h"
+#include "Machines/Apple2/Common/Disk2EventRing.h"
 #include "Disk2EventDisplay.h"
 
 

@@ -4,8 +4,8 @@
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
-#include "Devices/AppleMouse.h"
-#include "Devices/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Core/InterruptController.h"
 #include "Video/VideoTiming.h"
 

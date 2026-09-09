@@ -7,7 +7,7 @@
 #include "Devices/Disk/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "MachineIdle.h"
 

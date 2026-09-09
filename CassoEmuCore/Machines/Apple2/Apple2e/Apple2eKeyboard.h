@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Pch.h"
-#include "Devices/AppleKeyboard.h"
+#include "Machines/Apple2/Common/AppleKeyboard.h"
 
 class AppleSpeaker;
 

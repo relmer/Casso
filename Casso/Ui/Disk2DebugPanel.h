@@ -15,8 +15,8 @@
 
 #include "../Disk2DebugDialogState.h"
 #include "../Disk2EventDisplay.h"
-#include "../../CassoEmuCore/Devices/IDisk2EventSink.h"
-#include "../../CassoEmuCore/Devices/Disk2EventRing.h"
+#include "Machines/Apple2/Common/IDisk2EventSink.h"
+#include "Machines/Apple2/Common/Disk2EventRing.h"
 #include "../../CassoEmuCore/Audio/IDriveAudioEventSink.h"
 
 

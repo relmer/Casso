@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Devices/AppleSpeaker.h"
+#include "Machines/Apple2/Common/AppleSpeaker.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

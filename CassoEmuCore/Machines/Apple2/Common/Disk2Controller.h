@@ -5,9 +5,9 @@
 #include "Core/MemoryDevice.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
-#include "Disk/DiskImage.h"
-#include "Disk/Disk2NibbleEngine.h"
-#include "Disk2AddressMarkWatcher.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/Disk2NibbleEngine.h"
+#include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
 
 
 class IDriveAudioSink;

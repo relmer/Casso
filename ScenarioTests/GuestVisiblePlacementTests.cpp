@@ -8,7 +8,7 @@
 #include "Devices/Disk/Dos33Volume.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/ProDosVolume.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

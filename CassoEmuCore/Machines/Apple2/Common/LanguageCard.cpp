@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "LanguageCard.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
 #include "Devices/IMmu.h"
 #include "Core/Prng.h"
 

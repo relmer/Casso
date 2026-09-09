@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "AppleKeyboard.h"
-#include "IInputEventSink.h"
+#include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Devices/IInputEventSink.h"
 
 
 

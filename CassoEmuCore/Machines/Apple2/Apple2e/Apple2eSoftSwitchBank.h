@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Pch.h"
-#include "Devices/AppleSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 
 class Apple2eMmu;
 class IMmu;                 // MmuSwitch below names its setters

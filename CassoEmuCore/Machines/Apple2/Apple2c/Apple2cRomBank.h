@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Pch.h"
-#include "IRomBankSwitch.h"
+#include "Devices/IRomBankSwitch.h"
 
 class LanguageCard;
 class Apple2eMmu;

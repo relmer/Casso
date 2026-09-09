@@ -1,8 +1,8 @@
 #include "Pch.h"
-#include "Apple2cRomBank.h"
+#include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 
-#include "LanguageCard.h"
-#include "Apple2eMmu.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 
 
 

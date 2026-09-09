@@ -3,7 +3,7 @@
 #include "DiskManager.h"
 
 #include "Core/MemoryBus.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Win32ImageWatcher.h"

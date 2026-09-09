@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
-#include "Devices/Disk2Controller.h"
-#include "Devices/IDisk2EventSink.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/IDisk2EventSink.h"
 
 
 // Disk2Controller carries two DiskImage instances; per-test heap

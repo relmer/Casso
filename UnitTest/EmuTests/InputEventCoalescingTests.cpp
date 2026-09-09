@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
-#include "Devices/AppleKeyboard.h"
-#include "Devices/Apple2eKeyboard.h"
-#include "Devices/Apple2eSoftSwitchBank.h"
-#include "Devices/AppleGamePort.h"
+#include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Devices/IInputEventSink.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

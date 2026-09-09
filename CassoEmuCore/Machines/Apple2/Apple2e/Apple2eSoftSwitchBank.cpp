@@ -1,12 +1,12 @@
 #include "Pch.h"
 
-#include "Apple2eSoftSwitchBank.h"
-#include "Apple2eMmu.h"
-#include "Apple2eKeyboard.h"
-#include "AppleMouse.h"
-#include "IInputEventSink.h"
-#include "IRomBankSwitch.h"
-#include "LanguageCard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/AppleMouse.h"
+#include "Devices/IInputEventSink.h"
+#include "Devices/IRomBankSwitch.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
 #include "Video/IVideoTiming.h"
 
 

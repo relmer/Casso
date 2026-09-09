@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "CxxxRomRouter.h"
-#include "Apple2eMmu.h"
+#include "Machines/Apple2/Common/CxxxRomRouter.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 
 
 
