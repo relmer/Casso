@@ -1,14 +1,14 @@
 #include "Pch.h"
 
-#include "GlobalUserPrefs.h"
+#include "Config/GlobalUserPrefs.h"
 
 
-#include "MachineInputPrefs.h"
+#include "Config/MachineInputPrefs.h"
 #include "Capture/ScreenshotMode.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 
-#include "CrtResolver.h"
+#include "Config/CrtResolver.h"
 
 
 

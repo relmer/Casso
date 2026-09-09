@@ -3,8 +3,8 @@
 #include "Pch.h"
 
 #include "SettingsPanelState.h"
-#include "../../Config/CrtTypes.h"
-#include "../ColorUtil.h"
+#include "Config/CrtTypes.h"
+#include "Ui/ColorUtil.h"
 
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"

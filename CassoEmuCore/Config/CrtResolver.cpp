@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "CrtResolver.h"
+#include "Config/CrtResolver.h"
 
 
 

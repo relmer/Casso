@@ -47,7 +47,7 @@
 #include "Widgets/DxuiTooltip.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiSurface.h"
-#include "UiCommandTypes.h"
+#include "Ui/UiCommandTypes.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Video/VideoOutput.h"
 #include "Machines/Apple2/Common/VideoTiming.h"

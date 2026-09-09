@@ -1,7 +1,7 @@
 #pragma once
 
 #include "resource.h"
-#include "UiCommandTypes.h"
+#include "Ui/UiCommandTypes.h"
 #include "Ui/Scene/DeskSceneModel.h"
 
 

@@ -10,7 +10,7 @@
 #include "Seams/Win32DiskFileIo.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
-#include "../Config/IFileSystem.h"
+#include "Config/IFileSystem.h"
 #include "../DiskSettings.h"
 #include "../WasapiAudio.h"
 #include "../Ui/Chrome/DriveWidget.h"

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "MachineInputPrefs.h"
+#include "Config/MachineInputPrefs.h"
 
 
 

@@ -3,7 +3,7 @@
 #include "SettingsSheet.h"
 
 #include "../../EmulatorShell.h"
-#include "../../Config/GlobalUserPrefs.h"
+#include "Config/GlobalUserPrefs.h"
 #include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"

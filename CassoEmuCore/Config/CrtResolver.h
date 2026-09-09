@@ -2,9 +2,9 @@
 
 #include "Pch.h"
 
-#include "CrtTypes.h"
+#include "Config/CrtTypes.h"
 
-#include "../Ui/ThemeLoader.h"
+#include "Ui/ThemeLoader.h"
 
 
 

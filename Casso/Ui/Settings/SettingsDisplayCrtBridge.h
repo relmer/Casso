@@ -4,7 +4,7 @@
 
 #include "SettingsPanelState.h"
 
-#include "../../Config/GlobalUserPrefs.h"
+#include "Config/GlobalUserPrefs.h"
 
 
 class ThemeManager;

@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "../Config/WindowPlacementProfile.h"
+#include "Config/WindowPlacementProfile.h"
 
 struct GlobalUserPrefs;
 

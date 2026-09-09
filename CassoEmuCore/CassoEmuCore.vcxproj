@@ -315,6 +315,14 @@
     <ClCompile Include="Devices\Printer\ObjMeshParser.cpp" />
     <ClCompile Include="Devices\Printer\PrinterStatusModel.cpp" />
     <ClCompile Include="Devices\Printer\PrinterViewport.cpp" />
+    <ClCompile Include="Config\Win32FileSystem.cpp" />
+    <ClCompile Include="Config\WindowPlacementProfile.cpp" />
+    <ClCompile Include="Config\UserConfigStore.cpp" />
+    <ClCompile Include="Config\GlobalUserPrefs.cpp" />
+    <ClCompile Include="Config\MachineInputPrefs.cpp" />
+    <ClCompile Include="Config\CrtResolver.cpp" />
+    <ClCompile Include="Ui\ThemeLoader.cpp" />
+    <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -486,6 +494,18 @@
     <ClInclude Include="Devices\Printer\PrinterViewport.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
+    <ClInclude Include="Config\IFileSystem.h" />
+    <ClInclude Include="Config\Win32FileSystem.h" />
+    <ClInclude Include="Config\WindowPlacementProfile.h" />
+    <ClInclude Include="Config\UserConfigStore.h" />
+    <ClInclude Include="Config\GlobalUserPrefs.h" />
+    <ClInclude Include="Config\MachineInputPrefs.h" />
+    <ClInclude Include="Config\CrtTypes.h" />
+    <ClInclude Include="Config\CrtResolver.h" />
+    <ClInclude Include="Config\MonitorCatalog.h" />
+    <ClInclude Include="Ui\ThemeLoader.h" />
+    <ClInclude Include="UiUi\UiCommandTypes.h" />
+    <ClInclude Include="Ui\ColorUtil.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

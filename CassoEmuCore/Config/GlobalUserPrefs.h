@@ -3,10 +3,10 @@
 #include "Pch.h"
 
 #include "Core/JsonValue.h"
-#include "CrtTypes.h"
-#include "IFileSystem.h"
-#include "../UiCommandTypes.h"
-#include "../Ui/ColorUtil.h"
+#include "Config/CrtTypes.h"
+#include "Config/IFileSystem.h"
+#include "Ui/UiCommandTypes.h"
+#include "Ui/ColorUtil.h"
 
 
 

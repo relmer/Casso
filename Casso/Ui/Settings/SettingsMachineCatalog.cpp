@@ -8,9 +8,9 @@
 #include "../ThemeManager.h"
 #include "../../EmulatorShell.h"
 #include "../../AssetBootstrap.h"
-#include "../../Config/UserConfigStore.h"
-#include "../../Config/IFileSystem.h"
-#include "../../Config/GlobalUserPrefs.h"
+#include "Config/UserConfigStore.h"
+#include "Config/IFileSystem.h"
+#include "Config/GlobalUserPrefs.h"
 
 #include "Core/MachineScanner.h"
 #include "Core/PathResolver.h"

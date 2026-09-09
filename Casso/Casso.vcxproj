@@ -237,14 +237,7 @@
     <ClCompile Include="Print\PrintJobStore.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
-    <ClCompile Include="Config\Win32FileSystem.cpp" />
-    <ClCompile Include="Config\WindowPlacementProfile.cpp" />
-    <ClCompile Include="Config\UserConfigStore.cpp" />
-    <ClCompile Include="Config\GlobalUserPrefs.cpp" />
-    <ClCompile Include="Config\MachineInputPrefs.cpp" />
-    <ClCompile Include="Config\CrtResolver.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
-    <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\CreateDiskBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerBodyPanel.cpp" />
     <ClCompile Include="Ui\PickerDialog.cpp" />
@@ -281,7 +274,6 @@
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
-    <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
     <ClCompile Include="Ui\Dialogs\KeyboardMapText.cpp" />
     <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
@@ -317,7 +309,6 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="CrtPostProcess.h" />
     <ClInclude Include="PerfStats.h" />
-    <ClInclude Include="UiCommandTypes.h" />
     <ClInclude Include="BuildInfo.h" />
     <ClInclude Include="EmulatorShell.h" />
     <ClInclude Include="Print\PrinterWorker.h" />
@@ -327,15 +318,6 @@
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
     <ClInclude Include="EmbeddedMachineConfigs.h" />
-    <ClInclude Include="Config\IFileSystem.h" />
-    <ClInclude Include="Config\Win32FileSystem.h" />
-    <ClInclude Include="Config\WindowPlacementProfile.h" />
-    <ClInclude Include="Config\UserConfigStore.h" />
-    <ClInclude Include="Config\GlobalUserPrefs.h" />
-    <ClInclude Include="Config\MachineInputPrefs.h" />
-    <ClInclude Include="Config\CrtTypes.h" />
-    <ClInclude Include="Config\CrtResolver.h" />
-    <ClInclude Include="Config\MonitorCatalog.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
     <ClInclude Include="Ui\Dialogs\KeyboardMapText.h" />
@@ -352,7 +334,6 @@
     <ClInclude Include="Shell\DiskMru.h" />
     <ClInclude Include="Shell\RepoCheckout.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />
-    <ClInclude Include="Ui\ThemeLoader.h" />
     <ClInclude Include="Ui\CreateDiskBodyPanel.h" />
     <ClInclude Include="Ui\PickerBodyPanel.h" />
     <ClInclude Include="Ui\PickerDialog.h" />
@@ -392,7 +373,6 @@
     <ClInclude Include="Shell\WindowCommandManager.h" />
     <ClInclude Include="Shell\WindowManager.h" />
     <ClInclude Include="Ui\UiShell.h" />
-    <ClInclude Include="Ui\ColorUtil.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />
     <ClInclude Include="Disk2DebugDialogState.h" />

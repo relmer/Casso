@@ -61,6 +61,7 @@ Each slice appends a row on completion.
 |---|---|---:|---:|---:|---:|
 | — | baseline | 93,928 | 1,235 | 38 | 69,247 |
 | 0 | machine hierarchy | 93,928 | 1,235 | 38 | 69,247 |
+| 1a | Config move | 86,128 | 1,187 | 31 | 77,054 |
 
 ### Slice 0 notes
 

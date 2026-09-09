@@ -33,6 +33,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <ctime>
 #include <deque>
 #include <fcntl.h>
 #include <filesystem>
@@ -40,16 +41,22 @@
 #include <format>
 #include <fstream>
 #include <functional>
+#include <iterator>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <numbers>
+#include <optional>
 #include <random>
+#include <set>
 #include <sstream>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../CassoCore/Ehm.h"

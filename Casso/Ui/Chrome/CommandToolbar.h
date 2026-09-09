@@ -4,7 +4,7 @@
 
 #include "Core/IDxuiControl.h"
 #include "Devices/Printer/PrinterStatusModel.h"   // PrinterStatus
-#include "UiCommandTypes.h"                       // InputMappingMode
+#include "Ui/UiCommandTypes.h"                       // InputMappingMode
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiSlider.h"
 

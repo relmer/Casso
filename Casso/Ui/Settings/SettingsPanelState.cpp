@@ -3,7 +3,7 @@
 #include "SettingsPanelState.h"
 
 
-#include "../../Config/MonitorCatalog.h"
+#include "Config/MonitorCatalog.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"

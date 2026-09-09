@@ -2,8 +2,8 @@
 
 #include "WindowManager.h"
 
-#include "../Config/WindowPlacementProfile.h"
-#include "../Config/GlobalUserPrefs.h"
+#include "Config/WindowPlacementProfile.h"
+#include "Config/GlobalUserPrefs.h"
 
 
 

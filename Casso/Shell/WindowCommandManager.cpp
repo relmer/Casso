@@ -3,7 +3,7 @@
 #include "WindowCommandManager.h"
 
 #include "../AssetBootstrap.h"
-#include "../Config/WindowPlacementProfile.h"
+#include "Config/WindowPlacementProfile.h"
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"

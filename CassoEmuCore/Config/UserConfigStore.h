@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "IFileSystem.h"
-#include "GlobalUserPrefs.h"
+#include "Config/IFileSystem.h"
+#include "Config/GlobalUserPrefs.h"
 
 #include "Core/JsonValue.h"
 

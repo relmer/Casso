@@ -6,7 +6,7 @@
 #include "../AssetBootstrap.h"
 #include "../DiskSettings.h"
 #include "../resource.h"
-#include "../Config/MonitorCatalog.h"
+#include "Config/MonitorCatalog.h"
 #include "Core/PathResolver.h"
 #include "Core/MachineConfig.h"
 #include "Core/CpuFactory.h"

@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "../../Config/GlobalUserPrefs.h"
+#include "Config/GlobalUserPrefs.h"
 
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"

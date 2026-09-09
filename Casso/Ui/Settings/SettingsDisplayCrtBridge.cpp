@@ -3,11 +3,11 @@
 #include "SettingsDisplayCrtBridge.h"
 
 #include "DisplayPage.h"
-#include "../ColorUtil.h"
+#include "Ui/ColorUtil.h"
 #include "../ThemeManager.h"
 #include "../../EmulatorShell.h"
-#include "../../Config/CrtPresets.h"
-#include "../../Config/CrtResolver.h"
+#include "Config/CrtPresets.h"
+#include "Config/CrtResolver.h"
 
 
 
