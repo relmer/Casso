@@ -223,11 +223,11 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T112 [P] [US9] Define `Apple2c`, including the ROM bank that is currently wired from the executable
 - [x] T113 [US9] Add a definition lookup by model id and have machine construction take the invariant fields from it rather than from `MachineConfig`
 - [ ] T114 [US9] Remove `internalDevices`, keyboard layout, video modes, CPU and RAM from the JSON schema and from the embedded defaults; leave slots, ports and ROM overrides. Needs a `$cassoMachineVersion` bump and an upgrade path in `MachineConfigUpgrade`
-- [ ] T115 [US9] Remove `internalDevices` from the delta-merge in `CassoEmuCore/Config/UserConfigStore.cpp` (:2159, :2316) and bump the machine-definition version with an upgrade path
+- [x] T115 [US9] Remove `internalDevices` from the delta-merge in `CassoEmuCore/Config/UserConfigStore.cpp` (:2159, :2316) and bump the machine-definition version with an upgrade path
 - [x] T116 [US9] Rename device type strings to the `-family-` form and update the registry, the definitions and every test
 - [x] T117 [P] [US9] Test: a delta naming a different keyboard for the //c leaves the //c's own keyboard in place
 - [x] T118 [P] [US9] Test: each model's definition reports the expected devices, layout, video modes and CPU
-- [ ] T119 [P] [US9] Test: slot contents and attached peripherals set in JSON still take effect
+- [x] T119 [P] [US9] Test: slot contents and attached peripherals set in JSON still take effect
 - [ ] T120 [US9] Launch the emulator, switch between all five machines, and confirm each still boots and behaves as before
 - [ ] T121 [US9] Run the per-phase gate and commit with the measurement
 

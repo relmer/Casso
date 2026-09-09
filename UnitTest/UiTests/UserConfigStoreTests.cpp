@@ -2103,4 +2103,90 @@ public:
         Assert::AreEqual (std::string ("Maximum"),
                           FindObjectValueForTest (merged, "speedMode")->GetString());
     }
+
+    TEST_METHOD (Merge_InternalDeviceTheMachineLacks_IsNotAdded)
+    {
+        JsonValue  m;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "internalDevices": [
+                { "type": "apple2e-family-keyboard" }
+            ]
+        })JSON");
+
+        //  A file asking for hardware this machine does not have.
+        JsonValue u = ParseOrFail (R"JSON({
+            "internalDevices": [
+                { "type": "apple2e-family-keyboard" },
+                { "type": "apple2-family-keyboard" }
+            ]
+        })JSON");
+
+        m = UserConfigStore::MergeJson (d, u);
+
+        JsonValue expected = ParseOrFail (R"JSON({
+            "internalDevices": [
+                { "type": "apple2e-family-keyboard" }
+            ]
+        })JSON");
+
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (expected, m),
+                        L"a device the machine lacks must not appear because a file named it");
+    }
+
+
+    TEST_METHOD (Merge_InternalDeviceCapabilityFlag_IsNotTheUsersToChange)
+    {
+        JsonValue  m;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "internalDevices": [
+                { "type": "apple2-family-speaker", "capabilityFlag": "platform-locked" }
+            ]
+        })JSON");
+
+        //  Soldered in, and a file claiming otherwise does not make it a card.
+        JsonValue u = ParseOrFail (R"JSON({
+            "internalDevices": [
+                { "type": "apple2-family-speaker", "capabilityFlag": "optional" }
+            ]
+        })JSON");
+
+        m = UserConfigStore::MergeJson (d, u);
+
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (d, m),
+                        L"the machine's own entry stands when the user changed more than enablement");
+    }
+
+
+    TEST_METHOD (Merge_SlotTheUserAdded_IsStillHonored)
+    {
+        JsonValue  m;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "slots": [
+                { "slot": 6, "device": "disk-ii" }
+            ]
+        })JSON");
+
+        //  A card in a slot the shipped config left empty IS the owner's call,
+        //  so the tightening above must not have caught slots with it.
+        JsonValue u = ParseOrFail (R"JSON({
+            "slots": [
+                { "slot": 6, "device": "disk-ii" },
+                { "slot": 4, "device": "mockingboard-c" }
+            ]
+        })JSON");
+
+        m = UserConfigStore::MergeJson (d, u);
+
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (u, m),
+                        L"a user-added slot card must survive the merge");
+    }
 };

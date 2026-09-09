@@ -905,9 +905,20 @@ JsonValue UserConfigStore::MergeHardwareArray (
             {
                 merged.emplace_back (BuildObjectWithOverrides (defEntry, enabled, userPorts));
             }
-            else
+            else if (slotArray)
             {
                 merged.emplace_back (userEntry);
+            }
+            else
+            {
+                //
+                //  An internal device the user described some other way. Only
+                //  its enablement is theirs to set, so the machine's own entry
+                //  stands: whether a //c HAS a keyboard is not a preference,
+                //  and letting the user's copy replace this one is what made a
+                //  hand-edited capabilityFlag able to unlock soldered hardware.
+                //
+                merged.emplace_back (defEntry);
             }
         }
         else
@@ -916,11 +927,21 @@ JsonValue UserConfigStore::MergeHardwareArray (
         }
     }
 
-    for (size_t i = 0; i < userArr.GetArraySize(); ++i)
+    //
+    //  User entries matching no default. For slots these are real: a card in a
+    //  slot the shipped config left empty is the owner's business. For
+    //  internal devices they are not -- a device the machine does not have
+    //  cannot be added to it by editing a file, which is exactly how a //c
+    //  came to have an original keyboard.
+    //
+    if (slotArray)
     {
-        if (!userMatched[i])
+        for (size_t i = 0; i < userArr.GetArraySize(); ++i)
         {
-            merged.emplace_back (userArr.GetArrayElement (i));
+            if (!userMatched[i])
+            {
+                merged.emplace_back (userArr.GetArrayElement (i));
+            }
         }
     }
 
