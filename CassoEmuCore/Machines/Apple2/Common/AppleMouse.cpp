@@ -2,7 +2,7 @@
 
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/MemoryBus.h"
-#include "Video/IVideoTiming.h"
+#include "Machines/Apple2/Common/IVideoTiming.h"
 
 
 

@@ -5,9 +5,9 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Devices/RamDevice.h"
-#include "Video/AppleTextMode.h"
-#include "Video/AppleHiResMode.h"
-#include "Video/AppleLoResMode.h"
+#include "Machines/Apple2/Common/AppleTextMode.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
+#include "Machines/Apple2/Common/AppleLoResMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

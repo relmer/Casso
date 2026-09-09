@@ -3,7 +3,7 @@
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
-#include "Video/CharacterRomData.h"
+#include "Machines/Apple2/Common/CharacterRomData.h"
 #include "FixtureProvider.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

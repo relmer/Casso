@@ -4,7 +4,7 @@
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
-#include "Video/AppleTextMode.h"
+#include "Machines/Apple2/Common/AppleTextMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

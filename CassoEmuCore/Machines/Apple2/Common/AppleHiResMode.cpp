@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "AppleHiResMode.h"
-#include "NtscColorTable.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
+#include "Machines/Apple2/Common/NtscColorTable.h"
 
 
 

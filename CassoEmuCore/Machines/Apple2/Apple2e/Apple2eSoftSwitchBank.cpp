@@ -7,7 +7,7 @@
 #include "Devices/IInputEventSink.h"
 #include "Devices/IRomBankSwitch.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
-#include "Video/IVideoTiming.h"
+#include "Machines/Apple2/Common/IVideoTiming.h"
 
 
 

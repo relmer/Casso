@@ -40,7 +40,7 @@ public:
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Video/VideoTiming.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

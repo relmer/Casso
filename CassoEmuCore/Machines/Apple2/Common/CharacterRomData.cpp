@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "CharacterRomData.h"
-#include "CharacterRom.h"
+#include "Machines/Apple2/Common/CharacterRomData.h"
+#include "Machines/Apple2/Common/CharacterRom.h"
 
 
 static constexpr size_t k2KBytes = 2048;

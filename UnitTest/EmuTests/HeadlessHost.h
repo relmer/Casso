@@ -18,7 +18,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/InterruptController.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Video/VideoTiming.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 #include "FixtureProvider.h"
 #include "MockAudioSink.h"
 #include "MockHostShell.h"

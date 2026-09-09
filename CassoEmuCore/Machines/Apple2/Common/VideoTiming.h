@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Pch.h"
-#include "IVideoTiming.h"
+#include "Machines/Apple2/Common/IVideoTiming.h"
 
 class Prng;
 

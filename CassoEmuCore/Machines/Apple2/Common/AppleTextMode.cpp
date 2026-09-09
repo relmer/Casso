@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "AppleTextMode.h"
-#include "CharacterRomData.h"
+#include "Machines/Apple2/Common/AppleTextMode.h"
+#include "Machines/Apple2/Common/CharacterRomData.h"
 
 
 

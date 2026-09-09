@@ -4,15 +4,15 @@
 #include "Core/EmuCpu.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
-#include "Video/AppleTextMode.h"
-#include "Video/Apple80ColTextMode.h"
-#include "Video/AppleLoResMode.h"
-#include "Video/AppleHiResMode.h"
-#include "Video/AppleDoubleHiResMode.h"
-#include "Video/CharacterRom.h"
-#include "Video/CharacterRomData.h"
+#include "Machines/Apple2/Common/AppleTextMode.h"
+#include "Machines/Apple2/Common/Apple80ColTextMode.h"
+#include "Machines/Apple2/Common/AppleLoResMode.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
+#include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
+#include "Machines/Apple2/Common/CharacterRom.h"
+#include "Machines/Apple2/Common/CharacterRomData.h"
 #include "FixtureProvider.h"
-#include "Video/NtscColorTable.h"
+#include "Machines/Apple2/Common/NtscColorTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;

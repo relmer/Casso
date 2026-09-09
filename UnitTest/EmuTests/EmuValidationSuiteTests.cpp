@@ -4,8 +4,8 @@
 #include "KeystrokeInjector.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk/WozLoader.h"
-#include "Video/Apple80ColTextMode.h"
-#include "Video/AppleHiResMode.h"
+#include "Machines/Apple2/Common/Apple80ColTextMode.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

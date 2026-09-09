@@ -7,7 +7,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Core/InterruptController.h"
-#include "Video/VideoTiming.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

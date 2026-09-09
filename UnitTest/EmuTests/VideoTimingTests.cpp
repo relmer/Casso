@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Video/VideoTiming.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"

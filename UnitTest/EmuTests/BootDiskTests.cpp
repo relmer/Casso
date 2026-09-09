@@ -12,7 +12,7 @@
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
-#include "Video/AppleHiResMode.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "TextScreenScraper.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
