@@ -61,6 +61,14 @@
 
 #include "../CassoCore/Ehm.h"
 
+//
+//  Dxui's public umbrella header, and the only way its headers are meant to be
+//  reached: they assume its system-header surface is already present, so a
+//  widget header included on its own fails on types it never declares. Casso's
+//  own Pch does the same thing for the same reason.
+//
+#include "../Dxui/Dxui.h"
+
 using namespace std;
 namespace fs = std::filesystem;
 

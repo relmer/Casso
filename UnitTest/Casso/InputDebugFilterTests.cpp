@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "InputDebugDialogState.h"
+#include "Ui/Debug/InputDebugDialogState.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

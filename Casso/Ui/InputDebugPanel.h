@@ -12,7 +12,7 @@
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiTooltip.h"
 
-#include "../InputDebugDialogState.h"
+#include "Ui/Debug/InputDebugDialogState.h"
 #include "Ui/Debug/InputEventDisplay.h"
 #include "../../CassoEmuCore/Devices/IInputEventSink.h"
 #include "../../CassoEmuCore/Devices/InputEventRing.h"
