@@ -6,47 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.23.2]: The one that finds its voice
+## [1.23.2]: The one where Rescue Raiders speaks
 
 ### Fixed
 
-- **Mockingboard speech came out high and hurried.** The card left the voice
-  chip's external clock at the datasheet's colorburst-over-two suggestion, which
-  is generic advice for a standalone design rather than this card's rate -- the
-  board runs one clock net to every chip, the same system clock the two sound
-  generators already took. Everything derived from that clock was 1.75x off:
-  pitch and filter frequencies high, phonemes short. Measured against the Mist
-  demake's voiceover, the fundamental moves from 164 Hz to 94 Hz.
-- **Arming a Mockingboard timer the ordinary way stopped the machine with an
-  assertion dialog.** The 6522's auxiliary control register asserted on every
-  bit but Timer 1's continuous-mode select, so `LDA #$C0 / STA ACR` -- T1
-  continuous with PB7 output, in one store -- was treated as a fault. PB7 drives
-  nothing on this card; the unmodeled bits stay inert and the write is now
-  accepted. Rescue Raiders trips it.
-- **A Mockingboard speech driver stopped the machine with an assertion dialog
-  at its first setup write.** The 6522's peripheral control register treated
-  the CA2/CB2 output-mode fields as an unmodeled feature worth asserting on,
-  but an SSI-263 driver programs CA2 in the same store that selects the CA1
-  interrupt edge. Those fields stay inert; the write is now accepted.
-- **The Mockingboard's speech chip stayed silent for software that loaded a
-  phoneme before taking the chip out of standby.** Leaving Power Down now
-  sounds the phoneme already loaded, in the three modes the datasheet's mode
-  chart marks A/R-active, so a driver written in the datasheet's own register
-  order gets the interrupt it waits on instead of stalling before its first
-  word. Software that writes the phoneme after leaving standby is unaffected.
+- **Mockingboard speech played 1.75x fast and high.** The card left the voice
+  chip on the datasheet's colorburst-over-two suggestion instead of the system
+  clock it drives every other chip from.
+- **Leaving Power Down did not start the phoneme already loaded,** so a driver
+  waiting on the chip's first interrupt never got one.
+- **The 6522 hit an assert on PCR writes that set the CA2 output mode, and on
+  ACR writes outside Timer 1's continuous-mode bit.**
 
 ### Changed
 
-- **The bundled speech disks were retuned for the corrected clock, and the two
-  demos now caption themselves "CASSO MOCKINGBOARD SPEECH DEMO".** Every pitch,
-  and every vocal-tract filter, had been converted against the clock the card
-  was wrongly handing the voice chip, so all five disks spoke 1.75x low once
-  that was fixed -- HAL's lines worst, since his tract is deliberately longer
-  than nominal to begin with.
-- **The casso-rocks title turned sideways and got a haircut.** CASSO climbs the
-  left edge hard against the picture instead of running across the top, so all
-  four cassowaries get the full 192 scanlines, and it is set in a real face
-  thresholded onto the cell grid rather than a 7-row bitmap font scaled up.
+- **The bundled speech disks were retuned for the corrected clock,** and both
+  demos now caption themselves "CASSO MOCKINGBOARD SPEECH DEMO".
+- **Moved casso-rocks title to the left edge instead of across
+  the top,** which leaves all 192 scanlines for the cassowary and uses a real
+  typeface thresholded onto the cell grid rather than a scaled 7-row bitmap font.
 
 ## [1.23.1]: The one that boots green and ships signed
 
