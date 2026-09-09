@@ -38,5 +38,7 @@ const MachineDefinition & Apple2eEnhancedDefinition::Get()
         .keyboardType    = "apple2e-full"
     };
 
+
+
     return (s_definition);
 }

@@ -9,6 +9,21 @@
 #include "Machines/Apple2/Apple2c/Apple2cDefinition.h"
 
 
+//
+//  Every machine this build can be. Each Get() hands back a function-local
+//  static, so taking its address here is safe whatever order translation units
+//  initialize in.
+//
+static const MachineDefinition * const  s_kpAllMachines[] =
+{
+    &Apple2Definition::Get(),
+    &Apple2PlusDefinition::Get(),
+    &Apple2eDefinition::Get(),
+    &Apple2eEnhancedDefinition::Get(),
+    &Apple2cDefinition::Get()
+};
+
+
 
 
 
@@ -26,16 +41,9 @@ const MachineDefinition * MachineDefinitions::Find (const std::string & machineI
 {
     const MachineDefinition *  found = nullptr;
 
-    static const MachineDefinition * const  s_kpAll[] =
-    {
-        &Apple2Definition::Get(),
-        &Apple2PlusDefinition::Get(),
-        &Apple2eDefinition::Get(),
-        &Apple2eEnhancedDefinition::Get(),
-        &Apple2cDefinition::Get()
-    };
 
-    for (const MachineDefinition * candidate : s_kpAll)
+
+    for (const MachineDefinition * candidate : s_kpAllMachines)
     {
         if (candidate->id == machineId)
         {
@@ -46,6 +54,7 @@ const MachineDefinition * MachineDefinitions::Find (const std::string & machineI
 
     return (found);
 }
+
 
 
 
@@ -62,11 +71,15 @@ const MachineDefinition * MachineDefinitions::Find (const std::string & machineI
 
 std::vector<std::string> MachineDefinitions::GetKnownIds()
 {
-    std::vector<std::string>  ids = { Apple2Definition::Get().id,
-                                      Apple2PlusDefinition::Get().id,
-                                      Apple2eDefinition::Get().id,
-                                      Apple2eEnhancedDefinition::Get().id,
-                                      Apple2cDefinition::Get().id };
+    std::vector<std::string>  ids;
+
+
+
+    ids = { Apple2Definition::Get().id,
+            Apple2PlusDefinition::Get().id,
+            Apple2eDefinition::Get().id,
+            Apple2eEnhancedDefinition::Get().id,
+            Apple2cDefinition::Get().id };
 
     return (ids);
 }

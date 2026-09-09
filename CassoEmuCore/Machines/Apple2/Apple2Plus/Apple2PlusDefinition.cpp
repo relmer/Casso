@@ -34,5 +34,7 @@ const MachineDefinition & Apple2PlusDefinition::Get()
         .keyboardType    = "apple2-uppercase"
     };
 
+
+
     return (s_definition);
 }
