@@ -502,6 +502,7 @@
     <ClCompile Include="Disk2DebugPanelLayoutTests.cpp" />
     <ClCompile Include="EmuTests\MachineDefinitionTests.cpp" />
     <ClCompile Include="EmuTests\PerfStatsTests.cpp" />
+    <ClCompile Include="EmuTests\CrtPostProcessTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\DamagedDisk.h" />
@@ -531,6 +532,7 @@
     <ClInclude Include="Dxui\MockDxuiPainter.h" />
     <ClInclude Include="Dxui\MockDxuiTextRenderer.h" />
     <ClInclude Include="Dxui\MockDxuiTheme.h" />
+    <ClInclude Include="EmuTests\WarpRenderHarness.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
