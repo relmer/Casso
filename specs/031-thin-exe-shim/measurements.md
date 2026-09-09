@@ -154,3 +154,46 @@ project also holds its resource script and names its CRT startup symbol.
 | `CheckStyle -Mode Tree` | clean over 1,357 files |
 | Both executables run | //e launches to its desk scene; `CassoCli --version` answers |
 
+## What placement did not buy
+
+Issue #85 asked for the code to live where tests can reach it, and it now does.
+That is necessary and it is not sufficient: a file linked into `UnitTest` is
+reachable, but a function that can only be called through a live
+`EmulatorShell` is still not drivable.
+
+`MachineManager::SwitchMachine` is the clearest case. Its teardown reads
+`m_shell.m_disk2DebugPanel`, `m_shell.m_inputDebugPanel` and the whole
+`m_refs` observer struct, so asserting that a debug panel re-attaches to the
+new controller after a switch -- the shipped fix User Story 4 wanted guarded --
+means constructing a shell, which means a window. The code is in core; its
+shape has not changed.
+
+So the extraction's second half is real work that remains: splitting the
+lifecycle, the layout math, the pacing gate and the input mapping out of the
+shell into functions that take their inputs. User Stories 3 and 6 describe
+exactly that, and their acceptance scenarios are the measure of it. This
+document records that the line-count goal was met without it, so a later reader
+does not mistake one for the other.
+
+What DID gain coverage, because it was already shaped for it: the machine
+definitions, the hardware-merge refusals, `PerfStats`, the Config edge cases,
+and the CRT chain through a WARP device. What was already covered and now
+reaches its subject by linking rather than by dual compilation: the disk and
+input debug projections, the track/sector predicate, settings pages, desk-scene
+layout, chrome widgets and the reset/power-cycle semantics.
+
+## Deferred, with reasons
+
+- **The disk-layer split (Phase 13).** All four files have a reusable core, but
+  the split's correct shape depends on what a 1541 or an 810 actually needs
+  from a track buffer and a mount coordinator, and neither exists to check
+  against. Guessing now would bake a second set of assumptions in beside the
+  Apple II ones it removes.
+- **T114, removing the ignored keys from the machine JSON.** The values are
+  already overridden in code, so the hole is closed; what remains is a file
+  that declares fields the program ignores. Removing them needs a
+  `$cassoMachineVersion` bump, a `MachineConfigUpgrade` path, and
+  `SettingsPanelState` reading its hardware tree from the definitions.
+- **The checked-in golden images (FR-008a).** Blessing a golden means looking
+  at it and deciding it is right.
+
