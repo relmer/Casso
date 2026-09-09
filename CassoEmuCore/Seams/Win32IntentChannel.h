@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Pch.h"
-#include "IIntentChannel.h"
+#include "Seams/IIntentChannel.h"
 
 
 

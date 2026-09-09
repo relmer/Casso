@@ -29,7 +29,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Blocking**: every story phase writes into the structure these tasks create.
 
-- [ ] T004 Create the receiving directories in `CassoEmuCore/`: `Machines/Apple2/{Common,Apple2,Apple2Plus,Apple2e,Apple2eEnhanced,Apple2c}/`, `Config/`, `Shell/`, `Ui/{Chrome,Dialogs,Scene,Settings,Debug}/`, `Print/`, `Seams/`, `Gui/`
+- [x] T004 Create the receiving directories in `CassoEmuCore/`: `Machines/Apple2/{Common,Apple2,Apple2Plus,Apple2e,Apple2eEnhanced,Apple2c}/`, `Config/`, `Shell/`, `Ui/{Chrome,Dialogs,Scene,Settings,Debug}/`, `Print/`, `Seams/`, `Gui/`
 - [x] T005 Add a helper to `scripts/` that counts functions defined in a project's translation units, so SC-002 is a check that can fail rather than an inspection
 - [x] T006 Add a helper to `scripts/` that reports remaining `..\Casso` `ClCompile` entries in `UnitTest/UnitTest.vcxproj`, for the per-phase measurement
 
@@ -41,19 +41,19 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: the suite passes unchanged; the diff shows no content change beyond include paths and header guards.
 
-- [ ] T007 [US0] Classify every file in `CassoEmuCore/Devices/Disk/` (72 files) against the FR-005c rule; record the classification and its reasoning for the commit message
-- [ ] T008 [P] [US0] Classify every file in `CassoEmuCore/Devices/Printer/` (47 files) against the FR-005c rule
-- [ ] T009 [P] [US0] Classify every file in `CassoEmuCore/Devices/Mockingboard/` (12 files) against the FR-005c rule
-- [ ] T010 [US0] Move model-specific devices to `CassoEmuCore/Machines/Apple2/Apple2e/` and `.../Apple2c/`: `Apple2eMmu`, `Apple2eKeyboard`, `Apple2eSoftSwitchBank`, `Apple2cRomBank`
-- [ ] T011 [US0] Move Apple II family devices to `CassoEmuCore/Machines/Apple2/Common/`: `AppleKeyboard`, `AppleMouse`, `AppleSpeaker`, `AppleGamePort`, `AppleSoftSwitchBank`, `LanguageCard`, `CxxxRomRouter`
-- [ ] T012 [US0] Move the `Disk2*` set and the `Devices/Disk/` files classified as family code to `CassoEmuCore/Machines/Apple2/Common/`; leave container and file-format parsers in `CassoEmuCore/Devices/Disk/`
-- [ ] T013 [US0] Move the Apple video modes and character ROM data to `CassoEmuCore/Machines/Apple2/Common/`: `AppleTextMode`, `Apple80ColTextMode`, `AppleLoResMode`, `AppleHiResMode`, `AppleDoubleHiResMode`, `CharacterRom*`; leave `VideoTiming`, `IVideoTiming`, `PixelFormat`, `MonochromeTint`, `NtscColorTable` in `CassoEmuCore/Video/`
-- [ ] T014 [US0] Move the `Devices/Printer/` and `Devices/Mockingboard/` files classified as family code into `CassoEmuCore/Machines/Apple2/Common/`, leaving chip emulation in `CassoEmuCore/Devices/`
-- [ ] T015 [US0] Move `Cli/Win32DiskFileIo` and `Cli/Win32IntentChannel` to `CassoEmuCore/Seams/`; they are seam implementations included by `Casso/` as well as the CLI and are misfiled under `Cli/`
-- [ ] T016 [US0] Update `CassoEmuCore/CassoEmuCore.vcxproj` file entries and filters for every move in T010-T015
-- [ ] T017 [US0] Update include paths and header guards across the tree for the moved files; change nothing else (FR-005e)
-- [ ] T018 [US0] Verify no file remaining in a machine-neutral directory (`Devices/`, `Video/`, `Audio/`, `Core/`) assumes one particular machine, and that every model directory matches one under `Resources/Machines/`
-- [ ] T019 [US0] Run the per-phase gate and commit with the classification reasoning and the measurement
+- [x] T007 [US0] Classify every file in `CassoEmuCore/Devices/Disk/` (72 files) against the FR-005c rule; record the classification and its reasoning for the commit message
+- [x] T008 [P] [US0] Classify every file in `CassoEmuCore/Devices/Printer/` (47 files) against the FR-005c rule
+- [x] T009 [P] [US0] Classify every file in `CassoEmuCore/Devices/Mockingboard/` (12 files) against the FR-005c rule
+- [x] T010 [US0] Move model-specific devices to `CassoEmuCore/Machines/Apple2/Apple2e/` and `.../Apple2c/`: `Apple2eMmu`, `Apple2eKeyboard`, `Apple2eSoftSwitchBank`, `Apple2cRomBank`
+- [x] T011 [US0] Move Apple II family devices to `CassoEmuCore/Machines/Apple2/Common/`: `AppleKeyboard`, `AppleMouse`, `AppleSpeaker`, `AppleGamePort`, `AppleSoftSwitchBank`, `LanguageCard`, `CxxxRomRouter`
+- [x] T012 [US0] Move the `Disk2*` set and the `Devices/Disk/` files classified as family code to `CassoEmuCore/Machines/Apple2/Common/`; leave container and file-format parsers in `CassoEmuCore/Devices/Disk/`
+- [x] T013 [US0] Move the Apple video modes and character ROM data to `CassoEmuCore/Machines/Apple2/Common/`: `AppleTextMode`, `Apple80ColTextMode`, `AppleLoResMode`, `AppleHiResMode`, `AppleDoubleHiResMode`, `CharacterRom*`; leave `VideoTiming`, `IVideoTiming`, `PixelFormat`, `MonochromeTint`, `NtscColorTable` in `CassoEmuCore/Video/`
+- [x] T014 [US0] Move the `Devices/Printer/` and `Devices/Mockingboard/` files classified as family code into `CassoEmuCore/Machines/Apple2/Common/`, leaving chip emulation in `CassoEmuCore/Devices/`
+- [x] T015 [US0] Move `Cli/Win32DiskFileIo` and `Cli/Win32IntentChannel` to `CassoEmuCore/Seams/`; they are seam implementations included by `Casso/` as well as the CLI and are misfiled under `Cli/`
+- [x] T016 [US0] Update `CassoEmuCore/CassoEmuCore.vcxproj` file entries and filters for every move in T010-T015
+- [x] T017 [US0] Update include paths and header guards across the tree for the moved files; change nothing else (FR-005e)
+- [x] T018 [US0] Verify no file remaining in a machine-neutral directory (`Devices/`, `Video/`, `Audio/`, `Core/`) assumes one particular machine, and that every model directory matches one under `Resources/Machines/`
+- [x] T019 [US0] Run the per-phase gate and commit with the classification reasoning and the measurement
 
 ---
 

@@ -60,3 +60,27 @@ Each slice appends a row on completion.
 | Slice | Story | `Casso` lines | `Casso` functions | Dual-compiled | Receiver lines |
 |---|---|---:|---:|---:|---:|
 | — | baseline | 93,928 | 1,235 | 38 | 69,247 |
+| 0 | machine hierarchy | 93,928 | 1,235 | 38 | 69,247 |
+
+### Slice 0 notes
+
+Every figure is unchanged, which is the result FR-005e asks for: the sweep
+relocated 100 files and altered no line of code. What changed is where the
+files are, and that is not a number this table can show. The countable part of
+the slice is the relocation itself:
+
+| Destination | Files |
+|---|---:|
+| `Machines/Apple2/Common/` | 88 |
+| `Machines/Apple2/Apple2e/` | 6 |
+| `Machines/Apple2/Apple2c/` | 2 |
+| `Seams/` | 5 |
+
+**Three of the five Apple II models need no code of their own.**
+`Machines/Apple2/` has directories for `Apple2e` and `Apple2c` only;
+`Apple2`, `Apple2Plus` and `Apple2eEnhanced` are fully described by their
+definitions under `Resources/Machines/` plus the family's shared code. Empty
+directories are not created for them, since git does not track a directory and
+an empty one would assert a distinction that does not exist. The contract's
+check therefore reads in one direction only: every model directory that exists
+matches a definition, not every definition has a directory.

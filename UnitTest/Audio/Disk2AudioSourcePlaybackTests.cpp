@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Audio/Disk2AudioSource.h"
+#include "Machines/Apple2/Common/Disk2AudioSource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

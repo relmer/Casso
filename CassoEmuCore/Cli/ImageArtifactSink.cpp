@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "ImageArtifactSink.h"
-#include "IIntentChannel.h"
+#include "Seams/IIntentChannel.h"
 
 #include "Machines/Apple2/Common/AssembledFilePlacement.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"

@@ -253,7 +253,7 @@
     <ClCompile Include="Capture\ScreenshotMetadata.cpp" />
     <ClCompile Include="Capture\ScreenshotPlan.cpp" />
     <ClCompile Include="Cli\CommandLine.cpp" />
-    <ClCompile Include="Cli\Win32DiskFileIo.cpp" />
+    <ClCompile Include="Seams\Win32DiskFileIo.cpp" />
     <ClCompile Include="Cli\DiskCommand.cpp" />
     <ClCompile Include="Cli\ArtifactWriter.cpp" />
     <ClCompile Include="Cli\ImageArtifactSink.cpp" />
@@ -271,7 +271,7 @@
     <ClCompile Include="Devices\Disk\ImageIdentity.cpp" />
     <ClCompile Include="Devices\Disk\ChangePrompt.cpp" />
     <ClCompile Include="Devices\Disk\PreservedCopy.cpp" />
-    <ClCompile Include="Cli\Win32IntentChannel.cpp" />
+    <ClCompile Include="Seams\Win32IntentChannel.cpp" />
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
@@ -290,7 +290,7 @@
     <ClCompile Include="Audio\AudioEndpointNotifier.cpp" />
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
-    <ClCompile Include="Audio\Disk2AudioSource.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\Disk2AudioSource.cpp" />
     <ClCompile Include="Audio\PrinterAudioSource.cpp" />
     <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
     <ClCompile Include="Machines\Apple2\Common\PrinterCard.cpp" />
@@ -381,7 +381,7 @@
     <ClInclude Include="Capture\ScreenshotMetadata.h" />
     <ClInclude Include="Capture\ScreenshotPlan.h" />
     <ClInclude Include="Cli\CommandLine.h" />
-    <ClInclude Include="Cli\Win32DiskFileIo.h" />
+    <ClInclude Include="Seams\Win32DiskFileIo.h" />
     <ClInclude Include="Cli\DiskCommand.h" />
     <ClInclude Include="Cli\ArtifactWriter.h" />
     <ClInclude Include="Cli\ImageArtifactSink.h" />
@@ -400,8 +400,8 @@
     <ClInclude Include="Devices\Disk\ChangePrompt.h" />
     <ClInclude Include="Devices\Disk\PreservedCopy.h" />
     <ClInclude Include="Devices\Disk\Win32ImageWatcher.h" />
-    <ClInclude Include="Cli\IIntentChannel.h" />
-    <ClInclude Include="Cli\Win32IntentChannel.h" />
+    <ClInclude Include="Seams\IIntentChannel.h" />
+    <ClInclude Include="Seams\Win32IntentChannel.h" />
     <ClInclude Include="Devices\Disk\IImageWatcher.h" />
     <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
     <ClInclude Include="Devices\Disk\MountedImageState.h" />
@@ -455,7 +455,7 @@
     <ClInclude Include="Audio\IDriveAudioEventSink.h" />
     <ClInclude Include="Audio\IDriveAudioSource.h" />
     <ClInclude Include="Audio\DriveAudioMixer.h" />
-    <ClInclude Include="Audio\Disk2AudioSource.h" />
+    <ClInclude Include="Machines\Apple2\Common\Disk2AudioSource.h" />
     <ClInclude Include="Audio\PrinterAudioSource.h" />
     <ClInclude Include="Render\SceneCamera.h" />
     <ClInclude Include="Render\CurvedDisplayMath.h" />

@@ -2,7 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "FakeIntentChannel.h"
 #include "FakeDiskFileIo.h"
-#include "Cli/Win32IntentChannel.h"
+#include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"

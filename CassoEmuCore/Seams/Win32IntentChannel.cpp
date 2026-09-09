@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Win32IntentChannel.h"
+#include "Seams/Win32IntentChannel.h"
 
 
 

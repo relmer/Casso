@@ -51,7 +51,7 @@
 #include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
-#include "Cli/Win32IntentChannel.h"
+#include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 
 #pragma comment(lib, "ole32.lib")

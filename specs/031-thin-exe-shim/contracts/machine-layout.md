@@ -85,7 +85,7 @@ with the machine it currently assumes and leaves the mixture intact.
 | Placement | No file under `Devices/`, `Video/` or `Audio/` assumes a particular machine |
 | Family level | `Common/` holds only code shared by two or more models of that family |
 | Chips | No chip sits under `Machines/` |
-| Names | Every model directory matches a directory under `Resources/Machines/` |
+| Names | Every model directory matches a directory under `Resources/Machines/`. The reverse does not hold and is not required: a model whose behavior is entirely its definition plus family code has no directory, and three of the five Apple II models are in that position |
 | Mechanical | Diff shows no content change beyond include paths and header guards |
 | Green | Debug and Release build, full suite passes |
 | Future cost | Adding a machine means adding a directory and a definition, not editing shared code |

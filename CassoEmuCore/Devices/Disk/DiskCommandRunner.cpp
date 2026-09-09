@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "DiskCommandRunner.h"
-#include "Cli/IIntentChannel.h"
+#include "Seams/IIntentChannel.h"
 #include "AppleTextCodec.h"
 #include "CommandLineParser.h"
 #include "Machines/Apple2/Common/VolumeImage.h"

@@ -39,7 +39,7 @@
 #include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
 #include "Audio/DriveAudioMixer.h"
-#include "Audio/Disk2AudioSource.h"
+#include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "../Ui/Disk2DebugPanel.h"

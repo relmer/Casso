@@ -7,9 +7,9 @@
 #include "As65ExitStatus.h"
 #include "DialectReporting.h"
 #include "ImageArtifactSink.h"
-#include "Win32IntentChannel.h"
+#include "Seams/Win32IntentChannel.h"
 #include "MerlinMode.h"
-#include "Win32DiskFileIo.h"
+#include "Seams/Win32DiskFileIo.h"
 
 
 
