@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "../Casso/Ui/Disk2DebugPanelLayout.h"
+#include "Ui/Disk2DebugPanelLayout.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

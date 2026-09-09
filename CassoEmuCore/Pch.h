@@ -59,6 +59,48 @@
 #include <unordered_set>
 #include <vector>
 
+//
+//  The Windows surface the application needs, which arrived here with it.
+//  These precede Ehm.h deliberately: Ehm picks its platform from whether
+//  _WINDOWS_ is already defined, so including it first gets the wrong one.
+//
+#include <d3d11.h>
+#include <d3dcompiler.h>
+#include <dxgi.h>
+#include <dxgidebug.h>
+#include <audioclient.h>
+#include <commdlg.h>
+#include <commctrl.h>
+#include <richedit.h>
+#include <winhttp.h>
+#include <dwmapi.h>
+#include <uxtheme.h>
+#include <dwrite_3.h>
+#include <shellscalingapi.h>
+#include <d2d1_3.h>
+#include <d2d1helper.h>
+#include <dxgi1_2.h>
+#include <dxgi1_3.h>
+#include <dcomp.h>
+#include <crtdbg.h>
+#include <shellapi.h>
+#include <shobjidl.h>
+#include <ole2.h>
+#include <oleidl.h>
+#include <wrl/event.h>
+#include <wrl/implements.h>
+#include <wrl/wrappers/corewrappers.h>
+#include <roapi.h>
+#include <eventtoken.h>
+#include <windows.foundation.h>
+#include <windows.graphics.printing.h>
+#include <printmanagerinterop.h>
+#include <documentsource.h>
+#include <documenttarget.h>
+#include <printpreview.h>
+#include <DispatcherQueue.h>
+#include <bcrypt.h>
+
 #include "../CassoCore/Ehm.h"
 
 //

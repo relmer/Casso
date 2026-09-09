@@ -2,8 +2,8 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
-#include "../Casso/resource.h"
-#include "../Casso/EmbeddedMachineConfigs.h"
+#include "resource.h"
+#include "EmbeddedMachineConfigs.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
