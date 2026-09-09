@@ -114,18 +114,25 @@ They move into code, in two steps. First a per-model definition record, which cl
 The hierarchy is rooted in the order the machines were built, because that is where the shared implementation actually comes from:
 
 ```
-Apple2Machine
-├── Apple2                 1977
-├── Apple2Plus             1979
-└── Apple2e                1983   aux bank, MMU, extended soft switches,
-    │                             full keyboard, 80-column and double hi-res
-    ├── Apple2c            1984   65C02, zero slots, back-panel ports, ROM banking
-    └── Apple2eEnhanced    1985   65C02
+Apple2                         1977
+└── Apple2Plus                 1979   Autostart ROM, Applesoft;
+    │                                 a Mockingboard in slot 4 by default
+    └── Apple2e                1983   aux bank, MMU, extended soft switches,
+        │                             full keyboard, 80-column and double hi-res
+        ├── Apple2c            1984   65C02, zero slots, back-panel ports,
+        │                                 ROM banking
+        └── Apple2eEnhanced    1985   65C02
 ```
+
+A chain, not a fan. Each machine descends from the one it was built out of, so
+there is no abstract base above the Apple ][: the ][ IS the base, and every
+later model is a ][ with things added or replaced.
 
 The //c is a sibling of the Enhanced //e, not its parent or its child. It shipped a year earlier, and the Enhanced //e was Apple retrofitting the //c's 65C02 and ROMs back into the //e, so deriving either from the other inverts what happened. Their entire shared surface is one value, `cpu = 65C02`; their character ROMs differ. A base class holding one assignment costs a reader more than the duplicated line.
 
-Nothing in this family is *removed* by a derived machine. The //c's lack of slots is a count of zero, not a facet taken away, so no removal mechanism is built. One is added when a machine demands it and not before.
+Almost nothing in this family is *removed* by a derived machine. The //c's lack of slots is a count of zero, not a facet taken away. The one real case is the game port: the ][ and ][+ carry an `apple2-family-gameport` device, and the //e, //e Enhanced and //c carry none, because `Apple2eSoftSwitchBank` absorbed the paddle timer and the `PREAD` handling into itself. So `Apple2e` must decline a device its parent creates.
+
+That is handled by the base offering a virtual the derived machine overrides to return nothing, which is checkable at compile time, rather than by a registry a derived class edits after the fact, which is order-dependent. No general removal mechanism beyond that is built until a machine demands one.
 
 A capability list disappears with the classes. `Apple2e`'s initialization constructs the 80-column and double hi-res renderers because having an aux bank and an MMU is what makes them possible — there is no list to keep in sync, and nothing can declare a capability the machine does not have.
 
