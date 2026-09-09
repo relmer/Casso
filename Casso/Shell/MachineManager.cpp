@@ -263,7 +263,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // owns the auxiliary 64 KiB and rebinds the page table on every
         // banking-changed event. Instantiate it directly here; full
         // wiring (siblings, Initialize) happens after the device pass.
-        if (devCfg.type == "apple2e-mmu")
+        if (devCfg.type == "apple2e-family-mmu")
         {
             m_shell.m_mmu = std::make_unique<Apple2eMmu>();
             continue;
@@ -278,39 +278,39 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         }
 
         // Track specific device pointers for quick access
-        if (devCfg.type == "apple2-keyboard" ||
-            devCfg.type == "apple2e-keyboard")
+        if (devCfg.type == "apple2-family-keyboard" ||
+            devCfg.type == "apple2e-family-keyboard")
         {
             m_shell.m_refs.keyboard = static_cast<AppleKeyboard *> (device.get());
 
             // Resolve the derived //e pointer here, where the configured
             // device type already says which keyboard was built, rather than
             // dynamic_cast-ing it back out of the base pointer at each use.
-            if (devCfg.type == "apple2e-keyboard")
+            if (devCfg.type == "apple2e-family-keyboard")
             {
                 m_shell.m_refs.iieKeyboard =
                     static_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
             }
         }
-        else if (devCfg.type == "apple2-softswitches" ||
-                 devCfg.type == "apple2e-softswitches")
+        else if (devCfg.type == "apple2-family-softswitches" ||
+                 devCfg.type == "apple2e-family-softswitches")
         {
             m_shell.m_refs.softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
 
             // Resolve the derived //e pointer here, where the configured
             // device type already says which bank was built, rather than
             // dynamic_cast-ing it back out of the base pointer at each use.
-            if (devCfg.type == "apple2e-softswitches")
+            if (devCfg.type == "apple2e-family-softswitches")
             {
                 m_shell.m_refs.iieSoftSwitches =
                     static_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
             }
         }
-        else if (devCfg.type == "apple2-gameport")
+        else if (devCfg.type == "apple2-family-gameport")
         {
             m_shell.m_refs.gamePort = static_cast<AppleGamePort *> (device.get());
         }
-        else if (devCfg.type == "apple2-speaker")
+        else if (devCfg.type == "apple2-family-speaker")
         {
             m_shell.m_refs.speaker = static_cast<AppleSpeaker *> (device.get());
         }

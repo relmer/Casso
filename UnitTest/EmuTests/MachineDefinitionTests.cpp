@@ -83,9 +83,9 @@ public:
         const MachineDefinition *  c = MachineDefinitions::Find ("Apple2c");
 
         Assert::IsNotNull (c);
-        AssertHasDevice (*c, "apple2e-keyboard");
-        AssertHasDevice (*c, "apple2e-softswitches");
-        AssertHasDevice (*c, "apple2e-mmu");
+        AssertHasDevice (*c, "apple2e-family-keyboard");
+        AssertHasDevice (*c, "apple2e-family-softswitches");
+        AssertHasDevice (*c, "apple2e-family-mmu");
     }
 
 
@@ -95,10 +95,10 @@ public:
 
         MachineConfigLoader::ApplyMachineDefinition ("Apple2c", config);
 
-        AssertHasDevice   (config, "apple2e-keyboard");
-        AssertLacksDevice (config, "apple2-keyboard");
+        AssertHasDevice   (config, "apple2e-family-keyboard");
+        AssertLacksDevice (config, "apple2-family-keyboard");
 
-        Assert::AreEqual (std::string ("apple2e-full"), config.keyboardType,
+        Assert::AreEqual (std::string ("apple2e-family-layout"), config.keyboardType,
                           L"the layout is the machine's, not the file's");
         Assert::AreEqual (std::string ("65C02"), config.cpu,
                           L"a //c is a 65C02 whatever the file says");
@@ -116,7 +116,7 @@ public:
         //  Casso's to compose -- that is the documented way to add one.
         MachineConfigLoader::ApplyMachineDefinition ("MyOwnMachine", config);
 
-        AssertHasDevice (config, "apple2-keyboard");
+        AssertHasDevice (config, "apple2-family-keyboard");
         Assert::AreEqual (std::string ("6502"), config.cpu);
         Assert::AreEqual (size_t (1), config.ram.size());
     }
@@ -173,11 +173,11 @@ private:
 
         config.name             = "Apple //c";
         config.cpu              = "6502";
-        config.keyboardType     = "apple2-uppercase";
+        config.keyboardType     = "apple2-family-layout";
         config.ram              = { { .address = 0x0000, .size = 0xC000 } };
-        config.internalDevices  = { { .type = "apple2-keyboard" },
-                                    { .type = "apple2-speaker" },
-                                    { .type = "apple2-softswitches" } };
+        config.internalDevices  = { { .type = "apple2-family-keyboard" },
+                                    { .type = "apple2-family-speaker" },
+                                    { .type = "apple2-family-softswitches" } };
         config.videoConfig.modes = { "apple2-text40", "apple2-lores", "apple2-hires" };
 
         return (config);

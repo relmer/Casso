@@ -24,12 +24,12 @@ const MachineDefinition & Apple2Definition::Get()
         .cpu             = "6502",
         .cpuManufacturer = "MOS Technology",
         .ram             = { { .address = 0x0000, .size = 0xC000 } },
-        .internalDevices = { { .type = "apple2-keyboard" },
-                             { .type = "apple2-speaker" },
-                             { .type = "apple2-softswitches" },
-                             { .type = "apple2-gameport" } },
+        .internalDevices = { { .type = "apple2-family-keyboard" },
+                             { .type = "apple2-family-speaker" },
+                             { .type = "apple2-family-softswitches" },
+                             { .type = "apple2-family-gameport" } },
         .videoModes      = { "apple2-text40", "apple2-lores", "apple2-hires" },
-        .keyboardType    = "apple2-uppercase"
+        .keyboardType    = "apple2-family-layout"
     };
 
 

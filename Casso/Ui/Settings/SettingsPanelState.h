@@ -121,7 +121,7 @@ struct HardwareEntry
     HardwareEntryKind  kind         = HardwareEntryKind::InternalDevice;
     int                jsonIndex    = -1;             // index within internalDevices[] / slots[]
     int                slot         = 0;              // 0 for internal devices
-    std::string        displayName;                   // e.g. "apple2e-keyboard" or "Slot 6: disk-ii"
+    std::string        displayName;                   // e.g. "apple2e-family-keyboard" or "Slot 6: disk-ii"
     std::string        type;                          // raw "type" / "device" string
     CapabilityFlag     capability   = CapabilityFlag::Optional;
     std::string        lockReason;                    // only meaningful for PlatformLocked

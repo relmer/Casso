@@ -25,17 +25,17 @@ const MachineDefinition & Apple2eDefinition::Get()
         .cpuManufacturer = "MOS Technology",
         .ram             = { { .address = 0x0000, .size = 0xC000 },
                                { .address = 0x0000, .size = 0xC000, .bank = "aux" } },
-        .internalDevices = { { .type = "apple2e-keyboard" },
-                             { .type = "apple2-speaker" },
-                             { .type = "apple2e-softswitches" },
-                             { .type = "apple2e-mmu" },
+        .internalDevices = { { .type = "apple2e-family-keyboard" },
+                             { .type = "apple2-family-speaker" },
+                             { .type = "apple2e-family-softswitches" },
+                             { .type = "apple2e-family-mmu" },
                              { .type = "language-card" } },
         .videoModes      = { "apple2-text40",
                              "apple2-text80",
                              "apple2-lores",
                              "apple2-hires",
                              "apple2-doublehires" },
-        .keyboardType    = "apple2e-full"
+        .keyboardType    = "apple2e-family-layout"
     };
 
 

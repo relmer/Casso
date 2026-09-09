@@ -354,11 +354,11 @@ public:
                                         config, error);
         AssertSucceeded (hr);
 
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-mmu"),
             L"Apple2.json must NOT include apple2e-mmu (composition pin)");
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-keyboard"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-keyboard"),
             L"Apple2.json must NOT include apple2e-keyboard");
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-softswitches"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-softswitches"),
             L"Apple2.json must NOT include apple2e-softswitches");
         Assert::IsFalse (HasInternalDeviceType (config, "language-card"),
             L"Apple2.json must NOT include language-card (//e-only here)");
@@ -386,11 +386,11 @@ public:
                                         config, error);
         AssertSucceeded (hr);
 
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-mmu"),
             L"Apple2Plus.json must NOT include apple2e-mmu");
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-keyboard"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-keyboard"),
             L"Apple2Plus.json must NOT include apple2e-keyboard");
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-softswitches"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-softswitches"),
             L"Apple2Plus.json must NOT include apple2e-softswitches");
         Assert::IsFalse (HasInternalDeviceType (config, "language-card"),
             L"Apple2Plus.json must NOT include language-card");
@@ -522,16 +522,16 @@ public:
                                         config, error);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
+        Assert::AreEqual (std::string ("apple2-family-layout"), config.keyboardType,
             L"Apple2.json keyboard type must remain apple2-uppercase");
 
-        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-keyboard"),
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-keyboard"),
             L"Apple2.json must keep apple2-keyboard");
-        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-speaker"),
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-speaker"),
             L"Apple2.json must keep apple2-speaker");
-        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-softswitches"),
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-softswitches"),
             L"Apple2.json must keep apple2-softswitches");
-        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-gameport"),
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-gameport"),
             L"Apple2.json must include apple2-gameport");
 
         Assert::AreEqual (size_t (4), config.internalDevices.size(),
@@ -574,16 +574,16 @@ public:
                                         config, error);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
+        Assert::AreEqual (std::string ("apple2-family-layout"), config.keyboardType,
             L"Apple2Plus.json keyboard type must remain apple2-uppercase");
 
-        Assert::IsTrue (HasInternalDeviceType (config, "apple2-keyboard"),
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-keyboard"),
             L"Apple2Plus.json must keep apple2-keyboard");
-        Assert::IsTrue (HasInternalDeviceType (config, "apple2-speaker"),
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-speaker"),
             L"Apple2Plus.json must keep apple2-speaker");
-        Assert::IsTrue (HasInternalDeviceType (config, "apple2-softswitches"),
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-softswitches"),
             L"Apple2Plus.json must keep apple2-softswitches");
-        Assert::IsTrue (HasInternalDeviceType (config, "apple2-gameport"),
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-gameport"),
             L"Apple2Plus.json must include apple2-gameport");
 
         Assert::AreEqual (size_t (4), config.internalDevices.size(),

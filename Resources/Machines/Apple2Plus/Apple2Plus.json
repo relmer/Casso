@@ -24,10 +24,10 @@
         "file": "Apple2_Video.rom"
     },
     "internalDevices": [
-        { "type": "apple2-keyboard" },
-        { "type": "apple2-speaker" },
-        { "type": "apple2-softswitches" },
-        { "type": "apple2-gameport" }
+        { "type": "apple2-family-keyboard" },
+        { "type": "apple2-family-speaker" },
+        { "type": "apple2-family-softswitches" },
+        { "type": "apple2-family-gameport" }
     ],
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
@@ -42,6 +42,6 @@
         "modes": ["apple2-text40", "apple2-lores", "apple2-hires"]
     },
     "keyboard": {
-        "type": "apple2-uppercase"
+        "type": "apple2-family-layout"
     }
 }

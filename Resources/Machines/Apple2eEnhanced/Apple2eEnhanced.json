@@ -25,10 +25,10 @@
         "file": "Apple2e_Video.rom"
     },
     "internalDevices": [
-        { "type": "apple2e-keyboard" },
-        { "type": "apple2-speaker" },
-        { "type": "apple2e-softswitches" },
-        { "type": "apple2e-mmu" },
+        { "type": "apple2e-family-keyboard" },
+        { "type": "apple2-family-speaker" },
+        { "type": "apple2e-family-softswitches" },
+        { "type": "apple2e-family-mmu" },
         { "type": "language-card" }
     ],
     "slots": [
@@ -44,6 +44,6 @@
         "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"]
     },
     "keyboard": {
-        "type": "apple2e-full"
+        "type": "apple2e-family-layout"
     }
 }

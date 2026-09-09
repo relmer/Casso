@@ -1472,15 +1472,15 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "joystick",                "Joystick" },
         { "paddle",                  "Paddle" },
         { "monitor",                 "Monitor" },
-        { "apple2-keyboard",         "Keyboard" },
-        { "apple2-speaker",          "Speaker" },
-        { "apple2-softswitches",     "Soft Switches" },
+        { "apple2-family-keyboard",         "Keyboard" },
+        { "apple2-family-speaker",          "Speaker" },
+        { "apple2-family-softswitches",     "Soft Switches" },
         // The //e-generation keyboard/soft-switch controllers are shared by the
         // //e and the //c, so the label stays machine-neutral (the machine name
         // is already shown at the top of the panel) rather than hardcoding //e.
-        { "apple2e-keyboard",        "Keyboard" },
-        { "apple2e-softswitches",    "Soft Switches" },
-        { "apple2e-mmu",             "Memory Management Unit" },
+        { "apple2e-family-keyboard",        "Keyboard" },
+        { "apple2e-family-softswitches",    "Soft Switches" },
+        { "apple2e-family-mmu",             "Memory Management Unit" },
     };
 
     mergedRootType = JsonType::Null;

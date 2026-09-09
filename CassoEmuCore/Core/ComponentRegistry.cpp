@@ -122,12 +122,12 @@ vector<string> ComponentRegistry::GetRegisteredTypes() const
 
 void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
 {
-    registry.Register ("apple2-keyboard",      AppleKeyboard::Create);
-    registry.Register ("apple2e-keyboard",     Apple2eKeyboard::Create);
-    registry.Register ("apple2-speaker",       AppleSpeaker::Create);
-    registry.Register ("apple2-softswitches",  AppleSoftSwitchBank::Create);
-    registry.Register ("apple2-gameport",      AppleGamePort::Create);
-    registry.Register ("apple2e-softswitches", Apple2eSoftSwitchBank::Create);
+    registry.Register ("apple2-family-keyboard",      AppleKeyboard::Create);
+    registry.Register ("apple2e-family-keyboard",     Apple2eKeyboard::Create);
+    registry.Register ("apple2-family-speaker",       AppleSpeaker::Create);
+    registry.Register ("apple2-family-softswitches",  AppleSoftSwitchBank::Create);
+    registry.Register ("apple2-family-gameport",      AppleGamePort::Create);
+    registry.Register ("apple2e-family-softswitches", Apple2eSoftSwitchBank::Create);
     registry.Register ("language-card",        LanguageCard::Create);
     registry.Register ("disk-ii",              Disk2Controller::Create);
     registry.Register ("acia-6551",            Acia6551::Create);

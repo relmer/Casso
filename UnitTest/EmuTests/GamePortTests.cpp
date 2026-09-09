@@ -136,9 +136,9 @@ namespace EmuTests
             MemoryBus          bus;
 
             ComponentRegistry::RegisterBuiltinDevices (registry);
-            cfg.type = "apple2-gameport";
+            cfg.type = "apple2-family-gameport";
 
-            auto device = registry.Create ("apple2-gameport", cfg, bus);
+            auto device = registry.Create ("apple2-family-gameport", cfg, bus);
 
             Assert::IsNotNull (device.get(), L"Registry must create an apple2-gameport device");
             Assert::AreEqual (static_cast<Word> (0xC061), device->GetStart(),
