@@ -4,11 +4,11 @@
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
 #include "TextScreenScraper.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/Disk/Dos33Volume.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Devices/Disk/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "MachineIdle.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

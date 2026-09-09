@@ -4,8 +4,8 @@
 #include "FakeDiskFileIo.h"
 #include "Cli/Win32IntentChannel.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

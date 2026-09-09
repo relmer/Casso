@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "VolumeIntegrityReport.h"
+#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 
 
 

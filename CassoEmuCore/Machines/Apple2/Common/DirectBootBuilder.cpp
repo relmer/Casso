@@ -1,8 +1,8 @@
 #include "Pch.h"
 
-#include "DirectBootBuilder.h"
+#include "Machines/Apple2/Common/DirectBootBuilder.h"
 
-#include "Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 
 
 

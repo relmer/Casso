@@ -4,11 +4,11 @@
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/Dos33Skeleton.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/SectorDecodeReport.h"
-#include "Devices/Disk/VolumeImage.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

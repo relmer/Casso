@@ -5,9 +5,9 @@
 #include "GuestSession.h"
 #include "HeadlessHost.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/ProDosVolume.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

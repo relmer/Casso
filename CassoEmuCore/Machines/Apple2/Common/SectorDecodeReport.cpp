@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "SectorDecodeReport.h"
-#include "NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 

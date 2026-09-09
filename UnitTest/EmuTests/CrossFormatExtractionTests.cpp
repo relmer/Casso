@@ -3,11 +3,11 @@
 #include "FixtureProvider.h"
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/ProDosVolume.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/VolumeImage.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

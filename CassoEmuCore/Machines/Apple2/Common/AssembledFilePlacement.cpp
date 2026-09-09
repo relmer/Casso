@@ -1,10 +1,10 @@
 #include "Pch.h"
 
-#include "AssembledFilePlacement.h"
+#include "Machines/Apple2/Common/AssembledFilePlacement.h"
 
-#include "Dos33Volume.h"
-#include "ProDosVolume.h"
-#include "VolumeImage.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 

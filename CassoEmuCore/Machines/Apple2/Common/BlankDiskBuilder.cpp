@@ -1,11 +1,11 @@
 #include "Pch.h"
 
-#include "BlankDiskBuilder.h"
-#include "NibbleImageCodec.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
 
-#include "Dos33Skeleton.h"
-#include "ProDosSkeleton.h"
-#include "WozLoader.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 
 

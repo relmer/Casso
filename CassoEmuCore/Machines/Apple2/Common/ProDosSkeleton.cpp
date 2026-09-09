@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "ProDosSkeleton.h"
-#include "ChainWalkGuard.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Devices/Disk/ChainWalkGuard.h"
 
 
 

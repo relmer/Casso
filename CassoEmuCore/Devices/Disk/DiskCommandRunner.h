@@ -10,8 +10,8 @@
 #include "DiskHelpPage.h"
 #include "DiskImageSession.h"
 #include "IDiskFileIo.h"
-#include "IVolume.h"
-#include "SectorDecodeReport.h"
+#include "Machines/Apple2/Common/IVolume.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 //  Forward-declared rather than included: pulling VolumeImage.h in would drag
 //  DiskImage.h through this header and into the console project, which does not

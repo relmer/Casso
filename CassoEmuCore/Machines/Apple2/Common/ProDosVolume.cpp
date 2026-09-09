@@ -1,9 +1,9 @@
 #include "Pch.h"
 
-#include "ProDosVolume.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Utils.h"
-#include "ProDosSkeleton.h"
-#include "NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 

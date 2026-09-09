@@ -2,8 +2,8 @@
 #include "HeadlessHost.h"
 #include "TextScreenScraper.h"
 #include "KeystrokeInjector.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
 

@@ -6,7 +6,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/Disk2NibbleEngine.h"
+#include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
 
 

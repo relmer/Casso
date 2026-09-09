@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "Disk2NibbleEngine.h"
-#include "DiskImage.h"
+#include "Machines/Apple2/Common/Disk2NibbleEngine.h"
+#include "Devices/Disk/DiskImage.h"
 
 
 

@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "NibbleImageCodec.h"
-#include "NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 

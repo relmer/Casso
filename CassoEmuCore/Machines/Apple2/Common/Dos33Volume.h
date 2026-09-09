@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "IVolume.h"
-#include "ChainWalkGuard.h"
+#include "Machines/Apple2/Common/IVolume.h"
+#include "Devices/Disk/ChainWalkGuard.h"
 
 
 

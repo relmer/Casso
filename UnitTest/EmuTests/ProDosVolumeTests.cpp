@@ -1,8 +1,8 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
-#include "Devices/Disk/ProDosSkeleton.h"
-#include "Devices/Disk/ProDosVolume.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

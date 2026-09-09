@@ -8,14 +8,14 @@
 #include "Assembler.h"
 #include "Cli/AssemblerMode.h"
 #include "Cli/ImageArtifactSink.h"
-#include "Devices/Disk/AssembledFilePlacement.h"
-#include "Devices/Disk/Dos33Skeleton.h"
-#include "Devices/Disk/Dos33Volume.h"
+#include "Machines/Apple2/Common/AssembledFilePlacement.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Devices/Disk/FilePath.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/ProDosSkeleton.h"
-#include "Devices/Disk/ProDosVolume.h"
-#include "Devices/Disk/VolumeImage.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 

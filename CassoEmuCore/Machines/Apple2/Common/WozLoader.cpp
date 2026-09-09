@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Version.h"
-#include "WozLoader.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 
 

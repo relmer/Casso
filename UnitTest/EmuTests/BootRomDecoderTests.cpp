@@ -1,6 +1,6 @@
 #include "Pch.h"
 #include "HeadlessHost.h"
-#include "Devices/Disk/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

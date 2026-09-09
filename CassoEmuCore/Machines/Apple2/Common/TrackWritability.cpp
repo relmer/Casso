@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "TrackWritability.h"
-#include "NibblizationLayer.h"
+#include "Machines/Apple2/Common/TrackWritability.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "StockBootDisks.h"
+#include "Machines/Apple2/Common/StockBootDisks.h"
 
 #include "Core/PathResolver.h"
 

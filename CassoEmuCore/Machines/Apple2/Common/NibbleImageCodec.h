@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "DiskImage.h"
+#include "Devices/Disk/DiskImage.h"
 
 
 

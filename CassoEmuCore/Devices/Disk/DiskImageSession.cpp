@@ -1,9 +1,9 @@
 #include "Pch.h"
 
 #include "DiskImageSession.h"
-#include "VolumeImage.h"
-#include "WozLoader.h"
-#include "NibblizationLayer.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Core/TextEncoding.h"
 
 

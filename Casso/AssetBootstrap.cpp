@@ -11,7 +11,7 @@
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
-#include "Devices/Disk/StockBootDisks.h"
+#include "Machines/Apple2/Common/StockBootDisks.h"
 #include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"

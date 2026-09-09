@@ -2,7 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 #include "Devices/Disk/FilePath.h"
-#include "Devices/Disk/VolumeIntegrityReport.h"
+#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

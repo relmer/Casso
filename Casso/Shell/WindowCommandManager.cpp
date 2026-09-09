@@ -9,7 +9,7 @@
 #include "../Shell/DiskMru.h"
 #include "../Ui/Dialogs/KeyboardMapText.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/PrintDelivery.h"

@@ -1,6 +1,6 @@
 #include "Pch.h"
 #include "Ui/Dialogs/CreateDiskDialog.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/MountDiagnosis.h"
 

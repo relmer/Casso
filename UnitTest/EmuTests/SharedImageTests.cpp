@@ -3,7 +3,7 @@
 #include "FakeImageWatcher.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/Disk/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Devices/Disk/CommitPlan.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

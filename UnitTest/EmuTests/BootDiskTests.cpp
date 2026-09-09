@@ -9,7 +9,7 @@
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/Disk/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"

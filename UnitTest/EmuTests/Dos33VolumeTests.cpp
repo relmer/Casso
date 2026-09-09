@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
-#include "Devices/Disk/Dos33Skeleton.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -3,12 +3,12 @@
 #include "FixtureProvider.h"
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Devices/Disk/DirectBootBuilder.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/Dos33Skeleton.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/ProDosSkeleton.h"
-#include "Devices/Disk/VolumeImage.h"
+#include "Machines/Apple2/Common/DirectBootBuilder.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

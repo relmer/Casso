@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "HeadlessHost.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

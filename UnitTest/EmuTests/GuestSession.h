@@ -3,7 +3,7 @@
 #include "../../CassoEmuCore/Pch.h"
 
 #include "HeadlessHost.h"
-#include "Devices/Disk/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 

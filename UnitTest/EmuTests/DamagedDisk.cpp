@@ -2,9 +2,9 @@
 
 #include "DamagedDisk.h"
 
-#include "Devices/Disk/BlankDiskBuilder.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -1,13 +1,13 @@
 #include "Pch.h"
 
-#include "VolumeImage.h"
-#include "NibbleImageCodec.h"
-#include "NibblizationLayer.h"
-#include "Dos33Skeleton.h"
-#include "ProDosSkeleton.h"
-#include "DiskImageStore.h"
-#include "WozLoader.h"
-#include "TrackWritability.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/TrackWritability.h"
 
 
 

@@ -5,7 +5,7 @@
 
 #include "../FileBrowseModel.h"
 #include "../CreateDiskBodyPanel.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDropdown.h"

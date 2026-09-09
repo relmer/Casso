@@ -2,14 +2,14 @@
 #include "Assembler.h"
 #include "AssemblerTypes.h"
 #include "HeadlessHost.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Devices/Disk/Disk2NibbleEngine.h"
+#include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/NibbleImageCodec.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

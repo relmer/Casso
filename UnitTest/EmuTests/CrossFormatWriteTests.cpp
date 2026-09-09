@@ -4,12 +4,12 @@
 #include "HeadlessHost.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/ProDosSkeleton.h"
-#include "Devices/Disk/TrackWritability.h"
-#include "Devices/Disk/VolumeImage.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/TrackWritability.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

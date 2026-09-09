@@ -2,9 +2,9 @@
 
 #include "Pch.h"
 
-#include "FilePath.h"
-#include "VolumeTypes.h"
-#include "VolumeIntegrityReport.h"
+#include "Devices/Disk/FilePath.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
+#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 
 
 

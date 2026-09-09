@@ -1,9 +1,9 @@
 #include "Pch.h"
 
-#include "Dos33Volume.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Utils.h"
-#include "Dos33Skeleton.h"
-#include "NibblizationLayer.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 

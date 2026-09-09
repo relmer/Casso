@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "IDiskImage.h"
-#include "WozMetadata.h"
+#include "Machines/Apple2/Common/WozMetadata.h"
 
 
 
