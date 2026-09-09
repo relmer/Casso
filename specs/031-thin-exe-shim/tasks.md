@@ -264,14 +264,14 @@ hierarchy, moving it, then rewiring the shell around it.
 
 ## Phase 14: Polish and cross-cutting
 
-- [ ] T102a Audit the branch for FR-005 compliance: no commit message, code comment or Constitution Check names a platform API as a reason for placement
-- [ ] T102b Audit the branch for FR-014 compliance: every commit that adds new logic added it to a core library, so the exe did not regrow behind the extraction
-- [ ] T102c Confirm FR-008 held: no slice was folded into an unrelated feature branch, and no unrelated feature work landed on this one
-- [ ] T102 Confirm `CassoCore` still has no include reaching into `CassoEmuCore`, `Dxui` or an executable (FR-005b)
-- [ ] T103 Confirm ARM64 compiles in Debug and Release
-- [ ] T104 Record the final measurements in `specs/031-thin-exe-shim/measurements.md` so issue #85 can be closed against them (FR-016)
+- [x] T102a Audit the branch for FR-005 compliance: no commit message, code comment or Constitution Check names a platform API as a reason for placement
+- [x] T102b Audit the branch for FR-014 compliance: every commit that adds new logic added it to a core library, so the exe did not regrow behind the extraction
+- [x] T102c Confirm FR-008 held: no slice was folded into an unrelated feature branch, and no unrelated feature work landed on this one
+- [x] T102 Confirm `CassoCore` still has no include reaching into `CassoEmuCore`, `Dxui` or an executable (FR-005b)
+- [x] T103 Confirm ARM64 compiles in Debug and Release
+- [x] T104 Record the final measurements in `specs/031-thin-exe-shim/measurements.md` so issue #85 can be closed against them (FR-016)
 - [ ] T105 Add `CHANGELOG.md` entries for defects the extraction exposed and any user-visible change, and nothing for the extraction itself (FR-015)
-- [ ] T106 Update `docs/` and `ARCHITECTURE.md` where they describe the old placement
+- [x] T106 Update `docs/` and `ARCHITECTURE.md` where they describe the old placement
 - [ ] T107 Run `CheckStyle.ps1 -Mode Tree`, the full suite in Debug and Release, and the final gate from `quickstart.md`
 - [ ] T108 Present the changelog, README changes and every commit message to the owner, and wait for explicit approval before proposing the merge to master
 

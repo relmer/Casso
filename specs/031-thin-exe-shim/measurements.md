@@ -122,3 +122,35 @@ directories are not created for them, since git does not track a directory and
 an empty one would assert a distinction that does not exist. The contract's
 check therefore reads in one direction only: every model directory that exists
 matches a definition, not every definition has a directory.
+
+## Final measurement (T104)
+
+Taken at the end of the extraction, for closing issue #85.
+
+| Project | Files | Lines | Functions |
+|---|---:|---:|---:|
+| `Casso` (exe) | 1 | 5 | **0** |
+| `CassoCli` (exe) | 1 | 5 | **0** |
+| `CassoCore` | 78 | 33,410 | n/a |
+| `CassoEmuCore` | 481 | 161,273 | n/a |
+| `Dxui` | 130 | 45,523 | n/a |
+
+Dual-compiled exe sources in `UnitTest.vcxproj`: **0**
+
+The five lines in each executable are the comment-only translation unit. Each
+project also holds its resource script and names its CRT startup symbol.
+
+### Verification (T102, T102a-c, T103, T107)
+
+| Check | Result |
+|---|---|
+| `CassoCore` upward includes | none; and it references no other project |
+| Platform API named as a placement reason | none in any commit on the branch |
+| New logic added outside core while in flight | none; every new file landed in `CassoEmuCore` or `UnitTest` |
+| Unrelated feature work folded in | none; all 28 commits are 031 |
+| ARM64 Debug | builds |
+| x64 Debug | builds, 4,989 tests pass |
+| x64 Release | builds, 4,987 tests pass |
+| `CheckStyle -Mode Tree` | clean over 1,357 files |
+| Both executables run | //e launches to its desk scene; `CassoCli --version` answers |
+

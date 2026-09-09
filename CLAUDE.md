@@ -86,14 +86,13 @@ merge commit or the code is on master instead.
 <!-- SPECKIT START -->
 ## Active feature
 
-**031-thin-exe-shim** -- move all 93,927 lines out of `Casso.exe` into
-`CassoEmuCore`, leaving both executables as linker targets holding no code.
-Closes GH #85.
+**031-thin-exe-shim** -- both executables are now linker targets holding no
+code: `Casso.exe` went from 93,927 lines and 1,235 functions to zero of each,
+and `CassoCli.exe`'s `main` went with it. Closes GH #85.
 
 - Plan: `specs/031-thin-exe-shim/plan.md`
 - Spec: `specs/031-thin-exe-shim/spec.md`
-- Research: `specs/031-thin-exe-shim/research.md`
-- Data model: `specs/031-thin-exe-shim/data-model.md`
+- Measurements: `specs/031-thin-exe-shim/measurements.md`
 - Executable contract: `specs/031-thin-exe-shim/contracts/executable-project.md`
 - Machine layout contract: `specs/031-thin-exe-shim/contracts/machine-layout.md`
 - Validation: `specs/031-thin-exe-shim/quickstart.md`

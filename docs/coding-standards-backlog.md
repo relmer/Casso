@@ -663,13 +663,13 @@ EHM macro**, which is 8 production files:
 
 | File | Lines |
 |---|---:|
-| `Casso/Ui/Dialogs/StartupDownloadDialog.cpp` | 710 |
-| `Casso/Ui/ThemeLoader.cpp` | 549 |
+| `CassoEmuCore/Ui/Dialogs/StartupDownloadDialog.cpp` | 710 |
+| `CassoEmuCore/Ui/ThemeLoader.cpp` | 549 |
 | `CassoEmuCore/Core/MemoryBus.cpp` | 374 |
 | `CassoEmuCore/Core/PathResolver.cpp` | 276 |
 | `CassoCore/Cpu6502.cpp` | 267 |
 | `Dxui/Theme/DxuiDwm.cpp` | 234 |
-| `Casso/Ui/DriveWidgetController.cpp` | 161 |
+| `CassoEmuCore/Ui/DriveWidgetController.cpp` | 161 |
 | `CassoEmuCore/Core/CpuFactory.cpp` | 44 |
 
 (`CassoCore/Ehm.cpp` also matches and is exempt, it implements the macros.)
