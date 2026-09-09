@@ -211,7 +211,42 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 ---
 
-## Phase 12: Polish and cross-cutting
+## Phase 12: User Story 9 — Invariant hardware moves into code (P2)
+
+**Goal**: no user-editable file can compose a machine that never shipped.
+
+**Independent test**: construct each model's definition directly and assert its devices, layout, video modes and CPU; assert a delta naming `internalDevices` changes nothing.
+
+- [ ] T109 [US9] Add `CassoEmuCore/Machines/IMachineDefinition.h` declaring the invariant surface a model supplies: internal devices, keyboard layout, video modes, CPU, RAM layout
+- [ ] T110 [P] [US9] Define `Apple2`, `Apple2Plus` in `CassoEmuCore/Machines/Apple2/<Model>/`, each returning its own device list
+- [ ] T111 [P] [US9] Define `Apple2e`, `Apple2eEnhanced` — identical device lists, differing only in CPU and ROM
+- [ ] T112 [P] [US9] Define `Apple2c`, including the ROM bank that is currently wired from the executable
+- [ ] T113 [US9] Add a definition lookup by model id and have machine construction take the invariant fields from it rather than from `MachineConfig`
+- [ ] T114 [US9] Remove `internalDevices`, keyboard layout, video modes, CPU and RAM from the JSON schema and from the embedded defaults; leave slots, ports and ROM overrides
+- [ ] T115 [US9] Remove `internalDevices` from the delta-merge in `CassoEmuCore/Config/UserConfigStore.cpp` (:2159, :2316) and bump the machine-definition version with an upgrade path
+- [ ] T116 [US9] Rename device type strings to the `-family-` form and update the registry, the definitions and every test
+- [ ] T117 [P] [US9] Test: a delta naming a different keyboard for the //c leaves the //c's own keyboard in place
+- [ ] T118 [P] [US9] Test: each model's definition reports the expected devices, layout, video modes and CPU
+- [ ] T119 [P] [US9] Test: slot contents and attached peripherals set in JSON still take effect
+- [ ] T120 [US9] Launch the emulator, switch between all five machines, and confirm each still boots and behaves as before
+- [ ] T121 [US9] Run the per-phase gate and commit with the measurement
+
+---
+
+## Phase 13: Disk-layer factoring (P2)
+
+**Goal**: the reusable core of the disk layer stops assuming an Apple II.
+
+- [ ] T122 [P] Split `DiskImage`: the bit-stream track buffer stays generic; the 40/35-track, 6400-byte, 143,360-byte and quarter-track constants and the `WozMetadata` member move to an Apple II geometry
+- [ ] T123 [P] Split `DiskImageStore`: the mount/eject/flush lifecycle and salvage assessment stay generic; `kSlotCount = 8` and `(slot, drive)` addressing become a machine-supplied addressing scheme
+- [ ] T124 [P] Split `MountDiagnosis`: seven generic failure modes stay; `NotAWozFile`, `MalformedWoz`, `WrongSizeForNibble` and `NotANibbleStream` move to the Apple II format layer
+- [ ] T125 Split `DiskCommandRunner`: the command grammar and dispatch stay generic; the `ApplesoftTokenizer` and `AppleTextCodec` calls and the DOS 3.3 / ProDOS entry formatting move behind a filesystem-formatter seam
+- [ ] T126 [P] Tests for each split half, generic and Apple II
+- [ ] T127 Run the per-phase gate and commit with the measurement
+
+---
+
+## Phase 14: Polish and cross-cutting
 
 - [ ] T102a Audit the branch for FR-005 compliance: no commit message, code comment or Constitution Check names a platform API as a reason for placement
 - [ ] T102b Audit the branch for FR-014 compliance: every commit that adds new logic added it to a core library, so the exe did not regrow behind the extraction

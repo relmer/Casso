@@ -73,6 +73,10 @@ So the hole is not a coverage hole. It is a boundary hole, and dual compilation 
 
 - Q: Does the machine-generic / machine-specific untangling belong in 031 or a later spec? → A: In 031. The `Machines/<Family>/<Model>` hierarchy is swept across the whole tree, not only across files the extraction touches, because a half-applied convention is worse than either end state. The sweep runs first, before any extraction, so later slices land code in its final home.
 
+- Q: Should a machine's internal devices stay declared in its JSON definition, or move into code? → A: Into code. They are invariant hardware, not configuration, and leaving them in a user-editable file lets a delta produce machines that never existed — a //c with an original keyboard, a ][ with //e soft switches. What an owner could actually change on the physical machine — slot contents, attached peripherals, ROM overrides — stays in JSON.
+
+- Q: How should a device type name say which machines it serves? → A: With a `-family-` segment naming the model it debuted on. `apple2e-family-mmu` is the MMU introduced with the //e and used by every later machine in that line; `apple2-family-speaker` is the same part on all five.
+
 ## User Scenarios & Testing *(mandatory)*
 
 The "user" here is a Casso maintainer. Each story is an independently completable slice: it finishes on the feature branch on its own, leaves the emulator behaving identically, and adds test coverage where there was none. Slices are units of work and review, not units of release — see FR-006 for how they reach master. They are ordered so that the cheapest, least entangled code moves first and establishes the seam pattern the later slices reuse. User Story 0 precedes them all: it moves no code out of the exe, but it puts the destination directories in place so that every later slice lands its files where they belong the first time.
@@ -94,6 +98,29 @@ This slice introduces `CassoEmuCore/Machines/<Family>/<Model>/`, with a `Common/
 1. **Given** the swept tree, **When** a maintainer looks for the //e memory management unit, **Then** it is at `CassoEmuCore/Machines/Apple2/Apple2e/`, and the model directory has the same name as the machine's definition directory under `Resources/Machines/`.
 2. **Given** the swept tree, **When** a maintainer looks for a device shared by every Apple II model, **Then** it is in that family's `Common/` directory, and a device belonging to no machine is in `Devices/`.
 3. **Given** the swept tree, **When** the solution is built in Debug and Release, **Then** it builds and the full suite is green, because the sweep changed placement and include paths and nothing else.
+
+---
+
+### User Story 9 - A machine's invariant hardware stops being editable (Priority: P2)
+
+A maintainer cannot produce a machine that never existed by editing a preferences file, and a reader can see what a model *is* without reconstructing it from JSON.
+
+`internalDevices`, the keyboard layout, the video modes, the CPU and the RAM layout are not configuration. Nobody chose them; they are what the machine is. Today they sit in each machine's JSON definition, and `UserConfigStore` merges user deltas into `internalDevices` specifically, so a delta can give a //c an `apple2-keyboard` or a ][ the //e soft switches and nothing refuses it.
+
+They move into a per-model definition in code. The devices are still built through `ComponentRegistry` by type string, so the factory pattern and the registry are unchanged; what moves is the decision of *which* devices a model has. What stays in JSON is what an owner could genuinely change on the physical machine: slot contents, port assignments and attached peripherals, and a ROM file override. The test is whether someone could have done it with a screwdriver.
+
+Device type strings gain a `-family-` segment naming the model that introduced them, so a reader can tell from the name alone which machines a device serves.
+
+**Why this priority**: it is the correction that keeps the machine hierarchy honest. User Story 0 put machine code under its machine; this stops the machine's own composition from being rewritable by anyone with a text editor. It is independent of the extraction slices and can be scheduled around them.
+
+**Independent Test**: construct each model's definition directly and assert its device list, keyboard layout, video modes and CPU; assert that a user delta naming `internalDevices` no longer changes what is built.
+
+**Acceptance Scenarios**:
+
+1. **Given** a user preferences delta that names a different keyboard for the //c, **When** the machine is built, **Then** it is built with the //c's own keyboard, because the delta has no say over invariant hardware.
+2. **Given** a model's definition in code, **When** a maintainer reads it, **Then** the device list, keyboard layout, video modes and CPU are visible in one place without opening a JSON file.
+3. **Given** a slot configuration and an attached peripheral set in JSON, **When** they are changed, **Then** the change still takes effect, because those remain the owner's to make.
+4. **Given** any registered device type, **When** its name is read, **Then** the `-family-` segment says which model introduced it and therefore which machines share it.
 
 ---
 
@@ -270,6 +297,12 @@ This is the terminal slice and it is small: once the preceding slices have empti
 
 - **FR-005d**: The hierarchy in FR-005c MUST be applied to the whole tree in User Story 0, not only to files a later slice touches, and User Story 0 MUST complete before any code leaves `Casso/`. A convention applied to half a directory is not a convention: a reader cannot infer a rule from it, and the files left behind are exactly the ones whose placement was never reconsidered.
 
+- **FR-005f**: A machine's invariant hardware MUST be defined in code, not in a user-editable file: its internal devices, keyboard layout, video modes, CPU and RAM layout. The devices are still constructed through `ComponentRegistry` by type string; only the decision of which devices a model has moves. `internalDevices` MUST be removed from the preferences delta-merge surface, so no user edit can compose a machine that never shipped.
+
+- **FR-005g**: What an owner could change on the physical machine MUST stay in the machine's JSON definition: slot contents, port assignments, attached peripherals, and a ROM file override.
+
+- **FR-005h**: A device type string MUST carry a `-family-` segment naming the model that introduced it, so the name says which machines share the device.
+
 - **FR-005e**: User Story 0 MUST NOT change behavior, and MUST NOT change file contents beyond include paths and header guards. It is a relocation, and keeping it purely mechanical is what makes it reviewable at its size and what lets its acceptance be a green build rather than an argument.
 
 **Phasing**
@@ -318,6 +351,8 @@ This is the terminal slice and it is small: once the preceding slices have empti
 - **SC-002**: The `Casso` project defines zero functions, the entry point included. Counting them is the whole of the check, and it is a check that can fail.
 - **SC-002a**: `CassoCli.exe`, at 57 lines and one `main`, is brought to the same shape, so "every executable" in issue #85's title is true of every shipped executable. `MeshCreator` is not one; see Assumptions.
 - **SC-002b**: Every file under `CassoEmuCore` that carries assumptions about a particular machine sits under that machine's directory in the `Machines/` hierarchy, and `Devices/` retains only code that belongs to no machine. Adding a machine to the tree consists of adding a family or model directory and its definition, not of editing shared code to admit it.
+
+- **SC-002c**: No user-editable file can change which internal devices, keyboard layout, video modes or CPU a shipped machine is built with, and every device type name says which model introduced it.
 
 - **SC-003**: Every module moved out of the exe is covered by unit tests in the same slice that moves it; the count of moved modules without tests is zero at the end of every slice.
 - **SC-003a**: The count of executable sources compiled a second time into `UnitTest.dll` falls from 38 to zero, and the test project neither includes from nor references the executable project.
