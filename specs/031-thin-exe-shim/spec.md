@@ -53,9 +53,45 @@ Slices are therefore sized by inspection, not by grep.
 
 The absence of tests and the absence of the abstraction are the same hole. This specification defines how it gets closed.
 
+## Clarifications
+
+### Session 2026-09-09
+
+- Q: `Casso.sln` has a third `Application` project, `MeshCreator`, which the specification never mentions — is it in scope? → A: No. It is a build-time tool, not a shipped executable, so it is excluded from FR-003 and from SC-002a.
+
+- Q: Principle VI's "What Actually Stays" still grants a GUI executable the entry point, the `HWND`, its message pump and the device objects, which FR-003/FR-004 overrule — how is that resolved? → A: Amend the constitution first, before Slice 1, so every slice's Constitution Check passes against text that matches the requirement.
+
+- Q: How do the eight slices map onto branches and merges? → A: They do not merge separately. All eight land on the single `031-thin-exe-shim` feature branch, committed and pushed at each phase boundary or more often; the branch merges to master once, after the whole specification is implemented and tested, and only on the owner's explicit approval.
+
+- Q: What is the "expected image" User Story 7 compares read-back pixels against? → A: Checked-in golden images, compared pixel-exact. A legitimate change to a pass regenerates the goldens in the same slice; drift caused by a WARP or driver revision is an accepted maintenance cost.
+
+- Q: Should the toolchain/machine library split be kept, or merged into one library holding everything either executable needs? → A: Kept. `CassoCore` has zero upward includes today and `CommandLineOptions` stores `--machine` as a plain string rather than a machine type, so the boundary is clean and machine-checked; merging would preserve every dependency while making the direction unenforceable.
+
+- Q: Does the machine-generic / machine-specific untangling belong in 031 or a later spec? → A: In 031. The `Machines/<Family>/<Model>` hierarchy is swept across the whole tree, not only across files the extraction touches, because a half-applied convention is worse than either end state. The sweep runs first, before any extraction, so later slices land code in its final home.
+
 ## User Scenarios & Testing *(mandatory)*
 
-The "user" here is a Casso maintainer. Each story is an independently shippable slice: it merges to master on its own, leaves the emulator behaving identically, and adds test coverage where there was none. They are ordered so that the cheapest, least entangled code moves first and establishes the seam pattern the later slices reuse.
+The "user" here is a Casso maintainer. Each story is an independently completable slice: it finishes on the feature branch on its own, leaves the emulator behaving identically, and adds test coverage where there was none. Slices are units of work and review, not units of release — see FR-006 for how they reach master. They are ordered so that the cheapest, least entangled code moves first and establishes the seam pattern the later slices reuse. User Story 0 precedes them all: it moves no code out of the exe, but it puts the destination directories in place so that every later slice lands its files where they belong the first time.
+
+### User Story 0 - The machine hierarchy is established before anything moves (Priority: P0)
+
+A maintainer adding a Commodore VIC-20 adds a machine, rather than discovering which of forty thousand lines silently assume an Apple II.
+
+`CassoEmuCore/Devices/` holds 177 files and 47,779 lines in one directory, and the tier a file belongs to is currently expressed only as a name prefix: `Apple2eMmu`, `Apple2eKeyboard`, `Apple2eSoftSwitchBank` and `Apple2cRomBank` are model-specific; `AppleKeyboard`, `AppleMouse`, `AppleSpeaker`, `AppleGamePort` and `AppleSoftSwitchBank` are shared across the Apple II series; `RamDevice`, `RomDevice`, `LanguageCard`, `Acia6551`, `IMmu`, `ISoftSwitchBank` and `IVideoMode` are generic or chip-level and belong to no machine at all. `CassoEmuCore/Video/` is the least generic area in the tree, with 15 of its 20 files carrying Apple II assumptions.
+
+This slice introduces `CassoEmuCore/Machines/<Family>/<Model>/`, with a `Common/` directory per family for code shared across that family's models, and sweeps the existing tree into it. Chips and generic devices stay in `Devices/`, because a 6551 is not an Apple part and the first cross-vendor chip would otherwise force the hierarchy open again. Model directories keep the names their machine definitions already use under `Resources/Machines/`, so a reader moving between the JSON and the code sees one set of names.
+
+**Why this priority**: it moves first because every later slice lands files in these directories. Sweeping afterwards would move the same files twice and would stack a mass relocation on top of a mass extraction, which is the merge this branch is least able to absorb. It is also the slice that makes the machine-generic boundary visible, which is what keeps the extraction from quietly cementing Apple II assumptions into forty thousand relocated lines.
+
+**Independent Test**: the suite passes unchanged. This slice moves files and updates include paths; it adds no behavior and therefore asserts none. Its check is that the build is green in Debug and Release and that no file's contents changed apart from its own include paths and header guards.
+
+**Acceptance Scenarios**:
+
+1. **Given** the swept tree, **When** a maintainer looks for the //e memory management unit, **Then** it is at `CassoEmuCore/Machines/Apple2/Apple2e/`, and the model directory has the same name as the machine's definition directory under `Resources/Machines/`.
+2. **Given** the swept tree, **When** a maintainer looks for a device shared by every Apple II model, **Then** it is in that family's `Common/` directory, and a device belonging to no machine is in `Devices/`.
+3. **Given** the swept tree, **When** the solution is built in Debug and Release, **Then** it builds and the full suite is green, because the sweep changed placement and include paths and nothing else.
+
+---
 
 ### User Story 1 - Persistence and preferences become testable (Priority: P1)
 
@@ -175,7 +211,7 @@ This slice exists because the graphics and audio stacks were the code most likel
 
 **Acceptance Scenarios**:
 
-1. **Given** a synthetic framebuffer and a set of CRT parameters, **When** the post-process chain runs, **Then** the read-back pixels match the expected image, and changing one parameter changes the image in the documented direction.
+1. **Given** a synthetic framebuffer and a set of CRT parameters, **When** the post-process chain runs, **Then** the read-back pixels match the checked-in golden image exactly, and changing one parameter changes the image in the documented direction.
 2. **Given** a set of audio sources at known gains and pans, **When** a span is mixed, **Then** the produced samples match the expected values, including at the clipping boundary.
 3. **Given** the same inputs run twice, **When** the outputs are compared, **Then** they are identical, so the tests are deterministic on any machine.
 
@@ -201,12 +237,12 @@ This is the terminal slice and it is small: once the preceding slices have empti
 
 ### Edge Cases
 
-- **A slice is larger than expected and cannot merge cleanly.** It splits further rather than growing; a slice that cannot ship on its own is not a slice.
+- **A slice is larger than expected.** It splits further rather than growing; a slice that cannot be finished and pushed as a working checkpoint is not a slice.
 - **A move surfaces a latent defect** (as the `CassoCli` extraction did, twice). The defect is fixed in the same slice, gets its own test, and is recorded in `CHANGELOG.md` as a fix — the extraction itself is not changelog material.
 - **A move would change user-visible behavior.** It must not, except where the behavior is the defect above. Any deliberate behavior change is out of scope and is filed separately.
 - **Code appears to need a platform API and therefore "belongs" in the exe.** That reasoning is explicitly rejected by Principle VI; the API goes behind a seam and the logic moves.
 - **Code is found that a test genuinely cannot drive.** It still moves. Its home is core, behind a seam, with a platform implementation a test substitutes for; the executable is not a hiding place for it. FR-003 leaves no room to negotiate, which is the point — the previous reading of this principle failed precisely because it had room.
-- **Master takes a sweeping rename while a slice is in flight** (four have landed since August 2026). Slices stay short-lived and merge master early; see the hazard note in `CLAUDE.md`.
+- **Master takes a sweeping rename while the branch is in flight** (four have landed since August 2026). The branch is long-lived by decision, which makes this the likeliest way the work is disrupted: master MUST be merged into it at every slice boundary at least, so a rename is absorbed one slice at a time rather than all at once at the end. See the hazard note in `CLAUDE.md` — renames merge cleanly and then fail to compile, so the cost is never visible in the conflict count.
 
 ## Requirements *(mandatory)*
 
@@ -222,13 +258,27 @@ This is the terminal slice and it is small: once the preceding slices have empti
 - **FR-004**: Everything else MUST live in the core library, without exception and regardless of what it touches. Window creation and the message pump, the graphics device and its present loop, the audio endpoint, and OS-owned dialogs are all core code. None of them is a reason to put a function in the exe, because none of them requires being in the exe to work: an executable is not a precondition for any Windows API, only for having a process at all. `TCDir` runs a real program this way today.
 - **FR-005**: Naming a platform API MUST NOT appear in any justification for placement, in this specification, in a plan, in a Constitution Check, or in a code comment. There is no placement question left for such a justification to answer: FR-003 admits no code and FR-004 assigns all of it to core. Any argument that some subsystem is special enough to stay is the argument constitution 1.10.0 was written to overrule.
 
+**Structure**
+
+- **FR-005b**: The two-library split MUST be retained. `CassoCore` remains the machine-independent toolchain — assembler, dialects, expression evaluation, the instruction set, command-line parsing and shared plumbing — and MUST continue to have no include reaching upward into `CassoEmuCore`, `Dxui` or an executable. `CassoEmuCore` remains the emulated machine and everything the running application is built from, and depends on `CassoCore` one way. Extracted code from `Casso/` lands in `CassoEmuCore`, which already holds one executable's entire program in `Cli/`; the graphical one becomes its sibling. The split is retained because it is the only boundary in the tree a build can enforce, and merging the libraries would keep every dependency while making its direction a matter of convention.
+
+- **FR-005c**: Machine-specific code MUST live under `CassoEmuCore/Machines/<Family>/<Model>/`, code shared across a family's models under `CassoEmuCore/Machines/<Family>/Common/`, and code belonging to no machine — generic devices and individual chips alike — in `CassoEmuCore/Devices/`. A family is a machine series, not a vendor, because machines from one maker can share nothing: the Apple II series is a family and a Lisa or a Macintosh would be others. Model directories MUST use the names their definitions already use under `Resources/Machines/`.
+
+- **FR-005d**: The hierarchy in FR-005c MUST be applied to the whole tree in User Story 0, not only to files a later slice touches, and User Story 0 MUST complete before any code leaves `Casso/`. A convention applied to half a directory is not a convention: a reader cannot infer a rule from it, and the files left behind are exactly the ones whose placement was never reconsidered.
+
+- **FR-005e**: User Story 0 MUST NOT change behavior, and MUST NOT change file contents beyond include paths and header guards. It is a relocation, and keeping it purely mechanical is what makes it reviewable at its size and what lets its acceptance be a green build rather than an argument.
+
 **Phasing**
 
-- **FR-006**: The work MUST be delivered as independently shippable slices, each merging to master on its own with the emulator fully working.
+- **FR-005a**: Principle VI MUST be amended before the first slice is implemented, so that "What Actually Stays" grants an executable no code at all rather than the entry point, the `HWND`, its message pump and the device objects. Until that lands, FR-003 and FR-004 are stricter than the document they enforce, and no slice's Constitution Check can honestly record a pass. The amendment cites `TCDir` and is the first commit on the branch; it is not deferred to User Story 8, because the exemption surface it removes is the one every later slice would otherwise be argued against.
+
+- **FR-006**: The work MUST be delivered as ordered slices on a single long-lived feature branch. Each slice MUST be committed and pushed to that branch when it completes, and more often where the work divides naturally within a slice. Slices MUST NOT be merged to master individually. The branch merges to master exactly once, after the whole specification is implemented and tested, and only when the owner explicitly asks for that merge and approves it. Each slice MUST nevertheless leave the branch in a shippable state — emulator fully working, suite green — because that is what makes the phase boundary a real checkpoint rather than a label.
 - **FR-007**: Each slice MUST be behavior-preserving from a user's point of view, except where it fixes a defect the extraction exposed.
-- **FR-008**: Slices MUST NOT be folded into unrelated feature branches (issue #85 non-goal).
+- **FR-008**: Slices MUST NOT be folded into unrelated feature branches (issue #85 non-goal), and unrelated feature work MUST NOT be folded into this one.
 
 **Testing**
+
+- **FR-008a**: Rendering tests MUST compare read-back pixels against golden images checked into the repository, pixel-exact, with no tolerance. A change to a pass that legitimately alters output regenerates the affected goldens within the same slice, and the regeneration MUST be a visible part of that slice's diff so a reviewer sees the image change rather than only the shader change. Goldens are test fixtures, not dependencies, and are read through the same seam the rest of the suite uses.
 
 - **FR-009**: Every module moved into core MUST gain unit tests in the same slice that moves it. A move without tests does not count as done.
 - **FR-010**: Tests for moved code MUST obey Test Isolation: no real files, registry, network, processes, or system APIs; all such access injected behind seams and mocked.
@@ -247,9 +297,11 @@ This is the terminal slice and it is small: once the preceding slices have empti
 
 ### Key Entities
 
-- **Slice**: one independently shippable extraction — a set of modules, their new home, their backfilled tests, and its before/after measurement.
+- **Slice**: one independently completable extraction — a set of modules, their new home, their backfilled tests, and its before/after measurement. It is a checkpoint on the feature branch, not a release.
 - **Seam**: an interface that lets a test substitute for an OS service. Both sides of it live in core — the interface and the platform implementation alike — since only the test needs the substitution, and a test links core. `IFileSystem` / `Win32FileSystem` in `Casso/Config/` is the existing example, and it moves whole.
 - **Linker target**: what an executable project becomes under FR-003 — a resource script, an empty translation unit, and a linker setting that pulls the entry point out of the static library. `TCDir` is the working example.
+- **Family**: a machine series whose models share code — the Apple II series is one; a Lisa or a Macintosh would be others. Vendors are not families, because two machines from one maker can share nothing.
+
 - **Irreducible edge**: a category this specification retires. Under FR-003 there is no code in the exe for it to describe.
 
 ## Success Criteria *(mandatory)*
@@ -258,21 +310,33 @@ This is the terminal slice and it is small: once the preceding slices have empti
 
 - **SC-001**: The `Casso` project falls from 93,927 lines across 189 files to zero lines of code, matching `TCDir`. No floor is conceded to any subsystem in advance, because conceding one is how the previous reading of this principle went wrong.
 - **SC-002**: The `Casso` project defines zero functions, the entry point included. Counting them is the whole of the check, and it is a check that can fail.
-- **SC-002a**: `CassoCli.exe`, at 57 lines and one `main`, is brought to the same shape, so "every executable" in issue #85's title is true of every executable.
-- **SC-003**: Every module moved out of the exe is covered by unit tests in the same slice that moves it; the count of moved modules without tests is zero at every merge point.
+- **SC-002a**: `CassoCli.exe`, at 57 lines and one `main`, is brought to the same shape, so "every executable" in issue #85's title is true of every shipped executable. `MeshCreator` is not one; see Assumptions.
+- **SC-002b**: Every file under `CassoEmuCore` that carries assumptions about a particular machine sits under that machine's directory in the `Machines/` hierarchy, and `Devices/` retains only code that belongs to no machine. Adding a machine to the tree consists of adding a family or model directory and its definition, not of editing shared code to admit it.
+
+- **SC-003**: Every module moved out of the exe is covered by unit tests in the same slice that moves it; the count of moved modules without tests is zero at the end of every slice.
 - **SC-004**: A maintainer can build a machine, run it, reset it, power-cycle it and observe its state from a unit test.
-- **SC-005**: Every slice merges to master with the emulator fully working and with no user-visible behavior change other than defects fixed.
-- **SC-006**: The full test suite stays green at every merge point, in both Debug and Release, on x64.
+- **SC-005**: Every slice ends with the emulator fully working and with no user-visible behavior change other than defects fixed, and the completed branch merges to master in that state on the owner's approval.
+- **SC-006**: The full test suite is green at the end of every slice, in both Debug and Release, on x64.
 - **SC-007**: The completed work is traceable: for every slice, the recorded before/after measurement and the Principle VI evidence exist and are checkable by a later reader.
-- **SC-008**: A maintainer can render a frame, run it through the post-process chain, and assert the resulting pixels from a unit test; and can mix a span of audio and assert the resulting samples. Neither requires the emulator to be running.
+- **SC-008**: A maintainer can render a frame, run it through the post-process chain, and assert the resulting pixels against a checked-in golden from a unit test; and can mix a span of audio and assert the resulting samples. Neither requires the emulator to be running.
 
 ## Assumptions
 
 - **`TCDir` is the reference implementation.** Its executable project holds no code, its entry point lives in `TCDirCore`, and the linker recovers it via an explicit CRT startup symbol. Where this specification and a plan disagree about how thin an executable can be, `TCDir` is the tiebreaker, because it is a working program in this tree rather than an argument.
 - **Receiving library.** Extracted code goes to the existing `CassoCore` / `CassoEmuCore` (and `Dxui` for framework-level UI concerns). Whether any slice warrants a new library project instead is a planning decision, deferred to `/speckit-plan`.
+- **The constitution is amended ahead of the work, not after it.** Principle VI as ratified in 1.10.0 still lists things a GUI executable keeps. FR-005a closes that before Slice 1, so the slices are measured against a rule that says what they do.
+
+- **The reorganization sweep is deliberate scope, not drift.** Principle V limits changes to files explicitly required, and User Story 0 touches roughly two hundred files that this extraction would not otherwise have opened. It is included because the alternative considered — applying the hierarchy only to relocated files — leaves `Devices/` split between two conventions with no rule a later reader could infer, and because the sweep has to happen at some point regardless, at which time it would be strictly more expensive.
+
+- **The machine hierarchy does not itself untangle machine-generic from machine-specific code.** It relocates files so the boundary is visible and puts a rule in place that new code has to answer to. Where a file mixes both concerns, splitting it is a behavior-affecting change and belongs to a later specification; User Story 0 places such a file with the machine it currently assumes and leaves the mixture intact, so that the sweep stays mechanical per FR-005e.
+
+- **`MeshCreator` is out of scope.** It is a build-time tool, not a shipped executable: `Casso.vcxproj` builds it and then runs it during the Casso build to bake each `.mesh`/`.mtl` pair into the `.dmesh` the app loads, so it reaches no end user and is never in a release. FR-003's zero-lines rule and SC-002's function count apply to the executables that ship — `Casso.exe` and `CassoCli.exe` — and not to it. Recorded so a later reader does not read SC-002a as an oversight.
+
 - **`Dxui` is out of scope.** It is already a separate, unit-tested library and is the proof the pattern works, not a target.
-- **Slice order is a default, not a contract.** P1 → P3 reflects risk and dependency, and a later slice may be pulled forward if it becomes cheap; the constraint that binds is that each slice ships on its own.
+- **Slice order is a default, not a contract, with one exception.** P1 → P3 reflects risk and dependency, and a later slice may be pulled forward if it becomes cheap; the constraint that binds is that each slice leaves the branch working and tested. User Story 0 is the exception and is fixed in place: it is the destination every other slice writes into, so running it late would mean moving the same files twice.
 - **No user-visible change is intended.** Users should not be able to tell any slice shipped, apart from defect fixes.
+- **Golden images are pixel-exact, and that is a chosen tradeoff.** A software adapter is deterministic on a given machine and Windows revision, not across revisions, so a WARP or driver update can move a golden without any Casso change. The alternative — tolerances or computed structural expectations — was considered and rejected as too weak an assertion for the code this slice exists to cover. When a revision moves the goldens, they are regenerated and the change is reviewed; the risk is accepted, not overlooked.
+
 - **ARM64 is build-only.** x64 Debug and Release green is the acceptance bar for test execution; ARM64 must compile.
 - **The 15,995-line `EmulatorShell.cpp` will not be extracted in one pass.** Stories 3 and 6 both cut into it, and Story 6 may itself need further subdivision at planning time.
 - **This is engineering work with no end-user feature.** Its beneficiaries are maintainers, and its payoff is defects found before release, as the `CassoCli` extraction demonstrated.
