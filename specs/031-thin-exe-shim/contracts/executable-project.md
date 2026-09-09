@@ -70,8 +70,8 @@ produces the executable from the library, then a haiku.
 // Seek TCDirCore
 ```
 
-`Casso/Main.cpp` closes "Seek CassoEmuCore", which keeps the five syllables the
-line needs, since that is where the entry point lands.
+`Casso/Main.cpp` closes "CassoEmuCore" — five syllables exactly, where "Seek
+CassoEmuCore" would be six. The verb goes rather than the form.
 
 ## Verification
 

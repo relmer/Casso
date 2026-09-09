@@ -157,6 +157,7 @@ specs/031-thin-exe-shim/
 ├── research.md                      # Phase 0
 ├── data-model.md                    # Phase 1
 ├── quickstart.md                    # Phase 1
+├── measurements.md                  # Per-slice before/after counts (FR-012)
 ├── contracts/
 │   ├── executable-project.md        # What an exe may contain, and the linker mechanism
 │   └── machine-layout.md            # The Machines/<Family>/<Model> rule
@@ -256,3 +257,4 @@ time.
 | User Story 0 touches ~200 files outside the extraction's scope | A hierarchy applied to half a directory teaches no rule, and the sweep costs strictly more if deferred | Applying the hierarchy only to relocated files |
 | Golden images compared pixel-exact, brittle across WARP revisions | Owner's decision; tolerances are too weak an assertion for the code the slice exists to cover | Per-channel epsilon; computed structural expectations |
 | A constitution amendment precedes the feature | Principle VI as ratified licenses the exemptions this feature removes | Running as a documented deviation; amending last |
+| The same amendment corrects three allowlist rows | `crt-pi`, libretro `bloom` and `ntsc-adaptive` record their location as `Casso/Shaders/`, which slice 7 moves | Leaving the rows false until the end |

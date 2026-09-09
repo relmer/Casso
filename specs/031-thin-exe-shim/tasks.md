@@ -11,13 +11,15 @@ alone; the branch merges once, on the owner's approval (FR-006).
 
 **Per-phase gate** (from [quickstart.md](quickstart.md)), run at every phase
 boundary: Debug and Release build, suite green, `CheckStyle.ps1 -Mode Tree`
-clean, measurement recorded in the commit message, master merged in.
+clean, measurement recorded in the commit message, master merged in. Where a
+phase exposed a defect, it also ships a test that fails against the pre-move
+behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 ---
 
 ## Phase 1: Setup
 
-- [ ] T001 Amend Principle VI in `.specify/memory/constitution.md` so "What Actually Stays" grants an executable no code at all, citing `TCDir`; bump the version and Last Amended date per the amendment process
+- [ ] T001 Amend Principle VI in `.specify/memory/constitution.md` so "What Actually Stays" grants an executable no code at all, citing `TCDir`; in the same amendment correct the `crt-pi`, libretro `bloom` and `ntsc-adaptive` allowlist rows, whose Used By and Location still read `Casso` and `Casso/Shaders/`; bump the version and Last Amended date per the amendment process
 - [ ] T002 Record the branch-point measurement in `specs/031-thin-exe-shim/measurements.md`: per-project line counts, `Casso` `ClCompile`/`ClInclude` counts, and the 38 dual-compile entries
 - [ ] T003 Merge `origin/master` into the branch and confirm Debug and Release build before any file moves
 
@@ -39,19 +41,19 @@ clean, measurement recorded in the commit message, master merged in.
 
 **Independent test**: the suite passes unchanged; the diff shows no content change beyond include paths and header guards.
 
-- [ ] T007 Classify every file in `CassoEmuCore/Devices/Disk/` (72 files) against the FR-005c rule; record the classification and its reasoning for the commit message
-- [ ] T008 [P] Classify every file in `CassoEmuCore/Devices/Printer/` (47 files) against the FR-005c rule
-- [ ] T009 [P] Classify every file in `CassoEmuCore/Devices/Mockingboard/` (12 files) against the FR-005c rule
-- [ ] T010 Move model-specific devices to `CassoEmuCore/Machines/Apple2/Apple2e/` and `.../Apple2c/`: `Apple2eMmu`, `Apple2eKeyboard`, `Apple2eSoftSwitchBank`, `Apple2cRomBank`
-- [ ] T011 Move Apple II family devices to `CassoEmuCore/Machines/Apple2/Common/`: `AppleKeyboard`, `AppleMouse`, `AppleSpeaker`, `AppleGamePort`, `AppleSoftSwitchBank`, `LanguageCard`, `CxxxRomRouter`
-- [ ] T012 Move the `Disk2*` set and the `Devices/Disk/` files classified as family code to `CassoEmuCore/Machines/Apple2/Common/`; leave container and file-format parsers in `CassoEmuCore/Devices/Disk/`
-- [ ] T013 Move the Apple video modes and character ROM data to `CassoEmuCore/Machines/Apple2/Common/`: `AppleTextMode`, `Apple80ColTextMode`, `AppleLoResMode`, `AppleHiResMode`, `AppleDoubleHiResMode`, `CharacterRom*`; leave `VideoTiming`, `IVideoTiming`, `PixelFormat`, `MonochromeTint`, `NtscColorTable` in `CassoEmuCore/Video/`
-- [ ] T014 Move the `Devices/Printer/` and `Devices/Mockingboard/` files classified as family code into `CassoEmuCore/Machines/Apple2/Common/`, leaving chip emulation in `CassoEmuCore/Devices/`
-- [ ] T015 Move `Cli/Win32DiskFileIo` and `Cli/Win32IntentChannel` to `CassoEmuCore/Seams/`; they are seam implementations included by `Casso/` as well as the CLI and are misfiled under `Cli/`
-- [ ] T016 Update `CassoEmuCore/CassoEmuCore.vcxproj` file entries and filters for every move in T010-T015
-- [ ] T017 Update include paths and header guards across the tree for the moved files; change nothing else (FR-005e)
-- [ ] T018 Verify no file remaining in `Devices/`, `Video/` or `Audio/` assumes one particular machine, and that every model directory matches one under `Resources/Machines/`
-- [ ] T019 Run the per-phase gate and commit with the classification reasoning and the measurement
+- [ ] T007 [US0] Classify every file in `CassoEmuCore/Devices/Disk/` (72 files) against the FR-005c rule; record the classification and its reasoning for the commit message
+- [ ] T008 [P] [US0] Classify every file in `CassoEmuCore/Devices/Printer/` (47 files) against the FR-005c rule
+- [ ] T009 [P] [US0] Classify every file in `CassoEmuCore/Devices/Mockingboard/` (12 files) against the FR-005c rule
+- [ ] T010 [US0] Move model-specific devices to `CassoEmuCore/Machines/Apple2/Apple2e/` and `.../Apple2c/`: `Apple2eMmu`, `Apple2eKeyboard`, `Apple2eSoftSwitchBank`, `Apple2cRomBank`
+- [ ] T011 [US0] Move Apple II family devices to `CassoEmuCore/Machines/Apple2/Common/`: `AppleKeyboard`, `AppleMouse`, `AppleSpeaker`, `AppleGamePort`, `AppleSoftSwitchBank`, `LanguageCard`, `CxxxRomRouter`
+- [ ] T012 [US0] Move the `Disk2*` set and the `Devices/Disk/` files classified as family code to `CassoEmuCore/Machines/Apple2/Common/`; leave container and file-format parsers in `CassoEmuCore/Devices/Disk/`
+- [ ] T013 [US0] Move the Apple video modes and character ROM data to `CassoEmuCore/Machines/Apple2/Common/`: `AppleTextMode`, `Apple80ColTextMode`, `AppleLoResMode`, `AppleHiResMode`, `AppleDoubleHiResMode`, `CharacterRom*`; leave `VideoTiming`, `IVideoTiming`, `PixelFormat`, `MonochromeTint`, `NtscColorTable` in `CassoEmuCore/Video/`
+- [ ] T014 [US0] Move the `Devices/Printer/` and `Devices/Mockingboard/` files classified as family code into `CassoEmuCore/Machines/Apple2/Common/`, leaving chip emulation in `CassoEmuCore/Devices/`
+- [ ] T015 [US0] Move `Cli/Win32DiskFileIo` and `Cli/Win32IntentChannel` to `CassoEmuCore/Seams/`; they are seam implementations included by `Casso/` as well as the CLI and are misfiled under `Cli/`
+- [ ] T016 [US0] Update `CassoEmuCore/CassoEmuCore.vcxproj` file entries and filters for every move in T010-T015
+- [ ] T017 [US0] Update include paths and header guards across the tree for the moved files; change nothing else (FR-005e)
+- [ ] T018 [US0] Verify no file remaining in a machine-neutral directory (`Devices/`, `Video/`, `Audio/`, `Core/`) assumes one particular machine, and that every model directory matches one under `Resources/Machines/`
+- [ ] T019 [US0] Run the per-phase gate and commit with the classification reasoning and the measurement
 
 ---
 
@@ -200,7 +202,7 @@ clean, measurement recorded in the commit message, master merged in.
 - [ ] T093 [US8] Move `wWinMain` from `Casso/Main.cpp` to `CassoEmuCore/Gui/`, along with everything else remaining in `Casso/`
 - [ ] T094 [US8] Set `<EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>` in every configuration of `Casso.vcxproj`
 - [ ] T095 [US8] Reduce `Casso.vcxproj` to `Casso.rc`, `resource.h` and one comment-only `Main.cpp`, removing all other `ClCompile` and `ClInclude` entries
-- [ ] T096 [US8] Write `Casso/Main.cpp` as the comment-only translation unit, closing "Seek CassoEmuCore" (FR-003b)
+- [ ] T096 [US8] Write `Casso/Main.cpp` as the comment-only translation unit, whose haiku closes "CassoEmuCore" — five syllables (FR-003b)
 - [ ] T097 [US8] Move `main` from `CassoCli/CassoCli.cpp` into `CassoEmuCore/Cli/`, set `<EntryPointSymbol>mainCRTStartup</EntryPointSymbol>`, and reduce the project the same way
 - [ ] T098 [US8] Remove the `ProjectReference` to `Casso.vcxproj` from `UnitTest/UnitTest.vcxproj`, drop `..\Casso` from its `AdditionalIncludeDirectories`, and confirm zero `..\Casso` `ClCompile` entries remain
 - [ ] T099 [P] [US8] Test: the function count in each executable project is zero
@@ -211,6 +213,9 @@ clean, measurement recorded in the commit message, master merged in.
 
 ## Phase 12: Polish and cross-cutting
 
+- [ ] T102a Audit the branch for FR-005 compliance: no commit message, code comment or Constitution Check names a platform API as a reason for placement
+- [ ] T102b Audit the branch for FR-014 compliance: every commit that adds new logic added it to a core library, so the exe did not regrow behind the extraction
+- [ ] T102c Confirm FR-008 held: no slice was folded into an unrelated feature branch, and no unrelated feature work landed on this one
 - [ ] T102 Confirm `CassoCore` still has no include reaching into `CassoEmuCore`, `Dxui` or an executable (FR-005b)
 - [ ] T103 Confirm ARM64 compiles in Debug and Release
 - [ ] T104 Record the final measurements in `specs/031-thin-exe-shim/measurements.md` so issue #85 can be closed against them (FR-016)

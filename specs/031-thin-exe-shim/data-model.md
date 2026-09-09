@@ -97,7 +97,7 @@ The receiving library is `CassoEmuCore` for everything leaving `Casso/`
 | `Casso/Ui/Scene/` | 9,119 | `CassoEmuCore/Ui/Scene/` | 5 |
 | `Casso/Ui/Dialogs/` | 3,443 | `CassoEmuCore/Ui/Dialogs/` | 5 |
 | `Casso/Ui/` root | 14,857 | `CassoEmuCore/Ui/` | 5 |
-| `EmulatorShell` remainder | 18,050 | `CassoEmuCore/Shell/` | 6 |
+| `EmulatorShell` remainder | measured at slice 3's close | `CassoEmuCore/Shell/` | 6 |
 | `Casso/Shaders/` | — | `CassoEmuCore/Shaders/` + `Shaders.targets` import | 7 |
 | `CrtPostProcess`, render, mixing | — | `CassoEmuCore/Render/` | 7 |
 | `Casso/Print/` | 482 | `CassoEmuCore/Print/` | 4 |

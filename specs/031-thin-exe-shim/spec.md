@@ -18,7 +18,7 @@ Measured on `031-thin-exe-shim` at branch point (`.cpp` + `.h`, excluding build 
 
 | Project | Files | Lines | Unit tests |
 |---|---:|---:|---|
-| `Casso` (exe) | 189 | 93,927 | **none** |
+| `Casso` (exe) | 189 | 93,927 | **only by dual compilation** — see below |
 | `CassoEmuCore` | 291 | 69,244 | yes |
 | `Dxui` | 130 | 45,523 | yes |
 | `CassoCore` | 78 | 33,409 | yes |
@@ -38,6 +38,8 @@ Within the exe:
 | `Casso/Ui/Dialogs/` | 3,443 |
 | `Casso/Print/` | 482 |
 
+The per-area figures sum to 93,917 against the project's 93,927; the ten-line gap is uncounted files at the project root and is resolved by the branch-point measurement rather than left as a discrepancy.
+
 `EmulatorShell` declares 291 members and mixes message-loop plumbing with machine lifecycle, CPU-thread orchestration, soft-switch state, chrome layout math, frame pacing, input mapping and video-mode selection. Every item in that list is a decision a test could assert against synthetic inputs, and not one of them can be asserted today.
 
 Because every line moves, the only open question is the order to move it in, and
@@ -51,7 +53,9 @@ and reads back, so shader math and compositing are straightforwardly testable
 once relocated, and an audio mix is a span of samples before it is an endpoint.
 Slices are therefore sized by inspection, not by grep.
 
-The absence of tests and the absence of the abstraction are the same hole. This specification defines how it gets closed.
+The exe is not simply untested, and the truth is worse than the table's summary. `UnitTest.vcxproj` carries 38 `<ClCompile Include="..\Casso\...">` entries, compiling exe sources a second time into the test DLL, and seven test files under `UnitTest/Casso/` drive them. It does this because a project reference to an executable yields build ordering and cannot link, so the only way to reach the code was to compile it twice. Those sources build under two precompiled headers and ship as two copies that can diverge under differing preprocessor state, and coverage stops wherever a file fails to compile in both.
+
+So the hole is not a coverage hole. It is a boundary hole, and dual compilation is the workaround it forced. This specification defines how the boundary gets built and the workaround retired.
 
 ## Clarifications
 
@@ -205,7 +209,7 @@ A maintainer changes the CRT post-process chain, the compositing order, or the a
 
 This slice exists because the graphics and audio stacks were the code most likely to be waved through on the grounds that they touch a device. They do, but the device is not the logic: a graphics device on a software adapter needs no window, renders to a texture and reads back, and an audio mix is a span of samples before it is ever an endpoint. So the pass structure, the parameter resolution, the compositing arithmetic, the shader inputs and the mixing all move; what stays is presenting the finished surface to the display the user is looking at and handing the finished samples to the endpoint they are listening to.
 
-**Why this priority**: it is not a prerequisite for any other slice and it is the one most likely to need a test harness built first (a software-adapter device and a readback path), so it follows rather than blocks. Its priority reflects sequencing, not importance — it is the slice that most directly tests the corrected reading of the principle.
+**Why this priority**: it blocks nothing but the terminal slice, and it is the one most likely to need a test harness built first (a software-adapter device and a readback path), so it follows rather than blocks. Its priority reflects sequencing, not importance — it is the slice that most directly tests the corrected reading of the principle.
 
 **Independent Test**: render a synthetic framebuffer through the full pass chain on a software adapter, read back the target, and assert pixels; mix a synthetic set of sources and assert the produced samples.
 
@@ -252,9 +256,9 @@ This is the terminal slice and it is small: once the preceding slices have empti
 
 - **FR-001**: All logic the `UnitTest` project can link and exercise MUST live in a core library that both `Casso.exe` and `UnitTest` link.
 - **FR-002**: Placement decisions MUST be made on UT-reachability alone. That a piece of code calls a platform API MUST NOT be accepted as a reason to leave it in the exe.
-- **FR-003**: After all slices, the `Casso` project MUST contain zero lines of code. It is a linker target that produces the executable from the core library and holds only its resource script, the generated resource header, and one translation unit that is empty but for a comment saying where the code went. The entry point itself lives in core. This is not a target invented for this specification: `TCDir` ships this way today, its `TCDir/Main.cpp` is six lines of comment, and its `wmain` is at `TCDirCore/TCDir.cpp:226`.
+- **FR-003**: After all slices, the `Casso` project MUST contain zero lines of code. It is a linker target that produces the executable from the core library and holds only its resource script, the generated resource header, and one translation unit that is empty but for a comment saying where the code went. The entry point itself lives in core. This is not a target invented for this specification: `TCDir` ships this way today, its `TCDir/Main.cpp` is five lines of comment, and its `wmain` is at `TCDirCore/TCDir.cpp:226`.
 - **FR-003a**: The mechanism MUST be the one `TCDir` uses: the exe project names the CRT startup symbol explicitly (`wmainCRTStartup` there; the windowed equivalent here), which forces the linker to pull in startup, which references the entry point, which drags it out of the static library. Without that the linker has no undefined symbol to resolve and pulls nothing. Recorded here so the plan does not have to rediscover it.
-- **FR-003b**: The empty translation unit MUST carry the same comment `TCDir` uses, in the same form: a line saying the project only produces the executable from the library, then a haiku. `TCDir`'s reads "There is no code here / Cheer up, everything is fine / Seek TCDirCore"; the Casso one closes "Seek out CassoCore", which keeps the five syllables. If planning lands the entry point in a differently named library, the last line is rewritten to scan rather than the form abandoned. This is not decoration: the file exists only to be found by someone looking for code that is not there, so telling them where it went is its entire job.
+- **FR-003b**: The empty translation unit MUST carry the same comment `TCDir` uses, in the same form: a line saying the project only produces the executable from the library, then a haiku. `TCDir`'s reads "There is no code here / Cheer up, everything is fine / Seek TCDirCore". The entry point lands in `CassoEmuCore` (FR-005b), and "Seek CassoEmuCore" is six syllables, so the last line drops the verb and reads "CassoEmuCore", which is five exactly. The form is kept and the line is made to scan, which is what this requirement asks for. This is not decoration: the file exists only to be found by someone looking for code that is not there, so telling them where it went is its entire job.
 - **FR-004**: Everything else MUST live in the core library, without exception and regardless of what it touches. Window creation and the message pump, the graphics device and its present loop, the audio endpoint, and OS-owned dialogs are all core code. None of them is a reason to put a function in the exe, because none of them requires being in the exe to work: an executable is not a precondition for any Windows API, only for having a process at all. `TCDir` runs a real program this way today.
 - **FR-005**: Naming a platform API MUST NOT appear in any justification for placement, in this specification, in a plan, in a Constitution Check, or in a code comment. There is no placement question left for such a justification to answer: FR-003 admits no code and FR-004 assigns all of it to core. Any argument that some subsystem is special enough to stay is the argument constitution 1.10.0 was written to overrule.
 
@@ -262,7 +266,7 @@ This is the terminal slice and it is small: once the preceding slices have empti
 
 - **FR-005b**: The two-library split MUST be retained. `CassoCore` remains the machine-independent toolchain — assembler, dialects, expression evaluation, the instruction set, command-line parsing and shared plumbing — and MUST continue to have no include reaching upward into `CassoEmuCore`, `Dxui` or an executable. `CassoEmuCore` remains the emulated machine and everything the running application is built from, and depends on `CassoCore` one way. Extracted code from `Casso/` lands in `CassoEmuCore`, which already holds one executable's entire program in `Cli/`; the graphical one becomes its sibling. The split is retained because it is the only boundary in the tree a build can enforce, and merging the libraries would keep every dependency while making its direction a matter of convention.
 
-- **FR-005c**: Machine-specific code MUST live under `CassoEmuCore/Machines/<Family>/<Model>/`, code shared across a family's models under `CassoEmuCore/Machines/<Family>/Common/`, and code belonging to no machine — generic devices and individual chips alike — in `CassoEmuCore/Devices/`. A family is a machine series, not a vendor, because machines from one maker can share nothing: the Apple II series is a family and a Lisa or a Macintosh would be others. Model directories MUST use the names their definitions already use under `Resources/Machines/`.
+- **FR-005c**: Machine-specific code MUST live under `CassoEmuCore/Machines/<Family>/<Model>/`, code shared across a family's models under `CassoEmuCore/Machines/<Family>/Common/`, and code belonging to no machine — generic devices and individual chips alike — in whichever machine-neutral directory already holds its concern (`Devices/`, `Video/`, `Audio/`, `Core/`). A family is a machine series, not a vendor, because machines from one maker can share nothing: the Apple II series is a family and a Lisa or a Macintosh would be others. Model directories MUST use the names their definitions already use under `Resources/Machines/`.
 
 - **FR-005d**: The hierarchy in FR-005c MUST be applied to the whole tree in User Story 0, not only to files a later slice touches, and User Story 0 MUST complete before any code leaves `Casso/`. A convention applied to half a directory is not a convention: a reader cannot infer a rule from it, and the files left behind are exactly the ones whose placement was never reconsidered.
 
@@ -281,6 +285,8 @@ This is the terminal slice and it is small: once the preceding slices have empti
 - **FR-008a**: Rendering tests MUST compare read-back pixels against golden images checked into the repository, pixel-exact, with no tolerance. A change to a pass that legitimately alters output regenerates the affected goldens within the same slice, and the regeneration MUST be a visible part of that slice's diff so a reviewer sees the image change rather than only the shader change. Goldens are test fixtures, not dependencies, and are read through the same seam the rest of the suite uses.
 
 - **FR-009**: Every module moved into core MUST gain unit tests in the same slice that moves it. A move without tests does not count as done.
+- **FR-009a**: Dual compilation of executable sources into the test project MUST be retired as the extraction proceeds. Each slice MUST delete, in the same commit, the `<ClCompile Include="..\Casso\...">` entries in `UnitTest.vcxproj` for every file it relocates, because linking the library replaces them. On completion no such entry remains, `..\Casso` is gone from the test project's include directories, and its project reference to `Casso.vcxproj` is removed. Retiring the workaround is part of building the boundary; leaving it in place would mean the code had moved and the second copy had not.
+
 - **FR-010**: Tests for moved code MUST obey Test Isolation: no real files, registry, network, processes, or system APIs; all such access injected behind seams and mocked.
 - **FR-011**: Where a move exposes a defect, a test that fails against the pre-move behavior MUST accompany the fix.
 
@@ -308,12 +314,14 @@ This is the terminal slice and it is small: once the preceding slices have empti
 
 ### Measurable Outcomes
 
-- **SC-001**: The `Casso` project falls from 93,927 lines across 189 files to zero lines of code, matching `TCDir`. No floor is conceded to any subsystem in advance, because conceding one is how the previous reading of this principle went wrong.
+- **SC-001**: The `Casso` project falls from 93,927 lines across 189 files to zero lines of code, matching `TCDir`. "Lines of code" here counts statements and declarations, not the comment-only translation unit, the generated resource header or the resource script, all three of which FR-003 requires; SC-002's function count is the check that cannot be argued with. No floor is conceded to any subsystem in advance, because conceding one is how the previous reading of this principle went wrong.
 - **SC-002**: The `Casso` project defines zero functions, the entry point included. Counting them is the whole of the check, and it is a check that can fail.
 - **SC-002a**: `CassoCli.exe`, at 57 lines and one `main`, is brought to the same shape, so "every executable" in issue #85's title is true of every shipped executable. `MeshCreator` is not one; see Assumptions.
 - **SC-002b**: Every file under `CassoEmuCore` that carries assumptions about a particular machine sits under that machine's directory in the `Machines/` hierarchy, and `Devices/` retains only code that belongs to no machine. Adding a machine to the tree consists of adding a family or model directory and its definition, not of editing shared code to admit it.
 
 - **SC-003**: Every module moved out of the exe is covered by unit tests in the same slice that moves it; the count of moved modules without tests is zero at the end of every slice.
+- **SC-003a**: The count of executable sources compiled a second time into `UnitTest.dll` falls from 38 to zero, and the test project neither includes from nor references the executable project.
+
 - **SC-004**: A maintainer can build a machine, run it, reset it, power-cycle it and observe its state from a unit test.
 - **SC-005**: Every slice ends with the emulator fully working and with no user-visible behavior change other than defects fixed, and the completed branch merges to master in that state on the owner's approval.
 - **SC-006**: The full test suite is green at the end of every slice, in both Debug and Release, on x64.

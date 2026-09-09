@@ -222,5 +222,6 @@ loads.
 The `Casso` project currently lists 86 `ClCompile` and 101 `ClInclude` entries
 plus `Casso.rc` and the `Shaders.targets` import. All but the resource script
 and one comment-only translation unit are removed by the final slice. The
-haiku's closing line becomes "Seek CassoEmuCore", which keeps the five
-syllables FR-003b requires, since that is where the entry point lands.
+haiku's closing line becomes "CassoEmuCore", five syllables exactly; "Seek
+CassoEmuCore" would be six, so the verb goes rather than the form, which is
+what FR-003b asks for.
