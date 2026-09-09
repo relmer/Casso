@@ -421,23 +421,11 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="..\Casso\TrackSectorPredicate.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
     <ClCompile Include="..\Casso\Ui\Settings\ScreenshotsPage.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="..\Casso\Ui\Settings\PrintingPage.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\DebugDialogProjection.cpp">
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
-    </ClCompile>
-    <ClCompile Include="..\Casso\Disk2DebugDialogState.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
@@ -620,6 +608,7 @@
     <ClCompile Include="StartupDownloadSetTests.cpp" />
     <ClCompile Include="Disk2DebugPanelLayoutTests.cpp" />
     <ClCompile Include="EmuTests\MachineDefinitionTests.cpp" />
+    <ClCompile Include="EmuTests\PerfStatsTests.cpp" />
     <ClCompile Include="..\Casso\Shell\DiskMru.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>

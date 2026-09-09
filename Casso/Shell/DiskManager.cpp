@@ -11,7 +11,7 @@
 #include "Audio/DriveAudioMixer.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Config/IFileSystem.h"
-#include "../DiskSettings.h"
+#include "Config/DiskSettings.h"
 #include "../WasapiAudio.h"
 #include "../Ui/Chrome/DriveWidget.h"
 #include "../Ui/DriveWidgetController.h"

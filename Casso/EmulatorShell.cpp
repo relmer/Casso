@@ -31,7 +31,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 
-#include "DiskSettings.h"
+#include "Config/DiskSettings.h"
 #include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"

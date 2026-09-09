@@ -4,7 +4,7 @@
 
 #include "Chrome/CassoTheme.h"
 
-#include "../DebugDialogProjection.h"
+#include "Ui/Debug/DebugDialogProjection.h"
 
 
 static constexpr LPCWSTR  s_kpszClassName  = L"Casso.Disk2Debug.Panel";

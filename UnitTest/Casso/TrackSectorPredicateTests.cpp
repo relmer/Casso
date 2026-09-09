@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "TrackSectorPredicate.h"
+#include "Ui/Debug/TrackSectorPredicate.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

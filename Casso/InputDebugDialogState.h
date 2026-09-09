@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "../CassoEmuCore/Devices/InputEvent.h"
-#include "InputEventDisplay.h"
+#include "Ui/Debug/InputEventDisplay.h"
 #include "Widgets/DxuiListView.h"
 
 

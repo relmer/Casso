@@ -4,7 +4,7 @@
 
 #include "../EmulatorShell.h"
 #include "../AssetBootstrap.h"
-#include "../DiskSettings.h"
+#include "Config/DiskSettings.h"
 #include "../resource.h"
 #include "Config/MonitorCatalog.h"
 #include "Core/PathResolver.h"

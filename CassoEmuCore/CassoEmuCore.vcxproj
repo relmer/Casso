@@ -329,6 +329,11 @@
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eDefinition.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2eEnhanced\Apple2eEnhancedDefinition.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2c\Apple2cDefinition.cpp" />
+    <ClCompile Include="Ui\Debug\TrackSectorPredicate.cpp" />
+    <ClCompile Include="Ui\Debug\DebugDialogProjection.cpp" />
+    <ClCompile Include="Ui\Debug\Disk2DebugDialogState.cpp" />
+    <ClCompile Include="Config\DiskSettings.cpp" />
+    <ClCompile Include="Core\PerfStats.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -519,6 +524,13 @@
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2eDefinition.h" />
     <ClInclude Include="Machines\Apple2\Apple2eEnhanced\Apple2eEnhancedDefinition.h" />
     <ClInclude Include="Machines\Apple2\Apple2c\Apple2cDefinition.h" />
+    <ClInclude Include="Ui\Debug\TrackSectorPredicate.h" />
+    <ClInclude Include="Ui\Debug\DebugDialogProjection.h" />
+    <ClInclude Include="Ui\Debug\Disk2DebugDialogState.h" />
+    <ClInclude Include="Ui\Debug\Disk2EventDisplay.h" />
+    <ClInclude Include="Ui\Debug\InputEventDisplay.h" />
+    <ClInclude Include="Config\DiskSettings.h" />
+    <ClInclude Include="Core\PerfStats.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

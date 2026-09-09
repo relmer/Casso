@@ -62,6 +62,16 @@ Each slice appends a row on completion.
 | — | baseline | 93,928 | 1,235 | 38 | 69,247 |
 | 0 | machine hierarchy | 93,928 | 1,235 | 38 | 69,247 |
 | 1 | Config + tests | 86,128 | 1,187 | 31 | 77,054 |
+| 9 | machine definitions | 86,128 | 1,187 | 31 | 77,638 |
+| 2 | strays (partial) | 84,151 | 1,150 | 28 | 78,270 |
+
+### Slice 2 notes
+
+Two of the nine strays did not move. `InputDebugDialogState` includes
+`Widgets/DxuiListView.h`, and `AssetBootstrap` (3,631 lines) reaches into eight
+Dxui headers including dialogs and panels. `CassoEmuCore` does not reference
+`Dxui` and will not until slice 5 moves `Casso/Ui/`, so both wait for it rather
+than forcing the reference early for two files.
 
 ### Slice 1 notes
 

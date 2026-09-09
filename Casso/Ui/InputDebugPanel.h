@@ -13,7 +13,7 @@
 #include "Widgets/DxuiTooltip.h"
 
 #include "../InputDebugDialogState.h"
-#include "../InputEventDisplay.h"
+#include "Ui/Debug/InputEventDisplay.h"
 #include "../../CassoEmuCore/Devices/IInputEventSink.h"
 #include "../../CassoEmuCore/Devices/InputEventRing.h"
 

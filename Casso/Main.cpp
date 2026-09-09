@@ -12,7 +12,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "Core/PathResolver.h"
-#include "DiskSettings.h"
+#include "Config/DiskSettings.h"
 #include "EmulatorShell.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"

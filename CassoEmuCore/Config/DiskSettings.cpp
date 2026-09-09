@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DiskSettings.h"
+#include "Config/DiskSettings.h"
 
 #include "Config/IFileSystem.h"
 #include "Config/UserConfigStore.h"

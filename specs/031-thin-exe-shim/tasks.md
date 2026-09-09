@@ -81,14 +81,14 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: each moved module is constructed from synthetic data and asserted with no exe involvement.
 
-- [ ] T029 [P] [US2] Move `TrackSectorPredicate` to `CassoEmuCore/Devices/Disk/` and update its project entries
-- [ ] T030 [P] [US2] Move `DebugDialogProjection`, `Disk2DebugDialogState`, `InputDebugDialogState`, `InputEventDisplay`, `Disk2EventDisplay` to `CassoEmuCore/Ui/Debug/`
-- [ ] T031 [P] [US2] Move `DiskSettings` to `CassoEmuCore/Config/` and `PerfStats` to `CassoEmuCore/Core/`
+- [x] T029 [P] [US2] Move `TrackSectorPredicate` to `CassoEmuCore/Devices/Disk/` and update its project entries
+- [x] T030 [P] [US2] Move `DebugDialogProjection`, `Disk2DebugDialogState`, `InputDebugDialogState`, `InputEventDisplay`, `Disk2EventDisplay` to `CassoEmuCore/Ui/Debug/`
+- [x] T031 [P] [US2] Move `DiskSettings` to `CassoEmuCore/Config/` and `PerfStats` to `CassoEmuCore/Core/`
 - [ ] T032 [US2] Split `AssetBootstrap`: the resolution and catalog half moves to `CassoEmuCore/Config/`, the remainder stays until Story 8
-- [ ] T033 [US2] Delete the corresponding `..\Casso` `ClCompile` entries from `UnitTest/UnitTest.vcxproj`
-- [ ] T034 [P] [US2] Test: `TrackSectorPredicate` evaluated at its geometry boundaries matches the documented rule at each boundary
-- [ ] T035 [P] [US2] Test: the debug projections format a synthetic event stream into exactly the expected rows, including the empty and overflow cases
-- [ ] T036 [P] [US2] Tests for `DiskSettings`, `PerfStats` and the `AssetBootstrap` catalog half against synthetic inputs
+- [x] T033 [US2] Delete the corresponding `..\Casso` `ClCompile` entries from `UnitTest/UnitTest.vcxproj`
+- [x] T034 [P] [US2] Test: `TrackSectorPredicate` evaluated at its geometry boundaries matches the documented rule at each boundary
+- [x] T035 [P] [US2] Test: the debug projections format a synthetic event stream into exactly the expected rows, including the empty and overflow cases
+- [x] T036 [P] [US2] Tests for `DiskSettings`, `PerfStats` and the `AssetBootstrap` catalog half against synthetic inputs
 - [ ] T037 [US2] Run the per-phase gate and commit with the measurement
 
 ---

@@ -7,7 +7,7 @@
 #include "blit.vs.h"
 #include "blit.ps.h"
 
-#include "PerfStats.h"
+#include "Core/PerfStats.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
