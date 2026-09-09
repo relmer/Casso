@@ -11,7 +11,7 @@
 //  ParallelFirmware
 //
 //  Original slot firmware for the parallel printer card, generated from
-//  Devices/Printer/ParallelFirmware.a65. This header embeds BOTH the assembled
+//  Machines/Apple2/Common/ParallelFirmware.a65. This header embeds BOTH the assembled
 //  bytes and the exact source text; FirmwareParityTests re-assembles the
 //  source with the in-repo assembler and asserts equality with the byte
 //  array, so the two can never silently drift (FR-003 provenance).

@@ -17,7 +17,7 @@
 #include "Devices/Printer/PrintPagination.h"
 #include "Window/DxuiMessageBox.h"
 #include "Devices/Printer/PrintRaster.h"
-#include "Devices/Printer/PrinterCard.h"
+#include "Machines/Apple2/Common/PrinterCard.h"
 #include "Devices/Printer/RgbaImage.h"
 #include "Print/PrintJobStore.h"
 #include "Version.h"

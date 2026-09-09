@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Devices/Printer/PrinterCard.h"
+#include "Machines/Apple2/Common/PrinterCard.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"

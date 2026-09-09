@@ -8,7 +8,7 @@
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
 #include "Print/PrintJobStore.h"
-#include "Devices/Printer/PrinterCard.h"
+#include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
 
 #include "Core/PathResolver.h"

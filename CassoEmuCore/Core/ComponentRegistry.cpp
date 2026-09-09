@@ -14,7 +14,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "../Devices/Acia6551.h"
-#include "../Devices/Printer/PrinterCard.h"
+#include "Machines/Apple2/Common/PrinterCard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 
 
