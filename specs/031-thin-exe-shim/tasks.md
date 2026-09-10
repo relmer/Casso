@@ -312,6 +312,28 @@ depend on the seam pattern US1 establishes. US7 blocks nothing but US8.
 Move tasks within one phase are generally *not* parallel: they touch the same
 `.vcxproj` and the same include graph.
 
+## Phase 15: Retiring the test tree's second machine, and per-machine coverage
+
+**Goal**: one machine builder, and each machine tested for what it declares.
+
+The suite carried its own //e, //c, ][ and ][+ builders because the production
+one was a method on a class no test could construct. That is no longer true,
+so the copy goes -- and with it the reason machine coverage was uneven.
+
+- [x] T137 Provision the //e's real character generator (342-0133-A) and give the Enhanced //e's its own name; re-fetch a superseded ROM rather than keeping it on size alone
+- [ ] T138 Move `GuestSession`, `TextScreenScraper`, `KeystrokeInjector`, `MachineIdle` and `MemoryProbeHelpers` onto `MachineHost`
+- [ ] T139 **Tier 1** — `MachineContractTests`: every machine in `MachineDefinitions`, built through `MachineBuilder`, asserted against what its class declares, then booted to its prompt
+- [ ] T140 Migrate the remaining test files off `EmulatorCore`; delete `HeadlessHost`, `EmulatorCore`, `IHostShell`, `MockHostShell`, `MockAudioSink`
+- [ ] T141 **Tier 3** — state in each shared-component file which machine it runs on and why, rather than leaving it as the machine the old harness happened to build
+- [ ] T142 [P] **Tier 2** — `Machines/Apple2Tests.cpp`: Integer BASIC prompt, reset to the monitor, no 80-column or ALTCHARSET
+- [ ] T143 [P] **Tier 2** — `Machines/Apple2PlusTests.cpp`: Applesoft prompt, and **autostart boots slot 6** -- the disk stack has only ever been booted on a //e
+- [ ] T144 [P] **Tier 2** — `Machines/Apple2eTests.cpp`: 80-column, aux bank, ALTCHARSET
+- [ ] T145 [P] **Tier 2** — `Machines/Apple2eEnhancedTests.cpp`: 65C02 opcodes and MouseText
+- [ ] T146 [P] **Tier 2** — `Machines/Apple2cTests.cpp`: the //c's existing tests move here
+- [ ] T147 Run the per-phase gate and commit with the measurement
+
+---
+
 ## Implementation strategy
 
 **The first shippable increment is Phase 3 (US0)** — not a user story in the
