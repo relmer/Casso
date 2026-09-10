@@ -123,7 +123,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T050 [US4] Move `Casso/Print/` to `CassoEmuCore/Print/`
 - [ ] T051 [US4] Introduce seams for the clipboard round-trip and the image encode, both sides in core, and place the OS-owned print and file dialogs behind seams as well
 - [x] T052 [US4] Delete the `Shell/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj`
-- [ ] T053 [P] [US4] Test: switching machines re-attaches an open debug panel to the new controller and audio source — the shipped fix that has no test guarding it
+- [x] T053 [P] [US4] Test: switching machines re-attaches an open debug panel to the new controller and audio source — the shipped fix that has no test guarding it
 - [ ] T054 [P] [US4] Test: an MRU list at capacity moves an already-present entry to the front without duplicating and without evicting an unrelated entry
 - [ ] T055 [P] [US4] Test: a screenshot captured from a synthetic framebuffer decodes back to the same pixels at the expected dimensions
 - [ ] T056 [P] [US4] Test: command dispatch and mount/eject outcomes against mock sinks
@@ -160,13 +160,15 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 **Independent test**: nothing faked but the passage of time.
 
 - [ ] T071 [US6] Move the remainder of `EmulatorShell` to `CassoEmuCore/Shell/`, splitting it by concern rather than relocating a 15,995-line file whole
-- [ ] T072 [US6] Separate device construction and the machine lifecycle façade into `CassoEmuCore/Shell/MachineHost`
+- [x] T072 [US6] Separate device construction and the machine lifecycle façade into `CassoEmuCore/Shell/MachineHost`
 - [ ] T073 [US6] Move the window, its creation and its message pump into `CassoEmuCore/Shell/Window`; being in an executable is not what makes them work
 - [ ] T074 [US6] Move CPU-thread orchestration and soft-switch state ownership into core, behind a seam for the passage of time
+      - soft-switch mirror and the run loop are on `MachineHost` (`RunCycles` takes a cycle budget; time stays in `CpuManager`); the CPU-thread callbacks themselves are still on `EmulatorShell`
 - [ ] T075 [P] [US6] Test: a machine built headlessly runs a fixed number of cycles and its memory and soft-switch state assert as expected
-- [ ] T076 [P] [US6] Test: a soft reset preserves user RAM and takes the reset vector
-- [ ] T077 [P] [US6] Test: a power cycle re-seeds every DRAM-owning device before the reset sequence runs, and the result differs from a soft reset
-- [ ] T078 [P] [US6] Test: stepping a paused machine retires exactly one instruction and advances the program counter accordingly
+      - blocked on `MachineHost::Build`: the lifecycle tests build their machine by hand, so this still needs production construction to be reachable from a test
+- [x] T076 [P] [US6] Test: a soft reset preserves user RAM and takes the reset vector
+- [x] T077 [P] [US6] Test: a power cycle re-seeds every DRAM-owning device before the reset sequence runs, and the result differs from a soft reset
+- [x] T078 [P] [US6] Test: stepping a paused machine retires exactly one instruction and advances the program counter accordingly
 - [ ] T079 [US6] Launch the emulator and confirm boot, reset, power cycle, pause and step behave as before
 - [ ] T080 [US6] Run the per-phase gate and commit with the measurement
 
