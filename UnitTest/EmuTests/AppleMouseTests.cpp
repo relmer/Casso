@@ -26,8 +26,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  polarity, and the IOU access gate. The firmware tier is the oracle: it
 //  boots the real //c ROM 4 and calls the mouse firmware's own protocol
 //  entry points (phantom slot 7 on ROM 4 — $C712-$C719 table) against the
-//  hardware model, proving the register contract end to end. Firmware
-//  tests skip when the copyrighted ROM fixture is absent.
+//  hardware model, proving the register contract end to end. The ROM comes
+//  from scripts/FetchRoms.ps1 -Fixtures, and its absence fails the build
+//  step by name rather than skipping anything.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -433,7 +434,7 @@ public:
     // direction reads, position update, $C048 acknowledge -- one interrupt
     // per unit. READMOUSE ($C728) must report the summed position in the
     // slot-7 screen holes, and the button must read through bit 7 of the
-    // status hole. Skips when the ROM fixture is absent.
+    // status hole.
     TEST_METHOD (FirmwareTracksMotionAndButton_TransparentMode)
     {
         {

@@ -185,21 +185,17 @@ public:
     }
 
 
-    TEST_METHOD (EveryMachineTheFixturesCanSupplyBuilds)
+    TEST_METHOD (EveryShippedMachineBuildsAndBoots)
     {
-        //  Through the production builder, from the shipped JSON. A machine
-        //  whose config asks for a device the builder cannot make fails here
-        //  rather than on someone's desk.
+        //  All five, through the production builder, from the shipped JSON,
+        //  with the ROMs scripts/FetchRoms.ps1 -Fixtures provides. A machine
+        //  whose config asks for a device the builder cannot make, or whose
+        //  ROM is not where the config says, fails here rather than on
+        //  someone's desk.
         //
-        //  The ][ and ][+ are absent, and it is the ROMs rather than the
-        //  machines: the committed fixture set is Apple2e.rom,
-        //  Apple2eEnhanced.rom, Apple2c.rom, Apple2e_Video.rom and Disk2.rom,
-        //  so those two have neither a system nor a character ROM here. The
-        //  loader resolves both before it returns, so they cannot be loaded
-        //  at all rather than loading and rendering wrong. Committing their
-        //  ROMs is the only thing between them and this list -- and they
-        //  have no emulation coverage of any kind today, so it would be new
-        //  ground rather than a migration.
+        //  The ][ and ][+ had never been booted by a test before this: the
+        //  headless harness composed a Prng and a mock host for them and no
+        //  machine at all.
         struct Shipped
         {
             int          resourceId;
@@ -208,6 +204,8 @@ public:
 
         const Shipped  machines[] =
         {
+            { IDR_MACHINE_APPLE2,           "Apple2"          },
+            { IDR_MACHINE_APPLE2PLUS,       "Apple2Plus"      },
             { IDR_MACHINE_APPLE2E,          "Apple2e"         },
             { IDR_MACHINE_APPLE2E_ENHANCED, "Apple2eEnhanced" },
             { IDR_MACHINE_APPLE2C,          "Apple2c"         },
@@ -280,16 +278,7 @@ private:
         auto  resolveFlat = [root] (const std::vector<fs::path> &,
                                     const fs::path & romRelPath) -> fs::path
         {
-            fs::path  name      = romRelPath.filename();
-            fs::path  candidate = root / name;
-
-            //  The //c uses the //e's character generator -- the two files
-            //  are the same bytes under two names -- so the fixtures carry
-            //  it once and this answers for both.
-            if (!fs::exists (candidate) && name == L"Apple2c_Video.rom")
-            {
-                candidate = root / L"Apple2e_Video.rom";
-            }
+            fs::path  candidate = root / romRelPath.filename();
 
             return (fs::exists (candidate) ? candidate : fs::path());
         };

@@ -174,6 +174,15 @@ if ($Build) {
     }
 }
 
+#  The machine ROMs are not in the repository. Check the fixture set is
+#  complete before anything runs, so a missing ROM fails here with its name
+#  rather than letting the tests that build a machine go quietly unrun.
+$fetchRoms = Join-Path $PSScriptRoot 'FetchRoms.ps1'
+& $fetchRoms -Fixtures -Verify
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
+
 $toolsScript = Join-Path $PSScriptRoot 'VSTools.ps1'
 if (-not (Test-Path $toolsScript)) {
     throw "Tool helper script not found: $toolsScript"
