@@ -38,10 +38,10 @@ tell a stripe pattern from the right local density.
 WHY THE HGR PAIR IS CROPPED TIGHTER than the DHGR pair. The portrait
 crop letterboxes to about 145 of the 280 columns, and at half the
 horizontal resolution that is not enough bird. Cropping below the
-wattles gets it to about 197, which is most of the 224 the title band
-leaves, and the background gets a depth-of-field blur so its dither
-goes smooth instead of noisy and the dots that are left are spent on
-the head.
+wattles gets it to about 197, which with the title beside it is nearly
+the whole width, and the background gets a depth-of-field blur so its
+dither goes smooth instead of noisy and the dots that are left are
+spent on the head.
 """
 
 import sys

@@ -439,8 +439,16 @@ UnitTest/Fixtures/*.rom
 # `git add -A` away from being committed by accident.
 /DevDisks/
 
+# Casso preserves a copy of a mounted image beside it when the file changes
+# on disk, named <stem>.<YYYYMMDD-HHMMSS>-<NN>.<ext> (PreservedCopy::MakePath).
+# Rebuilding a demo disk with the emulator open drops one in the tree.
+*.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9].*
+
 # Intermediate assembler output for demo disks (the .dsk is the artifact)
 Apple2/Demos/**/*.bin
+# The disk under construction; BuildDemoDisk.ps1 renames it over the real
+# one only once every sector is in.
+Apple2/Demos/*.building.dsk
 # The cassowary framebuffers are authored artifacts the casso-rocks disk is
 # built from, not intermediates. They live under CassoRocks/ and the pattern
 # above would otherwise make `git add` skip a regenerated one without a word.

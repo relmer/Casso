@@ -75,7 +75,7 @@
 ;      drawn on the images now; it goes on the color-cell grid, which
 ;      keeps it legible through EITHER decode, because the cycle wraps
 ;      and either answer can end up looking at the other pair. See
-;      scripts/DhgrCassowaryGen.py and scripts/HgrCassowaryGen.py.
+;      DhgrCassowaryGen.py and HgrCassowaryGen.py, beside this file.
 ;
 ;      Steps, monochrome answer:
 ;        0 = DHGR: 560x192 one-bit, on aux+main $2000-$3FFF. The

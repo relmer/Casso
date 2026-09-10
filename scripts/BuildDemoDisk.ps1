@@ -313,13 +313,23 @@ function Build-LayoutWithCassoCli {
     #  the sixteen numbers, which is what makes -Compare an independent
     #  witness against the legacy layout that spells them out.
 
-    $dsk = Join-Path $demoDir "casso-rocks.dsk"
+    $dsk  = Join-Path $demoDir "casso-rocks.dsk"
+
+    #  BUILT UNDER ANOTHER NAME AND RENAMED OVER THE REAL ONE AT THE END.
+    #  This lays the image down one sectorwrite at a time, so a run that
+    #  stops partway -- a `| Select-Object -First` upstream is enough, it
+    #  closes the pipeline and takes the script with it -- used to leave a
+    #  disk with the boot sector in and nothing after it, which booted to
+    #  the monitor prompt. Now it leaves the previous disk untouched and a
+    #  .building.dsk beside it. The extension stays .dsk because the CLI
+    #  reads the image format off it.
+    $work = Join-Path $demoDir "casso-rocks.building.dsk"
+
+    if (Test-Path $work) { Remove-Item $work -Force }
 
     #  An unformatted image, because this disk has no filesystem: it boots
     #  its own loader, which reads fixed tracks. --format none is that.
-    if (Test-Path $dsk) { Remove-Item $dsk -Force }
-
-    & $cli disk create $dsk --type dsk --format none | Out-Null
+    & $cli disk create $work --type dsk --format none | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "disk create failed ($LASTEXITCODE)" }
 
     #  Each stage goes to a scratch file first: sectorwrite takes a file, and
@@ -344,7 +354,7 @@ function Build-LayoutWithCassoCli {
     )
 
     foreach ($step in $plan) {
-        & $cli disk sectorwrite $dsk $step.Path --physical --track $step.Track --sector $step.Sector | Out-Null
+        & $cli disk sectorwrite $work $step.Path --physical --track $step.Track --sector $step.Sector | Out-Null
         if ($LASTEXITCODE -ne 0) {
             throw "disk sectorwrite failed: $($step.Path) at track $($step.Track) physical sector $($step.Sector)"
         }
@@ -352,6 +362,8 @@ function Build-LayoutWithCassoCli {
 
     Remove-Item $tmp1 -Force
     Remove-Item $tmp2 -Force
+
+    Move-Item $work $dsk -Force
 
     return ,([System.IO.File]::ReadAllBytes($dsk))
 }
