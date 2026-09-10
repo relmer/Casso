@@ -508,6 +508,7 @@
     <ClCompile Include="EmuTests\EmbeddedMachineJson.cpp" />
     <ClCompile Include="EmuTests\Machines\Apple2eCharacterRomTests.cpp" />
     <ClCompile Include="EmuTests\MachineBuildTests.cpp" />
+    <ClCompile Include="EmuTests\TestMachine.cpp" />
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />
     <ClCompile Include="EmuTests\AppleKeyMappingTests.cpp" />
@@ -526,6 +527,7 @@
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
+    <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
     <ClInclude Include="EmuTests\MockAudioSink.h" />
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />

@@ -1,31 +1,23 @@
 #include "Pch.h"
 
-#include "Core/MachineConfig.h"
-#include "Core/Prng.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
-#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/MachineDefinitions.h"
-#include "Machines/Apple2/Common/AppleSpeaker.h"
-#include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Shell/MachineBuilder.h"
-#include "Shell/MachineHost.h"
-#include "resource.h"
 
-#include "EmbeddedMachineJson.h"
-#include "FixtureProvider.h"
+#include "TestMachine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
-namespace fs = std::filesystem;
 
-
-//  Long enough for a //e to clear its ROM's power-on self test and reach the
-//  point where it is running from the monitor, and short enough to stay well
+//  Long enough for a machine to clear its ROM's power-on self test and reach
+//  the point where it is running its monitor, and short enough to stay well
 //  inside a unit test's budget: roughly a tenth of a second of guest time.
 static constexpr uint32_t  s_kBootCycles = 100000;
 
-static constexpr uint64_t  s_kSeed = 0xCA550031ULL;
+//  Everything from $C000 up is ROM or I/O on every Apple II. A machine that
+//  survived its self test is executing there; one that fell into RAM is not.
+static constexpr Word  s_kRomSpaceStart = 0xC000;
 
 
 
@@ -37,12 +29,12 @@ static constexpr uint64_t  s_kSeed = 0xCA550031ULL;
 //
 //  A real machine, built by the code that builds the real one.
 //
-//  The test tree used to carry its own //e, //c, ][ and ][+ builders -- 675
-//  lines repeating the production wiring in the production order, because the
-//  production builder was a method on a class that could not be constructed
-//  without a window. Two copies of a wiring order is one copy too many: the
-//  power-cycle sequences had already drifted apart, and the one under test
-//  was the one nobody ships.
+//  The test tree used to carry its own //e, //c, ][ and ][+ builders --
+//  hundreds of lines repeating the production wiring in the production
+//  order, because the production builder was a method on a class that could
+//  not be constructed without a window. Two copies of a wiring order is one
+//  copy too many: the power-cycle sequences had already drifted apart, and
+//  the one under test was the one nobody ships.
 //
 //  What makes this reachable is that every service the builder connects a
 //  machine TO is optional. A machine with no mixer attached to its speaker
@@ -57,107 +49,77 @@ public:
 
     TEST_METHOD (TheProductionBuilderBuildsAnAppleIIe)
     {
-        MachineHost           host;
-        MachineBuildServices  nothingListening;
-        MachineBuilder        builder (host, nothingListening);
-        MachineConfig         config;
-        HRESULT               hr = S_OK;
-
-        LoadConfig (IDR_MACHINE_APPLE2E, "Apple2e", config);
-
-        host.SetPrng (std::make_unique<Prng> (s_kSeed));
-        host.SetCurrentMachineName (L"Apple2e");
-        host.GetConfig() = config;
-
-        hr = builder.Build (config);
-        AssertSucceeded (hr, L"the production builder must build a //e headlessly");
+        TestMachine  machine ("Apple2e");
 
         //  The devices a //e has, found through the same cached pointers the
         //  renderer and the input path read.
-        Assert::IsNotNull (host.GetCpu(),                     L"CPU");
-        Assert::IsNotNull (host.GetMmu(),                     L"//e MMU");
-        Assert::IsNotNull (host.GetRefs().keyboard,           L"keyboard");
-        Assert::IsNotNull (host.GetRefs().softSwitches,       L"soft switches");
-        Assert::IsNotNull (host.GetRefs().iieSoftSwitches,    L"//e soft switches");
-        Assert::IsNotNull (host.GetRefs().speaker,            L"speaker");
-        Assert::IsNotNull (host.GetRefs().mainRamDev,         L"main RAM");
-        Assert::IsNotNull (host.GetRefs().diskController,     L"slot 6 Disk ][");
-        Assert::IsNotNull (host.GetRefs().languageCard,       L"language card");
+        Assert::IsNotNull (machine->GetCpu(),                  L"CPU");
+        Assert::IsNotNull (machine->GetMmu(),                  L"//e MMU");
+        Assert::IsNotNull (machine->GetRefs().keyboard,        L"keyboard");
+        Assert::IsNotNull (machine->GetRefs().softSwitches,    L"soft switches");
+        Assert::IsNotNull (machine->GetRefs().iieSoftSwitches, L"//e soft switches");
+        Assert::IsNotNull (machine->GetRefs().speaker,         L"speaker");
+        Assert::IsNotNull (machine->GetRefs().mainRamDev,      L"main RAM");
+        Assert::IsNotNull (machine->GetRefs().languageCard,    L"language card");
+        Assert::IsNotNull (machine->GetRefs().diskController,  L"slot 6 Disk ][");
 
         //  All five renderers exist on every machine, because the per-frame
         //  mode selection switches between them and cannot afford to build
         //  one mid-render.
-        Assert::IsNotNull (host.GetRefs().text40,      L"40-column text");
-        Assert::IsNotNull (host.GetRefs().text80,      L"80-column text");
-        Assert::IsNotNull (host.GetRefs().loRes,       L"lo-res");
-        Assert::IsNotNull (host.GetRefs().hiRes,       L"hi-res");
-        Assert::IsNotNull (host.GetRefs().doubleHiRes, L"double hi-res");
+        Assert::IsNotNull (machine->GetRefs().text40,      L"40-column text");
+        Assert::IsNotNull (machine->GetRefs().text80,      L"80-column text");
+        Assert::IsNotNull (machine->GetRefs().loRes,       L"lo-res");
+        Assert::IsNotNull (machine->GetRefs().hiRes,       L"hi-res");
+        Assert::IsNotNull (machine->GetRefs().doubleHiRes, L"double hi-res");
     }
 
 
     TEST_METHOD (ABuiltMachineBootsItsRom)
     {
-        MachineHost           host;
-        MachineBuildServices  nothingListening;
-        MachineBuilder        builder (host, nothingListening);
-        MachineConfig         config;
-        uint64_t              spent = 0;
+        TestMachine  machine ("Apple2e");
+        uint32_t     spent = 0;
 
-        Build (host, builder, IDR_MACHINE_APPLE2E, "Apple2e", config);
-
-        host.PowerCycle();
-        spent = host.RunCycles (s_kBootCycles);
+        machine->PowerCycle();
+        spent = machine->RunCycles (s_kBootCycles);
 
         Assert::IsTrue (spent >= s_kBootCycles, L"the cycles asked for were spent");
 
-        //  A //e that survived its self test is executing ROM. Falling into
-        //  RAM, or sitting on the reset vector still, is what a machine that
-        //  was mis-wired does -- and it is the only assertion here that
-        //  depends on the wiring being RIGHT rather than merely present.
-        Assert::IsTrue (host.GetCpu()->GetPC() >= 0xC000,
+        //  The one assertion here that depends on the wiring being RIGHT
+        //  rather than merely present.
+        Assert::IsTrue (machine->GetCpu()->GetPC() >= s_kRomSpaceStart,
             std::format (L"a booted //e runs from ROM; PC was ${:04X}",
-                         host.GetCpu()->GetPC()).c_str());
+                         machine->GetCpu()->GetPC()).c_str());
     }
 
 
     TEST_METHOD (TheSoftSwitchesComeUpInTextMode)
     {
-        MachineHost           host;
-        MachineBuildServices  nothingListening;
-        MachineBuilder        builder (host, nothingListening);
-        MachineConfig         config;
+        TestMachine  machine ("Apple2e");
 
-        Build (host, builder, IDR_MACHINE_APPLE2E, "Apple2e", config);
+        machine->PowerCycle();
+        machine->RunCycles (s_kBootCycles);
 
-        host.PowerCycle();
-        host.RunCycles (s_kBootCycles);
-
-        //  The reset routine puts the display back to 40-column text. Every
-        //  one of these reads the live bank rather than the latched mirror,
-        //  which only the frame loop writes.
-        Assert::IsFalse (host.GetRefs().softSwitches->IsGraphicsMode(),
+        //  The reset routine puts the display back to 40-column text. These
+        //  read the live bank rather than the latched mirror, which only the
+        //  frame loop writes.
+        Assert::IsFalse (machine->GetRefs().softSwitches->IsGraphicsMode(),
             L"a machine that has just reset shows text, not graphics");
-        Assert::IsFalse (host.GetRefs().iieSoftSwitches->Is80ColMode(),
+        Assert::IsFalse (machine->GetRefs().iieSoftSwitches->Is80ColMode(),
             L"and 40 columns of it");
     }
 
 
     TEST_METHOD (MainRamIsWritableAcrossItsWholeRange)
     {
-        MachineHost           host;
-        MachineBuildServices  nothingListening;
-        MachineBuilder        builder (host, nothingListening);
-        MachineConfig         config;
-
-        Build (host, builder, IDR_MACHINE_APPLE2E, "Apple2e", config);
+        TestMachine  machine ("Apple2e");
 
         //  The page table is what routes these, so a wrong one shows up as a
         //  read that does not answer with what was written.
         for (Word addr : { Word (0x0000), Word (0x0400), Word (0x2000),
                            Word (0x6000), Word (0xBFFF) })
         {
-            host.GetMemoryBus().WriteByte (addr, 0x5A);
-            Assert::AreEqual<Byte> (0x5A, host.GetMemoryBus().ReadByte (addr),
+            machine->GetMemoryBus().WriteByte (addr, 0x5A);
+            Assert::AreEqual<Byte> (0x5A, machine->GetMemoryBus().ReadByte (addr),
                 std::format (L"main RAM must answer at ${:04X}", addr).c_str());
         }
     }
@@ -170,10 +132,6 @@ public:
         //  machine rather than assuming -- it used to assume, which made
         //  "banked ROM" and "no slots" the same fact for anyone who added a
         //  banked machine later.
-        //
-        //  The //c is the one machine that declares zero, so this is the
-        //  fact the wiring reads, asserted where a change to either side
-        //  shows up.
         Assert::AreEqual (0, MachineDefinitions::Find ("Apple2c")->slotCount,
             L"the //c has no card slots");
 
@@ -196,103 +154,25 @@ public:
         //  The ][ and ][+ had never been booted by a test before this: the
         //  headless harness composed a Prng and a mock host for them and no
         //  machine at all.
-        struct Shipped
+        for (const char * id : { "Apple2", "Apple2Plus", "Apple2e",
+                                 "Apple2eEnhanced", "Apple2c" })
         {
-            int          resourceId;
-            const char * machineName;
-        };
+            TestMachine   machine (id);
+            std::wstring  name (id, id + strlen (id));
 
-        const Shipped  machines[] =
-        {
-            { IDR_MACHINE_APPLE2,           "Apple2"          },
-            { IDR_MACHINE_APPLE2PLUS,       "Apple2Plus"      },
-            { IDR_MACHINE_APPLE2E,          "Apple2e"         },
-            { IDR_MACHINE_APPLE2E_ENHANCED, "Apple2eEnhanced" },
-            { IDR_MACHINE_APPLE2C,          "Apple2c"         },
-        };
-
-        for (const Shipped & m : machines)
-        {
-            MachineHost           host;
-            MachineBuildServices  nothingListening;
-            MachineBuilder        builder (host, nothingListening);
-            MachineConfig         config;
-            std::wstring          name (m.machineName, m.machineName + strlen (m.machineName));
-
-            Build (host, builder, m.resourceId, m.machineName, config);
-
-            Assert::IsNotNull (host.GetCpu(),
+            Assert::IsNotNull (machine->GetCpu(),
                 std::format (L"{} must build a CPU", name).c_str());
-            Assert::IsNotNull (host.GetRefs().keyboard,
+            Assert::IsNotNull (machine->GetRefs().keyboard,
                 std::format (L"{} must build a keyboard", name).c_str());
-            Assert::IsNotNull (host.GetRefs().speaker,
+            Assert::IsNotNull (machine->GetRefs().speaker,
                 std::format (L"{} must build a speaker", name).c_str());
 
-            host.PowerCycle();
-            host.RunCycles (s_kBootCycles);
+            machine->PowerCycle();
+            machine->RunCycles (s_kBootCycles);
 
-            Assert::IsTrue (host.GetCpu()->GetPC() >= 0xC000,
+            Assert::IsTrue (machine->GetCpu()->GetPC() >= s_kRomSpaceStart,
                 std::format (L"{} must boot into ROM; PC was ${:04X}",
-                             name, host.GetCpu()->GetPC()).c_str());
+                             name, machine->GetCpu()->GetPC()).c_str());
         }
-    }
-
-
-private:
-
-    static void Build (MachineHost    & host,
-                       MachineBuilder & builder,
-                       int              resourceId,
-                       const char *     machineName,
-                       MachineConfig  & config)
-    {
-        std::wstring  wide (machineName, machineName + strlen (machineName));
-        HRESULT       hr = S_OK;
-
-        LoadConfig (resourceId, machineName, config);
-
-        host.SetPrng (std::make_unique<Prng> (s_kSeed));
-        host.SetCurrentMachineName (wide);
-        host.GetConfig() = config;
-
-        hr = builder.Build (config);
-        AssertSucceeded (hr, std::format (L"{} must build", wide).c_str());
-    }
-
-
-    //  The shipped JSON, through the shipped loader, with ROM files resolved
-    //  out of the fixtures directory instead of an installed Resources tree.
-    //
-    //  Fixtures hold the ROMs flat, so the resolver ignores the per-machine
-    //  and per-device subdirectories the production one walks and answers on
-    //  the file name alone. That is the whole reason the loader takes a
-    //  resolver: where a ROM lives is the host's business, not the config's.
-    static void LoadConfig (int resourceId, const char * machineName, MachineConfig & config)
-    {
-        FixtureProvider  fixtures;
-        fs::path         root     = fs::path (fixtures.GetRoot());
-        std::string      jsonText = EmbeddedMachineJson::Load (resourceId);
-        std::string      error;
-        HRESULT          hr       = S_OK;
-
-        auto  resolveFlat = [root] (const std::vector<fs::path> &,
-                                    const fs::path & romRelPath) -> fs::path
-        {
-            fs::path  candidate = root / romRelPath.filename();
-
-            return (fs::exists (candidate) ? candidate : fs::path());
-        };
-
-        hr = MachineConfigLoader::Load (jsonText,
-                                        machineName,
-                                        { root },
-                                        resolveFlat,
-                                        config,
-                                        error);
-
-        AssertSucceeded (hr,
-            std::format (L"{} config must load: {}",
-                         std::wstring (machineName, machineName + strlen (machineName)),
-                         std::wstring (error.begin(), error.end())).c_str());
     }
 };
