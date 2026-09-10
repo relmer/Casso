@@ -220,9 +220,9 @@ Byte MachineHost::StepOne()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t MachineHost::RunCycles (uint32_t cycleBudget)
+uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 {
-    uint32_t  spent = 0;
+    uint64_t  spent = 0;
 
 
 

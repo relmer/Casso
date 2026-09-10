@@ -191,7 +191,7 @@ public:
     //  length of the last instruction: the machine cannot stop mid-opcode,
     //  so a caller pacing against a budget carries the remainder forward
     //  rather than expecting an exact count.
-    uint32_t  RunCycles (uint32_t cycleBudget);
+    uint64_t  RunCycles (uint64_t cycleBudget);
 
     //  Point the machine's devices at whoever is watching, or at nobody.
     //  Every device is attached independently: the input panel is useful on

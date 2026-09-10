@@ -165,7 +165,7 @@ public:
     TEST_METHOD (RunCyclesSpendsAtLeastItsBudget)
     {
         MachineHost  host;
-        uint32_t     spent = 0;
+        uint64_t     spent = 0;
 
         Build (host);
         host.SoftReset();
@@ -191,7 +191,7 @@ public:
         //  Nothing built. Every lifecycle entry point is reachable from the
         //  menu before a machine finishes coming up, so each has to answer.
         Assert::AreEqual<Byte> (0, host.StepOne());
-        Assert::AreEqual<uint32_t> (0, host.RunCycles (100));
+        Assert::AreEqual<uint64_t> (0, host.RunCycles (100));
 
         host.SoftReset();
         host.PowerCycle();

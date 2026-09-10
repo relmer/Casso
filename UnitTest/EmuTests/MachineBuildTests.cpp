@@ -78,7 +78,7 @@ public:
     TEST_METHOD (ABuiltMachineBootsItsRom)
     {
         TestMachine  machine ("Apple2e");
-        uint32_t     spent = 0;
+        uint64_t     spent = 0;
 
         machine.PowerCycle();
         spent = machine.RunCycles (s_kBootCycles);

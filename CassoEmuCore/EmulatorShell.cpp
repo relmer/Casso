@@ -9792,7 +9792,7 @@ void EmulatorShell::ExecuteCpuSlices()
         // the guest-time currency the settle pacing is measured in.
         m_clipboardManager->DrainPasteBuffer (sliceTarget);
 
-        sliceActual = m_machine.RunCycles (sliceTarget);
+        sliceActual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
 
         executed += sliceActual;
 
