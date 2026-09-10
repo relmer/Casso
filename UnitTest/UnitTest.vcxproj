@@ -506,6 +506,7 @@
     <ClCompile Include="UiTests\SettingsDefinedDevicesTests.cpp" />
     <ClCompile Include="EmuTests\FramePacingTests.cpp" />
     <ClCompile Include="EmuTests\EmbeddedMachineJson.cpp" />
+    <ClCompile Include="EmuTests\Machines\Apple2eCharacterRomTests.cpp" />
     <ClCompile Include="EmuTests\MachineBuildTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />

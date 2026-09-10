@@ -95,8 +95,9 @@ public:
             L"(system + character + Disk II slot)");
         Assert::AreEqual (std::string ("Apple2eEnhanced.rom"), files[0],
             L"Apple2eEnhanced system ROM must be the enhanced //e ROM");
-        Assert::AreEqual (std::string ("Apple2e_Video.rom"),   files[1],
-            L"Apple2eEnhanced shares the //e MouseText character ROM");
+        Assert::AreEqual (std::string ("Apple2eEnhanced_Video.rom"), files[1],
+            L"Apple2eEnhanced has its own MouseText character ROM -- the same "
+            L"342-0265 part as the //c, under its own machine's name");
         Assert::AreEqual (std::string ("Disk2.rom"),           files[2],
             L"Apple2eEnhanced slot 6 ROM must be Disk2.rom");
     }

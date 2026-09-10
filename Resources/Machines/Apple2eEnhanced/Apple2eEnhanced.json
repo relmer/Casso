@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 6,
+    "$cassoMachineVersion": 7,
     "name": "Apple //e Enhanced",
     "releaseYear": 1985,
     "timing": {
@@ -16,7 +16,7 @@
         "file": "Apple2eEnhanced.rom"
     },
     "characterRom": {
-        "file": "Apple2e_Video.rom"
+        "file": "Apple2eEnhanced_Video.rom"
     },
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },

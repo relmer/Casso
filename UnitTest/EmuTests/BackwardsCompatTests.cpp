@@ -187,7 +187,7 @@ public:
         {
             expectedSize = kCharRomSize;
         }
-        else if (filename == "Apple2e_Video.rom")
+        else if (filename == "Apple2e_Video.rom" || filename == "Apple2eEnhanced_Video.rom")
         {
             expectedSize = kEnhancedCharRomSize;
         }

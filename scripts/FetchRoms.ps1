@@ -59,9 +59,14 @@ $repoRoot  = Split-Path -Parent $scriptDir
 $appleWinRef = '3e8054b4627624398e4589f7f27b3d40a6b9718e'
 $appleWinUrl = "https://raw.githubusercontent.com/AppleWin/AppleWin/$appleWinRef/resource"
 
-#  AppleWin does not emulate the //c, so its 32K ROM 4 (memory-expansion //c,
-#  chip 341-0445-B) comes from the Apple II Documentation Project mirror.
-$apple2cRomUrl = 'https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin'
+#  Two parts AppleWin does not ship, from the Apple II Documentation Project
+#  mirror: the //c's 32K ROM 4 (AppleWin does not emulate the //c at all), and
+#  the UNENHANCED //e's character generator -- AppleWin has only the enhanced
+#  one and uses it for both of its //e models, which puts MouseText on a
+#  machine that never had it.
+$mirrorRoot    = 'https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Computers/Apple%20II'
+$apple2cRomUrl = "$mirrorRoot/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin"
+$apple2eVidUrl = "$mirrorRoot/Apple%20IIe/ROM%20Images/Apple%20IIe%20Video%20ROM%20-%20342-0133-A%20-%20US%201982.bin"
 
 #  One row per file Casso wants on disk. The same upstream file can appear
 #  more than once under different destinations: the ][ and ][+ share a
@@ -73,9 +78,9 @@ $romFiles = @(
     @{ Url = "$appleWinUrl/Apple2_Plus.rom";            Dest = 'Apple2Plus.rom';       Subdir = 'Machines/Apple2Plus';      Size = 12288; Desc = 'Apple ][+ ROM (Applesoft BASIC)' },
     @{ Url = "$appleWinUrl/Apple2_Video.rom";           Dest = 'Apple2_Video.rom';     Subdir = 'Machines/Apple2Plus';      Size = 2048;  Desc = 'Apple ][/][+ Character Generator' },
     @{ Url = "$appleWinUrl/Apple2e.rom";                Dest = 'Apple2e.rom';          Subdir = 'Machines/Apple2e';         Size = 16384; Desc = 'Apple //e ROM' },
-    @{ Url = "$appleWinUrl/Apple2e_Enhanced_Video.rom"; Dest = 'Apple2e_Video.rom';    Subdir = 'Machines/Apple2e';         Size = 4096;  Desc = 'Apple //e Character Generator + MouseText' },
+    @{ Url = $apple2eVidUrl;                            Dest = 'Apple2e_Video.rom';    Subdir = 'Machines/Apple2e';         Size = 4096;  Desc = 'Apple //e Character Generator (342-0133-A)' },
     @{ Url = "$appleWinUrl/Apple2e_Enhanced.rom";       Dest = 'Apple2eEnhanced.rom';  Subdir = 'Machines/Apple2eEnhanced'; Size = 16384; Desc = 'Apple //e Enhanced ROM (65C02)' },
-    @{ Url = "$appleWinUrl/Apple2e_Enhanced_Video.rom"; Dest = 'Apple2e_Video.rom';    Subdir = 'Machines/Apple2eEnhanced'; Size = 4096;  Desc = 'Apple //e Character Generator + MouseText' },
+    @{ Url = "$appleWinUrl/Apple2e_Enhanced_Video.rom"; Dest = 'Apple2eEnhanced_Video.rom'; Subdir = 'Machines/Apple2eEnhanced'; Size = 4096; Desc = 'Apple //e Enhanced Character Generator + MouseText (342-0265-A)' },
     @{ Url = $apple2cRomUrl;                            Dest = 'Apple2c.rom';          Subdir = 'Machines/Apple2c';         Size = 32768; Desc = 'Apple //c ROM 4 (341-0445-B, memory expansion)' },
     @{ Url = "$appleWinUrl/Apple2e_Enhanced_Video.rom"; Dest = 'Apple2c_Video.rom';    Subdir = 'Machines/Apple2c';         Size = 4096;  Desc = 'Apple //c Character Generator + MouseText' },
     @{ Url = "$appleWinUrl/DISK2.rom";                  Dest = 'Disk2.rom';            Subdir = 'Devices/DiskII';           Size = 256;   Desc = 'Disk ][ Boot ROM (slot 6)' },

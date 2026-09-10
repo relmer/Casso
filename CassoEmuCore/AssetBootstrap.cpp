@@ -84,6 +84,15 @@ struct RomSpec
     string_view  altHost     = {};
     string_view  altUrlPath  = {};
     string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
+
+    // SHA-256 of a file Casso used to install under this name and no longer
+    // wants. A ROM already on disk is otherwise taken as satisfied whatever
+    // it contains -- the size is checked on download, not on what is already
+    // there -- so a machine provisioned with the wrong part would keep it
+    // forever. An on-disk file matching this hash is treated as absent and
+    // re-fetched; anything else, including a regional variant the user chose,
+    // is left alone.
+    string_view  supersededSha256 = {};
 };
 
 
@@ -96,17 +105,33 @@ static constexpr RomSpec s_kRomCatalog[] =
     { "Apple2Plus",       "Apple2Plus.rom",        "Apple2_Plus.rom",            "Machines/Apple2Plus",       12288, "Apple ][+ ROM (Applesoft BASIC)"           },
     { "Apple2Plus",       "Apple2_Video.rom",      "Apple2_Video.rom",           "Machines/Apple2Plus",        2048, "Apple ][/][+ Character Generator"          },
     { "Apple2e",          "Apple2e.rom",           "Apple2e.rom",                "Machines/Apple2e",          16384, "Apple //e ROM"                             },
-    { "Apple2e",          "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2e",           4096, "Apple //e Character Generator + MouseText" },
+    // The unenhanced //e's character generator is 342-0133-A, which has
+    // ordinary glyphs at $40-$5F where the enhanced part has MouseText.
+    // AppleWin ships only the enhanced one and uses it for both of its //e
+    // models; Casso did the same, which put MouseText on a machine that
+    // never had it. The real part comes from the same preservation mirror
+    // the //c's ROM 4 does.
+    { "Apple2e",          "Apple2e_Video.rom",     "",                           "Machines/Apple2e",           4096, "Apple //e Character Generator (342-0133-A)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIe/ROM%20Images/Apple%20IIe%20Video%20ROM%20-%20342-0133-A%20-%20US%201982.bin",
+      "apple2.org.za",
+      // Every Casso before this one installed the ENHANCED generator here,
+      // so an existing //e has MouseText where it should have ordinary
+      // characters. Re-fetch that exact file and nothing else.
+      "52c3b87900ac939f6525402cab1ccfd8f8259290fc6df54da48fb4c98ae3ed0f" },
     { "Apple2eEnhanced",  "Apple2eEnhanced.rom",   "Apple2e_Enhanced.rom",       "Machines/Apple2eEnhanced",  16384, "Apple //e Enhanced ROM"                    },
-    { "Apple2eEnhanced",  "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced",   4096, "Apple //e Character Generator + MouseText" },
+    { "Apple2eEnhanced",  "Apple2eEnhanced_Video.rom", "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced", 4096, "Apple //e Enhanced Character Generator + MouseText (342-0265-A)" },
     // AppleWin does not emulate the //c, so its 32K ROM 4 (memory-expansion
     // //c, chip 341-0445-B) comes from the apple2.org.za preservation mirror.
     { "Apple2c",          "Apple2c.rom",           "",                           "Machines/Apple2c",          32768, "Apple //c ROM 4 (341-0445-B, memory expansion)",
       "mirrors.apple2.org.za",
       "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin",
       "apple2.org.za" },
-    // The //c character generator is the enhanced (MouseText) 341-0265, the
+    // The //c character generator is the enhanced (MouseText) 342-0265, the
     // same part AppleWin ships as Apple2e_Enhanced_Video.rom -- reuse it.
+    // It shares the part with the Enhanced //e but not the file name: each
+    // machine's assets are self-contained, and one name for two different
+    // parts is what hid the //e's wrong character ROM.
     { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c Character Generator + MouseText" },
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
@@ -456,6 +481,20 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeSha256
+//
+//  Thin BCrypt wrapper. Returns all-zeros on any BCrypt failure; the
+//  caller treats that as "no match" since the hash list never
+//  contains all-zeros.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static array<uint8_t, 32> ComputeSha256 (const string & data)
 {
     HRESULT             hr       = S_OK;
@@ -497,6 +536,51 @@ Error:
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMatchesSha256
+//
+//  Whether the file at `path` hashes to `expectedHex`. An empty
+//  expectation, an unreadable file, or a BCrypt failure all answer no,
+//  which leaves the file alone -- the callers use this to decide whether
+//  to REPLACE something, so uncertainty has to mean "keep what is there".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool FileMatchesSha256 (const fs::path & path, string_view expectedHex)
+{
+    ifstream    file;
+    string      bytes;
+    string      actualHex;
+    error_code  ec;
+    bool        matches = false;
+
+
+
+    if (expectedHex.empty())
+    {
+        return (false);
+    }
+
+    file.open (path, std::ios::binary);
+
+    if (!file.is_open())
+    {
+        return (false);
+    }
+
+    bytes.assign (std::istreambuf_iterator<char> (file), std::istreambuf_iterator<char> ());
+
+    actualHex = MachineConfigUpgrade::BytesToHex (ComputeSha256 (bytes));
+    matches   = (actualHex == expectedHex);
+
+    return (matches);
 }
 
 
@@ -3372,7 +3456,10 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         relPath = fs::path (string (spec->localRelDir)) / spec->cassoName;
         found   = PathResolver::FindFile (searchPaths, relPath);
 
-        if (!found.empty())
+        // A ROM already on disk is satisfied -- unless it is a file Casso
+        // itself installed here and has since corrected, in which case it is
+        // re-fetched over the top.
+        if (!found.empty() && !FileMatchesSha256 (found, spec->supersededSha256))
         {
             continue;
         }

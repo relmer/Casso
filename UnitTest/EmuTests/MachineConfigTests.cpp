@@ -951,7 +951,9 @@ private:
         {
             expectedSize = 2048;
         }
-        else if (filename == "Apple2e_Video.rom" || filename == "Apple2c_Video.rom")
+        else if (filename == "Apple2e_Video.rom" ||
+                 filename == "Apple2eEnhanced_Video.rom" ||
+                 filename == "Apple2c_Video.rom")
         {
             expectedSize = 4096;
         }
