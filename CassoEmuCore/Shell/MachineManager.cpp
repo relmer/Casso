@@ -630,34 +630,10 @@ Error:
 
 void MachineManager::SoftReset()
 {
-    m_shell.m_machine.GetMemoryBus().SoftResetAll();
+    m_shell.m_machine.SoftReset();
 
-    if (m_shell.m_machine.GetMmu() != nullptr)
-    {
-        m_shell.m_machine.GetMmu()->OnSoftReset();
-    }
-
-    m_shell.m_machine.GetInterruptController().SoftReset();
-
-    // //c IOU mouse: /RESET clears the interrupt latches + enables and
-    // shuts the IOU access gate (matches power-on state).
-    if (m_shell.m_machine.GetMouse() != nullptr)
-    {
-        m_shell.m_machine.GetMouse()->Reset();
-    }
-
-    if (m_shell.m_machine.GetVideoTiming() != nullptr)
-    {
-        m_shell.m_machine.GetVideoTiming()->SoftReset();
-    }
-
-    if (m_shell.m_machine.GetCpu() != nullptr)
-    {
-        m_shell.m_machine.GetCpu()->SoftReset();
-    }
-
-    // Re-zero the Disk II Debug Uptime column on every reset so the
-    // user sees a clean 00:00 anchor after each Ctrl+Shift+R / Ctrl+Shift+P.
+    // Re-zero the Disk II Debug Uptime column on every reset so the user
+    // sees a clean 00:00 anchor after each Ctrl+Shift+R / Ctrl+Shift+P.
     m_shell.ResetUptimeAnchor();
 }
 
@@ -669,60 +645,12 @@ void MachineManager::SoftReset()
 //
 //  PowerCycle
 //
-//  Reseeds every DRAM-owning device from the shared Prng then runs the
-//  SoftReset sequence. The Prng is constructed once (host process
-//  lifetime) so consecutive cycles within a single session continue
-//  producing fresh patterns rather than repeating the seed.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineManager::PowerCycle()
 {
-    HRESULT  hrFlush = S_OK;
+    m_shell.m_machine.PowerCycle();
 
-
-
-    if (m_shell.m_machine.GetPrng() == nullptr)
-    {
-        return;
-    }
-
-    // Auto-flush dirty disks before reseeding device state so writes
-    // don't get lost across a power cycle. Mounts persist (matches
-    // DiskImageStore::SoftReset semantics -- see comment block on
-    // DiskImageStore::PowerCycle, which is the unmount-everything
-    // variant tests can opt into directly).
-    hrFlush = m_shell.m_machine.GetDiskStore().FlushAll();
-    IGNORE_RETURN_VALUE (hrFlush, S_OK);
-
-    m_shell.m_machine.GetMemoryBus().PowerCycleAll (*m_shell.m_machine.GetPrng());
-
-    if (m_shell.m_machine.GetMmu() != nullptr)
-    {
-        m_shell.m_machine.GetMmu()->OnPowerCycle (*m_shell.m_machine.GetPrng());
-    }
-
-    m_shell.m_machine.GetInterruptController().PowerCycle();
-
-    // //c IOU mouse: power-on state (latches clear, interrupts masked,
-    // IOU access gate shut).
-    if (m_shell.m_machine.GetMouse() != nullptr)
-    {
-        m_shell.m_machine.GetMouse()->Reset();
-    }
-
-    if (m_shell.m_machine.GetVideoTiming() != nullptr)
-    {
-        m_shell.m_machine.GetVideoTiming()->PowerCycle (*m_shell.m_machine.GetPrng());
-    }
-
-    if (m_shell.m_machine.GetCpu() != nullptr)
-    {
-        m_shell.m_machine.GetCpu()->PowerCycle (*m_shell.m_machine.GetPrng());
-    }
-
-    // Re-zero the Disk II Debug Uptime column on every power-cycle as
-    // well as soft-reset.
     m_shell.ResetUptimeAnchor();
 }
 

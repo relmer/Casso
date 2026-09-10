@@ -9273,24 +9273,7 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 void EmulatorShell::StepInstructionWhilePaused()
 {
-    if (m_machine.GetCpu() == nullptr)
-    {
-        return;
-    }
-
-    // StepOne dispatches a pending interrupt vector itself (see the slice
-    // loop) -- no separate TryStepInterrupt poll needed.
-    m_machine.GetCpu()->StepOne();
-
-    if (m_machine.GetRefs().diskController != nullptr)
-    {
-        m_machine.GetRefs().diskController->Tick (m_machine.GetCpu()->GetLastInstructionCycles());
-    }
-
-    if (m_machine.GetRefs().mockingboard != nullptr)
-    {
-        m_machine.GetRefs().mockingboard->Tick (m_machine.GetCpu()->GetLastInstructionCycles());
-    }
+    m_machine.StepOne();
 
     RunOneFrame();
     PublishFramebuffer();
@@ -9741,7 +9724,6 @@ void EmulatorShell::ExecuteCpuSlices()
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
     uint32_t  sliceActual     = 0;
-    Byte      cycles          = 0;
     double    exactSamples    = 0.0;
     uint32_t  numSamples      = 0;
 
@@ -9794,40 +9776,7 @@ void EmulatorShell::ExecuteCpuSlices()
         // the guest-time currency the settle pacing is measured in.
         m_clipboardManager->DrainPasteBuffer (sliceTarget);
 
-        sliceActual = 0;
-
-        while (sliceActual < sliceTarget)
-        {
-            // StepOne polls the interrupt lines itself and dispatches a
-            // pending NMI/IRQ vector in place of the opcode fetch (see
-            // EmuCpu::StepOne), reporting the cost through
-            // GetLastInstructionCycles either way -- so a bare StepOne is the
-            // whole step. The former outer TryStepInterrupt was a second,
-            // redundant interrupt poll on every instruction.
-            m_machine.GetCpu()->StepOne();
-
-            cycles = m_machine.GetCpu()->GetLastInstructionCycles();
-
-            m_machine.GetCpu()->AddCycles (cycles);
-            sliceActual += cycles;
-
-            // Pump the Disk II nibble engine in lockstep with EACH
-            // instruction's cycles, not once per slice. The boot ROM
-            // sits in a tight LDA $C0EC / BPL loop reading the data
-            // latch; if the engine only advances at slice boundaries
-            // the CPU sees one valid nibble per ~1000 cycles instead
-            // of ~32, and the boot ROM never accumulates enough sync
-            // bytes to find a sector header.
-            if (m_machine.GetRefs().diskController != nullptr)
-            {
-                m_machine.GetRefs().diskController->Tick (cycles);
-            }
-
-            if (m_machine.GetRefs().mockingboard != nullptr)
-            {
-                m_machine.GetRefs().mockingboard->Tick (cycles);
-            }
-        }
+        sliceActual = m_machine.RunCycles (sliceTarget);
 
         executed += sliceActual;
 
@@ -14948,34 +14897,27 @@ Error:
 //
 //  AttachDebugSinksIfOpen
 //
-//  Spec-006 bug 15. SwitchMachine tears down the old controller and
-//  audio source then constructs new ones via CreateMemoryDevices,
-//  but the panel's sink wiring only ran inside OpenDisk2DebugDialog
-//  on first open -- the new controller starts with m_eventSink ==
-//  nullptr and the new audio source with m_audioEventSink == nullptr,
-//  so the debug window goes silent post-switch. Re-attach both
-//  sinks if the panel is still open. No-op when the panel has
-//  never been opened.
+//  Spec-006 bug 15. A machine switch tears down the old controller and
+//  audio source and builds new ones, but the panel's sink wiring only ran
+//  inside OpenDisk2DebugDialog on first open -- the new controller starts
+//  with a null event sink and the new audio source with a null audio event
+//  sink, so the debug window goes silent after a switch. This re-points
+//  whoever is open at the machine that now exists, and is a no-op when
+//  neither panel has been opened.
+//
+//  Each panel is attached on its own. This used to return early unless the
+//  disk panel was open, so someone running only the Input panel watched it
+//  go quiet on every machine switch and never come back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::AttachDebugSinksIfOpen()
 {
-    HRESULT             hr         = S_OK;
-    Disk2Controller *   controller = nullptr;
-    size_t              i          = 0;
+    m_machine.AttachObservers ({ m_disk2DebugPanel.get(), m_inputDebugPanel.get() });
 
-
-
-    CBR (m_disk2DebugPanel != nullptr);
-
-    controller = m_diskManager->FindSlot6Controller();
-
-    if (controller != nullptr)
-    {
-        controller->SetEventSink (m_disk2DebugPanel.get());
-    }
-
+    // The drive audio sources are the emulator's, not the machine's -- the
+    // machine has a drive, the emulator decides what it sounds like -- so
+    // the panel is pointed at them from here.
     for (auto & diskAudioSource : m_diskAudioSources)
     {
         if (diskAudioSource != nullptr)
@@ -14983,27 +14925,6 @@ void EmulatorShell::AttachDebugSinksIfOpen()
             diskAudioSource->SetAudioEventSink (m_disk2DebugPanel.get());
         }
     }
-
-    if (m_inputDebugPanel != nullptr && m_machine.GetRefs().keyboard != nullptr)
-    {
-        Apple2eSoftSwitchBank * iieSwitches = nullptr;
-
-        m_machine.GetRefs().keyboard->SetInputEventSink (m_inputDebugPanel.get());
-
-        iieSwitches = m_machine.GetRefs().iieSoftSwitches;
-        if (iieSwitches != nullptr)
-        {
-            iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
-        }
-
-        if (m_machine.GetRefs().gamePort != nullptr)
-        {
-            m_machine.GetRefs().gamePort->SetInputEventSink (m_inputDebugPanel.get());
-        }
-    }
-
-Error:
-    return;
 }
 
 

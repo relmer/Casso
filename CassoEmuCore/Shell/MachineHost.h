@@ -18,7 +18,32 @@
 class Apple2cRomBank;
 class Apple2eMmu;
 class AppleMouse;
+class IDisk2EventSink;
+class IInputEventSink;
 class Prng;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineObservers
+//
+//  Who is watching the machine run.
+//
+//  The debug panels implement these two interfaces, and the devices know
+//  nothing about them beyond the interface -- so a test can watch a machine
+//  with the same seam the panels use, and a machine switch can re-attach
+//  whoever was watching without the machine knowing what a panel is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct MachineObservers
+{
+    IDisk2EventSink  *  disk  = nullptr;
+    IInputEventSink  *  input = nullptr;
+};
 
 
 
@@ -79,7 +104,7 @@ class MachineHost
 {
 public:
     MachineHost  ();
-    ~MachineHost ();
+    ~MachineHost();
 
     MachineHost                (const MachineHost &) = delete;
     MachineHost & operator=    (const MachineHost &) = delete;
@@ -89,11 +114,11 @@ public:
     //  be in.
     MemoryBus            &  GetMemoryBus           () noexcept { return m_memoryBus; }
     ComponentRegistry    &  GetRegistry            () noexcept { return m_registry; }
-    InterruptController  &  GetInterruptController () noexcept { return m_interruptController; }
+    InterruptController  &  GetInterruptController() noexcept { return m_interruptController; }
 
     const MemoryBus            &  GetMemoryBus           () const noexcept { return m_memoryBus; }
     const ComponentRegistry    &  GetRegistry            () const noexcept { return m_registry; }
-    const InterruptController  &  GetInterruptController () const noexcept { return m_interruptController; }
+    const InterruptController  &  GetInterruptController() const noexcept { return m_interruptController; }
 
     //  The parts a machine may or may not have, and that are rebuilt from
     //  scratch on every machine switch. Null is a real answer for all but
@@ -109,7 +134,7 @@ public:
     const EmuCpu          *  GetCpu            () const noexcept { return m_cpu.get(); }
     const Prng            *  GetPrng           () const noexcept { return m_prng.get(); }
     const Apple2eMmu      *  GetMmu            () const noexcept { return m_mmu.get(); }
-    const Apple2cRomBank  *  GetApple2cRomBank () const noexcept { return m_apple2cRomBank.get(); }
+    const Apple2cRomBank  *  GetApple2cRomBank() const noexcept { return m_apple2cRomBank.get(); }
     const AppleMouse      *  GetMouse          () const noexcept { return m_mouse.get(); }
     const VideoTiming     *  GetVideoTiming    () const noexcept { return m_videoTiming.get(); }
 
@@ -124,41 +149,71 @@ public:
     //  endpoints are held apart from the devices because an IAciaEndpoint
     //  is not a MemoryDevice.
     std::vector<std::unique_ptr<MemoryDevice>>   &  GetOwnedDevices       () noexcept { return m_ownedDevices; }
-    std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () noexcept { return m_ownedAciaEndpoints; }
+    std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints() noexcept { return m_ownedAciaEndpoints; }
     std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () noexcept { return m_videoModes; }
 
     const std::vector<std::unique_ptr<MemoryDevice>>   &  GetOwnedDevices       () const noexcept { return m_ownedDevices; }
-    const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () const noexcept { return m_ownedAciaEndpoints; }
+    const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints() const noexcept { return m_ownedAciaEndpoints; }
     const std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () const noexcept { return m_videoModes; }
 
-    CharacterRomData  &  GetCharacterRom () noexcept { return m_charRom; }
+    CharacterRomData  &  GetCharacterRom() noexcept { return m_charRom; }
     DiskImageStore    &  GetDiskStore    () noexcept { return m_diskStore; }
     MachineConfig     &  GetConfig       () noexcept { return m_config; }
 
-    const CharacterRomData  &  GetCharacterRom () const noexcept { return m_charRom; }
+    const CharacterRomData  &  GetCharacterRom() const noexcept { return m_charRom; }
     const DiskImageStore    &  GetDiskStore    () const noexcept { return m_diskStore; }
     const MachineConfig     &  GetConfig       () const noexcept { return m_config; }
 
     //  Raw pointers into the two collections above, reset whenever either is
     //  rebuilt. See MachineRefs.
-    MachineRefs  &  GetRefs () noexcept { return m_refs; }
+    MachineRefs  &  GetRefs() noexcept { return m_refs; }
 
-    const MachineRefs  &  GetRefs () const noexcept { return m_refs; }
+    const MachineRefs  &  GetRefs() const noexcept { return m_refs; }
 
-    SoftSwitchMirror  &  GetSoftSwitchMirror () noexcept { return m_softSwitches; }
+    SoftSwitchMirror  &  GetSoftSwitchMirror() noexcept { return m_softSwitches; }
 
-    const SoftSwitchMirror  &  GetSoftSwitchMirror () const noexcept { return m_softSwitches; }
+    const SoftSwitchMirror  &  GetSoftSwitchMirror() const noexcept { return m_softSwitches; }
 
     //  Which machine this is: the directory name the config was loaded from
     //  ("apple2e", "apple2c"), and the directory its ROMs and other assets
     //  are read from. The name doubles as the per-machine suffix on user
     //  state, so one machine's last-mounted disks cannot clobber another's.
-    const std::wstring  &  GetCurrentMachineName () const noexcept { return m_currentMachineName; }
+    const std::wstring  &  GetCurrentMachineName() const noexcept { return m_currentMachineName; }
     const std::wstring  &  GetAssetBaseDir       () const noexcept { return m_assetBaseDir; }
+
+    //  Retire exactly one instruction -- or, when a line is asserted, the
+    //  interrupt vector that takes an opcode fetch's place -- and advance
+    //  every device that counts cycles with it. Returns what it cost.
+    Byte  StepOne();
+
+    //  Retire instructions until at least `cycleBudget` cycles are spent,
+    //  and return what was actually spent. The overshoot is at most the
+    //  length of the last instruction: the machine cannot stop mid-opcode,
+    //  so a caller pacing against a budget carries the remainder forward
+    //  rather than expecting an exact count.
+    uint32_t  RunCycles (uint32_t cycleBudget);
+
+    //  Point the machine's devices at whoever is watching, or at nobody.
+    //  Every device is attached independently: the input panel is useful on
+    //  its own, and it used to receive nothing unless the disk panel
+    //  happened to be open as well.
+    //
+    //  A machine switch rebuilds every device, so this has to run again
+    //  afterwards or an open panel goes quiet against the new machine.
+    void  AttachObservers (const MachineObservers & observers);
+
+    //  Ctrl+Reset. User RAM survives; every device takes its reset line.
+    void  SoftReset();
+
+    //  Power off and on. Dirty disks are flushed first -- the mounts
+    //  themselves persist -- and then every DRAM-owning device is re-seeded
+    //  from the shared Prng, so the machine comes up with the arbitrary
+    //  contents a real one would have rather than the ones it just had.
+    void  PowerCycle();
 
     //  Where this machine's pending printer strip persists across a switch
     //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
-    std::filesystem::path  GetPendingPrintDir () const;
+    std::filesystem::path  GetPendingPrintDir() const;
 
     void  SetCurrentMachineName (const std::wstring & name) { m_currentMachineName = name; }
     void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
