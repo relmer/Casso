@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Changed
+
+- **The disk name under each drive is printed on the drive's face** rather than
+  floating square to the camera: it turns with the drive, keeps its size
+  through the zoom, and hides when the face turns away.
+
 ## [1.23.2]: The one where Rescue Raiders speaks
 
 ### Fixed

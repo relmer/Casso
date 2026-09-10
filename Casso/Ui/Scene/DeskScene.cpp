@@ -2378,13 +2378,13 @@ Error:
 //
 //  DeskScene::SetDiskLabel
 //
-//  Makes triangles of the billboard's four world corners.
+//  Makes triangles of the name's four world corners.
 //
-//  WORLD SPACE, not the drive's. The quad faces the camera and covers a fixed
-//  number of pixels, so it cannot be expressed in the drive's own frame --
-//  the drive turns under the orbit and the name must not turn with it. Its
-//  placement is solved in DeskSceneLayout, where a test can reach it, and
-//  arrives here already positioned.
+//  WORLD SPACE, not the drive's, even though the quad lies on the drive's
+//  face: its size is a fixed number of pixels, which is a quantity of the
+//  camera and not of the drive, so it cannot be expressed in the drive's own
+//  frame. Its placement is solved in DeskSceneLayout, where a test can reach
+//  it, and arrives here already positioned and already turned with the drive.
 //
 //  The normals stay zero: zero is the renderer's "unlit", and a name should
 //  read the same whatever the room lights are doing to the case behind it.
@@ -2461,8 +2461,9 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
 //
 //  THE VERTICES ARE ALREADY IN WORLD SPACE, so the transform is the shared
 //  viewProj alone. Every other draw in this file multiplies a device's world
-//  matrix in first; this one must not, or the name would turn with the drive
-//  and the constant pixel size the layout solved for would be undone.
+//  matrix in first; this one must not, or the drive's turn -- which the
+//  layout already applied when it laid the name on the face -- would be
+//  applied twice, and the constant pixel size solved for would be undone.
 //
 //  Depth TESTED, never WRITTEN. A name is a transparent decal, and writing
 //  its rectangle into the buffer would let the blank corners occlude the lamp

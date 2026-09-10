@@ -121,7 +121,7 @@ public:
     //
     // `corners` are WORLD-space, top-left, top-right, bottom-left,
     // bottom-right, as DeskSceneLayout::TryMakeDriveLabelQuad hands them
-    // over. They already carry the camera-facing placement and the
+    // over. They already lie in the drive's front plane and carry the
     // constant-pixel sizing, so this only has to make triangles of them.
     // A null srv clears the label.
     // `uv` is the sub-rectangle of `srv` this drive's name occupies, as

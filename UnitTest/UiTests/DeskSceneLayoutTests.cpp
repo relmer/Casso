@@ -688,39 +688,41 @@ public:
     }
 
 
-    // The clip w of a world point: its distance in front of the eye, which
-    // is what the billboard's four corners must all agree on.
-    static float MeasureClipW (const DeskSceneComposition & comp, const float worldPt[3])
+    // A drive's world-space axes, read the way the layout reads them: rows of
+    // its world matrix under the row-vector convention, normalized. Row 0 is
+    // across the faceplate, row 2 is up it, row 1 runs front to back.
+    static void UnitRow (const float m[16], int row, float outDir[3])
     {
-        return worldPt[0] * comp.viewProj[3]  + worldPt[1] * comp.viewProj[7] +
-               worldPt[2] * comp.viewProj[11] + comp.viewProj[15];
+        const float  * r   = m + row * 4;
+        float          len = std::sqrt (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+
+        Assert::IsTrue (len > 0.0f, L"a placed drive has no degenerate axis");
+
+        outDir[0] = r[0] / len;
+        outDir[1] = r[1] / len;
+        outDir[2] = r[2] / len;
     }
 
 
-    TEST_METHOD (Camera_Basis_Is_Orthonormal_And_Square_To_The_Gaze)
+    static float Dot3 (const float a[3], const float b[3])
     {
-        DeskSceneMetrics      metrics  = MakeMetrics();
-        DeskSceneComposition  comp;
-        RECT                  viewport = { 0, 0, 1600, 1000 };
-        float                 right[3] = {};
-        float                 up[3]    = {};
-        float                 rl       = 0.0f;
-        float                 ul       = 0.0f;
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    }
 
 
+    // The on-screen length of one edge of a quad, which is the height or
+    // width a reader sees. A turned quad's bounding box is not that: its top
+    // edge tilts on screen once its two ends sit at different depths under
+    // the down-pitch, and the box grows by the tilt while the edge does not.
+    static float EdgeLengthPx (const DeskSceneComposition & comp, const float a[3], const float b[3])
+    {
+        float  pa[2] = {};
+        float  pb[2] = {};
 
-        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+        Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, a, comp.viewportPx, pa));
+        Assert::IsTrue (SceneCamera::ProjectToScreen (comp.viewProj, b, comp.viewportPx, pb));
 
-        DeskSceneLayout::GetCameraBasis (comp.view, right, up);
-
-        rl = std::sqrt (right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
-        ul = std::sqrt (up[0] * up[0] + up[1] * up[1] + up[2] * up[2]);
-
-        Assert::AreEqual (1.0f, rl, 1e-5f, L"camera right must be unit length");
-        Assert::AreEqual (1.0f, ul, 1e-5f, L"camera up must be unit length");
-
-        Assert::AreEqual (0.0f, right[0] * up[0] + right[1] * up[1] + right[2] * up[2], 1e-5f,
-            L"right and up must be square to each other, or the quad shears");
+        return std::sqrt ((pb[0] - pa[0]) * (pb[0] - pa[0]) + (pb[1] - pa[1]) * (pb[1] - pa[1]));
     }
 
 
@@ -832,84 +834,32 @@ public:
 
         MeasureQuadPx (comp, corners, quadPx);
 
-        Assert::AreEqual (labelPx.cx, quadPx.right - quadPx.left,
-            L"the quad must be exactly as wide as it was asked for");
-        Assert::AreEqual (labelPx.cy, quadPx.bottom - quadPx.top,
-            L"and exactly as tall");
+        // Within a pixel rather than exact: under a downward gaze the lower
+        // edge of a vertical face sits a hair deeper than the upper one, so
+        // the rectangle is a trapezoid by a fraction of a pixel and its
+        // bounding box can round either way.
+        Assert::AreEqual ((double) labelPx.cx, (double) (quadPx.right - quadPx.left), 1.0,
+            L"the quad must be as wide as it was asked for");
+
+        // The face is vertical and the composed gaze looks down at it, so the
+        // name is a little shorter on screen than it is on the face -- the
+        // way any label on a faceplate is from above -- and never taller.
+        Assert::IsTrue (quadPx.bottom - quadPx.top <= labelPx.cy,
+            L"a face seen from above cannot show more height than it has");
+        Assert::IsTrue (quadPx.bottom - quadPx.top >= (labelPx.cy * 4) / 5,
+            L"but the composed gaze is shallow enough that it keeps nearly all of it");
 
         // Centered on the anchor and hung the gap below it: the placement the
         // chrome strip had, which is what keeps the tooltip rect honest.
         Assert::AreEqual (comp.driveLabelPx[0].x, (quadPx.left + quadPx.right) / 2,
             L"centered on the drive's anchor");
-        Assert::AreEqual (comp.driveLabelPx[0].y + gapPx, quadPx.top,
-            L"hung the gap below that anchor");
+        Assert::IsTrue (quadPx.top > comp.driveLabelPx[0].y &&
+                        quadPx.top <= comp.driveLabelPx[0].y + gapPx,
+            L"hung below the anchor, by no more than the gap");
     }
 
 
-    TEST_METHOD (Label_Quad_Keeps_Its_Pixel_Size_Through_The_Orbit)
-    {
-        DeskSceneMetrics      metrics          = MakeMetrics();
-        DeskSceneComposition  front;
-        DeskSceneComposition  turned;
-        DeskSceneView         view;
-        RECT                  viewport         = { 0, 0, 1600, 1000 };
-        SIZE                  labelPx          = { 120, 16 };
-        float                 frontQuad[4][3]  = {};
-        float                 turnedQuad[4][3] = {};
-        RECT                  frontPx          = {};
-        RECT                  turnedPx         = {};
-
-
-
-        // Forty degrees of yaw is where the bleed showed, and where the
-        // reverted in-scene quad had foreshortened the name away.
-        view.orbitYawRad = 0.6981317f;
-
-        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, front));
-        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, turned, 0, view));
-
-        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (front,  0, labelPx, 4, frontQuad));
-        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (turned, 0, labelPx, 4, turnedQuad));
-
-        MeasureQuadPx (front,  frontQuad,  frontPx);
-        MeasureQuadPx (turned, turnedQuad, turnedPx);
-
-        Assert::AreEqual (frontPx.right - frontPx.left, turnedPx.right - turnedPx.left,
-            L"the name must not narrow as the scene turns");
-        Assert::AreEqual (frontPx.bottom - frontPx.top, turnedPx.bottom - turnedPx.top,
-            L"nor shorten");
-    }
-
-
-    TEST_METHOD (Label_Quad_Keeps_Its_Pixel_Size_At_Any_Zoom)
-    {
-        DeskSceneMetrics      metrics       = MakeMetrics();
-        DeskSceneComposition  comp;
-        DeskSceneView         view;
-        RECT                  viewport      = { 0, 0, 1600, 1000 };
-        SIZE                  labelPx       = { 120, 16 };
-        float                 corners[4][3] = {};
-        RECT                  quadPx        = {};
-
-
-
-        view.zoom = 2.5f;
-        view.panY = -0.3f;
-
-        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp, 0, view));
-
-        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, labelPx, 4, corners));
-
-        MeasureQuadPx (comp, corners, quadPx);
-
-        Assert::AreEqual (labelPx.cx, quadPx.right - quadPx.left,
-            L"leaning in must not enlarge the type");
-        Assert::AreEqual (labelPx.cy, quadPx.bottom - quadPx.top,
-            L"nor stretch it");
-    }
-
-
-    TEST_METHOD (Label_Quad_Corners_Share_The_Anchor_Depth)
+    TEST_METHOD (Label_Quad_Lies_In_The_Drives_Front_Plane)
     {
         DeskSceneMetrics      metrics       = MakeMetrics();
         DeskSceneComposition  comp;
@@ -917,7 +867,10 @@ public:
         RECT                  viewport      = { 0, 0, 1600, 1000 };
         SIZE                  labelPx       = { 200, 20 };
         float                 corners[4][3] = {};
-        float                 anchorW       = 0.0f;
+        float                 across[3]     = {};
+        float                 up[3]         = {};
+        float                 depth[3]      = {};
+        float                 span          = 0.0f;
 
 
 
@@ -928,16 +881,177 @@ public:
 
         Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 1, labelPx, 4, corners));
 
-        anchorW = MeasureClipW (comp, comp.driveLabelWorld[1]);
+        UnitRow (comp.driveWorld[1], 0, across);
+        UnitRow (comp.driveWorld[1], 2, up);
+        UnitRow (comp.driveWorld[1], 1, depth);
 
-        // ONE depth across the whole quad is what makes the occlusion exact.
-        // A quad tilted in depth would be cut by the case along a line that
-        // has nothing to do with where the case crosses the name on screen.
+        span = std::sqrt (Dot3 (corners[1], corners[1]));
+
+        // IN THE FACE'S PLANE: no corner leaves it by any amount that matters
+        // against the quad's own size, at a pose that has turned the plane
+        // well away from the screen. This is the anchoring itself.
         for (int corner = 0; corner < 4; corner++)
         {
-            Assert::AreEqual (anchorW, MeasureClipW (comp, corners[corner]), anchorW * 1e-4f,
-                L"every corner must sit at the drive's own distance");
+            float  fromAnchor[3] = { corners[corner][0] - comp.driveLabelWorld[1][0],
+                                     corners[corner][1] - comp.driveLabelWorld[1][1],
+                                     corners[corner][2] - comp.driveLabelWorld[1][2] };
+
+            Assert::AreEqual (0.0f, Dot3 (fromAnchor, depth), span * 1e-5f,
+                L"every corner must sit in the plane of the faceplate");
         }
+
+        // And squared to the face's own axes, so the type runs across the
+        // drive and down it rather than across the screen.
+        {
+            float  top[3] = { corners[1][0] - corners[0][0],
+                              corners[1][1] - corners[0][1],
+                              corners[1][2] - corners[0][2] };
+            float  side[3] = { corners[2][0] - corners[0][0],
+                               corners[2][1] - corners[0][1],
+                               corners[2][2] - corners[0][2] };
+
+            Assert::AreEqual (0.0f, Dot3 (top, up),      span * 1e-5f, L"the top edge runs across the face");
+            Assert::AreEqual (0.0f, Dot3 (side, across), span * 1e-5f, L"and the side runs down it");
+            Assert::IsTrue (Dot3 (top, across) > 0.0f, L"reading left to right along the drive's own right");
+            Assert::IsTrue (Dot3 (side, up)    < 0.0f, L"and top to bottom down its up");
+        }
+    }
+
+
+    TEST_METHOD (Label_Quad_Turns_With_The_Drive)
+    {
+        DeskSceneMetrics      metrics         = MakeMetrics();
+        DeskSceneComposition  front;
+        DeskSceneComposition  turned;
+        DeskSceneView         view;
+        RECT                  viewport        = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx         = { 120, 16 };
+        float                 quad[4][3]      = {};
+        RECT                  frontPx         = {};
+        RECT                  leftPx          = {};
+        RECT                  rightPx         = {};
+        float                 frontH          = 0.0f;
+        float                 turnedH         = 0.0f;
+        double                expectedW       = 0.0;
+
+
+
+        // Forty degrees of yaw: a label printed on the face narrows by the
+        // cosine, as anything printed on a turned surface does.
+        view.orbitYawRad = 0.6981317f;
+        expectedW        = (double) labelPx.cx * std::cos ((double) view.orbitYawRad);
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, front));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, turned, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (front, 0, labelPx, 4, quad));
+        MeasureQuadPx (front, quad, frontPx);
+        frontH = EdgeLengthPx (front, quad[0], quad[2]);
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (turned, 0, labelPx, 4, quad));
+        MeasureQuadPx (turned, quad, leftPx);
+        turnedH = EdgeLengthPx (turned, quad[0], quad[2]);
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (turned, 1, labelPx, 4, quad));
+        MeasureQuadPx (turned, quad, rightPx);
+
+        Assert::IsTrue (leftPx.right - leftPx.left < frontPx.right - frontPx.left,
+            L"the name must narrow as the drive turns, or it is not on the drive");
+        Assert::IsTrue (rightPx.right - rightPx.left < frontPx.right - frontPx.left,
+            L"on either drive");
+
+        // THE COSINE OF THE ANGLE TO THE LINE OF SIGHT, not to the screen. The
+        // drives flank the centerline, so each is already seen a few degrees
+        // around before any orbit, one from each side: the same yaw turns one
+        // face further from the eye than the other, and the two come out a
+        // dozen pixels apart. Their mean is where the parallax cancels.
+        Assert::AreEqual (expectedW,
+                          ((double) (leftPx.right - leftPx.left) + (double) (rightPx.right - rightPx.left)) * 0.5,
+                          2.0,
+            L"narrowed by the cosine of the turn, once the drives' own offsets cancel");
+
+        // Yaw is about the world's up, which the face's up shares, so the
+        // height is not the turn's to change: the side edge reads the same
+        // length it did head-on.
+        Assert::AreEqual (frontH, turnedH, 1.0f,
+            L"a turn about the vertical leaves the height alone");
+    }
+
+
+    TEST_METHOD (Label_Quad_Keeps_Its_Pixel_Size_At_Any_Zoom)
+    {
+        DeskSceneMetrics      metrics        = MakeMetrics();
+        DeskSceneComposition  rest;
+        DeskSceneComposition  zoomed;
+        DeskSceneView         view;
+        RECT                  viewport       = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx        = { 120, 16 };
+        float                 restQuad[4][3] = {};
+        float                 zoomQuad[4][3] = {};
+        RECT                  restPx         = {};
+        RECT                  zoomPx         = {};
+
+
+
+        view.zoom = 2.5f;
+        view.panY = -0.3f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, rest));
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, zoomed, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (rest,   0, labelPx, 4, restQuad));
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (zoomed, 0, labelPx, 4, zoomQuad));
+
+        MeasureQuadPx (rest,   restQuad, restPx);
+        MeasureQuadPx (zoomed, zoomQuad, zoomPx);
+
+        // The zoom is a clip-space lens, so it changes no angle: the name
+        // keeps whatever foreshortening the pose gave it and nothing else.
+        Assert::AreEqual (labelPx.cx, zoomPx.right - zoomPx.left,
+            L"leaning in must not enlarge the type");
+        Assert::IsTrue (std::abs ((zoomPx.bottom - zoomPx.top) - (restPx.bottom - restPx.top)) <= 1,
+            L"nor stretch it");
+    }
+
+
+    TEST_METHOD (Label_Quad_Hides_When_The_Face_Turns_Away)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        DeskSceneView         view;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 120, 16 };
+        float                 corners[4][3] = {};
+
+
+
+        // Well past edge-on: the front is no longer toward the eye, and a name
+        // has nothing on its back to show. Not just past ninety degrees,
+        // because the drives sit off the centerline and a face can still
+        // catch the eye a little beyond square.
+        view.orbitYawRad = 2.3f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp, 0, view));
+
+        Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, labelPx, 4, corners),
+            L"a face turned past edge-on has no name to hang");
+
+        // Straight from behind, which is where a mirrored name would have
+        // peeked out under the case.
+        view.orbitYawRad = 3.14159265f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp, 0, view));
+
+        Assert::IsFalse (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, labelPx, 4, corners),
+            L"nor from behind");
+
+        // And well short of edge-on it is still there, narrow but readable.
+        view.orbitYawRad = 1.2f;
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp, 0, view));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 0, labelPx, 4, corners),
+            L"a face still toward the eye keeps its name");
     }
 
 

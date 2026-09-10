@@ -153,10 +153,10 @@ struct DeskSceneComposition
     // point rides the drive rigidly through any orbit.
     POINT  driveLabelPx[2]  = {};
 
-    // The same anchor in WORLD space, which is what a depth-tested billboard
-    // needs and a screen point cannot give. The depth is the whole difficulty
-    // here: the name has to sit at the drive's own distance before the
-    // monitor's case can stand in front of it.
+    // The same anchor in WORLD space, which is what a depth-tested name in
+    // the scene needs and a screen point cannot give. The depth is the whole
+    // difficulty here: the name has to sit at the drive's own distance before
+    // the monitor's case can stand in front of it.
     float  driveLabelWorld[2][3] = {};
 };
 
@@ -311,12 +311,6 @@ public:
                                             int                          displayW,
                                             int                          displayH);
 
-    // The camera's own right and up axes in WORLD space, read off the view
-    // matrix's rotation. Both are unit length and square to the gaze, so a
-    // quad spanned by them faces the camera head-on and all four of its
-    // corners share one depth.
-    static void     GetCameraBasis (const float view[16], float outRight[3], float outUp[3]);
-
     // How much world one screen pixel spans at `worldPt`'s depth, across and
     // down. Returns false for a point at or behind the eye plane. Read off
     // the projection the composition actually carries, so the user's zoom is
@@ -326,10 +320,14 @@ public:
                                       float                      & outPerPxX,
                                       float                      & outPerPxY);
 
-    // The four world corners of one drive's name billboard, covering exactly
-    // `labelPx` pixels starting `gapPx` below that drive's anchor. Corners
-    // come back top-left, top-right, bottom-left, bottom-right. Returns false
-    // when the anchor does not project.
+    // The four world corners of one drive's name, printed in the plane of the
+    // drive's front face and hung `gapPx` below that drive's anchor. It
+    // covers `labelPx` pixels when the face is square to the camera, and
+    // foreshortens with the face as the scene turns, but never scales with
+    // the zoom or the standoff. Corners come back top-left, top-right,
+    // bottom-left, bottom-right. Returns false when the anchor does not
+    // project, and when the face is turned away from the camera -- a label
+    // has one side.
     //
     // Pixels go IN and world corners come out, which is the inversion the
     // whole fix rests on: the name is specified in the units it has to be
@@ -341,6 +339,15 @@ public:
                                            float                        outCorners[4][3]);
 
 private:
+    // One row of a row-vector-convention matrix as a unit direction: the
+    // image of a model axis with the placement scale divided out. False for
+    // a row with no length.
+    static bool     GetUnitRow (const float m[16], int row, float outDir[3]);
+
+    // Whether a face at `worldPt` with outward `normal` is turned toward the
+    // camera.
+    static bool     IsFacingCamera (const float view[16], const float worldPt[3], const float normal[3]);
+
     static void     SolveStandoff (const float             sceneMin[3],
                                    const float             sceneMax[3],
                                    float                   eyeY,

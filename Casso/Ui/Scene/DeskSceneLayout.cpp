@@ -1172,32 +1172,75 @@ SIZE DeskSceneLayout::CenterSizeForDisplayPx (int                      displayWp
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskSceneLayout::GetCameraBasis
+//  DeskSceneLayout::GetUnitRow
 //
-//  Reads the camera's right and up axes out of the view matrix.
+//  One row of a device's world matrix as a unit direction.
 //
-//  The rotation block holds the camera basis in its COLUMNS under this file's
-//  row-vector convention, because a view transform is the inverse of the
-//  camera's placement and a rotation's inverse is its transpose. So right is
-//  (m0, m4, m8) and up is (m1, m5, m9), already unit length and mutually
-//  square.
-//
-//  The orbit turns the MODELS rather than the eye, so both axes hold still
-//  through a whole orbit. A quad built on them keeps its facing however far
-//  the scene has been spun, which is what a name that has to stay readable
-//  wants.
+//  Under this file's row-vector convention each of the first three rows is
+//  the image of one model axis, placement scale included, so a row divided by
+//  its own length is that axis's direction in the world. Refused for a row
+//  with no length, which no real placement produces but a zeroed composition
+//  does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneLayout::GetCameraBasis (const float view[16], float outRight[3], float outUp[3])
+bool DeskSceneLayout::GetUnitRow (const float m[16], int row, float outDir[3])
 {
-    outRight[0] = view[0];
-    outRight[1] = view[4];
-    outRight[2] = view[8];
+    const float  * r   = m + row * 4;
+    float          len = std::sqrt (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
 
-    outUp[0]    = view[1];
-    outUp[1]    = view[5];
-    outUp[2]    = view[9];
+
+
+    outDir[0] = 0.0f;
+    outDir[1] = 0.0f;
+    outDir[2] = 0.0f;
+
+    if (row < 0 || row > 2 || len <= 0.0f)
+    {
+        return false;
+    }
+
+    outDir[0] = r[0] / len;
+    outDir[1] = r[1] / len;
+    outDir[2] = r[2] / len;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::IsFacingCamera
+//
+//  Whether a face at `worldPt` with outward `normal` is turned toward the eye.
+//
+//  Decided in VIEW space, where the eye is the origin: the face is toward it
+//  when its normal points back at the origin from the point, which is a
+//  negative dot product between the two. The normal goes through the view's
+//  rotation block alone -- a direction has no position to translate.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::IsFacingCamera (const float view[16], const float worldPt[3], const float normal[3])
+{
+    float  ptView[3]     = {};
+    float  normalView[3] = {};
+
+
+
+    if (!SceneCamera::TransformPoint (view, worldPt, ptView))
+    {
+        return false;
+    }
+
+    normalView[0] = normal[0] * view[0] + normal[1] * view[4] + normal[2] * view[8];
+    normalView[1] = normal[0] * view[1] + normal[1] * view[5] + normal[2] * view[9];
+    normalView[2] = normal[0] * view[2] + normal[1] * view[6] + normal[2] * view[10];
+
+    return (ptView[0] * normalView[0] + ptView[1] * normalView[1] + ptView[2] * normalView[2]) < 0.0f;
 }
 
 
@@ -1258,20 +1301,27 @@ bool DeskSceneLayout::GetWorldPerPixel (const DeskSceneComposition & comp,
 //
 //  DeskSceneLayout::TryMakeDriveLabelQuad
 //
-//  Places the name's billboard: a rectangle square to the camera, hung under
-//  the drive's anchor, covering the pixel size the caller asked for.
+//  Places the name's decal: a rectangle IN THE DRIVE'S FRONT PLANE, hung under
+//  the drive's anchor, covering the pixel size the caller asked for when that
+//  face is square to the camera.
 //
-//  CONSTANT SCREEN SIZE IS THE POINT. Standing the name in the drive's own
-//  plane made it foreshorten and shrink with the pose, so the one thing on
-//  screen whose job is to be read went unreadable on a small desk. Spanning
-//  the quad with the camera's own axes and sizing it through the pixel scale
-//  at its depth gives back the fixed size chrome had, while leaving the name
-//  real geometry that the depth buffer can cut.
+//  PRINTED ON THE FACE, SIZED IN PIXELS. The name turns with the drive the
+//  way a label stuck to the faceplate would, and foreshortens with it: that
+//  is what anchors it. What it does NOT do is shrink with distance or grow
+//  under the zoom, because its world extent is solved from the pixel scale at
+//  its own depth. Leaning in leaves the type the size it was.
 //
-//  All four corners share ONE depth, because right and up are both square to
-//  the gaze. That makes the rectangle exact rather than approximate: it
-//  covers the requested pixels precisely, and it cannot tilt into the case it
-//  is meant to be hidden by.
+//  Two earlier versions each had half of this. An in-plane name sized in
+//  WORLD units turned with the drive but shrank with the standoff and the
+//  zoom as well, and went unreadable on a small desk; the camera-facing
+//  billboard that replaced it held its size and lost the anchoring, so the
+//  name hung square to the eye however the drive was turned. Solving the
+//  size in pixels at the anchor's depth keeps the fixed size and gives the
+//  anchoring back.
+//
+//  ONE SIDE ONLY. A face turned away from the camera has nothing printed on
+//  its back, so the quad is refused rather than drawn mirrored wherever the
+//  case happens not to cover it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1282,8 +1332,10 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
                                              float                        outCorners[4][3])
 {
     const float  * anchor   = nullptr;
+    const float  * world    = nullptr;
     float          right[3] = {};
     float          up[3]    = {};
+    float          front[3] = {};
     float          perPxX   = 0.0f;
     float          perPxY   = 0.0f;
     float          halfW    = (float) labelPx.cx * 0.5f;
@@ -1303,13 +1355,30 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
     }
 
     anchor = comp.driveLabelWorld[drive];
+    world  = comp.driveWorld[drive];
 
     if (!GetWorldPerPixel (comp, anchor, perPxX, perPxY))
     {
         return false;
     }
 
-    GetCameraBasis (comp.view, right, up);
+    // The face's own axes, off the drive's world matrix: row 0 is the image
+    // of the model's x, which runs across the faceplate, row 2 of its z,
+    // which runs up it, and row 1 of its y, which runs from the front toward
+    // the back -- so the outward normal is that one negated.
+    if (!GetUnitRow (world, 0, right) || !GetUnitRow (world, 2, up) || !GetUnitRow (world, 1, front))
+    {
+        return false;
+    }
+
+    front[0] = -front[0];
+    front[1] = -front[1];
+    front[2] = -front[2];
+
+    if (!IsFacingCamera (comp.view, anchor, front))
+    {
+        return false;
+    }
 
     for (int corner = 0; corner < 4; corner++)
     {
@@ -1318,8 +1387,8 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
 
 
 
-        // Screen y runs DOWN while the camera's up runs up, so the offset
-        // below the anchor is subtracted rather than added.
+        // Screen y runs DOWN while the face's up runs up, so the offset below
+        // the anchor is subtracted rather than added.
         for (int axis = 0; axis < 3; axis++)
         {
             outCorners[corner][axis] = anchor[axis] + dx * right[axis] - dy * up[axis];
