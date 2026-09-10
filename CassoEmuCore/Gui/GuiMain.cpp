@@ -13,7 +13,7 @@
 #include "Core/JsonWriter.h"
 #include "Core/PathResolver.h"
 #include "Config/DiskSettings.h"
-#include "EmulatorShell.h"
+#include "Shell/EmulatorShell.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
 #include "Ui/Chrome/CassoTheme.h"

@@ -159,9 +159,9 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: nothing faked but the passage of time.
 
-- [ ] T071 [US6] Move the remainder of `EmulatorShell` to `CassoEmuCore/Shell/`, splitting it by concern rather than relocating a 15,995-line file whole
+- [x] T071 [US6] Move the remainder of `EmulatorShell` to `CassoEmuCore/Shell/`, splitting it by concern rather than relocating a 15,995-line file whole
 - [x] T072 [US6] Separate device construction and the machine lifecycle façade into `CassoEmuCore/Shell/MachineHost`
-- [ ] T073 [US6] Move the window, its creation and its message pump into `CassoEmuCore/Shell/Window`; being in an executable is not what makes them work
+- [x] T073 [US6] Move the window, its creation and its message pump into `CassoEmuCore/Shell/Window`; being in an executable is not what makes them work
 - [ ] T074 [US6] Move CPU-thread orchestration and soft-switch state ownership into core, behind a seam for the passage of time
       - soft-switch mirror and the run loop are on `MachineHost` (`RunCycles` takes a cycle budget; time stays in `CpuManager`); the CPU-thread callbacks themselves are still on `EmulatorShell`
 - [x] T075 [P] [US6] Test: a machine built headlessly runs a fixed number of cycles and its memory and soft-switch state assert as expected

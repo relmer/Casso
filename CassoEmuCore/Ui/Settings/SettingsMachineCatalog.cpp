@@ -6,7 +6,7 @@
 #include "ThemePage.h"
 
 #include "../ThemeManager.h"
-#include "../../EmulatorShell.h"
+#include "Shell/EmulatorShell.h"
 #include "../../AssetBootstrap.h"
 #include "Config/UserConfigStore.h"
 #include "Config/IFileSystem.h"

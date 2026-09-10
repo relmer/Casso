@@ -287,6 +287,11 @@ public:
     void    BrowseForDisk (int drive);
 
 private:
+
+    //  The shell the EHM notification sink forwards to. One per process; set
+    //  by Initialize and cleared by the destructor so a late report cannot
+    //  reach a dead object.
+    static EmulatorShell *  s_pNotifyShell;
     DxuiMessageResult  OnChar          (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnCommand       (WORD commandId) override;
     DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;

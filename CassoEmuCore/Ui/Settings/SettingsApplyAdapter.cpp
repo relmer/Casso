@@ -2,7 +2,7 @@
 
 #include "SettingsApplyAdapter.h"
 
-#include "../../EmulatorShell.h"
+#include "Shell/EmulatorShell.h"
 #include "resource.h"
 
 

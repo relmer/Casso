@@ -2,7 +2,7 @@
 
 #include "SettingsSheet.h"
 
-#include "../../EmulatorShell.h"
+#include "Shell/EmulatorShell.h"
 #include "Config/GlobalUserPrefs.h"
 #include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"

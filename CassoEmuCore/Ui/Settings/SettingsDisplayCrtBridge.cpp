@@ -5,7 +5,7 @@
 #include "DisplayPage.h"
 #include "Ui/ColorUtil.h"
 #include "../ThemeManager.h"
-#include "../../EmulatorShell.h"
+#include "Shell/EmulatorShell.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 

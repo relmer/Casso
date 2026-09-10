@@ -2,7 +2,7 @@
 
 #include "MachineManager.h"
 
-#include "../EmulatorShell.h"
+#include "Shell/EmulatorShell.h"
 #include "../AssetBootstrap.h"
 #include "Config/DiskSettings.h"
 #include "../resource.h"

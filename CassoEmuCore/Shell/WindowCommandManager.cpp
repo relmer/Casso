@@ -4,7 +4,7 @@
 
 #include "../AssetBootstrap.h"
 #include "Config/WindowPlacementProfile.h"
-#include "../EmulatorShell.h"
+#include "Shell/EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "../Ui/Dialogs/KeyboardMapText.h"

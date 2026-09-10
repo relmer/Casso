@@ -7,7 +7,7 @@
 #include "SettingsMachineCatalog.h"
 #include "SettingsPreviewController.h"
 
-#include "../../EmulatorShell.h"
+#include "Shell/EmulatorShell.h"
 
 
 
