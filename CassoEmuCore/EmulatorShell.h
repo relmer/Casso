@@ -406,6 +406,13 @@ private:
     void    InitAssetPathsAndStores         ();
     void    AllocateFramebuffers            ();
     void    PrimeChromeThemeEarly           ();
+    //  How many bands peel an edge off the client area before the emulator
+    //  viewport gets the rest. Named so the two directions that walk them
+    //  cannot size their arrays differently.
+    static constexpr int  kDockedBandCount = 7;
+
+    void  CollectDockedBands (class IDxuiControl * (& outBands)[kDockedBandCount]);
+
     HRESULT BuildMachineDevices             (const MachineConfig & config);
     HRESULT InitializeRenderer              ();
     HRESULT InitializeUiShell               ();

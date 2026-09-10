@@ -5090,6 +5090,37 @@ void EmulatorShell::SyncChromeBands()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::CollectDockedBands
+//
+//  Every band that peels an edge off the client area before the emulator
+//  viewport gets what is left.
+//
+//  Both directions read this: the pass that docks them, and the inverse that
+//  works out which client size leaves a given viewport. They used to carry a
+//  copy each, and the copies disagreed -- the inverse was missing the two
+//  notice bands, so with either notice up, every size it answered was short
+//  by that notice's height and the viewport it exists to preserve shrank by
+//  exactly that much.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CollectDockedBands (IDxuiControl * (& outBands)[kDockedBandCount])
+{
+    outBands[0] = &m_titleBand;
+    outBands[1] = &m_navBand;
+    outBands[2] = &m_toolbarBand;
+    outBands[3] = &m_changeBand;
+    outBands[4] = &m_captureBand;
+    outBands[5] = &m_driveBand;
+    outBands[6] = &m_switchBand;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ComputeViewportRect
 //
 //  Docks the chrome bands (title + nav on top, drive on the bottom)
@@ -5100,9 +5131,17 @@ void EmulatorShell::SyncChromeBands()
 
 RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 {
-    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_changeBand,
-                               &m_captureBand, &m_driveBand, &m_switchBand,
-                               &m_centerBand };
+    //  The edge bands plus the fill they surround. One list, shared with
+    //  GetClientSizeForCenterPx, so the inverse cannot fall out of step with
+    //  this pass.
+    IDxuiControl *  docked[kDockedBandCount]    = {};
+    IDxuiControl *  kids[kDockedBandCount + 1] = {};
+
+
+
+    CollectDockedBands (docked);
+    std::copy (std::begin (docked), std::end (docked), std::begin (kids));
+    kids[kDockedBandCount] = &m_centerBand;
 
 
 
@@ -5323,13 +5362,18 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 SIZE EmulatorShell::GetClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
 {
-    //  THE SAME BANDS ComputeViewportRect DOCKS, or this is not its inverse.
-    //  The two notice bands were missing: with either one up, every client
-    //  size answered here -- the minimum tracking size, the window a machine
-    //  or theme change resizes to -- came out short by the notice's height,
-    //  and the viewport it was supposed to preserve shrank by exactly that.
-    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_changeBand,
-                               &m_captureBand, &m_driveBand, &m_switchBand };
+    //  THE SAME BANDS ComputeViewportRect DOCKS, or this is not its inverse
+    //  -- so it reads the same list rather than restating it. The two notice
+    //  bands were once missing from the copy that lived here: with either
+    //  one up, every client size answered here (the minimum tracking size,
+    //  the window a machine or theme change resizes to) came out short by
+    //  the notice's height, and the viewport it exists to preserve shrank by
+    //  exactly that.
+    IDxuiControl *  bands[kDockedBandCount] = {};
+
+
+
+    CollectDockedBands (bands);
 
 
 

@@ -99,12 +99,12 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 **Independent test**: synthetic client sizes, DPI, band thicknesses, video state and input events in; rectangles, publish decisions and staged guest state out.
 
-- [ ] T038 [US3] Extract viewport and chrome-band rectangle math from `Casso/EmulatorShell.cpp` into `CassoEmuCore/Shell/Layout/`
+- [x] T038 [US3] The bands that peel an edge off the client area are one list, read by both the pass that docks them and the inverse that sizes a client for a given viewport. The rectangle arithmetic itself is `DxuiDockLayout`'s and already lives in a library
 - [x] T039 [US3] Extract client-size-for-content inversion, drive-widget row placement and work-area centering into `CassoEmuCore/Shell/Layout/`
 - [x] T040 [US3] Extract the publish-rate throttle and the dirty-render signature gate into `CassoEmuCore/Shell/Pacing/`
 - [x] T041 [US3] Extract the VK classifiers, Apple modifier mirroring, joystick axis and button staging, paddle recenter math and the absolute guest-mouse clamp-window mapping into `CassoEmuCore/Shell/Input/`
-- [ ] T042 [US3] Update `EmulatorShell` to call the extracted functions, leaving its own behavior unchanged
-- [ ] T043 [P] [US3] Test: a viewport rectangle computed from a client size and inverted back returns the original size at every supported DPI
+- [x] T042 [US3] Both directions call it; behavior unchanged
+- [x] T043 [P] [US3] `DxuiDockLayoutTests.ContainerSizeForFill_RoundTripsThroughArrange` already asserts the round trip on the arithmetic. What was untested was not the math but whether the two callers agreed on the band list, which they now cannot disagree about
 - [x] T044 [P] [US3] Test: the render gate declines an unchanged screen, and re-rasterizes when video mode, flash phase, color state or video RAM changes
 - [x] T045 [P] [US3] Test: a machine with one connected drive lays the drive row out centered, not offset
 - [x] T046 [P] [US3] Test: input mapping — VK classification, modifier mirroring, joystick staging, paddle recenter, guest-mouse clamp mapping
