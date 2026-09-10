@@ -609,16 +609,21 @@ public:
     }
 
 
-    TEST_METHOD (Detokenize_BytesPastTheNullLink_AreRefused)
+    TEST_METHOD (Detokenize_BytesPastTheNullLink_AreIgnored)
     {
+        // A DOS 3.3 file's recorded length routinely runs a few bytes past
+        // the zero link (HI-RES HELLO on the ADTPro disks ends 00 00 00 01).
+        // Applesoft's RUN stops at the link, so the listing does too.
         std::vector<Byte>      program = Tokenized ("10 END\n");
         std::string            listing;
         ApplesoftListingError  error;
 
-        program.push_back (0x42);
+        program.push_back (0x00);
+        program.push_back (0x01);
 
-        AssertFailed (ApplesoftTokenizer::Detokenize (program, listing, error),
-            L"a file longer than the program it holds is not the program it holds");
+        AssertSucceeded (ApplesoftTokenizer::Detokenize (program, listing, error),
+            L"bytes after the zero link are not part of the program");
+        Assert::AreEqual (std::string ("10  END\n"), listing);
     }
 
 

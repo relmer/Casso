@@ -12,6 +12,8 @@ Entries before versioning was introduced use dates only.
 
 - Apple //e now uses the correct character ROM. Previously, it used the Apple
   //e Enhanced ROM.
+- `disk get --basic` now lists an Applesoft file whose recorded length runs
+  past the end-of-program link. Previously, it refused the file.
 - Window resize now accommodates docked message bars like the disk-change
   notice.
 - Single-stepping a paused machine now advances the video timing and the //c

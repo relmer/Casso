@@ -369,7 +369,7 @@ bool ApplesoftTokenizer::TryCopyQuoted (
 
         if (!printable)
         {
-            outReason = "carries a character with no Apple II representation";
+            outReason = "has a character with no Apple II representation";
             inOutAt   = i;
 
             return false;
@@ -431,7 +431,7 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
 
         if (!IsPrintable (c))
         {
-            outReason = "carries a character with no Apple II representation";
+            outReason = "has a character with no Apple II representation";
             ok        = false;
             continue;
         }
@@ -612,7 +612,7 @@ HRESULT ApplesoftTokenizer::ParseOneLine (
         // Applesoft reads a bare number as an instruction to DELETE that line,
         // so there is no stored form of one and placing it would silently drop
         // whatever the user thought they were writing.
-        outError.reason = "carries a number and no statement, which Applesoft BASIC reads as deleting that line";
+        outError.reason = "has a line number and no statement, which Applesoft BASIC reads as deleting that line";
     }
 
     CBREx (hasBody, E_INVALIDARG);
@@ -666,7 +666,7 @@ HRESULT ApplesoftTokenizer::EmitProgram (
     if (!hasAny)
     {
         outError        = ApplesoftListingError();
-        outError.reason = "the listing carries no numbered lines";
+        outError.reason = "the listing has no numbered lines";
     }
 
     CBREx (hasAny, E_INVALIDARG);
@@ -860,7 +860,7 @@ HRESULT ApplesoftTokenizer::RenderOneLine (
                 // Applesoft never stores a token where the bytes are data, so
                 // this is a program no guest produced -- and form it out
                 // would hand back a listing that tokenizes to something else.
-                outReason = "carries a token byte inside a string, a REM or a DATA payload";
+                outReason = "has a token byte inside a string, a REM or a DATA payload";
                 ok        = false;
                 continue;
             }
@@ -869,7 +869,7 @@ HRESULT ApplesoftTokenizer::RenderOneLine (
 
             if (keyword == nullptr)
             {
-                outReason = "carries a byte that is not an Applesoft BASIC token";
+                outReason = "has a byte that is not an Applesoft BASIC token";
                 ok        = false;
                 continue;
             }
@@ -895,7 +895,7 @@ HRESULT ApplesoftTokenizer::RenderOneLine (
 
         if (!IsPrintable ((char) b))
         {
-            outReason = "carries a byte no listing can show";
+            outReason = "has a byte no listing can show";
             ok        = false;
             continue;
         }
@@ -970,16 +970,13 @@ HRESULT ApplesoftTokenizer::Detokenize (
 
         link = (uint32_t) (programBytes[at] | (programBytes[at + 1] << 8));
 
+        // A zero link ends the program. Bytes after it are not part of it:
+        // Applesoft's RUN follows the links and stops here, and a DOS 3.3
+        // file's recorded length routinely runs a few bytes past this point,
+        // so a file that loads and runs on the machine is accepted as is.
         if (link == 0)
         {
             ended = true;
-            ok    = (at + kLinkBytes) == count;
-
-            if (!ok)
-            {
-                reason = "carries bytes past the end of the program";
-            }
-
             continue;
         }
 
