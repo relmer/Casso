@@ -1,4 +1,7 @@
 #include "Pch.h"
+
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
 #include "MemoryProbeHelpers.h"
 
 
@@ -9,7 +12,7 @@
 //
 //  RebindMainBaseline
 //
-//  HeadlessHost::BuildApple2e binds bus pages $00-$BF to the CPU's
+//  MachineBuilder binds bus pages $00-$BF to the CPU's
 //  internal memory[] buffer. The MMU's RebindPageTable is initially a
 //  no-op since flags default to false. The first MMU rebind switches
 //  pages to mainRam/auxRam buffers — the //e firmware never toggles a
@@ -20,19 +23,19 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryProbeHelpers::RebindMainBaseline (EmulatorCore & core)
+void MemoryProbeHelpers::RebindMainBaseline (MachineHost & host)
 {
-    if (core.mmu == nullptr)
+    if (host.GetMmu() == nullptr)
     {
         return;
     }
 
-    core.mmu->SetRamRd  (true);
-    core.mmu->SetRamRd  (false);
-    core.mmu->SetRamWrt (true);
-    core.mmu->SetRamWrt (false);
-    core.mmu->SetAltZp  (true);
-    core.mmu->SetAltZp  (false);
+    host.GetMmu()->SetRamRd  (true);
+    host.GetMmu()->SetRamRd  (false);
+    host.GetMmu()->SetRamWrt (true);
+    host.GetMmu()->SetRamWrt (false);
+    host.GetMmu()->SetAltZp  (true);
+    host.GetMmu()->SetAltZp  (false);
 }
 
 
@@ -45,18 +48,18 @@ void MemoryProbeHelpers::RebindMainBaseline (EmulatorCore & core)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MemoryProbeHelpers::ReadMain (EmulatorCore & core, Word address)
+Byte MemoryProbeHelpers::ReadMain (MachineHost & host, Word address)
 {
-    core.mmu->SetRamRd (false);
-    return core.bus->ReadByte (address);
+    host.GetMmu()->SetRamRd (false);
+    return host.GetMemoryBus().ReadByte (address);
 }
 
 
 
-Byte MemoryProbeHelpers::ReadAux (EmulatorCore & core, Word address)
+Byte MemoryProbeHelpers::ReadAux (MachineHost & host, Word address)
 {
-    core.mmu->SetRamRd (true);
-    return core.bus->ReadByte (address);
+    host.GetMmu()->SetRamRd (true);
+    return host.GetMemoryBus().ReadByte (address);
 }
 
 
@@ -69,18 +72,18 @@ Byte MemoryProbeHelpers::ReadAux (EmulatorCore & core, Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryProbeHelpers::WriteMain (EmulatorCore & core, Word address, Byte value)
+void MemoryProbeHelpers::WriteMain (MachineHost & host, Word address, Byte value)
 {
-    core.mmu->SetRamWrt (false);
-    core.bus->WriteByte (address, value);
+    host.GetMmu()->SetRamWrt (false);
+    host.GetMemoryBus().WriteByte (address, value);
 }
 
 
 
-void MemoryProbeHelpers::WriteAux (EmulatorCore & core, Word address, Byte value)
+void MemoryProbeHelpers::WriteAux (MachineHost & host, Word address, Byte value)
 {
-    core.mmu->SetRamWrt (true);
-    core.bus->WriteByte (address, value);
+    host.GetMmu()->SetRamWrt (true);
+    host.GetMemoryBus().WriteByte (address, value);
 }
 
 
@@ -93,18 +96,18 @@ void MemoryProbeHelpers::WriteAux (EmulatorCore & core, Word address, Byte value
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MemoryProbeHelpers::ReadMainZp (EmulatorCore & core, Word address)
+Byte MemoryProbeHelpers::ReadMainZp (MachineHost & host, Word address)
 {
-    core.mmu->SetAltZp (false);
-    return core.bus->ReadByte (address);
+    host.GetMmu()->SetAltZp (false);
+    return host.GetMemoryBus().ReadByte (address);
 }
 
 
 
-Byte MemoryProbeHelpers::ReadAuxZp (EmulatorCore & core, Word address)
+Byte MemoryProbeHelpers::ReadAuxZp (MachineHost & host, Word address)
 {
-    core.mmu->SetAltZp (true);
-    return core.bus->ReadByte (address);
+    host.GetMmu()->SetAltZp (true);
+    return host.GetMemoryBus().ReadByte (address);
 }
 
 
@@ -117,10 +120,10 @@ Byte MemoryProbeHelpers::ReadAuxZp (EmulatorCore & core, Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryProbeHelpers::WriteMainZp (EmulatorCore & core, Word address, Byte value)
+void MemoryProbeHelpers::WriteMainZp (MachineHost & host, Word address, Byte value)
 {
-    core.mmu->SetAltZp (false);
-    core.bus->WriteByte (address, value);
+    host.GetMmu()->SetAltZp (false);
+    host.GetMemoryBus().WriteByte (address, value);
 }
 
 
@@ -133,10 +136,10 @@ void MemoryProbeHelpers::WriteMainZp (EmulatorCore & core, Word address, Byte va
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryProbeHelpers::WriteAuxZp (EmulatorCore & core, Word address, Byte value)
+void MemoryProbeHelpers::WriteAuxZp (MachineHost & host, Word address, Byte value)
 {
-    core.mmu->SetAltZp (true);
-    core.bus->WriteByte (address, value);
+    host.GetMmu()->SetAltZp (true);
+    host.GetMemoryBus().WriteByte (address, value);
 }
 
 
@@ -155,12 +158,12 @@ void MemoryProbeHelpers::WriteAuxZp (EmulatorCore & core, Word address, Byte val
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MemoryProbeHelpers::ReadLcMainBank2 (EmulatorCore & core, Word address)
+Byte MemoryProbeHelpers::ReadLcMainBank2 (MachineHost & host, Word address)
 {
-    core.mmu->SetAltZp (false);
-    core.bus->ReadByte (kLcBank2OddRead);
-    core.bus->ReadByte (kLcBank2OddRead);
-    return core.languageCard->ReadRam (address);
+    host.GetMmu()->SetAltZp (false);
+    host.GetMemoryBus().ReadByte (kLcBank2OddRead);
+    host.GetMemoryBus().ReadByte (kLcBank2OddRead);
+    return host.GetRefs().languageCard->ReadRam (address);
 }
 
 
@@ -173,12 +176,12 @@ Byte MemoryProbeHelpers::ReadLcMainBank2 (EmulatorCore & core, Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MemoryProbeHelpers::ReadLcMainBank1 (EmulatorCore & core, Word address)
+Byte MemoryProbeHelpers::ReadLcMainBank1 (MachineHost & host, Word address)
 {
-    core.mmu->SetAltZp (false);
-    core.bus->ReadByte (kLcBank1OddRead);
-    core.bus->ReadByte (kLcBank1OddRead);
-    return core.languageCard->ReadRam (address);
+    host.GetMmu()->SetAltZp (false);
+    host.GetMemoryBus().ReadByte (kLcBank1OddRead);
+    host.GetMemoryBus().ReadByte (kLcBank1OddRead);
+    return host.GetRefs().languageCard->ReadRam (address);
 }
 
 
@@ -191,12 +194,12 @@ Byte MemoryProbeHelpers::ReadLcMainBank1 (EmulatorCore & core, Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MemoryProbeHelpers::ReadLcAuxBank2 (EmulatorCore & core, Word address)
+Byte MemoryProbeHelpers::ReadLcAuxBank2 (MachineHost & host, Word address)
 {
-    core.mmu->SetAltZp (true);
-    core.bus->ReadByte (kLcBank2OddRead);
-    core.bus->ReadByte (kLcBank2OddRead);
-    return core.languageCard->ReadRam (address);
+    host.GetMmu()->SetAltZp (true);
+    host.GetMemoryBus().ReadByte (kLcBank2OddRead);
+    host.GetMemoryBus().ReadByte (kLcBank2OddRead);
+    return host.GetRefs().languageCard->ReadRam (address);
 }
 
 
@@ -209,12 +212,12 @@ Byte MemoryProbeHelpers::ReadLcAuxBank2 (EmulatorCore & core, Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MemoryProbeHelpers::ReadLcAuxBank1 (EmulatorCore & core, Word address)
+Byte MemoryProbeHelpers::ReadLcAuxBank1 (MachineHost & host, Word address)
 {
-    core.mmu->SetAltZp (true);
-    core.bus->ReadByte (kLcBank1OddRead);
-    core.bus->ReadByte (kLcBank1OddRead);
-    return core.languageCard->ReadRam (address);
+    host.GetMmu()->SetAltZp (true);
+    host.GetMemoryBus().ReadByte (kLcBank1OddRead);
+    host.GetMemoryBus().ReadByte (kLcBank1OddRead);
+    return host.GetRefs().languageCard->ReadRam (address);
 }
 
 
@@ -227,12 +230,12 @@ Byte MemoryProbeHelpers::ReadLcAuxBank1 (EmulatorCore & core, Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryProbeHelpers::WriteLcMainBank2 (EmulatorCore & core, Word address, Byte value)
+void MemoryProbeHelpers::WriteLcMainBank2 (MachineHost & host, Word address, Byte value)
 {
-    core.mmu->SetAltZp (false);
-    core.bus->ReadByte (kLcBank2OddRead);
-    core.bus->ReadByte (kLcBank2OddRead);
-    core.languageCard->WriteRam (address, value);
+    host.GetMmu()->SetAltZp (false);
+    host.GetMemoryBus().ReadByte (kLcBank2OddRead);
+    host.GetMemoryBus().ReadByte (kLcBank2OddRead);
+    host.GetRefs().languageCard->WriteRam (address, value);
 }
 
 
@@ -245,12 +248,12 @@ void MemoryProbeHelpers::WriteLcMainBank2 (EmulatorCore & core, Word address, By
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryProbeHelpers::WriteLcMainBank1 (EmulatorCore & core, Word address, Byte value)
+void MemoryProbeHelpers::WriteLcMainBank1 (MachineHost & host, Word address, Byte value)
 {
-    core.mmu->SetAltZp (false);
-    core.bus->ReadByte (kLcBank1OddRead);
-    core.bus->ReadByte (kLcBank1OddRead);
-    core.languageCard->WriteRam (address, value);
+    host.GetMmu()->SetAltZp (false);
+    host.GetMemoryBus().ReadByte (kLcBank1OddRead);
+    host.GetMemoryBus().ReadByte (kLcBank1OddRead);
+    host.GetRefs().languageCard->WriteRam (address, value);
 }
 
 
@@ -263,12 +266,12 @@ void MemoryProbeHelpers::WriteLcMainBank1 (EmulatorCore & core, Word address, By
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryProbeHelpers::WriteLcAuxBank2 (EmulatorCore & core, Word address, Byte value)
+void MemoryProbeHelpers::WriteLcAuxBank2 (MachineHost & host, Word address, Byte value)
 {
-    core.mmu->SetAltZp (true);
-    core.bus->ReadByte (kLcBank2OddRead);
-    core.bus->ReadByte (kLcBank2OddRead);
-    core.languageCard->WriteRam (address, value);
+    host.GetMmu()->SetAltZp (true);
+    host.GetMemoryBus().ReadByte (kLcBank2OddRead);
+    host.GetMemoryBus().ReadByte (kLcBank2OddRead);
+    host.GetRefs().languageCard->WriteRam (address, value);
 }
 
 
@@ -281,10 +284,10 @@ void MemoryProbeHelpers::WriteLcAuxBank2 (EmulatorCore & core, Word address, Byt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryProbeHelpers::WriteLcAuxBank1 (EmulatorCore & core, Word address, Byte value)
+void MemoryProbeHelpers::WriteLcAuxBank1 (MachineHost & host, Word address, Byte value)
 {
-    core.mmu->SetAltZp (true);
-    core.bus->ReadByte (kLcBank1OddRead);
-    core.bus->ReadByte (kLcBank1OddRead);
-    core.languageCard->WriteRam (address, value);
+    host.GetMmu()->SetAltZp (true);
+    host.GetMemoryBus().ReadByte (kLcBank1OddRead);
+    host.GetMemoryBus().ReadByte (kLcBank1OddRead);
+    host.GetRefs().languageCard->WriteRam (address, value);
 }

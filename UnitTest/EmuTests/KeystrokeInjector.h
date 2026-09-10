@@ -2,7 +2,7 @@
 
 #include "../../CassoEmuCore/Pch.h"
 
-#include "HeadlessHost.h"
+#include "Shell/MachineHost.h"
 
 
 
@@ -12,7 +12,7 @@
 //
 //  KeystrokeInjector
 //
-//  Injects ASCII keystrokes into an //e EmulatorCore via
+//  Injects ASCII keystrokes into an //e machine via
 //  Apple2eKeyboard::PressKey, pumping CPU cycles between strokes until the
 //  ROM consumes the strobe. The //e keyboard passes lowercase through, so
 //  what is injected is what the guest latches; the ][ / ][+ keyboard would
@@ -20,7 +20,7 @@
 //
 //  Caller responsibilities:
 //    - The machine must already be powered on with the ROM idling at the
-//      keyboard polling loop. Call core.RunCycles (...) for cold-boot
+//      keyboard polling loop. Call host.RunCycles (...) for cold-boot
 //      first, then InjectString.
 //    - All injected characters use 7-bit ASCII; PressKey sets bit 7
 //      (the strobe) internally.
@@ -38,7 +38,7 @@ public:
     // strokes for the ROM to clear the strobe. Returns the number of
     // characters successfully consumed (== text.size () on success).
     static size_t   InjectString (
-        EmulatorCore  &  core,
+        MachineHost  &  host,
         const std::string &  text,
         uint64_t           keyCycles = kPerKeyCycleBudget);
 
@@ -47,14 +47,14 @@ public:
     // runs until MachineIdle says it has finished, or until the ceiling is
     // reached, whichever comes first.
     static size_t   InjectLine (
-        EmulatorCore  &  core,
+        MachineHost  &  host,
         const std::string &  text,
         uint64_t           settleCycles = kAfterReturnCycles);
 
     // Single key. Succeeds iff the strobe was consumed within the
     // allotted cycle budget.
     static HRESULT  InjectKey (
-        EmulatorCore  &  core,
+        MachineHost  &  host,
         Byte               ch,
         uint64_t           cycleBudget = kPerKeyCycleBudget);
 
@@ -62,5 +62,5 @@ private:
     // Pumps CPU cycles in small batches until the keyboard strobe is
     // consumed by the ROM polling loop; fails if the budget is
     // exhausted first.
-    static HRESULT  WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget);
+    static HRESULT  WaitForStrobeClear (MachineHost & host, uint64_t cycleBudget);
 };

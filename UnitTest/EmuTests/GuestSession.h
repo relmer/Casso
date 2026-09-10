@@ -2,7 +2,7 @@
 
 #include "../../CassoEmuCore/Pch.h"
 
-#include "HeadlessHost.h"
+#include "Shell/MachineHost.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -64,20 +64,17 @@ public:
     //  a different moment from when the guest's own code was reached, and it
     //  is the same call for both sides of a comparison so neither side's
     //  answer would be about the disk.
-    static void  Mount        (HeadlessHost             & host,
-                               EmulatorCore             & core,
+    static void  Mount        (MachineHost              & host,
                                const std::vector<Byte>  & bytes);
 
     //  Mounts the bytes in slot 6 drive 1 and runs the boot ROM until the
     //  machine settles or the ceiling is spent.
-    static void  MountAndBoot (HeadlessHost             & host,
-                               EmulatorCore             & core,
+    static void  MountAndBoot (MachineHost              & host,
                                const std::vector<Byte>  & bytes);
 
     //  Boots and pages through whatever the disk's own startup program prints,
     //  leaving the guest at a prompt that will accept a command.
-    static void  BootToPrompt (HeadlessHost             & host,
-                               EmulatorCore             & core,
+    static void  BootToPrompt (MachineHost              & host,
                                const std::vector<Byte>  & bytes);
 
     //  The container decoded the way the DRIVE reads it: laid down as physical
@@ -153,22 +150,22 @@ public:
                                                    const wchar_t    * what);
 
     //  Every non-blank row showing now, appended to whatever is already there.
-    static void  CollectRows (EmulatorCore & core, std::vector<std::string> & outRows);
+    static void  CollectRows (MachineHost & host, std::vector<std::string> & outRows);
 
     //  True when the bottom-most non-blank row is a bare BASIC prompt.
     //
     //  THE PROMPT GLYPH IS THE LOAD-BEARING PART. The catalog pager also parks
     //  the machine on a one-glyph row -- the cursor by itself -- with the drive
     //  stopped and the screen still, which is everything MachineIdle looks at.
-    static bool  IsAtBarePrompt (EmulatorCore & core);
+    static bool  IsAtBarePrompt (MachineHost & host);
 
     //  Presses Return until the guest is back at a bare prompt, collecting
     //  every row it displayed on the way. Rows repeat across screenfuls, which
     //  is why callers ask what a matching row SAYS rather than how many.
-    static bool  TryPageToPrompt (EmulatorCore & core, std::vector<std::string> & outRows);
+    static bool  TryPageToPrompt (MachineHost & host, std::vector<std::string> & outRows);
 
     //  Types a line and hands back everything the guest printed in answer.
-    static std::vector<std::string>  TypeAndCollect (EmulatorCore & core, const std::string & line);
+    static std::vector<std::string>  TypeAndCollect (MachineHost & host, const std::string & line);
 
     static bool  AnyRowIs       (const std::vector<std::string> & rows, const std::string & wanted);
     static bool  AnyRowContains (const std::vector<std::string> & rows, const std::string & needle);
@@ -186,7 +183,7 @@ public:
 
     //  What the guest holds at an address, for comparing against what a
     //  placement said would be loaded there.
-    static std::vector<Byte>  GuestBytesAt (EmulatorCore & core, Word address, size_t count);
+    static std::vector<Byte>  GuestBytesAt (MachineHost & host, Word address, size_t count);
 
     static std::string  TrimTrailingBlanks (const std::string & row);
 

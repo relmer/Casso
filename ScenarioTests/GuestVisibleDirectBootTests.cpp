@@ -2,7 +2,7 @@
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -465,21 +465,21 @@ public:
     //  nothing else can put it there. A memory sentinel polled during a boot
     //  would be satisfied the moment the boot ROM's own decode buffer
     //  happened to hold those two bytes.
-    static uint64_t CyclesToReach (EmulatorCore & core, Word hangAddress, uint64_t cap)
+    static uint64_t CyclesToReach (MachineHost & machine, Word hangAddress, uint64_t cap)
     {
-        uint64_t  start = core.cpu->GetTotalCycles();
+        uint64_t  start = machine.GetCpu()->GetTotalCycles();
         uint64_t  spent = 0;
         Byte      step  = 0;
 
-        while (spent < cap && core.cpu->GetPC() != hangAddress)
+        while (spent < cap && machine.GetCpu()->GetPC() != hangAddress)
         {
-            core.cpu->StepOne();
+            machine.GetCpu()->StepOne();
 
-            step = core.cpu->GetLastInstructionCycles();
-            core.cpu->AddCycles (step);
-            core.diskController->Tick (step);
+            step = machine.GetCpu()->GetLastInstructionCycles();
+            machine.GetCpu()->AddCycles (step);
+            machine.GetRefs().diskController->Tick (step);
 
-            spent = core.cpu->GetTotalCycles() - start;
+            spent = machine.GetCpu()->GetTotalCycles() - start;
         }
 
         return spent;
@@ -502,33 +502,32 @@ public:
                              Word                       loadAddress,
                              size_t                     loadedBytes)
     {
-        HeadlessHost       host;
-        EmulatorCore       core;
+        TestMachine       machine ("Apple2e");
         BootOutcome        outcome;
         std::vector<Byte>  signature;
         uint64_t           afterHandoff = 0;
 
-        GuestSession::Mount (host, core, image);
+        GuestSession::Mount (machine, image);
 
         //  Every 5.25-inch disk in this machine is entered the same way: the
         //  controller ROM recalibrates the head, reads track 0's first sector
         //  into $0800 and jumps to $0801. Measuring that separately is what
         //  lets a comparison be about the two DISKS rather than about the
         //  ROM they share.
-        outcome.handoff = CyclesToReach (core, kBootRomHandsOver, kMeasureCap);
+        outcome.handoff = CyclesToReach (machine, kBootRomHandsOver, kMeasureCap);
 
-        afterHandoff    = CyclesToReach (core, hangAddress, kMeasureCap);
+        afterHandoff    = CyclesToReach (machine, hangAddress, kMeasureCap);
         outcome.cycles  = outcome.handoff + afterHandoff;
         outcome.reached = afterHandoff < kMeasureCap;
 
-        GuestSession::CollectRows (core, outcome.rows);
+        GuestSession::CollectRows (machine, outcome.rows);
 
-        signature = GuestSession::GuestBytesAt (core, kSignatureAddress, 2);
+        signature = GuestSession::GuestBytesAt (machine, kSignatureAddress, 2);
         outcome.signature = signature[0] == kSignatureFirst && signature[1] == kSignatureSecond;
 
         if (loadedBytes > 0)
         {
-            outcome.loaded = GuestSession::GuestBytesAt (core, loadAddress, loadedBytes);
+            outcome.loaded = GuestSession::GuestBytesAt (machine, loadAddress, loadedBytes);
         }
 
         return outcome;

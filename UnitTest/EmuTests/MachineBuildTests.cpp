@@ -53,24 +53,25 @@ public:
 
         //  The devices a //e has, found through the same cached pointers the
         //  renderer and the input path read.
-        Assert::IsNotNull (machine->GetCpu(),                  L"CPU");
-        Assert::IsNotNull (machine->GetMmu(),                  L"//e MMU");
-        Assert::IsNotNull (machine->GetRefs().keyboard,        L"keyboard");
-        Assert::IsNotNull (machine->GetRefs().softSwitches,    L"soft switches");
-        Assert::IsNotNull (machine->GetRefs().iieSoftSwitches, L"//e soft switches");
-        Assert::IsNotNull (machine->GetRefs().speaker,         L"speaker");
-        Assert::IsNotNull (machine->GetRefs().mainRamDev,      L"main RAM");
-        Assert::IsNotNull (machine->GetRefs().languageCard,    L"language card");
-        Assert::IsNotNull (machine->GetRefs().diskController,  L"slot 6 Disk ][");
+        Assert::IsNotNull (machine.GetCpu(),                  L"CPU");
+        Assert::IsNotNull (machine.GetMmu(),                  L"//e MMU");
+        Assert::IsNotNull (machine.GetRefs().keyboard,        L"keyboard");
+        Assert::IsNotNull (machine.GetRefs().softSwitches,    L"soft switches");
+        Assert::IsNotNull (machine.GetRefs().iieSoftSwitches, L"//e soft switches");
+        Assert::IsNotNull (machine.GetRefs().iieKeyboard,     L"//e keyboard");
+        Assert::IsNotNull (machine.GetRefs().speaker,         L"speaker");
+        Assert::IsNotNull (machine.GetRefs().mainRamDev,      L"main RAM");
+        Assert::IsNotNull (machine.GetRefs().languageCard,    L"language card");
+        Assert::IsNotNull (machine.GetRefs().diskController,  L"slot 6 Disk ][");
 
         //  All five renderers exist on every machine, because the per-frame
         //  mode selection switches between them and cannot afford to build
         //  one mid-render.
-        Assert::IsNotNull (machine->GetRefs().text40,      L"40-column text");
-        Assert::IsNotNull (machine->GetRefs().text80,      L"80-column text");
-        Assert::IsNotNull (machine->GetRefs().loRes,       L"lo-res");
-        Assert::IsNotNull (machine->GetRefs().hiRes,       L"hi-res");
-        Assert::IsNotNull (machine->GetRefs().doubleHiRes, L"double hi-res");
+        Assert::IsNotNull (machine.GetRefs().text40,      L"40-column text");
+        Assert::IsNotNull (machine.GetRefs().text80,      L"80-column text");
+        Assert::IsNotNull (machine.GetRefs().loRes,       L"lo-res");
+        Assert::IsNotNull (machine.GetRefs().hiRes,       L"hi-res");
+        Assert::IsNotNull (machine.GetRefs().doubleHiRes, L"double hi-res");
     }
 
 
@@ -79,16 +80,16 @@ public:
         TestMachine  machine ("Apple2e");
         uint32_t     spent = 0;
 
-        machine->PowerCycle();
-        spent = machine->RunCycles (s_kBootCycles);
+        machine.PowerCycle();
+        spent = machine.RunCycles (s_kBootCycles);
 
         Assert::IsTrue (spent >= s_kBootCycles, L"the cycles asked for were spent");
 
         //  The one assertion here that depends on the wiring being RIGHT
         //  rather than merely present.
-        Assert::IsTrue (machine->GetCpu()->GetPC() >= s_kRomSpaceStart,
+        Assert::IsTrue (machine.GetCpu()->GetPC() >= s_kRomSpaceStart,
             std::format (L"a booted //e runs from ROM; PC was ${:04X}",
-                         machine->GetCpu()->GetPC()).c_str());
+                         machine.GetCpu()->GetPC()).c_str());
     }
 
 
@@ -96,15 +97,15 @@ public:
     {
         TestMachine  machine ("Apple2e");
 
-        machine->PowerCycle();
-        machine->RunCycles (s_kBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles (s_kBootCycles);
 
         //  The reset routine puts the display back to 40-column text. These
         //  read the live bank rather than the latched mirror, which only the
         //  frame loop writes.
-        Assert::IsFalse (machine->GetRefs().softSwitches->IsGraphicsMode(),
+        Assert::IsFalse (machine.GetRefs().softSwitches->IsGraphicsMode(),
             L"a machine that has just reset shows text, not graphics");
-        Assert::IsFalse (machine->GetRefs().iieSoftSwitches->Is80ColMode(),
+        Assert::IsFalse (machine.GetRefs().iieSoftSwitches->Is80ColMode(),
             L"and 40 columns of it");
     }
 
@@ -118,8 +119,8 @@ public:
         for (Word addr : { Word (0x0000), Word (0x0400), Word (0x2000),
                            Word (0x6000), Word (0xBFFF) })
         {
-            machine->GetMemoryBus().WriteByte (addr, 0x5A);
-            Assert::AreEqual<Byte> (0x5A, machine->GetMemoryBus().ReadByte (addr),
+            machine.GetMemoryBus().WriteByte (addr, 0x5A);
+            Assert::AreEqual<Byte> (0x5A, machine.GetMemoryBus().ReadByte (addr),
                 std::format (L"main RAM must answer at ${:04X}", addr).c_str());
         }
     }
@@ -160,19 +161,19 @@ public:
             TestMachine   machine (id);
             std::wstring  name (id, id + strlen (id));
 
-            Assert::IsNotNull (machine->GetCpu(),
+            Assert::IsNotNull (machine.GetCpu(),
                 std::format (L"{} must build a CPU", name).c_str());
-            Assert::IsNotNull (machine->GetRefs().keyboard,
+            Assert::IsNotNull (machine.GetRefs().keyboard,
                 std::format (L"{} must build a keyboard", name).c_str());
-            Assert::IsNotNull (machine->GetRefs().speaker,
+            Assert::IsNotNull (machine.GetRefs().speaker,
                 std::format (L"{} must build a speaker", name).c_str());
 
-            machine->PowerCycle();
-            machine->RunCycles (s_kBootCycles);
+            machine.PowerCycle();
+            machine.RunCycles (s_kBootCycles);
 
-            Assert::IsTrue (machine->GetCpu()->GetPC() >= s_kRomSpaceStart,
+            Assert::IsTrue (machine.GetCpu()->GetPC() >= s_kRomSpaceStart,
                 std::format (L"{} must boot into ROM; PC was ${:04X}",
-                             name, machine->GetCpu()->GetPC()).c_str());
+                             name, machine.GetCpu()->GetPC()).c_str());
         }
     }
 };

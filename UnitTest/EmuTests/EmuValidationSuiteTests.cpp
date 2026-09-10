@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "KeystrokeInjector.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  EmuValidationSuiteTests
 //
 //  Phase 13 / User Story 4. The consolidated FR-045 acceptance suite.
-//  Every scenario runs deterministically through HeadlessHost +
+//  Every scenario runs deterministically through TestMachine +
 //  IFixtureProvider only — constitution §II compliant, no Win32, no
 //  audio device, no host filesystem outside UnitTest/Fixtures/.
 //
@@ -100,7 +100,7 @@ public:
     //
     //  PrngNext — local LCG used by the golden-output test to stamp a
     //  deterministic, repeatable pattern into hi-res page 1 + 80-col text
-    //  pages. Independent of HeadlessHost::kPinnedSeed so the produced
+    //  pages. Independent of TestMachine::kSeed so the produced
     //  bytes don't track changes to that seed.
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -119,16 +119,12 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    void BootIIeToPrompt (HeadlessHost & host, EmulatorCore & core)
+    void BootIIeToPrompt (MachineHost & machine)
     {
-        HRESULT   hr;
+        Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
-        hr = host.BuildApple2e (core);
-        AssertSucceeded (hr, L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
-
-        core.PowerCycle();
-        core.RunCycles  (kColdBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles  (kColdBootCycles);
     }
 
 
@@ -189,8 +185,7 @@ public:
     ////////////////////////////////////////////////////////////////////////////
 
     DiskImage * MountAndJumpToSlot6Boot (
-        HeadlessHost  &  host,
-        EmulatorCore  &  core,
+        MachineHost  &  machine,
         const string  &  virtualPath,
         DiskFormat       fmt,
         const vector<Byte> & bytes)
@@ -198,20 +193,19 @@ public:
         HRESULT      hr        = S_OK;
         DiskImage *  external  = nullptr;
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, virtualPath, fmt, bytes);
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1, virtualPath, fmt, bytes);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        external = core.diskStore->GetImage (kSlot6, kDrive1);
+        external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        core.diskController->SetExternalDisk (kDrive1, external);
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
         return external;
     }
@@ -254,30 +248,29 @@ public:
 
     TEST_METHOD (US4_GR_LoresGraphics_Renders)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         size_t         consumed;
         int            promptRow;
 
-        BootIIeToPrompt (host, core);
+        BootIIeToPrompt (machine);
 
-        consumed = KeystrokeInjector::InjectLine (core, "GR");
+        consumed = KeystrokeInjector::InjectLine (machine, "GR");
         Assert::AreEqual (size_t (3), consumed,
             L"`GR` + Return must be fully consumed");
 
-        core.RunCycles (kAfterCommandCycles);
+        machine.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue  (core.softSwitches->IsGraphicsMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"GR must engage graphics mode (TEXT off)");
-        Assert::IsTrue  (core.softSwitches->IsMixedMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsMixedMode(),
             L"GR must engage mixed mode (4 lines text bottom)");
-        Assert::IsFalse (core.softSwitches->IsHiresMode(),
+        Assert::IsFalse (machine.GetRefs().iieSoftSwitches->IsHiresMode(),
             L"GR must keep HIRES off");
-        Assert::IsFalse (core.softSwitches->IsPage2(),
+        Assert::IsFalse (machine.GetRefs().iieSoftSwitches->IsPage2(),
             L"GR must select PAGE1");
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
-            *core.bus, TextScreenScraper::kTextPage1);
+            machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
         Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Scraper must produce 24 rows");
@@ -300,36 +293,35 @@ public:
 
     TEST_METHOD (US4_HGR_HiresPage1_Renders)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         size_t         consumed;
         int            promptRow;
 
-        BootIIeToPrompt (host, core);
+        BootIIeToPrompt (machine);
 
-        consumed = KeystrokeInjector::InjectLine (core, "HGR");
+        consumed = KeystrokeInjector::InjectLine (machine, "HGR");
         Assert::AreEqual (size_t (4), consumed,
             L"`HGR` + Return must be fully consumed");
 
-        core.RunCycles (kAfterCommandCycles);
+        machine.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue  (core.softSwitches->IsGraphicsMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"HGR must engage graphics mode (TEXT off)");
-        Assert::IsTrue  (core.softSwitches->IsHiresMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsHiresMode(),
             L"HGR must engage HIRES");
-        Assert::IsFalse (core.softSwitches->IsPage2(),
+        Assert::IsFalse (machine.GetRefs().iieSoftSwitches->IsPage2(),
             L"HGR must select PAGE1");
-        Assert::IsTrue  (core.softSwitches->IsMixedMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsMixedMode(),
             L"HGR must engage MIXED (preserves bottom text)");
 
-        consumed = KeystrokeInjector::InjectLine (core, "HPLOT 0,0 TO 279,159");
+        consumed = KeystrokeInjector::InjectLine (machine, "HPLOT 0,0 TO 279,159");
         Assert::IsTrue (consumed >= 18,
             L"HPLOT line must be fully consumed");
 
-        core.RunCycles (kAfterCommandCycles);
+        machine.RunCycles (kAfterCommandCycles);
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
-            *core.bus, TextScreenScraper::kTextPage1);
+            machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
         promptRow = RowContaining (rows, "]");
         Assert::IsTrue (promptRow >= 0,
@@ -346,25 +338,24 @@ public:
 
     TEST_METHOD (US4_HGR2_HiresPage2_Renders)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         size_t         consumed;
 
-        BootIIeToPrompt (host, core);
+        BootIIeToPrompt (machine);
 
-        consumed = KeystrokeInjector::InjectLine (core, "HGR2");
+        consumed = KeystrokeInjector::InjectLine (machine, "HGR2");
         Assert::AreEqual (size_t (5), consumed,
             L"`HGR2` + Return must be fully consumed");
 
-        core.RunCycles (kAfterCommandCycles);
+        machine.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue  (core.softSwitches->IsGraphicsMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"HGR2 must engage graphics mode (TEXT off)");
-        Assert::IsTrue  (core.softSwitches->IsHiresMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsHiresMode(),
             L"HGR2 must engage HIRES");
-        Assert::IsTrue  (core.softSwitches->IsPage2(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsPage2(),
             L"HGR2 must select PAGE2");
-        Assert::IsFalse (core.softSwitches->IsMixedMode(),
+        Assert::IsFalse (machine.GetRefs().iieSoftSwitches->IsMixedMode(),
             L"HGR2 must clear MIXED (full-screen graphics)");
     }
 
@@ -386,8 +377,7 @@ public:
 
     TEST_METHOD (US4_MixedMode_80Col_GoldenOutput)
     {
-        HeadlessHost          host;
-        EmulatorCore          core;
+        TestMachine          machine ("Apple2e", TestMachine::Slots::Empty);
         uint32_t              seed      = 0xCA550001u;
         int                   row;
         int                   col;
@@ -400,23 +390,23 @@ public:
         Byte                * auxBuf    = nullptr;
         constexpr uint64_t    kExpected = 0x2ABA2BA47C35CE05ULL;
 
-        HRESULT   hr = host.BuildApple2e (core);
+        HRESULT   hr = S_OK;
         AssertSucceeded (hr, L"BuildApple2e must succeed");
 
-        core.PowerCycle();
-        core.RunCycles  (kColdBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles  (kColdBootCycles);
 
         // Engage HIRES + MIXED + 80COL via the documented soft-switch
         // surface. Drives the same flag state Applesoft would set after
         // typing HGR + POKE -16302,0 + PR#3.
-        core.bus->ReadByte  (kSwitchTextOff);
-        core.bus->ReadByte  (kSwitchMixedOn);
-        core.bus->ReadByte  (kSwitchPage1);
-        core.bus->ReadByte  (kSwitchHiresOn);
-        core.bus->WriteByte (kSwitch80StoreOn, 0);
-        core.bus->WriteByte (kSwitch80ColOn,   0);
+        machine.GetMemoryBus().ReadByte  (kSwitchTextOff);
+        machine.GetMemoryBus().ReadByte  (kSwitchMixedOn);
+        machine.GetMemoryBus().ReadByte  (kSwitchPage1);
+        machine.GetMemoryBus().ReadByte  (kSwitchHiresOn);
+        machine.GetMemoryBus().WriteByte (kSwitch80StoreOn, 0);
+        machine.GetMemoryBus().WriteByte (kSwitch80ColOn,   0);
 
-        auxBuf = core.mmu->GetAuxBuffer();
+        auxBuf = machine.GetMmu()->GetAuxBuffer();
 
         // Stamp a deterministic 80-col text pattern into the bottom 4
         // rows (20..23). Aux supplies even columns, main supplies odd.
@@ -430,7 +420,7 @@ public:
                 a = static_cast<Byte> (0x80 | (PrngNext (seed) & 0x7F));
                 m = static_cast<Byte> (0x80 | (PrngNext (seed) & 0x7F));
                 auxBuf[rowBase + col] = a;
-                core.bus->WriteByte (static_cast<Word> (rowBase + col), m);
+                machine.GetMemoryBus().WriteByte (static_cast<Word> (rowBase + col), m);
             }
         }
 
@@ -442,7 +432,7 @@ public:
             for (col = 0; col < 40; col++)
             {
                 h = static_cast<Byte> (PrngNext (seed) & 0x7F);
-                core.bus->WriteByte (static_cast<Word> (hiresAddr + col), h);
+                machine.GetMemoryBus().WriteByte (static_cast<Word> (hiresAddr + col), h);
             }
         }
 
@@ -450,11 +440,11 @@ public:
         // 80-col text on rows 20..23 via the shared RenderRowRange.
         std::vector<uint32_t>   fb (kFbW * kFbH, 0);
 
-        AppleHiResMode   hires (*core.bus);
+        AppleHiResMode   hires (machine.GetMemoryBus());
         hires.SetPage2 (false);
         hires.Render (nullptr, fb.data(), kFbW, kFbH);
 
-        Apple80ColTextMode   text80 (*core.bus);
+        Apple80ColTextMode   text80 (machine.GetMemoryBus());
         text80.SetAuxMemory  (auxBuf);
         text80.SetAltCharSet (false);
         text80.SetFlashState (true);
@@ -498,29 +488,28 @@ public:
 
     TEST_METHOD (US4_DOS33_Boots_To_Catalog)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         vector<Byte>   raw       = BuildSyntheticDsk();
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (host, core,
+        external = MountAndJumpToSlot6Boot (machine,
             "synthetic.dsk", DiskFormat::Dsk, raw);
 
         Assert::IsTrue (external->GetTrackBitCount (0) > 0,
             L"DOS 3.3 .dsk mount must produce a nibblized track 0");
 
-        core.RunCycles (kBootDiskCycles);
+        machine.RunCycles (kBootDiskCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
             L"Boot ROM must turn the motor on (FR-021)");
         Assert::IsTrue (bitsAfter > 0,
             L"DOS 3.3 boot ROM must read at least one nibble from track 0");
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
-            *core.bus, TextScreenScraper::kTextPage1);
+            machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
         Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Text screen must remain scrape-able through the DOS 3.3 boot attempt");
@@ -551,29 +540,28 @@ public:
 
     TEST_METHOD (US4_ProDOS_Boots_To_PREFIX)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         vector<Byte>   raw       = BuildSyntheticPo();
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (host, core,
+        external = MountAndJumpToSlot6Boot (machine,
             "synthetic.po", DiskFormat::Po, raw);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
             L"ProDOS .po mount must record source format");
 
-        core.RunCycles (kBootDiskCycles);
+        machine.RunCycles (kBootDiskCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
             L"Boot ROM must spin up the drive on a .po mount");
         Assert::IsTrue (bitsAfter > 0,
             L"ProDOS boot ROM must read at least one nibble from a .po image");
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
-            *core.bus, TextScreenScraper::kTextPage1);
+            machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
         Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Text screen must remain scrape-able through the ProDOS boot attempt");
@@ -605,8 +593,7 @@ public:
 
     TEST_METHOD (US4_WOZ_Disk_Boots_FirstTrack)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         vector<Byte>   woz;
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
@@ -615,7 +602,7 @@ public:
         hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
         AssertSucceeded (hr, L"BuildSyntheticV2 must succeed");
 
-        external = MountAndJumpToSlot6Boot (host, core,
+        external = MountAndJumpToSlot6Boot (machine,
             "sample.woz", DiskFormat::Woz, woz);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Woz,
@@ -623,13 +610,13 @@ public:
         Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
             L"WOZ track 0 must preserve the synthetic 51200-bit length");
 
-        core.RunCycles (kBootDiskCycles);
+        machine.RunCycles (kBootDiskCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"WOZ nibble engine must advance through the bit stream (FR-022)");
-        Assert::IsTrue (core.diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
             L"Boot ROM must spin up the drive on a WOZ mount");
     }
 
@@ -646,8 +633,7 @@ public:
 
     TEST_METHOD (US4_CopyProtected_Disk_Loads_TitleScreen)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         vector<Byte>   woz;
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
@@ -656,21 +642,21 @@ public:
         hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
         AssertSucceeded (hr, L"CP-style synthetic WOZ build must succeed");
 
-        external = MountAndJumpToSlot6Boot (host, core,
+        external = MountAndJumpToSlot6Boot (machine,
             "copyprotected.woz", DiskFormat::Woz, woz);
 
         Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),
             L"CP-style WOZ must preserve the non-standard 50000-bit track length");
 
-        core.RunCycles (kBootDiskCycles);
+        machine.RunCycles (kBootDiskCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"Engine must advance through the variable-length CP track (FR-024)");
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
-            *core.bus, TextScreenScraper::kTextPage1);
+            machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
         Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Text screen must remain scrape-able through the CP boot attempt");

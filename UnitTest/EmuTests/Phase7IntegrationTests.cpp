@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "KeystrokeInjector.h"
 
@@ -39,16 +39,12 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////
 
-    static void BootToPrompt (HeadlessHost & host, EmulatorCore & core)
+    static void BootToPrompt (MachineHost & machine)
     {
-        HRESULT   hr;
+        Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
-        hr = host.BuildApple2e (core);
-        AssertSucceeded (hr, L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
-
-        core.PowerCycle();
-        core.RunCycles  (kColdBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles  (kColdBootCycles);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -84,14 +80,13 @@ public:
 
     TEST_METHOD (Phase7_ColdBootReaches_BASIC_Prompt)
     {
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e", TestMachine::Slots::Empty);
         int                       promptRow;
         std::vector<std::string>  rows;
 
-        BootToPrompt (host, core);
+        BootToPrompt (machine);
 
-        rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (machine);
 
         Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Scraper must produce 24 rows");
@@ -113,18 +108,16 @@ public:
 
     TEST_METHOD (Phase7_ColdBoot_IsDeterministic)
     {
-        HeadlessHost              hostA;
-        HeadlessHost              hostB;
-        EmulatorCore              coreA;
-        EmulatorCore              coreB;
+        TestMachine              machineA ("Apple2e", TestMachine::Slots::Empty);
+        TestMachine              machineB ("Apple2e", TestMachine::Slots::Empty);
         std::vector<std::string>  rowsA;
         std::vector<std::string>  rowsB;
 
-        BootToPrompt (hostA, coreA);
-        BootToPrompt (hostB, coreB);
+        BootToPrompt (machineA);
+        BootToPrompt (machineB);
 
-        rowsA = TextScreenScraper::Scrape (coreA);
-        rowsB = TextScreenScraper::Scrape (coreB);
+        rowsA = TextScreenScraper::Scrape (machineA);
+        rowsB = TextScreenScraper::Scrape (machineB);
 
         Assert::AreEqual (rowsA.size(), rowsB.size());
 
@@ -145,27 +138,26 @@ public:
 
     TEST_METHOD (Phase7_HOME_PRINT_HELLO_Visible)
     {
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e", TestMachine::Slots::Empty);
         size_t                    consumed1;
         size_t                    consumed2;
         int                       helloRow;
         int                       promptRow;
         std::vector<std::string>  rows;
 
-        BootToPrompt (host, core);
+        BootToPrompt (machine);
 
-        consumed1 = KeystrokeInjector::InjectLine (core, "HOME");
+        consumed1 = KeystrokeInjector::InjectLine (machine, "HOME");
         Assert::AreEqual (size_t (5), consumed1,
             L"HOME + Return should be fully consumed");
 
-        consumed2 = KeystrokeInjector::InjectLine (core, "PRINT \"HELLO\"");
+        consumed2 = KeystrokeInjector::InjectLine (machine, "PRINT \"HELLO\"");
         Assert::AreEqual (size_t (14), consumed2,
             L"PRINT \"HELLO\" + Return should be fully consumed");
 
-        core.RunCycles (kAfterCommandCycles);
+        machine.RunCycles (kAfterCommandCycles);
 
-        rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (machine);
 
         helloRow = FindRowContaining (rows, "HELLO");
 
@@ -209,25 +201,24 @@ public:
 
     TEST_METHOD (Phase7_PR3_Activates_80Column_Mode)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         size_t         consumed;
         Byte           rd80Vid;
         Byte           rd80Store;
 
-        BootToPrompt (host, core);
+        BootToPrompt (machine);
 
-        consumed = KeystrokeInjector::InjectLine (core, "PR#3");
+        consumed = KeystrokeInjector::InjectLine (machine, "PR#3");
         Assert::AreEqual (size_t (5), consumed,
             L"PR#3 + Return should be fully consumed");
 
-        core.RunCycles (kAfterCommandCycles);
+        machine.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue (core.softSwitches->Is80ColMode(),
+        Assert::IsTrue (machine.GetRefs().iieSoftSwitches->Is80ColMode(),
             L"PR#3 must engage 80-col mode (Is80ColMode==true)");
 
-        rd80Vid   = core.bus->ReadByte (kRd80Vid);
-        rd80Store = core.bus->ReadByte (kRd80Store);
+        rd80Vid   = machine.GetMemoryBus().ReadByte (kRd80Vid);
+        rd80Store = machine.GetMemoryBus().ReadByte (kRd80Store);
 
         Assert::IsTrue ((rd80Vid & kBitSeven) != 0,
             L"RD80VID ($C01F) bit 7 must be set with 80-col active");
@@ -245,33 +236,32 @@ public:
 
     TEST_METHOD (Phase7_PR3_Then_PRINT_LongString_80ColScrape)
     {
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e", TestMachine::Slots::Empty);
         size_t                    consumed;
         int                       row;
         std::vector<std::string>  rows;
         const char *   needle = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-        BootToPrompt (host, core);
+        BootToPrompt (machine);
 
-        consumed = KeystrokeInjector::InjectLine (core, "PR#3");
+        consumed = KeystrokeInjector::InjectLine (machine, "PR#3");
         Assert::AreEqual (size_t (5), consumed);
 
-        core.RunCycles (kAfterCommandCycles);
+        machine.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue (core.softSwitches->Is80ColMode(),
+        Assert::IsTrue (machine.GetRefs().iieSoftSwitches->Is80ColMode(),
             L"80-col must be active before the long PRINT");
 
         consumed = KeystrokeInjector::InjectLine (
-            core,
+            machine,
             "PRINT \"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789012345678901234567890\"");
 
         Assert::IsTrue (consumed >= 60,
             L"Long PRINT line must be fully consumed");
 
-        core.RunCycles (kAfterCommandCycles);
+        machine.RunCycles (kAfterCommandCycles);
 
-        rows = TextScreenScraper::Scrape (core);
+        rows = TextScreenScraper::Scrape (machine);
 
         Assert::AreEqual (size_t (TextScreenScraper::kCols80), rows[0].size(),
             L"80-col scrape rows must be 80 chars wide");
@@ -292,45 +282,44 @@ public:
 
     TEST_METHOD (Phase7_OpenClosedApple_Shift_StatusReads)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
 
-        BootToPrompt (host, core);
+        BootToPrompt (machine);
 
         Assert::AreEqual (Byte (0x00),
-            static_cast<Byte> (core.bus->ReadByte (0xC061) & kBitSeven),
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC061) & kBitSeven),
             L"$C061 bit 7 must read 0 with Open Apple released");
         Assert::AreEqual (Byte (0x00),
-            static_cast<Byte> (core.bus->ReadByte (0xC062) & kBitSeven),
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC062) & kBitSeven),
             L"$C062 bit 7 must read 0 with Closed Apple released");
         Assert::AreEqual (Byte (0x00),
-            static_cast<Byte> (core.bus->ReadByte (0xC063) & kBitSeven),
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC063) & kBitSeven),
             L"$C063 bit 7 must read 0 with Shift released");
 
-        core.keyboard->SetOpenApple   (true);
-        core.keyboard->SetClosedApple (true);
-        core.keyboard->SetShift       (true);
+        machine.GetRefs().iieKeyboard->SetOpenApple   (true);
+        machine.GetRefs().iieKeyboard->SetClosedApple (true);
+        machine.GetRefs().iieKeyboard->SetShift       (true);
 
         Assert::AreEqual (kBitSeven,
-            static_cast<Byte> (core.bus->ReadByte (0xC061) & kBitSeven),
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC061) & kBitSeven),
             L"$C061 bit 7 must read 1 with Open Apple pressed");
         Assert::AreEqual (kBitSeven,
-            static_cast<Byte> (core.bus->ReadByte (0xC062) & kBitSeven),
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC062) & kBitSeven),
             L"$C062 bit 7 must read 1 with Closed Apple pressed");
         Assert::AreEqual (kBitSeven,
-            static_cast<Byte> (core.bus->ReadByte (0xC063) & kBitSeven),
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC063) & kBitSeven),
             L"$C063 bit 7 must read 1 with Shift pressed");
 
-        core.keyboard->SetOpenApple   (false);
-        core.keyboard->SetClosedApple (false);
-        core.keyboard->SetShift       (false);
+        machine.GetRefs().iieKeyboard->SetOpenApple   (false);
+        machine.GetRefs().iieKeyboard->SetClosedApple (false);
+        machine.GetRefs().iieKeyboard->SetShift       (false);
 
         Assert::AreEqual (Byte (0x00),
-            static_cast<Byte> (core.bus->ReadByte (0xC061) & kBitSeven));
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC061) & kBitSeven));
         Assert::AreEqual (Byte (0x00),
-            static_cast<Byte> (core.bus->ReadByte (0xC062) & kBitSeven));
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC062) & kBitSeven));
         Assert::AreEqual (Byte (0x00),
-            static_cast<Byte> (core.bus->ReadByte (0xC063) & kBitSeven));
+            static_cast<Byte> (machine.GetMemoryBus().ReadByte (0xC063) & kBitSeven));
     }
 };
 

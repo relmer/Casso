@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -108,33 +108,31 @@ public:
 
 
     DiskImage * MountSentinelDsk (
-        HeadlessHost  &  host,
-        EmulatorCore  &  core,
+        MachineHost  &  machine,
         const vector<Byte> & raw)
     {
         HRESULT      hr        = S_OK;
         DiskImage *  external  = nullptr;
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
                                              "boot-rom-decoder.dsk",
                                              DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        external = core.diskStore->GetImage (kSlot6, kDrive1);
+        external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        core.diskController->SetExternalDisk (kDrive1, external);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
 
         // Surface the Disk2.rom slot ROM at $C600 (CxxxRomRouter /
         // INTCXROM=0; audit C1).
-        core.bus->WriteByte (kIntCxRomOff, 0);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
 
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetCpu()->SetPC (kBootRomEntry);
         return external;
     }
 
@@ -146,7 +144,7 @@ public:
     // RAM bootstrap; fails if we burned the cycle budget without
     // ever leaving the boot ROM (i.e. the read attempt failed
     // checksums and the ROM is still spinning).
-    HRESULT RunUntilBootLoaderRuns (EmulatorCore & core)
+    HRESULT RunUntilBootLoaderRuns (MachineHost & machine)
     {
         char              path[MAX_PATH]  = {};
         DWORD             pl              = GetTempPathA (MAX_PATH, path);
@@ -175,7 +173,7 @@ public:
 
         while (cyc < kBudget)
         {
-            Word      pc     = core.cpu->GetPC();
+            Word      pc     = machine.GetCpu()->GetPC();
             uint32_t  cycles = 0;
 
             if (pc >= 0xC600 && pc < 0xC700)
@@ -189,12 +187,12 @@ public:
                 break;
             }
 
-            core.cpu->StepOne();
-            cycles = core.cpu->GetLastInstructionCycles();
-            core.cpu->AddCycles (cycles);
-            if (core.diskController != nullptr)
+            machine.GetCpu()->StepOne();
+            cycles = machine.GetCpu()->GetLastInstructionCycles();
+            machine.GetCpu()->AddCycles (cycles);
+            if (machine.GetRefs().diskController != nullptr)
             {
-                core.diskController->Tick (cycles);
+                machine.GetRefs().diskController->Tick (cycles);
             }
 
             cyc += cycles;
@@ -204,10 +202,10 @@ public:
                 fprintf (fp,
                     "cyc=%llu PC=$%04X X=$%02X A=$%02X bp=%zu trk=%d latch=$%02X\n",
                     (unsigned long long) cyc, pc,
-                    core.cpu->GetX(), core.cpu->GetA(),
-                    core.diskController->GetEngine (kDrive1).GetBitPosition(),
-                    core.diskController->GetCurrentTrack(),
-                    core.diskController->GetEngine (kDrive1).PeekReadLatch());
+                    machine.GetCpu()->GetX(), machine.GetCpu()->GetA(),
+                    machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition(),
+                    machine.GetRefs().diskController->GetCurrentTrack(),
+                    machine.GetRefs().diskController->GetEngine (kDrive1).PeekReadLatch());
             }
         }
 
@@ -257,14 +255,13 @@ public:
 
     void AssertBootRomReadsSector0 (Byte (*patternFn) (size_t), const wchar_t * patternName)
     {
-        HeadlessHost  host;
-        EmulatorCore  core;
+        TestMachine  machine ("Apple2e");
         vector<Byte>  raw    = BuildSentinelDsk (patternFn);
         HRESULT       hrBoot = S_OK;
 
-        MountSentinelDsk (host, core, raw);
+        MountSentinelDsk (machine, raw);
 
-        hrBoot = RunUntilBootLoaderRuns (core);
+        hrBoot = RunUntilBootLoaderRuns (machine);
 
         if (FAILED (hrBoot))
         {

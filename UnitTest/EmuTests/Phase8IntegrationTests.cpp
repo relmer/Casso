@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "MemoryProbeHelpers.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -68,18 +68,14 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////
 
-    static void BootAndRebind (HeadlessHost & host, EmulatorCore & core)
+    static void BootAndRebind (MachineHost & machine)
     {
-        HRESULT   hr;
+        Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
-        hr = host.BuildApple2e (core);
-        AssertSucceeded (hr, L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
+        machine.PowerCycle();
+        machine.RunCycles  (kColdBootCycles);
 
-        core.PowerCycle();
-        core.RunCycles  (kColdBootCycles);
-
-        MemoryProbeHelpers::RebindMainBaseline (core);
+        MemoryProbeHelpers::RebindMainBaseline (machine);
     }
 
 
@@ -95,18 +91,17 @@ public:
 
     TEST_METHOD (Phase8_RamRd_RamWrt_RouteAuxIndependently)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         Byte           mainValue;
         Byte           auxValue;
 
-        BootAndRebind (host, core);
+        BootAndRebind (machine);
 
-        MemoryProbeHelpers::WriteMain (core, kProbeAddrMain, kPatternMain);
-        MemoryProbeHelpers::WriteAux  (core, kProbeAddrMain, kPatternAux);
+        MemoryProbeHelpers::WriteMain (machine, kProbeAddrMain, kPatternMain);
+        MemoryProbeHelpers::WriteAux  (machine, kProbeAddrMain, kPatternAux);
 
-        mainValue = MemoryProbeHelpers::ReadMain (core, kProbeAddrMain);
-        auxValue  = MemoryProbeHelpers::ReadAux  (core, kProbeAddrMain);
+        mainValue = MemoryProbeHelpers::ReadMain (machine, kProbeAddrMain);
+        auxValue  = MemoryProbeHelpers::ReadAux  (machine, kProbeAddrMain);
 
         Assert::AreEqual (kPatternMain, mainValue,
             L"$4000 main RAM must hold 0xAA after RAMWRT=0 store");
@@ -128,29 +123,28 @@ public:
 
     TEST_METHOD (Phase8_LcPreWrite_AnyTwoOddReads_EnablesWrite)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
 
-        BootAndRebind (host, core);
+        BootAndRebind (machine);
 
-        core.bus->ReadByte (kLcReadEvenBank2);
-        Assert::IsFalse (core.languageCard->IsWriteRam(),
+        machine.GetMemoryBus().ReadByte (kLcReadEvenBank2);
+        Assert::IsFalse (machine.GetRefs().languageCard->IsWriteRam(),
             L"Even-address read must clear WRITERAM");
 
-        core.bus->ReadByte (kLcOddBank2A);
-        Assert::IsFalse (core.languageCard->IsWriteRam(),
+        machine.GetMemoryBus().ReadByte (kLcOddBank2A);
+        Assert::IsFalse (machine.GetRefs().languageCard->IsWriteRam(),
             L"One odd read must NOT yet enable WRITERAM");
 
-        core.bus->ReadByte (kLcOddBank2B);
-        Assert::IsTrue (core.languageCard->IsWriteRam(),
+        machine.GetMemoryBus().ReadByte (kLcOddBank2B);
+        Assert::IsTrue (machine.GetRefs().languageCard->IsWriteRam(),
             L"Second odd read at a different $C08x must enable WRITERAM");
-        Assert::IsTrue (core.languageCard->IsBank2(),
+        Assert::IsTrue (machine.GetRefs().languageCard->IsBank2(),
             L"$C08x reads in the $C080-$C087 range must select bank2");
 
-        core.languageCard->WriteRam (kProbeAddrLcBank, kPatternMainBank2);
+        machine.GetRefs().languageCard->WriteRam (kProbeAddrLcBank, kPatternMainBank2);
 
         Assert::AreEqual (kPatternMainBank2,
-            core.languageCard->ReadRam (kProbeAddrLcBank),
+            machine.GetRefs().languageCard->ReadRam (kProbeAddrLcBank),
             L"Write must land in LC bank2 main when WRITERAM is enabled");
     }
 
@@ -164,21 +158,20 @@ public:
 
     TEST_METHOD (Phase8_LcPreWrite_InterveningWriteResets)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
 
-        BootAndRebind (host, core);
+        BootAndRebind (machine);
 
-        core.bus->ReadByte  (kLcReadEvenBank2);
-        core.bus->ReadByte  (kLcOddBank2A);
-        core.bus->WriteByte (kLcOddBank2A, 0);
+        machine.GetMemoryBus().ReadByte  (kLcReadEvenBank2);
+        machine.GetMemoryBus().ReadByte  (kLcOddBank2A);
+        machine.GetMemoryBus().WriteByte (kLcOddBank2A, 0);
 
-        Assert::AreEqual (0, core.languageCard->GetPreWriteCount(),
+        Assert::AreEqual (0, machine.GetRefs().languageCard->GetPreWriteCount(),
             L"Write to an odd $C08x must clear the pre-write counter");
 
-        core.bus->ReadByte (kLcOddBank2B);
+        machine.GetMemoryBus().ReadByte (kLcOddBank2B);
 
-        Assert::IsFalse (core.languageCard->IsWriteRam(),
+        Assert::IsFalse (machine.GetRefs().languageCard->IsWriteRam(),
             L"After an intervening write, one further odd read alone "
             L"must NOT enable WRITERAM");
     }
@@ -192,20 +185,15 @@ public:
 
     TEST_METHOD (Phase8_LcPowerOnDefaultsToBank2WriteRamPrearmed)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        HRESULT        hr;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
 
-        hr = host.BuildApple2e (core);
-        AssertSucceeded (hr);
+        machine.PowerCycle();
 
-        core.PowerCycle();
-
-        Assert::IsTrue (core.languageCard->IsBank2(),
+        Assert::IsTrue (machine.GetRefs().languageCard->IsBank2(),
             L"Power-on default must select bank2");
-        Assert::IsTrue (core.languageCard->IsWriteRam(),
+        Assert::IsTrue (machine.GetRefs().languageCard->IsWriteRam(),
             L"Power-on default must pre-arm WRITERAM");
-        Assert::IsFalse (core.languageCard->IsReadRam(),
+        Assert::IsFalse (machine.GetRefs().languageCard->IsReadRam(),
             L"Power-on default must read from ROM (READRAM=0)");
     }
 
@@ -221,18 +209,17 @@ public:
 
     TEST_METHOD (Phase8_AltZp_RoutesZpStackToAux)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         Byte           mainValue;
         Byte           auxValue;
 
-        BootAndRebind (host, core);
+        BootAndRebind (machine);
 
-        MemoryProbeHelpers::WriteMainZp (core, kProbeAddrZp, kPatternMainZp);
-        MemoryProbeHelpers::WriteAuxZp  (core, kProbeAddrZp, kPatternAuxZp);
+        MemoryProbeHelpers::WriteMainZp (machine, kProbeAddrZp, kPatternMainZp);
+        MemoryProbeHelpers::WriteAuxZp  (machine, kProbeAddrZp, kPatternAuxZp);
 
-        mainValue = MemoryProbeHelpers::ReadMainZp (core, kProbeAddrZp);
-        auxValue  = MemoryProbeHelpers::ReadAuxZp  (core, kProbeAddrZp);
+        mainValue = MemoryProbeHelpers::ReadMainZp (machine, kProbeAddrZp);
+        auxValue  = MemoryProbeHelpers::ReadAuxZp  (machine, kProbeAddrZp);
 
         Assert::AreEqual (kPatternMainZp, mainValue,
             L"$0080 main ZP must hold the value written with ALTZP=0");
@@ -253,18 +240,17 @@ public:
 
     TEST_METHOD (Phase8_AltZp_RoutesLcWindowToAuxBank)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         Byte           mainBank2;
         Byte           auxBank2;
 
-        BootAndRebind (host, core);
+        BootAndRebind (machine);
 
-        MemoryProbeHelpers::WriteLcMainBank2 (core, kProbeAddrLcBank, kPatternMainBank2);
-        MemoryProbeHelpers::WriteLcAuxBank2  (core, kProbeAddrLcBank, kPatternAuxBank2);
+        MemoryProbeHelpers::WriteLcMainBank2 (machine, kProbeAddrLcBank, kPatternMainBank2);
+        MemoryProbeHelpers::WriteLcAuxBank2  (machine, kProbeAddrLcBank, kPatternAuxBank2);
 
-        mainBank2 = MemoryProbeHelpers::ReadLcMainBank2 (core, kProbeAddrLcBank);
-        auxBank2  = MemoryProbeHelpers::ReadLcAuxBank2  (core, kProbeAddrLcBank);
+        mainBank2 = MemoryProbeHelpers::ReadLcMainBank2 (machine, kProbeAddrLcBank);
+        auxBank2  = MemoryProbeHelpers::ReadLcAuxBank2  (machine, kProbeAddrLcBank);
 
         Assert::AreEqual (kPatternMainBank2, mainBank2,
             L"LC main bank2 must hold the ALTZP=0 store");
@@ -287,36 +273,35 @@ public:
 
     TEST_METHOD (Phase8_Store80_PlusHiresPlusPage2_RoutesHiresWritesToAux)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         Byte           auxValue;
         Byte           mainValue;
 
-        BootAndRebind (host, core);
+        BootAndRebind (machine);
 
         // RAMWRT=0 — proves the carve-out routes to aux on its own
         // merits (not the RAMWRT shortcut).
-        core.mmu->SetRamWrt (false);
+        machine.GetMmu()->SetRamWrt (false);
 
         // HIRES on, PAGE2 on, then 80STORE on so the MMU re-resolves
         // $2000-$3FFF off the new (HIRES, PAGE2) state.
-        core.bus->ReadByte (kSwitchHiresOn);
-        core.bus->ReadByte (kSwitchPage2On);
-        core.bus->WriteByte (kSwitch80StoreOn, 0);
+        machine.GetMemoryBus().ReadByte (kSwitchHiresOn);
+        machine.GetMemoryBus().ReadByte (kSwitchPage2On);
+        machine.GetMemoryBus().WriteByte (kSwitch80StoreOn, 0);
 
-        Assert::IsTrue (core.mmu->Get80Store(),
+        Assert::IsTrue (machine.GetMmu()->Get80Store(),
             L"$C001 write must engage 80STORE on the MMU");
 
-        core.bus->WriteByte (kProbeAddrHires, kPatternHires);
+        machine.GetMemoryBus().WriteByte (kProbeAddrHires, kPatternHires);
 
         // Disengage 80STORE so we can probe aux/main independently
         // via the standard RAMRD-driven helpers.
-        core.bus->WriteByte (kSwitch80StoreOff, 0);
-        core.bus->ReadByte  (kSwitchPage2Off);
-        core.bus->ReadByte  (kSwitchHiresOff);
+        machine.GetMemoryBus().WriteByte (kSwitch80StoreOff, 0);
+        machine.GetMemoryBus().ReadByte  (kSwitchPage2Off);
+        machine.GetMemoryBus().ReadByte  (kSwitchHiresOff);
 
-        auxValue  = MemoryProbeHelpers::ReadAux  (core, kProbeAddrHires);
-        mainValue = MemoryProbeHelpers::ReadMain (core, kProbeAddrHires);
+        auxValue  = MemoryProbeHelpers::ReadAux  (machine, kProbeAddrHires);
+        mainValue = MemoryProbeHelpers::ReadMain (machine, kProbeAddrHires);
 
         Assert::AreEqual (kPatternHires, auxValue,
             L"Hires write under 80STORE+HIRES+PAGE2 must land in aux");
@@ -338,67 +323,66 @@ public:
 
     TEST_METHOD (Phase8_SoftReset_PreservesAuxAndLcRam_AndPostsCpuPostResetState)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         Word           expectedPc;
         Byte           p;
 
-        BootAndRebind (host, core);
+        BootAndRebind (machine);
 
         // Stamp known patterns into every preserved buffer.
-        MemoryProbeHelpers::WriteAux         (core, kProbeAddrMain,    kPatternAux);
-        MemoryProbeHelpers::WriteAuxZp       (core, kProbeAddrZp,      kPatternAuxZp);
-        MemoryProbeHelpers::WriteLcMainBank1 (core, kProbeAddrLcBank,  kPatternMainBank1);
-        MemoryProbeHelpers::WriteLcMainBank2 (core, kProbeAddrLcBank,  kPatternMainBank2);
-        MemoryProbeHelpers::WriteLcAuxBank1  (core, kProbeAddrLcBank,  kPatternAuxBank1);
-        MemoryProbeHelpers::WriteLcAuxBank2  (core, kProbeAddrLcBank,  kPatternAuxBank2);
+        MemoryProbeHelpers::WriteAux         (machine, kProbeAddrMain,    kPatternAux);
+        MemoryProbeHelpers::WriteAuxZp       (machine, kProbeAddrZp,      kPatternAuxZp);
+        MemoryProbeHelpers::WriteLcMainBank1 (machine, kProbeAddrLcBank,  kPatternMainBank1);
+        MemoryProbeHelpers::WriteLcMainBank2 (machine, kProbeAddrLcBank,  kPatternMainBank2);
+        MemoryProbeHelpers::WriteLcAuxBank1  (machine, kProbeAddrLcBank,  kPatternAuxBank1);
+        MemoryProbeHelpers::WriteLcAuxBank2  (machine, kProbeAddrLcBank,  kPatternAuxBank2);
 
-        core.mmu->SetAltZp (false);
-        core.languageCard->WriteRam (kProbeAddrLcHigh, kPatternHighMain);
-        core.mmu->SetAltZp (true);
-        core.languageCard->WriteRam (kProbeAddrLcHigh, kPatternHighAux);
+        machine.GetMmu()->SetAltZp (false);
+        machine.GetRefs().languageCard->WriteRam (kProbeAddrLcHigh, kPatternHighMain);
+        machine.GetMmu()->SetAltZp (true);
+        machine.GetRefs().languageCard->WriteRam (kProbeAddrLcHigh, kPatternHighAux);
 
-        expectedPc = core.cpu->PeekWord (kResetVector);
+        expectedPc = machine.GetCpu()->PeekWord (kResetVector);
 
-        core.SoftReset();
+        machine.SoftReset();
 
         // MMU paging flags must reset to the documented post-reset
         // posture (audit §10).
-        Assert::IsFalse (core.mmu->GetRamRd    (), L"RAMRD must clear on soft reset");
-        Assert::IsFalse (core.mmu->GetRamWrt   (), L"RAMWRT must clear on soft reset");
-        Assert::IsFalse (core.mmu->GetAltZp    (), L"ALTZP must clear on soft reset");
-        Assert::IsFalse (core.mmu->Get80Store  (), L"80STORE must clear on soft reset");
-        Assert::IsFalse (core.mmu->GetIntCxRom(), L"INTCXROM must clear on soft reset");
+        Assert::IsFalse (machine.GetMmu()->GetRamRd    (), L"RAMRD must clear on soft reset");
+        Assert::IsFalse (machine.GetMmu()->GetRamWrt   (), L"RAMWRT must clear on soft reset");
+        Assert::IsFalse (machine.GetMmu()->GetAltZp    (), L"ALTZP must clear on soft reset");
+        Assert::IsFalse (machine.GetMmu()->Get80Store  (), L"80STORE must clear on soft reset");
+        Assert::IsFalse (machine.GetMmu()->GetIntCxRom(), L"INTCXROM must clear on soft reset");
 
         // CPU post-reset register state per FR-034.
-        Assert::AreEqual (kPostResetSp, core.cpu->GetSP(),
+        Assert::AreEqual (kPostResetSp, machine.GetCpu()->GetSP(),
             L"SP must equal 0xFD after soft reset");
-        Assert::AreEqual (expectedPc, core.cpu->GetPC(),
+        Assert::AreEqual (expectedPc, machine.GetCpu()->GetPC(),
             L"PC must reload from $FFFC after soft reset");
 
         // Aux + LC RAM contents survive (audit C7 fix).
-        p = MemoryProbeHelpers::ReadAux (core, kProbeAddrMain);
+        p = MemoryProbeHelpers::ReadAux (machine, kProbeAddrMain);
         Assert::AreEqual (kPatternAux, p,
             L"Aux $4000 must survive soft reset");
 
-        p = MemoryProbeHelpers::ReadAuxZp (core, kProbeAddrZp);
+        p = MemoryProbeHelpers::ReadAuxZp (machine, kProbeAddrZp);
         Assert::AreEqual (kPatternAuxZp, p,
             L"Aux ZP $0080 must survive soft reset");
 
-        p = MemoryProbeHelpers::ReadLcMainBank1 (core, kProbeAddrLcBank);
+        p = MemoryProbeHelpers::ReadLcMainBank1 (machine, kProbeAddrLcBank);
         Assert::AreEqual (kPatternMainBank1, p, L"LC main bank1 must survive");
-        p = MemoryProbeHelpers::ReadLcMainBank2 (core, kProbeAddrLcBank);
+        p = MemoryProbeHelpers::ReadLcMainBank2 (machine, kProbeAddrLcBank);
         Assert::AreEqual (kPatternMainBank2, p, L"LC main bank2 must survive");
-        p = MemoryProbeHelpers::ReadLcAuxBank1  (core, kProbeAddrLcBank);
+        p = MemoryProbeHelpers::ReadLcAuxBank1  (machine, kProbeAddrLcBank);
         Assert::AreEqual (kPatternAuxBank1, p, L"LC aux bank1 must survive");
-        p = MemoryProbeHelpers::ReadLcAuxBank2  (core, kProbeAddrLcBank);
+        p = MemoryProbeHelpers::ReadLcAuxBank2  (machine, kProbeAddrLcBank);
         Assert::AreEqual (kPatternAuxBank2, p, L"LC aux bank2 must survive");
 
-        core.mmu->SetAltZp (false);
-        Assert::AreEqual (kPatternHighMain, core.languageCard->ReadRam (kProbeAddrLcHigh),
+        machine.GetMmu()->SetAltZp (false);
+        Assert::AreEqual (kPatternHighMain, machine.GetRefs().languageCard->ReadRam (kProbeAddrLcHigh),
             L"LC main high $E100 must survive");
-        core.mmu->SetAltZp (true);
-        Assert::AreEqual (kPatternHighAux, core.languageCard->ReadRam (kProbeAddrLcHigh),
+        machine.GetMmu()->SetAltZp (true);
+        Assert::AreEqual (kPatternHighAux, machine.GetRefs().languageCard->ReadRam (kProbeAddrLcHigh),
             L"LC aux high $E100 must survive");
     }
 };

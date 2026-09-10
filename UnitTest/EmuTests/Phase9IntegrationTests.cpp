@@ -1,5 +1,6 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
+#include "FixtureProvider.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -32,24 +33,18 @@ public:
     static constexpr Word   kIntCxRomOn       = 0xC007;
     static constexpr Byte   kDisk2RomFirst    = 0xA2;     // first byte of Disk2.rom: LDX #$20
 
-    static HRESULT BuildAndAttachSlot6 (HeadlessHost & host, EmulatorCore & core)
+    static HRESULT BuildAndAttachSlot6 (MachineHost & machine)
     {
-        HRESULT                hr;
+        HRESULT                hr = S_OK;
         std::vector<uint8_t>   slot6Rom;
 
-        // The slot ROM can only be attached to a machine that built, and only
-        // once the fixture actually loaded -- so each step gates the next and
-        // the first failure is what the caller sees.
-        hr = host.BuildApple2e (core);
+        // The machine is built before it arrives, so the only step left that
+        // can fail is loading the fixture -- and the attach is gated on it.
+        hr = FixtureProvider().OpenFixture ("Disk2.rom", slot6Rom);
 
         if (SUCCEEDED (hr))
         {
-            hr = core.fixtures->OpenFixture ("Disk2.rom", slot6Rom);
-        }
-
-        if (SUCCEEDED (hr))
-        {
-            core.mmu->AttachSlotRom (6, std::move (slot6Rom));
+            machine.GetMmu()->AttachSlotRom (6, std::move (slot6Rom));
         }
 
         return hr;
@@ -58,17 +53,16 @@ public:
 
     TEST_METHOD (Slot6Rom_Unshadowed_WhenIntCxRomOff)
     {
-        HeadlessHost      host;
-        EmulatorCore      core;
+        TestMachine      machine ("Apple2e", TestMachine::Slots::Empty);
         HRESULT           hr;
         Byte              firstByte;
 
-        hr = BuildAndAttachSlot6 (host, core);
+        hr = BuildAndAttachSlot6 (machine);
         AssertSucceeded (hr, L"BuildApple2e + slot 6 ROM attach must succeed");
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
 
-        firstByte = core.bus->ReadByte (kSlot6RomBase);
+        firstByte = machine.GetMemoryBus().ReadByte (kSlot6RomBase);
         Assert::AreEqual (
             static_cast<int> (kDisk2RomFirst),
             static_cast<int> (firstByte),
@@ -78,20 +72,19 @@ public:
 
     TEST_METHOD (Slot6Rom_Hidden_WhenIntCxRomOn)
     {
-        HeadlessHost      host;
-        EmulatorCore      core;
+        TestMachine      machine ("Apple2e", TestMachine::Slots::Empty);
         HRESULT           hr;
         Byte              slotByte;
         Byte              internalByte;
 
-        hr = BuildAndAttachSlot6 (host, core);
+        hr = BuildAndAttachSlot6 (machine);
         AssertSucceeded (hr, L"BuildApple2e + slot 6 ROM attach must succeed");
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        slotByte = core.bus->ReadByte (kSlot6RomBase);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        slotByte = machine.GetMemoryBus().ReadByte (kSlot6RomBase);
 
-        core.bus->WriteByte (kIntCxRomOn, 0);
-        internalByte = core.bus->ReadByte (kSlot6RomBase);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOn, 0);
+        internalByte = machine.GetMemoryBus().ReadByte (kSlot6RomBase);
 
         Assert::AreNotEqual (
             static_cast<int> (slotByte),

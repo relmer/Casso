@@ -3,8 +3,25 @@
 #include "../../CassoEmuCore/Pch.h"
 
 #include "Core/MachineConfig.h"
+#include "Core/Prng.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
+
+//  MachineHost forward-declares the devices it holds, because production
+//  code reaches most of them through MachineRefs. A test reaches THROUGH
+//  them -- it asks the MMU which bank is paged in and the controller which
+//  track the head is on -- so the machine a test builds arrives with its
+//  parts defined rather than named.
+#include "Devices/Acia6551.h"
+#include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 
@@ -29,36 +46,48 @@
 //  cycle skipped the disk flush the real one does, and it composed no
 //  machine at all for the ][ and ][+.
 //
+//  It IS a MachineHost rather than holding one, so a test reads the machine
+//  it built without a hop through it and hands it to anything taking a
+//  MachineHost. Nothing derives further and nothing deletes one through a
+//  base pointer -- tests hold them by value.
+//
 //  The Prng is pinned, so two runs of the same test see the same power-on
 //  memory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class TestMachine
+class TestMachine : public MachineHost
 {
 public:
 
     //  Pinned so a power cycle produces the same DRAM twice running.
     static constexpr uint64_t  kSeed = 0xCA550001ULL;
 
+    //  What goes in the machine's card slots.
+    //
+    //  AsShipped is the machine a user gets, Disk ][ in slot 6 and all. A
+    //  machine with a drive and no disk in it does what the real one does:
+    //  the autostart ROM hands over to slot 6 and the drive spins, so it
+    //  never reaches BASIC. A test that wants a prompt without mounting
+    //  anything wants a machine with no disk card -- which is a machine a
+    //  user can configure, not a fiction for testing.
+    enum class Slots
+    {
+        AsShipped,
+        Empty,
+        DiskOnly,     // slot 6 and nothing else
+    };
+
     //  `machineId` is a shipped machine's directory name: "Apple2",
     //  "Apple2Plus", "Apple2e", "Apple2eEnhanced" or "Apple2c". Asserts
     //  rather than failing softly -- a test whose machine did not build has
     //  nothing left to say.
-    explicit TestMachine (const std::string & machineId);
-
-    MachineHost        &  GetHost   ()       noexcept { return m_host; }
-    const MachineConfig &  GetConfig () const noexcept { return m_config; }
-
-    //  Reads as the machine it is: machine->RunCycles (n), machine->GetCpu().
-    MachineHost *  operator-> () noexcept { return &m_host; }
+    explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
 private:
 
     static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
 
-    MachineHost           m_host;
     MachineBuildServices  m_nothingListening;
     MachineBuilder        m_builder;
-    MachineConfig         m_config;
 };

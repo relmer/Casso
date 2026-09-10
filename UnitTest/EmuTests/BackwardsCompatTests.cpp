@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Core/MachineConfig.h"
 #include "Machines/MachineDefinitions.h"
 
@@ -29,7 +29,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //       is single-bank ($0000-$BFFF) with no `aux` bank. Their video-mode
 //       list contains exactly text40/lores/hires (no text80/dhgr).
 //
-//    2. Composition pin — HeadlessHost::BuildAppleII /
+//    2. Composition pin — the ][ and ][+ build from
 //       BuildAppleIIPlus continue to compose only the deterministic
 //       harness primitives (Prng, MockHostShell, FixtureProvider) and
 //       MUST NOT pull in the //e wiring (no Apple2eMmu, no EmuCpu,
@@ -620,200 +620,79 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  AppleII_HeadlessHost_Composes — BuildAppleII succeeds and produces
-    //  a deterministic harness with NO //e wiring attached. The whole
-    //  point of the FR-040 composition pin: the //e build path lives in
-    //  a separate function (BuildApple2e) that adds CPU + MMU + bus on
-    //  top; the ][ build path is intentionally minimal.
+    //  What the ][ and ][+ ARE, now that a test can build one.
+    //
+    //  These replace three tests that asserted the old harness had composed
+    //  itself -- that it had wired a mock host, a fixture provider and a
+    //  pinned Prng, and that its per-machine enum still held three distinct
+    //  values. None of that was the machine. The harness built no ][ or ][+
+    //  at all, so the strongest thing those tests could say about either
+    //  model was that asking for one did not fail.
     //
     ////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (AppleII_HeadlessHost_Composes)
+    TEST_METHOD (TheAppleIIAndIIPlusAreDifferentMachines)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        HRESULT        hr;
+        TestMachine  machineII     ("Apple2");
+        TestMachine  machineIIPlus ("Apple2Plus");
 
-        hr = host.BuildAppleII (core);
+        //  Integer BASIC and Applesoft: same size image, different ROM.
+        std::vector<Byte>  romII     = GuestBytesAt (machineII,     0xE000, 64);
+        std::vector<Byte>  romIIPlus = GuestBytesAt (machineIIPlus, 0xE000, 64);
 
-        AssertSucceeded (hr,
-            L"HeadlessHost::BuildAppleII must succeed");
-        Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleII,
-            L"machineKind must remain AppleII");
-
-        Assert::IsNotNull (core.prng.get(),     L"][ harness must wire a Prng");
-        Assert::IsNotNull (core.host.get(),     L"][ harness must wire MockHostShell");
-        Assert::IsNotNull (core.fixtures.get(), L"][ harness must wire FixtureProvider");
-
-        Assert::IsNull (core.mmu.get(),
-            L"][ harness must NOT pull in Apple2eMmu (composition pin)");
-        Assert::IsNull (core.cpu.get(),
-            L"][ harness must NOT pull in EmuCpu (][ build path stays minimal)");
-        Assert::IsNull (core.bus.get(),
-            L"][ harness must NOT pull in MemoryBus");
-        Assert::IsNull (core.mainRam.get(),
-            L"][ harness must NOT pull in RamDevice");
-        Assert::IsNull (core.languageCard.get(),
-            L"][ harness must NOT pull in LanguageCard by default");
-        Assert::IsNull (core.diskController.get(),
-            L"][ harness must NOT pull in Disk2Controller by default");
-
-        Assert::IsFalse (core.HasApple2e(),
-            L"][ harness must NOT report HasApple2e");
+        Assert::IsFalse (romII == romIIPlus,
+            L"the ][ boots Integer BASIC and the ][+ Applesoft; their ROMs differ");
     }
 
 
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  AppleIIPlus_HeadlessHost_Composes
-    //
-    //  A ][+ machine must build and run with no window, no device, and no
-    //  renderer.
-    //
-    //  Composability is what the emulation core promises, and this is where it
-    //  is checked for the earlier machine. A machine that can only be built by
-    //  the GUI shell cannot be tested, batch-run, or reasoned about
-    //  independently -- and the coupling that breaks it is usually introduced
-    //  while working on the //e.
-    //
-    //  It builds the whole graph rather than a device or two, so a dependency
-    //  added anywhere in the wiring is caught here rather than at the point it
-    //  was written.
-    //
-    ////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (AppleIIPlus_HeadlessHost_Composes)
+    TEST_METHOD (NeitherHasTheIIeMemoryManager)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        HRESULT        hr;
-
-        hr = host.BuildAppleIIPlus (core);
-
-        AssertSucceeded (hr,
-            L"HeadlessHost::BuildAppleIIPlus must succeed");
-        Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleIIPlus,
-            L"machineKind must remain AppleIIPlus");
-
-        Assert::IsNotNull (core.prng.get());
-        Assert::IsNotNull (core.host.get());
-        Assert::IsNotNull (core.fixtures.get());
-
-        Assert::IsNull (core.mmu.get(),
-            L"][+ harness must NOT pull in Apple2eMmu");
-        Assert::IsNull (core.cpu.get(),
-            L"][+ harness must NOT pull in EmuCpu");
-        Assert::IsNull (core.bus.get());
-        Assert::IsNull (core.mainRam.get());
-        Assert::IsNull (core.languageCard.get());
-        Assert::IsNull (core.diskController.get());
-
-        Assert::IsFalse (core.HasApple2e());
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  AppleII_DeterministicAcrossTwoBuilds — the ][ harness's pinned
-    //  Prng seed produces byte-identical output across two independent
-    //  builds. Same gate that HeadlessHostTests applies for //e — the
-    //  point here is that the deterministic guarantee extends to the
-    //  ][/][+ build path too (no machine-kind-specific seed drift).
-    //
-    ////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (AppleII_DeterministicAcrossTwoBuilds)
-    {
-        HeadlessHost   hostA;
-        HeadlessHost   hostB;
-        EmulatorCore   coreA;
-        EmulatorCore   coreB;
-        size_t         i;
-        HRESULT        hr;
-
-        hr = hostA.BuildAppleII (coreA);
-        AssertSucceeded (hr);
-
-        hr = hostB.BuildAppleII (coreB);
-        AssertSucceeded (hr);
-
-        for (i = 0; i < kPrngSampleCount; i++)
+        //  The composition pin, said about the machine rather than about
+        //  which builder function ran: an MMU is //e-and-later hardware, and
+        //  the earlier models must not acquire one.
+        for (const char * id : { "Apple2", "Apple2Plus" })
         {
-            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
-                L"][ harness with the pinned seed must be deterministic");
+            TestMachine  machine (id);
+
+            Assert::IsNull (machine.GetMmu(),
+                L"a ][ or ][+ has no memory management unit");
+            Assert::IsNull (machine.GetRefs().iieSoftSwitches,
+                L"nor the //e soft-switch bank");
+            Assert::IsNull (machine.GetRefs().iieKeyboard,
+                L"nor the //e keyboard");
         }
     }
 
 
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  AppleIIPlus_DeterministicAcrossTwoBuilds — same gate for ][+.
-    //
-    ////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (AppleIIPlus_DeterministicAcrossTwoBuilds)
+    TEST_METHOD (TwoBuildsOfOneMachineAgree)
     {
-        HeadlessHost   hostA;
-        HeadlessHost   hostB;
-        EmulatorCore   coreA;
-        EmulatorCore   coreB;
-        size_t         i;
-        HRESULT        hr;
+        TestMachine  a ("Apple2Plus");
+        TestMachine  b ("Apple2Plus");
 
-        hr = hostA.BuildAppleIIPlus (coreA);
-        AssertSucceeded (hr);
+        a.PowerCycle();
+        b.PowerCycle();
 
-        hr = hostB.BuildAppleIIPlus (coreB);
-        AssertSucceeded (hr);
-
-        for (i = 0; i < kPrngSampleCount; i++)
-        {
-            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
-                L"][+ harness with the pinned seed must be deterministic");
-        }
+        //  The Prng is pinned, so the arbitrary contents a real machine
+        //  powers on with are the same arbitrary contents twice running --
+        //  which is what lets any test downstream assert on memory at all.
+        Assert::IsTrue (GuestBytesAt (a, 0x2000, 256) == GuestBytesAt (b, 0x2000, 256),
+            L"two builds of one machine power on identically");
     }
 
 
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  MachineKinds_RemainDistinct — the three HeadlessMachineKind enum
-    //  values exist as separate identities so the build paths stay
-    //  composable. If anyone ever collapses ][ into //e via
-    //  branching, this test breaks immediately.
-    //
-    ////////////////////////////////////////////////////////////////////////
+private:
 
-    TEST_METHOD (MachineKinds_RemainDistinct)
+    //  Straight off the bus, without running the guest.
+    static std::vector<Byte> GuestBytesAt (MachineHost & machine, Word address, size_t count)
     {
-        HeadlessHost   host;
-        EmulatorCore   coreII;
-        EmulatorCore   coreIIPlus;
-        EmulatorCore   coreIIe;
-        HRESULT        hr;
+        std::vector<Byte>  bytes;
 
-        hr = host.BuildAppleII (coreII);
-        AssertSucceeded (hr);
+        for (size_t i = 0; i < count; i++)
+        {
+            bytes.push_back (machine.GetMemoryBus().ReadByte (static_cast<Word> (address + i)));
+        }
 
-        hr = host.BuildAppleIIPlus (coreIIPlus);
-        AssertSucceeded (hr);
-
-        hr = host.BuildApple2e (coreIIe);
-        AssertSucceeded (hr);
-
-        Assert::IsTrue (coreII.machineKind     == HeadlessMachineKind::AppleII);
-        Assert::IsTrue (coreIIPlus.machineKind == HeadlessMachineKind::AppleIIPlus);
-        Assert::IsTrue (coreIIe.machineKind    == HeadlessMachineKind::Apple2e);
-
-        Assert::IsTrue (coreII.machineKind     != coreIIPlus.machineKind);
-        Assert::IsTrue (coreIIPlus.machineKind != coreIIe.machineKind);
-        Assert::IsTrue (coreII.machineKind     != coreIIe.machineKind);
-
-        Assert::IsTrue  (coreIIe.HasApple2e(),
-            L"//e build path must produce a fully wired //e core");
-        Assert::IsFalse (coreII.HasApple2e(),
-            L"][ build path must NOT produce a //e core");
-        Assert::IsFalse (coreIIPlus.HasApple2e(),
-            L"][+ build path must NOT produce a //e core");
+        return (bytes);
     }
 };
 

@@ -174,7 +174,8 @@
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\GuestSession.cpp" />
-    <ClCompile Include="..\UnitTest\EmuTests\HeadlessHost.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\EmbeddedMachineJson.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\TestMachine.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\KeystrokeInjector.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\MachineIdle.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\MockAudioSink.cpp" />

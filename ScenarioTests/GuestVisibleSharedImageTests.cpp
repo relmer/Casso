@@ -2,7 +2,7 @@
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -123,13 +123,13 @@ public:
 
 
     //  Types BLOAD and asserts which build landed in memory.
-    static void  AssertGuestLoads (EmulatorCore & core, Byte seed)
+    static void  AssertGuestLoads (MachineHost & machine, Byte seed)
     {
         std::vector<std::string>  rows;
         std::vector<Byte>         loaded;
 
-        rows   = GuestSession::TypeAndCollect (core, "BLOAD PROG");
-        loaded = GuestSession::GuestBytesAt (core, kLoadAddress, kPayloadBytes);
+        rows   = GuestSession::TypeAndCollect (machine, "BLOAD PROG");
+        loaded = GuestSession::GuestBytesAt (machine, kLoadAddress, kPayloadBytes);
 
         Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"),
             L"the guest must not report an error loading the file");
@@ -142,8 +142,7 @@ public:
 
     TEST_METHOD (AProgramRebuiltOutsideTheEmulatorIsLoadableByTheRunningGuest)
     {
-        HeadlessHost       host;
-        EmulatorCore       core;
+        TestMachine       machine ("Apple2e");
         std::vector<Byte>  master  = GuestSession::RequireDos33Master();
         std::vector<Byte>  first   = PlaceBuild (master, 0x21);
         std::vector<Byte>  second  = PlaceBuild (master, 0x5C);
@@ -157,16 +156,16 @@ public:
         AssertTheDiskCarries (first,  0x21);
         AssertTheDiskCarries (second, 0x5C);
 
-        GuestSession::BootToPrompt (host, core, first);
+        GuestSession::BootToPrompt (machine, first);
 
         //  The developer's first run: the program they built is on the disk in
         //  the drive, and the guest loads it.
-        AssertGuestLoads (core, 0x21);
+        AssertGuestLoads (machine, 0x21);
 
         //  Now the build step runs again, over the mounted image. The reader
         //  seam stands in for the file, which is what lets the whole path be
         //  driven without a disk on the host.
-        core.diskStore->SetImageReader (
+        machine.GetDiskStore().SetImageReader (
             [&second] (const std::string &, std::vector<Byte> & bytes) -> HRESULT
             {
                 bytes = second;
@@ -178,27 +177,27 @@ public:
         identity.stamp.sizeBytes    = second.size();
         identity.stamp.modifiedUnix = 999;
 
-        core.diskStore->SetIdentityReader (
+        machine.GetDiskStore().SetIdentityReader (
             [&identity] (const std::string &) { return identity; });
 
         //  The clock goes in BEFORE the change is noted, since the quiet period
         //  is measured between two readings of the same clock.
-        core.diskStore->SetClock ([&nowMs] () { return nowMs; });
+        machine.GetDiskStore().SetClock ([&nowMs] () { return nowMs; });
 
         //  Stated by the writer, which is what a `--on-change reload` build
         //  step says: take the new contents, leave the machine running.
-        core.diskStore->NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
+        machine.GetDiskStore().NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         //  Time passes and the machine reaches a quiet moment -- the two things
         //  the emulator's own clock and idle callback supply in a real session.
         nowMs += MountedImageState::kQuietPeriodMs;
 
-        core.diskStore->ApplyPendingReload();
+        machine.GetDiskStore().ApplyPendingReload();
 
         //  SC-001: the guest can run the new program, with no eject and no
         //  re-insert by hand. Nothing below the disk layer was told anything --
         //  the drive is still reading the same DiskImage it was handed at
         //  mount, whose contents changed underneath it.
-        AssertGuestLoads (core, 0x5C);
+        AssertGuestLoads (machine, 0x5C);
     }
 };

@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "KeystrokeInjector.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -135,8 +135,7 @@ public:
 
     TEST_METHOD (DOS33_CATALOG_DoesNotErrorOnMasterDisk)
     {
-        HeadlessHost    host;
-        EmulatorCore    core;
+        TestMachine    machine ("Apple2e");
         HRESULT         hr            = S_OK;
         DiskImage     * img           = nullptr;
         bool            promptVisible = false;
@@ -150,29 +149,28 @@ public:
         AssertTheMasterIsStillADos33Disk (raw);
 
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
-        core.diskController->SetExternalDisk (kDrive1, img);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         GuestSession::AssertTheDrivePresentsWhatWasMounted (
             *img, raw, L"the master this gate boots");
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
-        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (machine, kDos33ColdBootCycles);
 
         std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
-            *core.bus, TextScreenScraper::kTextPage1);
+            machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
         for (const auto & r : rows)
         {
@@ -187,12 +185,12 @@ public:
             L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
 
         size_t  consumed = KeystrokeInjector::InjectLine (
-            core, "CATALOG", kCatalogCycles);
+            machine, "CATALOG", kCatalogCycles);
         Assert::AreEqual (size_t (8), consumed,
             L"CATALOG + Return must be fully consumed by the keyboard latch");
 
         rows = TextScreenScraper::Scrape40 (
-            *core.bus, TextScreenScraper::kTextPage1);
+            machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
         for (const auto & r : rows)
         {
@@ -228,8 +226,7 @@ public:
 
     TEST_METHOD (DOS33_SAVE_RoundTripsToDsk)
     {
-        HeadlessHost    host;
-        EmulatorCore    core;
+        TestMachine    machine ("Apple2e");
         HRESULT         hr        = S_OK;
         DiskImage     * img       = nullptr;
         std::string     afterSave;
@@ -242,33 +239,32 @@ public:
         AssertTheMasterIsStillADos33Disk (raw);
 
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
-        core.diskController->SetExternalDisk (kDrive1, img);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         GuestSession::AssertTheDrivePresentsWhatWasMounted (
             *img, raw, L"the master this gate boots");
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
-        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (machine, kDos33ColdBootCycles);
 
         auto Screen = [&] () -> std::string
         {
             std::string               joined;
 
             std::vector<std::string>  scr = TextScreenScraper::Scrape40 (
-                *core.bus, TextScreenScraper::kTextPage1);
+                machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
             for (const auto & r : scr) { joined += r; joined += "\n"; }
             return joined;
         };
@@ -277,16 +273,16 @@ public:
             L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
 
         // Enter a one-line program and SAVE it.
-        KeystrokeInjector::InjectLine (core, "10 REM TEST PROGRAM", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "SAVE TEST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "10 REM TEST PROGRAM", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "SAVE TEST", kCatalogCycles);
         afterSave = Screen();
 
         // Clear the program, LOAD it back, clear the screen, and LIST so
         // the recovered text is unambiguous (not a SAVE echo left onscreen).
-        KeystrokeInjector::InjectLine (core, "NEW", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "LOAD TEST", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "NEW", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "LOAD TEST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "LIST", kCatalogCycles);
         afterList = Screen();
 
         Assert::IsTrue (afterSave.find ("I/O ERROR") == std::string::npos &&
@@ -319,8 +315,7 @@ public:
 
     TEST_METHOD (DOS33_SAVE_ToBuiltBlankWoz_SurvivesRemount)
     {
-        HeadlessHost    host;
-        EmulatorCore    core;
+        TestMachine    machine ("Apple2e");
         HRESULT         hr        = S_OK;
         DiskImage     * masterImg = nullptr;
         DiskImage     * blankImg  = nullptr;
@@ -338,18 +333,17 @@ public:
         AssertTheMasterIsStillADos33Disk (raw);
 
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"master MountFromBytes must succeed");
 
-        masterImg = core.diskStore->GetImage (kSlot6, kDrive1);
+        masterImg = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (masterImg, L"Mounted master DiskImage must be present");
-        core.diskController->SetExternalDisk (kDrive1, masterImg);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, masterImg);
 
         GuestSession::AssertTheDrivePresentsWhatWasMounted (
             *masterImg, raw, L"the master this gate boots");
@@ -359,17 +353,17 @@ public:
         hr = BlankDiskBuilder::Build (spec, BootPayload{}, blankWoz);
         AssertSucceeded (hr, L"Build must produce the default blank WOZ");
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive2,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive2,
             "new-blank.woz", DiskFormat::Woz, blankWoz);
         AssertSucceeded (hr, L"blank MountFromBytes must succeed");
 
-        blankImg = core.diskStore->GetImage (kSlot6, kDrive2);
+        blankImg = machine.GetDiskStore().GetImage (kSlot6, kDrive2);
         Assert::IsNotNull (blankImg, L"Mounted blank DiskImage must be present");
-        core.diskController->SetExternalDisk (kDrive2, blankImg);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive2, blankImg);
 
         // Capture the eject-time auto-flush in memory instead of letting it
         // touch the host filesystem.
-        core.diskStore->SetFlushSink (
+        machine.GetDiskStore().SetFlushSink (
             [&flushedWoz] (const string & path, const vector<Byte> & bytes)
         {
             if (path == "new-blank.woz")
@@ -380,17 +374,17 @@ public:
             return S_OK;
         });
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
-        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (machine, kDos33ColdBootCycles);
 
         auto Screen = [&] () -> std::string
         {
             std::string               joined;
 
             std::vector<std::string>  scr = TextScreenScraper::Scrape40 (
-                *core.bus, TextScreenScraper::kTextPage1);
+                machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
             for (const auto & r : scr) { joined += r; joined += "\n"; }
             return joined;
         };
@@ -399,14 +393,14 @@ public:
             L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
 
         // Enter a one-line program and SAVE it to the blank in drive 2.
-        KeystrokeInjector::InjectLine (core, "10 REM BLANK DISK TEST", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "SAVE TEST,D2", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "10 REM BLANK DISK TEST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "SAVE TEST,D2", kCatalogCycles);
         afterSave = Screen();
 
-        KeystrokeInjector::InjectLine (core, "NEW", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "LOAD TEST,D2", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "NEW", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "LOAD TEST,D2", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "LIST", kCatalogCycles);
         afterList = Screen();
 
         Assert::IsTrue (afterSave.find ("I/O ERROR") == std::string::npos &&
@@ -418,24 +412,24 @@ public:
 
         // Eject (auto-flush serializes the dirty image into the sink), then
         // remount the serialized bytes fresh and read the file again.
-        core.diskController->SetExternalDisk (kDrive2, nullptr);
-        core.diskStore->Eject (kSlot6, kDrive2);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive2, nullptr);
+        machine.GetDiskStore().Eject (kSlot6, kDrive2);
 
         Assert::IsFalse (flushedWoz.empty(),
             L"Eject must flush the written blank through the sink.");
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive2,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive2,
             "reloaded-blank.woz", DiskFormat::Woz, flushedWoz);
         AssertSucceeded (hr, L"remount of the flushed bytes must succeed");
 
-        blankImg = core.diskStore->GetImage (kSlot6, kDrive2);
+        blankImg = machine.GetDiskStore().GetImage (kSlot6, kDrive2);
         Assert::IsNotNull (blankImg, L"Remounted DiskImage must be present");
-        core.diskController->SetExternalDisk (kDrive2, blankImg);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive2, blankImg);
 
-        KeystrokeInjector::InjectLine (core, "NEW", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "LOAD TEST,D2", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "NEW", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "LOAD TEST,D2", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "LIST", kCatalogCycles);
         afterRemount = Screen();
 
         Assert::IsTrue (afterRemount.find ("BLANK DISK TEST") != std::string::npos,
@@ -455,8 +449,7 @@ public:
 
     TEST_METHOD (DOS33_SAVE_RespectsImageWriteProtect)
     {
-        HeadlessHost    host;
-        EmulatorCore    core;
+        TestMachine    machine ("Apple2e");
         HRESULT         hr        = S_OK;
         DiskImage     * masterImg = nullptr;
         DiskImage     * blankImg  = nullptr;
@@ -471,18 +464,17 @@ public:
 
         AssertTheMasterIsStillADos33Disk (raw);
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"master MountFromBytes must succeed");
 
-        masterImg = core.diskStore->GetImage (kSlot6, kDrive1);
+        masterImg = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (masterImg);
-        core.diskController->SetExternalDisk (kDrive1, masterImg);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, masterImg);
 
         GuestSession::AssertTheDrivePresentsWhatWasMounted (
             *masterImg, raw, L"the master this gate boots");
@@ -490,28 +482,28 @@ public:
         hr = BlankDiskBuilder::Build (spec, BootPayload{}, blankWoz);
         AssertSucceeded (hr, L"blank WOZ must build");
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive2,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive2,
             "wp-blank.woz", DiskFormat::Woz, blankWoz);
         AssertSucceeded (hr, L"blank MountFromBytes must succeed");
 
-        blankImg = core.diskStore->GetImage (kSlot6, kDrive2);
+        blankImg = machine.GetDiskStore().GetImage (kSlot6, kDrive2);
         Assert::IsNotNull (blankImg);
-        core.diskController->SetExternalDisk (kDrive2, blankImg);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive2, blankImg);
 
         // Protected first: the guest must refuse the write.
         blankImg->SetImageWriteProtected (true);
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
-        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (machine, kDos33ColdBootCycles);
 
         auto Screen = [&] () -> std::string
         {
             std::string               joined;
 
             std::vector<std::string>  scr = TextScreenScraper::Scrape40 (
-                *core.bus, TextScreenScraper::kTextPage1);
+                machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
             for (const auto & r : scr) { joined += r; joined += "\n"; }
             return joined;
         };
@@ -519,8 +511,8 @@ public:
         Assert::IsTrue (Screen().find (']') != std::string::npos,
             L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
 
-        KeystrokeInjector::InjectLine (core, "10 REM WP TEST", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "SAVE TEST,D2", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "10 REM WP TEST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "SAVE TEST,D2", kCatalogCycles);
         afterProtectedSave = Screen();
 
         Assert::IsTrue (afterProtectedSave.find ("WRITE PROTECTED") != std::string::npos,
@@ -529,8 +521,8 @@ public:
         // Unprotect and repeat: the same SAVE must now succeed.
         blankImg->SetImageWriteProtected (false);
 
-        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
-        KeystrokeInjector::InjectLine (core, "SAVE TEST,D2", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (machine, "SAVE TEST,D2", kCatalogCycles);
         afterWritableSave = Screen();
 
         Assert::IsTrue (afterWritableSave.find ("WRITE PROTECTED") == std::string::npos &&
@@ -551,8 +543,7 @@ public:
 
     TEST_METHOD (BootableDos33Woz_BootsToCleanPrompt)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         HRESULT        hr  = S_OK;
         DiskImage    * img = nullptr;
         BlankDiskSpec  spec;
@@ -569,32 +560,31 @@ public:
         hr = BlankDiskBuilder::Build (spec, payload, woz);
         AssertSucceeded (hr, L"bootable DOS 3.3 WOZ must build");
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
             "bootable-blank.woz", DiskFormat::Woz, woz);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
-        core.diskController->SetExternalDisk (kDrive1, img);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         GuestSession::AssertTheDriveCanReadTheBootSector (
             *img, L"the disk this gate built");
 
         AssertTheBuiltDiskIsStillADos33Disk (*img);
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
-        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (machine, kDos33ColdBootCycles);
 
         {
             std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
-                *core.bus, TextScreenScraper::kTextPage1);
+                machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
             for (const auto & r : rows) { screen += r; screen += "\n"; }
         }
@@ -619,8 +609,7 @@ public:
 
     TEST_METHOD (BootableProDosWoz_BootsToBasicPrompt)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         HRESULT        hr  = S_OK;
         DiskImage    * img = nullptr;
         BlankDiskSpec  spec;
@@ -638,18 +627,17 @@ public:
         hr = BlankDiskBuilder::Build (spec, payload, woz);
         AssertSucceeded (hr, L"bootable ProDOS WOZ must build");
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
             "bootable-prodos.woz", DiskFormat::Woz, woz);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
-        core.diskController->SetExternalDisk (kDrive1, img);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         // The ProDOS half stops at the boot sector: this file's only
         // filesystem reader is the DOS 3.3 one, and pulling ProDosVolume in
@@ -658,14 +646,14 @@ public:
         GuestSession::AssertTheDriveCanReadTheBootSector (
             *img, L"the ProDOS disk this gate built");
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
-        MachineIdle::RunUntilIdle (core, kDos33ColdBootCycles);
+        MachineIdle::RunUntilIdle (machine, kDos33ColdBootCycles);
 
         {
             std::vector<std::string>  rows = TextScreenScraper::Scrape40 (
-                *core.bus, TextScreenScraper::kTextPage1);
+                machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
             for (const auto & r : rows) { screen += r; screen += "\n"; }
         }

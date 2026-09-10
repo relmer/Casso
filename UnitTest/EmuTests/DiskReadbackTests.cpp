@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -141,47 +141,46 @@ public:
     }
 
 
-    DiskImage * MountAndSpinUp (HeadlessHost & host, EmulatorCore & core,
+    DiskImage * MountAndSpinUp (MachineHost & machine,
                                 const vector<Byte> & raw)
     {
         HRESULT      hr        = S_OK;
         DiskImage *  external  = nullptr;
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
                                              "readback.dsk",
                                              DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"MountFromBytes");
 
-        external = core.diskStore->GetImage (kSlot6, kDrive1);
+        external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"GetImage");
 
-        core.diskController->SetExternalDisk (kDrive1, external);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
 
         // DiskReadbackTests drive the controller via direct bus reads
         // + manual Tick(N) pumping, without running the CPU. The
         // catch-up-on-read path needs a live, advancing CPU cycle
         // counter to do its job; detach the source so Tick(N) goes
         // back to advancing the engine bit cursor itself.
-        core.diskController->SetCpuCycleSource (nullptr);
+        machine.GetRefs().diskController->SetCpuCycleSource (nullptr);
 
         // Spin up: select drive 1, motor on, set Q7=0/Q6=0 (read mode).
-        core.bus->ReadByte (kSelectDrive1);
-        core.bus->ReadByte (kMotorOn);
-        core.bus->ReadByte (kQ6On);     // ensures Q6=1 first
-        core.bus->ReadByte (kSlotIoBase + 0xC); // Q6=0
-        core.bus->ReadByte (kQ7Off);
+        machine.GetMemoryBus().ReadByte (kSelectDrive1);
+        machine.GetMemoryBus().ReadByte (kMotorOn);
+        machine.GetMemoryBus().ReadByte (kQ6On);     // ensures Q6=1 first
+        machine.GetMemoryBus().ReadByte (kSlotIoBase + 0xC); // Q6=0
+        machine.GetMemoryBus().ReadByte (kQ7Off);
 
         // Issue #67: drain the motor spin-up window so the very next
         // read returns real bit-stream data rather than the synthetic
         // zeros the controller hands back during spin-up. Tests
         // written before #67 expected immediate readiness; the
         // controller now models the ~70 ms physical spin-up.
-        core.diskController->Tick (Disk2Controller::kMotorSpinupCycles);
+        machine.GetRefs().diskController->Tick (Disk2Controller::kMotorSpinupCycles);
 
         return external;
     }
@@ -192,13 +191,13 @@ public:
     // and the boot ROM use; stepping is two quarter-tracks per full
     // track and follows the standard "energize next phase, de-energize
     // previous" sequence.
-    void SeekToTrack (EmulatorCore & core, int targetTrack)
+    void SeekToTrack (MachineHost & machine, int targetTrack)
     {
-        int currentTrack = core.diskController->GetCurrentTrack();
+        int currentTrack = machine.GetRefs().diskController->GetCurrentTrack();
 
         while (currentTrack != targetTrack)
         {
-            int currentQt   = core.diskController->GetQuarterTrack();
+            int currentQt   = machine.GetRefs().diskController->GetQuarterTrack();
             int targetQt    = targetTrack * 4;
             int direction   = (targetQt > currentQt) ? +1 : -1;
 
@@ -207,14 +206,14 @@ public:
 
             // Energize next phase, then de-energize current. Two quarter-
             // tracks per full step.
-            core.bus->ReadByte (static_cast<Word> (kSlotIoBase + 0x1 + nextPhase * 2));
-            core.bus->ReadByte (static_cast<Word> (kSlotIoBase + 0x0 + currentPhase * 2));
+            machine.GetMemoryBus().ReadByte (static_cast<Word> (kSlotIoBase + 0x1 + nextPhase * 2));
+            machine.GetMemoryBus().ReadByte (static_cast<Word> (kSlotIoBase + 0x0 + currentPhase * 2));
 
             // Pump engine cycles so the head physically settles before
             // the next pulse.
-            core.diskController->Tick (16);
+            machine.GetRefs().diskController->Tick (16);
 
-            currentTrack = core.diskController->GetCurrentTrack();
+            currentTrack = machine.GetRefs().diskController->GetCurrentTrack();
 
             // Safety: don't loop forever.
             if (currentTrack == targetTrack) break;
@@ -223,10 +222,10 @@ public:
         // De-energize all phases.
         for (int p = 0; p < 4; p++)
         {
-            core.bus->ReadByte (static_cast<Word> (kSlotIoBase + 0x0 + p * 2));
+            machine.GetMemoryBus().ReadByte (static_cast<Word> (kSlotIoBase + 0x0 + p * 2));
         }
 
-        core.diskController->Tick (16);
+        machine.GetRefs().diskController->Tick (16);
     }
 
 
@@ -234,7 +233,7 @@ public:
     // latch. After capturing one nibble, advances the engine ~10 cycles
     // (past the LSS latch-hold window) so the subsequent call returns
     // a fresh nibble rather than the same captured value again.
-    Byte ReadNextNibble (EmulatorCore & core, uint64_t & ticksOut)
+    Byte ReadNextNibble (MachineHost & machine, uint64_t & ticksOut)
     {
         Byte            latch  = 0;
         const uint64_t  budget = 500'000ULL;
@@ -242,8 +241,8 @@ public:
 
         for (i = 0; i < budget; i += kTicksPerLatchPoll)
         {
-            core.diskController->Tick (kTicksPerLatchPoll);
-            latch = core.bus->ReadByte (kReadLatch);
+            machine.GetRefs().diskController->Tick (kTicksPerLatchPoll);
+            latch = machine.GetMemoryBus().ReadByte (kReadLatch);
 
             if (latch & 0x80)
             {
@@ -252,7 +251,7 @@ public:
                 // for ~2 bit cells (8 cycles) after MSB-set; ticking 12
                 // here guarantees we're shifting bits into a fresh
                 // working register before the caller polls again.
-                core.diskController->Tick (12);
+                machine.GetRefs().diskController->Tick (12);
                 ticksOut += i + kTicksPerLatchPoll + 12;
                 return latch;
             }
@@ -305,7 +304,7 @@ public:
     // matching the requested logical sector on the current track.
     // On success the caller can then call ReadDataFieldAtCursor to
     // harvest the 256 decoded bytes.
-    HRESULT FindAddressField (EmulatorCore & core, int wantTrack, int wantSector,
+    HRESULT FindAddressField (MachineHost & machine, int wantTrack, int wantSector,
                               int & outVolume)
     {
         HRESULT   hr    = S_OK;
@@ -318,7 +317,7 @@ public:
 
         while (spinning && !found && spent < kMaxSpent)
         {
-            n0 = ReadNextNibble (core, spent);
+            n0 = ReadNextNibble (machine, spent);
 
             // A zero nibble is the per-nibble timeout, not data -- the head is
             // not producing bytes, so no amount of further spinning helps.
@@ -328,20 +327,20 @@ public:
             }
             else if (n0 == kAddrProlog0)
             {
-                n1 = ReadNextNibble (core, spent);
-                n2 = (n1 == kAddrProlog1) ? ReadNextNibble (core, spent) : Byte (0);
+                n1 = ReadNextNibble (machine, spent);
+                n2 = (n1 == kAddrProlog1) ? ReadNextNibble (machine, spent) : Byte (0);
 
                 // Anything but the full D5 AA 96 prologue means this was not an
                 // address field; fall back to the outer spin, which resyncs on
                 // the next nibble rather than the next field.
                 if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
                 {
-                    Byte vOdd  = ReadNextNibble (core, spent);
-                    Byte vEven = ReadNextNibble (core, spent);
-                    Byte tOdd  = ReadNextNibble (core, spent);
-                    Byte tEven = ReadNextNibble (core, spent);
-                    Byte sOdd  = ReadNextNibble (core, spent);
-                    Byte sEven = ReadNextNibble (core, spent);
+                    Byte vOdd  = ReadNextNibble (machine, spent);
+                    Byte vEven = ReadNextNibble (machine, spent);
+                    Byte tOdd  = ReadNextNibble (machine, spent);
+                    Byte tEven = ReadNextNibble (machine, spent);
+                    Byte sOdd  = ReadNextNibble (machine, spent);
+                    Byte sEven = ReadNextNibble (machine, spent);
 
                     int  vol  = Decode44 (vOdd, vEven);
                     int  trk  = Decode44 (tOdd, tEven);
@@ -353,11 +352,11 @@ public:
                         found     = true;
 
                         // skip the checksum nibble pair + epilogue (3 nibbles)
-                        ReadNextNibble (core, spent);
-                        ReadNextNibble (core, spent);
-                        ReadNextNibble (core, spent);
-                        ReadNextNibble (core, spent);
-                        ReadNextNibble (core, spent);
+                        ReadNextNibble (machine, spent);
+                        ReadNextNibble (machine, spent);
+                        ReadNextNibble (machine, spent);
+                        ReadNextNibble (machine, spent);
+                        ReadNextNibble (machine, spent);
                     }
                 }
             }
@@ -373,7 +372,7 @@ public:
     // After FindAddressField succeeds, spin until the data prologue
     // (D5 AA AD) appears, then decode the 343 nibbles and unpack
     // back into 256 bytes per the standard 6-and-2 inverse.
-    HRESULT ReadDataFieldAtCursor (EmulatorCore & core, vector<Byte> & outData)
+    HRESULT ReadDataFieldAtCursor (MachineHost & machine, vector<Byte> & outData)
     {
         HRESULT         hr        = S_OK;
         Byte            n0        = 0, n1 = 0, n2 = 0;
@@ -387,14 +386,14 @@ public:
 
         while (spent < kMaxSpent)
         {
-            n0 = ReadNextNibble (core, spent);
+            n0 = ReadNextNibble (machine, spent);
             // A zero nibble is the per-nibble timeout: the head is not
             // producing bytes, so no amount of further spinning helps.
             CBR (n0 != 0);
             if (n0 != kAddrProlog0) continue;
-            n1 = ReadNextNibble (core, spent);
+            n1 = ReadNextNibble (machine, spent);
             if (n1 != kAddrProlog1) continue;
-            n2 = ReadNextNibble (core, spent);
+            n2 = ReadNextNibble (machine, spent);
             if (n2 == kDataProlog2) break;
         }
 
@@ -402,14 +401,14 @@ public:
 
         for (int i = 0; i < 342; i++)
         {
-            Byte nib  = ReadNextNibble (core, spent);
+            Byte nib  = ReadNextNibble (machine, spent);
             Byte raw  = static_cast<Byte> (InverseTranslate (nib) ^ prev);
             encoded[i] = raw;
             prev = raw;
         }
 
         // Verify checksum
-        chkNib = ReadNextNibble (core, spent);
+        chkNib = ReadNextNibble (machine, spent);
         chk    = static_cast<Byte> (InverseTranslate (chkNib) ^ prev);
         CBR (chk == 0);
 
@@ -453,8 +452,7 @@ public:
 
     TEST_METHOD (DumpFirstNibblesOnTrack0)
     {
-        HeadlessHost    host;
-        EmulatorCore    core;
+        TestMachine    machine ("Apple2e");
         vector<Byte>    raw            = BuildSentinelDisk();
         DWORD           pl             = 0;
         FILE          * fp             = nullptr;
@@ -463,7 +461,7 @@ public:
         char            path[MAX_PATH] = {};
         wchar_t         msg[128]       = {};
 
-        MountAndSpinUp (host, core, raw);
+        MountAndSpinUp (machine, raw);
 
         // Dump the first 64 nibbles to %TEMP%\readback-trace.log so we
         // can see what the engine actually presents to the bus.
@@ -476,7 +474,7 @@ public:
 
         for (int i = 0; i < 64; i++)
         {
-            Byte n = ReadNextNibble (core, spent);
+            Byte n = ReadNextNibble (machine, spent);
             if (fp != nullptr)
             {
                 fprintf (fp, "[%2d] %02X (after %llu ticks)\n",
@@ -496,21 +494,20 @@ public:
 
     TEST_METHOD (ReadAllSectorsOnTrack0_FromSentinelDsk)
     {
-        HeadlessHost  host;
-        EmulatorCore  core;
+        TestMachine  machine ("Apple2e");
         vector<Byte>  raw          = BuildSentinelDisk();
         wstring       failures;
         int           successCount = 0;
         int           trk          = 0;
 
-        MountAndSpinUp (host, core, raw);
+        MountAndSpinUp (machine, raw);
 
 
         for (int sec = 0; sec < kSectorsPerTrack; sec++)
         {
             int           volume   = 0;
             vector<Byte>  decoded;
-            HRESULT       hrField  = FindAddressField (core, trk, sec, volume);
+            HRESULT       hrField  = FindAddressField (machine, trk, sec, volume);
             HRESULT       hrData   = S_OK;
             Byte          expected = 0;
 
@@ -522,7 +519,7 @@ public:
                 continue;
             }
 
-            hrData = ReadDataFieldAtCursor (core, decoded);
+            hrData = ReadDataFieldAtCursor (machine, decoded);
 
             if (FAILED (hrData))
             {
@@ -569,8 +566,7 @@ public:
     // wrong).
     TEST_METHOD (ReadComplementPatternSector_FromCustomDsk)
     {
-        HeadlessHost  host;
-        EmulatorCore  core;
+        TestMachine  machine ("Apple2e");
         int           volume   = 0;
         vector<Byte>  decoded;
         HRESULT       hrField  = S_OK;
@@ -583,13 +579,13 @@ public:
             raw[i] = static_cast<Byte> (~static_cast<Byte> (i));
         }
 
-        MountAndSpinUp (host, core, raw);
+        MountAndSpinUp (machine, raw);
 
-        hrField = FindAddressField (core, 0, 0, volume);
+        hrField = FindAddressField (machine, 0, 0, volume);
 
         Assert::IsTrue (SUCCEEDED (hrField), L"T0S0 address-field not found");
 
-        hrData = ReadDataFieldAtCursor (core, decoded);
+        hrData = ReadDataFieldAtCursor (machine, decoded);
 
         Assert::IsTrue (SUCCEEDED (hrData), L"T0S0 data-field decode failed");
 
@@ -623,22 +619,21 @@ public:
 
     TEST_METHOD (ReadEveryTrackAndSector_FromSentinelDsk)
     {
-        HeadlessHost  host;
-        EmulatorCore  core;
+        TestMachine  machine ("Apple2e");
         vector<Byte>  raw          = BuildSentinelDisk();
         wstring       failures;
         int           successCount = 0;
 
-        MountAndSpinUp (host, core, raw);
+        MountAndSpinUp (machine, raw);
 
 
         for (int trk = 0; trk < kTrackCount; trk++)
         {
             int  actualTrack = 0;
 
-            SeekToTrack (core, trk);
+            SeekToTrack (machine, trk);
 
-            actualTrack = core.diskController->GetCurrentTrack();
+            actualTrack = machine.GetRefs().diskController->GetCurrentTrack();
             if (actualTrack != trk)
             {
                 wchar_t  msg[128] = {};
@@ -651,7 +646,7 @@ public:
             {
                 int           volume   = 0;
                 vector<Byte>  decoded;
-                HRESULT       hrField  = FindAddressField (core, trk, sec, volume);
+                HRESULT       hrField  = FindAddressField (machine, trk, sec, volume);
                 HRESULT       hrData   = S_OK;
                 Byte          expected = 0;
 
@@ -663,7 +658,7 @@ public:
                     continue;
                 }
 
-                hrData = ReadDataFieldAtCursor (core, decoded);
+                hrData = ReadDataFieldAtCursor (machine, decoded);
 
                 if (FAILED (hrData))
                 {
@@ -715,8 +710,7 @@ public:
 
     TEST_METHOD (BitCursorAdvancesAfterCycleCounterRewind)
     {
-        HeadlessHost    host;
-        EmulatorCore    core;
+        TestMachine    machine ("Apple2e");
         vector<Byte>    raw       = BuildSentinelDisk();
         uint64_t        cpuCycle  = 0;
         DiskImage     * external  = nullptr;
@@ -724,49 +718,48 @@ public:
         size_t          bitBefore = 0;
         size_t          bitAfter  = 0;
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, "rewind.dsk",
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1, "rewind.dsk",
                                              DiskFormat::Dsk, raw);
         AssertSucceeded (hr, L"MountFromBytes");
 
-        external = core.diskStore->GetImage (kSlot6, kDrive1);
+        external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"GetImage");
-        core.diskController->SetExternalDisk (kDrive1, external);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
 
         // Drive the catch-up path from a live, mutable cycle source so
         // the test can rewind it the way a power cycle does.
-        core.diskController->SetCpuCycleSource (&cpuCycle);
+        machine.GetRefs().diskController->SetCpuCycleSource (&cpuCycle);
 
         // Select drive 1, motor on, read mode (Q7=0, Q6=0).
-        cpuCycle += 1;  core.bus->ReadByte (kSelectDrive1);
-        cpuCycle += 1;  core.bus->ReadByte (kMotorOn);
-        cpuCycle += 1;  core.bus->ReadByte (kQ6On);
-        cpuCycle += 1;  core.bus->ReadByte (kReadLatch);
-        cpuCycle += 1;  core.bus->ReadByte (kQ7Off);
+        cpuCycle += 1;  machine.GetMemoryBus().ReadByte (kSelectDrive1);
+        cpuCycle += 1;  machine.GetMemoryBus().ReadByte (kMotorOn);
+        cpuCycle += 1;  machine.GetMemoryBus().ReadByte (kQ6On);
+        cpuCycle += 1;  machine.GetMemoryBus().ReadByte (kReadLatch);
+        cpuCycle += 1;  machine.GetMemoryBus().ReadByte (kQ7Off);
 
         // Simulate a long first session: advance the counter far, then
         // poll the latch so the catch-up anchor records the large value.
         cpuCycle += 1'000'000ULL;
-        core.bus->ReadByte (kReadLatch);
+        machine.GetMemoryBus().ReadByte (kReadLatch);
 
         // Power-cycle rewind: the CPU cycle counter resets to zero while
         // the controller's anchor still holds the large value.
         cpuCycle = 0;
 
-        bitBefore = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitBefore = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
         // A handful of post-rewind accesses, each a few bit-cells apart.
         for (int i = 0; i < 8; i++)
         {
             cpuCycle += 64;
-            core.bus->ReadByte (kReadLatch);
+            machine.GetMemoryBus().ReadByte (kReadLatch);
         }
 
-        bitAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitAfter != bitBefore,
                         L"Bit cursor frozen after cycle-counter rewind "

@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -15,7 +17,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MachineIdle::IsIdle (
-    EmulatorCore                    &  core,
+    MachineHost                    &  host,
     const std::vector<std::string>  &  previous,
     const std::vector<std::string>  &  current)
 {
@@ -31,7 +33,7 @@ bool MachineIdle::IsIdle (
         return false;
     }
 
-    if (core.diskController != nullptr && core.diskController->IsMotorOn())
+    if (host.GetRefs().diskController != nullptr && host.GetRefs().diskController->IsMotorOn())
     {
         return false;
     }
@@ -92,7 +94,7 @@ bool MachineIdle::IsIdle (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t MachineIdle::RunUntilIdle (EmulatorCore & core, uint64_t cycleCap)
+uint64_t MachineIdle::RunUntilIdle (MachineHost & host, uint64_t cycleCap)
 {
     uint64_t                  spent = 0;
     int                       quiet = 0;
@@ -100,8 +102,9 @@ uint64_t MachineIdle::RunUntilIdle (EmulatorCore & core, uint64_t cycleCap)
 
 
 
-    // Nothing to pump, and no screen to scrape either.
-    if (!core.HasApple2e() || core.bus == nullptr)
+    // Nothing to pump, and no screen to scrape either. A host always has a
+    // bus; what it may not have is a machine on it.
+    if (host.GetCpu() == nullptr || host.GetMmu() == nullptr)
     {
         return 0;
     }
@@ -110,13 +113,13 @@ uint64_t MachineIdle::RunUntilIdle (EmulatorCore & core, uint64_t cycleCap)
     {
         uint64_t  slice = (std::min) (kSampleSlice, cycleCap - spent);
 
-        core.RunCycles (slice);
+        host.RunCycles (slice);
         spent += slice;
 
         // Scrape rather than Scrape40 so an 80-column //c reads correctly.
-        std::vector<std::string>  current = TextScreenScraper::Scrape (core);
+        std::vector<std::string>  current = TextScreenScraper::Scrape (host);
 
-        quiet = IsIdle (core, previous, current) ? quiet + 1 : 0;
+        quiet = IsIdle (host, previous, current) ? quiet + 1 : 0;
 
         previous = std::move (current);
 

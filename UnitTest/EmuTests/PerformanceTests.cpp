@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
@@ -34,7 +34,7 @@ public:
     //
     //  Real //e runs at 1.023 MHz, so 1,000,000 emulated cycles cost
     //  977.5 ms of wall-clock on real hardware. The spec target (FR-042,
-    //  SC-007) is "≤ ~1% of one host core when throttled" — i.e. roughly
+    //  SC-007) is "≤ ~1% of one host machine when throttled" — i.e. roughly
     //  9.775 ms of host time per 1,000,000 emulated cycles. The
     //  unthrottled measurement here just needs to demonstrate ≥ 10×
     //  headroom over real //e speed, so the ceiling is 10× the 1% target
@@ -87,12 +87,12 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  MeasureMillionCycles — build a //e via HeadlessHost, cold-boot it
+    //  MeasureMillionCycles — build a //e via TestMachine, cold-boot it
     //  to the Applesoft idle prompt, run a small warmup so caches and
     //  branch predictors stabilize, then time exactly
     //  kPerfMeasureCycles emulated cycles and return the wall-clock cost.
     //
-    //  Pinned PRNG seed (HeadlessHost::kPinnedSeed = 0xCA550001) ensures
+    //  Pinned PRNG seed (TestMachine::kSeed = 0xCA550001) ensures
     //  RAM init is deterministic, so two runs measure the same workload.
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -100,26 +100,24 @@ public:
     HRESULT MeasureMillionCycles (double & outElapsedMs)
     {
         HRESULT          hr        = S_OK;
-        HeadlessHost     host;
-        EmulatorCore     core;
+        TestMachine     machine ("Apple2e", TestMachine::Slots::Empty);
         LARGE_INTEGER    startQpc  = {};
         LARGE_INTEGER    endQpc    = {};
         int64_t          freqHz    = 0;
 
         outElapsedMs = 0.0;
 
-        hr = host.BuildApple2e (core);
         CHRA (hr);
 
-        if (!core.HasApple2e())
+        if (!(machine.GetCpu() != nullptr && machine.GetMmu() != nullptr))
         {
             hr = E_UNEXPECTED;
             CHRA (hr);
         }
 
-        core.PowerCycle();
-        core.RunCycles  (kColdBootCycles);
-        core.RunCycles  (kPerfWarmupCycles);
+        machine.PowerCycle();
+        machine.RunCycles  (kColdBootCycles);
+        machine.RunCycles  (kPerfWarmupCycles);
 
         freqHz = QpcFrequencyHz();
         if (freqHz <= 0)
@@ -129,7 +127,7 @@ public:
         }
 
         QueryPerformanceCounter (&startQpc);
-        core.RunCycles (kPerfMeasureCycles);
+        machine.RunCycles (kPerfMeasureCycles);
         QueryPerformanceCounter (&endQpc);
 
         outElapsedMs = ElapsedMs (startQpc.QuadPart, endQpc.QuadPart, freqHz);
@@ -215,7 +213,7 @@ public:
     static constexpr double    kFrameCycles      = 17030.0;
     static constexpr double    kApple2ClockHz    = 1'020'484.0;
 
-    //  The budget this tree already holds itself to: ~1% of one host core while
+    //  The budget this tree already holds itself to: ~1% of one host machine while
     //  throttled, which is 9.775 ms of host time per second of emulated time.
     static constexpr double    kOnePercentCoreMsPerEmulatedSecond = 9.775;
 
@@ -250,7 +248,7 @@ public:
     //  FR-031 / SC-006, measured rather than asserted.
     //
     //  THE COMPARISON IS AGAINST THE TREE'S OWN THROTTLED BUDGET -- 1% of a
-    //  core, 9.775 ms of host time per emulated second -- rather than against
+    //  machine, 9.775 ms of host time per emulated second -- rather than against
     //  an absolute nanosecond figure, which would mean nothing on a different
     //  machine. Sixty of these run per emulated second, and the whole feature
     //  is allowed a thousandth of that budget.
@@ -302,7 +300,7 @@ public:
 
         swprintf_s (msg,
             L"idle probe: %.1f ns/call, %.5f ms per emulated second, "
-            L"%.4f%% of the 1%%-of-a-core budget",
+            L"%.4f%% of the 1%%-of-a-machine budget",
             nsPerCall, msPerSecond, shareOfBudget * 100.0);
         Logger::WriteMessage (msg);
 

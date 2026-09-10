@@ -333,7 +333,6 @@
     <ClCompile Include="EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\HeadlessHost.cpp" />
-    <ClCompile Include="EmuTests\HeadlessHostTests.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
     <ClCompile Include="EmuTests\Cpu65C02Tests.cpp" />
     <ClCompile Include="EmuTests\Via6522Tests.cpp" />

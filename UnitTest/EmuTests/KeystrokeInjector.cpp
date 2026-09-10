@@ -1,4 +1,6 @@
 #include "Pch.h"
+
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
 
@@ -15,7 +17,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT KeystrokeInjector::WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget)
+HRESULT KeystrokeInjector::WaitForStrobeClear (MachineHost & host, uint64_t cycleBudget)
 {
     constexpr int  kPumpBatchSize = 64;
 
@@ -28,25 +30,25 @@ HRESULT KeystrokeInjector::WaitForStrobeClear (EmulatorCore & core, uint64_t cyc
 
 
 
-    target = core.cpu->GetTotalCycles() + cycleBudget;
+    target = host.GetCpu()->GetTotalCycles() + cycleBudget;
 
-    while (!cleared && core.cpu->GetTotalCycles() < target)
+    while (!cleared && host.GetCpu()->GetTotalCycles() < target)
     {
-        cleared = core.keyboard->IsStrobeClear();
+        cleared = host.GetRefs().iieKeyboard->IsStrobeClear();
 
         if (!cleared)
         {
             for (i = 0; i < kPumpBatchSize; i++)
             {
-                core.cpu->StepOne();
-                core.cpu->AddCycles (core.cpu->GetLastInstructionCycles());
+                host.GetCpu()->StepOne();
+                host.GetCpu()->AddCycles (host.GetCpu()->GetLastInstructionCycles());
             }
         }
     }
 
     // Re-checking after the loop covers the budget-exhausted exit, where the
     // last batch may have cleared the strobe on its final instruction.
-    cleared = cleared || core.keyboard->IsStrobeClear();
+    cleared = cleared || host.GetRefs().iieKeyboard->IsStrobeClear();
     CBR (cleared);
 
 Error:
@@ -64,12 +66,12 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT KeystrokeInjector::InjectKey (
-    EmulatorCore  &  core,
+    MachineHost  &  host,
     Byte             ch,
     uint64_t         cycleBudget)
 {
     HRESULT  hr    = S_OK;
-    bool     has2e = core.HasApple2e();
+    bool     has2e = (host.GetCpu() != nullptr && host.GetMmu() != nullptr);
 
 
 
@@ -77,12 +79,12 @@ HRESULT KeystrokeInjector::InjectKey (
 
     // Two waits, not one: the first makes sure the PREVIOUS key was consumed
     // before overwriting the latch, the second that this one was.
-    hr = WaitForStrobeClear (core, cycleBudget);
+    hr = WaitForStrobeClear (host, cycleBudget);
     CHR (hr);
 
-    core.keyboard->PressKey (ch);
+    host.GetRefs().iieKeyboard->PressKey (ch);
 
-    hr = WaitForStrobeClear (core, cycleBudget);
+    hr = WaitForStrobeClear (host, cycleBudget);
     CHR (hr);
 
 Error:
@@ -100,7 +102,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t KeystrokeInjector::InjectString (
-    EmulatorCore       &  core,
+    MachineHost       &  host,
     const std::string  &  text,
     uint64_t              keyCycles)
 {
@@ -116,7 +118,7 @@ size_t KeystrokeInjector::InjectString (
     {
         if (ok)
         {
-            hrKey = InjectKey (core, static_cast<Byte> (ch), keyCycles);
+            hrKey = InjectKey (host, static_cast<Byte> (ch), keyCycles);
             ok    = SUCCEEDED (hrKey);
         }
 
@@ -140,12 +142,12 @@ size_t KeystrokeInjector::InjectString (
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t KeystrokeInjector::InjectLine (
-    EmulatorCore       &  core,
+    MachineHost       &  host,
     const std::string  &  text,
     uint64_t              settleCycles)
 {
     HRESULT  hrReturn = S_OK;
-    size_t   consumed = InjectString (core, text, kPerKeyCycleBudget);
+    size_t   consumed = InjectString (host, text, kPerKeyCycleBudget);
 
 
 
@@ -153,7 +155,7 @@ size_t KeystrokeInjector::InjectLine (
     // count short and never settles, so the caller sees the failure.
     if (consumed == text.size())
     {
-        hrReturn = InjectKey (core, kAppleReturn, kPerKeyCycleBudget);
+        hrReturn = InjectKey (host, kAppleReturn, kPerKeyCycleBudget);
 
         if (SUCCEEDED (hrReturn))
         {
@@ -163,7 +165,7 @@ size_t KeystrokeInjector::InjectLine (
             // as the ceiling rather than the target. A caller whose ceiling
             // is shorter than the quiet window never reaches idle and so
             // spends the whole budget, exactly as this used to.
-            MachineIdle::RunUntilIdle (core, settleCycles);
+            MachineIdle::RunUntilIdle (host, settleCycles);
         }
     }
 

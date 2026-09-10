@@ -22,21 +22,36 @@ namespace fs = std::filesystem;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TestMachine::TestMachine (const std::string & machineId)
-    : m_builder (m_host, m_nothingListening)
+TestMachine::TestMachine (const std::string & machineId, Slots slots)
+    : m_builder (*this, m_nothingListening)
 {
     std::wstring  wide (machineId.begin(), machineId.end());
     HRESULT       hr = S_OK;
 
 
 
-    LoadConfig (machineId, m_config);
+    //  Built FROM a config of its own, and the host keeps a copy of what
+    //  it was built from. Handing the builder the host's own config makes
+    //  it walk a list the build is entitled to rewrite as it goes.
+    MachineConfig  config;
 
-    m_host.SetPrng (std::make_unique<Prng> (kSeed));
-    m_host.SetCurrentMachineName (wide);
-    m_host.GetConfig() = m_config;
+    LoadConfig (machineId, config);
 
-    hr = m_builder.Build (m_config);
+    if (slots == Slots::Empty)
+    {
+        config.slots.clear();
+    }
+    else if (slots == Slots::DiskOnly)
+    {
+        std::erase_if (config.slots,
+                       [] (const SlotConfig & slot) { return slot.slot != 6; });
+    }
+
+    SetPrng (std::make_unique<Prng> (kSeed));
+    SetCurrentMachineName (wide);
+    GetConfig() = config;
+
+    hr = m_builder.Build (config);
 
     AssertSucceeded (hr, std::format (L"{} must build", wide).c_str());
 }

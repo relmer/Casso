@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "FixtureProvider.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -65,12 +65,11 @@ public:
 
 
 
-        HeadlessHost host; EmulatorCore core;
-        AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
-        core.PowerCycle();
-        core.RunCycles (15'000'000);
+        TestMachine machine ("Apple2c");
+        machine.PowerCycle();
+        machine.RunCycles (15'000'000);
 
-        for (const auto & row : TextScreenScraper::Scrape (core))
+        for (const auto & row : TextScreenScraper::Scrape (machine))
         {
             screen += row;
             screen += '\n';
@@ -91,28 +90,27 @@ public:
     // If either regresses, the bank stays on 0 and this fails.
     TEST_METHOD (StaC028TogglesRomBankExactlyOnce)
     {
-        HeadlessHost host; EmulatorCore core;
-        AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
-        core.PowerCycle();
+        TestMachine machine ("Apple2c");
+        machine.PowerCycle();
 
-        Assert::AreEqual (0, core.romBank->GetCurrentBank(), L"reset selects bank 0");
+        Assert::AreEqual (0, machine.GetApple2cRomBank()->GetCurrentBank(), L"reset selects bank 0");
 
         auto execAt = [&] (Word at, std::initializer_list<Byte> bytes)
         {
             Word a = at;
-            for (Byte b : bytes) core.cpu->WriteByte (a++, b);
-            core.cpu->SetPC (at);
-            core.cpu->StepOne();
+            for (Byte b : bytes) machine.GetCpu()->WriteByte (a++, b);
+            machine.GetCpu()->SetPC (at);
+            machine.GetCpu()->StepOne();
         };
 
         execAt (0x0300, { 0x8D, 0x28, 0xC0 });   // STA $C028
-        Assert::AreEqual (1, core.romBank->GetCurrentBank(), L"STA $C028 toggles once");
+        Assert::AreEqual (1, machine.GetApple2cRomBank()->GetCurrentBank(), L"STA $C028 toggles once");
 
         execAt (0x0300, { 0x8D, 0x28, 0xC0 });   // STA $C028 again
-        Assert::AreEqual (0, core.romBank->GetCurrentBank(), L"second STA toggles back");
+        Assert::AreEqual (0, machine.GetApple2cRomBank()->GetCurrentBank(), L"second STA toggles back");
 
         execAt (0x0300, { 0xAD, 0x28, 0xC0 });   // LDA $C028 (any access flips it)
-        Assert::AreEqual (1, core.romBank->GetCurrentBank(), L"LDA $C028 toggles once");
+        Assert::AreEqual (1, machine.GetApple2cRomBank()->GetCurrentBank(), L"LDA $C028 toggles once");
     }
 
     // The //c boots from its built-in slot-6 drive through
@@ -154,32 +152,31 @@ public:
             raw[1 + i] = kBootSector[i];
         }
 
-        HeadlessHost host; EmulatorCore core;
-        AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
+        TestMachine machine ("Apple2c");
 
         // PowerCycle first (it re-seeds DRAM + rebinds the drive to its empty
         // internal disk), THEN mount -- matching the production ordering.
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        HRESULT hrMount = core.diskStore->MountFromBytes (6, 0, "iwm-boot.dsk",
+        HRESULT hrMount = machine.GetDiskStore().MountFromBytes (6, 0, "iwm-boot.dsk",
                                                           DiskFormat::Dsk, raw);
         AssertSucceeded (hrMount, L"MountFromBytes must succeed");
 
-        img = core.diskStore->GetImage (6, 0);
+        img = machine.GetDiskStore().GetImage (6, 0);
         Assert::IsNotNull (img, L"mounted image must be retrievable");
-        core.diskController->SetExternalDisk (0, img);   // drive 1 = internal
+        machine.GetRefs().diskController->SetExternalDisk (0, img);   // drive 1 = internal
 
         // Cold-boot: memory test (~14M cycles) then the IWM boot read. 20M is
         // ample -- ColdBootsToCheckDiskDrive reaches the post-read state in 15M.
-        core.RunCycles (20'000'000);
+        machine.RunCycles (20'000'000);
 
-        Assert::AreEqual<Byte> (0x49, core.cpu->ReadByte (0x0300),
+        Assert::AreEqual<Byte> (0x49, machine.GetCpu()->ReadByte (0x0300),
             L"boot sector must run and write 'I' to $0300 (IWM read failed?)");
-        Assert::AreEqual<Byte> (0x57, core.cpu->ReadByte (0x0301),
+        Assert::AreEqual<Byte> (0x57, machine.GetCpu()->ReadByte (0x0301),
             L"boot sector must write 'W' to $0301");
-        Assert::AreEqual<Byte> (0x4D, core.cpu->ReadByte (0x0302),
+        Assert::AreEqual<Byte> (0x4D, machine.GetCpu()->ReadByte (0x0302),
             L"boot sector must write 'M' to $0302");
-        Assert::AreEqual<Word> (0x0810, core.cpu->GetPC(),
+        Assert::AreEqual<Word> (0x0810, machine.GetCpu()->GetPC(),
             L"CPU must be spinning in the booted sector's halt loop, not the "
             L"ROM's Check-Disk-Drive self-loop");
     }
@@ -204,36 +201,35 @@ public:
         std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
         raw[1] = 0xEA;
 
-        HeadlessHost host; EmulatorCore core;
-        AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
-        core.PowerCycle();
+        TestMachine machine ("Apple2c");
+        machine.PowerCycle();
 
-        HRESULT hrMount = core.diskStore->MountFromBytes (6, 1, "ext.dsk",
+        HRESULT hrMount = machine.GetDiskStore().MountFromBytes (6, 1, "ext.dsk",
                                                           DiskFormat::Dsk, raw);
         AssertSucceeded (hrMount, L"external MountFromBytes must succeed");
-        img = core.diskStore->GetImage (6, 1);
+        img = machine.GetDiskStore().GetImage (6, 1);
         Assert::IsNotNull (img, L"external image must be retrievable");
-        core.diskController->SetExternalDisk (1, img);   // drive 2 = external
+        machine.GetRefs().diskController->SetExternalDisk (1, img);   // drive 2 = external
 
         // Pump the engine via Tick(N) rather than CPU cycles (the read path's
         // catch-up needs a live, advancing CPU counter we are not providing).
-        core.diskController->SetCpuCycleSource (nullptr);
+        machine.GetRefs().diskController->SetCpuCycleSource (nullptr);
 
-        core.bus->ReadByte (0xC0EB);   // select drive 2 (external)
-        core.bus->ReadByte (0xC0E9);   // motor on -> drive 2's engine spins
-        core.bus->ReadByte (0xC0ED);   // Q6 high first
-        core.bus->ReadByte (0xC0EC);   // Q6 low
-        core.bus->ReadByte (0xC0EE);   // Q7 low -> read mode
-        core.diskController->Tick (Disk2Controller::kMotorSpinupCycles);
+        machine.GetMemoryBus().ReadByte (0xC0EB);   // select drive 2 (external)
+        machine.GetMemoryBus().ReadByte (0xC0E9);   // motor on -> drive 2's engine spins
+        machine.GetMemoryBus().ReadByte (0xC0ED);   // Q6 high first
+        machine.GetMemoryBus().ReadByte (0xC0EC);   // Q6 low
+        machine.GetMemoryBus().ReadByte (0xC0EE);   // Q7 low -> read mode
+        machine.GetRefs().diskController->Tick (Disk2Controller::kMotorSpinupCycles);
 
         for (int i = 0; i < 4000 && !sawValidNibble; i++)
         {
-            if (core.bus->ReadByte (0xC0EC) & 0x80)
+            if (machine.GetMemoryBus().ReadByte (0xC0EC) & 0x80)
             {
                 sawValidNibble = true;
             }
 
-            core.diskController->Tick (8);   // advance ~one disk bit-time
+            machine.GetRefs().diskController->Tick (8);   // advance ~one disk bit-time
         }
 
         Assert::IsTrue (sawValidNibble,
@@ -245,31 +241,28 @@ public:
     // entry with the ROM correctly mapped through the language card.
     TEST_METHOD (BuildsAndResetsToMonitorEntry)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2c");
 
 
 
-        AssertSucceeded (host.BuildApple2c (core),
-            L"BuildApple2c must succeed when the ROM is present");
-        Assert::IsTrue (core.HasApple2e(),
+        Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr),
             L"//c wiring (65C02 + MMU) must be complete");
 
         // Reset vector (read through the bus -> language card ROM, bank 0)
         // must point at the ROM 4 monitor entry.
-        Word resetVec = static_cast<Word> (core.cpu->ReadByte (0xFFFC)) |
-                        (static_cast<Word> (core.cpu->ReadByte (0xFFFD)) << 8);
+        Word resetVec = static_cast<Word> (machine.GetCpu()->ReadByte (0xFFFC)) |
+                        (static_cast<Word> (machine.GetCpu()->ReadByte (0xFFFD)) << 8);
         Assert::AreEqual<Word> (kMonitorReset, resetVec,
             L"RESET vector must select the bank-0 monitor entry $FA62");
 
         // $FA62 must decode as CLD ($D8): the classic monitor reset preamble,
         // i.e. the LC is serving bank-0 ROM at $D000-$FFFF.
-        Assert::AreEqual<Byte> (0xD8, core.cpu->ReadByte (0xFA62),
+        Assert::AreEqual<Byte> (0xD8, machine.GetCpu()->ReadByte (0xFA62),
             L"$FA62 must read CLD from the mapped monitor ROM");
 
         // The CPU powers on at the reset entry.
-        core.PowerCycle();
-        Assert::AreEqual<Word> (kMonitorReset, core.cpu->GetPC(),
+        machine.PowerCycle();
+        Assert::AreEqual<Word> (kMonitorReset, machine.GetCpu()->GetPC(),
             L"Cold reset must enter the monitor at $FA62");
     }
 
@@ -286,8 +279,7 @@ public:
     {
         FixtureProvider       fp;
         std::vector<uint8_t>  rom;
-        HeadlessHost          host;
-        EmulatorCore          core;
+        TestMachine          machine ("Apple2c");
         // Pascal firmware ID at each phantom firmware page.
         const Word            pages[] = { 0xC100, 0xC200, 0xC300, 0xC700 };
 
@@ -295,31 +287,30 @@ public:
 
         AssertSucceeded (fp.OpenFixture ("Apple2c.rom", rom));
 
-        AssertSucceeded (host.BuildApple2c (core));
-        core.PowerCycle();
+        machine.PowerCycle();
 
         for (Word base : pages)
         {
-            Assert::AreEqual<Byte> (0x38, core.bus->ReadByte ((Word) (base + 0x05)),
+            Assert::AreEqual<Byte> (0x38, machine.GetMemoryBus().ReadByte ((Word) (base + 0x05)),
                 L"$Cn05 Pascal ID present");
-            Assert::AreEqual<Byte> (0x18, core.bus->ReadByte ((Word) (base + 0x07)),
+            Assert::AreEqual<Byte> (0x18, machine.GetMemoryBus().ReadByte ((Word) (base + 0x07)),
                 L"$Cn07 Pascal ID present");
         }
 
         // Disk boot firmware at slot 6: LDX #$20 / LDY #$00 prologue.
-        Assert::AreEqual<Byte> (0xA2, core.bus->ReadByte (0xC600), L"$C600 LDX");
-        Assert::AreEqual<Byte> (0x20, core.bus->ReadByte (0xC601), L"$C601 #$20");
-        Assert::AreEqual<Byte> (0xA0, core.bus->ReadByte (0xC602), L"$C602 LDY");
+        Assert::AreEqual<Byte> (0xA2, machine.GetMemoryBus().ReadByte (0xC600), L"$C600 LDX");
+        Assert::AreEqual<Byte> (0x20, machine.GetMemoryBus().ReadByte (0xC601), L"$C601 #$20");
+        Assert::AreEqual<Byte> (0xA0, machine.GetMemoryBus().ReadByte (0xC602), L"$C602 LDY");
 
         // Live 6551 ACIAs behind the slot-1/2 I/O pages (TxEmpty after reset).
-        Assert::IsTrue ((core.bus->ReadByte (0xC099) & 0x10) != 0, L"port 1 ACIA status");
-        Assert::IsTrue ((core.bus->ReadByte (0xC0A9) & 0x10) != 0, L"port 2 ACIA status");
+        Assert::IsTrue ((machine.GetMemoryBus().ReadByte (0xC099) & 0x10) != 0, L"port 1 ACIA status");
+        Assert::IsTrue ((machine.GetMemoryBus().ReadByte (0xC0A9) & 0x10) != 0, L"port 2 ACIA status");
 
         // No user-insertable slots: the $C800 expansion space always reads
         // the internal firmware image (bank 0), never a card ROM.
-        Assert::AreEqual<Byte> ((Byte) rom[0x0800], core.bus->ReadByte (0xC800),
+        Assert::AreEqual<Byte> ((Byte) rom[0x0800], machine.GetMemoryBus().ReadByte (0xC800),
             L"$C800 serves internal firmware");
-        Assert::AreEqual<Byte> ((Byte) rom[0x0FFF], core.bus->ReadByte (0xCFFF),
+        Assert::AreEqual<Byte> ((Byte) rom[0x0FFF], machine.GetMemoryBus().ReadByte (0xCFFF),
             L"$CFFF serves internal firmware");
     }
 
@@ -332,29 +323,26 @@ public:
     // end to end. (The printer-endpoint bridge is downstream.)
     TEST_METHOD (SerialPortsLoopBackViaBuiltInAcia)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2c");
         const Word     dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
 
 
 
-        AssertSucceeded (host.BuildApple2c (core),
-            L"BuildApple2c must succeed when the ROM is present");
-        core.PowerCycle();
+        machine.PowerCycle();
 
         for (Word data : dataAddrs)
         {
             Word  status = static_cast<Word> (data + Acia6551::kRegStatus);
 
-            Assert::IsTrue ((core.bus->ReadByte (status) & Acia6551::kStatusRxFull) == 0,
+            Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) == 0,
                 L"receiver must start empty");
 
-            core.bus->WriteByte (data, 0x5A);            // transmit -> loopback
-            Assert::IsTrue ((core.bus->ReadByte (status) & Acia6551::kStatusRxFull) != 0,
+            machine.GetMemoryBus().WriteByte (data, 0x5A);            // transmit -> loopback
+            Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0,
                 L"loopback must latch RxFull after transmit");
-            Assert::AreEqual<Byte> (0x5A, core.bus->ReadByte (data),
+            Assert::AreEqual<Byte> (0x5A, machine.GetMemoryBus().ReadByte (data),
                 L"received byte must equal the transmitted byte");
-            Assert::IsTrue ((core.bus->ReadByte (status) & Acia6551::kStatusRxFull) == 0,
+            Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) == 0,
                 L"reading the data register must clear RxFull");
         }
     }
@@ -378,17 +366,16 @@ public:
 
         auto  bootWithSwitch = [] (bool switchIn, size_t & outCols, Byte & outC060)
         {
-            HeadlessHost host; EmulatorCore core;
-            AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
+            TestMachine machine ("Apple2c");
 
-            core.keyboard->SetEightyColumnSwitchIn (switchIn);
-            core.PowerCycle();
-            core.RunCycles (15'000'000);
+            machine.GetRefs().iieKeyboard->SetEightyColumnSwitchIn (switchIn);
+            machine.PowerCycle();
+            machine.RunCycles (15'000'000);
 
-            auto  rows = TextScreenScraper::Scrape (core);
+            auto  rows = TextScreenScraper::Scrape (machine);
             Assert::IsFalse (rows.empty(), L"scrape must yield rows");
             outCols = rows.front().size();
-            outC060 = core.bus->ReadByte (0xC060);
+            outC060 = machine.GetMemoryBus().ReadByte (0xC060);
         };
 
 

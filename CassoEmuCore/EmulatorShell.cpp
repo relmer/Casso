@@ -946,9 +946,6 @@ HRESULT EmulatorShell::Initialize (
 
     m_fOleInitialized = true;
 
-    // Register built-in device factories
-    ComponentRegistry::RegisterBuiltinDevices (m_machine.GetRegistry());
-
     AllocateFramebuffers();
 
     PrimeChromeThemeEarly();

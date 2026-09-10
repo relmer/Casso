@@ -2,7 +2,7 @@
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "ApplesoftTokenizer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -129,9 +129,9 @@ public:
     }
 
 
-    static Word ReadGuestWord (EmulatorCore & core, Word address)
+    static Word ReadGuestWord (MachineHost & machine, Word address)
     {
-        std::vector<Byte>  bytes = GuestSession::GuestBytesAt (core, address, 2);
+        std::vector<Byte>  bytes = GuestSession::GuestBytesAt (machine, address, 2);
 
         return (Word) (bytes[0] | (bytes[1] << 8));
     }
@@ -193,8 +193,7 @@ public:
 
     TEST_METHOD (TheCommittedFixture_IsWhatApplesoftStoresForTheCommittedListing)
     {
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e");
         std::vector<Byte>         master   = GuestSession::RequireDos33Master();
         std::vector<std::string>  lines    = CorpusLines();
         std::vector<Byte>         expected = CommittedFixtureOrEmpty();
@@ -206,17 +205,17 @@ public:
 
 
 
-        GuestSession::BootToPrompt (host, core, master);
+        GuestSession::BootToPrompt (machine, master);
 
-        GuestSession::TypeAndCollect (core, "NEW");
+        GuestSession::TypeAndCollect (machine, "NEW");
 
         for (i = 0; i < lines.size(); i++)
         {
-            GuestSession::TypeAndCollect (core, lines[i]);
+            GuestSession::TypeAndCollect (machine, lines[i]);
         }
 
-        txtTab = ReadGuestWord (core, kTxtTab);
-        varTab = ReadGuestWord (core, kVarTab);
+        txtTab = ReadGuestWord (machine, kTxtTab);
+        varTab = ReadGuestWord (machine, kVarTab);
 
         Assert::AreEqual ((int) ApplesoftTokenizer::kProgramBase, (int) txtTab,
             L"Applesoft must be holding its program where the tokenizer builds links for");
@@ -226,7 +225,7 @@ public:
             L"nothing was typed, and dumping that would commit an empty oracle");
 
         stored = TrimToTheNullLink (
-                     GuestSession::GuestBytesAt (core, txtTab, (size_t) (varTab - txtTab)));
+                     GuestSession::GuestBytesAt (machine, txtTab, (size_t) (varTab - txtTab)));
 
         if (stored != expected)
         {

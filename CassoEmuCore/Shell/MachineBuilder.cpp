@@ -4,6 +4,7 @@
 
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/PrinterAudioSource.h"
+#include "Core/ComponentRegistry.h"
 #include "Core/CpuFactory.h"
 #include "Core/JsonParser.h"
 #include "Core/MachineConfig.h"
@@ -73,6 +74,15 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     HRESULT  hr = S_OK;
 
 
+
+    //  The registry the device pass creates from. This used to be filled by
+    //  EmulatorShell::Initialize, between initializing OLE and allocating
+    //  framebuffers, so a machine built by anything other than a starting
+    //  window came up with every registry-made device missing -- and
+    //  silently, because an unknown device type is a diagnostic and a
+    //  `continue`. The machine that needs the factories is the one being
+    //  built, and this is where it is built.
+    ComponentRegistry::RegisterBuiltinDevices (m_host.GetRegistry());
 
     hr = CreateMemoryDevices (config);
     CHR (hr);

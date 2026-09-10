@@ -2,7 +2,7 @@
 
 #include "../../CassoEmuCore/Pch.h"
 
-#include "HeadlessHost.h"
+#include "Shell/MachineHost.h"
 
 
 
@@ -34,7 +34,7 @@ public:
 
     // Row-major scrape of the active text screen. The number of columns
     // in each row matches the requested mode (40 or 80).
-    static std::vector<std::string>  Scrape   (const EmulatorCore & core);
+    static std::vector<std::string>  Scrape   (MachineHost & host);
     static std::vector<std::string>  Scrape40 (MemoryBus & bus, Word pageBase);
     static std::vector<std::string>  Scrape80 (MemoryBus & bus, const Byte * auxRam,
                                                Word pageBase);

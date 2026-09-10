@@ -1,4 +1,7 @@
 #include "Pch.h"
+
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "TextScreenScraper.h"
 
 
@@ -169,17 +172,17 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> TextScreenScraper::Scrape (const EmulatorCore & core)
+std::vector<std::string> TextScreenScraper::Scrape (MachineHost & host)
 {
-    const Byte *   auxRam   = core.mmu->GetAuxBuffer();
-    bool           col80    = core.softSwitches->Is80ColMode  ();
-    bool           page2    = core.softSwitches->IsPage2      ();
+    const Byte *   auxRam   = host.GetMmu()->GetAuxBuffer();
+    bool           col80    = host.GetRefs().iieSoftSwitches->Is80ColMode  ();
+    bool           page2    = host.GetRefs().iieSoftSwitches->IsPage2      ();
     Word           pageBase = (page2 && !col80) ? kTextPage2 : kTextPage1;
 
 
 
     // Only the 80-column path needs the aux buffer -- that is where the even
     // columns live.
-    return col80 ? Scrape80 (*core.bus, auxRam, pageBase)
-                 : Scrape40 (*core.bus, pageBase);
+    return col80 ? Scrape80 (host.GetMemoryBus(), auxRam, pageBase)
+                 : Scrape40 (host.GetMemoryBus(), pageBase);
 }

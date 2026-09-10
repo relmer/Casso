@@ -6,7 +6,7 @@
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
 
@@ -122,8 +122,7 @@ public:
         //  A direct-boot payload rather than a DOS 3.3 disk: it needs no
         //  master image, so the test runs the same everywhere instead of
         //  skipping on a checkout that has none.
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e");
         DiskImage                 built;
         DiskImage               * mounted = nullptr;
         vector<Byte>              payload;
@@ -169,25 +168,24 @@ public:
         AssertSucceeded (NibbleImageCodec::Build (built, NibbleImageCodec::kNibTrackSize, nibFile));
         Assert::AreEqual (NibbleImageCodec::kNibImageSize, nibFile.size());
 
-        AssertSucceeded (host.BuildApple2eWithDisk2 (core));
-        core.PowerCycle();
+        machine.PowerCycle();
 
         //  Drive 1 is index 0 and INTCXROM-off is $C006. Getting either wrong
         //  leaves the boot ROM seeking an empty drive forever, which does not
         //  fail -- it just never goes idle and spends the whole ceiling.
-        AssertSucceeded (core.diskStore->MountFromBytes (kSlot6, kDrive1, "boot.nib",
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1, "boot.nib",
                                                          DiskFormat::Nib, nibFile));
 
-        mounted = core.diskStore->GetImage (kSlot6, kDrive1);
+        mounted = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (mounted, L"the nibble image must mount");
-        core.diskController->SetExternalDisk (kDrive1, mounted);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, mounted);
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
-        MachineIdle::RunUntilIdle (core, kBootCeiling);
+        MachineIdle::RunUntilIdle (machine, kBootCeiling);
 
-        rows = TextScreenScraper::Scrape40 (*core.bus, TextScreenScraper::kTextPage1);
+        rows = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
 
         Assert::IsTrue (rows.size() > 0, L"the text page must have been scraped");
 
