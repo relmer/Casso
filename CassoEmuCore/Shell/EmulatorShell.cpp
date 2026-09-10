@@ -125,7 +125,8 @@ EmulatorShell::EmulatorShell()
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
     m_machine.SetVideoTiming (make_unique<VideoTiming>());
 
-    m_clipboardManager = std::make_unique<ClipboardManager> (m_machine.GetMemoryBus(),
+    m_clipboardManager = std::make_unique<ClipboardManager> (m_hostClipboard,
+                                                              m_machine.GetMemoryBus(),
                                                               m_cpuManager.GetCommandMutex(),
                                                               m_cpuManager.GetPasteBuffer(),
                                                               m_framebufferMutex,

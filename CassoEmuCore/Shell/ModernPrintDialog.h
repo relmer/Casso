@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "../../CassoEmuCore/Devices/Printer/PrinterTypes.h"   // DotStyle
+#include "Devices/Printer/PrinterTypes.h"   // DotStyle
+#include "Seams/IPrintDialog.h"
 
 class PrintRaster;
 
@@ -39,17 +40,17 @@ class PrintRaster;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ModernPrintDialog
+class ModernPrintDialog : public IPrintDialog
 {
 public:
     ModernPrintDialog  () = default;
-    ~ModernPrintDialog ();
+    ~ModernPrintDialog () override;
 
     // Launch the OS print UI over `hwnd` for a copy of `raster`, rendering at
     // `outputDpi` in `style` (the user's Printing prefs). S_OK == the dialog
     // is up and the session owns its data; any failure == use the classic
     // path. A second call while a session is in flight re-shows the UI.
-    HRESULT  ShowAsync (HWND hwnd, const PrintRaster & raster, int outputDpi, DotStyle style);
+    HRESULT  ShowAsync (HWND hwnd, const PrintRaster & raster, int outputDpi, DotStyle style) override;
 
 private:
     // ABI-typed internals live in the .cpp; the header keeps only opaque

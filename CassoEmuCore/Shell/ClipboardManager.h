@@ -4,6 +4,7 @@
 
 #include "Core/MemoryBus.h"
 #include "Capture/CapturedImage.h"
+#include "Seams/IHostClipboard.h"
 
 
 class AppleKeyboard;
@@ -31,7 +32,8 @@ class AppleKeyboard;
 class ClipboardManager
 {
 public:
-    ClipboardManager  (MemoryBus                & memoryBus,
+    ClipboardManager  (IHostClipboard           & clipboard,
+                       MemoryBus                & memoryBus,
                        std::mutex               & cmdMutex,
                        std::string              & pasteBuffer,
                        std::mutex               & framebufferMutex,
@@ -66,6 +68,16 @@ public:
     // trailing spaces trimmed.
     std::wstring  BuildScreenText (const Byte * auxRam) const;
 
+    // The CF_DIB payload for a captured image: a BITMAPINFOHEADER and the
+    // rows bottom-up, which is the order a DIB stores them. Built here rather
+    // than at the clipboard so what is placed can be read back by a test.
+    static void  BuildDib (const CapturedImage & image, std::vector<Byte> & outDib);
+
+    // Pasted text reduced to what the Apple II keyboard can take: a return
+    // becomes the CR the guest expects, a newline is dropped so CRLF is one
+    // return, and anything outside printable ASCII is left out.
+    static void  AppendPasteText (const std::wstring & text, std::string & pasteBuffer);
+
 private:
     static constexpr Byte  kHighBitMask      = 0x80;
     static constexpr Byte  kPrintableLow     = 0x20;
@@ -77,6 +89,7 @@ private:
     // non-printables blanked).
     static wchar_t  DecodeScreenByte (Byte ch);
 
+    IHostClipboard         & m_clipboard;
     MemoryBus              & m_memoryBus;
     std::mutex             & m_cmdMutex;
     std::string            & m_pasteBuffer;

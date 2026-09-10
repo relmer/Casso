@@ -304,233 +304,145 @@ void EmulatorShell::OnCpuThreadStop()
 //
 //  DispatchCpuCommand
 //
-//  Single-command dispatcher invoked by CpuManager once per drained
-//  EmulatorCommand. All branches run on the CPU thread, where it is
-//  safe to touch CPU, bus, and device state.
+//  Invoked by CpuManager once per drained EmulatorCommand, on the CPU
+//  thread, where it is safe to touch CPU, bus and device state. The command
+//  ids and the payload grammar live in CpuCommandDispatcher; this shell is
+//  the target it calls, and the eight small overrides below are the calls
+//  that used to be inline in the switch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 {
-    switch (cmd.id)
+    CpuCommandDispatcher::Dispatch (cmd, *this);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepInstruction
+//
+//  The first of the ICpuCommandTarget overrides: each one outcome, over the
+//  machine, the disk manager or a mixer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StepInstruction()
+{
+    if (m_machine.GetCpu() != nullptr)
     {
-        case IDM_FILE_OPEN:
-        {
-            HRESULT  hrSwitch = S_OK;
-
-            wstring wideName (cmd.payload.begin(), cmd.payload.end());
-            hrSwitch = SwitchMachine (wideName);
-
-            if (FAILED (hrSwitch))
-            {
-                DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hrSwitch);
-            }
-
-            break;
-        }
-
-        case IDM_MACHINE_RESET:
-        {
-            // Re-read disks from the host filesystem first so an
-            // externally-regenerated .dsk (typical dev workflow:
-            // hack on a demo, regenerate the disk image, hit
-            // Reset) is picked up by the post-reset boot.
-            m_diskManager->RemountSlot6Disks();
-            SoftReset();
-            break;
-        }
-
-        case IDM_MACHINE_POWERCYCLE:
-        {
-            // EmulatorShell::PowerCycle preserves DiskImageStore
-            // mounts but Disk2Controller::PowerCycle unbinds the
-            // controller's external-disk pointer (it re-points
-            // each engine at its empty internal sentinel), so
-            // without an explicit re-mount the drives come up
-            // empty and the boot ROM has nothing to read.
-            // RemountSlot6Disks both re-binds the engines AND
-            // re-reads the host file (so external regenerations
-            // are picked up).
-            PowerCycle();
-            m_diskManager->RemountSlot6Disks();
-            break;
-        }
-
-        case IDM_MACHINE_STEP:
-        {
-            if (m_machine.GetCpu())
-            {
-                // StepOne dispatches a pending interrupt vector itself (see
-                // the slice loop) -- no separate TryStepInterrupt poll needed.
-                m_machine.GetCpu()->StepOne();
-
-                if (m_machine.GetRefs().diskController != nullptr)
-                {
-                    m_machine.GetRefs().diskController->Tick (m_machine.GetCpu()->GetLastInstructionCycles());
-                }
-
-                if (m_machine.GetRefs().mockingboard != nullptr)
-                {
-                    m_machine.GetRefs().mockingboard->Tick (m_machine.GetCpu()->GetLastInstructionCycles());
-                }
-
-            }
-
-            break;
-        }
-
-        case IDM_DISK_INSERT1:
-        case IDM_DISK_INSERT2:
-        {
-            int      drive   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
-            HRESULT  hrMount = S_OK;
-
-            hrMount = m_diskManager->MountDiskInSlot6 (drive, cmd.payload);
-            IGNORE_RETURN_VALUE (hrMount, S_OK);
-            break;
-        }
-
-        case IDM_DISK_EJECT1:
-        case IDM_DISK_EJECT2:
-        {
-            int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
-
-            m_diskManager->EjectDiskInSlot6 (drive);
-            break;
-        }
-
-        case IDM_DISK_WRITEPROTECT1:
-        case IDM_DISK_WRITEPROTECT2:
-        {
-            int   drive = (cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1;
-            bool  wp    = (!cmd.payload.empty() && cmd.payload[0] == '1');
-
-            SetDriveUserWriteProtect (drive, wp);
-            break;
-        }
-
-        case IDM_DISK_WP1:
-        case IDM_DISK_WP2:
-        {
-            int      drive    = (cmd.id == IDM_DISK_WP1) ? 0 : 1;
-            HRESULT  hrToggle = S_OK;
-
-            // Runs on the CPU thread like mount / eject so the flush never
-            // races the drive engine; failures already reported inside.
-            hrToggle = m_diskManager->ToggleImageWriteProtect (drive);
-            IGNORE_RETURN_VALUE (hrToggle, S_OK);
-            break;
-        }
-
-        case IDM_DISK_SALVAGE1:
-        case IDM_DISK_SALVAGE2:
-        {
-            RunSalvageFlow ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
-            break;
-        }
-
-        case IDM_DISK_RESOLVE_CHANGE:
-        {
-            // "<slot> <drive> <action> <path>", chosen on the UI thread and
-            // carried out here, where swapping an image is safe. The path is
-            // last and takes the rest of the line, since it may contain
-            // spaces.
-            std::istringstream  reader (cmd.payload);
-            int                 slot   = 0;
-            int                 drive  = 0;
-            int                 chosen = 0;
-            std::string         savePath;
-
-            reader >> slot >> drive >> chosen;
-
-            if (!reader.fail())
-            {
-                std::getline (reader, savePath);
-
-                while (!savePath.empty() && savePath.front() == ' ')
-                {
-                    savePath.erase (savePath.begin());
-                }
-
-                m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) chosen,
-                                                  savePath);
-            }
-
-            break;
-        }
-
-        case IDM_AUDIO_DRIVE_ENABLE:
-        case IDM_AUDIO_DRIVE_DISABLE:
-        {
-            m_driveAudioMixer.SetEnabled (cmd.id == IDM_AUDIO_DRIVE_ENABLE);
-            break;
-        }
-
-        case IDM_AUDIO_DRIVE_MECHANISM:
-        {
-            HRESULT  hrMech = S_OK;
-
-            // Payload is "shugart" or "alps" (canonical lower-case from
-            // SettingsPanelState). DriveAudioMixer matches case-insensitively
-            // and canonicalizes internally, so hand the token over as-is.
-            std::wstring  mechWide (cmd.payload.begin(), cmd.payload.end());
-            hrMech = m_driveAudioMixer.SetMechanism (mechWide);
-
-            IGNORE_RETURN_VALUE (hrMech, S_OK);
-            break;
-        }
-
-        case IDM_AUDIO_DRIVE_VOLUMES:
-        {
-            // Payload is "motor,head,door" as integer percents (0..100).
-            int  motorPct = 0;
-            int  headPct  = 0;
-            int  doorPct  = 0;
-
-            if (sscanf_s (cmd.payload.c_str(), "%d,%d,%d", &motorPct, &headPct, &doorPct) == 3)
-            {
-                SetDriveAudioVolumes ((float) motorPct / 100.0f,
-                                      (float) headPct  / 100.0f,
-                                      (float) doorPct  / 100.0f);
-            }
-
-            break;
-        }
-
-        case IDM_AUDIO_DRIVE_PAN:
-        {
-            // Payload is "pan0,pan1" as integer percents (-100..100),
-            // -100 = hard left, +100 = hard right.
-            int  pan0 = 0;
-            int  pan1 = 0;
-
-            if (sscanf_s (cmd.payload.c_str(), "%d,%d", &pan0, &pan1) == 2)
-            {
-                SetDriveAudioPan (0, (float) pan0 / 100.0f);
-                SetDriveAudioPan (1, (float) pan1 / 100.0f);
-            }
-
-            break;
-        }
-
-        case IDM_AUDIO_DRIVE_TEST:
-        {
-            // Payload is "drive,kind" (drive 0/1; kind 0=motor 1=head
-            // 2=door), auditioning a single sound at current settings.
-            int  drive = 0;
-            int  kind  = 0;
-
-            if (sscanf_s (cmd.payload.c_str(), "%d,%d", &drive, &kind) == 2)
-            {
-                PlayDriveTestSound (drive, kind);
-            }
-
-            break;
-        }
-
-        default:
-            break;
+        m_machine.StepOne();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemountDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RemountDisks()
+{
+    m_diskManager->RemountSlot6Disks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::MountDisk (int drive, const std::string & path)
+{
+    return m_diskManager->MountDiskInSlot6 (drive, path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::EjectDisk (int drive)
+{
+    m_diskManager->EjectDiskInSlot6 (drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleImageWriteProtect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ToggleImageWriteProtect (int drive)
+{
+    // On the CPU thread like mount and eject, so the flush never races the
+    // drive engine; failures are already reported inside.
+    return m_diskManager->ToggleImageWriteProtect (drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolvePendingChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
+{
+    m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveAudioEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDriveAudioEnabled (bool enabled)
+{
+    m_driveAudioMixer.SetEnabled (enabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveAudioMechanism
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::SetDriveAudioMechanism (const std::wstring & mechanism)
+{
+    return m_driveAudioMixer.SetMechanism (mechanism);
 }
 
 
@@ -766,8 +678,7 @@ void EmulatorShell::RunCpuThreadFrame()
 
 void EmulatorShell::TickKeyboardAutoRepeat()
 {
-    chrono::steady_clock::time_point  now      = chrono::steady_clock::now();
-    int64_t                           elapsed  = 0;
+    uint32_t  elapsed = 0;
 
 
 
@@ -776,29 +687,15 @@ void EmulatorShell::TickKeyboardAutoRepeat()
         return;
     }
 
-    if (m_lastKeyRepeatSteady == chrono::steady_clock::time_point{})
-    {
-        // First frame since the machine came up: start the interval here
-        // rather than report the whole time since the epoch as elapsed.
-        m_lastKeyRepeatSteady = now;
-        return;
-    }
+    // The first frame since the machine came up starts the interval rather
+    // than reporting the whole time since the epoch, and a stall is charged
+    // once at the device's initial delay: the device caps anything past it at
+    // one repeat anyway. Both rules are the clock's, and tested there.
+    elapsed = m_frameClock.TakeKeyRepeatElapsedUs (AppleKeyboard::kKeyRepeatDelayUs);
 
-    elapsed = chrono::duration_cast<chrono::microseconds> (now - m_lastKeyRepeatSteady).count();
-
-    if (elapsed <= 0)
+    if (elapsed == 0)
     {
         return;
-    }
-
-    m_lastKeyRepeatSteady += chrono::microseconds (elapsed);
-
-    // An hour of stall does not fit the 32-bit interval the device takes, and
-    // the device caps anything past the initial delay at one repeat anyway, so
-    // capping here loses nothing and keeps the cast honest.
-    if (elapsed > static_cast<int64_t> (AppleKeyboard::kKeyRepeatDelayUs))
-    {
-        elapsed = AppleKeyboard::kKeyRepeatDelayUs;
     }
 
     m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
@@ -833,7 +730,7 @@ void EmulatorShell::TickKeyboardAutoRepeat()
 //  interrupt poll used to wrap this and was simply a second, redundant poll
 //  on every instruction.
 //
-//  The fractional sample carried in m_sampleRemainder is what keeps audio
+//  The fractional sample the AudioSampleBudget carries is what keeps audio
 //  from drifting: cycles per sample is rarely integral, and truncating it
 //  every slice would lose a sample every few frames and slowly desync.
 //
@@ -856,7 +753,6 @@ void EmulatorShell::ExecuteCpuSlices()
     double    cyclesPerSample = 0.0;
     uint32_t  sliceTarget     = 0;
     uint32_t  sliceActual     = 0;
-    double    exactSamples    = 0.0;
     uint32_t  numSamples      = 0;
 
 
@@ -914,10 +810,7 @@ void EmulatorShell::ExecuteCpuSlices()
 
         if (audioActive)
         {
-            exactSamples = static_cast<double> (sliceActual) / cyclesPerSample + m_sampleRemainder;
-            numSamples   = static_cast<uint32_t> (exactSamples);
-
-            m_sampleRemainder = exactSamples - static_cast<double> (numSamples);
+            numSamples = m_sampleBudget.SamplesFor (sliceActual, cyclesPerSample);
 
             hr = m_wasapiAudio.SubmitFrame (m_machine.GetRefs().speaker->GetToggleTimestamps(),
                                             sliceActual,

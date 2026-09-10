@@ -995,51 +995,32 @@ void WindowCommandManager::OnViewCommand (int id)
 
 HRESULT WindowCommandManager::PromptForDiskImage (int drive, bool & outMountStarted)
 {
-    HRESULT                          hr         = S_OK;
-    ComPtr<IFileOpenDialog>          dialog;
-    ComPtr<IShellItem>               item;
-    PWSTR                            pszPath    = nullptr;
-    COMDLG_FILTERSPEC                filters[2] = { { L"Disk images", L"*.dsk;*.do;*.woz;*.po" },
-                                                    { L"All files",   L"*.*" } };
+    HRESULT         hr     = S_OK;
+    FileDialogSpec  spec;
+    fs::path        chosen;
+    bool            picked = false;
 
 
 
     outMountStarted = false;
 
-    hr = CoCreateInstance (CLSID_FileOpenDialog,
-                           nullptr,
-                           CLSCTX_INPROC_SERVER,
-                           IID_PPV_ARGS (&dialog));
-    CHR (hr);
+    spec.filters = { { L"Disk images", L"*.dsk;*.do;*.woz;*.po" },
+                     { L"All files",   L"*.*" } };
 
-    hr = dialog->SetFileTypes (std::size (filters), filters);
+    hr = m_shell.GetHostDialogs().PickFileToOpen (m_shell.m_hwnd, spec, chosen, picked);
     CHR (hr);
-
-    hr = dialog->Show (m_shell.m_hwnd);
 
     // Backing out of the file picker means there is nothing to mount -- not
-    // an error, so it normalizes to S_OK; outMountStarted (still false) is
-    // what tells the caller no mount happened.
-    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED), S_OK);
-    CHR (hr);
+    // an error; outMountStarted (still false) is what tells the caller no
+    // mount happened.
+    BAIL_OUT_IF (!picked, S_OK);
 
-    hr = dialog->GetResult (&item);
-    CHR (hr);
-
-    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
-    CHR (hr);
-
-    hr = m_shell.Mount (6, drive - 1, pszPath);
+    hr = m_shell.Mount (6, drive - 1, chosen.wstring());
     CHR (hr);
 
     outMountStarted = true;
 
 Error:
-    if (pszPath != nullptr)
-    {
-        CoTaskMemFree (pszPath);
-    }
-
     return hr;
 }
 
@@ -1477,20 +1458,16 @@ static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::path & outFile, PrintOutcome & outOutcome)
 {
     HRESULT                   hr          = S_OK;
-    ComPtr<IFileSaveDialog>   dialog;
-    ComPtr<IShellItem>        folderItem;
-    ComPtr<IShellItem>        item;
-    PWSTR                     pszPath     = nullptr;
     PWSTR                     picturesRaw = nullptr;
+    FileDialogSpec            spec;
     fs::path                  folder;
     fs::path                  suggested;
     vector<Byte>              png;
     SYSTEMTIME                now         = {};
     bool                      isOpen      = false;
     bool                      wroteWell   = false;
+    bool                      picked      = false;
     HRESULT                   hrPictures  = S_OK;
-    HRESULT                   hrItem      = S_OK;
-    HRESULT                   hrFolder    = S_OK;
     std::error_code           ec;
     const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
 
@@ -1498,63 +1475,33 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
 
     outOutcome = PrintOutcome::Delivered;
 
-    static const COMDLG_FILTERSPEC   s_kFilters[] =
-    {
-        { L"PNG image", L"*.png" },
-    };
-
-    hr = CoCreateInstance (CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER,
-                           IID_PPV_ARGS (&dialog));
-    CHR (hr);
-
-    hr = dialog->SetFileTypes (std::size (s_kFilters), s_kFilters);
-    CHR (hr);
-
-    hr = dialog->SetDefaultExtension (L"png");
-    CHR (hr);
-
     // Seed the default folder <Pictures>\Casso Prints + a timestamped name.
     hrPictures = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
-
     if (SUCCEEDED (hrPictures))
     {
         folder = fs::path (picturesRaw) / L"Casso Prints";
-    }
-
-    if (!folder.empty())
-    {
         fs::create_directories (folder, ec);
-
-        hrItem = SHCreateItemFromParsingName (folder.c_str(), nullptr,
-                                              IID_PPV_ARGS (&folderItem));
-
-        if (SUCCEEDED (hrItem))
-        {
-            // Best-effort: an unsettable start folder just means the dialog
-            // opens wherever the shell last left it.
-            hrFolder = dialog->SetFolder (folderItem.Get());
-            IGNORE_RETURN_VALUE (hrFolder, S_OK);
-        }
     }
 
     GetLocalTime (&now);
     suggested = PrintFileNaming::ComposeTimestampedPath (folder, L"Casso Print", L".png", now,
                     [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
 
-    hr = dialog->SetFileName (suggested.filename().c_str());
+    spec.filters          = { { L"PNG image", L"*.png" } };
+    spec.defaultExtension = L"png";
+    spec.defaultFileName  = suggested.filename().wstring();
+    spec.initialFolder    = folder;
+
+    hr = m_shell.GetHostDialogs().PickFileToSave (m_shell.GetPrinterDialogOwner(), spec, outFile, picked);
     CHR (hr);
 
-    hr = dialog->Show (m_shell.GetPrinterDialogOwner());
+    // A user cancel is not a delivery failure.
+    if (!picked)
+    {
+        outOutcome = PrintOutcome::Canceled;
+    }
 
-    CHR (hr);
-
-    hr = dialog->GetResult (&item);
-    CHR (hr);
-
-    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
-    CHR (hr);
-
-    outFile = fs::path (pszPath);
+    BAIL_OUT_IF (!picked, S_OK);
 
     hr = PrintDelivery::RenderToPng (raster, 0, raster.GetRowsUsed() - 1,
                                      WholeStripDpi (prefs, raster.GetRowsUsed()),
@@ -1568,25 +1515,11 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
         CBR (isOpen);
 
         out.write ((const char *) png.data(), (std::streamsize) png.size());
-
         wroteWell = out.good();
         CBR (wroteWell);
     }
 
 Error:
-    // A user cancel is not a delivery failure. Mapping it here rather than at
-    // the exit itself keeps one owner for the rule.
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        outOutcome = PrintOutcome::Canceled;
-        hr         = S_OK;
-    }
-
-    if (pszPath != nullptr)
-    {
-        CoTaskMemFree (pszPath);
-    }
-
     if (picturesRaw != nullptr)
     {
         CoTaskMemFree (picturesRaw);
@@ -2119,9 +2052,9 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         // CASSO_CLASSIC_PRINT env var forces the classic path -- a support
         // hatch for the rare machine whose print stack misbehaves.
         const GlobalUserPrefs &  prefs  = m_shell.m_globalPrefs;
-        HRESULT                  hrShow = m_modernPrint.ShowAsync (m_shell.m_hwnd, job->GetRaster(),
-                                                                   PrintDpiFromPrefs (prefs),
-                                                                   PrintDotStyleFromPrefs (prefs));
+        HRESULT                  hrShow = m_shell.GetPrintDialog().ShowAsync (m_shell.m_hwnd, job->GetRaster(),
+                                                                              PrintDpiFromPrefs (prefs),
+                                                                              PrintDotStyleFromPrefs (prefs));
 
         // The async session owns the outcome from here; resume and let its
         // completion callback post the result.

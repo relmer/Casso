@@ -330,6 +330,8 @@
     <ClCompile Include="EmuTests\MockIrqAsserter.cpp" />
     <ClCompile Include="EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="EmuTests\GoldenImage.cpp" />
+    <ClCompile Include="EmuTests\FrameClockTests.cpp" />
+    <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
     <ClCompile Include="EmuTests\Cpu65C02Tests.cpp" />
@@ -394,6 +396,7 @@
     <ClCompile Include="CaptureTests\ScreenshotMetadataTests.cpp" />
     <ClCompile Include="CaptureTests\ScreenshotPlanTests.cpp" />
     <ClCompile Include="CaptureTests\ScreenshotCaptureTests.cpp" />
+    <ClCompile Include="CaptureTests\HostDialogSeamTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterPipelineTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterJobTests.cpp" />
     <ClCompile Include="PrinterTests\PngCodecTests.cpp" />
@@ -406,6 +409,7 @@
     <ClCompile Include="PrinterTests\PrinterStatusModelTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterViewportTests.cpp" />
     <ClCompile Include="Casso\ClipboardTextTests.cpp" />
+    <ClCompile Include="Casso\ClipboardSeamTests.cpp" />
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
     <ClCompile Include="Casso\InputDebugFilterTests.cpp" />
@@ -456,6 +460,7 @@
     <ClCompile Include="UiTests\SceneCameraTests.cpp" />
     <ClCompile Include="UiTests\CurvedDisplayMathTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneLayoutTests.cpp" />
+    <ClCompile Include="UiTests\ChromeBandLayoutTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneModelTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneHitTesterTests.cpp" />
     <ClCompile Include="UiTests\FullscreenStripStateTests.cpp" />
@@ -530,6 +535,8 @@
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
+    <ClInclude Include="CaptureTests\FakeHostDialogs.h" />
+    <ClInclude Include="Casso\FakeHostClipboard.h" />
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />
     <ClInclude Include="EmuTests\GuestSession.h" />
     <ClInclude Include="EmuTests\TextScreenScraper.h" />

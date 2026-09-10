@@ -54,55 +54,21 @@ fs::path ScreenshotCapture::DefaultFolder()
 //
 //  BrowseForFolder
 //
-//  The folder picker: IFileOpenDialog with FOS_PICKFOLDERS, which is the
-//  modern replacement for SHBrowseForFolder and the only file dialog in this
-//  tree that selects a directory rather than a file.
+//  The folder picker, through the host dialogs seam.
 //
 //  A cancel is reported as false rather than an error. Backing out of a picker
 //  means keeping what was already configured, which is a normal thing to do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ScreenshotCapture::BrowseForFolder (HWND owner, fs::path & outFolder)
+bool ScreenshotCapture::BrowseForFolder (IHostDialogs & dialogs, HWND owner, fs::path & outFolder)
 {
-    HRESULT                   hr      = S_OK;
-    ComPtr<IFileOpenDialog>   dialog;
-    ComPtr<IShellItem>        item;
-    PWSTR                     path    = nullptr;
-    DWORD                     options = 0;
-    bool                      picked  = false;
+    bool     picked = false;
+    HRESULT  hr     = dialogs.PickFolder (owner, outFolder, picked);
 
 
 
-    hr = CoCreateInstance (CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
-                           IID_PPV_ARGS (&dialog));
-    CHR (hr);
-
-    hr = dialog->GetOptions (&options);
-    CHR (hr);
-
-    hr = dialog->SetOptions (options | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
-    CHR (hr);
-
-    hr = dialog->Show (owner);
-    CHR (hr);
-
-    hr = dialog->GetResult (&item);
-    CHR (hr);
-
-    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &path);
-    CHR (hr);
-
-    outFolder = fs::path (path);
-    picked    = true;
-
-Error:
-    if (path != nullptr)
-    {
-        CoTaskMemFree (path);
-    }
-
-    return picked;
+    return SUCCEEDED (hr) && picked;
 }
 
 

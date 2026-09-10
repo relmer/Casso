@@ -121,12 +121,12 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 - [x] T049 [US4] Move `Casso/Shell/` to `CassoEmuCore/Shell/`: `WindowCommandManager`, `MachineManager`, `DiskManager`, `CpuManager`, `ClipboardManager`, `ScreenshotCapture`, `DiskMru`, `WindowManager`, `ModernPrintDialog`
 - [x] T050 [US4] Move `Casso/Print/` to `CassoEmuCore/Print/`
-- [ ] T051 [US4] Introduce seams for the clipboard round-trip and the image encode, both sides in core, and place the OS-owned print and file dialogs behind seams as well
+- [x] T051 [US4] Introduce seams for the clipboard round-trip and the image encode, both sides in core, and place the OS-owned print and file dialogs behind seams as well
 - [x] T052 [US4] Delete the `Shell/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj`
 - [x] T053 [P] [US4] Test: switching machines re-attaches an open debug panel to the new controller and audio source — the shipped fix that has no test guarding it
 - [x] T054 [P] [US4] Test: an MRU list at capacity moves an already-present entry to the front without duplicating and without evicting an unrelated entry
 - [x] T055 [P] [US4] Test: a screenshot captured from a synthetic framebuffer decodes back to the same pixels at the expected dimensions
-- [ ] T056 [P] [US4] Test: command dispatch and mount/eject outcomes against mock sinks
+- [x] T056 [P] [US4] Test: command dispatch and mount/eject outcomes against mock sinks
 - [ ] T057 [US4] Launch the emulator and confirm machine switch, mount, clipboard and capture behave as before
 - [x] T058 [US4] Run the per-phase gate and commit with the measurement
 
@@ -147,7 +147,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T065 [P] [US5] Test: a control disabled by another control's value changes enablement when the governing value changes, asserted without painting
 - [x] T066 [P] [US5] Test: desk-scene layout places every element rectangle inside the scene bounds at every supported DPI
 - [x] T067 [P] [US5] Test: settings page validation and the apply commands each page emits
-- [ ] T068 [P] [US5] Test: chrome state synchronization against synthetic machine state
+- [x] T068 [P] [US5] Test: chrome state synchronization against synthetic machine state
 - [ ] T069 [US5] Launch the emulator and walk every Settings page, the chrome bands and the desk scene, confirming no visible change
 - [x] T070 [US5] Run the per-phase gate and commit with the measurement
 
@@ -162,7 +162,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T071 [US6] Move the remainder of `EmulatorShell` to `CassoEmuCore/Shell/`, splitting it by concern rather than relocating a 15,995-line file whole
 - [x] T072 [US6] Separate device construction and the machine lifecycle façade into `CassoEmuCore/Shell/MachineHost`
 - [x] T073 [US6] Move the window, its creation and its message pump into `CassoEmuCore/Shell/Window`; being in an executable is not what makes them work
-- [ ] T074 [US6] Move CPU-thread orchestration and soft-switch state ownership into core, behind a seam for the passage of time
+- [x] T074 [US6] Move CPU-thread orchestration and soft-switch state ownership into core, behind a seam for the passage of time
       - soft-switch mirror and the run loop are on `MachineHost` (`RunCycles` takes a cycle budget; time stays in `CpuManager`); the CPU-thread callbacks themselves are still on `EmulatorShell`
 - [x] T075 [P] [US6] Test: a machine built headlessly runs a fixed number of cycles and its memory and soft-switch state assert as expected
 - [x] T076 [P] [US6] Test: a soft reset preserves user RAM and takes the reset vector

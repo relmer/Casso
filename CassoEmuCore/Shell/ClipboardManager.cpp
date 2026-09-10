@@ -25,6 +25,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 ClipboardManager::ClipboardManager (
+    IHostClipboard           & clipboard,
     MemoryBus                & memoryBus,
     std::mutex               & cmdMutex,
     std::string              & pasteBuffer,
@@ -33,7 +34,8 @@ ClipboardManager::ClipboardManager (
     int                        framebufferWidth,
     int                        framebufferHeight,
     AppleKeyboard          * * pKeyboardSlot)
-    : m_memoryBus          (memoryBus),
+    : m_clipboard          (clipboard),
+      m_memoryBus          (memoryBus),
       m_cmdMutex           (cmdMutex),
       m_pasteBuffer        (pasteBuffer),
       m_framebufferMutex   (framebufferMutex),
@@ -177,34 +179,13 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 
 void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
 {
-    HGLOBAL       hMem  = nullptr;
-    wchar_t     * pDest = nullptr;
-    std::wstring  text  = BuildScreenText (auxRam);
+    bool  placed = m_clipboard.SetText (hwnd, BuildScreenText (auxRam));
 
 
 
-    // Another process can hold the clipboard; a failed open is not an error
-    // worth surfacing, the copy just does not happen.
-    if (OpenClipboard (hwnd))
-    {
-        EmptyClipboard();
-
-        hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
-
-        if (hMem != nullptr)
-        {
-            pDest = static_cast<wchar_t *> (GlobalLock (hMem));
-
-            if (pDest != nullptr)
-            {
-                memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
-                GlobalUnlock (hMem);
-                SetClipboardData (CF_UNICODETEXT, hMem);
-            }
-        }
-
-        CloseClipboard();
-    }
+    // Another process can hold the clipboard; a failed placement is not an
+    // error worth surfacing, the copy just does not happen.
+    IGNORE_RETURN_VALUE (placed, true);
 }
 
 
@@ -237,20 +218,7 @@ void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
 
 bool ClipboardManager::CopyScreenshot (HWND hwnd, const CapturedImage & image)
 {
-    constexpr WORD  kDibBitCount = 32;
-
-
-
-    HGLOBAL          hMem      = nullptr;
-    BITMAPINFOHEADER bih       = {};
-    size_t           dataSize  = 0;
-    size_t           totalSize = 0;
-    size_t           rowBytes  = 0;
-    Byte           * pDest     = nullptr;
-    int              w         = image.widthPx;
-    int              h         = image.heightPx;
-    int              y         = 0;
-    bool             copied    = false;
+    std::vector<Byte>  dib;
 
 
 
@@ -259,51 +227,55 @@ bool ClipboardManager::CopyScreenshot (HWND hwnd, const CapturedImage & image)
         return false;
     }
 
-    rowBytes  = static_cast<size_t> (w) * CapturedImage::kBytesPerPixel;
-    dataSize  = rowBytes * h;
-    totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
+    BuildDib (image, dib);
 
-    // Once the clipboard is open it MUST be closed on every path, so the
-    // two allocation failures below cannot simply return.
-    if (OpenClipboard (hwnd))
+    return m_clipboard.SetDib (hwnd, dib);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildDib
+//
+//  CF_DIB is chosen over CF_BITMAP because it is device-independent: the
+//  pixels go across as bytes, with no HBITMAP tied to a device context. A
+//  DIB stores its rows bottom-up, so the capture's top row is written last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ClipboardManager::BuildDib (const CapturedImage & image, std::vector<Byte> & outDib)
+{
+    constexpr WORD    kDibBitCount = 32;
+    BITMAPINFOHEADER  bih          = {};
+    size_t            rowBytes     = static_cast<size_t> (image.widthPx) * CapturedImage::kBytesPerPixel;
+    size_t            dataSize     = rowBytes * image.heightPx;
+    Byte *            pDest        = nullptr;
+    int               y            = 0;
+
+
+
+    bih.biSize        = sizeof (bih);
+    bih.biWidth       = image.widthPx;
+    bih.biHeight      = image.heightPx;
+    bih.biPlanes      = 1;
+    bih.biBitCount    = kDibBitCount;
+    bih.biCompression = BI_RGB;
+    bih.biSizeImage   = static_cast<DWORD> (dataSize);
+
+    outDib.resize (sizeof (bih) + dataSize);
+    pDest = outDib.data();
+
+    memcpy (pDest, &bih, sizeof (bih));
+    pDest += sizeof (bih);
+
+    for (y = image.heightPx - 1; y >= 0; y--)
     {
-        EmptyClipboard();
-
-        hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
-
-        if (hMem != nullptr)
-        {
-            pDest = static_cast<Byte *> (GlobalLock (hMem));
-        }
-
-        if (pDest != nullptr)
-        {
-            bih.biSize        = sizeof (bih);
-            bih.biWidth       = w;
-            bih.biHeight      = h;
-            bih.biPlanes      = 1;
-            bih.biBitCount    = kDibBitCount;
-            bih.biCompression = BI_RGB;
-            bih.biSizeImage   = static_cast<DWORD> (dataSize);
-
-            memcpy (pDest, &bih, sizeof (bih));
-            pDest += sizeof (bih);
-
-            // A DIB is bottom-up, so the capture's rows go out in reverse.
-            for (y = h - 1; y >= 0; y--)
-            {
-                memcpy (pDest, &image.bgra[static_cast<size_t> (y) * rowBytes], rowBytes);
-                pDest += rowBytes;
-            }
-
-            GlobalUnlock (hMem);
-            copied = (SetClipboardData (CF_DIB, hMem) != nullptr);
-        }
-
-        CloseClipboard();
+        memcpy (pDest, &image.bgra[static_cast<size_t> (y) * rowBytes], rowBytes);
+        pDest += rowBytes;
     }
-
-    return copied;
 }
 
 
@@ -337,57 +309,56 @@ bool ClipboardManager::CopyScreenshot (HWND hwnd, const CapturedImage & image)
 
 void ClipboardManager::PasteFromClipboard (HWND hwnd)
 {
+    std::wstring  text;
+
+
+
+    if (!m_clipboard.GetText (hwnd, text))
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+        AppendPasteText (text, m_pasteBuffer);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendPasteText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ClipboardManager::AppendPasteText (const std::wstring & text, std::string & pasteBuffer)
+{
     constexpr Byte     kCarriageReturn = 0x0D;
     constexpr wchar_t  kNewline        = L'\n';
     constexpr wchar_t  kReturn         = L'\r';
 
 
 
-    HANDLE     hData = nullptr;
-    wchar_t  * pText = nullptr;
-    size_t     i     = 0;
-
-
-
-    if (!OpenClipboard (hwnd))
+    for (wchar_t ch : text)
     {
-        return;
-    }
-
-    hData = GetClipboardData (CF_UNICODETEXT);
-
-    if (hData != nullptr)
-    {
-        pText = static_cast<wchar_t *> (GlobalLock (hData));
-
-        if (pText != nullptr)
+        if (ch == kNewline)
         {
-            std::lock_guard<std::mutex>  lock (m_cmdMutex);
+            continue;
+        }
 
-            for (i = 0; pText[i] != L'\0'; i++)
-            {
-                wchar_t  ch = pText[i];
-
-                if (ch == kNewline)
-                {
-                    continue;
-                }
-
-                if (ch == kReturn)
-                {
-                    m_pasteBuffer += static_cast<char> (kCarriageReturn);
-                }
-                else if (ch >= kPrintableLow && ch < (wchar_t) (kPrintableHigh + 1))
-                {
-                    m_pasteBuffer += static_cast<char> (ch);
-                }
-            }
-
-            GlobalUnlock (hData);
+        if (ch == kReturn)
+        {
+            pasteBuffer += static_cast<char> (kCarriageReturn);
+        }
+        else if (ch >= kPrintableLow && ch < (wchar_t) (kPrintableHigh + 1))
+        {
+            pasteBuffer += static_cast<char> (ch);
         }
     }
-
-    CloseClipboard();
 }
 
 

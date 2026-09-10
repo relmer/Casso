@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/ClipboardManager.h"
+
+#include "FakeHostClipboard.h"
 #include "Core/MemoryBus.h"
 #include "Core/MemoryDevice.h"
 
@@ -71,9 +73,11 @@ TEST_CLASS (ClipboardTextTests)
     std::vector<uint32_t>  m_uiFramebuffer;
     AppleKeyboard *        m_keyboardSlot = nullptr;
 
+    FakeHostClipboard      m_clipboard;
+
     ClipboardManager  MakeClipboard (MemoryBus & bus)
     {
-        return ClipboardManager (bus, m_cmdMutex, m_pasteBuffer, m_framebufferMutex,
+        return ClipboardManager (m_clipboard, bus, m_cmdMutex, m_pasteBuffer, m_framebufferMutex,
                                  m_uiFramebuffer, 0, 0, &m_keyboardSlot);
     }
 

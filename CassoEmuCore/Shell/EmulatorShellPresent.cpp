@@ -1107,27 +1107,13 @@ Error:
 
 bool EmulatorShell::ShouldPublishFrame()
 {
-    SpeedMode                         speed     = m_cpuManager.GetSpeedMode();
-    chrono::steady_clock::time_point  now       = chrono::steady_clock::now();
-    int64_t                           sinceUs   = 0;
-    bool                              shouldPub = false;
+    SpeedMode  speed = m_cpuManager.GetSpeedMode();
 
 
 
-    //  The clock is read here, where it belongs. FramePacing takes the elapsed
-    //  microseconds instead, so the decision is testable without a test having
-    //  to wait for real time to pass.
-    sinceUs   = chrono::duration_cast<chrono::microseconds> (now - m_lastPublishSteady).count();
-    shouldPub = FramePacing::ShouldPublish (speed == SpeedMode::Maximum,
-                                            sinceUs,
-                                            s_kMaxSpeedPublishIntervalUs);
-
-    if (shouldPub)
-    {
-        m_lastPublishSteady = now;
-    }
-
-    return shouldPub;
+    //  The clock lives in FrameClock, which is what makes the decision
+    //  testable without a test having to wait for real time to pass.
+    return m_frameClock.ShouldPublish (speed == SpeedMode::Maximum, s_kMaxSpeedPublishIntervalUs);
 }
 
 

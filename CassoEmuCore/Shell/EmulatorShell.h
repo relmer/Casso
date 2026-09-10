@@ -17,7 +17,13 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/IAciaEndpoint.h"
 #include "Print/PrinterWorker.h"
+#include "Seams/Win32Clipboard.h"
+#include "Seams/Win32HostDialogs.h"
+#include "Shell/AudioSampleBudget.h"
 #include "Shell/ClipboardManager.h"
+#include "Shell/CpuCommandDispatcher.h"
+#include "Shell/FrameClock.h"
+#include "Shell/ModernPrintDialog.h"
 #include "Shell/ScreenshotCapture.h"
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
@@ -143,7 +149,10 @@ public:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink, public IDxuiViewportInputSink
+class EmulatorShell : public IDxuiHostClient,
+                      public IDriveCommandSink,
+                      public IDxuiViewportInputSink,
+                      private ICpuCommandTarget
 {
 public:
     EmulatorShell();
@@ -358,6 +367,21 @@ private:
     // Maximum, which is uncapped, faster than anyone can type against.
     void TickKeyboardAutoRepeat();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
+
+    // ICpuCommandTarget: the outcomes a queued command can ask for, each one
+    // call into the machine, the disk manager or a mixer. SwitchMachine,
+    // SoftReset, PowerCycle, SetDriveUserWriteProtect, RunSalvageFlow and the
+    // three drive-audio setters are members of long standing that already
+    // have the target's signature; these are the ones that were inline in
+    // the dispatch switch before it became CpuCommandDispatcher.
+    void     StepInstruction         () override;
+    void     RemountDisks            () override;
+    HRESULT  MountDisk               (int drive, const std::string & path) override;
+    void     EjectDisk               (int drive) override;
+    HRESULT  ToggleImageWriteProtect (int drive) override;
+    void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
+    void     SetDriveAudioEnabled    (bool enabled) override;
+    HRESULT  SetDriveAudioMechanism  (const std::wstring & mechanism) override;
 
     // Presentation pacing + render-skip gate (rationale in the .cpp).
     // ShouldPublishFrame throttles rasterize/publish to ~60 Hz at Maximum
@@ -1004,6 +1028,12 @@ private:
     // user is acting in), otherwise the main window.
     HWND    GetPrinterDialogOwner () const;
 
+    // The operating system's pickers and print experience, behind their
+    // seams. The shell owns the Win32 implementations; whoever needs to put
+    // one up asks for the interface, and a test hands its own in.
+    IHostDialogs &  GetHostDialogs () noexcept { return m_hostDialogs; }
+    IPrintDialog &  GetPrintDialog () noexcept { return m_printDialog; }
+
     // Force-refresh the printer panel from the drain worker (race-free, without
     // stopping it): the panel snapshots and renders only its visible ~1-page
     // viewport span. Non-destructive: the live interpreter keeps running, so
@@ -1606,16 +1636,12 @@ private:
     // m_centerBand (Fill) captures the emulator viewport rect the dock
     // leaves in the middle. m_driveBarThicknessDp is the live drive-bar
     // thickness the theme mutates (compact vs full).
-    static constexpr int  s_kTitleBarBandDp     = 32;
-    static constexpr int  s_kNavStripBandDp     = 32;
+    // The fixed band metrics -- title bar, nav strip, //c switch strip -- are
+    // ChromeBandLayout's, with the rule for when each band collapses to zero.
     // (The command toolbar band's thickness comes from m_toolbar.GetBandDp() --
     // it varies with the responsive mode planned for the window width.)
     static constexpr int  s_kInitialDriveBandDp = 256;
 
-    // //c switch strip band thickness (dp). Zero-height on non-//c machines
-    // (SyncChromeBands gates it on IsApple2c()); it docks below the drive band
-    // so it lands between the viewport and the joystick/paddle/mouse bar.
-    static constexpr int  s_kSwitchBandDp       = 40;
 
     DxuiDockLayout           m_chromeDock;
     ChromeBand               m_titleBand;
@@ -1882,10 +1908,11 @@ private:
     // another mode) forces a full text re-raster on the next frame.
     class VideoOutput *           m_prevActiveVideoMode = nullptr;
 
-    // Wall-clock pacing for the presentation side at Maximum speed: the CPU
-    // runs flat-out, but frames are rasterized + published only ~60x a second
-    // so we don't burn cores rendering frames no one will ever see.
-    chrono::steady_clock::time_point  m_lastPublishSteady = {};
+    // The CPU thread's two readings of real time: how long a held key has
+    // waited, and whether a Maximum-speed run may publish another frame. The
+    // clock behind them is the real one here and a hand-driven one in a test.
+    // CPU-thread-only.
+    FrameClock                    m_frameClock;
 
     // Previous UI frame's "any drive live" state, so the loop can force one
     // final present on the live->idle edge and clear the activity LED.
@@ -1897,13 +1924,10 @@ private:
     bool                          m_driveSigSettling = false;
 
     uint32_t                      m_cyclesPerFrame  = 17050;
-    double                        m_sampleRemainder = 0.0;
 
-    // When the //e keyboard's auto-repeat cadence was last advanced, and the
-    // sub-microsecond remainder that advance left behind. Zero before the
-    // first CPU-thread frame, which starts the interval rather than reporting
-    // one. CPU-thread-only.
-    chrono::steady_clock::time_point  m_lastKeyRepeatSteady = {};
+    // The fraction of a sample each slice leaves owing, carried into the next
+    // so the audio never drifts from the picture. CPU-thread-only.
+    AudioSampleBudget             m_sampleBudget;
 
     // Host sample rate the loaded sounds were decoded at, 0 before the first
     // load. Compared against the live device rate each frame so a reopen onto
@@ -1963,6 +1987,12 @@ private:
     // state it operates on plus a pointer-to-pointer for the active
     // keyboard so machine switches do not require re-wiring.
     WindowManager                             m_windowManager { m_globalPrefs, [this] { SaveGlobalPrefs(); } };
+    // The host services the clipboard manager and the dialogs go through.
+    // Declared ahead of the manager, which holds a reference to the clipboard.
+    Win32Clipboard                            m_hostClipboard;
+    Win32HostDialogs                          m_hostDialogs;
+    ModernPrintDialog                         m_printDialog;
+
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;
     std::unique_ptr<MachineBuilder>           m_machineBuilder;

@@ -434,7 +434,7 @@ HRESULT SettingsSheet::OpenModeless (
     {
         fs::path   picked;
 
-        if (ScreenshotCapture::BrowseForFolder (GetHwnd(), picked))
+        if (ScreenshotCapture::BrowseForFolder (m_emuShell->GetHostDialogs(), GetHwnd(), picked))
         {
             prefs.screenshotFolder = picked.string();
             m_shotsPage->Rebuild();

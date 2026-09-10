@@ -31,6 +31,7 @@
 #include "Machines/MachineDefinitions.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
+#include "Shell/Layout/ChromeBandLayout.h"
 #include "Shell/Layout/DriveRowLayout.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
@@ -864,42 +865,36 @@ Error:
 
 void EmulatorShell::SyncChromeBands()
 {
-    int  switchBandDp = 0;
+    ChromeBandInputs     inputs;
+    ChromeBandHeightsPx  px;
 
 
 
-    // When the machine has no Disk ][ controller, remove the drive-widget area
-    // entirely (#84 Phase D): the drive band collapses to nothing, reclaiming
-    // the ~180 dp the drive widgets + their in-use indicators would occupy so
-    // the emulator viewport grows into it. The widgets are already hidden and
-    // un-hit-tested by the resize path when there is no controller.
-    bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-    int   driveBandDp = 0;
-
-    if (hasDisk && !CrtMonitorActive())
-    {
-        // The band zooms with the desk scene (m_chromeSceneScale) so it hugs
-        // the scaled widgets instead of leaving dead space around them. With
-        // the 3D scene active there is NO bottom band at all: the drives are
-        // scene objects.
-        driveBandDp = (int) lroundf ((float) m_driveBarThicknessDp * m_chromeSceneScale);
-    }
-
-    // The //c switch strip only exists on the //c; everywhere else the band
-    // collapses to zero height so the dock leaves the viewport unchanged.
-    switchBandDp = MachineHasCaseSwitches() ? s_kSwitchBandDp : 0;
-
-    m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (s_kTitleBarBandDp) });
-    m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.ToPx (s_kNavStripBandDp) });
-    m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.ToPx (m_toolbar.GetBandDp()) });
+    // Which bands exist, and how tall, is ChromeBandLayout's to decide from
+    // what the machine has and how it is shown; this reads those facts off
+    // the shell and stamps the answers onto the bands' docked heights.
+    inputs.hasDiskController   = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    inputs.crtMonitorActive    = CrtMonitorActive();
+    inputs.hasCaseSwitches     = MachineHasCaseSwitches();
+    inputs.driveBarThicknessDp = m_driveBarThicknessDp;
+    inputs.chromeSceneScale    = m_chromeSceneScale;
+    inputs.toolbarBandDp       = m_toolbar.GetBandDp();
 
     // Measured against the CLIENT width, which is what the band will be given.
     // Measuring against the viewport is what put the text off the edge: the
     // picture keeps its own aspect and can be wider than the window.
-    m_changeBand.SetBounds  (RECT{ 0, 0, 0, GetChangeBandThicknessPx (m_lastClientWidthPx) });
-    m_captureBand.SetBounds (RECT{ 0, 0, 0, GetCaptureBandThicknessPx (m_lastClientWidthPx) });
-    m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (driveBandDp) });
-    m_switchBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.ToPx (switchBandDp) });
+    inputs.changeBandPx        = GetChangeBandThicknessPx (m_lastClientWidthPx);
+    inputs.captureBandPx       = GetCaptureBandThicknessPx (m_lastClientWidthPx);
+
+    px = ChromeBandLayout::Compute (inputs, m_scaler);
+
+    m_titleBand.SetBounds   (RECT{ 0, 0, 0, px.title });
+    m_navBand.SetBounds     (RECT{ 0, 0, 0, px.nav });
+    m_toolbarBand.SetBounds (RECT{ 0, 0, 0, px.toolbar });
+    m_changeBand.SetBounds  (RECT{ 0, 0, 0, px.change });
+    m_captureBand.SetBounds (RECT{ 0, 0, 0, px.capture });
+    m_driveBand.SetBounds   (RECT{ 0, 0, 0, px.drive });
+    m_switchBand.SetBounds  (RECT{ 0, 0, 0, px.switches });
 }
 
 
@@ -1062,8 +1057,8 @@ void EmulatorShell::ReflowChromeForMachineChange()
     {
         int  oldDriveDp  = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : 0;
         int  newDriveDp  = newHasDisk              ? m_driveBarThicknessDp : 0;
-        int  oldSwitchDp = m_chromeSizedForApple2c ? s_kSwitchBandDp : 0;
-        int  newSwitchDp = newIsApple2c            ? s_kSwitchBandDp : 0;
+        int  oldSwitchDp = m_chromeSizedForApple2c ? ChromeBandLayout::kSwitchBandDp : 0;
+        int  newSwitchDp = newIsApple2c            ? ChromeBandLayout::kSwitchBandDp : 0;
         int  deltaPx     = (m_scaler.ToPx (newDriveDp)  - m_scaler.ToPx (oldDriveDp)) +
                            (m_scaler.ToPx (newSwitchDp) - m_scaler.ToPx (oldSwitchDp));
 

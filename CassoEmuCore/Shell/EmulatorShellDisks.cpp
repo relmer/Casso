@@ -1064,46 +1064,16 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
                                             std::wstring & outPath)
 {
-    HRESULT                  hr        = S_OK;
-    ComPtr<IFileSaveDialog>  dialog;
-    ComPtr<IShellItem>       folderItem;
-    ComPtr<IShellItem>       item;
-    PWSTR                    pszPath   = nullptr;
-    fs::path                 original (imagePath);
-    fs::path                 folder    = original.parent_path();
-    HRESULT                  hrItem    = S_OK;
-    HRESULT                  hrFolder  = S_OK;
-    bool                     chose     = false;
+    HRESULT         hr       = S_OK;
+    FileDialogSpec  spec;
+    fs::path        original (imagePath);
+    fs::path        chosen;
+    bool            picked   = false;
 
 
 
-    static const COMDLG_FILTERSPEC   s_kFilters[] =
-    {
-        { L"Disk image", L"*.dsk;*.do;*.po;*.woz" },
-    };
-
-
-
-    hr = CoCreateInstance (CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER,
-                           IID_PPV_ARGS (&dialog));
-    CHR (hr);
-
-    hr = dialog->SetFileTypes (std::size (s_kFilters), s_kFilters);
-    CHR (hr);
-
-    if (!folder.empty())
-    {
-        hrItem = SHCreateItemFromParsingName (folder.c_str(), nullptr,
-                                              IID_PPV_ARGS (&folderItem));
-
-        if (SUCCEEDED (hrItem))
-        {
-            //  Best-effort: an unsettable start folder just means the dialog
-            //  opens wherever the shell last left it.
-            hrFolder = dialog->SetFolder (folderItem.Get());
-            IGNORE_RETURN_VALUE (hrFolder, S_OK);
-        }
-    }
+    spec.filters       = { { L"Disk image", L"*.dsk;*.do;*.po;*.woz" } };
+    spec.initialFolder = original.parent_path();
 
     if (!original.filename().empty())
     {
@@ -1112,31 +1082,19 @@ bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
                                      PreservedCopy::MakeStamp (time (nullptr)),
                                      0);
 
-        hr = dialog->SetFileName (fs::path (suggested).filename().c_str());
-        CHR (hr);
+        spec.defaultFileName = fs::path (suggested).filename().wstring();
     }
 
-    //  A cancelled dialog returns a failure that is not a problem, so it
-    //  leaves through the same exit as everything else with `chose` false.
-    hr = dialog->Show (m_hwnd);
-    CHR (hr);
+    //  A cancelled dialog is not a problem, and leaves through the same exit
+    //  as a failure: with nothing chosen.
+    hr = m_hostDialogs.PickFileToSave (m_hwnd, spec, chosen, picked);
 
-    hr = dialog->GetResult (&item);
-    CHR (hr);
-
-    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
-    CHR (hr);
-
-    outPath = pszPath;
-    chose   = true;
-
-Error:
-    if (pszPath != nullptr)
+    if (SUCCEEDED (hr) && picked)
     {
-        CoTaskMemFree (pszPath);
+        outPath = chosen.wstring();
     }
 
-    return chose;
+    return SUCCEEDED (hr) && picked;
 }
 
 

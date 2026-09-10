@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "ModernPrintDialog.h"
-
 
 class EmulatorShell;
 
@@ -116,8 +114,4 @@ private:
     static HRESULT  BlitRgbaToDc (HDC hdc, const struct RgbaImage & img, int pageW, int pageH, int outputDpi);
 
     EmulatorShell &  m_shell;
-
-    // The modern OS print dialog with live preview (DCR-1); falls back to the
-    // classic PrintDlg path when it cannot launch.
-    ModernPrintDialog  m_modernPrint;
 };

@@ -6,6 +6,7 @@
 #include "Capture/CapturedImage.h"
 #include "Capture/ScreenshotPlan.h"
 #include "Devices/Printer/PngMetadata.h"
+#include "Seams/IHostDialogs.h"
 
 
 class D3DRenderer;
@@ -84,7 +85,7 @@ public:
     // Shell UI the settings page cannot open for itself. Returns false when
     // the user backs out, which is not a failure -- backing out of a picker
     // means keeping what was already configured.
-    static bool  BrowseForFolder (HWND owner, fs::path & outFolder);
+    static bool  BrowseForFolder (IHostDialogs & dialogs, HWND owner, fs::path & outFolder);
 
     // Opens the screenshots folder in Explorer, creating it first if the
     // feature has not written to it yet -- opening nothing would look broken
