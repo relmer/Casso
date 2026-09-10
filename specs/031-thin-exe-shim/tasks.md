@@ -101,11 +101,11 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 
 - [ ] T038 [US3] Extract viewport and chrome-band rectangle math from `Casso/EmulatorShell.cpp` into `CassoEmuCore/Shell/Layout/`
 - [ ] T039 [US3] Extract client-size-for-content inversion, drive-widget row placement and work-area centering into `CassoEmuCore/Shell/Layout/`
-- [ ] T040 [US3] Extract the publish-rate throttle and the dirty-render signature gate into `CassoEmuCore/Shell/Pacing/`
+- [x] T040 [US3] Extract the publish-rate throttle and the dirty-render signature gate into `CassoEmuCore/Shell/Pacing/`
 - [ ] T041 [US3] Extract the VK classifiers, Apple modifier mirroring, joystick axis and button staging, paddle recenter math and the absolute guest-mouse clamp-window mapping into `CassoEmuCore/Shell/Input/`
 - [ ] T042 [US3] Update `EmulatorShell` to call the extracted functions, leaving its own behavior unchanged
 - [ ] T043 [P] [US3] Test: a viewport rectangle computed from a client size and inverted back returns the original size at every supported DPI
-- [ ] T044 [P] [US3] Test: the render gate declines an unchanged screen, and re-rasterizes when video mode, flash phase, color state or video RAM changes
+- [x] T044 [P] [US3] Test: the render gate declines an unchanged screen, and re-rasterizes when video mode, flash phase, color state or video RAM changes
 - [ ] T045 [P] [US3] Test: a machine with one connected drive lays the drive row out centered, not offset
 - [ ] T046 [P] [US3] Test: input mapping — VK classification, modifier mirroring, joystick staging, paddle recenter, guest-mouse clamp mapping
 - [ ] T047 [US3] Launch the emulator and confirm layout, pacing and input feel unchanged

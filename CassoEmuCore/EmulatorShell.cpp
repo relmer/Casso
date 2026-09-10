@@ -29,6 +29,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Shell/FramePacing.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 
@@ -9381,10 +9382,9 @@ void EmulatorShell::RunOneFrame()
 
 void EmulatorShell::RunCpuThreadFrame()
 {
-    uint32_t  modeSig     = 0;
-    bool      flashOn     = false;
-    uint64_t  colorSig    = 0;
-    bool      needsRender = false;
+    FrameSignature  current;
+    FrameSignature  lastRendered;
+    bool            needsRender = false;
 
 
 
@@ -9393,13 +9393,16 @@ void EmulatorShell::RunCpuThreadFrame()
 
     if (ShouldPublishFrame())
     {
-        modeSig     = ComputeVideoModeSig();
-        flashOn     = ComputeFlashOn();
-        colorSig    = ComputeColorSig();
-        needsRender = m_memoryBus.IsVideoDirty()
-                      || modeSig  != m_lastRenderModeSig
-                      || flashOn  != m_lastRenderFlashOn
-                      || colorSig != m_lastRenderColorSig;
+        current.videoDirty = m_memoryBus.IsVideoDirty();
+        current.modeSig    = ComputeVideoModeSig();
+        current.flashOn    = ComputeFlashOn();
+        current.colorSig   = ComputeColorSig();
+
+        lastRendered.modeSig  = m_lastRenderModeSig;
+        lastRendered.flashOn  = m_lastRenderFlashOn;
+        lastRendered.colorSig = m_lastRenderColorSig;
+
+        needsRender = FramePacing::NeedsRender (current, lastRendered);
     }
 
     if (needsRender)
@@ -9408,9 +9411,9 @@ void EmulatorShell::RunCpuThreadFrame()
         PublishFramebuffer();
 
         m_memoryBus.ClearVideoDirty();
-        m_lastRenderModeSig  = modeSig;
-        m_lastRenderFlashOn  = flashOn;
-        m_lastRenderColorSig = colorSig;
+        m_lastRenderModeSig  = current.modeSig;
+        m_lastRenderFlashOn  = current.flashOn;
+        m_lastRenderColorSig = current.colorSig;
     }
 }
 
@@ -9433,12 +9436,18 @@ bool EmulatorShell::ShouldPublishFrame()
 {
     SpeedMode                         speed     = m_cpuManager.GetSpeedMode();
     chrono::steady_clock::time_point  now       = chrono::steady_clock::now();
+    int64_t                           sinceUs   = 0;
     bool                              shouldPub = false;
 
 
 
-    shouldPub = speed != SpeedMode::Maximum ||
-                now - m_lastPublishSteady >= chrono::microseconds (s_kMaxSpeedPublishIntervalUs);
+    //  The clock is read here, where it belongs. FramePacing takes the elapsed
+    //  microseconds instead, so the decision is testable without a test having
+    //  to wait for real time to pass.
+    sinceUs   = chrono::duration_cast<chrono::microseconds> (now - m_lastPublishSteady).count();
+    shouldPub = FramePacing::ShouldPublish (speed == SpeedMode::Maximum,
+                                            sinceUs,
+                                            s_kMaxSpeedPublishIntervalUs);
 
     if (shouldPub)
     {

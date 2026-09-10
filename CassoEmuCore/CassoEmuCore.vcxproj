@@ -404,6 +404,7 @@
     <ClCompile Include="Cli\CliEntry.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2\Apple2.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2e.cpp" />
+    <ClCompile Include="Shell\FramePacing.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -681,6 +682,7 @@
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2e.h" />
     <ClInclude Include="Machines\Apple2\Apple2eEnhanced\Apple2eEnhanced.h" />
     <ClInclude Include="Machines\Apple2\Apple2c\Apple2c.h" />
+    <ClInclude Include="Shell\FramePacing.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
