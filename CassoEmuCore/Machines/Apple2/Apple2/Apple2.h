@@ -26,10 +26,10 @@
 class Apple2 : public IMachine
 {
 public:
-    std::string  GetId             () const override { return ("Apple2"); }
-    std::string  GetCpu            () const override { return ("6502"); }
-    std::string  GetCpuManufacturer() const override { return ("MOS Technology"); }
-    std::string  GetKeyboardLayout () const override { return ("apple2-family-layout"); }
+    std::string  GetId              () const override { return ("Apple2"); }
+    std::string  GetCpu             () const override { return ("6502"); }
+    std::string  GetCpuManufacturer () const override { return ("MOS Technology"); }
+    std::string  GetKeyboardLayout  () const override { return ("apple2-family-layout"); }
 
     std::vector<RamRegion>       GetRam             () const override;
     std::vector<InternalDevice>  GetInternalDevices () const override;

@@ -34,8 +34,8 @@
 class Apple2e : public Apple2Plus
 {
 public:
-    std::string  GetId            () const override { return ("Apple2e"); }
-    std::string  GetKeyboardLayout() const override { return ("apple2e-family-layout"); }
+    std::string  GetId             () const override { return ("Apple2e"); }
+    std::string  GetKeyboardLayout () const override { return ("apple2e-family-layout"); }
 
     std::vector<RamRegion>       GetRam             () const override;
     std::vector<InternalDevice>  GetInternalDevices () const override;

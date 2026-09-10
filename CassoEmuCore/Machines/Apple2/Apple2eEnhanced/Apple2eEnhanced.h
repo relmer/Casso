@@ -29,7 +29,7 @@
 class Apple2eEnhanced : public Apple2e
 {
 public:
-    std::string  GetId             () const override { return ("Apple2eEnhanced"); }
-    std::string  GetCpu            () const override { return ("65C02"); }
-    std::string  GetCpuManufacturer() const override { return ("Rockwell"); }
+    std::string  GetId              () const override { return ("Apple2eEnhanced"); }
+    std::string  GetCpu             () const override { return ("65C02"); }
+    std::string  GetCpuManufacturer () const override { return ("Rockwell"); }
 };

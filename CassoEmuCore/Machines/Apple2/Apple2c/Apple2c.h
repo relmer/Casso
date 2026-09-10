@@ -32,9 +32,9 @@
 class Apple2c : public Apple2e
 {
 public:
-    std::string  GetId             () const override { return ("Apple2c"); }
-    std::string  GetCpu            () const override { return ("65C02"); }
-    std::string  GetCpuManufacturer() const override { return ("Rockwell"); }
+    std::string  GetId              () const override { return ("Apple2c"); }
+    std::string  GetCpu             () const override { return ("65C02"); }
+    std::string  GetCpuManufacturer () const override { return ("Rockwell"); }
 
     int   GetSlotCount    () const override { return (0); }
 

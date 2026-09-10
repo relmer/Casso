@@ -104,7 +104,7 @@ class MachineHost
 {
 public:
     MachineHost  ();
-    ~MachineHost();
+    ~MachineHost ();
 
     MachineHost                (const MachineHost &) = delete;
     MachineHost & operator=    (const MachineHost &) = delete;
@@ -114,11 +114,11 @@ public:
     //  be in.
     MemoryBus            &  GetMemoryBus           () noexcept { return m_memoryBus; }
     ComponentRegistry    &  GetRegistry            () noexcept { return m_registry; }
-    InterruptController  &  GetInterruptController() noexcept { return m_interruptController; }
+    InterruptController  &  GetInterruptController () noexcept { return m_interruptController; }
 
     const MemoryBus            &  GetMemoryBus           () const noexcept { return m_memoryBus; }
     const ComponentRegistry    &  GetRegistry            () const noexcept { return m_registry; }
-    const InterruptController  &  GetInterruptController() const noexcept { return m_interruptController; }
+    const InterruptController  &  GetInterruptController () const noexcept { return m_interruptController; }
 
     //  The parts a machine may or may not have, and that are rebuilt from
     //  scratch on every machine switch. Null is a real answer for all but
@@ -134,7 +134,7 @@ public:
     const EmuCpu          *  GetCpu            () const noexcept { return m_cpu.get(); }
     const Prng            *  GetPrng           () const noexcept { return m_prng.get(); }
     const Apple2eMmu      *  GetMmu            () const noexcept { return m_mmu.get(); }
-    const Apple2cRomBank  *  GetApple2cRomBank() const noexcept { return m_apple2cRomBank.get(); }
+    const Apple2cRomBank  *  GetApple2cRomBank () const noexcept { return m_apple2cRomBank.get(); }
     const AppleMouse      *  GetMouse          () const noexcept { return m_mouse.get(); }
     const VideoTiming     *  GetVideoTiming    () const noexcept { return m_videoTiming.get(); }
 
@@ -149,18 +149,18 @@ public:
     //  endpoints are held apart from the devices because an IAciaEndpoint
     //  is not a MemoryDevice.
     std::vector<std::unique_ptr<MemoryDevice>>   &  GetOwnedDevices       () noexcept { return m_ownedDevices; }
-    std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints() noexcept { return m_ownedAciaEndpoints; }
+    std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () noexcept { return m_ownedAciaEndpoints; }
     std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () noexcept { return m_videoModes; }
 
     const std::vector<std::unique_ptr<MemoryDevice>>   &  GetOwnedDevices       () const noexcept { return m_ownedDevices; }
-    const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints() const noexcept { return m_ownedAciaEndpoints; }
+    const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () const noexcept { return m_ownedAciaEndpoints; }
     const std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () const noexcept { return m_videoModes; }
 
-    CharacterRomData  &  GetCharacterRom() noexcept { return m_charRom; }
+    CharacterRomData  &  GetCharacterRom () noexcept { return m_charRom; }
     DiskImageStore    &  GetDiskStore    () noexcept { return m_diskStore; }
     MachineConfig     &  GetConfig       () noexcept { return m_config; }
 
-    const CharacterRomData  &  GetCharacterRom() const noexcept { return m_charRom; }
+    const CharacterRomData  &  GetCharacterRom () const noexcept { return m_charRom; }
     const DiskImageStore    &  GetDiskStore    () const noexcept { return m_diskStore; }
     const MachineConfig     &  GetConfig       () const noexcept { return m_config; }
 
@@ -178,7 +178,7 @@ public:
     //  ("apple2e", "apple2c"), and the directory its ROMs and other assets
     //  are read from. The name doubles as the per-machine suffix on user
     //  state, so one machine's last-mounted disks cannot clobber another's.
-    const std::wstring  &  GetCurrentMachineName() const noexcept { return m_currentMachineName; }
+    const std::wstring  &  GetCurrentMachineName () const noexcept { return m_currentMachineName; }
     const std::wstring  &  GetAssetBaseDir       () const noexcept { return m_assetBaseDir; }
 
     //  Retire exactly one instruction -- or, when a line is asserted, the
