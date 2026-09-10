@@ -164,8 +164,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [ ] T073 [US6] Move the window, its creation and its message pump into `CassoEmuCore/Shell/Window`; being in an executable is not what makes them work
 - [ ] T074 [US6] Move CPU-thread orchestration and soft-switch state ownership into core, behind a seam for the passage of time
       - soft-switch mirror and the run loop are on `MachineHost` (`RunCycles` takes a cycle budget; time stays in `CpuManager`); the CPU-thread callbacks themselves are still on `EmulatorShell`
-- [ ] T075 [P] [US6] Test: a machine built headlessly runs a fixed number of cycles and its memory and soft-switch state assert as expected
-      - blocked on `MachineHost::Build`: the lifecycle tests build their machine by hand, so this still needs production construction to be reachable from a test
+- [x] T075 [P] [US6] Test: a machine built headlessly runs a fixed number of cycles and its memory and soft-switch state assert as expected
 - [x] T076 [P] [US6] Test: a soft reset preserves user RAM and takes the reset vector
 - [x] T077 [P] [US6] Test: a power cycle re-seeds every DRAM-owning device before the reset sequence runs, and the result differs from a soft reset
 - [x] T078 [P] [US6] Test: stepping a paused machine retires exactly one instruction and advances the program counter accordingly
