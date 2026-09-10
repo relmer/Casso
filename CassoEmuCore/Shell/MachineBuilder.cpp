@@ -15,6 +15,9 @@
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
+#include "Core/TextEncoding.h"
+#include "Machines/MachineDefinitions.h"
+#include "Machines/MachineDeviceTypes.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
@@ -81,7 +84,7 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     // did. Without this a //c has no ROM banking (and no SetNoExternalSlots),
     // so $C800 floats and the firmware derails to a garbage screen. No-op for
     // non-banked machines (romBankSize == 0).
-    WireApple2cRomBank();
+    WireBankedRom();
 
     CreateVideoModes();
 
@@ -128,7 +131,7 @@ Error:
 //  banked image (//c) has its BANK 0 added here as an ordinary flat
 //  $C000-$FFFF device, specifically so the normal WireLanguageCard split
 //  applies unchanged; the $C028 bank flip is layered on afterwards by
-//  WireApple2cRomBank. Building the banking into this step would fork the
+//  WireBankedRom. Building the banking into this step would fork the
 //  language-card wiring for one machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -195,7 +198,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
     //   - Banked (//c): a multi-bank file whose active bank is toggled at
     //     runtime. Bank 0 is added here as a flat $C000-$FFFF image so the
     //     normal WireLanguageCard split (LC + CxxxRomRouter) applies; the
-    //     Apple2cRomBank is layered on afterward (WireApple2cRomBank) to
+    //     Apple2cRomBank is layered on afterward (WireBankedRom) to
     //     enable the $C028 flip.
     if (config.systemRom.romBankSize != 0)
     {
@@ -256,7 +259,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // owns the auxiliary 64 KiB and rebinds the page table on every
         // banking-changed event. Instantiate it directly here; full
         // wiring (siblings, Initialize) happens after the device pass.
-        if (devCfg.type == "apple2e-family-mmu")
+        if (devCfg.type == MachineDeviceTypes::kMmu)
         {
             m_host.SetMmu (std::make_unique<Apple2eMmu>());
             continue;
@@ -501,7 +504,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
     // Unlike the //e it is not a card in a slot, so it is created here rather
     // than from the config's (empty) slot list. Its $C600 boot firmware is part
     // of the internal //c ROM (served by the no-slots CxxxRomRouter set in
-    // WireApple2cRomBank), so no slot ROM is attached -- only the controller,
+    // WireBankedRom), so no slot ROM is attached -- only the controller,
     // in IWM mode so the reset firmware's mode/status probe passes.
     // //c IOU mouse: destroyed with the outgoing machine, rebuilt
     // below for the //c. The keyboard/soft-switch bank holding the old
@@ -900,6 +903,8 @@ void MachineBuilder::WireLanguageCard()
         m_host.GetMemoryBus().AddDevice (lcBank.get());
         m_host.GetOwnedDevices().push_back (std::move (lcBank));
 
+        m_host.GetRefs().languageCard = lc;
+
         // //e wiring: LC needs the MMU (for ALTZP routing) and the
         // keyboard sibling needs the LC pointer for $C011/$C012 status
         // reads.
@@ -979,7 +984,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WireApple2cRomBank
+//  WireBankedRom
 //
 //  Layers the Apple //c firmware-bank coordinator on top of the language
 //  card + CxxxRomRouter that WireLanguageCard already populated from bank 0.
@@ -989,7 +994,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineBuilder::WireApple2cRomBank()
+void MachineBuilder::WireBankedRom()
 {
     const RomReference &  sysRom = m_host.GetConfig().systemRom;
 
@@ -1007,19 +1012,12 @@ void MachineBuilder::WireApple2cRomBank()
     // failure, so it gets no diagnostic.
     if (banked)
     {
-        for (auto & dev : m_host.GetOwnedDevices())
-        {
-            if (lc == nullptr)
-            {
-                lc = dynamic_cast<LanguageCard *> (dev.get());
-            }
-        }
-
+        lc     = m_host.GetRefs().languageCard;
         banked = (mmu != nullptr && sw != nullptr && lc != nullptr);
 
         if (!banked)
         {
-            DEBUGMSG (L"WireApple2cRomBank: missing MMU/soft-switches/LC; banking disabled\n");
+            DEBUGMSG (L"WireBankedRom: missing MMU/soft-switches/LC; banking disabled\n");
         }
     }
 
@@ -1030,7 +1028,7 @@ void MachineBuilder::WireApple2cRomBank()
 
         if (!banked)
         {
-            DEBUGMSG (L"WireApple2cRomBank: cannot read both ROM banks; banking disabled\n");
+            DEBUGMSG (L"WireBankedRom: cannot read both ROM banks; banking disabled\n");
         }
     }
 
@@ -1043,8 +1041,21 @@ void MachineBuilder::WireApple2cRomBank()
         m_host.GetApple2cRomBank()->SetBankImages (std::move (bank0), std::move (bank1));
         sw->SetRomBankSwitch (m_host.GetApple2cRomBank());
 
-        // //c: no card slots -> $C100-$CFFF is always the internal firmware.
-        mmu->GetCxxxRouter()->SetNoExternalSlots (true);
+        // A machine with no card slots has nothing that could answer in
+        // $C100-$CFFF, so the router leaves the whole range to the internal
+        // firmware. That is a fact about the machine, and the machine says
+        // it: the //c declares zero slots, every other model declares seven.
+        // Reading it here rather than assuming it means a later banked-ROM
+        // machine that DOES have slots keeps them.
+        {
+            const MachineDefinition *  definition =
+                MachineDefinitions::Find (TextEncoding::WideToNarrow (m_host.GetCurrentMachineName()));
+
+            if (definition != nullptr && definition->slotCount == 0)
+            {
+                mmu->GetCxxxRouter()->SetNoExternalSlots (true);
+            }
+        }
     }
 }
 

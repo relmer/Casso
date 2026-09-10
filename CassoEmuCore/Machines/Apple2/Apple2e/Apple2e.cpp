@@ -2,6 +2,8 @@
 
 #include "Machines/Apple2/Apple2e/Apple2e.h"
 
+#include "Machines/MachineDeviceTypes.h"
+
 
 
 
@@ -43,7 +45,7 @@ std::vector<InternalDevice> Apple2e::GetInternalDevices() const
     std::vector<InternalDevice>  devices = { { .type = "apple2e-family-keyboard" },
                                              { .type = "apple2-family-speaker" },
                                              { .type = "apple2e-family-softswitches" },
-                                             { .type = "apple2e-family-mmu" },
+                                             { .type = MachineDeviceTypes::kMmu },
                                              { .type = "language-card" } };
 
 

@@ -4,6 +4,8 @@
 #include "Core/Prng.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/MachineDefinitions.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Shell/MachineBuilder.h"
@@ -80,6 +82,7 @@ public:
         Assert::IsNotNull (host.GetRefs().speaker,            L"speaker");
         Assert::IsNotNull (host.GetRefs().mainRamDev,         L"main RAM");
         Assert::IsNotNull (host.GetRefs().diskController,     L"slot 6 Disk ][");
+        Assert::IsNotNull (host.GetRefs().languageCard,       L"language card");
 
         //  All five renderers exist on every machine, because the per-frame
         //  mode selection switches between them and cannot afford to build
@@ -156,6 +159,28 @@ public:
             host.GetMemoryBus().WriteByte (addr, 0x5A);
             Assert::AreEqual<Byte> (0x5A, host.GetMemoryBus().ReadByte (addr),
                 std::format (L"main RAM must answer at ${:04X}", addr).c_str());
+        }
+    }
+
+
+    TEST_METHOD (OnlyASlotlessMachineGivesUpItsCxxxRange)
+    {
+        //  The banked-ROM wiring hands $C100-$CFFF entirely to the internal
+        //  firmware when the machine has no card slots, and it asks the
+        //  machine rather than assuming -- it used to assume, which made
+        //  "banked ROM" and "no slots" the same fact for anyone who added a
+        //  banked machine later.
+        //
+        //  The //c is the one machine that declares zero, so this is the
+        //  fact the wiring reads, asserted where a change to either side
+        //  shows up.
+        Assert::AreEqual (0, MachineDefinitions::Find ("Apple2c")->slotCount,
+            L"the //c has no card slots");
+
+        for (const char * id : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })
+        {
+            Assert::AreEqual (7, MachineDefinitions::Find (id)->slotCount,
+                L"every other model has seven");
         }
     }
 

@@ -1244,7 +1244,7 @@ Error:
 //  memory, then the banking layers over it, then video, then the CPU that
 //  reads through all of it.
 //
-//  WireApple2cRomBank must follow WireLanguageCard, not replace it. The
+//  WireBankedRom must follow WireLanguageCard, not replace it. The
 //  language card leaves a flat bank-0 split in place; the //c layer then adds
 //  the $C028 bank-switch coordinator and the no-slots $Cxxx routing on top.
 //  Skipping it on the initial-launch path (SwitchMachine already did it) is

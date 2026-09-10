@@ -34,6 +34,12 @@ struct MachineRefs
     class VideoOutput *           activeVideoMode  = nullptr;
     class PrinterCard *           printerCard      = nullptr;
 
+    // The $D000 bank split every Apple II has. Resolved once by
+    // WireLanguageCard, which is the only code that knows which owned device
+    // it is -- everything downstream reads this rather than casting its way
+    // back down the device vector looking for it.
+    class LanguageCard *          languageCard     = nullptr;
+
     // The //e-and-later halves of the two devices above: the same
     // objects as `softSwitches` / `keyboard` when the machine has the
     // //e variants, null on a ][ or ][+. Both are resolved once at build

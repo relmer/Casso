@@ -115,7 +115,7 @@ public:
 
     HRESULT  CreateMemoryDevices  (const MachineConfig & config);
     void     WireLanguageCard     ();
-    void     WireApple2cRomBank   ();
+    void     WireBankedRom        ();
     static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
     void     WirePageTable        ();
     void     RebuildBankingPages  ();

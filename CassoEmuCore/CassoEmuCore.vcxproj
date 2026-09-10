@@ -594,6 +594,7 @@
     <ClInclude Include="Ui\ColorUtil.h" />
     <ClInclude Include="Machines\MachineDefinition.h" />
     <ClInclude Include="Machines\MachineDefinitions.h" />
+    <ClInclude Include="Machines\MachineDeviceTypes.h" />
     <ClInclude Include="Ui\Debug\TrackSectorPredicate.h" />
     <ClInclude Include="Ui\Debug\DebugDialogProjection.h" />
     <ClInclude Include="Ui\Debug\Disk2DebugDialogState.h" />
