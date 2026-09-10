@@ -55,4 +55,14 @@ public:
     //  PREAD, so a derived machine declines a device its parent creates rather
     //  than having one removed from it after the fact.
     virtual bool  HasGamePortDevice () const = 0;
+
+    //  Whether the machine's case carries switches the user can reach -- the
+    //  //c's 40/80 column and keyboard-layout switches. A presentation
+    //  question rather than an emulation one, and the machine is who knows the
+    //  answer.
+    virtual bool  HasCaseSwitches () const = 0;
+
+    //  Whether the machine's drive is built into it rather than plugged into a
+    //  card. Decides which drive the desk scene draws.
+    virtual bool  HasBuiltInDrive () const = 0;
 };

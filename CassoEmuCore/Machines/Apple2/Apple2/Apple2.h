@@ -37,4 +37,6 @@ public:
 
     int   GetSlotCount       () const override { return (7); }
     bool  HasGamePortDevice  () const override { return (true); }
+    bool  HasCaseSwitches    () const override { return (false); }
+    bool  HasBuiltInDrive    () const override { return (false); }
 };

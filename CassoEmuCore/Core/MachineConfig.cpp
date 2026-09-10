@@ -1003,6 +1003,8 @@ HRESULT MachineConfigLoader::Load (
     //
     fDefined = (MachineDefinitions::Find (machineName) != nullptr);
 
+    outConfig.machineId = machineName;
+
     // Required: name
     hr = root.GetString ("name", outConfig.name);
     CHRF (hr, outError = "Missing or invalid field: 'name'");

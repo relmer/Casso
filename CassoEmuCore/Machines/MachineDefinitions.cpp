@@ -108,6 +108,8 @@ const MachineDefinition * MachineDefinitions::Find (const std::string & machineI
     definition.keyboardType    = machine->GetKeyboardLayout();
     definition.slotCount       = machine->GetSlotCount();
     definition.hasGamePort     = machine->HasGamePortDevice();
+    definition.hasCaseSwitches = machine->HasCaseSwitches();
+    definition.hasBuiltInDrive = machine->HasBuiltInDrive();
 
     return (&s_cache.emplace (machineId, std::move (definition)).first->second);
 }

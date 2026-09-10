@@ -260,6 +260,10 @@ static constexpr uint32_t kAppleCyclesPerFrame = kCyclesPerScanline * kScanlines
 struct MachineConfig
 {
     string                      name;
+
+    //  The model's directory name under Resources/Machines, e.g. "Apple2e".
+    //  This is what selects the machine; `name` above is what a person reads.
+    string                      machineId;
     string                      cpu;
 
     // Timing (parsed from "timing" section)

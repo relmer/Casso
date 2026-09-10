@@ -565,7 +565,13 @@ private:
     // LayoutSwitchBar positions the strip in its band rect; SyncSwitchBarState
     // pushes the live switch / indicator state onto the control each layout.
     // HandleSwitchBarClick actions a release over one of its parts.
-    bool    IsApple2c              () const { return m_apple2cRomBank != nullptr; }
+    // Two presentation questions the shell used to answer by asking whether
+    // the machine was a //c. It never was a question about the //c: it was
+    // about whether the case has switches on it and whether the drive is built
+    // in, and the machine is who knows that. Asking the model directly meant
+    // every new machine with a switch panel would need another arm added here.
+    bool    MachineHasCaseSwitches () const;
+    bool    MachineHasBuiltInDrive () const;
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
     void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);

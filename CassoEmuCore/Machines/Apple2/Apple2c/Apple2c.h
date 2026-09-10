@@ -36,5 +36,10 @@ public:
     std::string  GetCpu            () const override { return ("65C02"); }
     std::string  GetCpuManufacturer() const override { return ("Rockwell"); }
 
-    int  GetSlotCount () const override { return (0); }
+    int   GetSlotCount    () const override { return (0); }
+
+    //  The 40/80 column and keyboard switches on the case, and the 5.25"
+    //  drive soldered behind the disk port.
+    bool  HasCaseSwitches () const override { return (true); }
+    bool  HasBuiltInDrive () const override { return (true); }
 };

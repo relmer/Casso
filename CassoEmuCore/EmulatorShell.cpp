@@ -28,6 +28,7 @@
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
+#include "Machines/MachineDefinitions.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 
@@ -1743,7 +1744,7 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
     // //c's drives are part of the machine rather than of what it is plugged
     // into.
     HRESULT                    hr          = S_OK;
-    bool                       isC         = IsApple2c();
+    bool                       isC         = MachineHasBuiltInDrive();
     const MonitorSpec &        monitor     = ResolveMonitorForCurrentMachine();
     std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
@@ -5084,7 +5085,7 @@ void EmulatorShell::SyncChromeBands()
 
     // The //c switch strip only exists on the //c; everywhere else the band
     // collapses to zero height so the dock leaves the viewport unchanged.
-    switchBandDp = IsApple2c() ? s_kSwitchBandDp : 0;
+    switchBandDp = MachineHasCaseSwitches() ? s_kSwitchBandDp : 0;
 
     m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.ToPx (s_kTitleBarBandDp) });
     m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.ToPx (s_kNavStripBandDp) });
@@ -5215,7 +5216,7 @@ void EmulatorShell::ReflowChromeForMachineChange()
     if (haveWindow)
     {
         newHasDisk    = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-        newIsApple2c  = IsApple2c();
+        newIsApple2c  = MachineHasCaseSwitches();
         layoutChanged = (newHasDisk != m_chromeSizedForHasDisk) ||
                         (newIsApple2c != m_chromeSizedForApple2c);
     }
@@ -5223,7 +5224,7 @@ void EmulatorShell::ReflowChromeForMachineChange()
     // The desk wears what the machine wore, so crossing the //c boundary
     // swaps both models. Reloading rebuilds every cached mesh, so the
     // scene's own state is pushed again right after.
-    if (m_deskSceneReady && IsApple2c() != m_deskSceneMachineIsC)
+    if (m_deskSceneReady && MachineHasCaseSwitches() != m_deskSceneMachineIsC)
     {
         HRESULT  hrModels = LoadDeskSceneModelsForMachine();
 
@@ -7555,6 +7556,55 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::MachineHasCaseSwitches
+//
+//  Whether this machine's case carries switches the user can reach.
+//
+//  The shell used to answer this by testing whether a //c ROM bank had been
+//  wired, which was true and beside the point: it made the question "is this a
+//  //c" when what the chrome needs to know is whether there is a switch panel
+//  to lay out. The machine answers it, so a later model with a switch panel
+//  needs no arm added here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::MachineHasCaseSwitches() const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_config.machineId);
+
+
+
+    return (definition != nullptr && definition->hasCaseSwitches);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::MachineHasBuiltInDrive
+//
+//  Whether the machine's drive is soldered in rather than plugged into a card,
+//  which is what decides the drive the desk scene draws.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::MachineHasBuiltInDrive() const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_config.machineId);
+
+
+
+    return (definition != nullptr && definition->hasBuiltInDrive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::LayoutSwitchBar
 //
 //  Positions the //c case-switch strip over its chrome band. On any other
@@ -7568,7 +7618,7 @@ void EmulatorShell::LayoutSwitchBar (UINT dpi)
 
 
 
-    if (!IsApple2c())
+    if (!MachineHasCaseSwitches())
     {
         m_switchBar.Hide();
         return;
@@ -8556,7 +8606,7 @@ bool EmulatorShell::TryPresentUiFrame()
 
     // //c switch strip: refresh the disk-use LED (drive activity) and the
     // Ctrl-armed reset cue every UI frame so they track live state.
-    if (IsApple2c())
+    if (MachineHasCaseSwitches())
     {
         SyncSwitchBarState();
     }
@@ -10791,7 +10841,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     // //c switch strip: hover state and a per-part tooltip (reset / 80/40 /
     // keyboard). Inert on non-//c machines (hidden).
-    if (IsApple2c())
+    if (MachineHasCaseSwitches())
     {
         const wchar_t * tip = m_switchBar.GetTooltipTextAt (x, y);
 
@@ -11709,7 +11759,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     chromeTook = chromeTook || toolbarTook;
 
-    if (IsApple2c())
+    if (MachineHasCaseSwitches())
     {
         Apple2cSwitchBar::Part  part = m_switchBar.GetPartAt (x, y);
 
@@ -11993,7 +12043,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // //c switch strip: latch the switch / fire the (Ctrl-gated) reset on
     // release over a part. Captured before the pressed-part is cleared.
-    if (IsApple2c())
+    if (MachineHasCaseSwitches())
     {
         switchPart = m_switchBar.GetPartAt (x, y);
         m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
@@ -14069,7 +14119,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             SetChromeHiddenForFullscreenScene (true);
             UpdateViewportLayout (static_cast<int> (width), renderH);
             m_chromeSizedForHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-            m_chromeSizedForApple2c = IsApple2c();
+            m_chromeSizedForApple2c = MachineHasCaseSwitches();
         }
         else
         {
@@ -14130,7 +14180,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             // window size now accounts for. ReflowChromeForMachineChange reads
             // these pre-switch values to grow/shrink the window by the band delta.
             m_chromeSizedForHasDisk = fHasDisk;
-            m_chromeSizedForApple2c = IsApple2c();
+            m_chromeSizedForApple2c = MachineHasCaseSwitches();
 
             m_driveBandSurface.SetVisible (!DeskSceneActive());
             m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, static_cast<int> (width), renderH });

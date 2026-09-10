@@ -43,4 +43,9 @@ struct MachineDefinition
     //  False from the //e onward, where the soft-switch bank owns the paddle
     //  timer and PREAD.
     bool                         hasGamePort = false;
+
+    //  Presentation facts the shell used to answer by asking whether the
+    //  machine was a //c.
+    bool                         hasCaseSwitches = false;
+    bool                         hasBuiltInDrive = false;
 };
