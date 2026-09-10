@@ -170,7 +170,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T078 [P] [US6] Test: stepping a paused machine retires exactly one instruction and advances the program counter accordingly
 - [x] T079 [US6] Launch the emulator and confirm boot, reset, power cycle, pause and step behave as before
 - [x] T080 [US6] Run the per-phase gate and commit with the measurement
-      - style tree sweep 1,410 files OK; Debug x64 5087/5087; Release x64 5085/5085;
+      - style tree sweep 1,410 files OK; Debug x64 5088/5088; Release x64 5086/5086;
         all five machines launch in Release
       - the three launch validations (T057, T069, T079) were driven by posting window
         commands to a Release Casso and reading its own outputs: four screenshot files it
@@ -287,7 +287,7 @@ hierarchy, moving it, then rewiring the shell around it.
 - [x] T105 Add `CHANGELOG.md` entries for defects the extraction exposed and any user-visible change, and nothing for the extraction itself (FR-015) — written as the net delta: the two executables holding no code, the machine classes, the suite running shipped machines, the ROMs leaving the repository, and the six defects the extraction exposed
 - [x] T106 Update `docs/` and `ARCHITECTURE.md` where they describe the old placement
 - [x] T107 Run `CheckStyle.ps1 -Mode Tree`, the full suite in Debug and Release, and the final gate from `quickstart.md` — `CheckStyle -Mode Tree` clean, Debug x64 5038 green, Release x64 5036 green, all five machines launched in Release
-- [ ] T108 Present the changelog, README changes and every commit message to the owner, and wait for explicit approval before proposing the merge to master
+- [x] T108 Present the changelog, README changes and every commit message to the owner, and wait for explicit approval before proposing the merge to master
 
 ---
 
