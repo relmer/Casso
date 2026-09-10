@@ -503,6 +503,7 @@
     <ClCompile Include="EmuTests\MachineDefinitionTests.cpp" />
     <ClCompile Include="EmuTests\PerfStatsTests.cpp" />
     <ClCompile Include="EmuTests\CrtPostProcessTests.cpp" />
+    <ClCompile Include="UiTests\SettingsDefinedDevicesTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\DamagedDisk.h" />

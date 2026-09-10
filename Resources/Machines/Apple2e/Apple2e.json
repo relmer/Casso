@@ -3,20 +3,14 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 11,
+    "$cassoMachineVersion": 12,
     "name": "Apple //e",
     "releaseYear": 1983,
-    "cpu": "6502",
-    "cpuManufacturer": "MOS Technology",
     "timing": {
         "videoStandard": "ntsc",
         "clockSpeed": 1022727,
         "cyclesPerScanline": 65
     },
-    "ram": [
-        { "address": "0x0000", "size": "0xC000" },
-        { "address": "0x0000", "size": "0xC000", "bank": "aux" }
-    ],
     "systemRom": {
         "address": "0xC000",
         "file": "Apple2e.rom"
@@ -24,13 +18,6 @@
     "characterRom": {
         "file": "Apple2e_Video.rom"
     },
-    "internalDevices": [
-        { "type": "apple2e-family-keyboard" },
-        { "type": "apple2-family-speaker" },
-        { "type": "apple2e-family-softswitches" },
-        { "type": "apple2e-family-mmu" },
-        { "type": "language-card" }
-    ],
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
         { "slot": 4, "device": "mockingboard-c" },
@@ -39,11 +26,5 @@
         // detaches that drive without changing the card.
         { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom",
           "ports": ["disk-ii-drive", "disk-ii-drive"] }
-    ],
-    "video": {
-        "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"]
-    },
-    "keyboard": {
-        "type": "apple2e-family-layout"
-    }
+    ]
 }

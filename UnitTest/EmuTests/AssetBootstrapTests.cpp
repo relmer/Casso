@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Core/JsonParser.h"
+#include "Machines/MachineDefinitions.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
 #include "resource.h"
@@ -105,16 +106,18 @@ public:
     // silently ship a 6502 that would crash on the enhanced firmware.
     TEST_METHOD (Embedded_Apple2eEnhanced_UsesCmos65C02)
     {
-        std::string      jsonText = LoadEmbeddedJson (IDR_MACHINE_APPLE2E_ENHANCED);
-        JsonValue        root;
-        JsonParseError   parseError;
-        std::string      cpu;
+        //
+        //  The CPU is no longer in the document. Which processor a shipped
+        //  machine has is not something its owner configures, so it is stated
+        //  in code and the file does not repeat it. The assertion follows it
+        //  there rather than being dropped -- the //e Enhanced running a 65C02
+        //  is the whole of what made it enhanced.
+        //
+        const MachineDefinition *  definition = MachineDefinitions::Find ("Apple2eEnhanced");
 
-        AssertSucceeded (JsonParser::Parse (jsonText, root, parseError) ,
-            L"Embedded Apple2eEnhanced JSON must parse cleanly");
-        AssertSucceeded (root.GetString ("cpu", cpu) ,
-            L"Apple2eEnhanced config must declare a cpu");
-        Assert::AreEqual (std::string ("65C02"), cpu,
+        Assert::IsNotNull (definition,
+            L"Apple2eEnhanced ships, so it has a definition");
+        Assert::AreEqual (std::string ("65C02"), definition->cpu,
             L"Apple2eEnhanced must select the 65C02 core");
     }
 

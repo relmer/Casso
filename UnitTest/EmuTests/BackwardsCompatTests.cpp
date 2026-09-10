@@ -287,7 +287,7 @@ public:
 
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2", searchPaths, MockResolveAll,
                                         config, error);
 
         AssertSucceeded (hr,
@@ -319,7 +319,7 @@ public:
 
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2Plus", searchPaths, MockResolveAll,
                                         config, error);
 
         AssertSucceeded (hr,
@@ -350,7 +350,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
@@ -382,7 +382,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2Plus", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
@@ -417,7 +417,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
@@ -474,7 +474,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2Plus", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
@@ -518,7 +518,7 @@ public:
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
@@ -570,7 +570,7 @@ public:
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2Plus", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 

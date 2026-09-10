@@ -416,6 +416,16 @@ private:
 
     static JsonValue  CloneJson (const JsonValue & v);
 
+    // Puts a shipped machine's internal device list into a working copy of its
+    // document. The document itself no longer carries one: what devices a
+    // machine has is stated in code, so the file describes only what an owner
+    // configures. The hardware tree still has to show them, and this is where
+    // they arrive rather than in each reader.
+    //
+    // A machine with no definition is left untouched -- its document is the
+    // only description of it there is.
+    static void  AddDefinedDevices (const std::string & machineName, JsonValue & doc);
+
 
     std::string          m_machineName;
     SettingsMachineInfo  m_machineInfo;

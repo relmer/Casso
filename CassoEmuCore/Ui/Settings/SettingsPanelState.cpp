@@ -7,6 +7,7 @@
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Machines/MachineDefinitions.h"
 
 
 
@@ -397,6 +398,65 @@ JsonValue  SettingsPanelState::CloneJson (const JsonValue & v)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SettingsPanelState::AddDefinedDevices
+//
+//  Puts a shipped machine's internal device list into a working copy of its
+//  document.
+//
+//  The document no longer carries one. What devices a machine has is stated in
+//  code, so the file describes only what an owner configures -- what is in each
+//  slot, what is on each port, which ROM to load. The hardware tree still has
+//  to show the devices, and this is where they arrive, once, rather than every
+//  reader learning where a device list comes from.
+//
+//  A machine with no definition is left untouched. Its document is the only
+//  description of it there is, and overwriting that would be the same mistake
+//  in the other direction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::AddDefinedDevices (const std::string & machineName, JsonValue & doc)
+{
+    const MachineDefinition *                       definition = MachineDefinitions::Find (machineName);
+    std::vector<JsonValue>                          devices;
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+
+
+
+    if (definition == nullptr || doc.GetType() != JsonType::Object)
+    {
+        return;
+    }
+
+    for (const InternalDevice & device : definition->internalDevices)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  fields;
+
+        fields.emplace_back ("type", JsonValue (device.type));
+        devices.emplace_back (std::move (fields));
+    }
+
+    //  Rebuilt rather than appended to: a stale internalDevices in a user's
+    //  own copy of a shipped document must not survive alongside the real one.
+    for (const auto & entry : doc.GetObjectEntries())
+    {
+        if (entry.first != "internalDevices")
+        {
+            entries.emplace_back (entry.first, CloneJson (entry.second));
+        }
+    }
+
+    entries.emplace_back ("internalDevices", JsonValue (std::move (devices)));
+
+    doc = JsonValue (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SettingsPanelState
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -443,15 +503,29 @@ HRESULT SettingsPanelState::LoadFromMachine (
     m_defaultJson = CloneJson (defaultJson);
     m_mergedJson  = CloneJson (mergedJson);
 
+    //
+    //  A shipped machine's document no longer lists its internal devices --
+    //  the machine states those in code. The hardware tree still has to show
+    //  them, so the definition's list is put into the working copy here, once,
+    //  rather than every reader learning where a device list comes from.
+    //
+    //  A machine with no definition is left alone: its document IS the only
+    //  description of it.
+    //
+    AddDefinedDevices (m_machineName, m_mergedJson);
+    AddDefinedDevices (m_machineName, m_defaultJson);
+
     m_original = Snapshot {};
 
-    hr = ExtractUiPrefs (mergedJson, m_original.prefs);
+    //  Read from the augmented copy, not the caller's: the device list the
+    //  hardware tree needs was just put there.
+    hr = ExtractUiPrefs (m_mergedJson, m_original.prefs);
     CHR (hr);
 
-    hr = ExtractMachineInfo (mergedJson, m_machineInfo);
+    hr = ExtractMachineInfo (m_mergedJson, m_machineInfo);
     CHR (hr);
 
-    hr = ExtractHardware (mergedJson, m_original.hardware);
+    hr = ExtractHardware (m_mergedJson, m_original.hardware);
     CHR (hr);
 
     hr = ExtractMachinePorts (mergedJson, m_original.machinePorts);

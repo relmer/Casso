@@ -222,7 +222,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T111 [P] [US9] Define `Apple2e`, `Apple2eEnhanced` — identical device lists, differing only in CPU and ROM
 - [x] T112 [P] [US9] Define `Apple2c`, including the ROM bank that is currently wired from the executable
 - [x] T113 [US9] Add a definition lookup by model id and have machine construction take the invariant fields from it rather than from `MachineConfig`
-- [ ] T114 [US9] Remove `internalDevices`, keyboard layout, video modes, CPU and RAM from the JSON schema and from the embedded defaults; leave slots, ports and ROM overrides. Needs a `$cassoMachineVersion` bump and an upgrade path in `MachineConfigUpgrade`
+- [x] T114 [US9] Remove `internalDevices`, keyboard layout, video modes, CPU and RAM from the JSON schema and from the embedded defaults; leave slots, ports and ROM overrides. Needs a `$cassoMachineVersion` bump and an upgrade path in `MachineConfigUpgrade`
 - [x] T115 [US9] Remove `internalDevices` from the delta-merge in `CassoEmuCore/Config/UserConfigStore.cpp` (:2159, :2316) and bump the machine-definition version with an upgrade path
 - [x] T116 [US9] Rename device type strings to the `-family-` form and update the registry, the definitions and every test
 - [x] T117 [P] [US9] Test: a delta naming a different keyboard for the //c leaves the //c's own keyboard in place
