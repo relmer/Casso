@@ -1187,8 +1187,11 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 //  StepInstructionWhilePaused
 //
 //  Runs one CPU instruction directly from the UI thread. Caller MUST
-//  have verified the CPU thread is paused (blocked on pauseCV.wait)
-//  -- this is a quiet contract; we don't re-check here.
+//  have verified the CPU thread is paused -- this is a quiet contract;
+//  we don't re-check here. A paused CPU thread still drains its command
+//  queue, so a machine switch can be under way: the step takes the
+//  machine's lifetime lock shared and is skipped while the switch holds
+//  it exclusively.
 //
 //  Steps the CPU, ticks the disk controller in step, then runs one
 //  full video frame and publishes the framebuffer so the main UI
@@ -1198,6 +1201,15 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 void EmulatorShell::StepInstructionWhilePaused()
 {
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+
+
+
+    if (!lifetime.owns_lock())
+    {
+        return;
+    }
+
     m_machine.StepOne();
 
     RunOneFrame();

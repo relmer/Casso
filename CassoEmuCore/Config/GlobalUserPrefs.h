@@ -86,6 +86,12 @@ struct GlobalUserPrefs
     // AssetBootstrap::CheckAndFetchDiskAudio reads + writes this.
     std::string  audioDownloadConsent  = "ask";
 
+    // Whether to offer a replacement for a ROM Casso itself installed and
+    // has since corrected. The machine boots on the old file, so the offer
+    // is optional: "ask" until the user skips it, then "decline".
+    // AssetBootstrap::RunStartupDownloader reads + writes this.
+    std::string  romRefreshConsent     = "ask";
+
     // THE INPUT MAPPING IS PER MACHINE NOW, in each machine's $cassoUiPrefs
     // block (see MachineInputPrefs). These three are what 1.22 and earlier
     // wrote here, and they stay for two reasons: a machine that has never had

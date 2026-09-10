@@ -418,6 +418,11 @@ Error:
 
 void EmulatorShell::OpenDisk2DebugDialog()
 {
+    // Held shared for the whole call: the controller pointer is used past
+    // a Create that pumps messages, and a machine switch on the CPU thread
+    // must not free it meanwhile.
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    bool               isHeld     = lifetime.owns_lock();
     HRESULT            hr         = S_OK;
     Disk2Controller  * controller = nullptr;
     int                Disk2Count = 0;
@@ -425,6 +430,8 @@ void EmulatorShell::OpenDisk2DebugDialog()
     size_t             i          = 0;
 
 
+
+    CBR (isHeld);
 
     controller = m_diskManager->FindSlot6Controller();
 

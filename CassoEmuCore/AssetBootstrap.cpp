@@ -481,20 +481,6 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ComputeSha256
-//
-//  Thin BCrypt wrapper. Returns all-zeros on any BCrypt failure; the
-//  caller treats that as "no match" since the hash list never
-//  contains all-zeros.
-//
-////////////////////////////////////////////////////////////////////////////////
-
 static array<uint8_t, 32> ComputeSha256 (const string & data)
 {
     HRESULT             hr       = S_OK;
@@ -3416,14 +3402,15 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     bool                   & outUserExited,
     string                 & outError)
 {
-    HRESULT                hr             = S_OK;
+    HRESULT                hr              = S_OK;
     StartupDownloadSet     set;
-    StartupDownloadResult  result         = StartupDownloadResult::NothingToDo;
+    StartupDownloadResult  result          = StartupDownloadResult::NothingToDo;
     vector<string>         romFiles;
     string                 narrowMachine;
-    bool                   audioIncluded  = false;
+    bool                   audioIncluded   = false;
+    bool                   refreshIncluded = false;
     error_code             ec;
-    fs::path               devicesDir     = assetBaseDir / "Devices" / "DiskII";
+    fs::path               devicesDir      = assetBaseDir / "Devices" / "DiskII";
 
 
 
@@ -3443,10 +3430,11 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
     for (const string & romFile : romFiles)
     {
-        const RomSpec    * spec    = FindRomSpec (narrowMachine, romFile);
+        const RomSpec    * spec      = FindRomSpec (narrowMachine, romFile);
         fs::path           relPath;
         fs::path           found;
         StartupAssetEntry  entry;
+        bool               isRefresh = false;
 
         CBRF (spec != nullptr,
               outError = format ("ROM '{}' is missing and Casso has no download "
@@ -3457,11 +3445,19 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         found   = PathResolver::FindFile (searchPaths, relPath);
 
         // A ROM already on disk is satisfied -- unless it is a file Casso
-        // itself installed here and has since corrected, in which case it is
-        // re-fetched over the top.
-        if (!found.empty() && !FileMatchesSha256 (found, spec->supersededSha256))
+        // itself installed here and has since corrected, in which case a
+        // replacement is offered. The machine boots on the old file, so
+        // the offer can be skipped, and once skipped it is not repeated.
+        if (!found.empty())
         {
-            continue;
+            if (!FileMatchesSha256 (found, spec->supersededSha256) ||
+                prefs.romRefreshConsent == "decline")
+            {
+                continue;
+            }
+
+            isRefresh       = true;
+            refreshIncluded = true;
         }
 
         entry.kind          = StartupAssetKind::Rom;
@@ -3471,7 +3467,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.source        = spec->sourceLabel.empty()
                               ? L"AppleWin (GitHub)"
                               : AsciiToWide (spec->sourceLabel);
-        entry.selectable    = false;
+        entry.selectable    = isRefresh;
         entry.selected      = true;
         entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
         entry.expectedBytes = (std::uint64_t) spec->expectedSize;
@@ -3700,6 +3696,11 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         if (audioIncluded)
         {
             prefs.audioDownloadConsent = "decline";
+        }
+
+        if (refreshIncluded)
+        {
+            prefs.romRefreshConsent = "decline";
         }
 
         hr = S_OK;

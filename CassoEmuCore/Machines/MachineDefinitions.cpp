@@ -74,44 +74,64 @@ const IMachine * MachineDefinitions::FindMachine (const std::string & machineId)
 //  The machine's answers, flattened into the record the config loader and the
 //  settings pages consume.
 //
-//  Flattened once per lookup and cached, because callers hold the pointer past
-//  the call and a machine's answers never change -- they are what the machine
-//  is, and no version of it becomes a different machine later.
+//  Flattened for every machine on the first lookup and never again, because
+//  callers hold the pointer past the call, a machine's answers never change,
+//  and the CPU and UI threads both look up here: a table built once under
+//  the static initializer is read-only from then on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const MachineDefinition * MachineDefinitions::Find (const std::string & machineId)
 {
-    static std::map<std::string, MachineDefinition>  s_cache;
-    const IMachine *                                 machine    = FindMachine (machineId);
-    auto                                             known      = s_cache.find (machineId);
-    MachineDefinition                                definition;
+    static const std::map<std::string, MachineDefinition>  s_table = BuildTable();
+    auto                                                   known   = s_table.find (machineId);
 
 
 
-    if (machine == nullptr)
+    if (known == s_table.end())
     {
         return (nullptr);
     }
 
-    if (known != s_cache.end())
+    return (&known->second);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDefinitions::BuildTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, MachineDefinition> MachineDefinitions::BuildTable()
+{
+    std::map<std::string, MachineDefinition>  table;
+
+
+
+    for (const IMachine * machine : s_kpAllMachines)
     {
-        return (&known->second);
+        MachineDefinition  definition;
+
+        definition.id              = machine->GetId();
+        definition.cpu             = machine->GetCpu();
+        definition.cpuManufacturer = machine->GetCpuManufacturer();
+        definition.ram             = machine->GetRam();
+        definition.internalDevices = machine->GetInternalDevices();
+        definition.videoModes      = machine->GetVideoModes();
+        definition.keyboardType    = machine->GetKeyboardLayout();
+        definition.slotCount       = machine->GetSlotCount();
+        definition.hasGamePort     = machine->HasGamePortDevice();
+        definition.hasCaseSwitches = machine->HasCaseSwitches();
+        definition.hasBuiltInDrive = machine->HasBuiltInDrive();
+
+        table.emplace (definition.id, std::move (definition));
     }
 
-    definition.id              = machine->GetId();
-    definition.cpu             = machine->GetCpu();
-    definition.cpuManufacturer = machine->GetCpuManufacturer();
-    definition.ram             = machine->GetRam();
-    definition.internalDevices = machine->GetInternalDevices();
-    definition.videoModes      = machine->GetVideoModes();
-    definition.keyboardType    = machine->GetKeyboardLayout();
-    definition.slotCount       = machine->GetSlotCount();
-    definition.hasGamePort     = machine->HasGamePortDevice();
-    definition.hasCaseSwitches = machine->HasCaseSwitches();
-    definition.hasBuiltInDrive = machine->HasBuiltInDrive();
-
-    return (&s_cache.emplace (machineId, std::move (definition)).first->second);
+    return (table);
 }
 
 

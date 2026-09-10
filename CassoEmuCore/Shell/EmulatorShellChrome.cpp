@@ -1407,9 +1407,20 @@ void EmulatorShell::SyncSwitchBarState()
 
 void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 {
-    Apple2eKeyboard *  iieKbd = m_machine.GetRefs().iieKeyboard;
+    // The devices are read here on the UI thread; a machine switch on the
+    // CPU thread holds the lifetime lock exclusively while it replaces
+    // them, and a click that lands in that window is dropped.
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    Apple2eKeyboard *                    iieKbd = nullptr;
 
 
+
+    if (!lifetime.owns_lock())
+    {
+        return;
+    }
+
+    iieKbd = m_machine.GetRefs().iieKeyboard;
 
     switch (part)
     {
@@ -1417,7 +1428,11 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
             // Only a modifier-qualified press resets, matching the case key.
             if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
             {
-                m_machine.GetRefs().keyboard->SetKeyDown (false);
+                if (m_machine.GetRefs().keyboard != nullptr)
+                {
+                    m_machine.GetRefs().keyboard->SetKeyDown (false);
+                }
+
                 RequestReset();
             }
 

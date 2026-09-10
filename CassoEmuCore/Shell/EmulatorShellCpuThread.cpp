@@ -859,6 +859,13 @@ void EmulatorShell::ExecuteCpuSlices()
 
         sliceActual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
 
+        // No CPU (a rebuild failed after teardown): nothing advances, so
+        // leave rather than spin on a budget no one can consume.
+        if (sliceActual == 0)
+        {
+            break;
+        }
+
         executed += sliceActual;
 
         // The Apple keys held through a reset are held for a count of

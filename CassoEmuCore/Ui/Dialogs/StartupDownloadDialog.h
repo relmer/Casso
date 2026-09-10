@@ -83,7 +83,9 @@ struct StartupDownloadSet
     {
         for (const StartupAssetEntry & entry : entries)
         {
-            if (entry.kind == StartupAssetKind::Rom)
+            // A ROM the machine cannot boot without is not selectable; a
+            // replacement for one already on disk is, and can be skipped.
+            if (entry.kind == StartupAssetKind::Rom && !entry.selectable)
             {
                 return true;
             }

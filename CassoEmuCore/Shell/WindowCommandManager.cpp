@@ -667,12 +667,12 @@ void WindowCommandManager::OnMachineCommand (int id)
                 break;
             }
 
-            // CPU thread is provably idle (blocked on pauseCV.wait), so
-            // it's safe to drive the step directly from the UI thread.
-            // Routing through PostCommand+queue would never run -- the
-            // CPU thread can't drain its queue while paused. Delegated
-            // through the shell to avoid pulling Disk2Controller's full
-            // definition into this header.
+            // The paused CPU thread runs no slices, so the step is driven
+            // directly from the UI thread. It does still drain its command
+            // queue while paused; the shell takes the machine's lifetime
+            // lock so a switch in flight skips the step rather than
+            // racing it. Delegated through the shell to avoid pulling
+            // Disk2Controller's full definition into this header.
             m_shell.StepInstructionWhilePaused();
             break;
         }

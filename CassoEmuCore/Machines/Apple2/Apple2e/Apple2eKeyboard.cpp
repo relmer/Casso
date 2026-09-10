@@ -479,6 +479,12 @@ void Apple2eKeyboard::Reset()
     m_closedApple.store (false, memory_order_release);
     m_shift.store       (false, memory_order_release);
 
+    // A hold belongs to the soft reset it was armed for; a power cycle
+    // is a different event and starts with no key down.
+    m_holdOpenApple.store   (false, memory_order_release);
+    m_holdClosedApple.store (false, memory_order_release);
+    m_resetHoldCycles.store (0,     memory_order_release);
+
     m_lastEmittedButton[0] = -1;
     m_lastEmittedButton[1] = -1;
     m_lastEmittedButton[2] = -1;

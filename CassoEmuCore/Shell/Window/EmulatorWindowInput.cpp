@@ -1704,9 +1704,17 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 void EmulatorShell::ReleaseGuestKeys()
 {
-    auto *  iieKbd = m_machine.GetRefs().iieKeyboard;
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    auto *                               iieKbd = lifetime.owns_lock() ? m_machine.GetRefs().iieKeyboard : nullptr;
 
 
+
+    // A machine switch holds the lock exclusively while it replaces the
+    // devices; the new machine starts with every key up anyway.
+    if (!lifetime.owns_lock())
+    {
+        return;
+    }
 
     if (m_machine.GetRefs().keyboard != nullptr)
     {
@@ -1855,14 +1863,23 @@ Error:
 
 DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
+    // The keyboard device is read here on the UI thread; a machine switch
+    // on the CPU thread holds the lifetime lock exclusively while it
+    // replaces the devices, and a key that lands in that window is dropped.
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
     HRESULT          hr        = S_OK;
     bool             consumed  = false;
     bool             ctrlHeld  = false;
     bool             altHeld   = false;
     bool             isRepeat  = (lParam & s_kPreviousKeyDownLParamBit) != 0;
-    AppleKeyboard *  keyboard  = m_machine.GetRefs().keyboard;
+    AppleKeyboard *  keyboard  = lifetime.owns_lock() ? m_machine.GetRefs().keyboard : nullptr;
 
 
+
+    if (!lifetime.owns_lock())
+    {
+        return DxuiMessageResult::Handled;
+    }
 
     // The swallow is a ONE-SHOT owned by this keydown, and clearing it here
     // is what keeps it one. Windows does not always follow a keydown with the
@@ -2048,9 +2065,17 @@ static bool HostKeyboardLayoutIsDvorak()
 
 bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 {
-    bool  hasKeyboard = false;
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    bool                                 hasKeyboard = false;
 
 
+
+    // A machine switch holds the lock exclusively while it replaces the
+    // devices; a key that lands in that window is dropped.
+    if (!lifetime.owns_lock())
+    {
+        return false;
+    }
 
     // Arrow keys double as the emulated joystick axes / the X / Z keys as
     // fire buttons when "Map Arrows to Joystick" is on AND a game-port
@@ -2346,9 +2371,10 @@ Error:
 
 void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
     HRESULT  hr       = S_OK;
-    auto   * iieKbd   = m_machine.GetRefs().iieKeyboard;
-    auto   * gamePort = m_machine.GetRefs().gamePort;
+    auto   * iieKbd   = lifetime.owns_lock() ? m_machine.GetRefs().iieKeyboard : nullptr;
+    auto   * gamePort = lifetime.owns_lock() ? m_machine.GetRefs().gamePort    : nullptr;
     bool     button0  = false;
     bool     button1  = false;
 
@@ -3111,9 +3137,17 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 
 DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 {
-    bool  isRepeat = (lParam & s_kPreviousKeyDownLParamBit) != 0;
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    bool                                 isRepeat = (lParam & s_kPreviousKeyDownLParamBit) != 0;
 
 
+
+    // A machine switch holds the lock exclusively while it replaces the
+    // devices; a character that lands in that window is dropped.
+    if (!lifetime.owns_lock())
+    {
+        return DxuiMessageResult::Handled;
+    }
 
     // A host-meta shortcut (Ctrl+V paste), or a special key already
     // delivered by name (TAB, Escape), claimed the keydown, but Windows

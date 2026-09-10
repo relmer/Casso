@@ -330,6 +330,7 @@
     <ClCompile Include="EmuTests\MockIrqAsserter.cpp" />
     <ClCompile Include="EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="EmuTests\GoldenImage.cpp" />
+    <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
     <ClCompile Include="EmuTests\OpenAppleResetTests.cpp" />
     <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />

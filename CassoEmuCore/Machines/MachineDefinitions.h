@@ -31,4 +31,7 @@ public:
     static const IMachine *           FindMachine (const std::string & machineId);
 
     static std::vector<std::string>   GetKnownIds ();
+
+private:
+    static std::map<std::string, MachineDefinition>  BuildTable ();
 };
