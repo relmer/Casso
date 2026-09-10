@@ -29,6 +29,7 @@ std::vector<RamRegion> Apple2e::GetRam() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Apple2e::GetInternalDevices
@@ -49,6 +50,7 @@ std::vector<InternalDevice> Apple2e::GetInternalDevices() const
 
     return (devices);
 }
+
 
 
 
