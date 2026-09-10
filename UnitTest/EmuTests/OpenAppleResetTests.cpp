@@ -21,9 +21,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  reset handler starts, so the key has to still be down at that moment --
 //  and WHEN that moment comes differs by machine. The //e reads it 577
 //  cycles in. The //c first strobes the drive motor on and off, waits for
-//  the one-second spin-down, and reads it 1.2 million cycles in. Both are
-//  measured here, because the length of the hold the shell applies is
-//  chosen to cover the later one.
+//  the IWM's motor flag to clear, and reads it about 200,000 cycles in.
+//  Both are measured here, because the length of the hold the shell
+//  applies is chosen to cover the later one with room to spare.
 //
 //  Applesoft's end-of-program pointer is the witness on the //e: a cold start
 //  puts it back to the start of program memory, a warm reset leaves what was
@@ -79,16 +79,22 @@ public:
     }
 
 
-    TEST_METHOD (TheIIcFirmwareReadsOpenAppleAfterTheDriveSpinsDown)
+    TEST_METHOD (TheIIcFirmwareReadsOpenAppleAfterItsDriveCheck)
     {
-        //  The //c reset routine strobes the drive motor on and off and then
-        //  waits for the motor to report off before it reads the Apple keys,
-        //  which is the Disk II spin-down later. A hold that ended before
-        //  that read would never cold start a //c, whatever it did for a //e.
+        //  The //c reset routine strobes the drive motor on and off, writes
+        //  the IWM mode register and reads it back until the two agree, and
+        //  only then reads the Apple keys. The IWM takes that write as soon
+        //  as the motor is commanded off, spin-down or not, so the read lands
+        //  a fifth of a second in rather than a second in -- a real //c
+        //  reboots at once, and so must this one. The hold the shell applies
+        //  must still cover it.
         uint64_t  firstRead = CyclesUntilTheIIcReadsTheButtons();
 
-        Assert::IsTrue (firstRead > Disk2Controller::kMotorSpindownCycles,
-            std::format (L"the //c read the buttons at cycle {}, before the spin-down", firstRead).c_str());
+        Assert::IsTrue (firstRead > 100'000,
+            std::format (L"the //c read the buttons at cycle {}, before its drive check", firstRead).c_str());
+        Assert::IsTrue (firstRead < Disk2Controller::kMotorSpindownCycles,
+            std::format (L"the //c read the buttons at cycle {}, only after a spin-down it should not wait for",
+                         firstRead).c_str());
         Assert::IsTrue (firstRead < Apple2eKeyboard::kResetHoldCycles,
             std::format (L"the //c read the buttons at cycle {}, after the hold would have ended", firstRead).c_str());
     }

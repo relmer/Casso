@@ -57,8 +57,8 @@ public:
 
     // Ctrl-Open-Apple-Reset. The firmware reads $C061 after /RESET to choose
     // a cold start over a warm one: the //e at cycle 577, the //c only after
-    // it has waited for the drive motor it strobed to spin down, 1.2 million
-    // cycles in. The host's key state can change hands around a click on a
+    // its drive check, some 200,000 cycles in. The host's key state can
+    // change hands around a click on a
     // reset button, so the keys as they were when the reset was asked for
     // are read as down until this many emulated cycles have run, whatever
     // the host's state does meanwhile. Counted in cycles by the CPU thread,

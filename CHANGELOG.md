@@ -22,6 +22,8 @@ Entries before versioning was introduced use dates only.
   static screen, such as the "Check disk drive" message.
 - Switching machines no longer crashes when a frame is presented during the
   rebuild.
+- Starting, power-cycling or rebooting a //c no longer pauses for a second
+  before the drive starts.
 - Ctrl-Open-Apple-Reset from the toolbar, the Machine menu or the //c strip now
   cold starts with normal key timing. Previously, the keys had to stay down for
   several seconds after the click.

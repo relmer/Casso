@@ -199,6 +199,40 @@ public:
             L"$C0E8 must disable the motor after the spindown timer expires");
     }
 
+    //  The IWM status register's motor flag follows the motor COMMAND. The
+    //  disk keeps turning through the spin-down second after $C0E8, and reads
+    //  in that window still find nibbles, but the flag drops at once: the //c
+    //  reset routine polls it after strobing the motor on and off, and a real
+    //  //c reboots without waiting for the spin-down.
+    TEST_METHOD (IwmStatusMotorFlagFollowsTheCommandNotTheSpinDown)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+        disk->SetIwmMode (true);
+        disk->Read (s_kMotorOn);
+        disk->Read (s_kQ6On);
+
+        Assert::AreEqual<Byte> (0x20, disk->Read (s_kQ7Off) & 0x20, L"motor on: status bit 5 set");
+
+        disk->Read (s_kMotorOff);
+
+        Assert::AreEqual<Byte> (0x00, disk->Read (s_kQ7Off) & 0x20, L"motor commanded off: bit 5 clears at once");
+        Assert::IsTrue (disk->IsMotorOn(), L"while the disk itself is still spinning down");
+
+        //  The mode register is likewise writable as soon as the motor is
+        //  commanded off: the //c reset routine writes it and reads it back
+        //  until they agree, and a refusal through the spin-down held the
+        //  machine there for a second.
+        disk->Write (s_kQ7On, 0x1B);
+
+        Assert::AreEqual<Byte> (0x1B, disk->Read (s_kQ7Off) & 0x1F, L"the mode written reads back through the spin-down");
+
+        disk->Tick (Disk2Controller::kMotorSpindownCycles);
+
+        Assert::IsFalse (disk->IsMotorOn(), L"and stops when the spin-down runs out");
+        Assert::AreEqual<Byte> (0x00, disk->Read (s_kQ7Off) & 0x20);
+    }
+
     TEST_METHOD (DriveSelectViaC0EAC0EB)
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);

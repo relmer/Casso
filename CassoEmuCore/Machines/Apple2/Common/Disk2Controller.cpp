@@ -113,7 +113,13 @@ void Disk2Controller::Write (Word address, Byte value)
         // IWM (//c): Q6H + Q7H with the motor off loads the MODE register
         // instead of the write latch; with the motor on it is the data-field
         // write path, same as a Disk II card.
-        if (m_iwmMode && !m_motorOn)
+        //
+        // "Off" is the motor COMMAND, as it is for the status flag. The //c
+        // reset routine turns the motor off, writes the mode register and
+        // reads it back until the two agree; judged by the spin-down instead,
+        // the write was refused for a second and the machine sat in that
+        // loop at every reset, power cycle and launch.
+        if (m_iwmMode && !(m_motorOn && m_motorSpindownCycles == 0))
         {
             m_iwmModeReg = value;
         }
@@ -329,12 +335,22 @@ Byte Disk2Controller::HandleReadDispatch()
         sense = m_activeDisk[m_activeDrive]->IsWriteProtected() ? 0x80 : 0x00;
 
         // IWM (//c): Q6H + Q7L reads the STATUS register. Bit 7 is the sense
-        // input (write protect here), bit 5 is the drive-enable/motor flag,
-        // and bits 4-0 mirror the MODE register the firmware just wrote -- the
-        // reset code writes the mode register then reads it back to confirm.
+        // input (write protect here), bit 5 is the motor-on flag, and bits
+        // 4-0 mirror the MODE register the firmware just wrote -- the reset
+        // code writes the mode register then reads it back to confirm.
         // A plain Disk II has no status register, so it reports sense alone.
+        //
+        // Bit 5 follows the motor COMMAND, not the spin-down. After $C0E8 the
+        // disk keeps turning for the timer's second so a read in that window
+        // still finds nibbles, but the flag the firmware polls drops at once.
+        // The //c reset routine strobes the motor on and off and then waits
+        // for this bit to clear before it goes on; reported from the
+        // spin-down it held the machine for a full second at every reset,
+        // power cycle and launch, and a real //c comes up at once.
         result = m_iwmMode
-                     ? static_cast<Byte> (sense | (m_motorOn ? 0x20 : 0x00) | (m_iwmModeReg & 0x1F))
+                     ? static_cast<Byte> (sense
+                                          | ((m_motorOn && m_motorSpindownCycles == 0) ? 0x20 : 0x00)
+                                          | (m_iwmModeReg & 0x1F))
                      : sense;
     }
 
