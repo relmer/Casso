@@ -203,23 +203,6 @@ struct SlotConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  VideoConfig
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct VideoConfig
-{
-    vector<string> modes;
-    int            width  = 560;
-    int            height = 384;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  VideoStandard
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,7 +285,6 @@ struct MachineConfig
     // need to be: a //c's internal drive is soldered in, not attached, so it
     // is not a port and never appears in this list.
     vector<PortConfig>          ports;
-    VideoConfig                 videoConfig;
     string                      keyboardType;
 
     // True when an enabled slot hosts the given device type -- e.g. a query for
@@ -498,6 +480,8 @@ private:
         int    T::  * intDest;
     };
 
+
+
     template <typename T>
     static HRESULT GetValue (
         const JsonValue  & entry,
@@ -565,6 +549,5 @@ private:
                                        MachineConfig          & outConfig,
                                        string                 & outError);
 
-    static void    LoadVideoConfig    (const JsonValue & video,    MachineConfig & outConfig);
     static void    LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig);
 };

@@ -281,7 +281,6 @@ private:
         config.internalDevices  = { { .type = "apple2-family-keyboard" },
                                     { .type = "apple2-family-speaker" },
                                     { .type = "apple2-family-softswitches" } };
-        config.videoConfig.modes = { "apple2-text40", "apple2-lores", "apple2-hires" };
 
         return (config);
     }

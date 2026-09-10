@@ -978,7 +978,6 @@ HRESULT MachineConfigLoader::Load (
     const JsonValue    * pRamArray      = nullptr;
     const JsonValue    * pSystemRom     = nullptr;
     const JsonValue    * pInternalDevs  = nullptr;
-    const JsonValue    * pVideo         = nullptr;
     const JsonValue    * pKeyboard      = nullptr;
     bool                 fDefined       = false;
 
@@ -1087,10 +1086,6 @@ HRESULT MachineConfigLoader::Load (
     // Required unless the machine's definition supplies them: video, keyboard
     if (!fDefined)
     {
-        hr = root.GetObject ("video", pVideo);
-        CHRF (hr, outError = "Missing required field: 'video'");
-        LoadVideoConfig (*pVideo, outConfig);
-
         hr = root.GetObject ("keyboard", pKeyboard);
         CHRF (hr, outError = "Missing required field: 'keyboard'");
         LoadKeyboardConfig (*pKeyboard, outConfig);
@@ -1140,7 +1135,6 @@ void MachineConfigLoader::ApplyMachineDefinition (
     outConfig.cpu                = definition->cpu;
     outConfig.ram                = definition->ram;
     outConfig.internalDevices    = definition->internalDevices;
-    outConfig.videoConfig.modes  = definition->videoModes;
     outConfig.keyboardType       = definition->keyboardType;
 }
 
@@ -1205,39 +1199,6 @@ HRESULT MachineConfigLoader::GetValue (
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadVideoConfig
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfig & outConfig)
-{
-    HRESULT           hr     = S_OK;
-    const JsonValue * pModes = nullptr;
-
-
-
-    hr = video.GetArray ("modes", pModes);
-    if (SUCCEEDED (hr))
-    {
-        for (size_t i = 0; i < pModes->GetArraySize(); i++)
-        {
-            if (pModes->GetArrayElement (i).GetType() == JsonType::String)
-            {
-                outConfig.videoConfig.modes.push_back (pModes->GetArrayElement (i).GetString());
-            }
-        }
-    }
-
-    video.GetInt ("width",  outConfig.videoConfig.width);
-    video.GetInt ("height", outConfig.videoConfig.height);
 }
 
 

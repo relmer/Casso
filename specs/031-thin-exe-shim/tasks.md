@@ -244,7 +244,7 @@ hierarchy, moving it, then rewiring the shell around it.
 - [x] T132 [US9] Add `Apple2c` deriving from `Apple2e` as a SIBLING of `Apple2eEnhanced`: 65C02, slot count zero, back-panel ports, ROM banking. Do not derive it from `Apple2eEnhanced`, which shipped a year later
 - [ ] T133 [US9] Move the `apple2e-family-mmu` special case (`MachineManager.cpp:266`) and `WireApple2cRomBank` (`:961`) into the machines that own them; the //e's MMU and the //c's ROM bank are wired from the executable today
 - [ ] T134 [US9] Replace the 14 `IsApple2c()` call sites with capability queries on the machine — which drive mesh, whether a switch band exists, whether a switch bar is shown — since every one of them is a presentation question, not an emulation one
-- [ ] T135 [US9] Delete `videoConfig.modes`: nothing in production reads it, `MachineManager` builds all five renderers unconditionally, and each machine's initialization now constructs its own
+- [x] T135 [US9] Delete `videoConfig.modes`: nothing in production reads it, `MachineManager` builds all five renderers unconditionally, and each machine's initialization now constructs its own
 - [x] T136 [P] [US9] Tests: each machine reports its own slot count, CPU and renderers; an `Apple2` has no 80-column renderer; a //c has zero slots and a //e seven
 
 ---

@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "HeadlessHost.h"
 #include "Core/MachineConfig.h"
+#include "Machines/MachineDefinitions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -275,11 +276,12 @@ public:
 
     TEST_METHOD (AppleII_Json_ParsesAsValidMachineConfig)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2.json");
         Assert::IsFalse (json.empty(),
@@ -307,11 +309,12 @@ public:
 
     TEST_METHOD (AppleIIPlus_Json_ParsesAsValidMachineConfig)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
         Assert::IsFalse (json.empty(),
@@ -341,11 +344,12 @@ public:
 
     TEST_METHOD (AppleII_NoMmuPresent)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
@@ -373,11 +377,12 @@ public:
 
     TEST_METHOD (AppleIIPlus_NoMmuPresent)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
@@ -408,11 +413,12 @@ public:
 
     TEST_METHOD (AppleII_NoAuxRam_NoExtendedVideoModes)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
@@ -430,10 +436,15 @@ public:
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
             L"Apple2.json system ROM must remain at $D000");
 
-        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
-            L"Apple2.json must list exactly 3 video modes (text40/lores/hires)");
+        //  The mode list is the MACHINE's, not the document's: which video
+        //  modes exist follows from whether the machine has an auxiliary bank
+        //  to interleave from, so it is answered in code.
+        modes = MachineDefinitions::FindMachine ("Apple2")->GetVideoModes();
 
-        for (auto & mode : config.videoConfig.modes)
+        Assert::AreEqual (kAppleIIVideoModes, modes.size(),
+            L"an Apple ][ offers exactly 3 video modes (text40/lores/hires)");
+
+        for (auto & mode : modes)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
                 mode,
@@ -465,11 +476,12 @@ public:
 
     TEST_METHOD (AppleIIPlus_NoAuxRam_NoExtendedVideoModes)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
@@ -484,10 +496,15 @@ public:
             L"Apple2Plus.json RAM region must be $C000 bytes");
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
             L"Apple2Plus.json system ROM must remain at $D000");
-        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
-            L"Apple2Plus.json must list exactly 3 video modes");
+        //  The mode list is the MACHINE's, not the document's: which video
+        //  modes exist follows from whether the machine has an auxiliary bank
+        //  to interleave from, so it is answered in code.
+        modes = MachineDefinitions::FindMachine ("Apple2Plus")->GetVideoModes();
 
-        for (auto & mode : config.videoConfig.modes)
+        Assert::AreEqual (kAppleIIVideoModes, modes.size(),
+            L"an Apple ][+ offers exactly 3 video modes");
+
+        for (auto & mode : modes)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
                 mode,
@@ -509,11 +526,12 @@ public:
 
     TEST_METHOD (AppleII_KeyboardAndDevices_Unchanged)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
@@ -561,11 +579,12 @@ public:
 
     TEST_METHOD (AppleIIPlus_KeyboardAndDevices_Unchanged)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));

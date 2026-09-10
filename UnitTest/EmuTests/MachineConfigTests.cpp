@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Core/MachineConfig.h"
+#include "Machines/MachineDefinitions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -370,8 +371,11 @@ public:
                                                 config, error);
 
         AssertSucceeded (hr);
-        Assert::AreEqual (size_t (3), config.videoConfig.modes.size(),
-            L"Should have 3 video modes");
+        //  Video modes left MachineConfig with the rest of a machine's
+        //  invariant hardware; a document does not get to declare them.
+        Assert::AreEqual (size_t (3),
+            MachineDefinitions::FindMachine ("Apple2")->GetVideoModes().size(),
+            L"an Apple ][ offers 3 video modes");
     }
 
     ////////////////////////////////////////////////////////////////////////////
