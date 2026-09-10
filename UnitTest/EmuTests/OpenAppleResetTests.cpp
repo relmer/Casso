@@ -1,6 +1,8 @@
 #include "Pch.h"
 
+#include "Devices/IInputEventSink.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 #include "TestMachine.h"
 
@@ -15,12 +17,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  OpenAppleResetTests
 //
 //  Ctrl-Open-Apple-Reset restarts the machine; Ctrl-Reset alone keeps the
-//  program. The ROM tells the two apart by reading Open Apple during its
-//  reset handler, so the key has to still be down at that moment.
+//  program. The firmware tells the two apart by reading Open Apple after its
+//  reset handler starts, so the key has to still be down at that moment --
+//  and WHEN that moment comes differs by machine. The //e reads it 577
+//  cycles in. The //c first strobes the drive motor on and off, waits for
+//  the one-second spin-down, and reads it 1.2 million cycles in. Both are
+//  measured here, because the length of the hold the shell applies is
+//  chosen to cover the later one.
 //
-//  Applesoft's end-of-program pointer is the witness: a cold start puts it
-//  back to the start of program memory, and a warm reset leaves whatever
-//  was there.
+//  Applesoft's end-of-program pointer is the witness on the //e: a cold start
+//  puts it back to the start of program memory, a warm reset leaves what was
+//  there. On the //c the drive motor is the witness: a cold start reboots
+//  through the built-in drive and a warm reset returns to BASIC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,18 +68,33 @@ public:
     }
 
 
-    TEST_METHOD (TheFirmwareReadsOpenAppleWithinTheFirstThousandCycles)
+    TEST_METHOD (TheIIeFirmwareReadsOpenAppleWithinTheFirstThousandCycles)
     {
         //  Measured: released after 100 cycles the reset is warm, after 1,000
         //  it is cold. That window is under a millisecond, which is why the
         //  key has to be held through the reset by the machine rather than
         //  left to the host's key state around a click.
-        Assert::IsFalse (ColdStartsWhenReleasedAfter (100),   L"100 cycles is too soon");
-        Assert::IsTrue  (ColdStartsWhenReleasedAfter (1'000), L"a thousand cycles is enough");
+        Assert::IsFalse (IIeColdStartsWhenReleasedAfter (100),   L"100 cycles is too soon");
+        Assert::IsTrue  (IIeColdStartsWhenReleasedAfter (1'000), L"a thousand cycles is enough");
     }
 
 
-    TEST_METHOD (AKeyHeldThroughTheResetColdStartsThoughTheHostReleasedIt)
+    TEST_METHOD (TheIIcFirmwareReadsOpenAppleAfterTheDriveSpinsDown)
+    {
+        //  The //c reset routine strobes the drive motor on and off and then
+        //  waits for the motor to report off before it reads the Apple keys,
+        //  which is the Disk II spin-down later. A hold that ended before
+        //  that read would never cold start a //c, whatever it did for a //e.
+        uint64_t  firstRead = CyclesUntilTheIIcReadsTheButtons();
+
+        Assert::IsTrue (firstRead > Disk2Controller::kMotorSpindownCycles,
+            std::format (L"the //c read the buttons at cycle {}, before the spin-down", firstRead).c_str());
+        Assert::IsTrue (firstRead < Apple2eKeyboard::kResetHoldCycles,
+            std::format (L"the //c read the buttons at cycle {}, after the hold would have ended", firstRead).c_str());
+    }
+
+
+    TEST_METHOD (AKeyHeldThroughTheResetColdStartsAIIeThoughTheHostReleasedIt)
     {
         TestMachine  machine ("Apple2e", TestMachine::Slots::Empty);
 
@@ -83,9 +106,31 @@ public:
         machine.GetRefs().iieKeyboard->HoldAppleKeysThroughReset (true, false);
         machine.GetRefs().iieKeyboard->SetOpenApple (false);
         machine.SoftReset();
-        machine.RunCycles (kSettleCycles);
+        RunTickingTheHold (machine, kSettleCycles);
 
         Assert::AreEqual<Word> (kEmptyProgramEnd, ProgramEnd (machine), L"cold start");
+    }
+
+
+    TEST_METHOD (AKeyHeldThroughTheResetRebootsAIIcThoughTheHostReleasedIt)
+    {
+        TestMachine  plain ("Apple2c", TestMachine::Slots::Empty);
+        TestMachine  held  ("Apple2c", TestMachine::Slots::Empty);
+
+        BootToPrompt (plain);
+        BootToPrompt (held);
+
+        plain.SoftReset();
+        RunTickingTheHold (plain, kIIcSettleCycles);
+        Assert::IsFalse (plain.GetRefs().diskController->IsMotorOn(),
+            L"a plain reset returns a //c to BASIC without touching the drive");
+
+        held.GetRefs().iieKeyboard->HoldAppleKeysThroughReset (true, false);
+        held.GetRefs().iieKeyboard->SetOpenApple (false);
+        held.SoftReset();
+        RunTickingTheHold (held, kIIcSettleCycles);
+        Assert::IsTrue (held.GetRefs().diskController->IsMotorOn(),
+            L"with Open Apple held through the reset the //c reboots through its drive");
     }
 
 
@@ -98,10 +143,10 @@ public:
         Assert::AreEqual<Byte> (0x80, machine.GetMemoryBus().ReadByte (0xC061) & 0x80, L"held down");
         Assert::AreEqual<Byte> (0x80, machine.GetMemoryBus().ReadByte (0xC062) & 0x80);
 
-        keyboard->TickResetHold (Apple2eKeyboard::kResetHoldUs / 2);
+        keyboard->TickResetHold (Apple2eKeyboard::kResetHoldCycles / 2);
         Assert::AreEqual<Byte> (0x80, machine.GetMemoryBus().ReadByte (0xC061) & 0x80, L"still held halfway");
 
-        keyboard->TickResetHold (Apple2eKeyboard::kResetHoldUs / 2);
+        keyboard->TickResetHold (Apple2eKeyboard::kResetHoldCycles / 2);
         Assert::AreEqual<Byte> (0x00, machine.GetMemoryBus().ReadByte (0xC061) & 0x80, L"the hold ran out");
         Assert::AreEqual<Byte> (0x00, machine.GetMemoryBus().ReadByte (0xC062) & 0x80);
     }
@@ -129,9 +174,36 @@ private:
 
     static constexpr uint32_t  kBootCycles      = 5'000'000;
     static constexpr uint32_t  kSettleCycles    = 2'000'000;
-    static constexpr Word      kProgramEndLo    = 0x00AF;   // Applesoft PRGEND
-    static constexpr Word      kEmptyProgramEnd = 0x0803;   // right after the empty program at $0801
+    static constexpr uint32_t  kIIcSettleCycles = 3'000'000;   // past the spin-down wait and the read
+    static constexpr uint32_t  kTickCycles      = 1'000;
+    static constexpr Word      kProgramEndLo    = 0x00AF;      // Applesoft PRGEND
+    static constexpr Word      kEmptyProgramEnd = 0x0803;      // right after the empty program at $0801
     static constexpr Word      kFakeProgramEnd  = 0x2000;
+
+
+    //  A sink that notes the cycle of every read of the Apple keys.
+    class ButtonReads : public IInputEventSink
+    {
+    public:
+        MachineHost *          machine   = nullptr;
+        std::vector<uint64_t>  readAt;
+
+        void OnKbdDataRead (Word, Byte, bool) override {}
+        void OnKbdStrobe (Word, Byte, bool) override {}
+        void OnButtonRead (Word address, Byte) override
+        {
+            if (address == 0xC061 && readAt.size() < 16)
+            {
+                readAt.push_back (machine->GetCpu()->GetTotalCycles());
+            }
+        }
+
+        void OnPaddleTrigger (Word) override {}
+        void OnPaddleRead (Word, Byte) override {}
+        void OnHostAutoRepeat (Byte) override {}
+        void OnHostKeyDown (Byte) override {}
+        void OnHostKeyUp (Byte) override {}
+    };
 
 
     static void BootToPrompt (MachineHost & machine)
@@ -148,7 +220,26 @@ private:
     }
 
 
-    static bool ColdStartsWhenReleasedAfter (uint32_t cycles)
+    //  Runs the machine the way the CPU thread does: a slice at a time, with
+    //  the reset hold counted down by the cycles each slice ran.
+    static void RunTickingTheHold (MachineHost & machine, uint32_t cycles)
+    {
+        for (uint32_t ran = 0; ran < cycles; ran += kTickCycles)
+        {
+            machine.RunCycles (kTickCycles);
+            machine.GetRefs().iieKeyboard->TickResetHold (kTickCycles);
+        }
+    }
+
+
+    static Word ProgramEnd (MachineHost & machine)
+    {
+        return (Word) (machine.GetMemoryBus().ReadByte (kProgramEndLo)
+                     | (machine.GetMemoryBus().ReadByte (kProgramEndLo + 1) << 8));
+    }
+
+
+    static bool IIeColdStartsWhenReleasedAfter (uint32_t cycles)
     {
         TestMachine  machine ("Apple2e", TestMachine::Slots::Empty);
 
@@ -165,9 +256,25 @@ private:
     }
 
 
-    static Word ProgramEnd (MachineHost & machine)
+    static uint64_t CyclesUntilTheIIcReadsTheButtons()
     {
-        return (Word) (machine.GetMemoryBus().ReadByte (kProgramEndLo)
-                     | (machine.GetMemoryBus().ReadByte (kProgramEndLo + 1) << 8));
+        TestMachine       machine ("Apple2c", TestMachine::Slots::Empty);
+        ButtonReads       sink;
+        MachineObservers  observers;
+        uint64_t          resetAt = 0;
+
+        sink.machine    = &machine;
+        observers.input = &sink;
+
+        BootToPrompt (machine);
+        machine.AttachObservers (observers);
+
+        resetAt = machine.GetCpu()->GetTotalCycles();
+        machine.SoftReset();
+        machine.RunCycles (kIIcSettleCycles);
+
+        Assert::IsFalse (sink.readAt.empty(), L"the //c firmware reads $C061 after a reset");
+
+        return sink.readAt[0] - resetAt;
     }
 };

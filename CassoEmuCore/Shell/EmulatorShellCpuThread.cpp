@@ -752,11 +752,6 @@ void EmulatorShell::TickKeyboardAutoRepeat()
     }
 
     m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
-
-    if (m_machine.GetRefs().iieKeyboard != nullptr)
-    {
-        m_machine.GetRefs().iieKeyboard->TickResetHold (elapsed);
-    }
 }
 
 
@@ -865,6 +860,13 @@ void EmulatorShell::ExecuteCpuSlices()
         sliceActual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
 
         executed += sliceActual;
+
+        // The Apple keys held through a reset are held for a count of
+        // emulated cycles, the firmware's own timeline.
+        if (m_machine.GetRefs().iieKeyboard != nullptr)
+        {
+            m_machine.GetRefs().iieKeyboard->TickResetHold (sliceActual);
+        }
 
         if (audioActive)
         {

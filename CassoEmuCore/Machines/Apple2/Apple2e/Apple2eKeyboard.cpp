@@ -504,7 +504,7 @@ void Apple2eKeyboard::HoldAppleKeysThroughReset (bool openApple, bool closedAppl
 {
     m_holdOpenApple.store   (openApple,   memory_order_release);
     m_holdClosedApple.store (closedApple, memory_order_release);
-    m_resetHoldUs.store     ((openApple || closedApple) ? kResetHoldUs : 0, memory_order_release);
+    m_resetHoldCycles.store ((openApple || closedApple) ? kResetHoldCycles : 0, memory_order_release);
 }
 
 
@@ -515,14 +515,14 @@ void Apple2eKeyboard::HoldAppleKeysThroughReset (bool openApple, bool closedAppl
 //
 //  TickResetHold
 //
-//  Counts the hold down in real time; when it runs out the held keys read as
-//  whatever the host says again.
+//  Counts the hold down in emulated cycles; when it runs out the held keys
+//  read as whatever the host says again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eKeyboard::TickResetHold (uint32_t elapsedMicroseconds)
+void Apple2eKeyboard::TickResetHold (uint32_t cycles)
 {
-    uint32_t  left = m_resetHoldUs.load (memory_order_acquire);
+    uint32_t  left = m_resetHoldCycles.load (memory_order_acquire);
 
 
 
@@ -531,8 +531,8 @@ void Apple2eKeyboard::TickResetHold (uint32_t elapsedMicroseconds)
         return;
     }
 
-    left = (elapsedMicroseconds >= left) ? 0 : left - elapsedMicroseconds;
-    m_resetHoldUs.store (left, memory_order_release);
+    left = (cycles >= left) ? 0 : left - cycles;
+    m_resetHoldCycles.store (left, memory_order_release);
 
     if (left == 0)
     {
