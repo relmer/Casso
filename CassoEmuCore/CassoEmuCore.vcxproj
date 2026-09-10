@@ -406,6 +406,7 @@
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2e.cpp" />
     <ClCompile Include="Shell\FramePacing.cpp" />
     <ClCompile Include="Shell\Input\AppleKeyMapping.cpp" />
+    <ClCompile Include="Shell\Layout\DriveRowLayout.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -685,6 +686,7 @@
     <ClInclude Include="Machines\Apple2\Apple2c\Apple2c.h" />
     <ClInclude Include="Shell\FramePacing.h" />
     <ClInclude Include="Shell\Input\AppleKeyMapping.h" />
+    <ClInclude Include="Shell\Layout\DriveRowLayout.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

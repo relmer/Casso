@@ -31,6 +31,7 @@
 #include "Machines/MachineDefinitions.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
+#include "Shell/Layout/DriveRowLayout.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 
@@ -356,7 +357,6 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     RECT           probe         = {};
     int            widgetW       = 0;
     int            widgetH       = 0;
-    int            totalW        = 0;
     int            x             = 0;
     int            y             = 0;
     size_t         i             = 0;
@@ -388,8 +388,7 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     // right after this, so centering on two left the single visible drive
     // sitting left of center by half a widget and a gap.
     visibleCount = std::clamp (visibleCount, 1, static_cast<int> (driveChrome.size()));
-    totalW  = widgetW * visibleCount + gap * (visibleCount - 1);
-    x       = std::max (0, (clientW - totalW) / 2);
+    x            = DriveRowLayout::ComputeRowOriginX (clientW, widgetW, gap, visibleCount);
 
     // A LONE drive centers on the part that carries the weight -- the disk
     // name and its head bar -- not on the whole widget. The 2D widget hangs
@@ -402,11 +401,10 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
     // nothing and is unaffected. Two drives keep centering on the pair: the
     // caption then reads as part of a repeating unit rather than as a tail on
     // a single object.
-    if (visibleCount == 1)
     {
         int  captionLead = driveChrome[0].GetBodyRect().left - probe.left;
 
-        x = std::max (0, x - captionLead / 2);
+        x = DriveRowLayout::ApplyLoneDriveCaptionOffset (x, captionLead, visibleCount);
     }
 
     // Anchor the widget to the bottom so the margin between the
@@ -417,16 +415,9 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
 
     for (i = 0; i < driveChrome.size(); i++)
     {
-        int   widgetX       = x + static_cast<int> (i) * (widgetW + gap);
-        int   widgetCenterX = widgetX + widgetW / 2;
-        int   vanishingX    = clientW / 2;
-        // Shrink factor matches the case-top depth ratio (back
-        // edge is ~20% narrower than the front, so back center
-        // shifts ~20% of the way toward the shared vanishing
-        // point). Numerator chosen to match s_kCaseBackInsetPx
-        // ratio in DriveWidget.cpp.
-        int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
-        RECT  widgetAnchor  = { widgetX, y, widgetX, y };
+        int   widgetX      = DriveRowLayout::ComputeWidgetX (x, static_cast<int> (i), widgetW, gap);
+        int   skewPx       = DriveRowLayout::ComputePerspectiveSkewPx (clientW, widgetX, widgetW);
+        RECT  widgetAnchor = { widgetX, y, widgetX, y };
 
         // Visible again: the desk scene turns these off rather than just
         // collapsing them, and this is the one path that brings the flat
