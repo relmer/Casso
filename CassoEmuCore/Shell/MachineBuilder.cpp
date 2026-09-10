@@ -61,6 +61,50 @@ MachineBuilder::MachineBuilder (MachineHost & host, const MachineBuildServices &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineBuilder::Build
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineBuilder::Build (const MachineConfig & config)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = CreateMemoryDevices (config);
+    CHR (hr);
+
+    WireLanguageCard();
+
+    // //c banked ROM: layer the $C028 bank-switch coordinator + no-slots
+    // $Cxxx routing on top of the flat bank-0 split WireLanguageCard just
+    // did. Without this a //c has no ROM banking (and no SetNoExternalSlots),
+    // so $C800 floats and the firmware derails to a garbage screen. No-op for
+    // non-banked machines (romBankSize == 0).
+    WireApple2cRomBank();
+
+    CreateVideoModes();
+
+    // Overlapping device address ranges are a build error, not something to
+    // discover when the guest reads one of them.
+    hr = m_host.GetMemoryBus().Validate();
+    CHR (hr);
+
+    hr = CreateCpu (config);
+    CHR (hr);
+
+    WirePageTable();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CreateMemoryDevices
 //
 //  Builds the machine's address space from its config: character ROM, RAM
@@ -576,12 +620,13 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
     // stored per-drive pan (user-adjustable). Defaults place Drive 1
     // left-of-center and Drive 2 right-of-center (kDefaultDriveOnePan /
     // kDefaultDriveTwoPan).
-    m_services.diskAudioSources.clear();
-    m_services.driveAudioMixer.UnregisterAllSources();
-
+    if (m_services.diskAudioSources != nullptr && m_services.driveAudioMixer != nullptr)
     {
         int  driveCount = Disk2Controller::kDriveCount;
         int  drive      = 0;
+
+        m_services.diskAudioSources->clear();
+        m_services.driveAudioMixer->UnregisterAllSources();
 
         for (drive = 0; drive < driveCount; drive++)
         {
@@ -593,41 +638,54 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             // (user-adjustable; defaults place Drive 1 left-of-center and
             // Drive 2 right-of-center). drive index is clamped to the
             // stored-pan array bound.
-            DriveAudioMixer::PanToStereo (m_services.drivePan[drive], panL, panR);
+            if (m_services.drivePan != nullptr)
+            {
+                DriveAudioMixer::PanToStereo (m_services.drivePan[drive], panL, panR);
+            }
+
             src->SetPan (panL, panR);
 
-            m_services.driveAudioMixer.RegisterSource (src.get());
+            m_services.driveAudioMixer->RegisterSource (src.get());
             src->SetDriveIndex (drive);
-            src->SetVolumes (m_services.driveMotorVolume,
-                             m_services.driveHeadVolume,
-                             m_services.driveDoorVolume);
-            m_services.diskAudioSources.push_back (std::move (src));
+
+            if (m_services.driveMotorVolume != nullptr)
+            {
+                src->SetVolumes (*m_services.driveMotorVolume,
+                                 *m_services.driveHeadVolume,
+                                 *m_services.driveDoorVolume);
+            }
+
+            m_services.diskAudioSources->push_back (std::move (src));
         }
-    }
 
-    // The emulated ImageWriter shares the generic drive-audio bus (FR-016). It
-    // is a single persistent shell-owned source; the UnregisterAllSources above
-    // dropped it along with the disk sources, so re-register it here on every
-    // machine build. Silent until the live preview publishes a paced reveal.
-    m_services.driveAudioMixer.RegisterSource (&m_services.printerAudio);
+        // The emulated ImageWriter shares the generic drive-audio bus
+        // (FR-016). It is a single persistent shell-owned source; the
+        // UnregisterAllSources above dropped it along with the disk sources,
+        // so re-register it here on every machine build. Silent until the
+        // live preview publishes a paced reveal.
+        if (m_services.printerAudio != nullptr)
+        {
+            m_services.driveAudioMixer->RegisterSource (m_services.printerAudio);
+        }
 
-    // Feed real disk head / motor / door events to drive 0's source only when
-    // the machine actually has the Disk ][ controller realized.
-    if (m_host.GetRefs().diskController != nullptr && !m_services.diskAudioSources.empty())
-    {
-        m_host.GetRefs().diskController->SetAudioSink (m_services.diskAudioSources[0].get());
+        // Feed real disk head / motor / door events to drive 0's source only
+        // when the machine actually has the Disk ][ controller realized.
+        if (m_host.GetRefs().diskController != nullptr && !m_services.diskAudioSources->empty())
+        {
+            m_host.GetRefs().diskController->SetAudioSink ((*m_services.diskAudioSources)[0].get());
+        }
     }
 
     // Start the background printer drain once the card exists, seeding it with
     // this machine's persisted pending strip if one exists (FR-026). A missing
     // or corrupt sidecar falls back to empty paper. Symmetric save is in
     // SwitchMachine teardown and OnDestroy.
-    if (m_host.GetRefs().printerCard != nullptr)
+    if (m_host.GetRefs().printerCard != nullptr && m_services.printerWorker != nullptr)
     {
         PrintRaster   pending;
         HRESULT       hrLoad = PrintJobStore::Load (m_host.GetPendingPrintDir(), pending);
 
-        m_services.printerWorker.Start (
+        m_services.printerWorker->Start (
             m_host.GetRefs().printerCard->GetByteRing(),
             SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster());
 
@@ -637,13 +695,16 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // for this machine's CPU, so setting it once covers later restarts.
         if (m_host.GetCpu() != nullptr)
         {
-            m_services.printerWorker.SetCycleClock (m_host.GetCpu()->GetCycleCounterPtr());
+            m_services.printerWorker->SetCycleClock (m_host.GetCpu()->GetCycleCounterPtr());
         }
 
         // Prime the live-preview auto-open baseline to the worker's current
         // activity so a page carried over from a previous session does not read as
         // a fresh print and auto-open the preview on boot -- only new printing does.
-        m_services.printerAutoOpenActivity = m_services.printerWorker.GetActivityCount();
+        if (m_services.printerAutoOpenActivity != nullptr)
+        {
+            *m_services.printerAutoOpenActivity = m_services.printerWorker->GetActivityCount();
+        }
     }
 
     // Mockingboard wiring. Cache the card (if the active config installs
@@ -653,7 +714,11 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
     // the sources; the mixer holds borrowed pointers, dropped on the next
     // teardown.
     m_host.GetRefs().mockingboard = nullptr;
-    m_services.mockingboardAudioMixer.UnregisterAllSources();
+
+    if (m_services.mockingboardAudioMixer != nullptr)
+    {
+        m_services.mockingboardAudioMixer->UnregisterAllSources();
+    }
 
     for (auto & dev : m_host.GetOwnedDevices())
     {
@@ -671,18 +736,25 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         hr = m_host.GetRefs().mockingboard->AttachInterruptController (&m_host.GetInterruptController());
         CHR (hr);
 
-        m_services.mockingboardAudioMixer.RegisterSource (m_host.GetRefs().mockingboard->GetAudioSource (0));
-        m_services.mockingboardAudioMixer.RegisterSource (m_host.GetRefs().mockingboard->GetAudioSource (1));
-
-        // The sound+speech variant adds its center-panned voice source; the
-        // sound-only card has no chip and the source stays silent anyway.
-        if (m_host.GetRefs().mockingboard->GetSpeech() != nullptr)
+        if (m_services.mockingboardAudioMixer != nullptr)
         {
-            m_services.mockingboardAudioMixer.RegisterSource (
-                m_host.GetRefs().mockingboard->GetSpeechAudioSource());
+            m_services.mockingboardAudioMixer->RegisterSource (m_host.GetRefs().mockingboard->GetAudioSource (0));
+            m_services.mockingboardAudioMixer->RegisterSource (m_host.GetRefs().mockingboard->GetAudioSource (1));
+
+            // The sound+speech variant adds its center-panned voice source;
+            // the sound-only card has no chip and the source stays silent
+            // anyway.
+            if (m_host.GetRefs().mockingboard->GetSpeech() != nullptr)
+            {
+                m_services.mockingboardAudioMixer->RegisterSource (
+                    m_host.GetRefs().mockingboard->GetSpeechAudioSource());
+            }
         }
 
-        m_host.GetRefs().mockingboard->SetSampleRate (m_services.wasapiAudio.GetSampleRate());
+        if (m_services.wasapiAudio != nullptr)
+        {
+            m_host.GetRefs().mockingboard->SetSampleRate (m_services.wasapiAudio->GetSampleRate());
+        }
 
         // On the //e the Apple2eMmu's CxxxRomRouter owns $C100-$CFFF, so a
         // bus device at $Cn00 would be shadowed. Register the card as the
@@ -1236,9 +1308,9 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
     // --trace: allocate the CPU execution-trace ring now that the CPU
     // exists. Covers both initial machine build and machine switches,
     // since both paths run through here.
-    if (m_services.traceCapacity > 0)
+    if (m_services.GetTraceCapacity() > 0)
     {
-        m_host.GetCpu()->EnableTrace (m_services.traceCapacity);
+        m_host.GetCpu()->EnableTrace (m_services.GetTraceCapacity());
     }
 
     // Wire the //e video timing model into the EmuCpu cycle fan-out.
@@ -1368,7 +1440,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         //  seam: with neither the watcher nor this, nothing learns of a change
         //  until the emulator is about to write, and the re-check made there
         //  is what has to carry the guarantee on its own.
-        if (!m_services.imageWatchDisabled)
+        if (!m_services.IsImageWatchDisabled())
         {
             m_host.GetRefs().diskController->SetIdleCallback ([this] ()
             {

@@ -691,23 +691,24 @@ EmulatorShell::EmulatorShell()
     // a UserConfigStore reference and that's created at Initialize
     // time once the asset base dir is resolved.
 
-    m_machineBuilder = std::make_unique<MachineBuilder> (
-        m_machine,
-        MachineBuildServices {
-            m_diskAudioSources,
-            m_driveAudioMixer,
-            m_mockingboardAudioMixer,
-            m_printerAudio,
-            m_wasapiAudio,
-            m_printerWorker,
-            m_printerAutoOpenActivity,
-            m_drivePan,
-            m_driveMotorVolume,
-            m_driveHeadVolume,
-            m_driveDoorVolume,
-            m_traceCapacity,
-            m_imageWatchDisabled,
-            [this] () { m_machineManager->PowerCycle(); } });
+    MachineBuildServices  services;
+
+    services.diskAudioSources       = &m_diskAudioSources;
+    services.driveAudioMixer        = &m_driveAudioMixer;
+    services.mockingboardAudioMixer = &m_mockingboardAudioMixer;
+    services.printerAudio           = &m_printerAudio;
+    services.wasapiAudio            = &m_wasapiAudio;
+    services.printerWorker          = &m_printerWorker;
+    services.printerAutoOpenActivity = &m_printerAutoOpenActivity;
+    services.drivePan               = m_drivePan;
+    services.driveMotorVolume       = &m_driveMotorVolume;
+    services.driveHeadVolume        = &m_driveHeadVolume;
+    services.driveDoorVolume        = &m_driveDoorVolume;
+    services.traceCapacity          = &m_traceCapacity;
+    services.imageWatchDisabled     = &m_imageWatchDisabled;
+    services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
+
+    m_machineBuilder = std::make_unique<MachineBuilder> (m_machine, services);
 
     m_machineManager = std::make_unique<MachineManager> (*this);
 
@@ -1262,33 +1263,7 @@ Error:
 
 HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
 {
-    HRESULT  hr = S_OK;
-
-
-
-    hr = m_machineBuilder->CreateMemoryDevices (config);
-    CHR (hr);
-
-    m_machineBuilder->WireLanguageCard();
-    // //c banked ROM: layer the $C028 bank-switch coordinator + no-slots
-    // $Cxxx routing on top of the flat bank-0 split WireLanguageCard just
-    // did. Without this a //c has no ROM banking (and no
-    // SetNoExternalSlots), so $C800 floats and the firmware derails to a
-    // garbage screen. No-op for non-banked machines (romBankSize == 0).
-    m_machineBuilder->WireApple2cRomBank();
-    m_machineBuilder->CreateVideoModes();
-
-    // Validate memory bus for overlapping device address ranges
-    hr = m_machine.GetMemoryBus().Validate();
-    CHR (hr);
-
-    hr = m_machineBuilder->CreateCpu (config);
-    CHR (hr);
-
-    m_machineBuilder->WirePageTable();
-
-Error:
-    return hr;
+    return m_machineBuilder->Build (config);
 }
 
 
