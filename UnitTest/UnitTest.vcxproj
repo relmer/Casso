@@ -327,12 +327,9 @@
     <ClCompile Include="EmuTests\PaletteByteOrderTests.cpp" />
     <ClCompile Include="EmuTests\AudioTests.cpp" />
     <ClCompile Include="EmuTests\PrngTests.cpp" />
-    <ClCompile Include="EmuTests\MockAudioSink.cpp" />
     <ClCompile Include="EmuTests\MockIrqAsserter.cpp" />
-    <ClCompile Include="EmuTests\MockHostShell.cpp" />
     <ClCompile Include="EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
-    <ClCompile Include="EmuTests\HeadlessHost.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
     <ClCompile Include="EmuTests\Cpu65C02Tests.cpp" />
     <ClCompile Include="EmuTests\Via6522Tests.cpp" />
@@ -528,11 +525,8 @@
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
-    <ClInclude Include="EmuTests\MockAudioSink.h" />
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />
-    <ClInclude Include="EmuTests\MockHostShell.h" />
     <ClInclude Include="EmuTests\GuestSession.h" />
-    <ClInclude Include="EmuTests\HeadlessHost.h" />
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
     <ClInclude Include="EmuTests\MachineIdle.h" />

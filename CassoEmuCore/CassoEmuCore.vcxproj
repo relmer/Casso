@@ -437,7 +437,6 @@
     <ClInclude Include="Core\TextEncoding.h" />
     <ClInclude Include="Core\IInterruptController.h" />
     <ClInclude Include="Core\InterruptController.h" />
-    <ClInclude Include="Core\IHostShell.h" />
     <ClInclude Include="Devices\IMmu.h" />
     <ClInclude Include="Devices\IVideoMode.h" />
     <ClInclude Include="Devices\ISoftSwitchBank.h" />

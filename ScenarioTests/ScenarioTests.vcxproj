@@ -178,8 +178,6 @@
     <ClCompile Include="..\UnitTest\EmuTests\TestMachine.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\KeystrokeInjector.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\MachineIdle.cpp" />
-    <ClCompile Include="..\UnitTest\EmuTests\MockAudioSink.cpp" />
-    <ClCompile Include="..\UnitTest\EmuTests\MockHostShell.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TextScreenScraper.cpp" />
   </ItemGroup>
   <ItemGroup>

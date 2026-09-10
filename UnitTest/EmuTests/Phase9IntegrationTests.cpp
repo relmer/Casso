@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  INTCXROM=1, the same address falls through to internal ROM.
 //
 //  Each test attaches Disk2.rom explicitly via mmu->AttachSlotRom (6, ...)
-//  rather than relying on HeadlessHost::BuildApple2e -- the //e monitor's
+//  rather than relying on the machine build -- the //e monitor's
 //  auto-boot scan would otherwise pick up the Disk II signature and divert
 //  cold-boot tests in other phases.
 //

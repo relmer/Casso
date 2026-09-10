@@ -459,7 +459,7 @@ public:
         hash = Fnv1a64 (fb.data(), fb.size());
 
         // Golden hash captured from the first deterministic render with
-        // PRNG seed 0xCA550001 + HeadlessHost::kPinnedSeed cold boot.
+        // PRNG seed 0xCA550001 + TestMachine::kSeed cold boot.
         // Updated 2026-05-13 alongside the NtscColorTable byte-layout
         // fix. Updated 2026-05-14 alongside the swap-chain format
         // change from R8G8B8A8_UNORM to B8G8R8A8_UNORM (see

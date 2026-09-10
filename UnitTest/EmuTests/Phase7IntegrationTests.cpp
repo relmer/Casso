@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  User Story 1 (P1) MVP. A stock //e cold-boots through `Apple2e.rom` to
 //  the Applesoft `]` prompt; injected `HOME` / `PRINT "HELLO"` / `PR#3`
 //  produce the expected text-screen state including the 80-column
-//  transition. Each scenario powers the //e on via HeadlessHost +
+//  transition. Each scenario powers the //e on via TestMachine +
 //  IFixtureProvider only -- constitution §II compliant, no host I/O.
 //
 ////////////////////////////////////////////////////////////////////////////////

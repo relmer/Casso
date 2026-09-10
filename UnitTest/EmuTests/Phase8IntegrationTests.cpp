@@ -13,11 +13,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Phase8IntegrationTests
 //
 //  User Story 3 (P1). Drives deterministic //e-specific scenarios across
-//  the headless //e built by HeadlessHost::BuildApple2e — proves the
+//  the headless //e built by MachineBuilder — proves the
 //  MMU + Language Card rewrites from Phases 2-3 land the right bytes in
 //  the right buffers end-to-end.
 //
-//  Constitution §II: every test uses HeadlessHost + IFixtureProvider
+//  Constitution §II: every test uses TestMachine + IFixtureProvider
 //  only; no host filesystem, no Win32, no audio device.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -54,9 +54,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Phase 4 (FR-034 / FR-035 / audit §10) coverage of the SoftReset and
 //  PowerCycle split. Each test wires the smallest scaffold the contract
-//  needs — no HeadlessHost full-machine build is required because the
+//  needs — no full-machine build is required because the
 //  reset paths are compositional. Where deterministic randomness matters
-//  the Prng is pinned to HeadlessHost::kPinnedSeed so two builds produce
+//  the Prng is pinned to TestMachine::kSeed so two builds produce
 //  byte-identical seed patterns.
 //
 ////////////////////////////////////////////////////////////////////////////////

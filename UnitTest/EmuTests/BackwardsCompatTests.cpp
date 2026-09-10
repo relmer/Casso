@@ -31,7 +31,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //    2. Composition pin — the ][ and ][+ build from
 //       BuildAppleIIPlus continue to compose only the deterministic
-//       harness primitives (Prng, MockHostShell, FixtureProvider) and
+//       harness primitives (Prng, FixtureProvider) and
 //       MUST NOT pull in the //e wiring (no Apple2eMmu, no EmuCpu,
 //       no aux RAM, no LanguageCardBank). This is the architectural
 //       proof that the //e build path is a *separate* composition, not
