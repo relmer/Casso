@@ -6,6 +6,65 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+
+- **An unenhanced Apple //e drew MouseText it never had.** Casso installed the
+  ENHANCED character generator (342-0265-A) for both //e models. The two ROMs
+  are identical but for 32 glyphs, and those 32 are the whole difference: at
+  $40-$5F of the alternate character set the enhanced part carries MouseText
+  where the original repeats its inverse uppercase. The plain //e is now
+  provisioned with 342-0133-A, and a machine still holding the file Casso used
+  to install re-fetches it rather than keeping it on size alone.
+- **With a notice showing, the window resized to the wrong size.** Working out
+  which client size leaves a given emulator viewport is the inverse of docking
+  the chrome bands around one, and the two carried a separate list of bands.
+  The inverse's list was missing both notice bands, so with either notice up
+  every size it produced -- the minimum tracking size, and the window a machine
+  or theme change resizes to -- came out short by that notice's height, and the
+  viewport shrank by exactly that much.
+- **Single-stepping a paused machine advanced its devices but not its clock,**
+  so the //e video timing and the //c mouse stood still while the disk
+  controller and Mockingboard moved on.
+- **An open Input debug panel went silent after a machine switch** and stayed
+  silent. Re-pointing the debug panels at the new machine gave up unless the
+  Disk II panel was open too, leaving the new keyboard, soft-switch bank and
+  game port reporting to nobody.
+- **A machine whose firmware is bank-switched lost its card slots.** Handing
+  $C100-$CFFF entirely to the internal firmware is right for a //c because a
+  //c has no slots, not because its ROM is banked; the machine says which it
+  is now.
+- **`scripts/FetchRoms.ps1` never fetched the Apple //c's ROMs,** so a fresh
+  clone could not run the //c until the emulator downloaded them on its own.
+
+### Changed
+
+- **Casso.exe and CassoCli.exe contain no code.** Both are linker targets over
+  `CassoEmuCore`, which now holds every line that used to sit in an executable
+  -- the window, the message pump, the machine and its devices, the CPU thread,
+  the chrome and the settings. Nothing about that code needed to be in an
+  executable, and being there put it out of reach of the unit suite, which is
+  the only reason the move is worth mentioning: what was untestable by
+  construction is now ordinary.
+- **The hardware a machine is born with is described in code, not
+  configuration.** Each model is a class -- Apple ][ to ][+ to //e, with the
+  //c and the Enhanced //e as its two children -- and each states what it has:
+  its processor, its RAM, its internal devices, its video modes, its keyboard,
+  how many card slots it has and whether it has a drive of its own. The machine
+  JSON keeps what a person could actually change about their machine: which
+  cards are in which slots, what is attached, which monitor it sits under.
+- **The unit suite runs the machines Casso ships.** It used to build its own,
+  from a copy of the wiring order kept by hand, and the copy had drifted. Every
+  test that needs a machine now gets one from the same code that builds the one
+  you run, so all five models -- including the ][ and ][+, which had never been
+  started by a test at all -- are booted and exercised on every run.
+- **No Apple ROM is stored in the repository.** The emulator has always
+  downloaded its own; the test fixtures did not, and five were committed. Both
+  now come from the same catalog, pinned to a specific upstream revision, and a
+  missing ROM fails a test run by name instead of quietly skipping the tests
+  that need it.
+
 ## [1.23.2]: The one where Rescue Raiders speaks
 
 ### Fixed

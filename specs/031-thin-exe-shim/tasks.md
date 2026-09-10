@@ -108,7 +108,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T044 [P] [US3] Test: the render gate declines an unchanged screen, and re-rasterizes when video mode, flash phase, color state or video RAM changes
 - [x] T045 [P] [US3] Test: a machine with one connected drive lays the drive row out centered, not offset
 - [x] T046 [P] [US3] Test: input mapping — VK classification, modifier mirroring, joystick staging, paddle recenter, guest-mouse clamp mapping
-- [ ] T047 [US3] Launch the emulator and confirm layout, pacing and input feel unchanged
+- [x] T047 [US3] Launch the emulator and confirm layout, pacing and input feel unchanged
 - [ ] T048 [US3] Run the per-phase gate and commit with the measurement
 
 ---
@@ -229,7 +229,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T117 [P] [US9] Test: a delta naming a different keyboard for the //c leaves the //c's own keyboard in place
 - [x] T118 [P] [US9] Test: each model's definition reports the expected devices, layout, video modes and CPU
 - [x] T119 [P] [US9] Test: slot contents and attached peripherals set in JSON still take effect
-- [ ] T120 [US9] Launch the emulator, switch between all five machines, and confirm each still boots and behaves as before
+- [x] T120 [US9] Launch the emulator, switch between all five machines, and confirm each still boots and behaves as before
 - [ ] T121 [US9] Run the per-phase gate and commit with the measurement
 
 ### Machine classes (executed inside slices 4 and 6, not before)
@@ -271,9 +271,9 @@ hierarchy, moving it, then rewiring the shell around it.
 - [x] T102 Confirm `CassoCore` still has no include reaching into `CassoEmuCore`, `Dxui` or an executable (FR-005b)
 - [x] T103 Confirm ARM64 compiles in Debug and Release
 - [x] T104 Record the final measurements in `specs/031-thin-exe-shim/measurements.md` so issue #85 can be closed against them (FR-016)
-- [ ] T105 Add `CHANGELOG.md` entries for defects the extraction exposed and any user-visible change, and nothing for the extraction itself (FR-015)
+- [x] T105 Add `CHANGELOG.md` entries for defects the extraction exposed and any user-visible change, and nothing for the extraction itself (FR-015) — written as the net delta: the two executables holding no code, the machine classes, the suite running shipped machines, the ROMs leaving the repository, and the six defects the extraction exposed
 - [x] T106 Update `docs/` and `ARCHITECTURE.md` where they describe the old placement
-- [ ] T107 Run `CheckStyle.ps1 -Mode Tree`, the full suite in Debug and Release, and the final gate from `quickstart.md`
+- [x] T107 Run `CheckStyle.ps1 -Mode Tree`, the full suite in Debug and Release, and the final gate from `quickstart.md` — `CheckStyle -Mode Tree` clean, Debug x64 5038 green, Release x64 5036 green, all five machines launched in Release
 - [ ] T108 Present the changelog, README changes and every commit message to the owner, and wait for explicit approval before proposing the merge to master
 
 ---
