@@ -691,6 +691,24 @@ EmulatorShell::EmulatorShell()
     // a UserConfigStore reference and that's created at Initialize
     // time once the asset base dir is resolved.
 
+    m_machineBuilder = std::make_unique<MachineBuilder> (
+        m_machine,
+        MachineBuildServices {
+            m_diskAudioSources,
+            m_driveAudioMixer,
+            m_mockingboardAudioMixer,
+            m_printerAudio,
+            m_wasapiAudio,
+            m_printerWorker,
+            m_printerAutoOpenActivity,
+            m_drivePan,
+            m_driveMotorVolume,
+            m_driveHeadVolume,
+            m_driveDoorVolume,
+            m_traceCapacity,
+            m_imageWatchDisabled,
+            [this] () { m_machineManager->PowerCycle(); } });
+
     m_machineManager = std::make_unique<MachineManager> (*this);
 
     m_windowCommandManager = std::make_unique<WindowCommandManager> (*this);
@@ -1248,27 +1266,26 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
 
 
 
-    hr = m_machineManager->CreateMemoryDevices (config);
+    hr = m_machineBuilder->CreateMemoryDevices (config);
     CHR (hr);
 
-    m_machineManager->WireLanguageCard();
+    m_machineBuilder->WireLanguageCard();
     // //c banked ROM: layer the $C028 bank-switch coordinator + no-slots
     // $Cxxx routing on top of the flat bank-0 split WireLanguageCard just
-    // did. Without this the initial-launch //c has no ROM banking (and no
+    // did. Without this a //c has no ROM banking (and no
     // SetNoExternalSlots), so $C800 floats and the firmware derails to a
-    // garbage screen. SwitchMachine already does this; the initial build
-    // path must match it. No-op for non-banked machines (romBankSize == 0).
-    m_machineManager->WireApple2cRomBank();
-    m_machineManager->CreateVideoModes();
+    // garbage screen. No-op for non-banked machines (romBankSize == 0).
+    m_machineBuilder->WireApple2cRomBank();
+    m_machineBuilder->CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
     hr = m_machine.GetMemoryBus().Validate();
     CHR (hr);
 
-    hr = m_machineManager->CreateCpu (config);
+    hr = m_machineBuilder->CreateCpu (config);
     CHR (hr);
 
-    m_machineManager->WirePageTable();
+    m_machineBuilder->WirePageTable();
 
 Error:
     return hr;
@@ -7674,7 +7691,7 @@ void EmulatorShell::SyncSwitchBarState()
 
 const Byte * EmulatorShell::GetAuxRamBuffer() const
 {
-    return m_machineManager != nullptr ? m_machineManager->GetAuxRamBuffer() : nullptr;
+    return m_machineBuilder != nullptr ? m_machineBuilder->GetAuxRamBuffer() : nullptr;
 }
 
 
@@ -10417,7 +10434,7 @@ void EmulatorShell::RenderFramebuffer()
         m_machine.GetRefs().doubleHiRes->SetMonochrome (monoMonitor);
     }
 
-    m_machineManager->SelectVideoMode();
+    m_machineBuilder->SelectVideoMode();
 
     // Dirty-row text cache: force a full re-raster when reusing last frame's
     // rows would be unsafe. (1) A monochrome color mode applies a

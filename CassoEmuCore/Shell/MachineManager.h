@@ -15,19 +15,20 @@ struct MachineConfig;
 //
 //  MachineManager
 //
-//  Owner of the machine-construction lifecycle: building every
-//  MemoryDevice that the active MachineConfig calls for, wiring the
-//  language card and page table, instantiating the video-mode renderers,
-//  building the CPU, hot-switching the active machine config, and
-//  driving the SoftReset / PowerCycle entry points. Also owns the
-//  per-frame video-mode selection that the CPU thread invokes between
-//  ExecuteCpuSlices and RenderFramebuffer.
+//  Switching the emulator from one machine to another, and the reset and
+//  power-cycle entry points the user reaches from the menu.
+//
+//  Constructing a machine is MachineBuilder's job. What is left here is
+//  everything a switch does AROUND that: saving the outgoing machine's
+//  disks and pending printout, merging the incoming machine's user
+//  config, re-pointing the debug panels at the new CPU, re-titling the
+//  window, and remembering the choice. None of it is construction, and
+//  all of it needs the shell.
 //
 //  Holds a back-reference to EmulatorShell and is declared a friend of
-//  that class so it can read and write the machine state that the
-//  shell still owns directly (memory bus, owned-device vector, MMU,
-//  CPU, video modes, soft-switch shadow state, etc.). No new global
-//  state is added; the back-reference is the only coupling.
+//  that class so it can reach the parts of the emulator a switch has to
+//  touch. No new global state is added; the back-reference is the only
+//  coupling.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,24 +37,11 @@ class MachineManager
 public:
     explicit MachineManager (EmulatorShell & shell);
 
-    HRESULT  CreateMemoryDevices  (const MachineConfig & config);
-    void     WireLanguageCard     ();
-    void     WireApple2cRomBank   ();
-    static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
-    void     WirePageTable        ();
-    void     RebuildBankingPages  ();
-    void     CreateVideoModes     ();
-    HRESULT  CreateCpu            (const MachineConfig & config);
-
-    Byte *   GetAuxRamBuffer      ();
-
     void     ShowMachinePicker    ();
     HRESULT  SwitchMachine        (const std::wstring & machineName);
 
     void     SoftReset            ();
     void     PowerCycle           ();
-
-    void     SelectVideoMode      ();
 
 private:
     static WORD  ResolveMachineSpeedCommand (const JsonValue & mergedJson);

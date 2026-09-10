@@ -156,6 +156,10 @@ public:
     const std::wstring  &  GetCurrentMachineName () const noexcept { return m_currentMachineName; }
     const std::wstring  &  GetAssetBaseDir       () const noexcept { return m_assetBaseDir; }
 
+    //  Where this machine's pending printer strip persists across a switch
+    //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
+    std::filesystem::path  GetPendingPrintDir () const;
+
     void  SetCurrentMachineName (const std::wstring & name) { m_currentMachineName = name; }
     void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
 

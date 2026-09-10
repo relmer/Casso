@@ -127,3 +127,23 @@ void MachineHost::SetVideoTiming (std::unique_ptr<VideoTiming> videoTiming)
 {
     m_videoTiming = std::move (videoTiming);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::GetPendingPrintDir
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::filesystem::path MachineHost::GetPendingPrintDir() const
+{
+    std::filesystem::path  dir = std::filesystem::path (m_assetBaseDir) / L"Machines" /
+                                 std::filesystem::path (m_currentMachineName) / L"PendingPrint";
+
+
+
+    return (dir);
+}

@@ -22,6 +22,7 @@
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
+#include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
@@ -754,8 +755,7 @@ private:
     // <assetBase>/Machines/<current machine>/PendingPrint.
     fs::path  GetPendingPrintDir () const
     {
-        return fs::path (m_machine.GetAssetBaseDir()) / L"Machines" /
-               fs::path (m_machine.GetCurrentMachineName()) / L"PendingPrint";
+        return m_machine.GetPendingPrintDir();
     }
 
     // Live channel for the Settings → Display monitor dropdown. The
@@ -1953,6 +1953,7 @@ private:
     WindowManager                             m_windowManager { m_globalPrefs, [this] { SaveGlobalPrefs(); } };
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;
+    std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;
 };
