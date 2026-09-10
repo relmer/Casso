@@ -109,7 +109,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T045 [P] [US3] Test: a machine with one connected drive lays the drive row out centered, not offset
 - [x] T046 [P] [US3] Test: input mapping — VK classification, modifier mirroring, joystick staging, paddle recenter, guest-mouse clamp mapping
 - [x] T047 [US3] Launch the emulator and confirm layout, pacing and input feel unchanged
-- [ ] T048 [US3] Run the per-phase gate and commit with the measurement
+- [x] T048 [US3] Run the per-phase gate and commit with the measurement — style tree sweep, Debug and Release suites green at each commit
 
 ---
 
@@ -230,7 +230,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T118 [P] [US9] Test: each model's definition reports the expected devices, layout, video modes and CPU
 - [x] T119 [P] [US9] Test: slot contents and attached peripherals set in JSON still take effect
 - [x] T120 [US9] Launch the emulator, switch between all five machines, and confirm each still boots and behaves as before
-- [ ] T121 [US9] Run the per-phase gate and commit with the measurement
+- [x] T121 [US9] Run the per-phase gate and commit with the measurement — style tree sweep, Debug and Release suites green at each commit
 
 ### Machine classes (executed inside slices 4 and 6, not before)
 
@@ -250,16 +250,18 @@ hierarchy, moving it, then rewiring the shell around it.
 
 ---
 
+## Phase 13 (DEFERRED by the owner: the disk layer's Apple II split is its own change)
+
 ## Phase 13: Disk-layer factoring (P2)
 
 **Goal**: the reusable core of the disk layer stops assuming an Apple II.
 
-- [ ] T122 [P] Split `DiskImage`: the bit-stream track buffer stays generic; the 40/35-track, 6400-byte, 143,360-byte and quarter-track constants and the `WozMetadata` member move to an Apple II geometry
-- [ ] T123 [P] Split `DiskImageStore`: the mount/eject/flush lifecycle and salvage assessment stay generic; `kSlotCount = 8` and `(slot, drive)` addressing become a machine-supplied addressing scheme
-- [ ] T124 [P] Split `MountDiagnosis`: seven generic failure modes stay; `NotAWozFile`, `MalformedWoz`, `WrongSizeForNibble` and `NotANibbleStream` move to the Apple II format layer
-- [ ] T125 Split `DiskCommandRunner`: the command grammar and dispatch stay generic; the `ApplesoftTokenizer` and `AppleTextCodec` calls and the DOS 3.3 / ProDOS entry formatting move behind a filesystem-formatter seam
-- [ ] T126 [P] Tests for each split half, generic and Apple II
-- [ ] T127 Run the per-phase gate and commit with the measurement
+- [~] T122 [P] Split `DiskImage`: the bit-stream track buffer stays generic; the 40/35-track, 6400-byte, 143,360-byte and quarter-track constants and the `WozMetadata` member move to an Apple II geometry
+- [~] T123 [P] Split `DiskImageStore`: the mount/eject/flush lifecycle and salvage assessment stay generic; `kSlotCount = 8` and `(slot, drive)` addressing become a machine-supplied addressing scheme
+- [~] T124 [P] Split `MountDiagnosis`: seven generic failure modes stay; `NotAWozFile`, `MalformedWoz`, `WrongSizeForNibble` and `NotANibbleStream` move to the Apple II format layer
+- [~] T125 Split `DiskCommandRunner`: the command grammar and dispatch stay generic; the `ApplesoftTokenizer` and `AppleTextCodec` calls and the DOS 3.3 / ProDOS entry formatting move behind a filesystem-formatter seam
+- [~] T126 [P] Tests for each split half, generic and Apple II
+- [~] T127 Run the per-phase gate and commit with the measurement
 
 ---
 
@@ -330,7 +332,7 @@ so the copy goes -- and with it the reason machine coverage was uneven.
 - [x] T144 **Tier 2** — the //e's 40-column default, asserted where the model differences live
 - [x] T145 **Tier 2** — the Enhanced //e's 65C02, asserted by running an opcode a 6502 does not have
 - [x] T146 **Tier 2** — the //c's existing tests stay where they are; `Apple2cBootTests` and `AppleMouseTests` are already per-model files by another name
-- [ ] T147 Run the per-phase gate and commit with the measurement
+- [x] T147 Run the per-phase gate and commit with the measurement — style tree sweep, Debug and Release suites green at each commit
 
 **Found, and not this spec's to answer**: Choplifter's boot walks 12 of 20
 tracks on the //c and all 20 on a //e. The //c is wired the way the retired
