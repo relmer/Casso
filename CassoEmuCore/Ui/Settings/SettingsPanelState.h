@@ -324,7 +324,8 @@ public:
 
     static HRESULT ExtractHardware    (const JsonValue            & mergedJson,
                                        std::vector<HardwareEntry> & outEntries);
-    static HRESULT ExtractMachineInfo (const JsonValue            & mergedJson,
+    static HRESULT ExtractMachineInfo (const std::string          & machineId,
+                                       const JsonValue            & mergedJson,
                                        SettingsMachineInfo        & outInfo);
     static HRESULT ExtractUiPrefs     (const JsonValue            & mergedJson,
                                        SettingsUiPrefs            & outPrefs);

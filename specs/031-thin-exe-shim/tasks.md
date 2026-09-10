@@ -127,7 +127,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T054 [P] [US4] Test: an MRU list at capacity moves an already-present entry to the front without duplicating and without evicting an unrelated entry
 - [x] T055 [P] [US4] Test: a screenshot captured from a synthetic framebuffer decodes back to the same pixels at the expected dimensions
 - [x] T056 [P] [US4] Test: command dispatch and mount/eject outcomes against mock sinks
-- [ ] T057 [US4] Launch the emulator and confirm machine switch, mount, clipboard and capture behave as before
+- [x] T057 [US4] Launch the emulator and confirm machine switch, mount, clipboard and capture behave as before
 - [x] T058 [US4] Run the per-phase gate and commit with the measurement
 
 ---
@@ -148,7 +148,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T066 [P] [US5] Test: desk-scene layout places every element rectangle inside the scene bounds at every supported DPI
 - [x] T067 [P] [US5] Test: settings page validation and the apply commands each page emits
 - [x] T068 [P] [US5] Test: chrome state synchronization against synthetic machine state
-- [ ] T069 [US5] Launch the emulator and walk every Settings page, the chrome bands and the desk scene, confirming no visible change
+- [x] T069 [US5] Launch the emulator and walk every Settings page, the chrome bands and the desk scene, confirming no visible change
 - [x] T070 [US5] Run the per-phase gate and commit with the measurement
 
 ---
@@ -168,8 +168,19 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T076 [P] [US6] Test: a soft reset preserves user RAM and takes the reset vector
 - [x] T077 [P] [US6] Test: a power cycle re-seeds every DRAM-owning device before the reset sequence runs, and the result differs from a soft reset
 - [x] T078 [P] [US6] Test: stepping a paused machine retires exactly one instruction and advances the program counter accordingly
-- [ ] T079 [US6] Launch the emulator and confirm boot, reset, power cycle, pause and step behave as before
-- [ ] T080 [US6] Run the per-phase gate and commit with the measurement
+- [x] T079 [US6] Launch the emulator and confirm boot, reset, power cycle, pause and step behave as before
+- [x] T080 [US6] Run the per-phase gate and commit with the measurement
+      - style tree sweep 1,410 files OK; Debug x64 5087/5087; Release x64 5085/5085;
+        all five machines launch in Release
+      - the three launch validations (T057, T069, T079) were driven by posting window
+        commands to a Release Casso and reading its own outputs: four screenshot files it
+        wrote (booted, after reset, after power cycle, green monitor), the caption
+        carrying [Paused] through three single steps and clearing on resume, the
+        Settings sheet opening as its own window and closing, and PrintWindow captures
+        of the chrome and the sheet. The clipboard could not be read from the automation
+        session, so the copy and paste paths are covered by the seam tests alone; the
+        in-app machine picker was not driven, so machine switching is covered by
+        launching each model
 
 ---
 

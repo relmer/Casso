@@ -522,7 +522,7 @@ HRESULT SettingsPanelState::LoadFromMachine (
     hr = ExtractUiPrefs (m_mergedJson, m_original.prefs);
     CHR (hr);
 
-    hr = ExtractMachineInfo (m_mergedJson, m_machineInfo);
+    hr = ExtractMachineInfo (machineName, m_mergedJson, m_machineInfo);
     CHR (hr);
 
     hr = ExtractHardware (m_mergedJson, m_original.hardware);
@@ -1172,6 +1172,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsPanelState::ExtractMachineInfo (
+    const std::string   & machineId,
     const JsonValue     & mergedJson,
     SettingsMachineInfo & outInfo)
 {
@@ -1183,6 +1184,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     const JsonValue  * internalDevices = nullptr;
     const JsonValue  * slots           = nullptr;
     bool               hasAux          = false;
+    bool               hasLanguageCard = false;
     uint32_t           totalRamBytes   = 0;
     JsonType           mergedRootType  = JsonType::Null;
 
@@ -1321,6 +1323,27 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             totalRamBytes += ParseHex (size);
         }
     }
+    else if (MachineDefinitions::Find (machineId) != nullptr)
+    {
+        // The RAM a machine is born with is declared by the machine, not the
+        // JSON: the JSON keeps what a person can change about their machine,
+        // and how much RAM a //e has is not one of those things. A "ram"
+        // array, when one is present, still wins above, which is how a
+        // hand-written test document describes a machine that never shipped.
+        for (const RamRegion & region : MachineDefinitions::Find (machineId)->ram)
+        {
+            std::string  label = "RAM (main)";
+
+            if (!region.bank.empty() && region.bank != "main")
+            {
+                label  = std::format ("RAM ({})", region.bank);
+                hasAux = true;
+            }
+
+            FormatRegion (label, std::format ("0x{:X}", region.address), std::format ("0x{:X}", region.size));
+            totalRamBytes += region.size;
+        }
+    }
 
     hrRead = mergedJson.GetObject ("systemRom", romObj);
     if (SUCCEEDED (hrRead) && romObj != nullptr)
@@ -1381,15 +1404,8 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
     {
-        bool  hasLanguageCard = false;
-
         outInfo.devices += internalDevices->GetArraySize();
 
-        // A language card adds 16K of bank-switched RAM at $D000-$FFFF per 64K
-        // bank ($D000-$DFFF is double-banked, so 16K in a 12K window). The base
-        // "ram" entries above only cover $0000-$BFFF, so surface the LC RAM here
-        // -- otherwise a 128K //e/​//c reads as only 96K. One region per bank
-        // (main, plus aux when the machine has an aux bank).
         for (size_t d = 0; d < internalDevices->GetArraySize(); ++d)
         {
             const JsonValue &  dev = internalDevices->GetArrayElement (d);
@@ -1403,24 +1419,40 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
                 break;
             }
         }
-
-        if (hasLanguageCard)
+    }
+    else if (MachineDefinitions::Find (machineId) != nullptr)
+    {
+        // Declared by the machine, as its RAM is.
+        for (const InternalDevice & dev : MachineDefinitions::Find (machineId)->internalDevices)
         {
-            auto addLcRam = [&] (const std::string & label)
-            {
-                SettingsMemoryRegion  region;
-                region.name         = label;
-                region.size         = FormatSize (0x4000);   // 16K ($D000 double-banked)
-                region.addressRange = "$D000-$FFFF";
-                outInfo.memoryRegions.push_back (std::move (region));
-                totalRamBytes += 0x4000;
-            };
+            outInfo.devices++;
+            hasLanguageCard = hasLanguageCard || dev.type == "language-card";
+        }
+    }
 
-            addLcRam ("RAM (main, bank-switched)");
-            if (hasAux)
-            {
-                addLcRam ("RAM (aux, bank-switched)");
-            }
+    // A language card adds 16K of bank-switched RAM at $D000-$FFFF per 64K
+    // bank ($D000-$DFFF is double-banked, so 16K in a 12K window). The base
+    // "ram" entries above only cover $0000-$BFFF, so surface the LC RAM here
+        // -- otherwise a 128K //e/​//c reads as only 96K. One region per bank
+    // (main, plus aux when the machine has an aux bank).
+    if (hasLanguageCard)
+    {
+        auto addLcRam = [&] (const std::string & label)
+        {
+            SettingsMemoryRegion  region;
+
+            region.name         = label;
+            region.size         = FormatSize (0x4000);   // 16K ($D000 double-banked)
+            region.addressRange = "$D000-$FFFF";
+            outInfo.memoryRegions.push_back (std::move (region));
+            totalRamBytes += 0x4000;
+        };
+
+        addLcRam ("RAM (main, bank-switched)");
+
+        if (hasAux)
+        {
+            addLcRam ("RAM (aux, bank-switched)");
         }
     }
 

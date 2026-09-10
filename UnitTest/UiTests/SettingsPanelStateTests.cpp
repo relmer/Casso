@@ -342,6 +342,37 @@ public:
     }
 
 
+    // The shipped JSON has carried no "ram" and no "internalDevices" since the
+    // hardware a machine is born with moved into the machine classes; the page
+    // reads the machine instead. A //e is 48K main + 48K aux + two 16K
+    // language-card banks; a ][ is one 48K bank and nothing else.
+    TEST_METHOD (MemoryTotal_ComesFromTheMachineWhenTheJsonDeclaresNone)
+    {
+        SettingsPanelState  eSt;
+        SettingsPanelState  twoSt;
+        JsonValue           ev;
+        JsonValue           tv;
+        const char *        json = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple",
+            "timing": { "clockSpeed": 1023000 },
+            "systemRom": { "address": "0xC000", "size": "0x4000" }
+        })JSON";
+
+        ev = ParseOrFail (json);
+        AssertSucceeded (eSt.LoadFromMachine ("Apple2e", ev, ev));
+        Assert::AreEqual (std::string ("128K RAM"), eSt.GetMachineInfo().ramSummary,
+            L"a //e with nothing in its JSON is still a 128K machine");
+        Assert::AreEqual (size_t (5), eSt.GetMachineInfo().memoryRegions.size(),
+            L"main, aux, ROM, and the two language-card banks");
+
+        tv = ParseOrFail (json);
+        AssertSucceeded (twoSt.LoadFromMachine ("Apple2", tv, tv));
+        Assert::AreEqual (std::string ("48K RAM"), twoSt.GetMachineInfo().ramSummary,
+            L"a ][ is its single 48K bank");
+    }
+
+
     TEST_METHOD (Load_RejectsNonObjectJson)
     {
         SettingsPanelState  st;
