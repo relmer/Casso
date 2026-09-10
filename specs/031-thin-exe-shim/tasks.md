@@ -170,7 +170,7 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T078 [P] [US6] Test: stepping a paused machine retires exactly one instruction and advances the program counter accordingly
 - [x] T079 [US6] Launch the emulator and confirm boot, reset, power cycle, pause and step behave as before
 - [x] T080 [US6] Run the per-phase gate and commit with the measurement
-      - style tree sweep 1,410 files OK; Debug x64 5098/5098; Release x64 5096/5096 (after the switch fix);
+      - style tree sweep 1,410 files OK; Debug x64 5099/5099; Release x64 5097/5097;
         all five machines launch in Release
       - the three launch validations (T057, T069, T079) were driven by posting window
         commands to a Release Casso and reading its own outputs: four screenshot files it
