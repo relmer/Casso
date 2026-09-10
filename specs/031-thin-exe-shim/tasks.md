@@ -342,7 +342,8 @@ check the //e's Disk ][ firmware does not, and it only became visible
 because the suite stopped booting a hand-built //c. Choplifter is booted on
 a //e; Karateka and Lode Runner keep the //c covered and are the more
 aggressively protected titles. Whether the //c is faithful here wants its
-own investigation.
+own investigation, and the track-count assertion that let the //c's stall
+pass at its threshold of 10 is GH #142, deferred until this spec is complete.
 
 ---
 
