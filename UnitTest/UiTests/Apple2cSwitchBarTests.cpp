@@ -152,6 +152,27 @@ public:
         Assert::IsTrue (bar.IsKeyboardIn(),    L"keyboard in reflected");
     }
 
+    //  The shell presents a frame only when something asks for one, and over a
+    //  static screen a switch press is the only thing that does. Each setter
+    //  therefore reports whether the strip now looks different, and reports it
+    //  once: a repeat of the same state is not a reason to present again.
+    TEST_METHOD (Setters_ReportAVisualChangeOnce)
+    {
+        MockDxuiTextRenderer  text;
+        Apple2cSwitchBar      bar = MakeLaidOutBar (text);
+
+        Assert::IsTrue  (bar.SetPressedPart (Apple2cSwitchBar::Part::EightyForty), L"a key went down");
+        Assert::IsFalse (bar.SetPressedPart (Apple2cSwitchBar::Part::EightyForty), L"and is still down");
+        Assert::IsTrue  (bar.SetPressedPart (Apple2cSwitchBar::Part::None),        L"and came up");
+
+        Assert::IsTrue  (bar.SetHovered (true),  L"the pointer arrived");
+        Assert::IsFalse (bar.SetHovered (true),  L"and stayed");
+        Assert::IsFalse (bar.SetHoverPoint (-1, -1), L"over no part, which it already was");
+        Assert::IsTrue  (bar.SetHovered (false), L"and left");
+        Assert::IsFalse (bar.SetHovered (false), L"and is still gone");
+    }
+
+
     TEST_METHOD (Tooltips_PerPart_NullInGaps)
     {
         MockDxuiTextRenderer  text;

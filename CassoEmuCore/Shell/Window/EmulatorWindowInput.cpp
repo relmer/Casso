@@ -428,10 +428,16 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // keyboard). Inert on non-//c machines (hidden).
     if (MachineHasCaseSwitches())
     {
-        const wchar_t * tip = m_switchBar.GetTooltipTextAt (x, y);
+        const wchar_t * tip          = m_switchBar.GetTooltipTextAt (x, y);
+        bool            hoverChanged = m_switchBar.SetHovered (m_switchBar.HitTest (x, y));
+        bool            partChanged  = m_switchBar.SetHoverPoint (x, y);
 
-        m_switchBar.SetHovered    (m_switchBar.HitTest (x, y));
-        m_switchBar.SetHoverPoint (x, y);
+        // The strip is painted only when a frame is presented, and a static
+        // screen presents none; a highlight that moved asks for one.
+        if (hoverChanged || partChanged)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
 
         if (tip != nullptr)
         {
@@ -566,8 +572,16 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     m_toolbarTooltip.RequestHide (nowMs);
     m_driveTooltip.RequestHide (nowMs);
 
-    m_switchBar.SetHovered     (false);
-    m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
+    {
+        bool  hoverChanged = m_switchBar.SetHovered (false);
+        bool  pressChanged = m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
+
+        if (hoverChanged || pressChanged)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
     m_switchBarTooltip.RequestHide (nowMs);
 
     // //c Mouse mode: the cursor left the window entirely — release the
@@ -1171,7 +1185,12 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     {
         Apple2cSwitchBar::Part  part = m_switchBar.GetPartAt (x, y);
 
-        m_switchBar.SetPressedPart (part);
+        // The strip is painted only when a frame is presented, and a static
+        // screen presents none; a key that went down asks for one.
+        if (m_switchBar.SetPressedPart (part))
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
 
         chromeTook = chromeTook || part != Apple2cSwitchBar::Part::None;
     }
@@ -1454,7 +1473,11 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (MachineHasCaseSwitches())
     {
         switchPart = m_switchBar.GetPartAt (x, y);
-        m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
+
+        if (m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None))
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
     }
 
     shellTook = m_uiShell.OnLButtonUp (x, y);
@@ -1465,7 +1488,10 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     if (onSwitchPart)
     {
+        // A latched switch is drawn sunk or proud on the next present, and
+        // over a static screen this click is the only thing asking for one.
         HandleSwitchBarClick (switchPart);
+        m_d3dRenderer.MarkRedrawNeeded();
     }
 
     BAIL_OUT_IF (onSwitchPart, S_OK);

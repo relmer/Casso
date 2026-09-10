@@ -77,9 +77,34 @@ public:
     bool  IsKeyboardIn     () const { return m_keyboardIn; }
 
     // Interaction state: the owner drives it (see the class comment).
-    void  SetHovered    (bool hovered)   { m_hovered = hovered; if (!hovered) { m_hoverPart = Part::None; } }
-    void  SetHoverPoint (int x, int y)   { m_hoverPart = GetPartAt (x, y); }
-    void  SetPressedPart (Part part)     { m_pressedPart = part; }
+    //  Each setter answers whether the strip now looks different, because the
+    //  shell presents no frame on its own while the screen is static: a key
+    //  that sank with no frame to show it is a switch that looks dead.
+    bool  SetHovered    (bool hovered)
+    {
+        bool  changed = (m_hovered != hovered) || (!hovered && m_hoverPart != Part::None);
+
+        m_hovered = hovered;
+        if (!hovered) { m_hoverPart = Part::None; }
+        return changed;
+    }
+
+    bool  SetHoverPoint (int x, int y)
+    {
+        Part  part    = GetPartAt (x, y);
+        bool  changed = (m_hoverPart != part);
+
+        m_hoverPart = part;
+        return changed;
+    }
+
+    bool  SetPressedPart (Part part)
+    {
+        bool  changed = (m_pressedPart != part);
+
+        m_pressedPart = part;
+        return changed;
+    }
 
     Part  GetPartAt (int x, int y) const;
     bool  HitTest   (int x, int y) const  { return GetPartAt (x, y) != Part::None; }

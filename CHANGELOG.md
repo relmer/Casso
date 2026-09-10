@@ -18,6 +18,8 @@ Entries before versioning was introduced use dates only.
   mouse along with the other devices.
 - The Input debug panel now follows a machine switch whether or not the Disk II
   panel is open.
+- The //c switch strip now repaints when a switch is clicked or hovered over a
+  static screen, such as the "Check disk drive" message.
 
 ### Changed
 
