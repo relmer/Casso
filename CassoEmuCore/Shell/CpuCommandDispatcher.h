@@ -30,6 +30,7 @@ public:
 
     virtual HRESULT  SwitchMachine            (const std::wstring & machineName)                = 0;
     virtual void     SoftReset                ()                                                = 0;
+    virtual void     HoldAppleKeysThroughReset (bool openApple, bool closedApple)               = 0;
     virtual void     PowerCycle               ()                                                = 0;
     virtual void     StepInstruction          ()                                                = 0;
     virtual void     RemountDisks             ()                                                = 0;

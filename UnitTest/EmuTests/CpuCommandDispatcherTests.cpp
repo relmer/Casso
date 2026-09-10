@@ -71,6 +71,26 @@ public:
     }
 
 
+    TEST_METHOD (AResetCarriesTheAppleKeysThatWereDownWhenItWasAskedFor)
+    {
+        Notebook  target;
+
+        //  The keys are held before the reset, so the firmware's read of them
+        //  a few hundred cycles after /RESET sees what the person was holding
+        //  at the click, not whatever the host reports by the time the CPU
+        //  thread gets there.
+        Dispatch (IDM_MACHINE_RESET, "open ", target);
+
+        Assert::AreEqual (std::string ("HoldAppleKeys open "), target.calls[0]);
+        Assert::AreEqual (std::string ("RemountDisks"),        target.calls[1]);
+        Assert::AreEqual (std::string ("SoftReset"),           target.calls[2]);
+
+        target.calls.clear();
+        Dispatch (IDM_MACHINE_RESET, "open closed", target);
+        Assert::AreEqual (std::string ("HoldAppleKeys open closed"), target.calls[0]);
+    }
+
+
     TEST_METHOD (OpenSwitchesToTheMachineInThePayload)
     {
         Notebook  target;
@@ -201,6 +221,15 @@ private:
         }
 
         void     SoftReset() override       { calls.push_back ("SoftReset"); }
+
+        void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override
+        {
+            if (openApple || closedApple)
+            {
+                calls.push_back (std::format ("HoldAppleKeys {}{}", openApple ? "open " : "", closedApple ? "closed" : ""));
+            }
+        }
+
         void     PowerCycle() override      { calls.push_back ("PowerCycle"); }
         void     StepInstruction() override { calls.push_back ("StepInstruction"); }
         void     RemountDisks() override    { calls.push_back ("RemountDisks"); }

@@ -642,6 +642,11 @@ void WindowCommandManager::OnMachineCommand (int id)
     switch (id)
     {
         case IDM_MACHINE_RESET:
+        {
+            m_shell.RequestReset();
+            break;
+        }
+
         case IDM_MACHINE_POWERCYCLE:
         {
             m_shell.PostCommand (static_cast<WORD> (id));

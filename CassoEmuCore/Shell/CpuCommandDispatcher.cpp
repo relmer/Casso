@@ -38,6 +38,12 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             break;
 
         case IDM_MACHINE_RESET:
+            // The payload names the Apple keys down when the reset was asked
+            // for: "open", "closed", both, or nothing. They are held through
+            // the reset so the firmware sees them however the host's key
+            // state moves around the click.
+            target.HoldAppleKeysThroughReset (cmd.payload.find ("open")   != std::string::npos,
+                                              cmd.payload.find ("closed") != std::string::npos);
             target.RemountDisks();
             target.SoftReset();
             break;

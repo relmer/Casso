@@ -77,14 +77,16 @@ Byte Apple2eKeyboard::Read (Word address)
     }
     else if (address == 0xC061)
     {
-        // Open Apple (bit 7).
-        value = m_openApple.load (memory_order_acquire) ? 0x80 : 0x00;
+        // Open Apple (bit 7), or the key held through a reset.
+        value = (m_openApple.load (memory_order_acquire) ||
+                 m_holdOpenApple.load (memory_order_acquire)) ? 0x80 : 0x00;
         EmitButtonRead (address, value);
     }
     else if (address == 0xC062)
     {
-        // Closed Apple (bit 7).
-        value = m_closedApple.load (memory_order_acquire) ? 0x80 : 0x00;
+        // Closed Apple (bit 7), or the key held through a reset.
+        value = (m_closedApple.load (memory_order_acquire) ||
+                 m_holdClosedApple.load (memory_order_acquire)) ? 0x80 : 0x00;
         EmitButtonRead (address, value);
     }
     else if (address == 0xC063)
@@ -483,6 +485,60 @@ void Apple2eKeyboard::Reset()
 
     m_lastEmittedHostButton[0] = -1;
     m_lastEmittedHostButton[1] = -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HoldAppleKeysThroughReset
+//
+//  Armed on the CPU thread just before the reset it belongs to, from the
+//  host key state captured on the UI thread when the reset was requested.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eKeyboard::HoldAppleKeysThroughReset (bool openApple, bool closedApple)
+{
+    m_holdOpenApple.store   (openApple,   memory_order_release);
+    m_holdClosedApple.store (closedApple, memory_order_release);
+    m_resetHoldUs.store     ((openApple || closedApple) ? kResetHoldUs : 0, memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TickResetHold
+//
+//  Counts the hold down in real time; when it runs out the held keys read as
+//  whatever the host says again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eKeyboard::TickResetHold (uint32_t elapsedMicroseconds)
+{
+    uint32_t  left = m_resetHoldUs.load (memory_order_acquire);
+
+
+
+    if (left == 0)
+    {
+        return;
+    }
+
+    left = (elapsedMicroseconds >= left) ? 0 : left - elapsedMicroseconds;
+    m_resetHoldUs.store (left, memory_order_release);
+
+    if (left == 0)
+    {
+        m_holdOpenApple.store   (false, memory_order_release);
+        m_holdClosedApple.store (false, memory_order_release);
+    }
 }
 
 

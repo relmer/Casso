@@ -375,7 +375,14 @@ private:
     // have the target's signature; these are the ones that were inline in
     // the dispatch switch before it became CpuCommandDispatcher.
     void     StepInstruction         () override;
+    void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
     void     RemountDisks            () override;
+
+    // Posts a reset with the Apple keys as they are at this moment, read on
+    // the UI thread where the key state is valid. The strip, the toolbar and
+    // the menu all come through here so a Ctrl-Open-Apple-Reset cold starts
+    // from any of them.
+    void     RequestReset ();
     HRESULT  MountDisk               (int drive, const std::string & path) override;
     void     EjectDisk               (int drive) override;
     HRESULT  ToggleImageWriteProtect (int drive) override;

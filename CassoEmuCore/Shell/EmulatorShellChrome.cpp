@@ -1418,7 +1418,7 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
             if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
             {
                 m_machine.GetRefs().keyboard->SetKeyDown (false);
-                PostCommand (IDM_MACHINE_RESET);
+                RequestReset();
             }
 
             break;

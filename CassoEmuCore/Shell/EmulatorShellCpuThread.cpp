@@ -451,6 +451,59 @@ HRESULT EmulatorShell::SetDriveAudioMechanism (const std::wstring & mechanism)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HoldAppleKeysThroughReset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HoldAppleKeysThroughReset (bool openApple, bool closedApple)
+{
+    if (m_machine.GetRefs().iieKeyboard != nullptr)
+    {
+        m_machine.GetRefs().iieKeyboard->HoldAppleKeysThroughReset (openApple, closedApple);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequestReset
+//
+//  UI thread. The keys are read here because GetKeyState answers for the
+//  calling thread's queue; the CPU thread has no queue to ask.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RequestReset()
+{
+    bool         foreground  = (GetForegroundWindow() == m_hwnd);
+    bool         openApple   = foreground && (GetKeyState (VK_LMENU) & 0x8000) != 0;
+    bool         closedApple = foreground && (GetKeyState (VK_RMENU) & 0x8000) != 0;
+    std::string  payload;
+
+
+
+    if (openApple)
+    {
+        payload += "open ";
+    }
+
+    if (closedApple)
+    {
+        payload += "closed";
+    }
+
+    PostCommand (IDM_MACHINE_RESET, payload);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::PersistSwitchState
 //
 //  Writes one //c case-switch latch into the current machine's per-machine
@@ -699,6 +752,11 @@ void EmulatorShell::TickKeyboardAutoRepeat()
     }
 
     m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+
+    if (m_machine.GetRefs().iieKeyboard != nullptr)
+    {
+        m_machine.GetRefs().iieKeyboard->TickResetHold (elapsed);
+    }
 }
 
 

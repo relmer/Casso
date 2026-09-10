@@ -55,6 +55,17 @@ public:
     void SetClosedApple (bool pressed);
     void SetShift       (bool pressed) { m_shift.store       (pressed, memory_order_release); }
 
+    // Ctrl-Open-Apple-Reset. The firmware reads $C061 within the first
+    // thousand cycles after /RESET to choose a cold start over a warm one,
+    // and the host's key state can change hands around a click on a reset
+    // button. The keys as they were when the reset was asked for are read as
+    // down until the hold runs out, whatever the host's state does meanwhile;
+    // the hold is ticked by the CPU thread with the auto-repeat clock.
+    static constexpr uint32_t kResetHoldUs = 200'000;
+
+    void HoldAppleKeysThroughReset (bool openApple, bool closedApple);
+    void TickResetHold             (uint32_t elapsedMicroseconds);
+
     // Soft-switch sibling — owns $C00C-$C00F, $C011-$C01F status reads,
     // and $C050-$C05F display switches (T061 ownership split).
     void SetSoftSwitchSibling (class Apple2eSoftSwitchBank * sibling) { m_softSwitchSibling = sibling; }
@@ -164,6 +175,11 @@ private:
     class AppleMouse *             m_mouse             = nullptr;
     atomic<bool>                   m_openApple   {false};
     atomic<bool>                   m_closedApple {false};
+
+    // The keys captured for a reset, read as down while the hold has time left.
+    atomic<bool>                   m_holdOpenApple   {false};
+    atomic<bool>                   m_holdClosedApple {false};
+    atomic<uint32_t>               m_resetHoldUs     {0};
     atomic<bool>                   m_shift       {false};
 
     // Apple //c case-switch state. m_apple2cMode gates the //c-only behaviors
