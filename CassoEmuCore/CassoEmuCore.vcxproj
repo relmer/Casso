@@ -324,11 +324,6 @@
     <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Machines\MachineDefinitions.cpp" />
-    <ClCompile Include="Machines\Apple2\Apple2\Apple2Definition.cpp" />
-    <ClCompile Include="Machines\Apple2\Apple2Plus\Apple2PlusDefinition.cpp" />
-    <ClCompile Include="Machines\Apple2\Apple2e\Apple2eDefinition.cpp" />
-    <ClCompile Include="Machines\Apple2\Apple2eEnhanced\Apple2eEnhancedDefinition.cpp" />
-    <ClCompile Include="Machines\Apple2\Apple2c\Apple2cDefinition.cpp" />
     <ClCompile Include="Ui\Debug\TrackSectorPredicate.cpp" />
     <ClCompile Include="Ui\Debug\DebugDialogProjection.cpp" />
     <ClCompile Include="Ui\Debug\Disk2DebugDialogState.cpp" />
@@ -407,6 +402,8 @@
     <ClCompile Include="WasapiAudio.cpp" />
     <ClCompile Include="Gui\GuiMain.cpp" />
     <ClCompile Include="Cli\CliEntry.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2\Apple2.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2e\Apple2e.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -592,11 +589,6 @@
     <ClInclude Include="Ui\ColorUtil.h" />
     <ClInclude Include="Machines\MachineDefinition.h" />
     <ClInclude Include="Machines\MachineDefinitions.h" />
-    <ClInclude Include="Machines\Apple2\Apple2\Apple2Definition.h" />
-    <ClInclude Include="Machines\Apple2\Apple2Plus\Apple2PlusDefinition.h" />
-    <ClInclude Include="Machines\Apple2\Apple2e\Apple2eDefinition.h" />
-    <ClInclude Include="Machines\Apple2\Apple2eEnhanced\Apple2eEnhancedDefinition.h" />
-    <ClInclude Include="Machines\Apple2\Apple2c\Apple2cDefinition.h" />
     <ClInclude Include="Ui\Debug\TrackSectorPredicate.h" />
     <ClInclude Include="Ui\Debug\DebugDialogProjection.h" />
     <ClInclude Include="Ui\Debug\Disk2DebugDialogState.h" />
@@ -683,6 +675,12 @@
     <ClInclude Include="RichEditSquiggle.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="EmbeddedMachineConfigs.h" />
+    <ClInclude Include="Machines\IMachine.h" />
+    <ClInclude Include="Machines\Apple2\Apple2\Apple2.h" />
+    <ClInclude Include="Machines\Apple2\Apple2Plus\Apple2Plus.h" />
+    <ClInclude Include="Machines\Apple2\Apple2e\Apple2e.h" />
+    <ClInclude Include="Machines\Apple2\Apple2eEnhanced\Apple2eEnhanced.h" />
+    <ClInclude Include="Machines\Apple2\Apple2c\Apple2c.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

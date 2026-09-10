@@ -237,15 +237,15 @@ These absorb most of `MachineManager`, which User Story 4 extracts and User
 Story 6 finishes. Building them ahead of those slices would mean building the
 hierarchy, moving it, then rewiring the shell around it.
 
-- [ ] T128 [US9] Add `Apple2` in `CassoEmuCore/Machines/Apple2/Apple2/`: speaker, game port, 40-column text, lo-res and hi-res, a virtual slot count, and a virtual game-port factory the //e can decline. It is the base as well as a machine — there is no abstract root above the ][
-- [ ] T129 [US9] Add `Apple2Plus` deriving from `Apple2`, then `Apple2e` deriving from `Apple2Plus`: aux bank, MMU, extended soft switches, full keyboard, 80-column text and double hi-res in its own initialization. `Apple2e` overrides the game-port factory to create nothing, because `Apple2eSoftSwitchBank` owns the paddle timer and `PREAD`
-- [ ] T130 [P] [US9] Confirm `Apple2Plus` stays nearly empty: its only differences from the ][ are a ROM file and a default slot card, both of which are configuration
-- [ ] T131 [P] [US9] Add `Apple2eEnhanced` deriving from `Apple2e`: the 65C02 and nothing else
-- [ ] T132 [US9] Add `Apple2c` deriving from `Apple2e` as a SIBLING of `Apple2eEnhanced`: 65C02, slot count zero, back-panel ports, ROM banking. Do not derive it from `Apple2eEnhanced`, which shipped a year later
+- [x] T128 [US9] Add `Apple2` in `CassoEmuCore/Machines/Apple2/Apple2/`: speaker, game port, 40-column text, lo-res and hi-res, a virtual slot count, and a virtual game-port factory the //e can decline. It is the base as well as a machine — there is no abstract root above the ][
+- [x] T129 [US9] Add `Apple2Plus` deriving from `Apple2`, then `Apple2e` deriving from `Apple2Plus`: aux bank, MMU, extended soft switches, full keyboard, 80-column text and double hi-res in its own initialization. `Apple2e` overrides the game-port factory to create nothing, because `Apple2eSoftSwitchBank` owns the paddle timer and `PREAD`
+- [x] T130 [P] [US9] Confirm `Apple2Plus` stays nearly empty: its only differences from the ][ are a ROM file and a default slot card, both of which are configuration
+- [x] T131 [P] [US9] Add `Apple2eEnhanced` deriving from `Apple2e`: the 65C02 and nothing else
+- [x] T132 [US9] Add `Apple2c` deriving from `Apple2e` as a SIBLING of `Apple2eEnhanced`: 65C02, slot count zero, back-panel ports, ROM banking. Do not derive it from `Apple2eEnhanced`, which shipped a year later
 - [ ] T133 [US9] Move the `apple2e-family-mmu` special case (`MachineManager.cpp:266`) and `WireApple2cRomBank` (`:961`) into the machines that own them; the //e's MMU and the //c's ROM bank are wired from the executable today
 - [ ] T134 [US9] Replace the 14 `IsApple2c()` call sites with capability queries on the machine — which drive mesh, whether a switch band exists, whether a switch bar is shown — since every one of them is a presentation question, not an emulation one
 - [ ] T135 [US9] Delete `videoConfig.modes`: nothing in production reads it, `MachineManager` builds all five renderers unconditionally, and each machine's initialization now constructs its own
-- [ ] T136 [P] [US9] Tests: each machine reports its own slot count, CPU and renderers; an `Apple2` has no 80-column renderer; a //c has zero slots and a //e seven
+- [x] T136 [P] [US9] Tests: each machine reports its own slot count, CPU and renderers; an `Apple2` has no 80-column renderer; a //c has zero slots and a //e seven
 
 ---
 

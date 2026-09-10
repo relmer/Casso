@@ -2,6 +2,11 @@
 
 #include "Core/MachineConfig.h"
 #include "Machines/MachineDefinitions.h"
+#include "Machines/Apple2/Apple2/Apple2.h"
+#include "Machines/Apple2/Apple2Plus/Apple2Plus.h"
+#include "Machines/Apple2/Apple2e/Apple2e.h"
+#include "Machines/Apple2/Apple2eEnhanced/Apple2eEnhanced.h"
+#include "Machines/Apple2/Apple2c/Apple2c.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -122,7 +127,105 @@ public:
     }
 
 
+    TEST_METHOD (TheChainIsRootedAtTheAppleII)
+    {
+        //  Each machine is the one before it with things added or replaced, so
+        //  a later model IS an earlier one and the compiler can say so. If this
+        //  stops compiling the hierarchy has been re-rooted.
+        Assert::IsTrue ((std::is_base_of_v<Apple2,      Apple2Plus>));
+        Assert::IsTrue ((std::is_base_of_v<Apple2Plus,  Apple2e>));
+        Assert::IsTrue ((std::is_base_of_v<Apple2e,     Apple2eEnhanced>));
+        Assert::IsTrue ((std::is_base_of_v<Apple2e,     Apple2c>));
+
+        //  Siblings, not ancestors: the //c shipped a year before the Enhanced
+        //  //e and brought the 65C02 first.
+        Assert::IsFalse ((std::is_base_of_v<Apple2eEnhanced, Apple2c>));
+        Assert::IsFalse ((std::is_base_of_v<Apple2c, Apple2eEnhanced>));
+    }
+
+
+    TEST_METHOD (ThePlusInheritsEverythingButItsName)
+    {
+        Apple2      plain;
+        Apple2Plus  plus;
+
+        //  A ][+ differs from a ][ by a ROM file and a card in a slot, both of
+        //  which are the owner's. Nothing about the machine itself changed.
+        Assert::AreEqual (plain.GetCpu(),                    plus.GetCpu());
+        Assert::AreEqual (plain.GetKeyboardLayout(),         plus.GetKeyboardLayout());
+        Assert::AreEqual (plain.GetInternalDevices().size(), plus.GetInternalDevices().size());
+        Assert::AreEqual (plain.GetVideoModes().size(),      plus.GetVideoModes().size());
+        Assert::AreEqual (plain.GetSlotCount(),              plus.GetSlotCount());
+    }
+
+
+    TEST_METHOD (TheIIcHasNoSlotsAndTheIIeHasSeven)
+    {
+        Apple2e  e;
+        Apple2c  c;
+
+        //  Zero is a count, not a facet taken away: every loop that walks
+        //  slots still runs, and finds none.
+        Assert::AreEqual (7, e.GetSlotCount());
+        Assert::AreEqual (0, c.GetSlotCount());
+    }
+
+
+    TEST_METHOD (TheOriginalMachinesHaveAGamePortDeviceAndTheLaterOnesDoNot)
+    {
+        Apple2      plain;
+        Apple2Plus  plus;
+        Apple2e     e;
+        Apple2c     c;
+
+        //  The one real removal in the family, expressed as declining to
+        //  create: Apple2eSoftSwitchBank absorbed the paddle timer and PREAD,
+        //  so a separate game-port device would be a second owner of $C070.
+        Assert::IsTrue  (plain.HasGamePortDevice());
+        Assert::IsTrue  (plus.HasGamePortDevice());
+        Assert::IsFalse (e.HasGamePortDevice());
+        Assert::IsFalse (c.HasGamePortDevice());
+    }
+
+
+    TEST_METHOD (OnlyTheAuxBankMachinesOfferEightyColumnsAndDoubleHiRes)
+    {
+        Apple2   plain;
+        Apple2e  e;
+
+        //  Physical, not policy: without a second bank there is nowhere for the
+        //  interleaved half of the picture to live.
+        Assert::AreEqual ((size_t) 1, plain.GetRam().size());
+        Assert::AreEqual ((size_t) 2, e.GetRam().size());
+
+        AssertHasMode (plain, "apple2-hires");
+        AssertLacksMode (plain, "apple2-text80");
+        AssertLacksMode (plain, "apple2-doublehires");
+
+        AssertHasMode (e, "apple2-text80");
+        AssertHasMode (e, "apple2-doublehires");
+    }
+
+
 private:
+
+    static void AssertHasMode (const IMachine & machine, const char * mode)
+    {
+        std::vector<std::string>  modes = machine.GetVideoModes();
+
+        Assert::IsTrue (std::find (modes.begin(), modes.end(), mode) != modes.end(),
+                        L"expected this machine to offer the mode");
+    }
+
+
+    static void AssertLacksMode (const IMachine & machine, const char * mode)
+    {
+        std::vector<std::string>  modes = machine.GetVideoModes();
+
+        Assert::IsTrue (std::find (modes.begin(), modes.end(), mode) == modes.end(),
+                        L"this machine has no hardware for that mode");
+    }
+
 
     static void AssertHasDevice (const MachineConfig & config, const char * type)
     {

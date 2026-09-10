@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/MachineDefinition.h"
+#include "Machines/IMachine.h"
 
 
 
@@ -24,6 +25,10 @@ class MachineDefinitions
 public:
     //  Returns nullptr when no shipped machine carries that id.
     static const MachineDefinition *  Find (const std::string & machineId);
+
+    //  The machine itself, for a caller that wants to ask it questions rather
+    //  than read the flattened record.
+    static const IMachine *           FindMachine (const std::string & machineId);
 
     static std::vector<std::string>   GetKnownIds ();
 };
