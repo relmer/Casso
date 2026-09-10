@@ -503,6 +503,7 @@
     <ClCompile Include="EmuTests\FramePacingTests.cpp" />
     <ClCompile Include="EmuTests\EmbeddedMachineJson.cpp" />
     <ClCompile Include="EmuTests\Machines\Apple2eCharacterRomTests.cpp" />
+    <ClCompile Include="EmuTests\Machines\MachineModelTests.cpp" />
     <ClCompile Include="EmuTests\MachineBuildTests.cpp" />
     <ClCompile Include="EmuTests\TestMachine.cpp" />
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />

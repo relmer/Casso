@@ -170,14 +170,23 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
 //  PAGE2 (with 80STORE blocking PAGE2 from shifting the read window in
 //  the 80-col case).
 //
+//  A ][ or ][+ has neither of those: no //e soft-switch bank to ask, and no
+//  MMU holding an auxiliary bank for the even columns to live in. Such a
+//  machine is 40 columns of main memory and nothing else, which is what the
+//  fallbacks below say. Reading them off a null pointer was this scraper's
+//  answer until a test built a machine older than a //e.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> TextScreenScraper::Scrape (MachineHost & host)
 {
-    const Byte *   auxRam   = host.GetMmu()->GetAuxBuffer();
-    bool           col80    = host.GetRefs().iieSoftSwitches->Is80ColMode  ();
-    bool           page2    = host.GetRefs().iieSoftSwitches->IsPage2      ();
-    Word           pageBase = (page2 && !col80) ? kTextPage2 : kTextPage1;
+    Apple2eSoftSwitchBank *  iieSw    = host.GetRefs().iieSoftSwitches;
+    const Byte            *  auxRam   = host.GetMmu() != nullptr
+                                        ? host.GetMmu()->GetAuxBuffer()
+                                        : nullptr;
+    bool                     col80    = iieSw != nullptr && iieSw->Is80ColMode();
+    bool                     page2    = iieSw != nullptr && iieSw->IsPage2();
+    Word                     pageBase = (page2 && !col80) ? kTextPage2 : kTextPage1;
 
 
 

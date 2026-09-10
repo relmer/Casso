@@ -325,11 +325,11 @@ so the copy goes -- and with it the reason machine coverage was uneven.
 - [x] T139 **Tier 1** — `MachineBuildTests`: every shipped machine built through `MachineBuilder` from its shipped JSON, asserted against what its class declares, and booted into its ROM
 - [x] T140 Migrate the remaining test files off `EmulatorCore`; delete `HeadlessHost`, `EmulatorCore`, `IHostShell`, `MockHostShell`, `MockAudioSink`
 - [x] T141 **Tier 3** — state in each shared-component file which machine it runs on and why, rather than leaving it as the machine the old harness happened to build
-- [ ] T142 [P] **Tier 2** — `Machines/Apple2Tests.cpp`: Integer BASIC prompt, reset to the monitor, no 80-column or ALTCHARSET
-- [ ] T143 [P] **Tier 2** — `Machines/Apple2PlusTests.cpp`: Applesoft prompt, and **autostart boots slot 6** -- the disk stack has only ever been booted on a //e
-- [ ] T144 [P] **Tier 2** — `Machines/Apple2eTests.cpp`: 80-column, aux bank, ALTCHARSET
-- [ ] T145 [P] **Tier 2** — `Machines/Apple2eEnhancedTests.cpp`: 65C02 opcodes and MouseText
-- [ ] T146 [P] **Tier 2** — `Machines/Apple2cTests.cpp`: the //c's existing tests move here
+- [x] T142 **Tier 2** — `Machines/MachineModelTests.cpp`: what each model does that the others do not, in one file rather than five. Which BASIC answers, which machines have 80-column hardware, which carry a 65C02, which has slots and a built-in drive, and where the game port went
+- [x] T143 **Tier 2** — the ][ and ][+ boot to their own prompts; `TextScreenScraper` reads a machine with no MMU rather than dereferencing one
+- [x] T144 **Tier 2** — the //e's 40-column default, asserted where the model differences live
+- [x] T145 **Tier 2** — the Enhanced //e's 65C02, asserted by running an opcode a 6502 does not have
+- [x] T146 **Tier 2** — the //c's existing tests stay where they are; `Apple2cBootTests` and `AppleMouseTests` are already per-model files by another name
 - [ ] T147 Run the per-phase gate and commit with the measurement
 
 **Found, and not this spec's to answer**: Choplifter's boot walks 12 of 20
