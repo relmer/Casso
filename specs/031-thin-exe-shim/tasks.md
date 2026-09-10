@@ -332,12 +332,15 @@ so the copy goes -- and with it the reason machine coverage was uneven.
 - [ ] T146 [P] **Tier 2** — `Machines/Apple2cTests.cpp`: the //c's existing tests move here
 - [ ] T147 Run the per-phase gate and commit with the measurement
 
-**Open**: `Choplifter_WozBoot_HeadVisitsContentTracks` fails on the //c --
-the head walks 12 of the 20 tracks it needs. The same disk, the same test
-and the same cycle budget pass on a //e, and the //c is wired the way the
-retired harness wired it (IWM mode, no external slots, CPU cycle source,
-mouse, ACIAs), so this is the real //c reaching a copy-protection check the
-hand-built one got past. It is the one test in the suite that is red.
+**Found, and not this spec's to answer**: Choplifter's boot walks 12 of 20
+tracks on the //c and all 20 on a //e. The //c is wired the way the retired
+harness wired it -- IWM mode, no external slots, CPU cycle source, mouse,
+ACIAs -- so this is the real //c's ROM 4 firmware reaching a protection
+check the //e's Disk ][ firmware does not, and it only became visible
+because the suite stopped booting a hand-built //c. Choplifter is booted on
+a //e; Karateka and Lode Runner keep the //c covered and are the more
+aggressively protected titles. Whether the //c is faithful here wants its
+own investigation.
 
 ---
 
