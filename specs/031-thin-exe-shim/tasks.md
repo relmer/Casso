@@ -124,8 +124,8 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [ ] T051 [US4] Introduce seams for the clipboard round-trip and the image encode, both sides in core, and place the OS-owned print and file dialogs behind seams as well
 - [x] T052 [US4] Delete the `Shell/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj`
 - [x] T053 [P] [US4] Test: switching machines re-attaches an open debug panel to the new controller and audio source — the shipped fix that has no test guarding it
-- [ ] T054 [P] [US4] Test: an MRU list at capacity moves an already-present entry to the front without duplicating and without evicting an unrelated entry
-- [ ] T055 [P] [US4] Test: a screenshot captured from a synthetic framebuffer decodes back to the same pixels at the expected dimensions
+- [x] T054 [P] [US4] Test: an MRU list at capacity moves an already-present entry to the front without duplicating and without evicting an unrelated entry
+- [x] T055 [P] [US4] Test: a screenshot captured from a synthetic framebuffer decodes back to the same pixels at the expected dimensions
 - [ ] T056 [P] [US4] Test: command dispatch and mount/eject outcomes against mock sinks
 - [ ] T057 [US4] Launch the emulator and confirm machine switch, mount, clipboard and capture behave as before
 - [x] T058 [US4] Run the per-phase gate and commit with the measurement
@@ -144,9 +144,9 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 - [x] T062 [US5] Move `Casso/Ui/Dialogs/` to `CassoEmuCore/Ui/Dialogs/`
 - [x] T063 [US5] Move the `Casso/Ui/` root files to `CassoEmuCore/Ui/`
 - [x] T064 [US5] Delete the remaining `Ui/` `ClCompile` entries from `UnitTest/UnitTest.vcxproj` and drop `..\Casso\Ui\Chrome` from its `AdditionalIncludeDirectories`
-- [ ] T065 [P] [US5] Test: a control disabled by another control's value changes enablement when the governing value changes, asserted without painting
-- [ ] T066 [P] [US5] Test: desk-scene layout places every element rectangle inside the scene bounds at every supported DPI
-- [ ] T067 [P] [US5] Test: settings page validation and the apply commands each page emits
+- [x] T065 [P] [US5] Test: a control disabled by another control's value changes enablement when the governing value changes, asserted without painting
+- [x] T066 [P] [US5] Test: desk-scene layout places every element rectangle inside the scene bounds at every supported DPI
+- [x] T067 [P] [US5] Test: settings page validation and the apply commands each page emits
 - [ ] T068 [P] [US5] Test: chrome state synchronization against synthetic machine state
 - [ ] T069 [US5] Launch the emulator and walk every Settings page, the chrome bands and the desk scene, confirming no visible change
 - [x] T070 [US5] Run the per-phase gate and commit with the measurement
@@ -180,14 +180,14 @@ behavior and a `CHANGELOG.md` entry for the fix (FR-011, FR-015).
 **Independent test**: render a synthetic framebuffer on a software adapter, read back, assert against a golden; mix synthetic sources and assert samples.
 
 - [x] T081 [US7] Add a WARP-backed device and a readback path to `UnitTest`, with no window and no display; `Dxui` creates only `D3D_DRIVER_TYPE_HARDWARE` devices today
-- [ ] T082 [US7] Add golden-image storage and a pixel-exact comparison helper with no tolerance parameter (FR-008a)
+- [x] T082 [US7] Add golden-image storage and a pixel-exact comparison helper with no tolerance parameter (FR-008a)
 - [x] T083 [US7] Move `Casso/Shaders/` to `CassoEmuCore/Shaders/` and relocate the `Shaders.targets` import, whose paths are relative to the importing project
 - [x] T084 [US7] Move `CrtPostProcess` and the pass structure, parameter resolution and compositing arithmetic to `CassoEmuCore/Render/`
 - [x] T085 [US7] Move the audio mixing into `CassoEmuCore/Audio/`, leaving only handing finished samples to the endpoint
 - [x] T086 [US7] Delete the `CrtPostProcess` `ClCompile` entry from `UnitTest/UnitTest.vcxproj`
-- [ ] T087 [P] [US7] Test: a synthetic framebuffer through the full pass chain matches its checked-in golden pixel-exact
-- [ ] T088 [P] [US7] Test: changing one CRT parameter changes the image in the documented direction
-- [ ] T089 [P] [US7] Test: a mixed span of sources at known gains and pans matches expected samples, including at the clipping boundary
+- [x] T087 [P] [US7] Test: a synthetic framebuffer through the full pass chain matches its checked-in golden pixel-exact
+- [x] T088 [P] [US7] Test: changing one CRT parameter changes the image in the documented direction
+- [x] T089 [P] [US7] Test: a mixed span of sources at known gains and pans matches expected samples, including at the clipping boundary
 - [x] T090 [P] [US7] Test: the same inputs run twice produce identical outputs
 - [x] T091 [US7] Launch the emulator and compare the rendered picture against a capture taken before the phase
 - [x] T092 [US7] Run the per-phase gate and commit with the measurement

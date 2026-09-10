@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "GoldenImage.h"
 #include "WarpRenderHarness.h"
 
 #include "CrtPostProcess.h"
@@ -25,8 +26,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  These pin behavior that is true by construction rather than by blessing an
 //  image: that the chain is deterministic, that it fills the target it is
 //  given, and that a parameter moves the picture in the direction it
-//  documents. A checked-in golden is the stronger assertion and is left for a
-//  person to bless, since blessing one means looking at it.
+//  documents. The checked-in golden is the stronger assertion: a test pattern
+//  through the whole chain, compared pixel for pixel with no tolerance, so
+//  any change to any pass is a change someone looks at before it ships.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +98,106 @@ public:
     }
 
 
+    TEST_METHOD (Scanlines_DarkenThePictureAsTheirIntensityRises)
+    {
+        std::vector<uint32_t>  off;
+        std::vector<uint32_t>  full;
+        CrtParams              offParams;
+        CrtParams              fullParams;
+        HRESULT                hr = S_OK;
+
+        //  A scanline is a darkened row between lit ones. More intensity is
+        //  darker rows, and the picture as a whole loses light -- it cannot
+        //  gain any, because the pass only ever multiplies by at most one.
+        offParams.scanlineIntensity  = 0.0f;
+        fullParams.scanlineIntensity = 1.0f;
+
+        hr = RenderFlatField (0xFFC0C0C0, offParams, off);
+        AssertSucceeded (hr);
+
+        hr = RenderFlatField (0xFFC0C0C0, fullParams, full);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (TotalLuminance (full) < TotalLuminance (off),
+                        L"scanlines at full intensity must take light out of the picture");
+    }
+
+
+    TEST_METHOD (Gamma_AboveOneLiftsTheMidtones)
+    {
+        std::vector<uint32_t>  linear;
+        std::vector<uint32_t>  lifted;
+        CrtParams              linearParams;
+        CrtParams              liftedParams;
+        HRESULT                hr = S_OK;
+
+        //  The pass raises each channel to 1/gamma. A gamma above one is a
+        //  fractional exponent, which moves a midtone toward white; a value
+        //  of one is the documented bypass and leaves it where it was.
+        linearParams.gamma = 1.0f;
+        liftedParams.gamma = 2.0f;
+
+        hr = RenderFlatField (0xFF404040, linearParams, linear);
+        AssertSucceeded (hr);
+
+        hr = RenderFlatField (0xFF404040, liftedParams, lifted);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (TotalLuminance (lifted) > TotalLuminance (linear),
+                        L"a gamma above one must brighten a midtone");
+    }
+
+
+    TEST_METHOD (Contrast_AboveOnePushesADarkToneDarker)
+    {
+        std::vector<uint32_t>  flat;
+        std::vector<uint32_t>  pushed;
+        CrtParams              flatParams;
+        CrtParams              pushedParams;
+        HRESULT                hr = S_OK;
+
+        //  Contrast pivots about mid-gray: what is below it goes down as the
+        //  setting goes up. A tone well under the pivot is the unambiguous
+        //  case -- a midtone right at it would not move at all.
+        flatParams.contrast   = 1.0f;
+        pushedParams.contrast = 1.5f;
+
+        hr = RenderFlatField (0xFF202020, flatParams, flat);
+        AssertSucceeded (hr);
+
+        hr = RenderFlatField (0xFF202020, pushedParams, pushed);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (TotalLuminance (pushed) < TotalLuminance (flat),
+                        L"raising contrast must push a dark tone darker");
+    }
+
+
+    TEST_METHOD (ATestPatternThroughTheWholeChain_MatchesItsGolden)
+    {
+        std::vector<uint32_t>  output;
+        CrtParams              params;
+        HRESULT                hr = S_OK;
+
+        //  Every pass doing something, so a regression in any of them lands
+        //  in the picture. The values are a plausible monitor rather than
+        //  extremes, because extremes saturate and hide each other.
+        params.brightness        = 1.1f;
+        params.contrast          = 1.1f;
+        params.gamma             = 1.2f;
+        params.scanlineIntensity = 0.35f;
+        params.bloomRadius       = 2.0f;
+        params.bloomStrength     = 0.4f;
+        params.bloomThreshold    = 0.3f;
+        params.colorBleedWidth   = 2.0f;
+
+        hr = RenderPattern (params, output);
+        AssertSucceeded (hr, L"the chain must run on a software adapter");
+
+        GoldenImage::AssertMatches (output, s_kTargetW, s_kTargetH, L"CrtChain_TestPattern");
+    }
+
+
     TEST_METHOD (ADifferentSourceColor_ProducesADifferentPicture)
     {
         std::vector<uint32_t>  red;
@@ -130,11 +232,67 @@ private:
                                     const CrtParams        & params,
                                     std::vector<uint32_t>  & outPixels)
     {
+        std::vector<uint32_t>  source ((size_t) s_kSourceW * s_kSourceH, sourceColor);
+
+        return RenderSource (source, params, outPixels);
+    }
+
+
+    //
+    //  The pattern the golden was blessed from: color bars across the top
+    //  half, a one-pixel grid below them, and a run of alternating columns
+    //  at the bottom that the bleed and bloom passes have something to do
+    //  with. Deterministic by construction -- no clock, no random source.
+    //
+    static HRESULT RenderPattern (const CrtParams        & params,
+                                  std::vector<uint32_t>  & outPixels)
+    {
+        static constexpr uint32_t  kBars[] =
+        {
+            0xFFFFFFFF, 0xFFFFFF00, 0xFF00FFFF, 0xFF00FF00,
+            0xFFFF00FF, 0xFFFF0000, 0xFF0000FF, 0xFF000000,
+        };
+
+        std::vector<uint32_t>  source ((size_t) s_kSourceW * s_kSourceH, 0xFF000000);
+
+        for (int y = 0; y < s_kSourceH; y++)
+        {
+            for (int x = 0; x < s_kSourceW; x++)
+            {
+                uint32_t  pixel = 0xFF000000;
+
+                if (y < s_kSourceH / 2)
+                {
+                    pixel = kBars[(x * 8) / s_kSourceW];
+                }
+                else if (y < (s_kSourceH * 3) / 4)
+                {
+                    pixel = ((x % 14) == 0 || (y % 8) == 0) ? 0xFF80FF80 : 0xFF000000;
+                }
+                else
+                {
+                    pixel = ((x & 1) == 0) ? 0xFFFF8000 : 0xFF0040FF;
+                }
+
+                source[(size_t) y * s_kSourceW + x] = pixel;
+            }
+        }
+
+        return RenderSource (source, params, outPixels);
+    }
+
+
+    //
+    //  One synthetic frame through the whole chain, read back from the target.
+    //
+    static HRESULT RenderSource (const std::vector<uint32_t> & source,
+                                 const CrtParams             & params,
+                                 std::vector<uint32_t>       & outPixels)
+    {
         HRESULT                           hr         = S_OK;
         WarpRenderHarness                 harness;
         CrtPostProcess                    chain;
         CrtParams                         adjusted   = params;
-        std::vector<uint32_t>             source ((size_t) s_kSourceW * s_kSourceH, sourceColor);
         ComPtr<ID3D11ShaderResourceView>  srv;
         ComPtr<ID3D11Texture2D>           target;
         ComPtr<ID3D11RenderTargetView>    rtv;
