@@ -155,18 +155,18 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // Load character generator ROM (used by video renderers, not on bus)
     if (!config.characterRom.resolvedPath.empty())
     {
-        HRESULT hrChar = m_shell.m_charRom.LoadFromFile (config.characterRom.resolvedPath);
+        HRESULT hrChar = m_shell.m_machine.GetCharacterRom().LoadFromFile (config.characterRom.resolvedPath);
 
         if (FAILED (hrChar))
         {
             DEBUGMSG (L"Failed to load character ROM '%hs', using fallback\n",
                       config.characterRom.resolvedPath.c_str());
-            m_shell.m_charRom.LoadEmbeddedFallback();
+            m_shell.m_machine.GetCharacterRom().LoadEmbeddedFallback();
         }
     }
     else
     {
-        m_shell.m_charRom.LoadEmbeddedFallback();
+        m_shell.m_machine.GetCharacterRom().LoadEmbeddedFallback();
     }
 
     // RAM regions. Skip aux-bank entries: the Apple2eMmu owns the
@@ -188,13 +188,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
         device = std::make_unique<RamDevice> (start, end);
 
-        if (m_shell.m_refs.mainRamDev == nullptr)
+        if (m_shell.m_machine.GetRefs().mainRamDev == nullptr)
         {
-            m_shell.m_refs.mainRamDev = device.get();
+            m_shell.m_machine.GetRefs().mainRamDev = device.get();
         }
 
-        m_shell.m_memoryBus.AddDevice (device.get());
-        m_shell.m_ownedDevices.push_back (std::move (device));
+        m_shell.m_machine.GetMemoryBus().AddDevice (device.get());
+        m_shell.m_machine.GetOwnedDevices().push_back (std::move (device));
     }
 
     // System ROM. Two shapes:
@@ -227,8 +227,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                                                  fileBytes.data(),
                                                  config.systemRom.romBankSize);
 
-        m_shell.m_memoryBus.AddDevice (device.get());
-        m_shell.m_ownedDevices.push_back (std::move (device));
+        m_shell.m_machine.GetMemoryBus().AddDevice (device.get());
+        m_shell.m_machine.GetOwnedDevices().push_back (std::move (device));
     }
     else
     {
@@ -248,8 +248,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             CBRN (false, wideError.c_str());
         }
 
-        m_shell.m_memoryBus.AddDevice (device.get());
-        m_shell.m_ownedDevices.push_back (std::move (device));
+        m_shell.m_machine.GetMemoryBus().AddDevice (device.get());
+        m_shell.m_machine.GetOwnedDevices().push_back (std::move (device));
     }
 
     // Internal motherboard devices
@@ -265,11 +265,11 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // wiring (siblings, Initialize) happens after the device pass.
         if (devCfg.type == "apple2e-family-mmu")
         {
-            m_shell.m_mmu = std::make_unique<Apple2eMmu>();
+            m_shell.m_machine.SetMmu (std::make_unique<Apple2eMmu>());
             continue;
         }
 
-        device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
+        device = m_shell.m_machine.GetRegistry().Create (devCfg.type, devCfg, m_shell.m_machine.GetMemoryBus());
 
         if (!device)
         {
@@ -281,50 +281,50 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         if (devCfg.type == "apple2-family-keyboard" ||
             devCfg.type == "apple2e-family-keyboard")
         {
-            m_shell.m_refs.keyboard = static_cast<AppleKeyboard *> (device.get());
+            m_shell.m_machine.GetRefs().keyboard = static_cast<AppleKeyboard *> (device.get());
 
             // Resolve the derived //e pointer here, where the configured
             // device type already says which keyboard was built, rather than
             // dynamic_cast-ing it back out of the base pointer at each use.
             if (devCfg.type == "apple2e-family-keyboard")
             {
-                m_shell.m_refs.iieKeyboard =
-                    static_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
+                m_shell.m_machine.GetRefs().iieKeyboard =
+                    static_cast<Apple2eKeyboard *> (m_shell.m_machine.GetRefs().keyboard);
             }
         }
         else if (devCfg.type == "apple2-family-softswitches" ||
                  devCfg.type == "apple2e-family-softswitches")
         {
-            m_shell.m_refs.softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
+            m_shell.m_machine.GetRefs().softSwitches = static_cast<AppleSoftSwitchBank *> (device.get());
 
             // Resolve the derived //e pointer here, where the configured
             // device type already says which bank was built, rather than
             // dynamic_cast-ing it back out of the base pointer at each use.
             if (devCfg.type == "apple2e-family-softswitches")
             {
-                m_shell.m_refs.iieSoftSwitches =
-                    static_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+                m_shell.m_machine.GetRefs().iieSoftSwitches =
+                    static_cast<Apple2eSoftSwitchBank *> (m_shell.m_machine.GetRefs().softSwitches);
             }
         }
         else if (devCfg.type == "apple2-family-gameport")
         {
-            m_shell.m_refs.gamePort = static_cast<AppleGamePort *> (device.get());
+            m_shell.m_machine.GetRefs().gamePort = static_cast<AppleGamePort *> (device.get());
         }
         else if (devCfg.type == "apple2-family-speaker")
         {
-            m_shell.m_refs.speaker = static_cast<AppleSpeaker *> (device.get());
+            m_shell.m_machine.GetRefs().speaker = static_cast<AppleSpeaker *> (device.get());
         }
 
-        m_shell.m_memoryBus.AddDevice (device.get());
-        m_shell.m_ownedDevices.push_back (std::move (device));
+        m_shell.m_machine.GetMemoryBus().AddDevice (device.get());
+        m_shell.m_machine.GetOwnedDevices().push_back (std::move (device));
     }
 
     // Wire IIe keyboard <-> softswitch sibling so $C00C-$C00F reaches
     // the softswitch (the keyboard's range $C000-$C063 would otherwise
     // eat it).
     {
-        auto * iieKbd = m_shell.m_refs.iieKeyboard;
-        auto * iieSw  = m_shell.m_refs.iieSoftSwitches;
+        auto * iieKbd = m_shell.m_machine.GetRefs().iieKeyboard;
+        auto * iieSw  = m_shell.m_machine.GetRefs().iieSoftSwitches;
 
         // One test per device, with everything that device owns wired inside
         // it. The sibling link needs both, so it nests rather than adding a
@@ -338,47 +338,47 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 iieSw->SetKeyboard           (iieKbd);
             }
 
-            if (m_shell.m_refs.speaker != nullptr)
+            if (m_shell.m_machine.GetRefs().speaker != nullptr)
             {
-                iieKbd->SetSpeakerSibling (m_shell.m_refs.speaker);
+                iieKbd->SetSpeakerSibling (m_shell.m_machine.GetRefs().speaker);
             }
 
-            if (m_shell.m_mmu != nullptr)
+            if (m_shell.m_machine.GetMmu() != nullptr)
             {
-                iieKbd->SetMmu (m_shell.m_mmu.get());
+                iieKbd->SetMmu (m_shell.m_machine.GetMmu());
             }
 
-            if (m_shell.m_videoTiming != nullptr)
+            if (m_shell.m_machine.GetVideoTiming() != nullptr)
             {
-                iieKbd->SetVideoTiming (m_shell.m_videoTiming.get());
+                iieKbd->SetVideoTiming (m_shell.m_machine.GetVideoTiming());
             }
         }
 
         if (iieSw != nullptr)
         {
-            if (m_shell.m_videoTiming != nullptr)
+            if (m_shell.m_machine.GetVideoTiming() != nullptr)
             {
-                iieSw->SetVideoTiming (m_shell.m_videoTiming.get());
+                iieSw->SetVideoTiming (m_shell.m_machine.GetVideoTiming());
             }
 
-            if (m_shell.m_mmu != nullptr)
+            if (m_shell.m_machine.GetMmu() != nullptr)
             {
-                iieSw->SetMmu (m_shell.m_mmu.get());
+                iieSw->SetMmu (m_shell.m_machine.GetMmu());
             }
         }
     }
 
     // Initialize the //e MMU once main RAM exists. The MMU rebinds the
     // page table for $0000-$BFFF based on RAMRD/RAMWRT/ALTZP/80STORE.
-    if (m_shell.m_mmu != nullptr && m_shell.m_refs.mainRamDev != nullptr)
+    if (m_shell.m_machine.GetMmu() != nullptr && m_shell.m_machine.GetRefs().mainRamDev != nullptr)
     {
-        HRESULT hrMmu = m_shell.m_mmu->Initialize (
-            &m_shell.m_memoryBus,
-            m_shell.m_refs.mainRamDev,
+        HRESULT hrMmu = m_shell.m_machine.GetMmu()->Initialize (
+            &m_shell.m_machine.GetMemoryBus(),
+            m_shell.m_machine.GetRefs().mainRamDev,
             nullptr,
             nullptr,
             nullptr,
-            m_shell.m_refs.iieSoftSwitches);
+            m_shell.m_machine.GetRefs().iieSoftSwitches);
 
         if (FAILED (hrMmu))
         {
@@ -406,7 +406,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             devCfg.slot    = slot.slot;
             devCfg.hasSlot = true;
 
-            device = m_shell.m_registry.Create (devCfg.type, devCfg, m_shell.m_memoryBus);
+            device = m_shell.m_machine.GetRegistry().Create (devCfg.type, devCfg, m_shell.m_machine.GetMemoryBus());
 
             if (!device)
             {
@@ -418,11 +418,11 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 // reach its ring once the machine is built.
                 if (slot.device == "parallel-printer")
                 {
-                    m_shell.m_refs.printerCard = static_cast<PrinterCard *> (device.get());
+                    m_shell.m_machine.GetRefs().printerCard = static_cast<PrinterCard *> (device.get());
                 }
 
-                m_shell.m_memoryBus.AddDevice (device.get());
-                m_shell.m_ownedDevices.push_back (std::move (device));
+                m_shell.m_machine.GetMemoryBus().AddDevice (device.get());
+                m_shell.m_machine.GetOwnedDevices().push_back (std::move (device));
             }
         }
 
@@ -434,12 +434,12 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             std::vector<Byte>  firmware (s_kParallelFirmwareBytes,
                                          s_kParallelFirmwareBytes + sizeof (s_kParallelFirmwareBytes));
 
-            if (m_shell.m_mmu != nullptr)
+            if (m_shell.m_machine.GetMmu() != nullptr)
             {
                 // //e: the MMU's $C100-$CFFF router owns the page (INTCXROM /
                 // SLOTCXROM switching) and pads the short firmware to a full
                 // page with the floating-bus byte.
-                m_shell.m_mmu->AttachSlotRom (slot.slot, std::move (firmware));
+                m_shell.m_machine.GetMmu()->AttachSlotRom (slot.slot, std::move (firmware));
             }
             else
             {
@@ -458,8 +458,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 auto device = RomDevice::CreateFromData (romStart, romEnd,
                                                          firmware.data(), firmware.size());
 
-                m_shell.m_memoryBus.AddDevice (device.get());
-                m_shell.m_ownedDevices.push_back (std::move (device));
+                m_shell.m_machine.GetMemoryBus().AddDevice (device.get());
+                m_shell.m_machine.GetOwnedDevices().push_back (std::move (device));
             }
         }
 
@@ -484,7 +484,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             // dispatches between internal ROM and slot ROMs based on
             // INTCXROM/SLOTC3ROM/INTC8ROM. On ][/][+, the slot ROM is
             // bus-resident as before (no INTCXROM concept).
-            if (m_shell.m_mmu != nullptr)
+            if (m_shell.m_machine.GetMmu() != nullptr)
             {
                 std::vector<Byte>  bytes (slot.romSize);
 
@@ -493,14 +493,14 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                     bytes[i] = device->Read (static_cast<Word> (romStart + i));
                 }
 
-                m_shell.m_mmu->AttachSlotRom (slot.slot, std::move (bytes));
+                m_shell.m_machine.GetMmu()->AttachSlotRom (slot.slot, std::move (bytes));
             }
             else
             {
-                m_shell.m_memoryBus.AddDevice (device.get());
+                m_shell.m_machine.GetMemoryBus().AddDevice (device.get());
             }
 
-            m_shell.m_ownedDevices.push_back (std::move (device));
+            m_shell.m_machine.GetOwnedDevices().push_back (std::move (device));
         }
     }
 
@@ -514,14 +514,14 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // below for the //c. The keyboard/soft-switch bank holding the old
     // pointer are torn down with the same machine, and the CPU thread is
     // stopped during construction, so no stale-pointer window exists.
-    m_shell.m_mouse.reset();
+    m_shell.m_machine.SetMouse (nullptr);
 
-    if (m_shell.m_config.systemRom.romBankSize != 0)
+    if (m_shell.m_machine.GetConfig().systemRom.romBankSize != 0)
     {
         auto iwm = std::make_unique<Disk2Controller> (6);
         iwm->SetIwmMode (true);
-        m_shell.m_memoryBus.AddDevice (iwm.get());
-        m_shell.m_ownedDevices.push_back (std::move (iwm));
+        m_shell.m_machine.GetMemoryBus().AddDevice (iwm.get());
+        m_shell.m_machine.GetOwnedDevices().push_back (std::move (iwm));
 
         // //c built-in IOU mouse: not a bus device -- the keyboard
         // ($C048 ack, $C063 button) and soft-switch bank ($C015/$C017/$C019
@@ -535,24 +535,24 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             Apple2eKeyboard        * iieKbd = nullptr;
             Apple2eSoftSwitchBank  * iieSw  = nullptr;
 
-            m_shell.m_mouse = std::make_unique<AppleMouse> ();
+            m_shell.m_machine.SetMouse (std::make_unique<AppleMouse> ());
 
-            hrIc = m_shell.m_mouse->AttachInterruptController (&m_shell.m_interruptController);
+            hrIc = m_shell.m_machine.GetMouse()->AttachInterruptController (&m_shell.m_machine.GetInterruptController());
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
-            m_shell.m_mouse->SetBus (&m_shell.m_memoryBus);
+            m_shell.m_machine.GetMouse()->SetBus (&m_shell.m_machine.GetMemoryBus());
 
-            if (m_shell.m_videoTiming != nullptr)
+            if (m_shell.m_machine.GetVideoTiming() != nullptr)
             {
-                m_shell.m_mouse->SetVideoTiming (m_shell.m_videoTiming.get());
+                m_shell.m_machine.GetMouse()->SetVideoTiming (m_shell.m_machine.GetVideoTiming());
             }
 
-            iieKbd = m_shell.m_refs.iieKeyboard;
-            iieSw = m_shell.m_refs.iieSoftSwitches;
+            iieKbd = m_shell.m_machine.GetRefs().iieKeyboard;
+            iieSw = m_shell.m_machine.GetRefs().iieSoftSwitches;
 
             if (iieKbd != nullptr)
             {
-                iieKbd->SetMouse (m_shell.m_mouse.get());
+                iieKbd->SetMouse (m_shell.m_machine.GetMouse());
 
                 // Enable the //c case switches ($C060 80/40 read + the
                 // keyboard-layout remap). Dormant on the //e.
@@ -561,7 +561,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
             if (iieSw != nullptr)
             {
-                iieSw->SetMouse (m_shell.m_mouse.get());
+                iieSw->SetMouse (m_shell.m_machine.GetMouse());
             }
         }
 
@@ -583,28 +583,28 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                                             + Acia6551::kAciaRegOffset);
             acia = std::make_unique<Acia6551> (base);
 
-            hrIc = acia->AttachInterruptController (&m_shell.m_interruptController);
+            hrIc = acia->AttachInterruptController (&m_shell.m_machine.GetInterruptController());
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
             loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
             acia->SetEndpoint (loopback.get());
 
-            m_shell.m_memoryBus.AddDevice (acia.get());
-            m_shell.m_ownedAciaEndpoints.push_back (std::move (loopback));
-            m_shell.m_ownedDevices.push_back (std::move (acia));
+            m_shell.m_machine.GetMemoryBus().AddDevice (acia.get());
+            m_shell.m_machine.GetOwnedAciaEndpoints().push_back (std::move (loopback));
+            m_shell.m_machine.GetOwnedDevices().push_back (std::move (acia));
         }
     }
 
     // Cache Disk2Controller pointer for the status-bar drive activity
     // indicator. We pick the first one we find (typically slot 6).
-    m_shell.m_refs.diskController = nullptr;
-    for (auto & dev : m_shell.m_ownedDevices)
+    m_shell.m_machine.GetRefs().diskController = nullptr;
+    for (auto & dev : m_shell.m_machine.GetOwnedDevices())
     {
         Disk2Controller *  dc = dynamic_cast<Disk2Controller *> (dev.get());
 
         if (dc != nullptr)
         {
-            m_shell.m_refs.diskController = dc;
+            m_shell.m_machine.GetRefs().diskController = dc;
             break;
         }
     }
@@ -664,31 +664,31 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
     // Feed real disk head / motor / door events to drive 0's source only when
     // the machine actually has the Disk ][ controller realized.
-    if (m_shell.m_refs.diskController != nullptr && !m_shell.m_diskAudioSources.empty())
+    if (m_shell.m_machine.GetRefs().diskController != nullptr && !m_shell.m_diskAudioSources.empty())
     {
-        m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
+        m_shell.m_machine.GetRefs().diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
     }
 
     // Start the background printer drain once the card exists, seeding it with
     // this machine's persisted pending strip if one exists (FR-026). A missing
     // or corrupt sidecar falls back to empty paper. Symmetric save is in
     // SwitchMachine teardown and OnDestroy.
-    if (m_shell.m_refs.printerCard != nullptr)
+    if (m_shell.m_machine.GetRefs().printerCard != nullptr)
     {
         PrintRaster   pending;
         HRESULT       hrLoad = PrintJobStore::Load (m_shell.GetPendingPrintDir(), pending);
 
         m_shell.m_printerWorker.Start (
-            m_shell.m_refs.printerCard->GetByteRing(),
+            m_shell.m_machine.GetRefs().printerCard->GetByteRing(),
             SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster());
 
         // Pace the drain off the guest clock so the card applies real
         // backpressure -- the guest prints at ImageWriter speed (faster at max
         // perf), never racing ahead of the preview. The cycle pointer is stable
         // for this machine's CPU, so setting it once covers later restarts.
-        if (m_shell.m_cpu != nullptr)
+        if (m_shell.m_machine.GetCpu() != nullptr)
         {
-            m_shell.m_printerWorker.SetCycleClock (m_shell.m_cpu->GetCycleCounterPtr());
+            m_shell.m_printerWorker.SetCycleClock (m_shell.m_machine.GetCpu()->GetCycleCounterPtr());
         }
 
         // Prime the live-preview auto-open baseline to the worker's current
@@ -703,48 +703,48 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // hard-right) with the dedicated Mockingboard mixer. The card owns
     // the sources; the mixer holds borrowed pointers, dropped on the next
     // teardown.
-    m_shell.m_refs.mockingboard = nullptr;
+    m_shell.m_machine.GetRefs().mockingboard = nullptr;
     m_shell.m_mockingboardAudioMixer.UnregisterAllSources();
 
-    for (auto & dev : m_shell.m_ownedDevices)
+    for (auto & dev : m_shell.m_machine.GetOwnedDevices())
     {
         MockingboardCard *  mb = dynamic_cast<MockingboardCard *> (dev.get());
 
         if (mb != nullptr)
         {
-            m_shell.m_refs.mockingboard = mb;
+            m_shell.m_machine.GetRefs().mockingboard = mb;
             break;
         }
     }
 
-    if (m_shell.m_refs.mockingboard != nullptr)
+    if (m_shell.m_machine.GetRefs().mockingboard != nullptr)
     {
-        hr = m_shell.m_refs.mockingboard->AttachInterruptController (&m_shell.m_interruptController);
+        hr = m_shell.m_machine.GetRefs().mockingboard->AttachInterruptController (&m_shell.m_machine.GetInterruptController());
         CHR (hr);
 
-        m_shell.m_mockingboardAudioMixer.RegisterSource (m_shell.m_refs.mockingboard->GetAudioSource (0));
-        m_shell.m_mockingboardAudioMixer.RegisterSource (m_shell.m_refs.mockingboard->GetAudioSource (1));
+        m_shell.m_mockingboardAudioMixer.RegisterSource (m_shell.m_machine.GetRefs().mockingboard->GetAudioSource (0));
+        m_shell.m_mockingboardAudioMixer.RegisterSource (m_shell.m_machine.GetRefs().mockingboard->GetAudioSource (1));
 
         // The sound+speech variant adds its center-panned voice source; the
         // sound-only card has no chip and the source stays silent anyway.
-        if (m_shell.m_refs.mockingboard->GetSpeech() != nullptr)
+        if (m_shell.m_machine.GetRefs().mockingboard->GetSpeech() != nullptr)
         {
             m_shell.m_mockingboardAudioMixer.RegisterSource (
-                m_shell.m_refs.mockingboard->GetSpeechAudioSource());
+                m_shell.m_machine.GetRefs().mockingboard->GetSpeechAudioSource());
         }
 
-        m_shell.m_refs.mockingboard->SetSampleRate (m_shell.m_wasapiAudio.GetSampleRate());
+        m_shell.m_machine.GetRefs().mockingboard->SetSampleRate (m_shell.m_wasapiAudio.GetSampleRate());
 
         // On the //e the Apple2eMmu's CxxxRomRouter owns $C100-$CFFF, so a
         // bus device at $Cn00 would be shadowed. Register the card as the
         // slot's active I/O device so the router delegates that page to it
         // (INTCXROM=0). On ][/][+ there is no MMU and the card is
         // bus-resident.
-        if (m_shell.m_mmu != nullptr)
+        if (m_shell.m_machine.GetMmu() != nullptr)
         {
-            m_shell.m_mmu->GetCxxxRouter()->SetSlotIoDevice (
-                m_shell.m_refs.mockingboard->GetSlot(),
-                m_shell.m_refs.mockingboard);
+            m_shell.m_machine.GetMmu()->GetCxxxRouter()->SetSlotIoDevice (
+                m_shell.m_machine.GetRefs().mockingboard->GetSlot(),
+                m_shell.m_machine.GetRefs().mockingboard);
         }
     }
 
@@ -798,7 +798,7 @@ void MachineManager::WireLanguageCard()
 
 
     // Find the LanguageCard device
-    for (auto & dev : m_shell.m_ownedDevices)
+    for (auto & dev : m_shell.m_machine.GetOwnedDevices())
     {
         if (lc == nullptr)
         {
@@ -810,7 +810,7 @@ void MachineManager::WireLanguageCard()
     // exists -- with no card there is nothing to hand the ROM image to.
     if (lc != nullptr)
     {
-        for (const auto & entry : m_shell.m_memoryBus.GetEntries())
+        for (const auto & entry : m_shell.m_machine.GetMemoryBus().GetEntries())
         {
             auto * rom = dynamic_cast<RomDevice *> (entry.device);
 
@@ -838,7 +838,7 @@ void MachineManager::WireLanguageCard()
         }
 
         lc->SetRomData (lcRomData);
-        m_shell.m_memoryBus.RemoveDevice (romDevice);
+        m_shell.m_machine.GetMemoryBus().RemoveDevice (romDevice);
 
         // Re-add slot ROM ($C100-$CFFF) if original extended below $D000.
         // $C000-$C0FF is I/O space and must not be shadowed by ROM.
@@ -859,9 +859,9 @@ void MachineManager::WireLanguageCard()
 
             // On //e: hand to the MMU's CxxxRomRouter. On ][/][+: keep the
             // legacy bus-resident ROM device.
-            if (m_shell.m_mmu != nullptr)
+            if (m_shell.m_machine.GetMmu() != nullptr)
             {
-                m_shell.m_mmu->AttachInternalCxxxRom (std::move (lowerData));
+                m_shell.m_machine.GetMmu()->AttachInternalCxxxRom (std::move (lowerData));
             }
             else
             {
@@ -869,35 +869,35 @@ void MachineManager::WireLanguageCard()
                     slotRomStart, static_cast<Word> (0xCFFF),
                     lowerData.data(), lowerData.size());
 
-                m_shell.m_memoryBus.AddDevice (lowerRom.get());
-                m_shell.m_ownedDevices.push_back (std::move (lowerRom));
+                m_shell.m_machine.GetMemoryBus().AddDevice (lowerRom.get());
+                m_shell.m_machine.GetOwnedDevices().push_back (std::move (lowerRom));
             }
         }
 
         // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
         lcBank = std::make_unique<LanguageCardBank> (*lc);
-        m_shell.m_memoryBus.AddDevice (lcBank.get());
-        m_shell.m_ownedDevices.push_back (std::move (lcBank));
+        m_shell.m_machine.GetMemoryBus().AddDevice (lcBank.get());
+        m_shell.m_machine.GetOwnedDevices().push_back (std::move (lcBank));
 
         // //e wiring: LC needs the MMU (for ALTZP routing) and the
         // keyboard sibling needs the LC pointer for $C011/$C012 status
         // reads.
-        if (m_shell.m_mmu != nullptr)
+        if (m_shell.m_machine.GetMmu() != nullptr)
         {
-            lc->SetMmu (m_shell.m_mmu.get());
+            lc->SetMmu (m_shell.m_machine.GetMmu());
 
             // Let ALTZP flips re-point the LC's $D000-$FFFF read window (aux/main).
-            m_shell.m_mmu->SetLanguageCard (lc);
+            m_shell.m_machine.GetMmu()->SetLanguageCard (lc);
         }
 
-        iieKbd = m_shell.m_refs.iieKeyboard;
+        iieKbd = m_shell.m_machine.GetRefs().iieKeyboard;
 
         if (iieKbd != nullptr)
         {
             iieKbd->SetLanguageCard (lc);
         }
 
-        iieSw = m_shell.m_refs.iieSoftSwitches;
+        iieSw = m_shell.m_machine.GetRefs().iieSoftSwitches;
 
         if (iieSw != nullptr)
         {
@@ -970,12 +970,12 @@ Error:
 
 void MachineManager::WireApple2cRomBank()
 {
-    const RomReference &  sysRom = m_shell.m_config.systemRom;
+    const RomReference &  sysRom = m_shell.m_machine.GetConfig().systemRom;
 
 
 
-    Apple2eMmu            * mmu      = m_shell.m_mmu.get();
-    Apple2eSoftSwitchBank * sw       = m_shell.m_refs.iieSoftSwitches;
+    Apple2eMmu            * mmu      = m_shell.m_machine.GetMmu();
+    Apple2eSoftSwitchBank * sw       = m_shell.m_machine.GetRefs().iieSoftSwitches;
     LanguageCard          * lc       = nullptr;
     std::vector<Byte>       fileBytes;
     size_t                  twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
@@ -986,7 +986,7 @@ void MachineManager::WireApple2cRomBank()
     // failure, so it gets no diagnostic.
     if (banked)
     {
-        for (auto & dev : m_shell.m_ownedDevices)
+        for (auto & dev : m_shell.m_machine.GetOwnedDevices())
         {
             if (lc == nullptr)
             {
@@ -1018,9 +1018,9 @@ void MachineManager::WireApple2cRomBank()
         std::vector<Byte>   bank0 (fileBytes.begin(),                     fileBytes.begin() + sysRom.romBankSize);
         std::vector<Byte>   bank1 (fileBytes.begin() + sysRom.romBankSize, fileBytes.begin() + twoBanks);
 
-        m_shell.m_apple2cRomBank = std::make_unique<Apple2cRomBank> (*lc, *mmu);
-        m_shell.m_apple2cRomBank->SetBankImages (std::move (bank0), std::move (bank1));
-        sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get());
+        m_shell.m_machine.SetApple2cRomBank (std::make_unique<Apple2cRomBank> (*lc, *mmu));
+        m_shell.m_machine.GetApple2cRomBank()->SetBankImages (std::move (bank0), std::move (bank1));
+        sw->SetRomBankSwitch (m_shell.m_machine.GetApple2cRomBank());
 
         // //c: no card slots -> $C100-$CFFF is always the internal firmware.
         mmu->GetCxxxRouter()->SetNoExternalSlots (true);
@@ -1048,24 +1048,24 @@ void MachineManager::WirePageTable()
 
 
 
-    if (!m_shell.m_cpu)
+    if (!m_shell.m_machine.GetCpu())
     {
         return;
     }
 
-    mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
+    mainRam = const_cast<Byte *> (m_shell.m_machine.GetCpu()->GetMemory());
 
     // Map all RAM pages ($0000-$BFFF) to main memory
     for (int page = 0x00; page < 0xC0; page++)
     {
         Byte * pagePtr = mainRam + (page * 0x100);
-        m_shell.m_memoryBus.SetReadPage  (page, pagePtr);
-        m_shell.m_memoryBus.SetWritePage (page, pagePtr);
+        m_shell.m_machine.GetMemoryBus().SetReadPage  (page, pagePtr);
+        m_shell.m_machine.GetMemoryBus().SetWritePage (page, pagePtr);
     }
 
     // Register banking-change callback so soft switches can trigger
     // remapping.
-    m_shell.m_memoryBus.SetBankingChangedCallback ([this]()
+    m_shell.m_machine.GetMemoryBus().SetBankingChangedCallback ([this]()
     {
         RebuildBankingPages();
     });
@@ -1089,7 +1089,7 @@ void MachineManager::WirePageTable()
 
 Byte * MachineManager::GetAuxRamBuffer()
 {
-    return m_shell.m_mmu != nullptr ? m_shell.m_mmu->GetAuxBuffer() : nullptr;
+    return m_shell.m_machine.GetMmu() != nullptr ? m_shell.m_machine.GetMmu()->GetAuxBuffer() : nullptr;
 }
 
 
@@ -1118,22 +1118,22 @@ void MachineManager::RebuildBankingPages()
 
     // Only the legacy no-MMU path does anything here: with an MMU present it
     // owns every $0000-$BFFF page and this would fight it.
-    if (m_shell.m_cpu && m_shell.m_mmu == nullptr)
+    if (m_shell.m_machine.GetCpu() && m_shell.m_machine.GetMmu() == nullptr)
     {
-        mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
+        mainRam = const_cast<Byte *> (m_shell.m_machine.GetCpu()->GetMemory());
 
         // Text page 1 ($0400-$07FF) and hi-res page 1 ($2000-$3FFF) -- the
         // two windows 80STORE/PAGE2 would otherwise re-point.
         for (page = 0x04; page <= 0x07; page++)
         {
-            m_shell.m_memoryBus.SetReadPage  (page, mainRam + (page * 0x100));
-            m_shell.m_memoryBus.SetWritePage (page, mainRam + (page * 0x100));
+            m_shell.m_machine.GetMemoryBus().SetReadPage  (page, mainRam + (page * 0x100));
+            m_shell.m_machine.GetMemoryBus().SetWritePage (page, mainRam + (page * 0x100));
         }
 
         for (page = 0x20; page <= 0x3F; page++)
         {
-            m_shell.m_memoryBus.SetReadPage  (page, mainRam + (page * 0x100));
-            m_shell.m_memoryBus.SetWritePage (page, mainRam + (page * 0x100));
+            m_shell.m_machine.GetMemoryBus().SetReadPage  (page, mainRam + (page * 0x100));
+            m_shell.m_machine.GetMemoryBus().SetWritePage (page, mainRam + (page * 0x100));
         }
     }
 }
@@ -1147,13 +1147,14 @@ void MachineManager::RebuildBankingPages()
 //  CreateVideoModes
 //
 //  Builds all five renderers up front, publishes each one by name in
-//  m_refs, and installs 40-column text as the active one.
+//  the refs, and installs 40-column text as the active one.
 //
 //  Every mode is created regardless of machine, because SelectVideoMode
 //  switches between them per frame from the soft-switch state and cannot
 //  afford to construct one mid-render.
 //
-//  m_videoModes owns them; m_refs names them. This is the ONLY function that
+//  The machine's video-mode vector owns them and its refs point at them.
+//  This is the ONLY function that
 //  touches the vector's contents, so its order carries no meaning and adding
 //  a mode cannot disturb the existing ones -- which was not true while every
 //  caller reached in by index and downcast to whatever it believed that slot
@@ -1179,19 +1180,19 @@ void MachineManager::CreateVideoModes()
 
 
 
-    textMode        = std::make_unique<AppleTextMode>        (m_shell.m_memoryBus, m_shell.m_charRom);
-    loResMode       = std::make_unique<AppleLoResMode>       (m_shell.m_memoryBus);
-    hiResMode       = std::make_unique<AppleHiResMode>       (m_shell.m_memoryBus);
-    doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_shell.m_memoryBus);
-    text80          = std::make_unique<Apple80ColTextMode>   (m_shell.m_memoryBus, m_shell.m_charRom);
+    textMode        = std::make_unique<AppleTextMode>        (m_shell.m_machine.GetMemoryBus(), m_shell.m_machine.GetCharacterRom());
+    loResMode       = std::make_unique<AppleLoResMode>       (m_shell.m_machine.GetMemoryBus());
+    hiResMode       = std::make_unique<AppleHiResMode>       (m_shell.m_machine.GetMemoryBus());
+    doubleHiResMode = std::make_unique<AppleDoubleHiResMode> (m_shell.m_machine.GetMemoryBus());
+    text80          = std::make_unique<Apple80ColTextMode>   (m_shell.m_machine.GetMemoryBus(), m_shell.m_machine.GetCharacterRom());
 
-    m_shell.m_refs.text40      = textMode.get();
-    m_shell.m_refs.loRes       = loResMode.get();
-    m_shell.m_refs.hiRes       = hiResMode.get();
-    m_shell.m_refs.doubleHiRes = doubleHiResMode.get();
-    m_shell.m_refs.text80      = text80.get();
+    m_shell.m_machine.GetRefs().text40      = textMode.get();
+    m_shell.m_machine.GetRefs().loRes       = loResMode.get();
+    m_shell.m_machine.GetRefs().hiRes       = hiResMode.get();
+    m_shell.m_machine.GetRefs().doubleHiRes = doubleHiResMode.get();
+    m_shell.m_machine.GetRefs().text80      = text80.get();
 
-    m_shell.m_refs.activeVideoMode = m_shell.m_refs.text40;
+    m_shell.m_machine.GetRefs().activeVideoMode = m_shell.m_machine.GetRefs().text40;
 
     auxBuf = GetAuxRamBuffer();
 
@@ -1208,18 +1209,18 @@ void MachineManager::CreateVideoModes()
         // overlay show aux in both columns whenever a frame was scanned while
         // a program had PAGE2 on. This is the same buffer the MMU treats as
         // main.
-        if (m_shell.m_refs.mainRamDev != nullptr)
+        if (m_shell.m_machine.GetRefs().mainRamDev != nullptr)
         {
-            doubleHiResMode->SetMainMemory (m_shell.m_refs.mainRamDev->GetData());
-            text80->SetMainMemory          (m_shell.m_refs.mainRamDev->GetData());
+            doubleHiResMode->SetMainMemory (m_shell.m_machine.GetRefs().mainRamDev->GetData());
+            text80->SetMainMemory          (m_shell.m_machine.GetRefs().mainRamDev->GetData());
         }
     }
 
-    m_shell.m_videoModes.push_back (std::move (textMode));
-    m_shell.m_videoModes.push_back (std::move (loResMode));
-    m_shell.m_videoModes.push_back (std::move (hiResMode));
-    m_shell.m_videoModes.push_back (std::move (doubleHiResMode));
-    m_shell.m_videoModes.push_back (std::move (text80));
+    m_shell.m_machine.GetVideoModes().push_back (std::move (textMode));
+    m_shell.m_machine.GetVideoModes().push_back (std::move (loResMode));
+    m_shell.m_machine.GetVideoModes().push_back (std::move (hiResMode));
+    m_shell.m_machine.GetVideoModes().push_back (std::move (doubleHiResMode));
+    m_shell.m_machine.GetVideoModes().push_back (std::move (text80));
 }
 
 
@@ -1277,39 +1278,40 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
     // naming a CPU we don't have), so CHRA asserts -- a debug build breaks
     // for a dev to dig in -- before the machine build fails here. CpuFactory
     // itself just returns E_INVALIDARG, so it stays a clean, testable validator.
-    hr = CpuFactory::Create (config.cpu, m_shell.m_memoryBus, cpu);
+    hr = CpuFactory::Create (config.cpu, m_shell.m_machine.GetMemoryBus(), cpu);
     CHRA (hr);
 
-    m_shell.m_cpu = std::make_unique<EmuCpu> (m_shell.m_memoryBus, std::move (cpu));
+    m_shell.m_machine.SetCpu (std::make_unique<EmuCpu> (m_shell.m_machine.GetMemoryBus(),
+                                                       std::move (cpu)));
 
     // --trace: allocate the CPU execution-trace ring now that the CPU
     // exists. Covers both initial machine build and machine switches,
     // since both paths run through here.
     if (m_shell.m_traceCapacity > 0)
     {
-        m_shell.m_cpu->EnableTrace (m_shell.m_traceCapacity);
+        m_shell.m_machine.GetCpu()->EnableTrace (m_shell.m_traceCapacity);
     }
 
     // Wire the //e video timing model into the EmuCpu cycle fan-out.
     // Every AddCycles call now ticks VideoTiming so $C019 (RDVBLBAR)
     // tracks the 17,030-cycle frame. Null-safe for tests/builds that
     // haven't constructed a timing model.
-    if (m_shell.m_videoTiming != nullptr)
+    if (m_shell.m_machine.GetVideoTiming() != nullptr)
     {
-        m_shell.m_cpu->SetVideoTiming (m_shell.m_videoTiming.get());
+        m_shell.m_machine.GetCpu()->SetVideoTiming (m_shell.m_machine.GetVideoTiming());
     }
 
     // Wire the InterruptController to the CPU. On the //c the mouse's VBL +
     // movement lines (and the two ACIAs) assert through it; on the //e and
     // earlier no sources assert yet, so the seam is shared but quiet.
-    m_shell.m_interruptController.SetCpu (m_shell.m_cpu->GetCpu());
+    m_shell.m_machine.GetInterruptController().SetCpu (m_shell.m_machine.GetCpu()->GetCpu());
 
     // //c IOU mouse: tick the device from the per-instruction cycle fan-out
     // so VBL-edge latching and paced movement interrupts stay phase-locked
     // to CPU progress (null for every other machine).
-    if (m_shell.m_mouse != nullptr)
+    if (m_shell.m_machine.GetMouse() != nullptr)
     {
-        m_shell.m_cpu->SetCycleSink (m_shell.m_mouse.get());
+        m_shell.m_machine.GetCpu()->SetCycleSink (m_shell.m_machine.GetMouse());
     }
 
     // The base Cpu class uses an internal memory[] array. Copy system
@@ -1331,7 +1333,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
 
                     if (romFile.gcount() == 1)
                     {
-                        m_shell.m_cpu->PokeByte (addr, static_cast<Byte> (byte));
+                        m_shell.m_machine.GetCpu()->PokeByte (addr, static_cast<Byte> (byte));
                         addr++;
                     }
                 }
@@ -1363,7 +1365,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
 
                 if (romFile.gcount() == 1)
                 {
-                    m_shell.m_cpu->PokeByte (addr, static_cast<Byte> (byte));
+                    m_shell.m_machine.GetCpu()->PokeByte (addr, static_cast<Byte> (byte));
                     addr++;
                 }
             }
@@ -1372,12 +1374,12 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         }
     }
 
-    m_shell.m_cpu->InitForEmulation(*m_shell.m_prng);
+    m_shell.m_machine.GetCpu()->InitForEmulation(*m_shell.m_machine.GetPrng());
 
     // Connect speaker to CPU cycle counter for audio timestamps
-    if (m_shell.m_refs.speaker != nullptr)
+    if (m_shell.m_machine.GetRefs().speaker != nullptr)
     {
-        m_shell.m_refs.speaker->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
+        m_shell.m_machine.GetRefs().speaker->SetCycleCounter (m_shell.m_machine.GetCpu()->GetCycleCounterPtr());
     }
 
     // Issue #67: drive Disk2Controller bit-stream catch-up off the CPU
@@ -1385,26 +1387,26 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
     // elapsed CPU time before the soft-switch dispatch fires (matches
     // AppleWin's CpuCalcCycles-at-top-of-handler pattern). MachineManager
     // owns both the EmuCpu and the device list, so this is the right
-    // wiring point -- the controller is cached into m_refs.diskController
+    // wiring point -- the controller is cached into the refs' diskController
     // just above in AddDevices.
-    if (m_shell.m_refs.diskController != nullptr)
+    if (m_shell.m_machine.GetRefs().diskController != nullptr)
     {
-        m_shell.m_refs.diskController->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+        m_shell.m_machine.GetRefs().diskController->SetCpuCycleSource (m_shell.m_machine.GetCpu()->GetBusCyclePtr());
 
         // Motor-idle auto-flush: when the drive spins down (operation done),
         // persist dirty images so writes survive a crash / kill before the
         // next eject or exit. The callback fires on the CPU thread inside
         // Tick, which owns the disk writes, so it races nothing; FlushAll
         // skips clean images and the flush-error reporter surfaces failures.
-        m_shell.m_refs.diskController->SetMotorOffFlushCallback ([this] ()
+        m_shell.m_machine.GetRefs().diskController->SetMotorOffFlushCallback ([this] ()
         {
-            m_shell.m_diskStore.FlushAll();
+            m_shell.m_machine.GetDiskStore().FlushAll();
 
             // The disk has just stopped, so this is the quietest moment there
             // is to swap what is under it. One line and no decisions: which
             // bay, whether anything settled and what to do about it are all
             // the store's.
-            m_shell.m_diskStore.ApplyPendingReload();
+            m_shell.m_machine.GetDiskStore().ApplyPendingReload();
         });
 
         // The spindown hook above is not enough on its own, and the gap is the
@@ -1419,16 +1421,16 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         //  is what has to carry the guarantee on its own.
         if (!m_shell.IsImageWatchDisabled())
         {
-            m_shell.m_refs.diskController->SetIdleCallback ([this] ()
+            m_shell.m_machine.GetRefs().diskController->SetIdleCallback ([this] ()
             {
-                m_shell.m_diskStore.ApplyPendingReload();
+                m_shell.m_machine.GetDiskStore().ApplyPendingReload();
             });
         }
 
         // Restarting after a pick-up. The decision is the store's and the
         // action is the shell's -- a device-layer image store reaching machine
         // lifecycle directly would be a layering inversion.
-        m_shell.m_diskStore.SetMachineRestartCallback ([this] ()
+        m_shell.m_machine.GetDiskStore().SetMachineRestartCallback ([this] ()
         {
             PowerCycle();
         });
@@ -1438,16 +1440,16 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
     // $C064-$C067 countdown) off the same CPU bus-cycle accumulator so a
     // paddle read measures elapsed cycles since the strobe.
     {
-        auto * iieSw = m_shell.m_refs.iieSoftSwitches;
+        auto * iieSw = m_shell.m_machine.GetRefs().iieSoftSwitches;
 
         if (iieSw != nullptr)
         {
-            iieSw->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+            iieSw->SetCpuCycleSource (m_shell.m_machine.GetCpu()->GetBusCyclePtr());
         }
 
-        if (m_shell.m_refs.gamePort != nullptr)
+        if (m_shell.m_machine.GetRefs().gamePort != nullptr)
         {
-            m_shell.m_refs.gamePort->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+            m_shell.m_machine.GetRefs().gamePort->SetCpuCycleSource (m_shell.m_machine.GetCpu()->GetBusCyclePtr());
         }
     }
 
@@ -1516,10 +1518,10 @@ void MachineManager::ShowMachinePicker()
 //    IRQ tokens      reclaimed before their holders are destroyed
 //    //c ROM bank    references the language card and the MMU
 //
-//  m_refs is reset AS A WHOLE rather than field by field. It is a struct of
+//  The refs are reset AS A WHOLE rather than field by field. It is a struct of
 //  observer pointers into the owning collections, so resetting it wholesale
 //  keeps the "every observer dies with its owner" invariant from rotting as
-//  observers are added. m_mmu needs its own explicit reset because it survives
+//  observers are added. The MMU needs its own explicit reset because it survives
 //  across switches and is only reassigned when the new config carries an
 //  apple2e-mmu -- otherwise a //e to ][ switch keeps a stale RamDevice pointer.
 //
@@ -1530,7 +1532,7 @@ void MachineManager::ShowMachinePicker()
 //                    physical -- the user changed the computer, not the disk
 //                    in the drive -- and re-mounting also updates the new
 //                    machine's prefs so it sticks on later launches
-//    pending print   persisted while m_currentMachineName still names the
+//    pending print   persisted while the host still holds the outgoing
 //                    OUTGOING machine, so the strip lands in its folder
 //                    (FR-026)
 //
@@ -1764,7 +1766,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.
     {
-        HRESULT  hrFlush = m_shell.m_diskStore.FlushAll();
+        HRESULT  hrFlush = m_shell.m_machine.GetDiskStore().FlushAll();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 
@@ -1775,8 +1777,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // machine also updates its per-machine prefs so the disk sticks
     // on subsequent launches. Empty paths fall through to the
     // per-machine prefs lookup inside MountCommandLineDisks.
-    carryDisk1 = m_shell.m_diskStore.GetSourcePath (6, 0);
-    carryDisk2 = m_shell.m_diskStore.GetSourcePath (6, 1);
+    carryDisk1 = m_shell.m_machine.GetDiskStore().GetSourcePath (6, 0);
+    carryDisk2 = m_shell.m_machine.GetDiskStore().GetSourcePath (6, 1);
 
     // Tear down current machine. The Disk II debug dialog (if open)
     // holds a raw pointer into the old CPU's cycle counter; revoke it
@@ -1792,42 +1794,42 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         m_shell.m_inputDebugPanel->SetCycleCounter (nullptr);
     }
 
-    if (m_shell.m_refs.keyboard != nullptr)
+    if (m_shell.m_machine.GetRefs().keyboard != nullptr)
     {
-        m_shell.m_refs.keyboard->SetInputEventSink (nullptr);
+        m_shell.m_machine.GetRefs().keyboard->SetInputEventSink (nullptr);
     }
 
     {
-        auto * iieSwitches = m_shell.m_refs.iieSoftSwitches;
+        auto * iieSwitches = m_shell.m_machine.GetRefs().iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (nullptr);
         }
     }
 
-    if (m_shell.m_refs.gamePort != nullptr)
+    if (m_shell.m_machine.GetRefs().gamePort != nullptr)
     {
-        m_shell.m_refs.gamePort->SetInputEventSink (nullptr);
+        m_shell.m_machine.GetRefs().gamePort->SetInputEventSink (nullptr);
     }
 
-    // Tear down ALL per-machine state in one atomic move. m_refs is a
+    // Tear down ALL per-machine state in one atomic move. The refs are a
     // struct of observer pointers into the owning collections
-    // (m_ownedDevices, m_videoModes); resetting it as a whole keeps
+    // (owned devices, video modes); resetting them as a whole keeps
     // the "every observer must be invalidated when its owner goes
-    // away" invariant from rotting as new observers are added. m_mmu
+    // away" invariant from rotting as new observers are added. The MMU
     // is a unique_ptr that survives across switches and is only
     // reassigned when the new config carries an apple2e-mmu device;
     // it must be explicitly reset here or it'll keep its stale
     // RamDevice pointer alive across a //e -> ][ switch.
     //
     // Stop the printer drain thread first: its job holds a reference into the
-    // card's ring, which m_ownedDevices.clear() is about to free.
+    // card's ring, which clearing the owned devices is about to free.
     m_shell.m_printerWorker.Stop();
 
     // Persist the outgoing machine's pending strip before its card is freed --
-    // m_currentMachineName is still the outgoing machine here (FR-026). An empty
+    // The host still holds the outgoing machine's name here (FR-026). An empty
     // strip clears any stale sidecar.
-    if (!m_shell.m_currentMachineName.empty())
+    if (!m_shell.m_machine.GetCurrentMachineName().empty())
     {
         PrinterJob *   printJob = m_shell.m_printerWorker.GetJob();
 
@@ -1843,28 +1845,28 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     // The Mockingboard's PSG audio sources are owned by the card device
-    // in m_ownedDevices, so the mixer's borrowed pointers must be dropped
+    // among the owned devices, so the mixer's borrowed pointers must be dropped
     // before that collection is cleared below (CreateMemoryDevices
     // re-registers fresh ones for the new machine).
     m_shell.m_mockingboardAudioMixer.UnregisterAllSources();
 
     // Reclaim IRQ source tokens before the devices that hold them are
     // destroyed; the rebuilt machine re-registers from a fresh pool.
-    m_shell.m_interruptController.ResetSources();
+    m_shell.m_machine.GetInterruptController().ResetSources();
 
-    m_shell.m_cpu.reset();
+    m_shell.m_machine.SetCpu (nullptr);
     // The //c ROM-bank coordinator holds references into the language card
     // (owned) + MMU; drop it before those owners are torn down.
-    m_shell.m_apple2cRomBank.reset();
-    m_shell.m_ownedDevices.clear();
-    m_shell.m_videoModes.clear();
-    m_shell.m_memoryBus = MemoryBus();
-    m_shell.m_refs      = {};
-    m_shell.m_mmu.reset();
+    m_shell.m_machine.SetApple2cRomBank (nullptr);
+    m_shell.m_machine.GetOwnedDevices().clear();
+    m_shell.m_machine.GetVideoModes().clear();
+    m_shell.m_machine.GetMemoryBus() = MemoryBus();
+    m_shell.m_machine.GetRefs()      = {};
+    m_shell.m_machine.SetMmu (nullptr);
 
     // Initialize with new config
-    m_shell.m_currentMachineName = machineName;
-    m_shell.m_config             = newConfig;
+    m_shell.m_machine.SetCurrentMachineName (machineName);
+    m_shell.m_machine.GetConfig()             = newConfig;
     m_shell.m_cyclesPerFrame     = newConfig.cyclesPerFrame;
 
     hr = CreateMemoryDevices (newConfig);
@@ -1885,7 +1887,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     WireApple2cRomBank();
     CreateVideoModes();
 
-    hr = m_shell.m_memoryBus.Validate();
+    hr = m_shell.m_machine.GetMemoryBus().Validate();
     CHR (hr);
 
     hr = CreateCpu (newConfig);
@@ -1895,14 +1897,14 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // Re-attach the new CPU's cycle counter to the debug dialog (the
     // pointer was revoked above before the old CPU was destroyed).
-    if (m_shell.m_disk2DebugPanel != nullptr && m_shell.m_cpu != nullptr)
+    if (m_shell.m_disk2DebugPanel != nullptr && m_shell.m_machine.GetCpu() != nullptr)
     {
-        m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
+        m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_machine.GetCpu()->GetCycleCounterPtr());
     }
 
-    if (m_shell.m_inputDebugPanel != nullptr && m_shell.m_cpu != nullptr)
+    if (m_shell.m_inputDebugPanel != nullptr && m_shell.m_machine.GetCpu() != nullptr)
     {
-        m_shell.m_inputDebugPanel->SetCycleCounter (m_shell.m_cpu->GetCycleCounterPtr());
+        m_shell.m_inputDebugPanel->SetCycleCounter (m_shell.m_machine.GetCpu()->GetCycleCounterPtr());
     }
 
     // Re-wire the debug dialog onto the freshly built controller +
@@ -1987,30 +1989,30 @@ Error:
 
 void MachineManager::SoftReset()
 {
-    m_shell.m_memoryBus.SoftResetAll();
+    m_shell.m_machine.GetMemoryBus().SoftResetAll();
 
-    if (m_shell.m_mmu != nullptr)
+    if (m_shell.m_machine.GetMmu() != nullptr)
     {
-        m_shell.m_mmu->OnSoftReset();
+        m_shell.m_machine.GetMmu()->OnSoftReset();
     }
 
-    m_shell.m_interruptController.SoftReset();
+    m_shell.m_machine.GetInterruptController().SoftReset();
 
     // //c IOU mouse: /RESET clears the interrupt latches + enables and
     // shuts the IOU access gate (matches power-on state).
-    if (m_shell.m_mouse != nullptr)
+    if (m_shell.m_machine.GetMouse() != nullptr)
     {
-        m_shell.m_mouse->Reset();
+        m_shell.m_machine.GetMouse()->Reset();
     }
 
-    if (m_shell.m_videoTiming != nullptr)
+    if (m_shell.m_machine.GetVideoTiming() != nullptr)
     {
-        m_shell.m_videoTiming->SoftReset();
+        m_shell.m_machine.GetVideoTiming()->SoftReset();
     }
 
-    if (m_shell.m_cpu != nullptr)
+    if (m_shell.m_machine.GetCpu() != nullptr)
     {
-        m_shell.m_cpu->SoftReset();
+        m_shell.m_machine.GetCpu()->SoftReset();
     }
 
     // Re-zero the Disk II Debug Uptime column on every reset so the
@@ -2039,7 +2041,7 @@ void MachineManager::PowerCycle()
 
 
 
-    if (m_shell.m_prng == nullptr)
+    if (m_shell.m_machine.GetPrng() == nullptr)
     {
         return;
     }
@@ -2049,33 +2051,33 @@ void MachineManager::PowerCycle()
     // DiskImageStore::SoftReset semantics -- see comment block on
     // DiskImageStore::PowerCycle, which is the unmount-everything
     // variant tests can opt into directly).
-    hrFlush = m_shell.m_diskStore.FlushAll();
+    hrFlush = m_shell.m_machine.GetDiskStore().FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
-    m_shell.m_memoryBus.PowerCycleAll (*m_shell.m_prng);
+    m_shell.m_machine.GetMemoryBus().PowerCycleAll (*m_shell.m_machine.GetPrng());
 
-    if (m_shell.m_mmu != nullptr)
+    if (m_shell.m_machine.GetMmu() != nullptr)
     {
-        m_shell.m_mmu->OnPowerCycle (*m_shell.m_prng);
+        m_shell.m_machine.GetMmu()->OnPowerCycle (*m_shell.m_machine.GetPrng());
     }
 
-    m_shell.m_interruptController.PowerCycle();
+    m_shell.m_machine.GetInterruptController().PowerCycle();
 
     // //c IOU mouse: power-on state (latches clear, interrupts masked,
     // IOU access gate shut).
-    if (m_shell.m_mouse != nullptr)
+    if (m_shell.m_machine.GetMouse() != nullptr)
     {
-        m_shell.m_mouse->Reset();
+        m_shell.m_machine.GetMouse()->Reset();
     }
 
-    if (m_shell.m_videoTiming != nullptr)
+    if (m_shell.m_machine.GetVideoTiming() != nullptr)
     {
-        m_shell.m_videoTiming->PowerCycle (*m_shell.m_prng);
+        m_shell.m_machine.GetVideoTiming()->PowerCycle (*m_shell.m_machine.GetPrng());
     }
 
-    if (m_shell.m_cpu != nullptr)
+    if (m_shell.m_machine.GetCpu() != nullptr)
     {
-        m_shell.m_cpu->PowerCycle (*m_shell.m_prng);
+        m_shell.m_machine.GetCpu()->PowerCycle (*m_shell.m_machine.GetPrng());
     }
 
     // Re-zero the Disk II Debug Uptime column on every power-cycle as
@@ -2120,24 +2122,24 @@ void MachineManager::SelectVideoMode()
     bool                     is80ColMode     = false;
     bool                     altCharSet      = false;
     bool                     doubleHiRes     = false;
-    Apple2eSoftSwitchBank *  iieSoftSwitches = m_shell.m_refs.iieSoftSwitches;
+    Apple2eSoftSwitchBank *  iieSoftSwitches = m_shell.m_machine.GetRefs().iieSoftSwitches;
 
 
 
     // No machine built yet, or one torn down. The modes are created and
     // cleared together, so text40 answers for all of them.
-    if (m_shell.m_refs.text40 == nullptr)
+    if (m_shell.m_machine.GetRefs().text40 == nullptr)
     {
         return;
     }
 
     // Read soft switch state
-    if (m_shell.m_refs.softSwitches)
+    if (m_shell.m_machine.GetRefs().softSwitches)
     {
-        m_shell.m_graphicsMode = m_shell.m_refs.softSwitches->IsGraphicsMode();
-        m_shell.m_mixedMode    = m_shell.m_refs.softSwitches->IsMixedMode();
-        m_shell.m_page2        = m_shell.m_refs.softSwitches->IsPage2();
-        m_shell.m_hiresMode    = m_shell.m_refs.softSwitches->IsHiresMode();
+        m_shell.m_machine.GetSoftSwitchMirror().graphicsMode = m_shell.m_machine.GetRefs().softSwitches->IsGraphicsMode();
+        m_shell.m_machine.GetSoftSwitchMirror().mixedMode    = m_shell.m_machine.GetRefs().softSwitches->IsMixedMode();
+        m_shell.m_machine.GetSoftSwitchMirror().page2        = m_shell.m_machine.GetRefs().softSwitches->IsPage2();
+        m_shell.m_machine.GetSoftSwitchMirror().hiresMode    = m_shell.m_machine.GetRefs().softSwitches->IsHiresMode();
     }
 
     // Everything the //e bank contributes, gathered under one test: it is
@@ -2148,7 +2150,7 @@ void MachineManager::SelectVideoMode()
         // selection -- not page 1/page 2. Suppress page2 for rendering.
         if (iieSoftSwitches->Is80Store())
         {
-            m_shell.m_page2 = false;
+            m_shell.m_machine.GetSoftSwitchMirror().page2 = false;
         }
 
         is80ColMode = iieSoftSwitches->Is80ColMode();
@@ -2157,17 +2159,17 @@ void MachineManager::SelectVideoMode()
     }
 
     // Select video mode based on soft switch state
-    if (!m_shell.m_graphicsMode)
+    if (!m_shell.m_machine.GetSoftSwitchMirror().graphicsMode)
     {
         // Text mode: use 80-col on //e if enabled, else 40-col
-        m_shell.m_refs.activeVideoMode = is80ColMode
-                                             ? static_cast<VideoOutput *> (m_shell.m_refs.text80)
-                                             : static_cast<VideoOutput *> (m_shell.m_refs.text40);
+        m_shell.m_machine.GetRefs().activeVideoMode = is80ColMode
+                                             ? static_cast<VideoOutput *> (m_shell.m_machine.GetRefs().text80)
+                                             : static_cast<VideoOutput *> (m_shell.m_machine.GetRefs().text40);
     }
-    else if (!m_shell.m_hiresMode)
+    else if (!m_shell.m_machine.GetSoftSwitchMirror().hiresMode)
     {
         // Lo-res graphics
-        m_shell.m_refs.activeVideoMode = m_shell.m_refs.loRes;
+        m_shell.m_machine.GetRefs().activeVideoMode = m_shell.m_machine.GetRefs().loRes;
     }
     else
     {
@@ -2175,22 +2177,22 @@ void MachineManager::SelectVideoMode()
         // on the //e (FR-019, audit M8). Otherwise standard hi-res.
         bool useDhr = doubleHiRes && is80ColMode;
 
-        m_shell.m_refs.activeVideoMode = useDhr
-                                             ? static_cast<VideoOutput *> (m_shell.m_refs.doubleHiRes)
-                                             : static_cast<VideoOutput *> (m_shell.m_refs.hiRes);
+        m_shell.m_machine.GetRefs().activeVideoMode = useDhr
+                                             ? static_cast<VideoOutput *> (m_shell.m_machine.GetRefs().doubleHiRes)
+                                             : static_cast<VideoOutput *> (m_shell.m_machine.GetRefs().hiRes);
     }
 
     // Pass page2 state to the active renderer
-    if (m_shell.m_refs.activeVideoMode != nullptr)
+    if (m_shell.m_machine.GetRefs().activeVideoMode != nullptr)
     {
-        m_shell.m_refs.activeVideoMode->SetPage2 (m_shell.m_page2);
+        m_shell.m_machine.GetRefs().activeVideoMode->SetPage2 (m_shell.m_machine.GetSoftSwitchMirror().page2);
     }
 
     // Keep text mode page2-aware for mixed-mode overlay rendering
-    m_shell.m_refs.text40->SetPage2 (m_shell.m_page2);
+    m_shell.m_machine.GetRefs().text40->SetPage2 (m_shell.m_machine.GetSoftSwitchMirror().page2);
 
     // Propagate ALTCHARSET to both text-mode renderers.
-    m_shell.m_refs.text40->SetAltCharSet (altCharSet);
-    m_shell.m_refs.text80->SetAltCharSet (altCharSet);
+    m_shell.m_machine.GetRefs().text40->SetAltCharSet (altCharSet);
+    m_shell.m_machine.GetRefs().text80->SetAltCharSet (altCharSet);
 }
 

@@ -521,7 +521,7 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
     // RUNNING config has to move too -- ShouldShowExternalDrive reads the
     // attached count from there for anything that is not a //c, and would
     // otherwise keep reporting the old one however the flag above is set.
-    if (m_shell.m_config.SetDiskIiPortAttached (1, connected))
+    if (m_shell.m_machine.GetConfig().SetDiskIiPortAttached (1, connected))
     {
         fChanged = true;
     }
@@ -700,11 +700,11 @@ void WindowCommandManager::OnMachineCommand (int id)
                 L"Clock speed: {} Hz\n"
                 L"Memory regions: {}\n"
                 L"Devices: {}",
-                std::wstring (m_shell.m_config.name.begin(), m_shell.m_config.name.end()),
-                std::wstring (m_shell.m_config.cpu.begin(), m_shell.m_config.cpu.end()),
-                m_shell.m_config.clockSpeed,
-                (m_shell.m_config.ram.size() + 1 + m_shell.m_config.slots.size()),
-                (m_shell.m_config.internalDevices.size() + m_shell.m_config.slots.size()));
+                std::wstring (m_shell.m_machine.GetConfig().name.begin(), m_shell.m_machine.GetConfig().name.end()),
+                std::wstring (m_shell.m_machine.GetConfig().cpu.begin(), m_shell.m_machine.GetConfig().cpu.end()),
+                m_shell.m_machine.GetConfig().clockSpeed,
+                (m_shell.m_machine.GetConfig().ram.size() + 1 + m_shell.m_machine.GetConfig().slots.size()),
+                (m_shell.m_machine.GetConfig().internalDevices.size() + m_shell.m_machine.GetConfig().slots.size()));
 
             def = {};
             def.title = L"Machine info";
@@ -1121,7 +1121,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     // The model refuses a target that is currently mounted in any drive; the
     // store's backing paths are UTF-8 and go wide through the same u8string
     // interpretation the MRU uses.
-    for (const DiskImageStore::MountedSource & mounted : m_shell.m_diskStore.GetMountedSourcePaths())
+    for (const DiskImageStore::MountedSource & mounted : m_shell.m_machine.GetDiskStore().GetMountedSourcePaths())
     {
         std::u8string  u8 (reinterpret_cast<const char8_t *> (mounted.path.data()),
                            mounted.path.size());
@@ -1181,7 +1181,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     BAIL_OUT_IF (!dialog.GetOutcome().confirmed, S_OK);
 
     // The target drive may already hold a disk; replacing it needs a yes.
-    occupied = m_shell.m_diskStore.IsMounted (6, drive - 1);
+    occupied = m_shell.m_machine.GetDiskStore().IsMounted (6, drive - 1);
 
     if (occupied)
     {
@@ -1933,7 +1933,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
     PrinterJob *   job   = nullptr;
     bool           known = (id == IDM_PRINTER_DISCARD || id == IDM_PRINTER_COPY ||
                             id == IDM_PRINTER_PRINT   || id == IDM_PRINTER_SAVEAS)
-                           && m_shell.m_refs.printerCard != nullptr;
+                           && m_shell.m_machine.GetRefs().printerCard != nullptr;
 
 
 
@@ -2003,11 +2003,11 @@ void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
 
     if (job != nullptr)
     {
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->GetByteRing());
+        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
     }
 }
 
@@ -2030,7 +2030,7 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
 
 
 
-    m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->GetByteRing(), job->GetRaster());
+    m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     m_shell.NotePrinterDeliveryResult (FAILED (hr));
 
     if (FAILED (hr))
@@ -2069,7 +2069,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
     if (choice != IDYES)
     {
         // Canceled: keep the strip and resume on the same page.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
@@ -2077,7 +2077,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
         m_shell.m_printerAudio.PlayTearOff();
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->GetByteRing());
+        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
         PrintJobStore::Clear (m_shell.GetPendingPrintDir());
         m_shell.NotePrinterDeliveryResult (false);
     }
@@ -2138,7 +2138,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
     {
         // Modern session up, or the user canceled the print / save dialog:
         // keep the strip either way, no clear.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else if (SUCCEEDED (hr))
     {
@@ -2150,7 +2150,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
@@ -2176,7 +2176,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
 }
 
@@ -2253,9 +2253,9 @@ void WindowCommandManager::OnHelpCommand (int id)
             // Read the capabilities off the live devices rather than a model
             // name, so a machine gains its row the moment it gains the
             // hardware. The //e keyboard is what carries the two Apple keys.
-            machine.hasAppleKeys = m_shell.m_refs.iieKeyboard != nullptr;
-            machine.hasGamePort  = m_shell.m_refs.iieSoftSwitches != nullptr ||
-                                   m_shell.m_refs.gamePort != nullptr;
+            machine.hasAppleKeys = m_shell.m_machine.GetRefs().iieKeyboard != nullptr;
+            machine.hasGamePort  = m_shell.m_machine.GetRefs().iieSoftSwitches != nullptr ||
+                                   m_shell.m_machine.GetRefs().gamePort != nullptr;
 
             def.title = L"Keyboard map";
             def.icon  = DialogIcon::Info;

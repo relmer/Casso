@@ -660,7 +660,7 @@ EmulatorShell::EmulatorShell()
 
     seed ^= static_cast<uint64_t> (GetCurrentProcessId()) << 32;
 
-    m_prng = make_unique<Prng> (seed);
+    m_machine.SetPrng (make_unique<Prng> (seed));
 
 #ifdef _DEBUG
     // Log the per-boot DRAM seed so when an illegal-opcode (or any
@@ -676,16 +676,16 @@ EmulatorShell::EmulatorShell()
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
-    m_videoTiming = make_unique<VideoTiming>();
+    m_machine.SetVideoTiming (make_unique<VideoTiming>());
 
-    m_clipboardManager = std::make_unique<ClipboardManager> (m_memoryBus,
+    m_clipboardManager = std::make_unique<ClipboardManager> (m_machine.GetMemoryBus(),
                                                               m_cpuManager.GetCommandMutex(),
                                                               m_cpuManager.GetPasteBuffer(),
                                                               m_framebufferMutex,
                                                               m_uiFramebuffer,
                                                               kFramebufferWidth,
                                                               kFramebufferHeight,
-                                                              &m_refs.keyboard);
+                                                              &m_machine.GetRefs().keyboard);
 
     // DiskManager construction is deferred to Initialize -- it needs
     // a UserConfigStore reference and that's created at Initialize
@@ -713,7 +713,8 @@ EmulatorShell::EmulatorShell()
 //  Debug panels are unwired before they are destroyed. Each was registered as
 //  an event SINK on live machine devices (disk controller, drive audio,
 //  keyboard, //e soft switches, game port), and those devices outlive the
-//  panel -- they die later, with m_ownedDevices. Resetting a panel without
+//  panel -- they die later, with the machine's owned devices. Resetting a
+//  panel without
 //  first revoking its sinks leaves the devices calling into freed memory. The
 //  disk panel revokes controller then audio, mirroring the attachment order
 //  in OpenDisk2DebugDialog (Spec-006 / FR-024).
@@ -749,7 +750,8 @@ EmulatorShell::~EmulatorShell()
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
     // down its ring (and before the controller / audio source itself
-    // is destroyed, which happens via m_ownedDevices / m_diskAudioSources
+    // is destroyed, which happens via the machine's owned devices and
+    // m_diskAudioSources
     // below). Controller sink first, then audio sink, matching the
     // attachment order in OpenDisk2DebugDialog.
     if (m_disk2DebugPanel != nullptr)
@@ -776,20 +778,20 @@ EmulatorShell::~EmulatorShell()
     {
         Apple2eSoftSwitchBank * iieSwitches = nullptr;
 
-        if (m_refs.keyboard != nullptr)
+        if (m_machine.GetRefs().keyboard != nullptr)
         {
-            m_refs.keyboard->SetInputEventSink (nullptr);
+            m_machine.GetRefs().keyboard->SetInputEventSink (nullptr);
         }
 
-        iieSwitches = m_refs.iieSoftSwitches;
+        iieSwitches = m_machine.GetRefs().iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (nullptr);
         }
 
-        if (m_refs.gamePort != nullptr)
+        if (m_machine.GetRefs().gamePort != nullptr)
         {
-            m_refs.gamePort->SetInputEventSink (nullptr);
+            m_machine.GetRefs().gamePort->SetInputEventSink (nullptr);
         }
 
         m_inputDebugPanel.reset();
@@ -807,7 +809,7 @@ EmulatorShell::~EmulatorShell()
     // be delivered and its answer would never be acted on. It runs on this
     // thread with OLE still initialized -- OleUninitialize is below -- so the
     // store asks through a blocking file dialog instead.
-    hrFlush = m_diskStore.FlushAllForShutdown();
+    hrFlush = m_machine.GetDiskStore().FlushAllForShutdown();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:
@@ -902,8 +904,8 @@ HRESULT EmulatorShell::Initialize (
 
 
 
-    m_currentMachineName = machineName;
-    m_config             = config;
+    m_machine.SetCurrentMachineName (machineName);
+    m_machine.GetConfig()             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
     // wWinMain installed the sink already; this just gives it a shell to
@@ -926,7 +928,7 @@ HRESULT EmulatorShell::Initialize (
     m_fOleInitialized = true;
 
     // Register built-in device factories
-    ComponentRegistry::RegisterBuiltinDevices (m_registry);
+    ComponentRegistry::RegisterBuiltinDevices (m_machine.GetRegistry());
 
     AllocateFramebuffers();
 
@@ -946,12 +948,12 @@ HRESULT EmulatorShell::Initialize (
     // set once and survives an in-session machine switch.
     for (int page = 0x04; page <= 0x0B; page++)
     {
-        m_memoryBus.SetVideoWatchPage (page, true);
+        m_machine.GetMemoryBus().SetVideoWatchPage (page, true);
     }
 
     for (int page = 0x20; page <= 0x5F; page++)
     {
-        m_memoryBus.SetVideoWatchPage (page, true);
+        m_machine.GetMemoryBus().SetVideoWatchPage (page, true);
     }
 
     hr = InitializeRenderer();
@@ -1095,18 +1097,18 @@ void EmulatorShell::InitAssetPathsAndStores()
 
 
 
-    m_assetBaseDir    = assetBaseDir.wstring();
+    m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
 
-    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
-                                                   m_diskStore,
+    m_diskManager = std::make_unique<DiskManager> (m_machine.GetOwnedDevices(),
+                                                   m_machine.GetDiskStore(),
                                                    m_diskAudioSources,
                                                    m_wasapiAudio,
                                                    m_driveWidgets,
                                                    m_driveWidgetState,
                                                    m_driveChrome,
                                                    m_cpuManager,
-                                                   m_currentMachineName,
+                                                   m_machine.GetCurrentMachineName(),
                                                    *m_userConfigStore,
                                                    m_uiFs,
                                                    m_userWriteProtect);
@@ -1190,7 +1192,7 @@ void EmulatorShell::PrimeChromeThemeEarly()
     hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, report);
     CHRF (hr,
           message = UserConfigStore::ComposeLoadFailureMessage (
-                        m_assetBaseDir, m_userConfigStore->GetUserPrefsFilePath(), report);
+                        m_machine.GetAssetBaseDir(), m_userConfigStore->GetUserPrefsFilePath(), report);
           EhmNotifyUser (message.c_str());
           m_globalPrefs = GlobalUserPrefs {});
 
@@ -1198,7 +1200,7 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // one degraded outcome that reports SUCCESS, so nothing else will mention
     // it. The unified file exists from here on, which closes the gate that
     // would have retried those files, so this is the only chance to say so.
-    skipped = UserConfigStore::ComposeSkippedLegacyMessage (m_assetBaseDir, report);
+    skipped = UserConfigStore::ComposeSkippedLegacyMessage (m_machine.GetAssetBaseDir(), report);
 
     if (!skipped.empty())
     {
@@ -1260,7 +1262,7 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
     m_machineManager->CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
-    hr = m_memoryBus.Validate();
+    hr = m_machine.GetMemoryBus().Validate();
     CHR (hr);
 
     hr = m_machineManager->CreateCpu (config);
@@ -2286,14 +2288,14 @@ int EmulatorShell::DeskSceneDriveCount() const
     // The //c's drives are not carded -- one is soldered in and the second
     // hangs off the back-panel disk port -- so its slot list says nothing
     // about them and the internal drive is always there.
-    if (m_config.slots.empty())
+    if (m_machine.GetConfig().slots.empty())
     {
         return ShouldShowExternalDrive() ? 2 : 1;
     }
 
     // A card with every port empty reports zero, which is the point of being
     // able to detach a drive at all.
-    return m_config.AttachedDiskIiDriveCount();
+    return m_machine.GetConfig().AttachedDiskIiDriveCount();
 }
 
 
@@ -2915,7 +2917,7 @@ void EmulatorShell::SyncSceneDriveLabels()
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
-            name = std::filesystem::path (m_diskStore.GetSourcePath (6, i)).filename().wstring();
+            name = std::filesystem::path (m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring();
 
             // THE PADLOCK RIDES THE NAME, not the drive. It had been a brass
             // badge stamped on the faceplate -- on a case whose whole job is
@@ -3208,8 +3210,8 @@ void EmulatorShell::LoadMachineUiPrefs (
     std::ifstream      configFile;
     std::stringstream  ss;
     std::string        jsonText;
-    std::wstring       configRelPath     = std::wstring (L"Machines\\") + m_currentMachineName +
-                                           L"\\" + m_currentMachineName + L".json";
+    std::wstring       configRelPath     = std::wstring (L"Machines\\") + m_machine.GetCurrentMachineName() +
+                                           L"\\" + m_machine.GetCurrentMachineName() + L".json";
     fs::path           configPath        = PathResolver::FindFile (PathResolver::BuildSearchPaths (
                                                PathResolver::GetExecutableDirectory(),
                                                PathResolver::GetWorkingDirectory()),
@@ -3337,7 +3339,7 @@ Error:
 HRESULT EmulatorShell::WireUiShellChromeAndThemes()
 {
     HRESULT   hr        = S_OK;
-    fs::path  themesDir = fs::path (m_assetBaseDir) / fs::path ("Themes");
+    fs::path  themesDir = fs::path (m_machine.GetAssetBaseDir()) / fs::path ("Themes");
 
 
 
@@ -3445,13 +3447,13 @@ void EmulatorShell::PersistInputModeForMachine()
 
 
 
-    if (m_userConfigStore == nullptr || m_currentMachineName.empty())
+    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty())
     {
         return;
     }
 
     hr = DiskSettings::WriteSavedUiPrefs (
-             *m_userConfigStore, m_uiFs, m_currentMachineName,
+             *m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(),
              MachineInputPrefs::BuildUiPrefEntries (m_arrowsJoystick, m_pointerMode));
 
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -3570,7 +3572,7 @@ void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
 
 
 
-    if (m_userConfigStore == nullptr || m_currentMachineName.empty() || !inRange)
+    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty() || !inRange)
     {
         return;
     }
@@ -3579,7 +3581,7 @@ void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
     entries.emplace_back ("colorMode", JsonValue (std::string (text)));
 
     hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs,
-                                          m_currentMachineName, entries);
+                                          m_machine.GetCurrentMachineName(), entries);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -3699,8 +3701,8 @@ void EmulatorShell::SyncToolbarState()
         m_toolbar.SetHostClientRect (client);
     }
 
-    m_toolbar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
-    m_switchBar.SetMachineDisplayName (std::wstring (m_config.name.begin(), m_config.name.end()));
+    m_toolbar.SetMachineDisplayName (std::wstring (m_machine.GetConfig().name.begin(), m_machine.GetConfig().name.end()));
+    m_switchBar.SetMachineDisplayName (std::wstring (m_machine.GetConfig().name.begin(), m_machine.GetConfig().name.end()));
     m_toolbar.SetFullscreen         (m_d3dRenderer.IsFullscreen());
     m_toolbar.SetMonitorColorIndex  (colorIndex);
 
@@ -3766,12 +3768,12 @@ void EmulatorShell::SubscribeAndActivateTheme()
     // Tell the theme manager which machine is active BEFORE the
     // first Activate so its listener notification carries the
     // correctly-resolved (per-variant) theme.
-    m_themeManager->SetActiveMachineName (m_config.name);
+    m_themeManager->SetActiveMachineName (m_machine.GetConfig().name);
 
     //  The notices about a changed disk mention the machine, and "the Apple"
     //  is not what is in front of the user. Set beside the theme's copy so the
     //  two cannot come to disagree about which machine is running.
-    m_diskStore.SetMachineName (m_config.name);
+    m_machine.GetDiskStore().SetMachineName (m_machine.GetConfig().name);
 
     hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
     if (FAILED (hrActivate))
@@ -3882,7 +3884,7 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // the current stamp keeps its old key until Settings next saves, and
     // dropping the drive for that one launch would be a visible regression.
     {
-        const PortConfig *  diskPort = m_config.FindPort ("disk");
+        const PortConfig *  diskPort = m_machine.GetConfig().FindPort ("disk");
 
         if (diskPort != nullptr)
         {
@@ -4186,7 +4188,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     // elsewhere. The switch strip re-reads the device on its next
     // SyncSwitchBarState.
     {
-        Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
+        Apple2eKeyboard *  iieKbd = m_machine.GetRefs().iieKeyboard;
 
         if (iieKbd != nullptr)
         {
@@ -4225,8 +4227,8 @@ std::string EmulatorShell::GetCurrentMachineNameNarrow() const
 
 
 
-    narrow.reserve (m_currentMachineName.size());
-    for (wchar_t c : m_currentMachineName)
+    narrow.reserve (m_machine.GetCurrentMachineName().size());
+    for (wchar_t c : m_machine.GetCurrentMachineName())
     {
         narrow.push_back ((char) (unsigned char) c);
     }
@@ -4766,7 +4768,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                 constexpr size_t  kKeepTailChars = 7;
 
                 int           drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
-                DiskImage  *  image = m_diskStore.GetImage (6, drive);
+                DiskImage  *  image = m_machine.GetDiskStore().GetImage (6, drive);
                 std::wstring  name;
 
                 if (image == nullptr)
@@ -4775,7 +4777,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                 }
 
                 name = std::filesystem::path (
-                           m_diskStore.GetSourcePath (6, drive)).filename().wstring();
+                           m_machine.GetDiskStore().GetSourcePath (6, drive)).filename().wstring();
 
                 if (name.empty())
                 {
@@ -5304,7 +5306,7 @@ void EmulatorShell::ReflowChromeForMachineChange()
 
 bool EmulatorShell::ShouldShowExternalDrive() const
 {
-    bool  externalIsOptional = (m_config.systemRom.romBankSize != 0);
+    bool  externalIsOptional = (m_machine.GetConfig().systemRom.romBankSize != 0);
 
 
 
@@ -5313,7 +5315,7 @@ bool EmulatorShell::ShouldShowExternalDrive() const
         return m_externalDriveConnected;
     }
 
-    return m_config.AttachedDiskIiDriveCount() >= kDiskIiPortCount;
+    return m_machine.GetConfig().AttachedDiskIiDriveCount() >= kDiskIiPortCount;
 }
 
 
@@ -5953,7 +5955,7 @@ HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
     }
     else
     {
-        hrSave = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+        hrSave = m_globalPrefs.Save (m_machine.GetAssetBaseDir(), m_uiFs);
     }
 
     IGNORE_RETURN_VALUE (hrSave, S_OK);
@@ -6437,7 +6439,7 @@ bool EmulatorShell::IsSalvageOffered (int drive)
     // from the menu's enable query, so it runs on every draw of that menu:
     // assessing here cost 11 ms for an ordinary disk and 154 ms for a
     // copy-protected one, per drive, on the UI thread.
-    return m_diskStore.IsSalvageOffered (6, drive);
+    return m_machine.GetDiskStore().IsSalvageOffered (6, drive);
 }
 
 
@@ -6483,7 +6485,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
         return;
     }
 
-    hr = m_diskStore.AssessSalvage (6, drive, assessment);
+    hr = m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
     if (FAILED (hr))
     {
         return;
@@ -6494,7 +6496,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
         return;
     }
 
-    sourcePath = fs::path (m_diskStore.GetSourcePath (6, drive)).wstring();
+    sourcePath = fs::path (m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring();
     destName   = fs::path (assessment.suggestedPath).filename().wstring();
 
     content = std::make_unique<SalvageDialogContent>();
@@ -6510,7 +6512,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
         return;
     }
 
-    hr = m_diskStore.SalvageToFile (6, drive, assessment.suggestedPath, report);
+    hr = m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.suggestedPath, report);
 
     if (FAILED (hr))
     {
@@ -6569,7 +6571,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
 
 void EmulatorShell::ReportDamagedMount (int drive)
 {
-    DiskImage          * image       = m_diskStore.GetImage (6, drive);
+    DiskImage          * image       = m_machine.GetDiskStore().GetImage (6, drive);
     SalvageAssessment    assessment;
     DialogDefinition     def;
     HRESULT              hr          = S_OK;
@@ -6608,13 +6610,13 @@ void EmulatorShell::ReportDamagedMount (int drive)
     def.body.push_back (DialogTextRun {
         L"This disk image's stored checksum does not match its contents. "
         L"The file is damaged or was written by a tool that miscomputed it.\n\n" +
-        fs::path (m_diskStore.GetSourcePath (6, drive)).wstring() + L"\n\n"
+        fs::path (m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring() + L"\n\n"
         L"Casso has loaded it so you can read it, and has write-protected it "
         L"for this session. Rewriting the file would give it a newly computed "
         L"checksum, silently hiding the damaged sectors.",
         false, std::wstring() });
 
-    hr = m_diskStore.AssessSalvage (6, drive, assessment);
+    hr = m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
 
     if (SUCCEEDED (hr) && assessment.isOffered)
     {
@@ -6648,8 +6650,8 @@ void EmulatorShell::ReportDamagedMount (int drive)
 
 bool EmulatorShell::IsWriteProtectToggleOffered (int drive)
 {
-    const DiskImage *  image   = m_diskStore.GetImage (6, drive);
-    bool               mounted = m_diskStore.IsMounted (6, drive);
+    const DiskImage *  image   = m_machine.GetDiskStore().GetImage (6, drive);
+    bool               mounted = m_machine.GetDiskStore().IsMounted (6, drive);
 
 
 
@@ -6999,7 +7001,7 @@ void EmulatorShell::SetCrtMonitorEnabled (bool enabled)
     }
     else
     {
-        hr = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+        hr = m_globalPrefs.Save (m_machine.GetAssetBaseDir(), m_uiFs);
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -7048,7 +7050,7 @@ void EmulatorShell::SetSceneAntiAliasing (int samples)
     }
     else
     {
-        hr = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+        hr = m_globalPrefs.Save (m_machine.GetAssetBaseDir(), m_uiFs);
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -7323,7 +7325,7 @@ void EmulatorShell::SnapshotStripToPanel()
 {
     int64_t   nowMs      = 0;
     bool      panelIsUp  = m_printerPanel != nullptr && m_printerPanel->IsOpen();
-    bool      hasCard    = m_refs.printerCard != nullptr;
+    bool      hasCard    = m_machine.GetRefs().printerCard != nullptr;
 
 
 
@@ -7367,7 +7369,7 @@ void EmulatorShell::UpdatePrinterStatus()
 
 
 
-    if (m_refs.printerCard == nullptr)
+    if (m_machine.GetRefs().printerCard == nullptr)
     {
         m_toolbar.SetPrinterPresent (false);
         return;   // no card: the toolbar's printer button disables
@@ -7430,7 +7432,7 @@ void EmulatorShell::UpdatePrinterPreview()
     int64_t    nowMs     = 0;
     bool       previewUp = false;
 
-    BAIL_OUT_IF (m_refs.printerCard == nullptr, S_OK);   // machine has no printer card
+    BAIL_OUT_IF (m_machine.GetRefs().printerCard == nullptr, S_OK);   // machine has no printer card
 
     activity = m_printerWorker.GetActivityCount();
     nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
@@ -7563,7 +7565,7 @@ Error:
 
 bool EmulatorShell::MachineHasCaseSwitches() const
 {
-    const MachineDefinition *  definition = MachineDefinitions::Find (m_config.machineId);
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
 
 
 
@@ -7585,7 +7587,7 @@ bool EmulatorShell::MachineHasCaseSwitches() const
 
 bool EmulatorShell::MachineHasBuiltInDrive() const
 {
-    const MachineDefinition *  definition = MachineDefinitions::Find (m_config.machineId);
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
 
 
 
@@ -7640,7 +7642,7 @@ void EmulatorShell::LayoutSwitchBar (UINT dpi)
 
 void EmulatorShell::SyncSwitchBarState()
 {
-    Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
+    Apple2eKeyboard *  iieKbd = m_machine.GetRefs().iieKeyboard;
     bool               diskOn = false;
 
 
@@ -7694,7 +7696,7 @@ const Byte * EmulatorShell::GetAuxRamBuffer() const
 
 void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 {
-    Apple2eKeyboard *  iieKbd = m_refs.iieKeyboard;
+    Apple2eKeyboard *  iieKbd = m_machine.GetRefs().iieKeyboard;
 
 
 
@@ -7704,7 +7706,7 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
             // Only a modifier-qualified press resets, matching the case key.
             if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
             {
-                m_refs.keyboard->SetKeyDown (false);
+                m_machine.GetRefs().keyboard->SetKeyDown (false);
                 PostCommand (IDM_MACHINE_RESET);
             }
 
@@ -7987,7 +7989,7 @@ void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
     // Apply to whatever is mounted right now so the toggle takes effect
     // without a remount; a later mount re-applies the standing preference
     // via DiskManager::MountDiskInSlot6.
-    image = m_diskStore.GetImage (6, drive);
+    image = m_machine.GetDiskStore().GetImage (6, drive);
 
     if (image != nullptr)
     {
@@ -8402,7 +8404,7 @@ bool EmulatorShell::TryPresentUiFrame()
 
             for (int i = 0; i < (int) m_sceneLabelPath.size(); i++)
             {
-                std::string  source = m_diskStore.GetSourcePath (6, i);
+                std::string  source = m_machine.GetDiskStore().GetSourcePath (6, i);
 
                 if (source != m_sceneLabelPath[i])
                 {
@@ -8819,9 +8821,9 @@ void EmulatorShell::LoadAudioAssetsForDeviceRate()
     hrSnd     = m_printerAudio.LoadSounds (soundsDir.wstring().c_str(), sampleRate);
     IGNORE_RETURN_VALUE (hrSnd, S_OK);
 
-    if (m_refs.mockingboard != nullptr)
+    if (m_machine.GetRefs().mockingboard != nullptr)
     {
-        m_refs.mockingboard->SetSampleRate (sampleRate);
+        m_machine.GetRefs().mockingboard->SetSampleRate (sampleRate);
     }
 
     m_audioAssetSampleRate = sampleRate;
@@ -8907,20 +8909,20 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
         case IDM_MACHINE_STEP:
         {
-            if (m_cpu)
+            if (m_machine.GetCpu())
             {
                 // StepOne dispatches a pending interrupt vector itself (see
                 // the slice loop) -- no separate TryStepInterrupt poll needed.
-                m_cpu->StepOne();
+                m_machine.GetCpu()->StepOne();
 
-                if (m_refs.diskController != nullptr)
+                if (m_machine.GetRefs().diskController != nullptr)
                 {
-                    m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
+                    m_machine.GetRefs().diskController->Tick (m_machine.GetCpu()->GetLastInstructionCycles());
                 }
 
-                if (m_refs.mockingboard != nullptr)
+                if (m_machine.GetRefs().mockingboard != nullptr)
                 {
-                    m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
+                    m_machine.GetRefs().mockingboard->Tick (m_machine.GetCpu()->GetLastInstructionCycles());
                 }
 
             }
@@ -9001,7 +9003,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                     savePath.erase (savePath.begin());
                 }
 
-                m_diskStore.ResolvePendingChange (slot, drive, (ChangeAction) chosen,
+                m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) chosen,
                                                   savePath);
             }
 
@@ -9103,13 +9105,13 @@ void EmulatorShell::PersistSwitchState (const char * key, bool value)
 
 
 
-    if (m_userConfigStore == nullptr || m_currentMachineName.empty())
+    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty())
     {
         return;
     }
 
     hr = DiskSettings::WriteSavedUiPrefBool (*m_userConfigStore, m_uiFs, key,
-                                             m_currentMachineName, value);
+                                             m_machine.GetCurrentMachineName(), value);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -9254,23 +9256,23 @@ void EmulatorShell::PostCommand (WORD id, const string & payload)
 
 void EmulatorShell::StepInstructionWhilePaused()
 {
-    if (m_cpu == nullptr)
+    if (m_machine.GetCpu() == nullptr)
     {
         return;
     }
 
     // StepOne dispatches a pending interrupt vector itself (see the slice
     // loop) -- no separate TryStepInterrupt poll needed.
-    m_cpu->StepOne();
+    m_machine.GetCpu()->StepOne();
 
-    if (m_refs.diskController != nullptr)
+    if (m_machine.GetRefs().diskController != nullptr)
     {
-        m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
+        m_machine.GetRefs().diskController->Tick (m_machine.GetCpu()->GetLastInstructionCycles());
     }
 
-    if (m_refs.mockingboard != nullptr)
+    if (m_machine.GetRefs().mockingboard != nullptr)
     {
-        m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
+        m_machine.GetRefs().mockingboard->Tick (m_machine.GetCpu()->GetLastInstructionCycles());
     }
 
     RunOneFrame();
@@ -9385,7 +9387,7 @@ void EmulatorShell::RunCpuThreadFrame()
 
     if (ShouldPublishFrame())
     {
-        current.videoDirty = m_memoryBus.IsVideoDirty();
+        current.videoDirty = m_machine.GetMemoryBus().IsVideoDirty();
         current.modeSig    = ComputeVideoModeSig();
         current.flashOn    = ComputeFlashOn();
         current.colorSig   = ComputeColorSig();
@@ -9402,7 +9404,7 @@ void EmulatorShell::RunCpuThreadFrame()
         RenderFramebuffer();
         PublishFramebuffer();
 
-        m_memoryBus.ClearVideoDirty();
+        m_machine.GetMemoryBus().ClearVideoDirty();
         m_lastRenderModeSig  = current.modeSig;
         m_lastRenderFlashOn  = current.flashOn;
         m_lastRenderColorSig = current.colorSig;
@@ -9467,16 +9469,16 @@ bool EmulatorShell::ShouldPublishFrame()
 uint32_t EmulatorShell::ComputeVideoModeSig()
 {
     uint32_t                  sig = 0;
-    Apple2eSoftSwitchBank *   iie = m_refs.iieSoftSwitches;
+    Apple2eSoftSwitchBank *   iie = m_machine.GetRefs().iieSoftSwitches;
 
 
 
-    if (m_refs.softSwitches != nullptr)
+    if (m_machine.GetRefs().softSwitches != nullptr)
     {
-        sig |= m_refs.softSwitches->IsGraphicsMode() ? 0x01u : 0u;
-        sig |= m_refs.softSwitches->IsMixedMode()    ? 0x02u : 0u;
-        sig |= m_refs.softSwitches->IsPage2()        ? 0x04u : 0u;
-        sig |= m_refs.softSwitches->IsHiresMode()    ? 0x08u : 0u;
+        sig |= m_machine.GetRefs().softSwitches->IsGraphicsMode() ? 0x01u : 0u;
+        sig |= m_machine.GetRefs().softSwitches->IsMixedMode()    ? 0x02u : 0u;
+        sig |= m_machine.GetRefs().softSwitches->IsPage2()        ? 0x04u : 0u;
+        sig |= m_machine.GetRefs().softSwitches->IsHiresMode()    ? 0x08u : 0u;
 
         if (iie != nullptr)
         {
@@ -9512,9 +9514,9 @@ bool EmulatorShell::ComputeFlashOn()
 
 
 
-    if (m_cpu != nullptr && cyclesPerToggle != 0)
+    if (m_machine.GetCpu() != nullptr && cyclesPerToggle != 0)
     {
-        flashOn = ((m_cpu->GetTotalCycles() / cyclesPerToggle) & 1ull) == 0;
+        flashOn = ((m_machine.GetCpu()->GetTotalCycles() / cyclesPerToggle) & 1ull) == 0;
     }
 
     return flashOn;
@@ -9637,7 +9639,7 @@ void EmulatorShell::TickKeyboardAutoRepeat()
 
 
 
-    if (m_refs.keyboard == nullptr)
+    if (m_machine.GetRefs().keyboard == nullptr)
     {
         return;
     }
@@ -9667,7 +9669,7 @@ void EmulatorShell::TickKeyboardAutoRepeat()
         elapsed = AppleKeyboard::kKeyRepeatDelayUs;
     }
 
-    m_refs.keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+    m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
 }
 
 
@@ -9740,7 +9742,7 @@ void EmulatorShell::ExecuteCpuSlices()
     // the one thing in this frame that must not follow the emulated clock.
     TickKeyboardAutoRepeat();
 
-    audioActive = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
+    audioActive = (m_machine.GetRefs().speaker != nullptr && m_wasapiAudio.IsInitialized());
 
     // A reopen can land on a device with a different mix format, and every
     // drive, printer and PSG sound was decoded to the rate of the device that
@@ -9757,9 +9759,9 @@ void EmulatorShell::ExecuteCpuSlices()
 
     if (audioActive)
     {
-        cyclesPerSample = static_cast<double> (m_config.clockSpeed) /
+        cyclesPerSample = static_cast<double> (m_machine.GetConfig().clockSpeed) /
                           static_cast<double> (m_wasapiAudio.GetSampleRate());
-        m_refs.speaker->BeginFrame();
+        m_machine.GetRefs().speaker->BeginFrame();
     }
 
     for (uint32_t executed = 0; executed < targetCycles; )
@@ -9785,11 +9787,11 @@ void EmulatorShell::ExecuteCpuSlices()
             // GetLastInstructionCycles either way -- so a bare StepOne is the
             // whole step. The former outer TryStepInterrupt was a second,
             // redundant interrupt poll on every instruction.
-            m_cpu->StepOne();
+            m_machine.GetCpu()->StepOne();
 
-            cycles = m_cpu->GetLastInstructionCycles();
+            cycles = m_machine.GetCpu()->GetLastInstructionCycles();
 
-            m_cpu->AddCycles (cycles);
+            m_machine.GetCpu()->AddCycles (cycles);
             sliceActual += cycles;
 
             // Pump the Disk II nibble engine in lockstep with EACH
@@ -9799,14 +9801,14 @@ void EmulatorShell::ExecuteCpuSlices()
             // the CPU sees one valid nibble per ~1000 cycles instead
             // of ~32, and the boot ROM never accumulates enough sync
             // bytes to find a sector header.
-            if (m_refs.diskController != nullptr)
+            if (m_machine.GetRefs().diskController != nullptr)
             {
-                m_refs.diskController->Tick (cycles);
+                m_machine.GetRefs().diskController->Tick (cycles);
             }
 
-            if (m_refs.mockingboard != nullptr)
+            if (m_machine.GetRefs().mockingboard != nullptr)
             {
-                m_refs.mockingboard->Tick (cycles);
+                m_machine.GetRefs().mockingboard->Tick (cycles);
             }
         }
 
@@ -9819,17 +9821,17 @@ void EmulatorShell::ExecuteCpuSlices()
 
             m_sampleRemainder = exactSamples - static_cast<double> (numSamples);
 
-            hr = m_wasapiAudio.SubmitFrame (m_refs.speaker->GetToggleTimestamps(),
+            hr = m_wasapiAudio.SubmitFrame (m_machine.GetRefs().speaker->GetToggleTimestamps(),
                                             sliceActual,
-                                            m_refs.speaker->GetFrameInitialState(),
+                                            m_machine.GetRefs().speaker->GetFrameInitialState(),
                                             numSamples,
                                             &m_driveAudioMixer,
-                                            m_cpu->GetTotalCycles(),
+                                            m_machine.GetCpu()->GetTotalCycles(),
                                             &m_mockingboardAudioMixer);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            m_refs.speaker->ClearTimestamps();
-            m_refs.speaker->BeginFrame();
+            m_machine.GetRefs().speaker->ClearTimestamps();
+            m_machine.GetRefs().speaker->BeginFrame();
         }
     }
 }
@@ -10125,7 +10127,7 @@ ScreenshotFacts EmulatorShell::BuildScreenshotFacts (ScreenshotMode mode, const 
     facts.mode               = mode;
     facts.versionString      = string ("Casso ") + VERSION_STRING;
     facts.when               = when;
-    facts.machineDisplayName = m_config.name;
+    facts.machineDisplayName = m_machine.GetConfig().name;
 
     //  The offset the timestamp is expressed in. GetTimeZoneInformation
     //  reports Bias as minutes to ADD to local time to reach UTC, which is the
@@ -10381,8 +10383,8 @@ void EmulatorShell::RenderFramebuffer()
 
     // Nothing to render before a machine is built, or after one is torn
     // down. The modes are created and cleared together, so text40 answers
-    // for all of them and every use below can go straight to m_refs.
-    if (m_refs.text40 == nullptr)
+    // for all of them and every use below can go straight to the refs.
+    if (m_machine.GetRefs().text40 == nullptr)
     {
         return;
     }
@@ -10397,11 +10399,11 @@ void EmulatorShell::RenderFramebuffer()
                                    ? m_colorMonitorTextArgb.load (memory_order_acquire)
                                    : s_kMonoSourceTextBgra;
 
-        m_refs.text40->SetOnColor    (textOnColor);
-        m_refs.text40->SetFlashState (flashOn);
+        m_machine.GetRefs().text40->SetOnColor    (textOnColor);
+        m_machine.GetRefs().text40->SetFlashState (flashOn);
 
-        m_refs.text80->SetOnColor    (textOnColor);
-        m_refs.text80->SetFlashState (flashOn);
+        m_machine.GetRefs().text80->SetOnColor    (textOnColor);
+        m_machine.GetRefs().text80->SetFlashState (flashOn);
 
         // Both graphics modes decode from the dots differently per monitor,
         // so they need the monitor type rather than a tint of one decode.
@@ -10411,8 +10413,8 @@ void EmulatorShell::RenderFramebuffer()
         // color pair -- so no amount of post-tinting brings it back.
         bool monoMonitor = (color != ColorMode::Color);
 
-        m_refs.hiRes->SetMonochrome       (monoMonitor);
-        m_refs.doubleHiRes->SetMonochrome (monoMonitor);
+        m_machine.GetRefs().hiRes->SetMonochrome       (monoMonitor);
+        m_machine.GetRefs().doubleHiRes->SetMonochrome (monoMonitor);
     }
 
     m_machineManager->SelectVideoMode();
@@ -10425,25 +10427,25 @@ void EmulatorShell::RenderFramebuffer()
     // color text hits neither and lets AppleTextMode redraw only changed rows.
     {
         bool forceFullText = (color != ColorMode::Color)
-                          || (m_refs.activeVideoMode != m_prevActiveVideoMode);
+                          || (m_machine.GetRefs().activeVideoMode != m_prevActiveVideoMode);
 
         if (forceFullText)
         {
-            m_refs.text40->InvalidateCache();
-            m_refs.text80->InvalidateCache();
+            m_machine.GetRefs().text40->InvalidateCache();
+            m_machine.GetRefs().text80->InvalidateCache();
         }
     }
 
-    m_prevActiveVideoMode = m_refs.activeVideoMode;
+    m_prevActiveVideoMode = m_machine.GetRefs().activeVideoMode;
 
-    if (m_refs.activeVideoMode != nullptr)
+    if (m_machine.GetRefs().activeVideoMode != nullptr)
     {
         // Pass nullptr for videoRam so the renderer reads through MemoryBus.
         // The bus's page table reflects the current MMU banking state
         // (main vs aux for $0400-$07FF / $2000-$3FFF under 80STORE+PAGE2/HIRES);
         // CPU memory[] alone does not, since the //e MMU re-points pages at
         // the RamDevice / aux RAM buffers it owns.
-        m_refs.activeVideoMode->Render (nullptr,
+        m_machine.GetRefs().activeVideoMode->Render (nullptr,
                                    m_cpuFramebuffer.data(),
                                    kFramebufferWidth,
                                    kFramebufferHeight);
@@ -10454,18 +10456,18 @@ void EmulatorShell::RenderFramebuffer()
     // we route through Apple80ColTextMode::RenderRowRange; otherwise through
     // AppleTextMode::RenderRowRange. Both share a single composed code path
     // (no branched duplicated render logic).
-    if (m_mixedMode && m_graphicsMode)
+    if (m_machine.GetSoftSwitchMirror().mixedMode && m_machine.GetSoftSwitchMirror().graphicsMode)
     {
         static constexpr int kMixedFirstRow = 20;
         static constexpr int kMixedLastRow  = 24;
 
-        bool  use80Col = m_refs.iieSoftSwitches != nullptr
-                      && m_refs.iieSoftSwitches->Is80ColMode();
+        bool  use80Col = m_machine.GetRefs().iieSoftSwitches != nullptr
+                      && m_machine.GetRefs().iieSoftSwitches->Is80ColMode();
 
         if (use80Col)
         {
-            m_refs.text80->SetPage2 (false);
-            m_refs.text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+            m_machine.GetRefs().text80->SetPage2 (false);
+            m_machine.GetRefs().text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
                                            nullptr,
                                            m_cpuFramebuffer.data(),
                                            kFramebufferWidth,
@@ -10473,8 +10475,8 @@ void EmulatorShell::RenderFramebuffer()
         }
         else
         {
-            m_refs.text40->SetPage2 (m_page2);
-            m_refs.text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+            m_machine.GetRefs().text40->SetPage2 (m_machine.GetSoftSwitchMirror().page2);
+            m_machine.GetRefs().text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
                                            nullptr,
                                            m_cpuFramebuffer.data(),
                                            kFramebufferWidth,
@@ -10612,7 +10614,7 @@ void EmulatorShell::OnDestroy()
 
     // Persist the pending strip on clean exit (FR-026); empty clears any stale
     // sidecar. Loss on abnormal termination is acceptable per the spec.
-    if (!m_currentMachineName.empty())
+    if (!m_machine.GetCurrentMachineName().empty())
     {
         PrinterJob *   printJob = m_printerWorker.GetJob();
 
@@ -10890,7 +10892,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                     anchor = m_sceneDriveLabelRect[i];
                     tip    = ComposeWriteProtectTooltip (
                                  i + 1,
-                                 std::filesystem::path (m_diskStore.GetSourcePath (6, i))
+                                 std::filesystem::path (m_machine.GetDiskStore().GetSourcePath (6, i))
                                      .filename().wstring(),
                                  m_driveWidgetState[i].writeProtect);
                     break;
@@ -10910,7 +10912,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                 if (sceneHit.target == SceneHitResult::Target::Drive)
                 {
                     std::wstring  imageName = std::filesystem::path (
-                        m_diskStore.GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
+                        m_machine.GetDiskStore().GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
 
                     anchor = m_stripComp.driveRectPx[sceneHit.driveIndex];
                     tip    = ComposeWriteProtectTooltip (
@@ -10928,7 +10930,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr)
         {
             std::wstring  imageName = std::filesystem::path (
-                m_diskStore.GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
+                m_machine.GetDiskStore().GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
 
             anchor = wpDrive->GetOuterRect();
             tip    = ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1, imageName, wpDrive->WriteProtect());
@@ -10988,9 +10990,9 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
     // //c Mouse mode: the cursor left the window entirely — release the
     // guest mouse target (non-capturing contract).
-    if (m_mouse != nullptr)
+    if (m_machine.GetMouse() != nullptr)
     {
-        m_mouse->ClearHostTarget();
+        m_machine.GetMouse()->ClearHostTarget();
     }
 
     return DxuiMessageResult::NotHandled;
@@ -11010,7 +11012,7 @@ bool EmulatorShell::IsGuestMouseActive() const
 {
     // The fullscreen drive strip's hotkey summon "releases" the guest mouse
     // for the interaction; the FSM restores it when the strip hides.
-    return m_pointerMode == InputMappingMode::Mouse && m_mouse != nullptr
+    return m_pointerMode == InputMappingMode::Mouse && m_machine.GetMouse() != nullptr
         && m_mouseConnected && !m_stripSuppressGuestMouse;
 }
 
@@ -11040,7 +11042,7 @@ bool EmulatorShell::IsGuestMouseActive() const
 bool EmulatorShell::IsGuestMouseLive() const
 {
     return IsGuestMouseActive() &&
-           (m_mouse->AreXyInterruptsEnabled() || m_mouse->AreVblInterruptsEnabled());
+           (m_machine.GetMouse()->AreXyInterruptsEnabled() || m_machine.GetMouse()->AreVblInterruptsEnabled());
 }
 
 
@@ -11094,18 +11096,18 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
             fx = static_cast<uint16_t> (MulDiv (hit.emulatedPixel.x, 65535, kFramebufferWidth - 1));
             fy = static_cast<uint16_t> (MulDiv (hit.emulatedPixel.y, 65535, kFramebufferHeight - 1));
 
-            m_mouse->SetHostTargetFraction (fx, fy);
+            m_machine.GetMouse()->SetHostTargetFraction (fx, fy);
         }
         else
         {
-            m_mouse->ClearHostTarget();
+            m_machine.GetMouse()->ClearHostTarget();
         }
     }
     else if (isLive && !isInside)
     {
         // Leaving the viewport releases the guest mouse to wherever the
         // firmware last put it (non-capturing contract).
-        m_mouse->ClearHostTarget();
+        m_machine.GetMouse()->ClearHostTarget();
     }
     else if (isLive)
     {
@@ -11118,7 +11120,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
         fx = static_cast<uint16_t> (MulDiv (xPx - vp.left, 65535, vpW - 1));
         fy = static_cast<uint16_t> (MulDiv (yPx - vp.top,  65535, vpH - 1));
 
-        m_mouse->SetHostTargetFraction (fx, fy);
+        m_machine.GetMouse()->SetHostTargetFraction (fx, fy);
     }
 }
 
@@ -11800,7 +11802,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
         if (overDisplay)
         {
-            m_mouse->SetButton (true);
+            m_machine.GetMouse()->SetButton (true);
         }
     }
 
@@ -12152,7 +12154,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // released outside it can never leave the guest button stuck.
     if (IsGuestMouseActive())
     {
-        m_mouse->SetButton (false);
+        m_machine.GetMouse()->SetButton (false);
     }
 
 Error:
@@ -12322,14 +12324,14 @@ DxuiMessageResult EmulatorShell::OnKillFocus()
 
 void EmulatorShell::ReleaseGuestKeys()
 {
-    auto *  iieKbd = m_refs.iieKeyboard;
+    auto *  iieKbd = m_machine.GetRefs().iieKeyboard;
 
 
 
-    if (m_refs.keyboard != nullptr)
+    if (m_machine.GetRefs().keyboard != nullptr)
     {
-        m_refs.keyboard->SetKeyDown (false);
-        m_refs.keyboard->BeginKeyRepeat (0);
+        m_machine.GetRefs().keyboard->SetKeyDown (false);
+        m_machine.GetRefs().keyboard->BeginKeyRepeat (0);
     }
 
     if (iieKbd != nullptr)
@@ -12556,7 +12558,7 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
 void EmulatorShell::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
 {
     HRESULT   hr     = S_OK;
-    auto    * iieKbd = m_refs.iieKeyboard;
+    auto    * iieKbd = m_machine.GetRefs().iieKeyboard;
     bool      lAlt   = false;
     bool      rAlt   = false;
 
@@ -12603,7 +12605,8 @@ Error:
 //    meta shortcuts      host-level chords
 //
 //  Whatever survives is by definition the guest's, and is delivered through
-//  the VIEWPORT rather than straight to m_refs.keyboard. That indirection is
+//  the VIEWPORT rather than straight to the machine's keyboard. That
+//  indirection is
 //  the point: the viewport is configured with SetConsumesInput and
 //  SetWantsAllKeys, so it forwards everything -- Esc, Tab, arrows included --
 //  back to OnViewportKey, and guest input stays on the single Dxui input path
@@ -12616,11 +12619,12 @@ Error:
 
 DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
-    HRESULT  hr            = S_OK;
-    bool     consumed      = false;
-    bool     ctrlHeld      = false;
-    bool     altHeld       = false;
-    bool     isRepeat      = (lParam & s_kPreviousKeyDownLParamBit) != 0;
+    HRESULT          hr        = S_OK;
+    bool             consumed  = false;
+    bool             ctrlHeld  = false;
+    bool             altHeld   = false;
+    bool             isRepeat  = (lParam & s_kPreviousKeyDownLParamBit) != 0;
+    AppleKeyboard *  keyboard  = m_machine.GetRefs().keyboard;
 
 
 
@@ -12660,7 +12664,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    CBR (m_refs.keyboard != nullptr);
+    CBR (keyboard != nullptr);
 
     ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
@@ -12674,7 +12678,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // SetConsumesInput + SetWantsAllKeys) forwards it to OnViewportKey for
     // the //e keyboard + game port. Routing through the viewport keeps a
     // single Dxui input path (FR-034) rather than the shell reaching into
-    // m_refs.keyboard directly.
+    // the machine's keyboard directly.
     if (m_viewport != nullptr)
     {
         DxuiKeyEvent  ev;
@@ -12835,11 +12839,11 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
     bool  driveJoystick = m_arrowsJoystick &&
-                          (m_refs.iieSoftSwitches != nullptr ||
-                           m_refs.gamePort != nullptr);
+                          (m_machine.GetRefs().iieSoftSwitches != nullptr ||
+                           m_machine.GetRefs().gamePort != nullptr);
     // The guest owns every key that reaches here either way; with no keyboard
     // device there is simply nothing to deliver it to.
-    hasKeyboard = m_refs.keyboard != nullptr;
+    hasKeyboard = m_machine.GetRefs().keyboard != nullptr;
 
     if (hasKeyboard && ev.kind == DxuiKeyEventKind::Down)
     {
@@ -12848,7 +12852,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         AppleSpecialKey  specialKey = AppleSpecialKey::Left;
         bool             isSpecial  = AppleKeyMapping::TryMapVkToSpecialKey (vk, specialKey);
         bool             hasTheKey  = !isSpecial ||
-                                      m_refs.keyboard->MapSpecialKey (specialKey) != 0;
+                                      m_machine.GetRefs().keyboard->MapSpecialKey (specialKey) != 0;
 
         // A named key the running machine's keyboard does not have was never
         // pressed as far as the guest is concerned, so it must not raise
@@ -12856,7 +12860,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // nothing is a state the hardware cannot be in.
         if (hasTheKey)
         {
-            m_refs.keyboard->SetKeyDown (true);
+            m_machine.GetRefs().keyboard->SetKeyDown (true);
         }
 
         ApplyAppleModifierKeys (vk, true);
@@ -12886,11 +12890,11 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // joystick game's reads.
         if (!ev.repeat && isSpecial && !(driveJoystick && AppleKeyMapping::IsArrowVk (vk)))
         {
-            appleCode = m_refs.keyboard->PressSpecialKey (specialKey);
+            appleCode = m_machine.GetRefs().keyboard->PressSpecialKey (specialKey);
 
             if (appleCode != 0)
             {
-                m_refs.keyboard->BeginKeyRepeat (appleCode);
+                m_machine.GetRefs().keyboard->BeginKeyRepeat (appleCode);
             }
         }
 
@@ -12928,7 +12932,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         AppleSpecialKey  specialKey = AppleSpecialKey::Left;
         bool             isSpecial  = AppleKeyMapping::TryMapVkToSpecialKey (vk, specialKey);
         bool             hasTheKey  = !isSpecial ||
-                                      m_refs.keyboard->MapSpecialKey (specialKey) != 0;
+                                      m_machine.GetRefs().keyboard->MapSpecialKey (specialKey) != 0;
 
         // The same question the press asked, asked again: a key this machine
         // does not have was never pressed, so its release must not undo the
@@ -12938,14 +12942,14 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // held while $C000 holds a character.
         if (hasTheKey)
         {
-            m_refs.keyboard->SetKeyDown (false);
+            m_machine.GetRefs().keyboard->SetKeyDown (false);
 
             // Disarm auto-repeat on release. The //e latch holds a single
             // key, so a key-up always ends the current repeat; this also
             // clears any stale armed key so a later non-character press
             // (e.g. a bare modifier) can never resurrect the previous
             // character's repeat.
-            m_refs.keyboard->BeginKeyRepeat (0);
+            m_machine.GetRefs().keyboard->BeginKeyRepeat (0);
         }
 
         // Release the //e Open/Closed-Apple and Shift modifiers as the host
@@ -12976,15 +12980,15 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             // text is never remapped -- matching the hardware encoder.
             Byte  code = static_cast<Byte> (ch);
 
-            if (m_refs.iieKeyboard != nullptr)
+            if (m_machine.GetRefs().iieKeyboard != nullptr)
             {
-                m_refs.iieKeyboard->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
+                m_machine.GetRefs().iieKeyboard->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
 
-                code = m_refs.iieKeyboard->MapTypedChar (code);
+                code = m_machine.GetRefs().iieKeyboard->MapTypedChar (code);
             }
 
-            m_refs.keyboard->PressKey (code);
-            m_refs.keyboard->BeginKeyRepeat (code);
+            m_machine.GetRefs().keyboard->PressKey (code);
+            m_machine.GetRefs().keyboard->BeginKeyRepeat (code);
         }
     }
 
@@ -13040,8 +13044,8 @@ bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
 void EmulatorShell::UpdateJoystickAxesFromKeys()
 {
     HRESULT  hr       = S_OK;
-    auto   * iieSw    = m_refs.iieSoftSwitches;
-    auto   * gamePort = m_refs.gamePort;
+    auto   * iieSw    = m_machine.GetRefs().iieSoftSwitches;
+    auto   * gamePort = m_machine.GetRefs().gamePort;
     bool     left     = false;
     bool     right    = false;
     bool     up       = false;
@@ -13125,8 +13129,8 @@ Error:
 void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
     HRESULT  hr       = S_OK;
-    auto   * iieKbd   = m_refs.iieKeyboard;
-    auto   * gamePort = m_refs.gamePort;
+    auto   * iieKbd   = m_machine.GetRefs().iieKeyboard;
+    auto   * gamePort = m_machine.GetRefs().gamePort;
     bool     button0  = false;
     bool     button1  = false;
 
@@ -13233,9 +13237,9 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 void EmulatorShell::SetArrowsJoystick (bool on)
 {
-    auto * iieSw    = m_refs.iieSoftSwitches;
-    auto * iieKbd   = m_refs.iieKeyboard;
-    auto * gamePort = m_refs.gamePort;
+    auto * iieSw    = m_machine.GetRefs().iieSoftSwitches;
+    auto * iieKbd   = m_machine.GetRefs().iieKeyboard;
+    auto * gamePort = m_machine.GetRefs().gamePort;
 
 
 
@@ -13303,7 +13307,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
 void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 {
-    auto             * iieSw = m_refs.iieSoftSwitches;
+    auto             * iieSw = m_machine.GetRefs().iieSoftSwitches;
     InputMappingMode   prev  = m_pointerMode;
 
 
@@ -13332,10 +13336,10 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
     // Leaving Mouse: release a held guest button so it can't stick, and
     // drop the absolute target so the guest mouse stops tracking.
     if (prev == InputMappingMode::Mouse && pointer != InputMappingMode::Mouse
-        && m_mouse != nullptr)
+        && m_machine.GetMouse() != nullptr)
     {
-        m_mouse->SetButton (false);
-        m_mouse->ClearHostTarget();
+        m_machine.GetMouse()->SetButton (false);
+        m_machine.GetMouse()->ClearHostTarget();
     }
 
     m_pointerMode = pointer;
@@ -13415,7 +13419,7 @@ void EmulatorShell::SyncInputModeUi()
 void EmulatorShell::SyncSelectorState()
 {
     m_toolbar.SetInputState   (m_arrowsJoystick, m_pointerMode,
-                               m_mouse != nullptr && m_mouseConnected);
+                               m_machine.GetMouse() != nullptr && m_mouseConnected);
 }
 
 
@@ -13436,7 +13440,7 @@ void EmulatorShell::SyncSelectorState()
 
 void EmulatorShell::ApplyDefaultPointerForMachine()
 {
-    if (m_mouse != nullptr && m_mouseConnected
+    if (m_machine.GetMouse() != nullptr && m_mouseConnected
         && m_pointerMode == InputMappingMode::Off)
     {
         // State only -- NO chrome work here. This runs on the CPU thread
@@ -13497,7 +13501,7 @@ void EmulatorShell::CycleInputMappingMode()
             break;
 
         case InputMappingMode::Joystick:
-            next = (m_mouse != nullptr && m_mouseConnected)
+            next = (m_machine.GetMouse() != nullptr && m_mouseConnected)
                        ? InputMappingMode::Mouse
                        : InputMappingMode::Paddle;
             break;
@@ -13793,8 +13797,8 @@ Error:
 
 void EmulatorShell::PushPaddlePosition()
 {
-    auto * iieSw    = m_refs.iieSoftSwitches;
-    auto * gamePort = m_refs.gamePort;
+    auto * iieSw    = m_machine.GetRefs().iieSoftSwitches;
+    auto * gamePort = m_machine.GetRefs().gamePort;
     Byte   x        = (Byte) (m_paddleAxisX + 0.5f);
     Byte   y        = (Byte) (m_paddleAxisY + 0.5f);
 
@@ -13829,8 +13833,8 @@ void EmulatorShell::PushPaddlePosition()
 
 void EmulatorShell::PushPaddleButton (int index, bool pressed)
 {
-    auto * iieKbd   = m_refs.iieKeyboard;
-    auto * gamePort = m_refs.gamePort;
+    auto * iieKbd   = m_machine.GetRefs().iieKeyboard;
+    auto * gamePort = m_machine.GetRefs().gamePort;
 
 
 
@@ -13917,8 +13921,8 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
     bool  isFireKey = m_arrowsJoystick &&
-                      (m_refs.iieSoftSwitches != nullptr ||
-                       m_refs.gamePort != nullptr) &&
+                      (m_machine.GetRefs().iieSoftSwitches != nullptr ||
+                       m_machine.GetRefs().gamePort != nullptr) &&
                       (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z');
 
     // What survives all of the above is the guest's. `isRepeat` drops Windows
@@ -13927,7 +13931,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // registered for the emulator's own authentic //e auto-repeat cadence
     // (driven in real time by AppleKeyboard::TickAutoRepeat, so the emulation
     // speed does not move it).
-    bool  isGuestChar = m_refs.keyboard != nullptr &&
+    bool  isGuestChar = m_machine.GetRefs().keyboard != nullptr &&
                         !overlayOwnsIt &&
                         !isRepeat &&
                         !isFireKey;
@@ -14299,9 +14303,9 @@ void EmulatorShell::UpdateWindowTitle()
 
     title += L"Casso";
 
-    if (!m_config.name.empty())
+    if (!m_machine.GetConfig().name.empty())
     {
-        wideName = fs::path (m_config.name).wstring();
+        wideName = fs::path (m_machine.GetConfig().name).wstring();
         title += L" - ";
         title += wideName;
     }
@@ -14363,13 +14367,13 @@ std::wstring EmulatorShell::GetPrinterBannerMessage() const
 
 
 
-    if (m_config.HasEnabledSlotDevice ("parallel-printer"))
+    if (m_machine.GetConfig().HasEnabledSlotDevice ("parallel-printer"))
     {
         message = L"Emulating an Apple ImageWriter II connected via parallel interface.";
     }
     else
     {
-        message = L"No printer is connected to this " + fs::path (m_config.name).wstring() + L".";
+        message = L"No printer is connected to this " + fs::path (m_machine.GetConfig().name).wstring() + L".";
     }
 
     return message;
@@ -14703,7 +14707,7 @@ void EmulatorShell::DumpTrace (const wstring & reason)
 
     BAIL_OUT_IF (!wonTheRace, S_OK);
 
-    hasTrace = m_traceCapacity != 0 && m_cpu != nullptr && m_cpu->IsTraceEnabled();
+    hasTrace = m_traceCapacity != 0 && m_machine.GetCpu() != nullptr && m_machine.GetCpu()->IsTraceEnabled();
 
     BAIL_OUT_IF (!hasTrace, S_OK);
 
@@ -14720,7 +14724,7 @@ void EmulatorShell::DumpTrace (const wstring & reason)
         path = name;
     }
 
-    total = m_cpu->GetTraceCount();
+    total = m_machine.GetCpu()->GetTraceCount();
 
     // Scoped so the bails above never jump across the window's construction.
     {
@@ -14728,7 +14732,7 @@ void EmulatorShell::DumpTrace (const wstring & reason)
 
         win.Create (reason, path, total);
 
-        hr = m_cpu->DumpTraceToFile (path, [&win] (uint64_t done, uint64_t tot)
+        hr = m_machine.GetCpu()->DumpTraceToFile (path, [&win] (uint64_t done, uint64_t tot)
         {
             win.SetProgress (done, tot);
         });
@@ -14780,7 +14784,7 @@ void EmulatorShell::OpenDisk2DebugDialog()
     // bypasses that gate so we defend in depth.
     CBR (controller != nullptr);
 
-    for (const SlotConfig & slot : m_config.slots)
+    for (const SlotConfig & slot : m_machine.GetConfig().slots)
     {
         if (slot.device == "disk-ii")
         {
@@ -14805,9 +14809,9 @@ void EmulatorShell::OpenDisk2DebugDialog()
         m_disk2DebugPanel->SetUptimeAnchor (m_uptimeAnchor);
         m_disk2DebugPanel->SetMultiControllerHint (Disk2Count > 1);
 
-        if (m_cpu != nullptr)
+        if (m_machine.GetCpu() != nullptr)
         {
-            m_disk2DebugPanel->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+            m_disk2DebugPanel->SetCycleCounter (m_machine.GetCpu()->GetCycleCounterPtr());
         }
 
         controller->SetEventSink (m_disk2DebugPanel.get());
@@ -14862,12 +14866,13 @@ Error:
 
 void EmulatorShell::OpenInputDebugDialog()
 {
-    HRESULT    hr        = S_OK;
-    HINSTANCE  hInstance = nullptr;
+    HRESULT          hr        = S_OK;
+    HINSTANCE        hInstance = nullptr;
+    AppleKeyboard *  keyboard  = m_machine.GetRefs().keyboard;
 
 
 
-    CBR (m_refs.keyboard != nullptr);
+    CBR (keyboard != nullptr);
 
     if (m_inputDebugPanel == nullptr || m_inputDebugPanel->GetHwnd() == nullptr)
     {
@@ -14890,24 +14895,24 @@ void EmulatorShell::OpenInputDebugDialog()
         // $C063 is the //c's active-low mouse button whenever a mouse device
         // is wired up (matching Apple2eKeyboard's own read), and the //e's
         // shift-key mod otherwise.
-        m_inputDebugPanel->SetMouseButtonAtC063 (m_mouse != nullptr);
+        m_inputDebugPanel->SetMouseButtonAtC063 (m_machine.GetMouse() != nullptr);
 
-        if (m_cpu != nullptr)
+        if (m_machine.GetCpu() != nullptr)
         {
-            m_inputDebugPanel->SetCycleCounter (m_cpu->GetCycleCounterPtr());
+            m_inputDebugPanel->SetCycleCounter (m_machine.GetCpu()->GetCycleCounterPtr());
         }
 
-        m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
+        m_machine.GetRefs().keyboard->SetInputEventSink (m_inputDebugPanel.get());
 
-        iieSwitches = m_refs.iieSoftSwitches;
+        iieSwitches = m_machine.GetRefs().iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
         }
 
-        if (m_refs.gamePort != nullptr)
+        if (m_machine.GetRefs().gamePort != nullptr)
         {
-            m_refs.gamePort->SetInputEventSink (m_inputDebugPanel.get());
+            m_machine.GetRefs().gamePort->SetInputEventSink (m_inputDebugPanel.get());
         }
     }
 
@@ -14962,21 +14967,21 @@ void EmulatorShell::AttachDebugSinksIfOpen()
         }
     }
 
-    if (m_inputDebugPanel != nullptr && m_refs.keyboard != nullptr)
+    if (m_inputDebugPanel != nullptr && m_machine.GetRefs().keyboard != nullptr)
     {
         Apple2eSoftSwitchBank * iieSwitches = nullptr;
 
-        m_refs.keyboard->SetInputEventSink (m_inputDebugPanel.get());
+        m_machine.GetRefs().keyboard->SetInputEventSink (m_inputDebugPanel.get());
 
-        iieSwitches = m_refs.iieSoftSwitches;
+        iieSwitches = m_machine.GetRefs().iieSoftSwitches;
         if (iieSwitches != nullptr)
         {
             iieSwitches->SetInputEventSink (m_inputDebugPanel.get());
         }
 
-        if (m_refs.gamePort != nullptr)
+        if (m_machine.GetRefs().gamePort != nullptr)
         {
-            m_refs.gamePort->SetInputEventSink (m_inputDebugPanel.get());
+            m_machine.GetRefs().gamePort->SetInputEventSink (m_inputDebugPanel.get());
         }
     }
 
@@ -15138,7 +15143,7 @@ DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, in
 
 void EmulatorShell::InstallChangeReporting()
 {
-    m_diskStore.SetChangeReportSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    m_machine.GetDiskStore().SetChangeReportSink ([this] (int slot, int drive, const ChangePrompt & prompt)
     {
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
@@ -15153,7 +15158,7 @@ void EmulatorShell::InstallChangeReporting()
     //  told. This sink is installed before the window exists and posting can
     //  fail on a full queue, and a bay left believing a question is on screen
     //  that nobody ever saw is a bay nothing acts on again until it is ejected.
-    m_diskStore.SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt) -> bool
+    m_machine.GetDiskStore().SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt) -> bool
     {
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
@@ -15172,7 +15177,7 @@ void EmulatorShell::InstallChangeReporting()
     //  loop has gone. It runs on this thread, inside the apartment OleInitialize
     //  set up, so the picker works exactly as it does from a question -- and
     //  unlike a question, this returns the answer rather than posting for it.
-    m_diskStore.SetRescueSink ([this] (const std::string & imagePath,
+    m_machine.GetDiskStore().SetRescueSink ([this] (const std::string & imagePath,
                                        std::string & outPath) -> bool
     {
         std::wstring  chosen;
@@ -15499,7 +15504,7 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
             break;
         }
 
-        if (AskWhereToSaveLostDisk (m_diskStore.GetSourcePath (notice.slot, notice.drive),
+        if (AskWhereToSaveLostDisk (m_machine.GetDiskStore().GetSourcePath (notice.slot, notice.drive),
                                     savePath))
         {
             saveTarget = fs::path (savePath).string();
@@ -15831,7 +15836,7 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
     //  id, so it was meant for us and simply was not readable.
     if (wellFormed)
     {
-        m_diskStore.NoteExternalChange (payload.imagePath, payload.intent);
+        m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent);
     }
 
     return DxuiMessageResult::Handled;

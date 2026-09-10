@@ -22,6 +22,7 @@
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
+#include "Shell/MachineHost.h"
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
@@ -178,8 +179,13 @@ public:
     bool IsRunning() const { return m_cpuManager.IsRunning(); }
     bool IsPaused() const { return m_cpuManager.IsPaused(); }
 
+    // The emulated machine. Everything about the hardware -- bus, CPU,
+    // devices, video modes, which machine this is -- is reached through
+    // here rather than off the shell.
+    MachineHost & GetMachine() { return m_machine; }
+
     // Access bus for test wiring
-    MemoryBus & GetBus() { return m_memoryBus; }
+    MemoryBus & GetBus() { return m_machine.GetMemoryBus(); }
 
     // Main window HWND. Owned by m_host (DxuiHwndSource in full-
     // ownership mode); EmulatorShell caches it after Create for
@@ -431,7 +437,7 @@ private:
     void    ApplyPersistedChromePrefs     ();
     void    ApplyPersistedAudioPrefs      ();
 
-    // Truncating wide->narrow of m_currentMachineName (machine config
+    // Truncating wide->narrow of the machine's name (machine config
     // names are ASCII): the config-store key + lastSelectedMachine pref.
     std::string GetCurrentMachineNameNarrow () const;
 
@@ -664,7 +670,7 @@ private:
     // path can call the shell without learning the manager.
     HRESULT SwitchMachine (const std::wstring & machineName);
     void    ShowMachinePicker();
-    const std::wstring &  GetCurrentMachineName () const { return m_currentMachineName; }
+    const std::wstring &  GetCurrentMachineName () const { return m_machine.GetCurrentMachineName(); }
 
     // One-line printer summary for the Settings > Printing info banner: what
     // printer this machine emulates and how it connects, or that it has none.
@@ -742,13 +748,14 @@ private:
     // Base directory for user preferences. SettingsPanel.CommitApply
     // uses this as the fallback save path when the unified store is not
     // available.
-    const std::wstring &  GetAssetBaseDir () const { return m_assetBaseDir; }
+    const std::wstring &  GetAssetBaseDir () const { return m_machine.GetAssetBaseDir(); }
 
     // Per-machine pending-strip directory (FR-026):
     // <assetBase>/Machines/<current machine>/PendingPrint.
     fs::path  GetPendingPrintDir () const
     {
-        return fs::path (m_assetBaseDir) / L"Machines" / fs::path (m_currentMachineName) / L"PendingPrint";
+        return fs::path (m_machine.GetAssetBaseDir()) / L"Machines" /
+               fs::path (m_machine.GetCurrentMachineName()) / L"PendingPrint";
     }
 
     // Live channel for the Settings → Display monitor dropdown. The
@@ -1260,11 +1267,12 @@ private:
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
 
-    MemoryBus               m_memoryBus;
-    ComponentRegistry       m_registry;
-    InterruptController     m_interruptController;
-    unique_ptr<EmuCpu>      m_cpu;
-    unique_ptr<class Prng>  m_prng;
+    //  The emulated machine: bus, CPU, devices, video modes, and the
+    //  configuration and identity that say which machine this is. Everything
+    //  the emulator wraps around a machine stays on this class and reaches
+    //  the machine through here.
+    MachineHost             m_machine;
+
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
     wstring                m_titlePrefix;                 // --title (undocumented)
@@ -1810,115 +1818,10 @@ private:
     float                                m_drivePan[2] = { DriveAudioMixer::kDefaultDriveOnePan,
                                                            DriveAudioMixer::kDefaultDriveTwoPan };
 
-    // Owned devices
-    vector<unique_ptr<MemoryDevice>>     m_ownedDevices;
-
-    // Serial-port endpoints (//c 6551 ACIAs). Owned separately from
-    // m_ownedDevices because an IAciaEndpoint is not a MemoryDevice; each is
-    // bound to its ACIA via SetEndpoint. The loopback endpoints hold a raw
-    // Acia6551* but are never called during teardown, so destruction order
-    // relative to m_ownedDevices is immaterial.
-    vector<unique_ptr<IAciaEndpoint>>    m_ownedAciaEndpoints;
-
-    // Video
-    vector<unique_ptr<VideoOutput>>      m_videoModes;
-    CharacterRomData                     m_charRom;
-
-    // Soft switch state (read by video mode selection)
-    bool    m_graphicsMode = false;
-    bool    m_mixedMode    = false;
-    bool    m_page2        = false;
-    bool    m_hiresMode    = false;
-    bool    m_col80Mode    = false;
-    bool    m_doubleHiRes  = false;
-
-    // Per-machine observer pointers. Every entry is a raw pointer
-    // into one of the unique_ptr-owning collections above
-    // (m_ownedDevices, m_videoModes). They are caches for "quick
-    // access" only — never own anything — so they MUST be reset
-    // every time the owning collection is rebuilt, or they'll
-    // dangle into freed memory. Bundling them in one struct makes
-    // that a single assignment (`m_refs = {};`) in SwitchMachine's
-    // teardown block, instead of a checklist of individual
-    // nullptr assignments that the next field to be added will
-    // inevitably miss.
-    struct MachineRefs
-    {
-        class AppleKeyboard *         keyboard         = nullptr;
-        class AppleSoftSwitchBank *   softSwitches     = nullptr;
-        class AppleGamePort *         gamePort         = nullptr;
-        class AppleSpeaker *          speaker          = nullptr;
-        class RamDevice *             mainRamDev       = nullptr;
-        class Disk2Controller *       diskController   = nullptr;
-        class MockingboardCard *      mockingboard     = nullptr;
-        class VideoOutput *           activeVideoMode  = nullptr;
-        class PrinterCard *           printerCard      = nullptr;
-
-        // The //e-and-later halves of the two devices above: the same
-        // objects as `softSwitches` / `keyboard` when the machine has the
-        // //e variants, null on a ][ or ][+. Both are resolved once at build
-        // time from the configured device type, in the same statement that
-        // sets the base pointer -- so each is non-null in exactly the cases
-        // where downcasting the base would have succeeded, and callers that
-        // need the derived surface (80COL, 80STORE, DHIRES, ALTCHARSET) read
-        // a pointer instead of re-deriving it at every use. Null is the
-        // ][ / ][+ answer, which every caller already had to handle.
-        class Apple2eSoftSwitchBank * iieSoftSwitches  = nullptr;
-        class Apple2eKeyboard *       iieKeyboard      = nullptr;
-
-        // Video modes, addressed by name. All five exist on every machine --
-        // SelectVideoMode switches between them per frame from soft-switch
-        // state and cannot afford to construct one mid-render -- so these are
-        // non-null together, from CreateVideoModes until teardown.
-        //
-        // These replaced positional lookups into m_videoModes. That vector
-        // still OWNS the modes, but nothing outside CreateVideoModes indexes
-        // it: an index carries no type, so every use site had to restate
-        // which slot meant which mode and downcast to match, and a mode
-        // inserted anywhere but the end would have silently re-pointed all
-        // of them at the wrong renderer.
-        class AppleTextMode *         text40           = nullptr;
-        class AppleLoResMode *        loRes            = nullptr;
-        class AppleHiResMode *        hiRes            = nullptr;
-        class AppleDoubleHiResMode *  doubleHiRes      = nullptr;
-        class Apple80ColTextMode *    text80           = nullptr;
-    };
-
-    MachineRefs                   m_refs;
-
-    // Background printer drain (ring -> interpreter -> raster). Declared after
-    // m_ownedDevices so it is torn down (thread joined) before the card it
-    // drains.
+    // Background printer drain (ring -> interpreter -> raster). Declared
+    // after the machine so it is torn down (thread joined) before the card
+    // it drains.
     PrinterWorker                 m_printerWorker;
-
-    unique_ptr<class Apple2eMmu>  m_mmu;
-    // Apple //c firmware-bank coordinator ($C028). Null on every other
-    // machine. Owned here (not in m_ownedDevices) because it is not a bus
-    // device; reset during machine teardown before the LC/MMU it references.
-    unique_ptr<class Apple2cRomBank>  m_apple2cRomBank;
-    // Apple //c IOU mouse. Null on every other machine. Owned here
-    // (not in m_ownedDevices) because it is not a bus device: the keyboard
-    // and soft-switch bank forward its register surface, and the EmuCpu
-    // cycle fan-out ticks it (VBL-edge latch + paced movement interrupts).
-    unique_ptr<class AppleMouse>  m_mouse;
-    unique_ptr<VideoTiming>       m_videoTiming;
-
-    // / T097 / FR-025. The store coordinates auto-flush of dirty
-    // disk images on Eject / SwitchMachine / Shutdown / PowerCycle. Each
-    // mounted disk's DiskImage is owned by the store; the slot 6 disk
-    // controller sees it via Disk2Controller::SetExternalDisk.
-    DiskImageStore                m_diskStore;
-
-    // Emulation state
-    MachineConfig                 m_config;
-
-    // Machine config file name (without ".json" extension, e.g.,
-    // "apple2e", "apple2plus", "apple2"). Used as a registry-key
-    // suffix so per-machine UI state (e.g., last-mounted disks) can
-    // round-trip between sessions without one machine's setting
-    // clobbering another's.
-    wstring                       m_currentMachineName;
-    wstring                       m_assetBaseDir;
 
     // CPU-thread lifecycle, run/pause/step transitions, the UI -> CPU
     // command queue, and the paste buffer all live on CpuManager. The
