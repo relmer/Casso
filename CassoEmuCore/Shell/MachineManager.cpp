@@ -493,37 +493,45 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         }
     }
 
-    // The Mockingboard's PSG audio sources are owned by the card device
-    // among the owned devices, so the mixer's borrowed pointers must be dropped
-    // before that collection is cleared below (CreateMemoryDevices
-    // re-registers fresh ones for the new machine).
-    m_shell.m_mockingboardAudioMixer.UnregisterAllSources();
+    {
+        // The UI thread reads the machine's devices every frame under the
+        // shared side of this lock. From here to the end of the build the
+        // devices are gone and coming back, so the rebuild holds the
+        // exclusive side and a frame that arrives meanwhile is skipped.
+        std::unique_lock<std::shared_mutex>  lifetime (m_shell.m_machine.GetLifetimeLock());
 
-    // Reclaim IRQ source tokens before the devices that hold them are
-    // destroyed; the rebuilt machine re-registers from a fresh pool.
-    m_shell.m_machine.GetInterruptController().ResetSources();
+        // The Mockingboard's PSG audio sources are owned by the card device
+        // among the owned devices, so the mixer's borrowed pointers must be dropped
+        // before that collection is cleared below (CreateMemoryDevices
+        // re-registers fresh ones for the new machine).
+        m_shell.m_mockingboardAudioMixer.UnregisterAllSources();
 
-    m_shell.m_machine.SetCpu (nullptr);
-    // The //c ROM-bank coordinator holds references into the language card
-    // (owned) + MMU; drop it before those owners are torn down.
-    m_shell.m_machine.SetApple2cRomBank (nullptr);
-    m_shell.m_machine.GetOwnedDevices().clear();
-    m_shell.m_machine.GetVideoModes().clear();
-    m_shell.m_machine.GetMemoryBus() = MemoryBus();
-    m_shell.m_machine.GetRefs()      = {};
-    m_shell.m_machine.SetMmu (nullptr);
+        // Reclaim IRQ source tokens before the devices that hold them are
+        // destroyed; the rebuilt machine re-registers from a fresh pool.
+        m_shell.m_machine.GetInterruptController().ResetSources();
 
-    // Initialize with new config
-    m_shell.m_machine.SetCurrentMachineName (machineName);
-    m_shell.m_machine.GetConfig()             = newConfig;
-    m_shell.m_cyclesPerFrame     = newConfig.cyclesPerFrame;
+        m_shell.m_machine.SetCpu (nullptr);
+        // The //c ROM-bank coordinator holds references into the language card
+        // (owned) + MMU; drop it before those owners are torn down.
+        m_shell.m_machine.SetApple2cRomBank (nullptr);
+        m_shell.m_machine.GetOwnedDevices().clear();
+        m_shell.m_machine.GetVideoModes().clear();
+        m_shell.m_machine.GetMemoryBus() = MemoryBus();
+        m_shell.m_machine.GetRefs()      = {};
+        m_shell.m_machine.SetMmu (nullptr);
 
-    //  The same build the initial launch runs. It used to be repeated here,
-    //  which is how the //c's $C028 ROM banking came to be wired on a switch
-    //  and not on a cold start -- the two copies drifted, and the machine
-    //  that booted to a garbage screen was the one nobody switched to.
-    hr = m_shell.BuildMachineDevices (newConfig);
-    CHR (hr);
+        // Initialize with new config
+        m_shell.m_machine.SetCurrentMachineName (machineName);
+        m_shell.m_machine.GetConfig()             = newConfig;
+        m_shell.m_cyclesPerFrame     = newConfig.cyclesPerFrame;
+
+        //  The same build the initial launch runs. It used to be repeated here,
+        //  which is how the //c's $C028 ROM banking came to be wired on a switch
+        //  and not on a cold start -- the two copies drifted, and the machine
+        //  that booted to a garbage screen was the one nobody switched to.
+        hr = m_shell.BuildMachineDevices (newConfig);
+        CHR (hr);
+    }
 
     // The build unregistered the old disk-audio sources and created new
     // ones. They are registered with the mixer but hold no sample data yet

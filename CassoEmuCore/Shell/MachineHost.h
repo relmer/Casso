@@ -170,6 +170,13 @@ public:
 
     const MachineRefs  &  GetRefs() const noexcept { return m_refs; }
 
+    // The devices' lifetime, between the two threads that touch them. A
+    // machine switch on the CPU thread destroys and rebuilds every device;
+    // it holds this exclusively for the whole of that. The UI thread reads
+    // devices through the references every frame, and holds it shared for
+    // the frame, so a frame never sees the list half-built.
+    std::shared_mutex  &  GetLifetimeLock() noexcept { return m_lifetimeLock; }
+
     SoftSwitchMirror  &  GetSoftSwitchMirror() noexcept { return m_softSwitches; }
 
     const SoftSwitchMirror  &  GetSoftSwitchMirror() const noexcept { return m_softSwitches; }
@@ -236,6 +243,8 @@ private:
     SoftSwitchMirror  m_softSwitches;
 
     MachineRefs  m_refs;
+
+    std::shared_mutex  m_lifetimeLock;
 
     std::unique_ptr<Apple2eMmu>      m_mmu;
     std::unique_ptr<Apple2cRomBank>  m_apple2cRomBank;

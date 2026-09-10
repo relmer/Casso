@@ -45,6 +45,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <numbers>
 #include <optional>
 #include <random>

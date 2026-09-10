@@ -564,7 +564,7 @@ void EmulatorShell::InitAssetPathsAndStores()
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
 
-    m_diskManager = std::make_unique<DiskManager> (m_machine.GetOwnedDevices(),
+    m_diskManager = std::make_unique<DiskManager> (m_machine,
                                                    m_machine.GetDiskStore(),
                                                    m_diskAudioSources,
                                                    m_wasapiAudio,

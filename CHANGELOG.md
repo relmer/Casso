@@ -20,6 +20,8 @@ Entries before versioning was introduced use dates only.
   panel is open.
 - The //c switch strip now repaints when a switch is clicked or hovered over a
   static screen, such as the "Check disk drive" message.
+- Switching machines no longer crashes when a frame is presented during the
+  rebuild.
 - Ctrl-Open-Apple-Reset from the toolbar, the Machine menu or the //c strip now
   cold starts with normal key timing. Previously, the keys had to stay down for
   several seconds after the click.

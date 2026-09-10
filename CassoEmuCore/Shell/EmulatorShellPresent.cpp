@@ -556,6 +556,23 @@ bool EmulatorShell::TryPresentUiFrame()
     bool     anyDriveLive              = false;
     bool     framebufferDirtyThisFrame = false;
     uint32_t driveSig                  = 0;
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+
+
+
+    // The frame reads the machine's devices throughout -- the drive
+    // controller for the widgets, the keyboard for the //c strip -- and a
+    // machine switch on the CPU thread destroys and rebuilds them. The switch
+    // holds the lifetime lock exclusively for the rebuild; the frame holds it
+    // shared, and a frame that finds it taken simply does not present. Tried
+    // rather than waited for, so a frame re-entered from a modal loop's timer
+    // while the outer frame already holds it cannot wedge against a waiting
+    // switch.
+    if (!lifetime.owns_lock())
+    {
+        return false;
+    }
+
 
 
 

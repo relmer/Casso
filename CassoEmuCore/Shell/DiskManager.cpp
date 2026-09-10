@@ -4,6 +4,7 @@
 
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Shell/MachineHost.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
@@ -30,7 +31,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskManager::DiskManager (
-    std::vector<std::unique_ptr<MemoryDevice>>      & ownedDevices,
+    MachineHost                                     & machine,
     DiskImageStore                                  & diskStore,
     std::vector<std::unique_ptr<Disk2AudioSource>> & diskAudioSources,
     WasapiAudio                                     & wasapiAudio,
@@ -42,7 +43,7 @@ DiskManager::DiskManager (
     UserConfigStore                                 & userConfigStore,
     IFileSystem                                     & fileSystem,
     std::array<bool, 2>                             & userWriteProtect)
-    : m_ownedDevices       (ownedDevices),
+    : m_machine            (machine),
       m_diskStore          (diskStore),
       m_diskAudioSources   (diskAudioSources),
       m_wasapiAudio        (wasapiAudio),
@@ -267,29 +268,18 @@ Error:
 //
 //  FindSlot6Controller
 //
-//  Scans the owned-device list for the Disk II controller. Returns
-//  nullptr if none is wired (e.g., a machine config without a disk
-//  slot).
+//  The Disk II controller the builder wired, or nullptr on a machine without
+//  one. Read off the machine's references rather than found by scanning its
+//  owned-device list: the UI thread asks every frame, and a machine switch on
+//  the CPU thread clears and refills that list while it rebuilds. Iterating a
+//  vector another thread is emptying dereferenced a freed device and took the
+//  process down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Disk2Controller * DiskManager::FindSlot6Controller()
 {
-    Disk2Controller *  result = nullptr;
-
-
-
-    for (auto & dev : m_ownedDevices)
-    {
-        result = dynamic_cast<Disk2Controller *> (dev.get());
-
-        if (result != nullptr)
-        {
-            break;
-        }
-    }
-
-    return result;
+    return m_machine.GetRefs().diskController;
 }
 
 

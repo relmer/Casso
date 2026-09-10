@@ -50,7 +50,7 @@ class IFileSystem;
 class DiskManager
 {
 public:
-    DiskManager (std::vector<std::unique_ptr<MemoryDevice>>      & ownedDevices,
+    DiskManager (class MachineHost                               & machine,
                  DiskImageStore                                  & diskStore,
                  std::vector<std::unique_ptr<Disk2AudioSource>> & diskAudioSources,
                  WasapiAudio                                     & wasapiAudio,
@@ -166,7 +166,7 @@ public:
                                        bool              & outNoPermission);
 
 private:
-    std::vector<std::unique_ptr<MemoryDevice>>      & m_ownedDevices;
+    class MachineHost                               & m_machine;
     DiskImageStore                                  & m_diskStore;
     std::vector<std::unique_ptr<Disk2AudioSource>>  & m_diskAudioSources;
     WasapiAudio                                     & m_wasapiAudio;
