@@ -14,6 +14,9 @@ Entries before versioning was introduced use dates only.
   //e Enhanced ROM.
 - `disk get --basic` now lists an Applesoft file whose recorded length runs
   past the end-of-program link. Previously, it refused the file.
+- `disk get --basic` and `disk put --basic` now pass a control character
+  inside a string, a REM or a DATA statement through as the byte Applesoft
+  stores. Previously, they refused the line.
 - Window resize now accommodates docked message bars like the disk-change
   notice.
 - Single-stepping a paused machine now advances the video timing and the //c

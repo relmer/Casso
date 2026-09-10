@@ -110,6 +110,33 @@ bool ApplesoftTokenizer::IsPrintable (char c)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplesoftTokenizer::IsStorableVerbatim
+//
+//  What a string, a REM or a DATA payload may hold. Applesoft stores a control
+//  character typed inside quotes -- a Ctrl-D in a DOS command string, a Ctrl-G
+//  bell -- and LIST writes it out as the byte it is, so a listing here does the
+//  same and reads it back the same way. Only the line's own terminators are
+//  refused: a zero ends the stored line and a CR or LF ends the text line, so
+//  neither can be a byte inside one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftTokenizer::IsStorableVerbatim (char c)
+{
+    constexpr unsigned char  kHighest = 0x7E;
+    unsigned char            u        = (unsigned char) c;
+
+
+
+    return u != 0 && u != '\r' && u != '\n' && u <= kHighest;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplesoftTokenizer::IsLowerNumbered
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -365,7 +392,7 @@ bool ApplesoftTokenizer::TryCopyQuoted (
 
     while (i < len && !closed)
     {
-        bool  printable = IsPrintable (text[i]);
+        bool  printable = IsStorableVerbatim (text[i]);
 
         if (!printable)
         {
@@ -427,9 +454,10 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
 
     while (i < len && ok)
     {
-        char  c = text[i];
+        char  c        = text[i];
+        bool  verbatim = mode != Mode::Normal;
 
-        if (!IsPrintable (c))
+        if (!(verbatim ? IsStorableVerbatim (c) : IsPrintable (c)))
         {
             outReason = "has a character with no Apple II representation";
             ok        = false;
@@ -893,7 +921,7 @@ HRESULT ApplesoftTokenizer::RenderOneLine (
             continue;
         }
 
-        if (!IsPrintable ((char) b))
+        if (!(verbatim ? IsStorableVerbatim ((char) b) : IsPrintable ((char) b)))
         {
             outReason = "has a byte no listing can show";
             ok        = false;
