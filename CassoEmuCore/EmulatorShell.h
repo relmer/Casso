@@ -485,12 +485,10 @@ private:
     // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
     // keys (menu navigation, paste); ApplyAppleModifierKeys mirrors the host
     // Alt/Shift state onto the //e Open/Closed-Apple and Shift soft switches;
-    // TryMapVkToSpecialKey and IsArrowVk are pure VK classifiers.
+    // The pure VK classifiers moved to AppleKeyMapping, where a test can
+    // reach them without a window to press keys into.
     bool        HandleHostMetaShortcut       (WPARAM vk, bool ctrlHeld, bool altHeld);
     void        ApplyAppleModifierKeys       (WPARAM vk, bool keyDown);
-    static bool TryMapVkToSpecialKey         (WPARAM vk, AppleSpecialKey & outKey);
-    static bool DoesSpecialKeySynthesizeChar (AppleSpecialKey key);
-    static bool IsArrowVk                    (WPARAM vk);
 
     // Stage the emulated joystick axes from the host arrow keys.
     void    UpdateJoystickAxesFromKeys ();

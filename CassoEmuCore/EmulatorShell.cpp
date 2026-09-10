@@ -30,6 +30,7 @@
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/FramePacing.h"
+#include "Shell/Input/AppleKeyMapping.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 
@@ -12594,86 +12595,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryMapVkToSpecialKey
-//
-//  Name the Apple key a host virtual key stands for, reporting false when it
-//  stands for none. Which code that key sends -- and whether the running
-//  machine even has it -- is the keyboard device's to answer, not the
-//  shell's, so this stops at the key's identity.
-//
-//  TAB is deliberately here rather than left to its WM_CHAR. Routed as a key
-//  it can be refused on a ][+, which has no TAB; routed as the character $09
-//  it would be indistinguishable from Ctrl+I, which that keyboard does send.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::TryMapVkToSpecialKey (WPARAM vk, AppleSpecialKey & outKey)
-{
-    bool  mapped = true;
-
-
-
-    switch (vk)
-    {
-        case VK_LEFT:   outKey = AppleSpecialKey::Left;   break;
-        case VK_RIGHT:  outKey = AppleSpecialKey::Right;  break;
-        case VK_UP:     outKey = AppleSpecialKey::Up;     break;
-        case VK_DOWN:   outKey = AppleSpecialKey::Down;   break;
-        case VK_TAB:    outKey = AppleSpecialKey::Tab;    break;
-        case VK_ESCAPE: outKey = AppleSpecialKey::Escape; break;
-        case VK_DELETE: outKey = AppleSpecialKey::Delete; break;
-
-        default:
-            mapped = false;
-            break;
-    }
-
-    return mapped;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DoesSpecialKeySynthesizeChar
-//
-//  Whether Windows also manufactures a WM_CHAR for this key, which then has
-//  to be swallowed so the key is not delivered twice -- or, on a machine that
-//  refused the key, delivered after all.
-//
-//  Only TAB ($09) and Escape ($1B) are character keys in Windows' eyes; the
-//  arrows and DELETE produce a keydown and nothing else.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::DoesSpecialKeySynthesizeChar (AppleSpecialKey key)
-{
-    return key == AppleSpecialKey::Tab || key == AppleSpecialKey::Escape;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsArrowVk
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsArrowVk (WPARAM vk)
-{
-    return vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnKeyDown
 //
 //  Skims off every keystroke the SHELL owns, then hands the rest to the guest.
@@ -12934,7 +12855,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         WPARAM           vk         = ev.vk;
         Byte             appleCode  = 0;
         AppleSpecialKey  specialKey = AppleSpecialKey::Left;
-        bool             isSpecial  = TryMapVkToSpecialKey (vk, specialKey);
+        bool             isSpecial  = AppleKeyMapping::TryMapVkToSpecialKey (vk, specialKey);
         bool             hasTheKey  = !isSpecial ||
                                       m_refs.keyboard->MapSpecialKey (specialKey) != 0;
 
@@ -12958,7 +12879,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // actually arriving: OnKeyDown clears the flag on the way in, so an
         // Alt-held TAB or Escape, whose WM_SYSCHAR never reaches OnChar,
         // cannot leave it armed for the next key.
-        if (isSpecial && DoesSpecialKeySynthesizeChar (specialKey))
+        if (isSpecial && AppleKeyMapping::DoesSpecialKeySynthesizeChar (specialKey))
         {
             m_swallowMetaChar = true;
         }
@@ -12972,7 +12893,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // game-port paddle bank present), arrow keys are withheld from the
         // keyboard latch so a held direction cannot flood $C000 and starve a
         // joystick game's reads.
-        if (!ev.repeat && isSpecial && !(driveJoystick && IsArrowVk (vk)))
+        if (!ev.repeat && isSpecial && !(driveJoystick && AppleKeyMapping::IsArrowVk (vk)))
         {
             appleCode = m_refs.keyboard->PressSpecialKey (specialKey);
 
@@ -12985,7 +12906,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // Record the last-pressed direction per axis so opposing keys
         // resolve last-pressed-wins, then re-resolve both axes from the
         // current key state.
-        if (driveJoystick && IsArrowVk (vk))
+        if (driveJoystick && AppleKeyMapping::IsArrowVk (vk))
         {
             if (vk == VK_LEFT || vk == VK_RIGHT)
             {
@@ -13014,7 +12935,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     {
         WPARAM           vk         = ev.vk;
         AppleSpecialKey  specialKey = AppleSpecialKey::Left;
-        bool             isSpecial  = TryMapVkToSpecialKey (vk, specialKey);
+        bool             isSpecial  = AppleKeyMapping::TryMapVkToSpecialKey (vk, specialKey);
         bool             hasTheKey  = !isSpecial ||
                                       m_refs.keyboard->MapSpecialKey (specialKey) != 0;
 
@@ -13040,7 +12961,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // releases the physical keys.
         ApplyAppleModifierKeys (vk, false);
 
-        if (m_arrowsJoystick && IsArrowVk (vk))
+        if (m_arrowsJoystick && AppleKeyMapping::IsArrowVk (vk))
         {
             UpdateJoystickAxesFromKeys();
         }
@@ -15645,6 +15566,8 @@ bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
     {
         { L"Disk image", L"*.dsk;*.do;*.po;*.woz" },
     };
+
+
 
     hr = CoCreateInstance (CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER,
                            IID_PPV_ARGS (&dialog));
