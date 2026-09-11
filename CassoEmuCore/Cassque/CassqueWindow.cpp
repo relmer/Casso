@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Cassque/CassqueWindow.h"
+#include "Cassque/CassqueAbout.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Cassque/CassqueShell.h"
 #include "Cassque/Model/KnownFolderStore.h"
@@ -1017,16 +1018,7 @@ void CassqueWindow::Dispatch (int id)
 
 void CassqueWindow::ShowAbout()
 {
-    int  result = 0;
-
-
-
-    result = DxuiMessageBox (GetHwnd(), m_theme,
-                             L"Cassque browses Apple II disk images.\n\n"
-                             L"The cassowary's casque is the helmet-like crest on its head. "
-                             L"Casso is named for the bird; Cassque is its casque, the part that holds what's inside.",
-                             L"About Cassque", MB_OK | MB_ICONINFORMATION);
-    IGNORE_RETURN_VALUE (result, IDOK);
+    CassqueAbout::Show (GetHwnd(), m_theme, GetModuleHandleW (nullptr));
 }
 
 

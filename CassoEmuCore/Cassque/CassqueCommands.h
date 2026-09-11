@@ -107,11 +107,12 @@ private:
         { kBack,              Menu::Go,   L"&Back",               L"Alt+Left", false },
         { kForward,           Menu::Go,   L"&Forward",            L"Alt+Right", false },
         { kUp,                Menu::Go,   L"&Up one level",       L"Alt+Up",   false },
-        { kAbout,             Menu::Help, L"&About Cassque...",   nullptr,     false },
+        { kAbout,             Menu::Help, L"&About Cassque...",   L"F1",       false },
     };
 
     static constexpr Key  kKeys[] =
     {
+        { VK_F1,    false, false, false, kAbout         },
         { VK_F5,    false, false, false, kRefresh       },
         { 'P',      false, true,  false, kTogglePreview },
         { VK_LEFT,  false, true,  false, kBack          },

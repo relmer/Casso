@@ -185,6 +185,7 @@
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
     <ClCompile Include="Cassque\CassqueMain.cpp" />
     <ClCompile Include="Cassque\CassqueShell.cpp" />
+    <ClCompile Include="Cassque\CassqueAbout.cpp" />
     <ClCompile Include="Cassque\CassqueActions.cpp" />
     <ClCompile Include="Cassque\CassqueBrowser.cpp" />
     <ClCompile Include="Cassque\CassqueCommands.cpp" />
@@ -447,6 +448,7 @@
     <ClInclude Include="Machines\Apple2\Common\Dos33Volume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
     <ClInclude Include="Cassque\CassqueShell.h" />
+    <ClInclude Include="Cassque\CassqueAbout.h" />
     <ClInclude Include="Cassque\CassqueActions.h" />
     <ClInclude Include="Cassque\CassqueBrowser.h" />
     <ClInclude Include="Cassque\CassqueCommands.h" />
