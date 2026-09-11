@@ -22,7 +22,6 @@
 // Private window messages, posted between threads and handled by the window.
 #define WM_APP_NOTIFY_USER     (WM_APP + 0x22)
 #define WM_APP_REPORT_DAMAGE   (WM_APP + 0x23)
-#define WM_APP_RUN_SALVAGE     (WM_APP + 0x24)
 #define WM_APP_MOUNT_COMPLETED (WM_APP + 0x25)
 #define WM_APP_CHANGE_REPORT   (WM_APP + 0x26)
 #define WM_APP_CHANGE_ASK      (WM_APP + 0x27)

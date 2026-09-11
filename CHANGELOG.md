@@ -31,6 +31,8 @@ Entries before versioning was introduced use dates only.
 - CassoCli now exits quietly when the program reading its output stops early,
   as `Select-Object -First` does. Previously, it aborted, and a Debug build
   raised a modal error dialog.
+- The Disk menu's "Salvage readable sectors..." items now open the salvage
+  dialog as expected.
 
 ## [1.24.2]: The one with the redist dist
 

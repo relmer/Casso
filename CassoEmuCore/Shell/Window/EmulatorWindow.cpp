@@ -2441,15 +2441,6 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    // Likewise the salvage flow: the Disk menu dispatches it from the CPU
-    // thread, and it builds a modal.
-    if (msg == WM_APP_RUN_SALVAGE)
-    {
-        RunSalvageFlow ((int) wParam);
-
-        return DxuiMessageResult::Handled;
-    }
-
     // One mount's outcome, from whichever thread ran it. Startup mounts land
     // here too, which is what keeps a bad --disk1 from raising a dialog before
     // there was a pump to run it.

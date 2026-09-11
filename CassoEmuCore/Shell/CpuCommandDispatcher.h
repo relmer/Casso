@@ -38,7 +38,6 @@ public:
     virtual void     EjectDisk                (int drive)                                       = 0;
     virtual void     SetDriveUserWriteProtect (int drive, bool wp)                              = 0;
     virtual HRESULT  ToggleImageWriteProtect  (int drive)                                       = 0;
-    virtual void     RunSalvageFlow           (int drive)                                       = 0;
     virtual void     ResolvePendingChange     (int slot, int drive, int action,
                                                const std::string & savePath)                   = 0;
     virtual void     SetDriveAudioEnabled     (bool enabled)                                    = 0;
