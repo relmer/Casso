@@ -54,7 +54,7 @@ existing test suite are its proof.
 master. The menu bar band and the toolbar band are pixel identical in each
 theme. Each open menu bar dropdown shows the same rows, checks, disabled
 rows and accelerator hints, sized to its content instead of a fixed width.
-The existing unit test suite passes with no test modified.
+The existing unit test suite passes with no behavioral assertion changed.
 
 **Acceptance Scenarios**:
 
@@ -281,7 +281,10 @@ cluster and to nothing about buttons, collapse or dropdown mechanics.
   the library's context menu call.
 - **FR-016**: The emulator's window MUST render and behave identically
   before and after, verified by captures and by the existing unit test
-  suite with no test modified.
+  suite. Existing tests that construct a removed type MUST be retyped at
+  their construction sites only; no behavioral assertion in an existing
+  test may change, and the command-table parity test MUST keep asserting
+  that every command id is present exactly once.
 - **FR-017**: Every new widget MUST be exercisable from the unit test
   project with no dependency on the emulator library.
 
@@ -304,11 +307,13 @@ cluster and to nothing about buttons, collapse or dropdown mechanics.
 
 ### Measurable Outcomes
 
-- **SC-001**: Every capture in the matrix and the menu bar and toolbar
-  bands in each theme are pixel identical between branch and master; every
-  open dropdown carries the same rows and states as master and is sized to
-  its content.
-- **SC-002**: The existing unit test suite passes with zero tests modified.
+- **SC-001**: The menu bar band and the toolbar band, cropped from the
+  matrix captures and from each theme, are pixel identical between branch
+  and master; every open dropdown carries the same rows and states as
+  master and is sized to its content.
+- **SC-002**: The existing unit test suite passes with no behavioral
+  assertion changed; the only edits are construction-site retyping where a
+  type was removed, and the parity test reading the new command table.
 - **SC-003**: A command placed in a menu, a toolbar and a context menu shows
   one enabled change in all three, in a headless test.
 - **SC-004**: A dropdown opened from a title, a picker and a point lays out

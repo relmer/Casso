@@ -73,6 +73,8 @@ Runtime per entry: `rc`, `hovered`, `pressed`, `labeled`.
 
 Validation: `custom` and `decoration` are mutually exclusive; a `Picker`
 must have items set before it opens; a `Flyout` must have a control set.
+A custom entry may carry any kind; when its `OnClick` returns false the
+widget acts on the kind, which is how a collapsed cluster opens a picker.
 
 ## Toolbar
 
@@ -90,9 +92,10 @@ or none is labeled.
 
 ## Context menu
 
-Not a type: a static call that takes a host, a point, an item list and a
-dispatch-complete callback, and drives one `DxuiDropdown` owned by the
-host window. `Disk2DebugPanel` and `InputDebugPanel` use it.
+Not a type: a static call that takes a host, a point and an item list, and
+drives one `DxuiDropdown` owned by the host window. A picked row runs its
+command; there is no completion callback. `Disk2DebugPanel` and
+`InputDebugPanel` use it.
 
 ## Emulator command table
 

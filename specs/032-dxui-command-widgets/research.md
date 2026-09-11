@@ -151,8 +151,14 @@ three themes against a master binary on the same machine; row content,
 states and row positions for each open dropdown, whose width now fits its
 content. Headless tests for command propagation, dropdown layout and
 navigation from three anchors, toolbar collapse and dispatch. Existing
-tests untouched; `DxuiMenuBarTests.cpp` must keep passing against the
-rebuilt bar, which is the strongest behavioral oracle the tree has.
+tests keep every assertion; four of them compile against types this
+feature removes and are retyped at their construction sites only:
+`DxuiMenuBarTests.cpp` (subitem aggregates), `DxuiWidgetIDxuiControlTests.cpp`
+(`DxuiPopupMenu` rows), `ChromeCommandRoutingTests.cpp` (walks the menu
+entry table; re-pointed at the new command table so its every-id-once
+assertion survives) and `MainMenuDropdownTests.cpp` (drives `MainMenu`'s
+public surface, which is preserved). The owner ruled out adapters that
+would keep the old types alive for the tests' sake.
 
 ## R10. Style constraints that bite this work
 

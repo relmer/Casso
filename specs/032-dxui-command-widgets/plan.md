@@ -37,7 +37,8 @@ paint per visible row or entry, which is the cost the menu bar already pays
 
 **Constraints**: menu bar band and toolbar band pixel identical to master
 in three themes; every open dropdown carries master's rows and states at
-the same row positions, fitted to content; no existing unit test modified; `Dxui/` includes nothing from `CassoEmuCore`
+the same row positions, fitted to content; no behavioral assertion in an
+existing unit test changed, construction sites retyped only; `Dxui/` includes nothing from `CassoEmuCore`
 
 **Scale/Scope**: three new library types, one rebuilt widget, one removed
 widget, one removed emulator class, ~2,000 lines moved, ~40 shell call
@@ -72,7 +73,8 @@ specs/032-dxui-command-widgets/
 │   ├── dxui-command.md
 │   ├── dxui-dropdown.md
 │   └── dxui-toolbar.md
-└── tasks.md              # /speckit-tasks output
+├── tasks.md              # /speckit-tasks output
+└── validation.md         # quickstart outcomes, written during Phase 7
 ```
 
 ### Source Code (repository root)
@@ -112,7 +114,12 @@ UnitTest/
 │   ├── DxuiDropdownTests.cpp          # NEW
 │   ├── DxuiToolbarTests.cpp           # NEW
 │   ├── DxuiCommandSurfacesTests.cpp   # NEW: one command, three surfaces
-│   └── DxuiMenuBarTests.cpp           # unmodified, must pass
+│   ├── DxuiMenuBarTests.cpp           # item construction retyped, assertions unchanged
+│   └── DxuiWidgetIDxuiControlTests.cpp # DxuiPopupMenu rows become DxuiDropdown + DxuiToolbar rows
+├── UiTests/
+│   ├── ChromeCommandRoutingTests.cpp  # parity walk re-pointed at EmulatorCommands
+│   ├── MainMenuDropdownTests.cpp      # drives the preserved MainMenu surface, unchanged
+│   └── ChromeToolbarPartsTests.cpp    # NEW: PrinterStatusLed color rule, InputClusterEntry segments
 └── UnitTest.vcxproj
 
 CHANGELOG.md                            # [Unreleased], Changed: one internal line
@@ -135,8 +142,9 @@ branch can merge after any of them if it has to.
    painting, with tests. `DxuiPopupMenu` still exists.
 3. **DxuiMenuBar over DxuiDropdown.** `DxuiMenuBarSubitem` becomes
    `DxuiDropdownItem` over `DxuiCommand`. `MainMenu` adapts its `s_kEntries`
-   into commands at this step so the menu bar has a consumer. Pixel check
-   of every open dropdown. `DxuiMenuBarTests.cpp` must pass unmodified.
+   into commands at this step so the menu bar has a consumer. Row check
+   of every open dropdown. `DxuiMenuBarTests.cpp` retypes its item
+   construction and must pass with no assertion changed.
 4. **DxuiContextMenu** and the two debug panels moved onto it.
    `DxuiPopupMenu` survives until step 6 because the toolbar still holds
    three.
@@ -175,7 +183,9 @@ Moved functions, in today's order: `WireMenus`, `SetPopupHost`,
 `PaintEntryIcon`, `PaintButton`, `Paint`, `StrokeCircle`,
 `PaintVolumeFlyout` as `PaintFlyout`. Input-cluster branches become the
 custom-entry delegation. Three pickers by value become one dropdown plus a
-per-picker item list.
+per-picker item list. The reopen guard is copied into the dropdown in step
+2 and the toolbar's copy deleted here, so the pickers never lose
+click-to-toggle between commits.
 
 ### EmulatorCommands
 
@@ -198,8 +208,12 @@ forty lines.
 ## Risks
 
 - **Menu bar keyboard regressions**: the most-used chrome. Mitigated by
-  `DxuiMenuBarTests.cpp` passing unmodified and the hand checks in
-  quickstart §4.
+  `DxuiMenuBarTests.cpp` and `MainMenuDropdownTests.cpp` passing with
+  every assertion unchanged, and the hand checks in quickstart §4.
+- **Losing the parity gate**: `ChromeCommandRoutingTests.cpp` is the only
+  automated check that every command id is declared once. It is
+  re-pointed at `EmulatorCommands` in the same commit that deletes the old
+  table, never left broken.
 - **Pixel drift from moved metrics**: every dp constant moves with the
   function reading it; band and dropdown crops catch a slip.
 - **Vtable churn**: `-Target Rebuild` after steps 2, 3 and 5.

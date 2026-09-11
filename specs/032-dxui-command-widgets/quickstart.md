@@ -37,7 +37,8 @@ For master and branch, in Skeuomorphic, DarkModern and RetroTerminal: open
 each top-level menu by click and capture the window. Expected: the same
 rows in the same order, the same separators, disabled rows, check marks
 and accelerator hints, at the same row height and the same top edge. The
-dropdown is narrower than master, fitted to its widest row.
+dropdown is fitted to its widest row, which for every current menu is
+narrower than master's fixed width.
 
 ## 3. What is allowed to look different
 
@@ -85,12 +86,26 @@ new files include nothing from CassoEmuCore. Required coverage:
 - `DxuiCommandTests.cpp`: defaults for absent functors; `GetLabelText` and
   `GetShortText` precedence.
 - `DxuiDropdownTests.cpp`: identical layout from `ShowUnder` and `ShowAt`
-  for one list; Down skips a separator and a disabled row and wraps; Right
-  opens a submenu, Left closes only it; closed fires before select with
-  the committed flag; a disabled command does not dispatch on Enter;
-  reopen guard swallows a show inside the close window.
-- `DxuiMenuBarTests.cpp`: existing file, unmodified, passing against the
-  rebuilt bar.
+  for one list; width fits content and grows only when a row has
+  accelerator text; a `ShowAt` near the client edge is clamped inside the
+  host rect; Down skips a separator and a disabled row and wraps; Right
+  opens a submenu with its first enabled row highlighted, hover dwell
+  opens it unhighlighted, hovering another parent row closes it, Left
+  closes only it; closed fires before select with the committed flag; a
+  disabled command does not dispatch on Enter; reopen guard swallows a
+  show inside the close window.
+- `DxuiMenuBarTests.cpp`: existing file, item construction retyped to
+  `DxuiDropdownItem` over `DxuiCommand`, every assertion unchanged,
+  passing against the rebuilt bar.
+- `DxuiWidgetIDxuiControlTests.cpp`: the three `DxuiPopupMenu` conformance
+  rows become `DxuiDropdown` rows, plus new `DxuiToolbar` rows.
+- `ChromeCommandRoutingTests.cpp`: walks `EmulatorCommands` instead of
+  the old menu table; its every-id-present and no-duplicate assertions
+  unchanged.
+- `ChromeToolbarPartsTests.cpp`: new; `PrinterStatusLed` status-to-color
+  rule for each `PrinterStatus`; `InputClusterEntry` segment hit test,
+  mode reported per segment, `OnClick` true while expanded and false
+  while collapsed.
 - `DxuiToolbarTests.cpp`: collapse order at widths fitting five, four and
   none; tooltip and anchor per entry, nullptr in a gap; dispatch fires
   once on down-and-up on one entry, not across entries, not when
@@ -111,7 +126,9 @@ scripts\RunTests.ps1 -Configuration Debug
 scripts\RunTests.ps1 -Configuration Release
 ```
 
-Expected: all pass, zero existing tests modified. Then:
+Expected: all pass. `git diff master -- UnitTest/` shows changes only in
+the four files listed in §5 and the new files, and every change in an
+existing file is a construction site, not an assertion. Then:
 
 ```powershell
 git add -A; scripts\CheckStyle.ps1 -Mode Tree
@@ -129,5 +146,5 @@ scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis
 Test-Path CassoEmuCore\Ui\Chrome\CommandToolbar.cpp; Test-Path Dxui\Widgets\DxuiPopupMenu.cpp
 ```
 
-Expected: both false. And a grep of `CassoEmuCore/Ui/Chrome` for the old
-menu entry struct and the toolbar's entry enum returns nothing.
+Expected: both false. And a grep of `CassoEmuCore/` for `CommandToolbar`,
+`MainMenuCommandEntry` and `DxuiPopupMenu` returns nothing.

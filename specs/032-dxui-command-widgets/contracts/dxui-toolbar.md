@@ -112,6 +112,14 @@ while the widget owns its place, collapse schedule, hover and press state.
 The emulator's printer LED is a decoration; its input cluster is a custom
 entry.
 
+A custom entry's `OnClick` returns true when it consumed the click. When it
+returns false the widget treats the click as a click on the entry itself
+and acts on the entry's `kind`: a `Picker` opens its item list, a
+`Command` dispatches its command. This is how the collapsed input cluster
+offers its three choices as a dropdown: the entry is a `Picker` with a
+custom entry, `OnClick` consumes segment clicks while expanded and returns
+false while collapsed.
+
 ## Dependency rule
 
 `DxuiToolbar.h/.cpp` include only `Pch.h` and Dxui headers. A grep of

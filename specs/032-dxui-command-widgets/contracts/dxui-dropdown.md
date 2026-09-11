@@ -64,8 +64,10 @@ Rules:
   glyph, disabled draws in the disabled color, an accelerator draws right
   aligned, a submenu draws the arrow.
 - **Navigation**: Up and Down skip separators and disabled rows and wrap.
-  Right on a submenu row opens the child with its first enabled row
-  highlighted. Left or Escape with a child open closes only the child.
+  Right on a submenu row, or the pointer dwelling on it, opens the child;
+  Right highlights the child's first enabled row, hover leaves it
+  unhighlighted. Left or Escape with a child open closes only the child.
+  Hovering a different row of the parent closes the child.
   Escape on the root hides uncommitted. Enter on an enabled command row
   commits. Enter on a submenu row opens it.
 - **Callbacks**: highlight change fires on every highlight move, pointer or
@@ -92,13 +94,19 @@ public:
 
 Rules: uses a dropdown owned by the host window, with the host's DPI,
 theme, text renderer and client rect. The host routes input to it while it
-is visible, which `DxuiHwndSource` already does for pooled popups.
+is visible, which `DxuiHwndSource` already does for pooled popups. There is
+no completion callback: a picked row runs its command's `dispatch`, which
+is all the two debug panels use today. `Show` is a short adapter over the
+dropdown and is covered by the dropdown's headless tests plus the panels'
+manual check, not by a test of its own.
 
 ## Menu bar
 
 `DxuiMenuBar` keeps its public surface for titles, mnemonics, open and
-close, focus and keyboard, and replaces `DxuiMenuBarItem::subitems` with
-`std::vector<DxuiDropdownItem>`. `DxuiMenuBarSubitem` is deleted. The bar
+close, focus and keyboard, and retypes `DxuiMenuBarItem::submenu` to
+`std::vector<DxuiDropdownItem>`. `DxuiMenuBarSubitem` is deleted, and the
+existing menu bar tests retype their item construction to match with no
+assertion changed. The bar
 owns one `DxuiDropdown`, shows it under the open title, swaps its items on
 Left, Right and hover-swap, and forwards Up, Down, Enter and Escape to it.
 `SetStripColors` stays; `SetDropdownColors` becomes a setter on the
