@@ -3884,7 +3884,7 @@ public:
                             != std::string::npos,
             L"the geometry is still knowable and is still worth stating");
 
-        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 carries code")
+        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 holds a boot program")
                             != std::string::npos,
             L"and so is the fact that it boots");
 
