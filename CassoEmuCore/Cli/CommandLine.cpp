@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CommandLine.h"
+#include "CliOutput.h"
 #include "HostFile.h"
 #include "UsageText.h"
 #include "As65ExitStatus.h"
@@ -111,7 +112,7 @@ void CommandLine::PrintTrailingBlankLine()
 
 
 
-    std::println (to, "");
+    CliOutput::PrintLine (to);
     std::fflush (to);
 }
 
@@ -287,7 +288,7 @@ void CommandLine::PrintUsageLine (const std::string & line)
 
     for (const std::string & row : UsageText::Wrap (line, GetUsageWidth()))
     {
-        std::println (s_pUsageStream, "{}", row);
+        CliOutput::PrintLine (s_pUsageStream, "{}", row);
     }
 }
 
@@ -347,10 +348,10 @@ void CommandLine::PrintUsageBlock (const std::string & block)
 
 void CommandLine::PrintSectionHeading (const std::string & name)
 {
-    std::println (s_pUsageStream, "");
-    std::println (s_pUsageStream, "");
-    std::println (s_pUsageStream, "{}", name);
-    std::println (s_pUsageStream, "{}", std::string (name.size(), '-'));
+    CliOutput::PrintLine (s_pUsageStream);
+    CliOutput::PrintLine (s_pUsageStream);
+    CliOutput::PrintLine (s_pUsageStream, "{}", name);
+    CliOutput::PrintLine (s_pUsageStream, "{}", std::string (name.size(), '-'));
 }
 
 
@@ -372,9 +373,9 @@ void CommandLine::PrintSectionHeading (const std::string & name)
 
 void CommandLine::PrintPageBanner (CommandLineOptions::Subcommand mode)
 {
-    std::print (s_pUsageStream, "{}", BuildBanner());
-    std::println (s_pUsageStream, "");
-    std::println (s_pUsageStream, "Usage:");
+    CliOutput::Print (s_pUsageStream, "{}", BuildBanner());
+    CliOutput::PrintLine (s_pUsageStream);
+    CliOutput::PrintLine (s_pUsageStream, "Usage:");
     PrintUsageLine (CommandLineHelp::GetUsageLine (mode));
 }
 
@@ -493,18 +494,18 @@ void CommandLine::PrintAssemblePage (char prefix)
 
 
     PrintPageBanner (CommandLineOptions::Subcommand::As65);
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine ("  <source>   An assembly source file. Given no extension, .a65, .asm and .s are tried in that order.");
 
     PrintSectionHeading ("AS65 compatibility");
     PrintUsageLine ("  This assembler is an implementation of AS65 and keeps 100% compatibility with AS65's command-line patterns, so any AS65 command line assembles here unchanged behind the `as65` word.");
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine (std::format ("  Single-letter switches chain into one argument, so {0}tlfile means {0}t {0}lfile. A switch taking a NUMBER can be followed inside the group, so {0}h80t means {0}h80 {0}t. One taking a NAME cannot, because the name would swallow whatever came after it.", sp));
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine (std::format ("  A switch value attaches directly to its switch, with no space before it: {0}dDEBUG rather than {0}d DEBUG, {0}w133 rather than {0}w 133.", sp));
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine (std::format ("  {0}o is the one switch where the space before its value is optional: {0}o prog.bin is taken as readily as {0}oprog.bin.", sp));
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     //  The longest-match rule that makes `-s2` one switch is deliberately NOT
     //  here. It only matters to a reader who thinks `-2` might be a switch of
     //  its own, and nothing in this page has given them that idea -- so stating
@@ -517,10 +518,10 @@ void CommandLine::PrintAssemblePage (char prefix)
     PrintSectionHeading ("Examples");
     PrintUsageLine (std::format ("  CassoCli as65 prog.a65 {0}x {0}dFAST=1", sp));
     PrintUsageLine ("      Assembles prog.a65 with the 65C02 opcodes available and the symbol FAST defined as 1, then writes the assembled bytes to prog.bin beside the source.");
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine (std::format ("  CassoCli as65 rom.a65 {0}orom.bin {1}flat {0}z", sp, (prefix == '/') ? "/" : "--"));
     PrintUsageLine ("      Writes rom.bin as a full 64KB image, with every byte the source did not fill set to $00 instead of $FF. That is what a ROM burner takes, and what a byte-for-byte comparison against a reference image needs.");
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine (std::format ("  CassoCli as65 prog.a65 {0}lprog.lst {0}c {0}t", sp));
     PrintUsageLine ("      Writes prog.lst alongside prog.bin: each source line with the bytes it generated and the cycles it costs, then the symbol table at the end.");
 
@@ -553,16 +554,16 @@ void CommandLine::PrintMerlinPage (char prefix)
 
 
     PrintPageBanner (CommandLineOptions::Subcommand::Merlin);
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine ("  <source>   A Merlin assembly source file. Given no extension, .a65, .asm and .s are tried in that order.");
 
     PrintSectionHeading ("Merlin directives");
     PrintUsageLine ("  Merlin uses source directives instead of cmdline switches for many options. Some important ones are:");
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine ("    XC       Select the 65C02.");
     PrintUsageLine (std::format ("    DSK      Sets the output file. {0}o overrides it.", sp));
     PrintUsageLine ("    ORG      Set the origin.");
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine ("  For more details, see docs\\Assembler.md and the Merlin documentation.");
 
     PrintSectionHeading ("Merlin options");
@@ -707,7 +708,7 @@ void CommandLine::PrintRunPage (char prefix)
 
 
     PrintPageBanner (CommandLineOptions::Subcommand::Run);
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
     PrintUsageLine ("  <binary>   An assembled image to load and execute.");
     PrintUsageLine ("  <source>   An assembly source file to assemble and then execute. Name the assembler,");
     PrintUsageLine (std::format ("             {} or {}.",
@@ -722,7 +723,7 @@ void CommandLine::PrintRunPage (char prefix)
     }
 
     PrintUsageLine (std::format ("  {0}v                     Verbose output", sp));
-    std::println (s_pUsageStream, "");
+    CliOutput::PrintLine (s_pUsageStream);
 
     //  The two dialects get a row each rather than sharing one, because what
     //  differs between them is which assembler options come along -- and that
