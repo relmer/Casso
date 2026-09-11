@@ -80,6 +80,7 @@ protected:
     void  OnWindowClose   () override;
 
     DxuiMessageResult  OnCopyData   (WPARAM sender, LPARAM data) override;
+    DxuiMessageResult  OnActivateApp (bool active) override;
     DxuiMessageResult  OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 private:
@@ -98,6 +99,9 @@ private:
     void  ShowAbout();
 
     void  ShowListContextMenu (int x, int y);
+    void  ShowTreeContextMenu (int x, int y, const std::wstring & id);
+    void  ChangeKnownFolder   (const std::wstring & folder, bool add);
+    void  RebuildTree();
     void  RunVerb             (CassqueActions::Verb verb);
     void  ReportOutcome       (const CassqueActions::Outcome & outcome, const wchar_t * verbName);
     void  InsertIntoDrive     (const std::wstring & imagePath, int drive);

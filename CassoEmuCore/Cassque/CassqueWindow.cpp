@@ -654,6 +654,20 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
             SetFocusPane (Pane::Tree);
         }
 
+        if (press && ev.button == DxuiMouseButton::Right)
+        {
+            DxuiMouseEvent  left = ev;
+
+            left.button = DxuiMouseButton::Left;
+            left.kind   = DxuiMouseEventKind::Down;
+            m_tree->OnMouse (left);
+            left.kind   = DxuiMouseEventKind::Up;
+            m_tree->OnMouse (left);
+
+            ShowTreeContextMenu (point.x, point.y, m_tree->GetHighlightedId());
+            return true;
+        }
+
         m_tree->OnMouse (ev);
         Invalidate();
         return true;
@@ -1412,4 +1426,160 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     Invalidate();
 
     return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowTreeContextMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowTreeContextMenu (int x, int y, const std::wstring & id)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    std::wstring                    folder;
+    std::unique_ptr<DxuiCommand>    command;
+
+
+
+    m_menuCommands.clear();
+
+    if (!m_browser.TryGetNodePath (id, folder))
+    {
+        return;
+    }
+
+    command = std::make_unique<DxuiCommand>();
+
+    if (m_browser.CanRemoveFromCasso (id))
+    {
+        command->label    = L"&Remove from Casso";
+        command->dispatch = [this, folder]() { ChangeKnownFolder (folder, false); };
+    }
+    else if (m_browser.CanAddToCasso (id))
+    {
+        command->label    = L"&Add to Casso";
+        command->dispatch = [this, folder]() { ChangeKnownFolder (folder, true); };
+    }
+    else
+    {
+        return;
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+    m_menuCommands.push_back (std::move (command));
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ChangeKnownFolder
+//
+//  The shared file is changed under its lock, then read back whole, so a
+//  folder Casso recorded in the meantime shows too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ChangeKnownFolder (const std::wstring & folder, bool add)
+{
+    HRESULT                               hr = S_OK;
+    std::vector<KnownFolderStore::Entry>  entries;
+    std::vector<std::wstring>             folders;
+
+
+
+    if (m_context.fs == nullptr)
+    {
+        return;
+    }
+
+    KnownFolderStore  store (*m_context.fs, m_context.baseDir);
+
+    hr = add ? store.Append (folder, (int64_t) _time64 (nullptr)) : store.Remove (folder);
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"Casso's folder list could not be changed.", MB_ICONERROR);
+        return;
+    }
+
+    hr = store.Load (entries);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const KnownFolderStore::Entry & entry : entries)
+    {
+        folders.push_back (entry.path);
+    }
+
+    m_browser.GetTreeModel().SetKnownFolders (folders);
+    RebuildTree();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RebuildTree
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::RebuildTree()
+{
+    std::vector<DxuiTreeNode>  roots;
+
+
+
+    m_browser.GetTreeModel().InvalidateAll();
+    m_browser.GetTreeRoots (roots);
+    m_tree->SetNodes (std::move (roots));
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::OnActivateApp
+//
+//  Coming back to the window rereads what it shows, since another window,
+//  Casso or Explorer may have changed it meanwhile. The selection is kept by
+//  name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassqueWindow::OnActivateApp (bool active)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    //  Follow system has no settings-change message to wait for here, so the
+    //  Windows mode is read again whenever the window comes back.
+    if (active && m_menuBar != nullptr && !IsChecked (CassqueCommands::kThemeLight) && !IsChecked (CassqueCommands::kThemeDark))
+    {
+        DxuiWindowsThemeColors::Instance().Refresh();
+        ApplyTheme();
+    }
+
+    if (active && m_list != nullptr && m_browser.GetBrowserModel().HasTabs())
+    {
+        hr = m_browser.Reload (true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        FillList();
+    }
+
+    return DxuiMessageResult::NotHandled;
 }

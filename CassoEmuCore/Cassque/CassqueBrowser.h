@@ -67,6 +67,17 @@ public:
     //  Loads the active tab's location into rows, applying its sort.
     HRESULT  Refresh();
 
+    //  Rereads the location, dropping every cached catalog, and reselects
+    //  the rows whose names were selected, for a return to the window after
+    //  another program may have changed what it shows.
+    HRESULT  Reload (bool keepSelection);
+
+    //  What the tree's context menu can do with a node: add a host folder to
+    //  Casso's known folders, or remove a known folder from them.
+    bool  CanAddToCasso      (const std::wstring & id) const;
+    bool  CanRemoveFromCasso (const std::wstring & id) const;
+    bool  TryGetNodePath     (const std::wstring & id, std::wstring & outPath) const;
+
     //  Opens a folder or disk image row in place, as a double-click does.
     //  False, with nothing changed, for a row that is neither.
     bool  OpenRow (int row);
@@ -122,7 +133,7 @@ public:
 
 private:
     //  Refresh for a navigation, whose failure is already in the list error.
-    void     Reload();
+    void     ReloadAfterNavigation();
     HRESULT  LoadHostFolder (const std::wstring & path);
     HRESULT  LoadRoot       (const std::wstring & id);
     HRESULT  LoadImage      (const std::wstring & path);

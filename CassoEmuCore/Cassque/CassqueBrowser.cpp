@@ -257,11 +257,11 @@ HRESULT CassqueBrowser::Refresh()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassqueBrowser::Reload
+//  CassqueBrowser::ReloadAfterNavigation
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassqueBrowser::Reload()
+void CassqueBrowser::ReloadAfterNavigation()
 {
     HRESULT  hr = Refresh();
 
@@ -960,7 +960,7 @@ bool CassqueBrowser::OpenRow (int row)
     }
 
     m_model.NavigateTo (target);
-    Reload();
+    ReloadAfterNavigation();
 
     return true;
 }
@@ -1030,7 +1030,7 @@ bool CassqueBrowser::GoUp()
     }
 
     m_model.NavigateTo (target);
-    Reload();
+    ReloadAfterNavigation();
 
     return true;
 }
@@ -1052,7 +1052,7 @@ bool CassqueBrowser::GoBack()
         return false;
     }
 
-    Reload();
+    ReloadAfterNavigation();
 
     return true;
 }
@@ -1074,7 +1074,7 @@ bool CassqueBrowser::GoForward()
         return false;
     }
 
-    Reload();
+    ReloadAfterNavigation();
 
     return true;
 }
@@ -1164,4 +1164,118 @@ bool CassqueBrowser::AreSelectedRowsImages() const
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::Reload
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassqueBrowser::Reload (bool keepSelection)
+{
+    HRESULT                    hr = S_OK;
+    std::vector<std::wstring>  names;
+    std::vector<int>           rows;
+
+
+
+    for (int row : m_selectedRows)
+    {
+        names.push_back (m_rows[row].name);
+    }
+
+    m_model.InvalidateAllCatalogs();
+    hr = Refresh();
+
+    if (!keepSelection || names.empty())
+    {
+        return hr;
+    }
+
+    for (size_t row = 0; row < m_rows.size(); row++)
+    {
+        if (std::find (names.begin(), names.end(), m_rows[row].name) != names.end())
+        {
+            rows.push_back ((int) row);
+        }
+    }
+
+    SetSelectedRows (rows);
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::TryGetNodePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::TryGetNodePath (const std::wstring & id, std::wstring & outPath) const
+{
+    auto  found = m_nodes.find (id);
+
+
+
+    if (found == m_nodes.end() || found->second.location.kind != Location::Kind::HostFolder)
+    {
+        return false;
+    }
+
+    outPath = found->second.location.path;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::CanAddToCasso
+//
+//  Any host folder that is not already known, wherever it shows in the tree.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::CanAddToCasso (const std::wstring & id) const
+{
+    auto  found = m_nodes.find (id);
+
+
+
+    return found != m_nodes.end()
+        && found->second.location.kind == Location::Kind::HostFolder
+        && found->second.kind != TreeNode::Kind::KnownFolder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::CanRemoveFromCasso
+//
+//  A known folder, whether or not it is still there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::CanRemoveFromCasso (const std::wstring & id) const
+{
+    auto  found = m_nodes.find (id);
+
+
+
+    return found != m_nodes.end() && found->second.kind == TreeNode::Kind::KnownFolder;
 }

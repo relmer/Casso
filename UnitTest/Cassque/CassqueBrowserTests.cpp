@@ -342,6 +342,44 @@ public:
     }
 
 
+    TEST_METHOD (Reload_KeepsTheSelectionByName)
+    {
+        Host          host;
+        std::wstring  folder = host.OpenDisksFolder();
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
+
+        AssertSucceeded (host.browser.Reload (true));
+
+        Assert::AreEqual ((size_t) 1, host.browser.GetSelectedRows().size());
+        Assert::AreEqual (std::wstring (L"NOTES"), host.browser.GetRows()[host.browser.GetSelectedRows()[0]].name);
+
+        AssertSucceeded (host.browser.Reload (false));
+        Assert::IsTrue (host.browser.GetSelectedRows().empty());
+    }
+
+
+    TEST_METHOD (KnownFolders_CanBeRemovedAndOtherFoldersAdded)
+    {
+        Host                       host;
+        std::vector<DxuiTreeNode>  roots;
+        std::wstring               known;
+        std::wstring               path;
+
+        host.browser.GetTreeRoots (roots);
+        known = host.browser.GetTreeChildren (roots[0].id)[0].id;
+
+        Assert::IsTrue  (host.browser.CanRemoveFromCasso (known));
+        Assert::IsFalse (host.browser.CanAddToCasso (known));
+        Assert::IsTrue  (host.browser.TryGetNodePath (known, path));
+        Assert::AreEqual (std::wstring (kDisks), path);
+
+        Assert::IsFalse (host.browser.CanRemoveFromCasso (roots[0].id));
+        Assert::IsFalse (host.browser.CanAddToCasso (roots[1].id));
+    }
+
+
     TEST_METHOD (Formatting)
     {
         Assert::AreEqual (std::wstring (L"777 bytes"), CassqueBrowser::FormatSize (777));
