@@ -20,7 +20,7 @@
 
 struct EmulatorCommand
 {
-    WORD         id;
+    WORD         id = 0;
     std::string  payload;
 };
 

@@ -22,7 +22,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MachineHost::MachineHost()
+MachineHost::MachineHost() :
+    m_memoryBus (std::make_unique<MemoryBus>()),
+    m_charRom   (std::make_unique<CharacterRomData>()),
+    m_diskStore (std::make_unique<DiskImageStore>()),
+    m_config    (std::make_unique<MachineConfig>())
 {
 }
 
@@ -251,7 +255,7 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 
 void MachineHost::SoftReset()
 {
-    m_memoryBus.SoftResetAll();
+    m_memoryBus->SoftResetAll();
 
     if (m_mmu != nullptr)
     {
@@ -307,10 +311,10 @@ void MachineHost::PowerCycle()
     // DiskImageStore::SoftReset semantics -- see the comment block on
     // DiskImageStore::PowerCycle, which is the unmount-everything variant
     // tests can opt into directly).
-    hrFlush = m_diskStore.FlushAll();
+    hrFlush = m_diskStore->FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
-    m_memoryBus.PowerCycleAll (*m_prng);
+    m_memoryBus->PowerCycleAll (*m_prng);
 
     if (m_mmu != nullptr)
     {

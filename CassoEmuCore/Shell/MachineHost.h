@@ -109,14 +109,14 @@ public:
     MachineHost                (const MachineHost &) = delete;
     MachineHost & operator=    (const MachineHost &) = delete;
 
-    //  The bus and the fixed plumbing every machine has. These are values,
-    //  not pointers: a machine without a bus is not a state this class can
-    //  be in.
-    MemoryBus            &  GetMemoryBus           () noexcept { return m_memoryBus; }
+    //  The bus and the fixed plumbing every machine has. Always present: a
+    //  machine without a bus is not a state this class can be in. (The bus
+    //  sits on the heap for its size, not because it can be absent.)
+    MemoryBus            &  GetMemoryBus           () noexcept { return *m_memoryBus; }
     ComponentRegistry    &  GetRegistry            () noexcept { return m_registry; }
     InterruptController  &  GetInterruptController () noexcept { return m_interruptController; }
 
-    const MemoryBus            &  GetMemoryBus           () const noexcept { return m_memoryBus; }
+    const MemoryBus            &  GetMemoryBus           () const noexcept { return *m_memoryBus; }
     const ComponentRegistry    &  GetRegistry            () const noexcept { return m_registry; }
     const InterruptController  &  GetInterruptController () const noexcept { return m_interruptController; }
 
@@ -156,13 +156,13 @@ public:
     const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () const noexcept { return m_ownedAciaEndpoints; }
     const std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () const noexcept { return m_videoModes; }
 
-    CharacterRomData  &  GetCharacterRom () noexcept { return m_charRom; }
-    DiskImageStore    &  GetDiskStore    () noexcept { return m_diskStore; }
-    MachineConfig     &  GetConfig       () noexcept { return m_config; }
+    CharacterRomData  &  GetCharacterRom () noexcept { return *m_charRom; }
+    DiskImageStore    &  GetDiskStore    () noexcept { return *m_diskStore; }
+    MachineConfig     &  GetConfig       () noexcept { return *m_config; }
 
-    const CharacterRomData  &  GetCharacterRom () const noexcept { return m_charRom; }
-    const DiskImageStore    &  GetDiskStore    () const noexcept { return m_diskStore; }
-    const MachineConfig     &  GetConfig       () const noexcept { return m_config; }
+    const CharacterRomData  &  GetCharacterRom () const noexcept { return *m_charRom; }
+    const DiskImageStore    &  GetDiskStore    () const noexcept { return *m_diskStore; }
+    const MachineConfig     &  GetConfig       () const noexcept { return *m_config; }
 
     //  Raw pointers into the two collections above, reset whenever either is
     //  rebuilt. See MachineRefs.
@@ -227,7 +227,9 @@ public:
 
 private:
 
-    MemoryBus            m_memoryBus;
+    // 4K of page tables; on the heap, see m_diskStore.
+    std::unique_ptr<MemoryBus>  m_memoryBus;
+
     ComponentRegistry    m_registry;
     InterruptController  m_interruptController;
 
@@ -238,7 +240,8 @@ private:
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;
     std::vector<std::unique_ptr<VideoOutput>>    m_videoModes;
 
-    CharacterRomData  m_charRom;
+    // 4K of glyphs; on the heap, see m_diskStore.
+    std::unique_ptr<CharacterRomData>  m_charRom;
 
     SoftSwitchMirror  m_softSwitches;
 
@@ -251,8 +254,11 @@ private:
     std::unique_ptr<AppleMouse>      m_mouse;
     std::unique_ptr<VideoTiming>     m_videoTiming;
 
-    DiskImageStore  m_diskStore;
-    MachineConfig   m_config;
+    // On the heap: together they are most of the host's size, and a test
+    // that builds two machines on the stack must stay under the analyzer's
+    // frame budget.
+    std::unique_ptr<DiskImageStore>  m_diskStore;
+    std::unique_ptr<MachineConfig>   m_config;
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;
