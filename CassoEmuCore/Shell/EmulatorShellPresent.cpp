@@ -555,6 +555,7 @@ bool EmulatorShell::TryPresentUiFrame()
     bool     didPresent                = false;
     bool     anyDriveLive              = false;
     bool     framebufferDirtyThisFrame = false;
+    bool     wpMoved                   = false;
     uint32_t driveSig                  = 0;
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
 
@@ -712,6 +713,28 @@ bool EmulatorShell::TryPresentUiFrame()
         }
     }
 
+    // The padlock coming or going wants a frame, and it is the one drive cue
+    // that nothing else asks for one about: a mount rolls the label, activity
+    // fades, a door swings, but write-protecting a disk moves no pixel the
+    // machine owns. Left to the next unrelated redraw, the padlock appeared
+    // whenever something else happened to repaint -- a theme hover, a
+    // resize -- which read as the click not having worked.
+    //
+    // BOTH PRESENTATIONS, so it sits above the scene branch: the 2D widget
+    // paints its own badge, and in the scene the padlock is a glyph on the
+    // front of the disk's NAME, which is re-hung below.
+    for (int i = 0; i < (int) m_driveWpShown.size(); i++)
+    {
+        bool  wp = m_driveWidgetState[i].writeProtect.Any();
+
+        if (wp != m_driveWpShown[i])
+        {
+            m_driveWpShown[i] = wp;
+            m_d3dRenderer.MarkRedrawNeeded();
+            wpMoved = true;
+        }
+    }
+
     // 3D scene drive visuals: activity lamp, door swing, and the padlock,
     // pushed from the same per-drive state the 2D widgets mirror. The scene
     // only rebuilds geometry when a value actually moved.
@@ -740,11 +763,12 @@ bool EmulatorShell::TryPresentUiFrame()
             m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
         }
 
-        // A mount or eject changes the basename strip under the drive, and
-        // neither runs a layout pass -- so watch the source paths here and
-        // re-hang the labels (with their text measurement) only on a change.
+        // A mount or eject changes the basename strip under the drive, and so
+        // does write-protecting the disk, since the padlock is a glyph at the
+        // head of that name. Neither runs a layout pass, so watch both here
+        // and re-hang the labels (with their text measurement) on a change.
         {
-            bool  labelsMoved = false;
+            bool  labelsMoved = wpMoved;
 
             for (int i = 0; i < (int) m_sceneLabelPath.size(); i++)
             {

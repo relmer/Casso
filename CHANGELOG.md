@@ -30,6 +30,8 @@ Entries before versioning was introduced use dates only.
 
 - Fixed bug preventing write-enabling images that rely on +R attribute for
   write protection.
+- The padlock on a drive appears and clears as soon as the disk is
+  write-protected or write-enabled, rather than at the next repaint.
 - CassoCli now exits quietly when the program reading its output stops early,
   as `Select-Object -First` does. Previously, it aborted, and a Debug build
   raised a modal error dialog.

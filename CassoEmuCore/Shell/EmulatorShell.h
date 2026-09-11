@@ -1532,6 +1532,11 @@ private:
     // filesystem parsing or text measurement.
     std::array<std::string, 2>  m_sceneLabelPath;
 
+    // The padlock each drive last showed, 2D widget or 3D drive. Write
+    // protection moves no pixel the machine owns, so the frame that shows it
+    // has to be asked for; see the guard in the present path.
+    std::array<bool, 2>         m_driveWpShown = {};
+
     // "Press Esc to release the mouse and exit paddle mode", on screen for as
     // long as the capture holds. The joystick button carries the same words, but
     // it is chrome: fullscreen hides it, and a captured pointer with the
