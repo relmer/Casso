@@ -29,7 +29,7 @@ Two findings change delivery order and need the owner's attention:
 
 **Project Type**: Desktop application (emulator)
 
-**Performance Goals**: DirectInput devices read on their own change events; XInput polled at the measured packet rate (R13; provisional 8 ms, unmeasured); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: the thread idles on its message wait and rechecks empty XInput slots once per second)
+**Performance Goals**: DirectInput devices read on their own change events; XInput polled at the measured packet rate (R13; provisional 8 ms, unmeasured); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: with nothing connected the thread waits with no timeout; controllers are found by HID arrival notifications, never by polling empty slots)
 
 **Constraints**: no redistributables; no real device access in unit tests; no undocumented API on a required path (`XInputGetCapabilitiesEx` is optional with fallback, R6); input applies only while Casso is active, and Xbox-class controllers always use XInput (FR-033)
 
@@ -137,7 +137,7 @@ Each slice leaves the build green and is committed on its own (constitution: com
 
 | # | Slice | Depends on | Stories | Notes |
 |---|---|---|---|---|
-| 0 | **Hardware check**: throwaway probe (not committed) reading XInput and DirectInput from a worker thread; measures report rate per controller and whether XInput delivers while a second top-level window of the process is active | none | gate | Records R2 and R13 outcomes |
+| 0 | **Hardware check**: throwaway probe (not committed) reading XInput and DirectInput from a worker thread; measures the XInput packet rate, confirms DirectInput change events, confirms wireless Xbox power on/off raises HID notifications, and checks whether XInput delivers while a second top-level window of the process is active | none | gate | Records R2, R4 and R13 outcomes |
 | 1 | **Mixer**: `GamePortInputMixer`, `MachineGamePortSink`, migrate every existing writer | none | FR-014 | Pure refactor for existing behavior; existing input tests unchanged |
 | 2 | **Backend + decoders**: seam, Win32 backend, decoders, controller thread, hot-plug | 0 | FR-001, FR-002, FR-015 | |
 | 3 | **Play (MVP)**: default mapping, deadzone, evaluator, service, automatic selection, disconnect fallback, notice, per-machine persistence | 1, 2 | US1, US2 (auto), US3, FR-032, FR-033 | Usable end to end with no UI |

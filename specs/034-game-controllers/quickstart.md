@@ -30,7 +30,8 @@ Research R2 and R13 depend on it. It uses a throwaway probe, not Casso.
 
 1. **XInput packet rate**: for the Xbox controller wired and wireless (or Bluetooth), call `XInputGetState` in a tight loop for 10 seconds while moving the stick continuously, and count `dwPacketNumber` changes per second. Record the numbers in R13 and set the poll period from the fastest.
 2. **DirectInput events**: confirm `SetEventNotification` fires on stick movement for the DirectInput device, and whether it reports `DIDC_POLLEDDEVICE`.
-3. **Second window**: with the probe's main window active, open a second top-level window of the same process and activate it. **Pass**: XInput readings keep changing. **Fail**: they freeze; record it in R2, and the Controllers page shows Xbox controllers as paused while the Settings sheet is active.
+3. **Wireless arrival**: with the probe registered for HID notifications, power a wireless Xbox controller on and off through each receiver available (Xbox wireless adapter, Bluetooth, Xbox 360 receiver). **Pass**: an arrival and a removal notification each time. **Fail**: record the receiver's vendor and product ID in R4; the slot recheck fallback applies only while it is attached.
+4. **Second window**: with the probe's main window active, open a second top-level window of the same process and activate it. **Pass**: XInput readings keep changing. **Fail**: they freeze; record it in R2, and the Controllers page shows Xbox controllers as paused while the Settings sheet is active.
 
 ## 3. Game port readout program
 
