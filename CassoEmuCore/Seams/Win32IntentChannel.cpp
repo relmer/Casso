@@ -359,10 +359,16 @@ bool Win32IntentChannel::Decode (const Byte * bytes, size_t byteCount, Payload &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IntentBroadcast
+{
+    COPYDATASTRUCT  data   = {};
+    HWND            sender = nullptr;
+};
+
 static BOOL CALLBACK SendToOneWindow (HWND window, LPARAM context)
 {
     wchar_t                  className[64] = {};
-    const COPYDATASTRUCT *   data          = reinterpret_cast<const COPYDATASTRUCT *> (context);
+    const IntentBroadcast *  broadcast     = reinterpret_cast<const IntentBroadcast *> (context);
     DWORD_PTR                result        = 0;
     LRESULT                  delivered     = 0;
 
@@ -385,8 +391,8 @@ static BOOL CALLBACK SendToOneWindow (HWND window, LPARAM context)
     //  A FAILED SEND IS NOT REPORTED ANYWHERE, and that is the contract: an
     //  emulator that did not take the hint falls back to asking, which is
     //  correct behavior rather than an error a build should care about.
-    delivered = SendMessageTimeoutW (window, WM_COPYDATA, 0,
-                                     reinterpret_cast<LPARAM> (data),
+    delivered = SendMessageTimeoutW (window, WM_COPYDATA, (WPARAM) broadcast->sender,
+                                     reinterpret_cast<LPARAM> (&broadcast->data),
                                      SMTO_ABORTIFHUNG | SMTO_NORMAL,
                                      Win32IntentChannel::kSendTimeoutMs, &result);
 
@@ -421,7 +427,7 @@ static BOOL CALLBACK SendToOneWindow (HWND window, LPARAM context)
 void Win32IntentChannel::StateIntent (const std::string & imagePath, ExternalChangeIntent intent)
 {
     std::vector<Byte>  bytes      = Encode (imagePath, intent);
-    COPYDATASTRUCT     data       = {};
+    IntentBroadcast    broadcast;
     BOOL               enumerated = FALSE;
 
 
@@ -431,11 +437,12 @@ void Win32IntentChannel::StateIntent (const std::string & imagePath, ExternalCha
         return;
     }
 
-    data.dwData = GetMessageId();
-    data.cbData = (DWORD) bytes.size();
-    data.lpData = bytes.data();
+    broadcast.data.dwData = GetMessageId();
+    broadcast.data.cbData = (DWORD) bytes.size();
+    broadcast.data.lpData = bytes.data();
+    broadcast.sender      = m_sender;
 
-    enumerated = EnumWindows (SendToOneWindow, reinterpret_cast<LPARAM> (&data));
+    enumerated = EnumWindows (SendToOneWindow, reinterpret_cast<LPARAM> (&broadcast));
 
     IGNORE_RETURN_VALUE (enumerated, TRUE);
 

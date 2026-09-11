@@ -127,7 +127,14 @@ public:
 
     void  StateIntent (const std::string & imagePath, ExternalChangeIntent intent) override;
 
+    //  The window a broadcast names as its sender, so each emulator answers
+    //  it; null, the default, asks for no answer.
+    void  SetSender (HWND sender) { m_sender = sender; }
+
     //  One message to one window, carrying `sender` as its `wParam`. False when
     //  the window did not take it within the timeout.
     static bool  SendTo (HWND target, HWND sender, ULONG_PTR messageId, const std::vector<Byte> & bytes);
+
+private:
+    HWND  m_sender = nullptr;
 };

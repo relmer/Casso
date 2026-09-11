@@ -402,6 +402,10 @@ HRESULT CassqueShell::Initialize (HINSTANCE instance, const CassqueLaunchOptions
     hr = m_window->Open (instance, ComposeTitle (m_options.titlePrefix), showCommand);
     CHR (hr);
 
+    //  A reload a write asks for names this window, so a conflict or a
+    //  refusal comes back to be shown.
+    m_intentChannel.SetSender (m_window->GetHwnd());
+
     if (m_options.hasOwner)
     {
         result = SetPropW (m_window->GetHwnd(), kOwnerProperty, (HANDLE) m_options.owner);
