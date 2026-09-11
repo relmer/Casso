@@ -118,6 +118,7 @@ private:
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
     void  RebuildTree();
     void  RunVerb             (CassqueActions::Verb verb);
+    void  RunRawVerb          (CassqueActions::Verb verb);
     void  ReportOutcome       (const CassqueActions::Outcome & outcome, const wchar_t * verbName);
     void  InsertIntoDrive     (const std::wstring & imagePath, int drive);
     void  OpenInNewCasso      (const std::wstring & imagePath);

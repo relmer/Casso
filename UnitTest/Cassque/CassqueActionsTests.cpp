@@ -351,6 +351,35 @@ public:
     }
 
 
+    TEST_METHOD (Numbers_ParseSpacesAndCommas)
+    {
+        std::vector<int>  numbers;
+
+        Assert::IsTrue   (CassqueActions::TryParseNumbers (L"17 0 2", 2, numbers));
+        Assert::AreEqual ((size_t) 3, numbers.size());
+        Assert::AreEqual (17, numbers[0]);
+        Assert::IsTrue   (CassqueActions::TryParseNumbers (L"17,0", 2, numbers));
+        Assert::IsFalse  (CassqueActions::TryParseNumbers (L"17", 2, numbers));
+        Assert::IsFalse  (CassqueActions::TryParseNumbers (L"1 2 3 4", 1, numbers));
+        Assert::IsFalse  (CassqueActions::TryParseNumbers (L"17 x", 1, numbers));
+    }
+
+
+    TEST_METHOD (Sectors_RoundTripThroughAHostFile)
+    {
+        Host  host;
+
+        host.OpenImage();
+
+        Assert::IsTrue (host.actions.ReadSectors (17, 0, 1, L"C:\\Out\\vtoc.sec").Succeeded());
+        Assert::IsTrue (host.io.files.count ("C:\\Out\\vtoc.sec") == 1);
+        Assert::AreEqual ((size_t) 256, host.io.files["C:\\Out\\vtoc.sec"].size());
+
+        Assert::IsTrue   (host.actions.WriteSectors (20, 5, L"C:\\Out\\vtoc.sec").Succeeded());
+        Assert::AreEqual ((size_t) 1, host.written.size());
+    }
+
+
     TEST_METHOD (Put_OutsideAnImage_IsRefused)
     {
         Host  host;

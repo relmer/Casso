@@ -47,6 +47,10 @@ public:
         OpenInNewCasso,
         NewDisk,
         Format,
+        ReadSectors,
+        WriteSectors,
+        ReadBlocks,
+        WriteBlocks,
         Refresh,
     };
 
@@ -102,8 +106,21 @@ public:
     //  shows. Everything on it is lost.
     Outcome  FormatImage (const DiskOperations::NewDiskRequest & request);
 
-    //  The image a format would act on, or empty.
+    //  The image a format would act on, or empty. The raw sector and block
+    //  verbs act on the same image.
     std::wstring  GetFormatTarget() const;
+
+    //  Raw access through the runner's sector and block verbs. Sectors are
+    //  numbered as DOS 3.3 numbers them.
+    Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath);
+    Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath);
+    Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath);
+    Outcome  WriteBlocks  (int block, const std::wstring & hostPath);
+
+    //  Up to three whole numbers separated by spaces or commas, as typed into
+    //  the raw verbs' prompts. Fewer than `required` fails; a missing count
+    //  is one.
+    static bool  TryParseNumbers (const std::wstring & text, size_t required, std::vector<int> & outNumbers);
 
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
 

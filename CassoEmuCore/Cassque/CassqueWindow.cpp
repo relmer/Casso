@@ -1125,6 +1125,10 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
         case CassqueActions::Verb::OpenInNewCasso: return L"Open in &new Casso";
         case CassqueActions::Verb::NewDisk:        return L"New disk &image...";
         case CassqueActions::Verb::Format:         return L"&Format disk image...";
+        case CassqueActions::Verb::ReadSectors:    return L"Read &sectors to file...";
+        case CassqueActions::Verb::WriteSectors:   return L"&Write sectors from file...";
+        case CassqueActions::Verb::ReadBlocks:     return L"Read &blocks to file...";
+        case CassqueActions::Verb::WriteBlocks:    return L"Write b&locks from file...";
         case CassqueActions::Verb::Refresh:        return L"&Refresh";
         default:                                   return L"";
     }
@@ -1174,6 +1178,29 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
         m_menuCommands.push_back (std::move (command));
+
+        if (verb == CassqueActions::Verb::Format)
+        {
+            std::vector<DxuiPopupMenuItem>  advanced;
+            std::unique_ptr<DxuiCommand>    parent = std::make_unique<DxuiCommand>();
+
+            for (CassqueActions::Verb raw : { CassqueActions::Verb::ReadSectors, CassqueActions::Verb::WriteSectors,
+                                              CassqueActions::Verb::ReadBlocks,  CassqueActions::Verb::WriteBlocks })
+            {
+                std::unique_ptr<DxuiCommand>  child = std::make_unique<DxuiCommand>();
+
+                child->id       = (int) raw;
+                child->label    = GetVerbLabel (raw);
+                child->dispatch = [this, raw]() { RunRawVerb (raw); };
+
+                advanced.push_back (DxuiPopupMenuItem::ForCommand (child.get()));
+                m_menuCommands.push_back (std::move (child));
+            }
+
+            parent->label = L"&Advanced";
+            items.push_back (DxuiPopupMenuItem::ForSubmenu (parent.get(), std::move (advanced)));
+            m_menuCommands.push_back (std::move (parent));
+        }
     }
 
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
@@ -1961,4 +1988,100 @@ void CassqueWindow::AskCassoToDescribe()
 
     sent = Win32IntentChannel::SendTo (target, GetHwnd(), Win32IntentChannel::GetMessageId(), Win32IntentChannel::EncodeDescribe());
     IGNORE_RETURN_VALUE (sent, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RunRawVerb
+//
+//  A read asks where the bytes start and how many, then where to save them;
+//  a write asks for the file, then where it goes, then confirms, since it
+//  overwrites whatever is there with no file system to stop it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::RunRawVerb (CassqueActions::Verb verb)
+{
+    HRESULT                  hr       = S_OK;
+    bool                     sectors  = verb == CassqueActions::Verb::ReadSectors || verb == CassqueActions::Verb::WriteSectors;
+    bool                     reading  = verb == CassqueActions::Verb::ReadSectors || verb == CassqueActions::Verb::ReadBlocks;
+    std::wstring             text     = sectors ? L"17 0 1" : L"2 1";
+    std::wstring             prompt;
+    std::vector<int>         numbers;
+    std::filesystem::path    picked;
+    bool                     chosen   = false;
+    FileDialogSpec           spec;
+    int                      answer   = 0;
+    CassqueActions::Outcome  outcome;
+
+
+
+    if (m_actions.GetFormatTarget().empty())
+    {
+        return;
+    }
+
+    if (!reading)
+    {
+        hr = m_dialogs.PickFileToOpen (GetHwnd(), spec, picked, chosen);
+
+        if (FAILED (hr) || !chosen)
+        {
+            return;
+        }
+
+        text = sectors ? L"17 0" : L"2";
+    }
+
+    prompt = sectors ? (reading ? L"Track, sector and count:" : L"Track and sector to write at:")
+                     : (reading ? L"Block and count:"         : L"Block to write at:");
+
+    do
+    {
+        if (!CassquePromptDialog::Ask (GetHwnd(), m_theme, GetVerbLabel (verb), prompt, text, 16, text))
+        {
+            return;
+        }
+    }
+    while (!CassqueActions::TryParseNumbers (text, sectors ? 2 : 1, numbers));
+
+    numbers.resize (3, 1);
+
+    if (reading)
+    {
+        spec.defaultFileName  = sectors ? L"sectors.bin" : L"blocks.bin";
+        spec.defaultExtension = L"bin";
+
+        hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, chosen);
+
+        if (FAILED (hr) || !chosen)
+        {
+            return;
+        }
+
+        outcome = sectors ? m_actions.ReadSectors (numbers[0], numbers[1], numbers[2], picked.wstring())
+                          : m_actions.ReadBlocks  (numbers[0], numbers[1], picked.wstring());
+
+        ReportOutcome (outcome, reading ? L"Read" : L"Write");
+        return;
+    }
+
+    answer = DxuiMessageBox (GetHwnd(), m_theme,
+                             L"Write the file's bytes straight onto the disk image? What is there now is overwritten.",
+                             GetVerbLabel (verb), MB_YESNO | MB_ICONWARNING);
+
+    if (answer != IDYES)
+    {
+        return;
+    }
+
+    outcome = sectors ? m_actions.WriteSectors (numbers[0], numbers[1], picked.wstring())
+                      : m_actions.WriteBlocks  (numbers[0], picked.wstring());
+
+    ReportOutcome (outcome, L"Write");
+    FillList();
 }

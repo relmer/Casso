@@ -777,3 +777,146 @@ bool CassqueActions::TryParseAddress (const std::wstring & text, Word & outAddre
 
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::TryParseNumbers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::TryParseNumbers (const std::wstring & text, size_t required, std::vector<int> & outNumbers)
+{
+    static constexpr size_t  kMaxNumbers = 3;
+    std::wstring             token;
+
+
+
+    outNumbers.clear();
+
+    for (size_t i = 0; i <= text.size(); i++)
+    {
+        wchar_t  c = (i < text.size()) ? text[i] : L' ';
+
+        if (iswdigit (c))
+        {
+            token.push_back (c);
+            continue;
+        }
+
+        if (c != L' ' && c != L',' && c != L'\t')
+        {
+            return false;
+        }
+
+        if (!token.empty())
+        {
+            outNumbers.push_back (_wtoi (token.c_str()));
+            token.clear();
+        }
+    }
+
+    return outNumbers.size() >= required && outNumbers.size() <= kMaxNumbers;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::ReadSectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::ReadSectors (int track, int sector, int count, const std::wstring & hostPath)
+{
+    Outcome  outcome;
+
+
+
+    Append (outcome, m_browser.GetOperations().SectorRead (TextEncoding::WideToNarrow (GetFormatTarget()), DiskOperations::Numbering::Logical,
+                                                          track, sector, count, TextEncoding::WideToNarrow (hostPath)));
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::WriteSectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::WriteSectors (int track, int sector, const std::wstring & hostPath)
+{
+    Outcome       outcome;
+    std::wstring  target = GetFormatTarget();
+
+
+
+    Append (outcome, m_browser.GetOperations().SectorWrite (TextEncoding::WideToNarrow (target), TextEncoding::WideToNarrow (hostPath),
+                                                           DiskOperations::Numbering::Logical, track, sector));
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (target);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::ReadBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::ReadBlocks (int block, int count, const std::wstring & hostPath)
+{
+    Outcome  outcome;
+
+
+
+    Append (outcome, m_browser.GetOperations().BlockRead (TextEncoding::WideToNarrow (GetFormatTarget()), block, count,
+                                                         TextEncoding::WideToNarrow (hostPath)));
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::WriteBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::WriteBlocks (int block, const std::wstring & hostPath)
+{
+    Outcome       outcome;
+    std::wstring  target = GetFormatTarget();
+
+
+
+    Append (outcome, m_browser.GetOperations().BlockWrite (TextEncoding::WideToNarrow (target), TextEncoding::WideToNarrow (hostPath), block));
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (target);
+    }
+
+    return outcome;
+}
