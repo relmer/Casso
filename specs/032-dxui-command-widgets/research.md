@@ -79,28 +79,51 @@ copies are the defect being removed.
 
 ## R5. One set of dropdown metrics
 
-**Finding**: the two dropdowns differ in four places.
+**Finding**: the two differ in six places. Three entries here correct what an
+earlier reading of this section claimed; each was checked against the code
+rather than inferred.
 
-| Metric | `DxuiPopupMenu` | `DxuiMenuBar` dropdown |
+| Metric | `DxuiPopupMenu` today | `DxuiMenuBar` dropdown |
 |---|---|---|
 | Row height | 26 dp | 26 dp |
 | Font | 13 dp | 14 dp |
-| Text start | 28 dp | 28 dp (10 pad + 18 check gutter) |
-| Width | fits content, 140 dp minimum | fixed 300 dp, accelerator column at 190 |
+| Text start | 28 dp always | 10 dp, or 28 dp when SOME row of that menu is checkable |
+| Width | fits content, 140 dp minimum | fits content, 300 dp minimum |
+| Accelerator | none | left aligned at a fixed 190 dp offset |
 | Separators | none | 10 dp tall, 10 dp inset |
 | Colors | elevated, hover, foreground | plus disabled, muted, divider, border |
 
-**Decision**: `DxuiPopupMenu` keeps the shared row height and text start,
-takes the menu bar's font, separators and color set, and takes the popup
-menu's content-fitted width. The owner ruled a fixed width wrong in every
-case. Width is the widest label, plus the accelerator column only when
-some row carries accelerator text, plus padding, with the 140 dp minimum.
+The width row is the correction that matters most. The 300 dp is a FLOOR, not a
+fixed width: `GetDropdownWidthPx` already measures every row and returns the
+larger of content and floor. So menus wider than 300 dp already fit their
+content and do not move at all, and only narrow menus change.
 
-**Consequence**: two visible changes for the emulator user, both stated in
-quickstart §3 so neither is mistaken for a regression. Menu bar dropdowns
-narrow from 300 dp to fit their content. The toolbar pickers and the two
-debug panel menus read one point larger. Row heights and positions do not
-move anywhere. The closed-state bands stay pixel identical.
+The check gutter is conditional in the painter but unconditional in the width
+calculation, so a menu with no checkable row today reserves 18 dp it never
+draws into. That is a pre-existing disagreement between the two functions, not
+a deliberate margin.
+
+**Decision**: the widget keeps the shared row height, takes the menu bar's
+font, separators, color set and conditional gutter, and keeps its own
+content-fitted width with the 140 dp floor. The owner ruled the 300 dp floor
+wrong in every case. Width is the widest label, plus an accelerator column only
+when some row carries accelerator text, plus padding. Width and painter use the
+SAME gutter rule, which is what "fits content" has to mean: space reserved for a
+check that cannot appear is not content.
+
+**Consequence**: three visible changes, all stated in quickstart §3 so none is
+mistaken for a regression.
+
+- Menu bar dropdowns narrower than 300 dp shrink to their content. Wider ones
+  are unaffected.
+- The toolbar pickers and the two debug panel menus read one point larger.
+- Accelerator text moves. It cannot stay at a fixed 190 dp offset once the menu
+  is no longer at least 300 dp wide, since it would overflow a narrow menu, so
+  it is right aligned against the trailing padding instead. This one is forced
+  by the width change rather than chosen.
+
+Row heights, row order and the top edge do not move anywhere, and the
+closed-state bands stay pixel identical.
 
 **Alternatives considered**: a fixed-width setter the menu bar would use
 to stay at 300. Rejected by the owner. Keeping the 13 dp font for pickers.

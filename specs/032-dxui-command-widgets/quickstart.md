@@ -42,14 +42,20 @@ narrower than master's fixed width.
 
 ## 3. What is allowed to look different
 
-Two things, and only these:
+Three things, and only these:
 
-- Menu bar dropdowns are no longer a fixed 300 dp wide. They fit their
-  content, with the accelerator column present only when a row has one.
-- The toolbar pickers and the two debug panel right-click menus use the
-  dropdown's 14 dp font instead of the old popup menu's 13 dp. Rows stay
-  26 dp tall and text starts at the same offset.
+- Menu bar dropdowns no longer have a 300 dp floor under their width. They fit
+  their content down to a 140 dp floor, with the accelerator column present
+  only when a row has one. A menu whose content already exceeded 300 dp does
+  not move. A menu with no checkable row also loses the 18 dp of check gutter
+  that the old width calculation reserved and the old painter never used.
+- Accelerator text is right aligned against the trailing padding instead of
+  sitting at a fixed 190 dp offset. This follows from the width change rather
+  than being chosen: a fixed offset overflows a menu narrower than it.
+- The toolbar pickers and the two debug panel right-click menus use the 14 dp
+  menu font instead of the old 13 dp. Rows stay 26 dp tall.
 
+Row heights, row order, the top edge and the closed-state bands do not move.
 Anything else that differs is a defect.
 
 ## 4. Behavior unchanged

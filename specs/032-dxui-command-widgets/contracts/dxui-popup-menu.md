@@ -54,12 +54,19 @@ public:
 
 Rules:
 
-- **Layout**: rows are 26 dp, text starts 28 dp in after a 10 dp pad and
-  an 18 dp check gutter, font 14 dp, separators 10 dp tall with a 10 dp
-  inset, 1 dp border. Width always fits content: the widest label, plus an
-  accelerator column only when some row carries accelerator text, plus
-  padding, with a 140 dp minimum. There is no fixed width and no setter
-  for one.
+- **Layout**: rows are 26 dp, font 14 dp, separators 10 dp tall with a 10 dp
+  inset, 1 dp border. Text starts after a 10 dp pad, plus an 18 dp check
+  gutter ONLY when some row in that list is checkable, which is the menu bar's
+  existing rule and must be carried across: a flat 28 dp would shift every
+  label right in the menus that have no checkable row. Width always fits
+  content: the widest label, plus an accelerator column only when some row
+  carries accelerator text, plus the same conditional gutter, plus padding,
+  with a 140 dp minimum. There is no fixed width and no setter for one, and
+  the width and the painter read the gutter rule from one place so they
+  cannot disagree.
+- **Accelerator text is right aligned** against the trailing padding. The menu
+  bar draws it at a fixed 190 dp offset today, which only worked because its
+  width never fell below 300 dp; at a fitted width a fixed offset overflows.
 - **Painting** reads the command at paint time: checked draws the check
   glyph, disabled draws in the disabled color, an accelerator draws right
   aligned, a submenu draws the arrow.
