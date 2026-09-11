@@ -292,7 +292,7 @@ void EmulatorShell::SendIntentReply (HWND target, const Win32IntentChannel::Repl
 
 void EmulatorShell::PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
 {
-    IntentReplyPost *  carried = new (std::nothrow) IntentReplyPost { target, reply };
+    IntentReplyPost *  carried = new (std::nothrow) IntentReplyPost();
 
 
 
@@ -300,6 +300,9 @@ void EmulatorShell::PostIntentReply (HWND target, const Win32IntentChannel::Repl
     {
         return;
     }
+
+    carried->target = target;
+    carried->reply  = reply;
 
     if (m_hwnd == nullptr || !PostMessageW (m_hwnd, WM_APP_INTENT_REPLY, 0, (LPARAM) carried))
     {
