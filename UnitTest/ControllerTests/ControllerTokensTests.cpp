@@ -32,29 +32,24 @@ namespace ControllerTests
         static constexpr Word  kStickProduct  = 0xb10a;
 
 
-        TEST_METHOD (Model_XInputRoundTrips)
+        // Every Xbox-class controller shares one key (FR-018a): XInput reports
+        // them all through one fixed layout, and the same controller reports
+        // 045E:02FF over USB and 045E:0B13 over Bluetooth, so a key built from
+        // those IDs would split one controller's profiles by cable.
+        TEST_METHOD (Model_EveryXInputControllerSharesOneToken)
         {
-            ControllerModelKey  model  = { ControllerKind::XInput, kXboxVendor, kXboxProduct };
+            ControllerModelKey  usb      = { ControllerKind::XInput, kXboxVendor, kXboxProduct };
+            ControllerModelKey  bluetoo  = { ControllerKind::XInput, kXboxVendor, 0x02ff };
             ControllerModelKey  parsed;
-            std::string         token  = ControllerTokens::ModelToToken (model);
-            HRESULT             hr     = ControllerTokens::ModelFromToken (token, parsed);
+            HRESULT             hr       = ControllerTokens::ModelFromToken (ControllerTokens::ModelToToken (usb), parsed);
 
-            Assert::AreEqual (std::string ("xinput:045e:0b13"), token);
+            Assert::AreEqual (std::string ("xinput"), ControllerTokens::ModelToToken (usb));
+            Assert::AreEqual (std::string ("xinput"), ControllerTokens::ModelToToken (bluetoo),
+                L"the same controller on another connection must produce the same key");
             Assert::AreEqual (S_OK, hr);
-            Assert::IsTrue   (parsed == model, L"the parsed model must equal the original");
-        }
-
-
-        TEST_METHOD (Model_GenericXboxRoundTrips)
-        {
-            ControllerModelKey  model  = { ControllerKind::XInput, 0, 0 };
-            ControllerModelKey  parsed;
-            std::string         token  = ControllerTokens::ModelToToken (model);
-            HRESULT             hr     = ControllerTokens::ModelFromToken (token, parsed);
-
-            Assert::AreEqual (std::string ("xinput:generic"), token);
-            Assert::AreEqual (S_OK, hr);
-            Assert::IsTrue   (parsed == model, L"the generic model must parse back to vendor and product 0");
+            Assert::IsTrue   (parsed.kind == ControllerKind::XInput, L"the parsed key is an XInput key");
+            Assert::AreEqual (static_cast<Word> (0), parsed.vendorId,  L"an XInput key carries no vendor");
+            Assert::AreEqual (static_cast<Word> (0), parsed.productId, L"an XInput key carries no product");
         }
 
 
@@ -94,7 +89,7 @@ namespace ControllerTests
 
         TEST_METHOD (Unit_WithoutIdentityRoundTrips)
         {
-            ControllerUnitKey  xbox   = { { ControllerKind::XInput, kXboxVendor, kXboxProduct }, "", ControllerUnitSource::None };
+            ControllerUnitKey  xbox   = { { ControllerKind::XInput, 0, 0 }, "", ControllerUnitSource::None };
             ControllerUnitKey  stick  = { { ControllerKind::DirectInput, kStickVendor, kStickProduct }, "", ControllerUnitSource::None };
             ControllerUnitKey  parsed;
             HRESULT            hr     = S_OK;
@@ -145,8 +140,9 @@ namespace ControllerTests
         {
             const char *  tokens[] =
             {
-                "", "xinput", "gamepad:045e:0b13", "xinput:45e:0b13", "xinput:045g:0b13",
-                "xinput:045e", "dinput:generic", "xinput:045e:0b13:00",
+                "", "gamepad:045e:0b13", "dinput:45e:0b13", "dinput:045g:0b13",
+                "dinput:045e", "dinput:generic", "dinput:045e:0b13:00",
+                "xinput:045e:0b13", "xinput:generic", "xinputx",
             };
 
             for (const char * token : tokens)

@@ -31,27 +31,27 @@ static constexpr ControlKindName  s_kControlKindNames[] =
 //
 //  ModelToToken
 //
-//  "xinput:045e:0b13", "dinput:044f:b10a", or "xinput:generic" for an Xbox
-//  model whose hardware IDs could not be read.
+//  "xinput" for every Xbox-class controller, "dinput:044f:b10a" for the rest.
+//  XInput controllers share one key because XInput reports them all through
+//  one fixed layout, and because the same controller reports different
+//  product IDs on USB and on Bluetooth.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string ControllerTokens::ModelToToken (const ControllerModelKey & model)
 {
-    bool          isXInput  = model.kind == ControllerKind::XInput;
-    const char  * pszKind   = isXInput ? kpszXInputKind : kpszDirectInputKind;
-    bool          isGeneric = isXInput && model.vendorId == 0 && model.productId == 0;
-    std::string   token;
+    bool         isXInput = model.kind == ControllerKind::XInput;
+    std::string  token;
 
 
 
-    if (isGeneric)
+    if (isXInput)
     {
-        token = std::format ("{}:{}", pszKind, kpszGenericModel);
+        token = kpszXInputKind;
     }
     else
     {
-        token = std::format ("{}:{:04x}:{:04x}", pszKind, model.vendorId, model.productId);
+        token = std::format ("{}:{:04x}:{:04x}", kpszDirectInputKind, model.vendorId, model.productId);
     }
 
     return token;
@@ -69,43 +69,46 @@ std::string ControllerTokens::ModelToToken (const ControllerModelKey & model)
 
 HRESULT ControllerTokens::ModelFromToken (std::string_view token, ControllerModelKey & outModel)
 {
-    HRESULT             hr          = S_OK;
+    HRESULT             hr         = S_OK;
     ControllerModelKey  model;
-    size_t              kindEnd     = token.find (':');
+    size_t              kindEnd    = token.find (':');
     std::string_view    kindText;
     std::string_view    idText;
-    size_t              vendorEnd   = std::string_view::npos;
-    bool                isXInput    = false;
-    bool                isDirect    = false;
-    bool                isGeneric   = false;
-    bool                hasVendor   = false;
-    bool                hasProduct  = false;
+    size_t              vendorEnd  = std::string_view::npos;
+    bool                isXInput   = token == kpszXInputKind;
+    bool                isDirect   = false;
+    bool                hasVendor  = false;
+    bool                hasProduct = false;
 
 
+
+    if (isXInput)
+    {
+        model.kind = ControllerKind::XInput;
+        outModel   = model;
+        return hr;
+    }
 
     CBREx (kindEnd != std::string_view::npos, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     kindText = token.substr (0, kindEnd);
     idText   = token.substr (kindEnd + 1);
-    isXInput = kindText == kpszXInputKind;
     isDirect = kindText == kpszDirectInputKind;
 
-    CBREx (isXInput || isDirect, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    // An XInput token carries no IDs at all (FR-018a), so "xinput:045e:0b13"
+    // is not a key this build ever wrote and is refused rather than read as
+    // some other controller.
+    CBREx (isDirect, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    model.kind = isXInput ? ControllerKind::XInput : ControllerKind::DirectInput;
-    isGeneric  = isXInput && idText == kpszGenericModel;
+    model.kind = ControllerKind::DirectInput;
+    vendorEnd  = idText.find (':');
 
-    if (!isGeneric)
-    {
-        vendorEnd = idText.find (':');
+    CBREx (vendorEnd != std::string_view::npos, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        CBREx (vendorEnd != std::string_view::npos, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    hasVendor  = TryParseHexWord (idText.substr (0, vendorEnd), model.vendorId);
+    hasProduct = TryParseHexWord (idText.substr (vendorEnd + 1), model.productId);
 
-        hasVendor  = TryParseHexWord (idText.substr (0, vendorEnd), model.vendorId);
-        hasProduct = TryParseHexWord (idText.substr (vendorEnd + 1), model.productId);
-
-        CBREx (hasVendor && hasProduct, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    }
+    CBREx (hasVendor && hasProduct, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outModel = model;
 

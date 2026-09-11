@@ -32,7 +32,6 @@ private:
 
     static constexpr const char *  kpszXInputKind      = "xinput";
     static constexpr const char *  kpszDirectInputKind = "dinput";
-    static constexpr const char *  kpszGenericModel    = "generic";
     static constexpr const char *  kpszSerialPrefix    = "serial:";
     static constexpr const char *  kpszGuidPrefix      = "guid:";
 

@@ -18,7 +18,8 @@ All types live in `CassoEmuCore/Controllers/` unless stated. All are plain data 
 | vendorId | `Word` | 0 when unknown |
 | productId | `Word` | 0 when unknown |
 
-- Token form `xinput:045e:0b13`, `dinput:044f:b10a`; unknown Xbox model is `xinput:generic` (R6).
+- Token form: `xinput` for every Xbox-class controller (FR-018a), `dinput:044f:b10a` for the rest.
+- An XInput key always carries vendor and product 0; the real IDs live in `ControllerDeviceInfo::description` for display. Measured reason: one controller reported 045E:02FF over USB and 045E:0B13 over Bluetooth.
 - Equality is field-wise. Used as the key for profiles and deadzone.
 
 ### ControllerUnitKey
