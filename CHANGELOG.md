@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+
+- CassoCli now exits quietly when the program reading its output stops early,
+  as `Select-Object -First` does. Previously, it aborted, and a Debug build
+  raised a modal error dialog.
+
 ## [1.24.2]: The one with the redist dist
 
 ### Fixed

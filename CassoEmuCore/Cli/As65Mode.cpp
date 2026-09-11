@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "As65Mode.h"
+#include "CliOutput.h"
 #include "ArtifactWriter.h"
 #include "Cpu65C02Table.h"
 
@@ -65,7 +66,7 @@ void As65Mode::ReportAssemblyFinished (const CommandLineOptions & options, long 
     if (options.verbose)
     {
         std::cerr << "Pass 2...\n";
-        std::println (stderr, "Assembly time: {} us", elapsedMicroseconds);
+        CliOutput::PrintLine (stderr, "Assembly time: {} us", elapsedMicroseconds);
     }
 }
 

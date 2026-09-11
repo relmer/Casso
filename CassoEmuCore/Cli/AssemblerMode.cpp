@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AssemblerMode.h"
+#include "CliOutput.h"
 #include "ArtifactWriter.h"
 #include "As65Mode.h"
 #include "Assembler.h"
@@ -188,11 +189,11 @@ HRESULT AssemblerMode::Run (const CommandLineOptions & options, int & exitCode,
     if (options.verbose)
     {
         std::cerr << "Assembly successful\n";
-        std::println (stderr, "  Output:  {}", writeOptions.outputFile);
-        std::println (stderr, "  Bytes:   {}", ar.result.bytes.size());
-        std::println (stderr, "  Start:   ${:04X}", ar.result.startAddress);
-        std::println (stderr, "  End:     ${:04X}", ar.result.endAddress);
-        std::println (stderr, "  Symbols: {}", ar.result.symbols.size());
+        CliOutput::PrintLine (stderr, "  Output:  {}", writeOptions.outputFile);
+        CliOutput::PrintLine (stderr, "  Bytes:   {}", ar.result.bytes.size());
+        CliOutput::PrintLine (stderr, "  Start:   ${:04X}", ar.result.startAddress);
+        CliOutput::PrintLine (stderr, "  End:     ${:04X}", ar.result.endAddress);
+        CliOutput::PrintLine (stderr, "  Symbols: {}", ar.result.symbols.size());
     }
 
 Error:
@@ -275,9 +276,9 @@ HRESULT AssemblerMode::RefuseUnusableOutputRequest (const CommandLineOptions & o
     //  the option's author could not have seen.
     if (several && namedOnce)
     {
-        std::println (stderr,
-                      "Error: this source produces {} outputs and a single name was given for them",
-                      result.savePoints.size());
+        CliOutput::PrintLine (stderr,
+                              "Error: this source produces {} outputs and a single name was given for them",
+                              result.savePoints.size());
         usable = false;
     }
 
@@ -293,11 +294,11 @@ HRESULT AssemblerMode::RefuseUnusableOutputRequest (const CommandLineOptions & o
 
     if (typedHere && options.imagePath.empty())
     {
-        std::println (stderr,
-                      "Error: the source sets a filesystem file type and no image was named");
-        std::println (stderr,
-                      "       add {}{}disk <image>, or remove the directive",
-                      options.flagPrefix, options.flagPrefix == '/' ? "" : "-");
+        CliOutput::PrintLine (stderr,
+                              "Error: the source sets a filesystem file type and no image was named");
+        CliOutput::PrintLine (stderr,
+                              "       add {}{}disk <image>, or remove the directive",
+                              options.flagPrefix, options.flagPrefix == '/' ? "" : "-");
         usable = false;
     }
 
