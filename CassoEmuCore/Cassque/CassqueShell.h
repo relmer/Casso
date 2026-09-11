@@ -2,7 +2,11 @@
 
 #include "Pch.h"
 
+#include "Cassque/CassqueBrowser.h"
+#include "Cassque/CassqueWindow.h"
 #include "Cassque/Model/CassquePrefs.h"
+#include "Config/Win32FileSystem.h"
+#include "Seams/Win32DiskFileIo.h"
 #include "Theme/DxuiDarkTheme.h"
 #include "Theme/DxuiLightTheme.h"
 
@@ -50,7 +54,7 @@ struct CassqueLaunchOptions
 class CassqueShell
 {
 public:
-    CassqueShell() = default;
+    CassqueShell();
     ~CassqueShell();
 
     CassqueShell (const CassqueShell &)             = delete;
@@ -69,8 +73,8 @@ public:
 
     //  The palette a preference selects. The emulator's own themes have no
     //  palette here yet, so they follow the system as FollowSystem does.
-    static const DxuiTheme &  ChooseTheme (const std::string   & theme,
-                                           bool                  systemDark,
+    static const DxuiTheme &  ChooseTheme (const std::string    & theme,
+                                           bool                   systemDark,
                                            const DxuiLightTheme & light,
                                            const DxuiDarkTheme  & dark);
 
@@ -78,42 +82,31 @@ public:
     //  own, so the two windows from one session read alike.
     static std::wstring  ComposeTitle (const std::wstring & titlePrefix);
 
+    //  The host's drive roots, such as C:\, in drive-letter order.
+    static std::vector<std::wstring>  GetDriveRoots();
+
     //  EHM hooks for a process with no dialog host of its own.
     static void  NotifyUser      (const wchar_t * message);
     static void  ReportAssertion (const wchar_t * message);
 
     HRESULT  Initialize     (HINSTANCE instance, const CassqueLaunchOptions & options, const CassquePrefs & prefs, int showCommand);
     int      RunMessageLoop ();
-
-    HWND               GetWindow () const { return m_hwnd;  }
-    const DxuiTheme *  GetTheme  () const { return m_theme; }
+    HWND     GetWindow      () const;
 
     static constexpr const wchar_t *  kWindowClass   = L"CassqueWindow";
     static constexpr const wchar_t *  kOwnerProperty = L"CassqueOwner";
     static constexpr const wchar_t *  kAppName       = L"Cassque";
 
-    static constexpr int  kDefaultWidthDip  = 1100;
+    static constexpr int  kDefaultWidthDip  = 1280;
     static constexpr int  kDefaultHeightDip = 720;
 
 private:
-    static LRESULT CALLBACK  WindowProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-
-    LRESULT  HandleMessage (UINT message, WPARAM wParam, LPARAM lParam);
-    HRESULT  RegisterWindowClass();
-    HRESULT  CreateMainWindow (int showCommand);
-
-    //  The remembered rectangle when it still lands on a monitor; the
-    //  default size otherwise.
-    static bool  TryGetRememberedRect (const CassquePrefs::Placement & placement, RECT & outRect);
-
-    static COLORREF  ToColorRef (uint32_t argb);
-
-    HINSTANCE             m_instance       = nullptr;
-    HWND                  m_hwnd           = nullptr;
-    bool                  m_oleInitialized = false;
-    CassqueLaunchOptions  m_options;
-    CassquePrefs          m_prefs;
-    DxuiLightTheme        m_lightTheme;
-    DxuiDarkTheme         m_darkTheme;
-    const DxuiTheme *     m_theme          = nullptr;
+    Win32FileSystem                 m_fs;
+    Win32DiskFileIo                 m_fileIo;
+    CassqueBrowser                  m_browser;
+    std::unique_ptr<CassqueWindow>  m_window;
+    bool                            m_oleInitialized = false;
+    CassqueLaunchOptions            m_options;
+    CassquePrefs                    m_prefs;
+    std::wstring                    m_baseDir;
 };

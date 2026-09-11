@@ -186,6 +186,8 @@
     <ClCompile Include="Cassque\CassqueMain.cpp" />
     <ClCompile Include="Cassque\CassqueShell.cpp" />
     <ClCompile Include="Cassque\CassqueBrowser.cpp" />
+    <ClCompile Include="Cassque\CassqueCommands.cpp" />
+    <ClCompile Include="Cassque\CassqueWindow.cpp" />
     <ClCompile Include="Cassque\Model\BrowserModel.cpp" />
     <ClCompile Include="Cassque\Model\CassoTargeting.cpp" />
     <ClCompile Include="Cassque\Model\CassquePrefs.cpp" />
@@ -444,6 +446,8 @@
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
     <ClInclude Include="Cassque\CassqueShell.h" />
     <ClInclude Include="Cassque\CassqueBrowser.h" />
+    <ClInclude Include="Cassque\CassqueCommands.h" />
+    <ClInclude Include="Cassque\CassqueWindow.h" />
     <ClInclude Include="Cassque\Model\BrowserModel.h" />
     <ClInclude Include="Cassque\Model\CassoTargeting.h" />
     <ClInclude Include="Cassque\Model\CassquePrefs.h" />

@@ -67,6 +67,19 @@ public:
     //  Loads the active tab's location into rows, applying its sort.
     HRESULT  Refresh();
 
+    //  Opens a folder or disk image row in place, as a double-click does.
+    //  False, with nothing changed, for a row that is neither.
+    bool  OpenRow (int row);
+
+    bool  CanGoUp () const;
+    bool  GoBack    ();
+    bool  GoForward ();
+    bool  GoUp      ();
+
+    //  The folder holding a host path, or empty at a drive root.
+    static std::wstring  GetParentFolder (const std::wstring & path);
+    static std::wstring  JoinPath        (const std::wstring & folder, const std::wstring & name);
+
     void  SortByColumn     (int column);
     void  SetSelectedRows  (const std::vector<int> & rows);
     void  SetDisassemble   (bool disassemble);
@@ -84,6 +97,10 @@ public:
     static std::vector<DxuiListView::Column>  GetColumns();
     static std::vector<DxuiListView::Cell>    ToCells (const CatalogRow & row);
 
+    //  The narrower set a disk image's catalog uses in the preview pane.
+    static std::vector<DxuiListView::Column>  GetCatalogPreviewColumns();
+    static std::vector<DxuiListView::Cell>    ToCatalogPreviewCells (const CatalogRow & row);
+
     static DxuiTreeNode  ToTreeNode (const TreeNode & node);
 
     static std::wstring  FormatSize      (uint64_t bytes);
@@ -91,7 +108,10 @@ public:
     static std::wstring  FormatSelection (size_t selected, size_t total);
 
 private:
+    //  Refresh for a navigation, whose failure is already in the list error.
+    void     Reload();
     HRESULT  LoadHostFolder (const std::wstring & path);
+    HRESULT  LoadRoot       (const std::wstring & id);
     HRESULT  LoadImage      (const std::wstring & path);
     void     SortRows();
     void     UpdatePreview();
@@ -106,6 +126,8 @@ private:
     std::map<std::wstring, TreeNode>    m_nodes;
     std::vector<CatalogRow>             m_rows;
     std::vector<FileSystemEntry>        m_hostEntries;
+    std::vector<TreeNode>               m_rootChildren;
+    std::wstring                        m_rootId;
     VolumeListing                       m_listing;
     VolumeKind                          m_kind         = VolumeKind::Unknown;
     bool                                m_isImage      = false;

@@ -1,9 +1,23 @@
 #include "Pch.h"
 
 #include "Cassque/CassqueShell.h"
-#include "Theme/DxuiDwm.h"
-#include "Theme/DxuiWindowsThemeColors.h"
-#include "resource.h"
+#include "AssetBootstrap.h"
+#include "Cassque/Model/KnownFolderStore.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueShell::CassqueShell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueShell::CassqueShell()
+    : m_browser (m_fs, m_fileIo)
+{
+}
 
 
 
@@ -13,15 +27,14 @@
 //
 //  CassqueShell::~CassqueShell
 //
+//  The window goes before COM, since its drop registration and popups are
+//  released with it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 CassqueShell::~CassqueShell()
 {
-    if (m_hwnd != nullptr)
-    {
-        DestroyWindow (m_hwnd);
-        m_hwnd = nullptr;
-    }
+    m_window.reset();
 
     if (m_oleInitialized)
     {
@@ -291,166 +304,115 @@ void CassqueShell::ReportAssertion (const wchar_t * message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueShell::GetDriveRoots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassqueShell::GetDriveRoots()
+{
+    std::vector<std::wstring>  roots;
+    wchar_t                    buffer[512] = {};
+    DWORD                      length      = GetLogicalDriveStringsW (ARRAYSIZE (buffer), buffer);
+    const wchar_t *            root        = buffer;
+
+
+
+    if (length == 0 || length > ARRAYSIZE (buffer))
+    {
+        return roots;
+    }
+
+    while (*root != L'\0')
+    {
+        roots.push_back (root);
+        root += wcslen (root) + 1;
+    }
+
+    return roots;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueShell::Initialize
 //
-//  COM first, because the drag source and drop target the browser will carry
+//  COM first, because the drag source and drop target the browser carries
 //  need OLE, and OLE initialization has to precede any window that registers
-//  for drops.
+//  for drops. The known folders are read once here; the tree reads them from
+//  the model after that.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassqueShell::Initialize (HINSTANCE instance, const CassqueLaunchOptions & options, const CassquePrefs & prefs, int showCommand)
 {
-    HRESULT  hr = S_OK;
+    HRESULT                               hr      = S_OK;
+    std::vector<KnownFolderStore::Entry>  entries;
+    std::vector<std::wstring>             folders;
+    BOOL                                  result  = FALSE;
 
 
 
-    m_instance = instance;
-    m_options  = options;
-    m_prefs    = prefs;
-    m_theme    = &ChooseTheme (m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
+    m_options = options;
+    m_prefs   = prefs;
+    m_baseDir = AssetBootstrap::GetAssetBaseDirectory().wstring();
 
     hr = OleInitialize (nullptr);
     CHR (hr);
 
     m_oleInitialized = true;
 
-    hr = RegisterWindowClass();
-    CHR (hr);
-
-    hr = CreateMainWindow (showCommand);
-    CHR (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassqueShell::RegisterWindowClass
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CassqueShell::RegisterWindowClass()
-{
-    HRESULT      hr         = S_OK;
-    WNDCLASSEXW  windowInfo = { sizeof (windowInfo) };
-    ATOM         atom       = 0;
-    bool         usable     = false;
-
-
-
-    windowInfo.style         = CS_HREDRAW | CS_VREDRAW;
-    windowInfo.lpfnWndProc   = &CassqueShell::WindowProc;
-    windowInfo.hInstance     = m_instance;
-    windowInfo.hIcon         = LoadIconW (m_instance, MAKEINTRESOURCEW (IDI_CASSQUE));
-    windowInfo.hIconSm       = windowInfo.hIcon;
-    windowInfo.hCursor       = LoadCursorW (nullptr, IDC_ARROW);
-    windowInfo.lpszClassName = kWindowClass;
-
-    atom   = RegisterClassExW (&windowInfo);
-    usable = atom != 0 || GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
-    CWR (usable);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassqueShell::TryGetRememberedRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassqueShell::TryGetRememberedRect (const CassquePrefs::Placement & placement, RECT & outRect)
-{
-    HMONITOR  monitor = nullptr;
-
-
-
-    if (!placement.valid || placement.w <= 0 || placement.h <= 0)
     {
-        return false;
+        KnownFolderStore  store (m_fs, m_baseDir);
+        HRESULT           hrLoad = store.Load (entries);
+
+        IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
 
-    outRect = RECT { placement.x, placement.y, placement.x + placement.w, placement.y + placement.h };
-    monitor = MonitorFromRect (&outRect, MONITOR_DEFAULTTONULL);
-
-    return monitor != nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassqueShell::CreateMainWindow
-//
-//  The default size is scaled for the primary monitor, where a window with no
-//  remembered placement opens.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CassqueShell::CreateMainWindow (int showCommand)
-{
-    HRESULT       hr         = S_OK;
-    RECT          remembered = {};
-    bool          hasRect    = TryGetRememberedRect (m_prefs.placement, remembered);
-    UINT          dpi        = GetDpiForSystem();
-    int           x          = CW_USEDEFAULT;
-    int           y          = CW_USEDEFAULT;
-    int           width      = MulDiv (kDefaultWidthDip,  (int) dpi, USER_DEFAULT_SCREEN_DPI);
-    int           height     = MulDiv (kDefaultHeightDip, (int) dpi, USER_DEFAULT_SCREEN_DPI);
-    std::wstring  title      = ComposeTitle (m_options.titlePrefix);
-    BOOL          result     = FALSE;
-    bool          maximize   = hasRect && m_prefs.placement.maximized;
-
-
-
-    if (hasRect)
+    for (const KnownFolderStore::Entry & entry : entries)
     {
-        x      = remembered.left;
-        y      = remembered.top;
-        width  = remembered.right - remembered.left;
-        height = remembered.bottom - remembered.top;
+        folders.push_back (entry.path);
     }
 
-    m_hwnd = CreateWindowExW (0, kWindowClass, title.c_str(), WS_OVERLAPPEDWINDOW,
-                              x, y, width, height, nullptr, nullptr, m_instance, this);
-    CWR (m_hwnd != nullptr);
+    m_browser.GetTreeModel().SetKnownFolders (folders);
+    m_browser.GetTreeModel().SetDrives (GetDriveRoots());
+    m_browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
+    {
+        DWORD  attributes = GetFileAttributesW (path.c_str());
+
+        return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    });
+
+    m_window = std::make_unique<CassqueWindow> (m_browser, m_prefs);
+
+    hr = m_window->Open (instance, ComposeTitle (m_options.titlePrefix), showCommand);
+    CHR (hr);
 
     if (m_options.hasOwner)
     {
-        result = SetPropW (m_hwnd, kOwnerProperty, (HANDLE) m_options.owner);
+        result = SetPropW (m_window->GetHwnd(), kOwnerProperty, (HANDLE) m_options.owner);
         CWR (result);
     }
 
-    DxuiDwm::ApplyImmersiveDarkMode (m_hwnd, m_theme == &m_darkTheme);
-
-    //  A launch that asked to start minimized keeps that; otherwise a
-    //  remembered maximized window opens maximized.
-    if (maximize && showCommand != SW_SHOWMINIMIZED && showCommand != SW_SHOWMINNOACTIVE && showCommand != SW_MINIMIZE)
-    {
-        showCommand = SW_SHOWMAXIMIZED;
-    }
-
-    result = ShowWindow (m_hwnd, showCommand);
-    IGNORE_RETURN_VALUE (result, FALSE);
-
-    result = UpdateWindow (m_hwnd);
-    IGNORE_RETURN_VALUE (result, TRUE);
-
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueShell::GetWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND CassqueShell::GetWindow() const
+{
+    return (m_window != nullptr) ? m_window->GetHwnd() : nullptr;
 }
 
 
@@ -461,12 +423,15 @@ Error:
 //
 //  CassqueShell::RunMessageLoop
 //
+//  The preferences are written once the loop ends, whatever ended it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int CassqueShell::RunMessageLoop()
 {
-    MSG   message = {};
-    BOOL  got     = FALSE;
+    MSG      message = {};
+    BOOL     got     = FALSE;
+    HRESULT  hr      = S_OK;
 
 
 
@@ -483,107 +448,13 @@ int CassqueShell::RunMessageLoop()
         DispatchMessageW (&message);
     }
 
+    if (m_window != nullptr && m_window->GetHwnd() != nullptr)
+    {
+        RemovePropW (m_window->GetHwnd(), kOwnerProperty);
+    }
+
+    hr = m_prefs.Save (m_baseDir, m_fs);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     return (got == -1) ? 1 : (int) message.wParam;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassqueShell::ToColorRef
-//
-////////////////////////////////////////////////////////////////////////////////
-
-COLORREF CassqueShell::ToColorRef (uint32_t argb)
-{
-    return RGB ((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassqueShell::WindowProc
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT CALLBACK CassqueShell::WindowProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    CassqueShell *  shell = nullptr;
-
-
-
-    if (message == WM_NCCREATE)
-    {
-        const CREATESTRUCTW *  create = (const CREATESTRUCTW *) lParam;
-
-        shell         = (CassqueShell *) create->lpCreateParams;
-        shell->m_hwnd = hwnd;
-        SetWindowLongPtrW (hwnd, GWLP_USERDATA, (LONG_PTR) shell);
-    }
-    else
-    {
-        shell = (CassqueShell *) GetWindowLongPtrW (hwnd, GWLP_USERDATA);
-    }
-
-    if (shell == nullptr)
-    {
-        return DefWindowProcW (hwnd, message, wParam, lParam);
-    }
-
-    return shell->HandleMessage (message, wParam, lParam);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassqueShell::HandleMessage
-//
-//  The window is empty for now, so painting is the background and nothing
-//  more.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT CassqueShell::HandleMessage (UINT message, WPARAM wParam, LPARAM lParam)
-{
-    HWND     hwnd = m_hwnd;
-    LRESULT  lr   = 0;
-
-
-
-    switch (message)
-    {
-        case WM_ERASEBKGND:
-        {
-            RECT    client = {};
-            HBRUSH  brush  = CreateSolidBrush (ToColorRef (m_theme->Background()));
-
-            GetClientRect (hwnd, &client);
-            FillRect ((HDC) wParam, &client, brush);
-            DeleteObject (brush);
-
-            lr = 1;
-            break;
-        }
-
-        case WM_DESTROY:
-            RemovePropW (hwnd, kOwnerProperty);
-            SetWindowLongPtrW (hwnd, GWLP_USERDATA, 0);
-            m_hwnd = nullptr;
-            PostQuitMessage (0);
-            break;
-
-        default:
-            lr = DefWindowProcW (hwnd, message, wParam, lParam);
-            break;
-    }
-
-    return lr;
 }

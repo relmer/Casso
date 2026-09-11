@@ -258,6 +258,90 @@ public:
     }
 
 
+    TEST_METHOD (KnownFolderNode_ShowsTheFolderName)
+    {
+        Host                       host;
+        std::vector<DxuiTreeNode>  roots;
+
+        host.browser.GetTreeRoots (roots);
+
+        Assert::AreEqual (std::wstring (L"Disks"), host.browser.GetTreeChildren (roots[0].id)[0].label);
+    }
+
+
+    TEST_METHOD (SelectRoot_ListsItsChildrenAndOpensThem)
+    {
+        Host                       host;
+        std::vector<DxuiTreeNode>  roots;
+
+        host.browser.GetTreeRoots (roots);
+
+        AssertSucceeded (host.browser.SelectTreeNode (roots[0].id));
+        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
+        Assert::IsTrue   (host.browser.GetRows()[0].isDirectory);
+
+        Assert::IsTrue   (host.browser.OpenRow (0));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
+        Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
+    }
+
+
+    TEST_METHOD (OpenRow_EntersImagesAndRefusesPlainFiles)
+    {
+        Host  host;
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        Assert::IsFalse (host.browser.OpenRow (FindRow (host.browser, L"readme.txt")));
+        Assert::IsTrue  (host.browser.GetLocation().kind == Location::Kind::HostFolder);
+
+        Assert::IsTrue  (host.browser.OpenRow (FindRow (host.browser, L"dos33.dsk")));
+        Assert::IsTrue  (host.browser.GetLocation() == Location::MakeDiskImage (L"C:\\Disks\\dos33.dsk"));
+        FindRow (host.browser, L"HELLO");
+    }
+
+
+    TEST_METHOD (UpBackForward_Navigate)
+    {
+        Host  host;
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+        Assert::IsTrue (host.browser.OpenRow (FindRow (host.browser, L"prodos.po")));
+
+        Assert::IsTrue (host.browser.GoUp());
+        Assert::IsTrue (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
+
+        Assert::IsTrue (host.browser.GoBack());
+        Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::DiskImage);
+
+        Assert::IsTrue (host.browser.GoForward());
+        Assert::IsTrue (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
+        Assert::IsTrue (host.browser.CanGoUp());
+    }
+
+
+    TEST_METHOD (ParentFolder_StopsAtTheDriveRoot)
+    {
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), CassqueBrowser::GetParentFolder (L"C:\\Disks\\Sub"));
+        Assert::AreEqual (std::wstring (L"C:\\"),      CassqueBrowser::GetParentFolder (L"C:\\Disks\\"));
+        Assert::IsTrue   (CassqueBrowser::GetParentFolder (L"C:\\").empty());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\a.dsk"), CassqueBrowser::JoinPath (L"C:\\Disks", L"a.dsk"));
+        Assert::AreEqual (std::wstring (L"C:\\a.dsk"),        CassqueBrowser::JoinPath (L"C:\\", L"a.dsk"));
+    }
+
+
+    TEST_METHOD (CatalogPreviewCells_MatchTheirColumns)
+    {
+        CatalogRow  row;
+
+        row.name      = L"HELLO";
+        row.typeText  = L"A";
+        row.sizeBytes = 512;
+
+        Assert::AreEqual (CassqueBrowser::GetCatalogPreviewColumns().size(), CassqueBrowser::ToCatalogPreviewCells (row).size());
+    }
+
+
     TEST_METHOD (Formatting)
     {
         Assert::AreEqual (std::wstring (L"777 bytes"), CassqueBrowser::FormatSize (777));

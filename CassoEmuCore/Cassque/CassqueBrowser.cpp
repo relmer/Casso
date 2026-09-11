@@ -41,6 +41,27 @@ DxuiTreeNode CassqueBrowser::ToTreeNode (const TreeNode & node)
 
     out.id             = node.id;
     out.label          = node.label;
+
+    //  A known folder's label is its whole path, which a narrow tree cannot
+    //  hold; the folder's own name is what Explorer shows there too.
+    if (node.kind == TreeNode::Kind::KnownFolder)
+    {
+        std::wstring  trimmed = node.label;
+        size_t        slash   = std::wstring::npos;
+
+        while (trimmed.size() > 3 && trimmed.back() == L'\\')
+        {
+            trimmed.pop_back();
+        }
+
+        slash = trimmed.rfind (L'\\');
+
+        if (slash != std::wstring::npos && slash + 1 < trimmed.size())
+        {
+            out.label = trimmed.substr (slash + 1);
+        }
+    }
+
     out.expanded       = false;
     out.childrenLoaded = !node.canExpand;
     out.dimmed         = node.missing || !node.loadError.empty();
@@ -148,6 +169,9 @@ HRESULT CassqueBrowser::SelectTreeNode (const std::wstring & id)
         location = found->second.location;
     }
 
+    //  A root has no location of its own; it lists what it holds.
+    m_rootId = (location.kind == Location::Kind::None && found != m_nodes.end()) ? id : std::wstring();
+
     if (!m_model.HasTabs())
     {
         m_model.OpenTab (location);
@@ -193,6 +217,7 @@ HRESULT CassqueBrowser::Refresh()
 
     m_rows.clear();
     m_hostEntries.clear();
+    m_rootChildren.clear();
     m_listing      = VolumeListing();
     m_kind         = VolumeKind::Unknown;
     m_isImage      = false;
@@ -211,6 +236,11 @@ HRESULT CassqueBrowser::Refresh()
             break;
 
         default:
+            if (!m_rootId.empty())
+            {
+                hr = LoadRoot (m_rootId);
+            }
+
             break;
     }
 
@@ -219,6 +249,25 @@ HRESULT CassqueBrowser::Refresh()
     UpdateStatus();
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::Reload
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueBrowser::Reload()
+{
+    HRESULT  hr = Refresh();
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -254,6 +303,44 @@ HRESULT CassqueBrowser::LoadHostFolder (const std::wstring & path)
         m_rows.push_back (CatalogModel::FromHostEntry (entry, isImage, index));
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::LoadRoot
+//
+//  The Casso root's known folders and This PC's drives, as folder rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassqueBrowser::LoadRoot (const std::wstring & id)
+{
+    HRESULT  hr    = S_OK;
+    size_t   index = 0;
+
+
+
+    hr = m_tree.GetChildren (id, m_rootChildren);
+    CHR (hr);
+
+    for (index = 0; index < m_rootChildren.size(); index++)
+    {
+        FileSystemEntry  entry;
+
+        m_nodes[m_rootChildren[index].id] = m_rootChildren[index];
+
+        entry.name     = m_rootChildren[index].label;
+        entry.isFolder = true;
+
+        m_rows.push_back (CatalogModel::FromHostEntry (entry, false, index));
+    }
+
+Error:
     return hr;
 }
 
@@ -601,13 +688,62 @@ std::vector<DxuiListView::Column> CassqueBrowser::GetColumns()
 
 
     columns.push_back (DxuiListView::Column { L"Name",     200, true,  DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Type",     90,  false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Size",     80,  false, DxuiTextHAlign::Right });
-    columns.push_back (DxuiListView::Column { L"Address",  70,  false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Locked",   60,  false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Modified", 130, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Type",     70,  false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Size",     92,  false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Address",  76,  false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Locked",   74,  false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Modified", 140, false, DxuiTextHAlign::Left  });
 
     return columns;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetCatalogPreviewColumns
+//
+//  The preview pane is narrower than the list, so a catalog there keeps only
+//  what identifies a file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Column> CassqueBrowser::GetCatalogPreviewColumns()
+{
+    std::vector<DxuiListView::Column>  columns;
+
+
+
+    columns.push_back (DxuiListView::Column { L"Name", 0,  true,  DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Type", 60, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Size", 92, false, DxuiTextHAlign::Right });
+
+    return columns;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::ToCatalogPreviewCells
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Cell> CassqueBrowser::ToCatalogPreviewCells (const CatalogRow & row)
+{
+    std::vector<DxuiListView::Cell>  cells;
+
+
+
+    cells.push_back (DxuiListView::Cell { row.name,     false });
+    cells.push_back (DxuiListView::Cell { row.typeText, false });
+    cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSize (row.sizeBytes), false });
+
+    return cells;
 }
 
 
@@ -713,4 +849,232 @@ std::wstring CassqueBrowser::FormatSelection (size_t selected, size_t total)
     }
 
     return std::format (L"{}, {} selected", items, selected);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::JoinPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueBrowser::JoinPath (const std::wstring & folder, const std::wstring & name)
+{
+    std::wstring  joined = folder;
+
+
+
+    if (!joined.empty() && joined.back() != L'\\')
+    {
+        joined += L'\\';
+    }
+
+    return joined + name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetParentFolder
+//
+//  A drive root such as C:\ has no parent; the folder directly under it
+//  keeps the trailing separator, since C: alone means the current directory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueBrowser::GetParentFolder (const std::wstring & path)
+{
+    std::wstring  trimmed = path;
+    size_t        slash   = 0;
+
+
+
+    while (trimmed.size() > 3 && trimmed.back() == L'\\')
+    {
+        trimmed.pop_back();
+    }
+
+    if (trimmed.size() <= 3)
+    {
+        return std::wstring();
+    }
+
+    slash = trimmed.rfind (L'\\');
+
+    if (slash == std::wstring::npos)
+    {
+        return std::wstring();
+    }
+
+    return (slash <= 2) ? trimmed.substr (0, slash + 1) : trimmed.substr (0, slash);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::OpenRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::OpenRow (int row)
+{
+    Location  location = GetLocation();
+    Location  target;
+
+
+
+    if (row < 0 || row >= (int) m_rows.size())
+    {
+        return false;
+    }
+
+    if (!m_rootChildren.empty() && m_rows[row].sourceIndex < m_rootChildren.size())
+    {
+        target = m_rootChildren[m_rows[row].sourceIndex].location;
+        m_rootId.clear();
+    }
+    else if (location.kind != Location::Kind::HostFolder)
+    {
+        return false;
+    }
+    else if (m_rows[row].isDirectory)
+    {
+        target = Location::MakeHostFolder (JoinPath (location.path, m_rows[row].name));
+    }
+    else if (m_rows[row].isDiskImage)
+    {
+        target = Location::MakeDiskImage (JoinPath (location.path, m_rows[row].name));
+    }
+    else
+    {
+        return false;
+    }
+
+    m_model.NavigateTo (target);
+    Reload();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::CanGoUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::CanGoUp() const
+{
+    Location  location = GetLocation();
+
+
+
+    switch (location.kind)
+    {
+        case Location::Kind::HostFolder:
+            return !GetParentFolder (location.path).empty();
+
+        case Location::Kind::DiskImage:
+        case Location::Kind::DiskDirectory:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GoUp
+//
+//  An image's parent is the folder holding it; a directory inside an image
+//  goes to the image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::GoUp()
+{
+    Location  location = GetLocation();
+    Location  target;
+
+
+
+    if (!CanGoUp())
+    {
+        return false;
+    }
+
+    if (location.kind == Location::Kind::DiskDirectory)
+    {
+        target = Location::MakeDiskImage (location.path);
+    }
+    else
+    {
+        target = Location::MakeHostFolder (GetParentFolder (location.path));
+    }
+
+    m_model.NavigateTo (target);
+    Reload();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GoBack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::GoBack()
+{
+    if (!m_model.HasTabs() || !m_model.GoBack())
+    {
+        return false;
+    }
+
+    Reload();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GoForward
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::GoForward()
+{
+    if (!m_model.HasTabs() || !m_model.GoForward())
+    {
+        return false;
+    }
+
+    Reload();
+
+    return true;
 }
