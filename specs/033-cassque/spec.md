@@ -34,6 +34,54 @@ The command surfaces it is built on, one command model, one dropdown, one
 toolbar, are delivered by the preceding feature. This one adds the widgets
 the browser layout needs and the browser itself.
 
+## Clarifications
+
+### Session 2026-09-10
+
+- Q: How is a host file's conversion chosen on drag-in? → A: By content,
+  never by extension. Applesoft when every non-blank line is an ascending
+  line number at most 63999 followed by a keyword or an identifier and
+  `=`; otherwise text when entirely printable; otherwise binary, put raw,
+  with the put dialog opened once for the load address, prefilled $2000
+  for 8192-byte files and $803 otherwise. Integer BASIC listings are not
+  tokenized on the way in and fall to the text rule. No grammar
+  validation for either BASIC, since the Apple never required one.
+- Q: Is Integer BASIC covered? → A: Preview and Get need a new Integer
+  BASIC detokenizer; the tree detokenizes Applesoft only today. No
+  Integer BASIC tokenizer.
+- Q: How do type and address survive a trip through the host file
+  system? → A: Descriptive suffixes Cassque writes, since catalog names
+  carry no extension: converted files as `NAME.Applesoft BASIC.txt`,
+  `NAME.Integer BASIC.txt`, `NAME.Text.txt`; raw copies as
+  `NAME.Binary.$AAAA.bin` for binary on either file system,
+  `NAME.ProDOS.$TT.bin` with `.$AAAA` before `.bin` when aux is nonzero
+  for other ProDOS types, and `NAME.DOS.X.bin` for other DOS 3.3 types.
+  The trailing `.txt` or `.bin` gives Windows a real extension for file
+  associations. On the way in Cassque understands these, the
+  CiderPress `#TTAAAA` form, and no suffix at all (content rule), and
+  strips the suffix from the catalog name. A setting, Host file names:
+  Descriptive or CiderPress, default Descriptive, chooses what Cassque
+  writes. Only a raw copy round-trips byte for byte; a converted listing
+  is a different file from the tokenized original.
+- Q: Is the theme choice shared with Casso or Cassque's own? → A:
+  Cassque's own, stored in the shared preferences file under its own key.
+  On first run it starts from Casso's current theme mapped onto Cassque's
+  palette for it, then the two diverge independently.
+- Q: What adds a folder to the Casso root, and can the user manage the
+  list by hand? → A: A folder becomes known when a disk image in it is
+  handed to Casso: Insert into a drive, Open in new Casso, or a drag onto
+  a Casso window. Browsing, previewing, copying out or editing do not.
+  Any host folder's context menu offers Add to Casso, and any known
+  folder's offers Remove from Casso, whether or not the folder still
+  exists.
+- Q: Insert into a drive that already holds a disk? → A: Replace without
+  asking, as Casso's own picker does. Casso's eject flushes the old
+  image's unwritten changes before the swap, so nothing is lost; Casso
+  refuses only when the drive is mid-write or the flush fails, and
+  Cassque shows that refusal. Cassque's own writes to a mounted image go
+  with the reload intent and land in Casso's existing external-change
+  policy, which never discards guest writes.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -78,8 +126,14 @@ commands report.
 6. **Given** the preview pane hidden with Alt+P, **When** Cassque is
    closed and reopened, **Then** it stays hidden.
 7. **Given** a folder under This PC not in the Casso root, **When** the
-   user opens a disk image inside it, **Then** the folder appears under
-   the Casso root, and Casso's own disk picker offers it next time.
+   user inserts a disk image from it into Casso, **Then** the folder
+   appears under the Casso root, and Casso's own disk picker offers it
+   next time; **When** the user only browses or previews, **Then** it
+   does not.
+8. **Given** any host folder, **When** Add to Casso is chosen, **Then** it
+   appears under the Casso root; **Given** any known folder, **When**
+   Remove from Casso is chosen, **Then** it leaves the root and the
+   picker.
 
 ---
 
@@ -128,7 +182,7 @@ and they are copied byte for byte with no conversion. They drag a file
 from a disk image into a host folder, in Cassque or in File Explorer, and
 it arrives converted for its type: BASIC as a listing, text as text,
 everything else raw. They drag a host file into a disk image and it is
-put with the inverse conversion. They drag a disk image onto a running
+put with the conversion its content calls for. They drag a disk image onto a running
 Casso window and it is inserted, as dropping from File Explorer does
 today.
 
@@ -235,8 +289,12 @@ window with a screen reader.
 - **A write-protected or read-only image**: put, delete and format are
   disabled in its menus, and a drop onto it shows no-drop.
 - **The image is open in a running Casso**: writes go through, and Casso
-  is told to reload, as story 4 scenario 5 says. If Casso refuses because
-  the drive is mid-write, the user sees the refusal.
+  is told to reload, as story 4 scenario 5 says. If the guest also has
+  unwritten changes, Casso keeps both versions and Cassque reports the
+  conflict; if the drive is mid-write, the user sees the refusal.
+- **Insert into an occupied drive**: the old disk is flushed and ejected,
+  the new one mounted, no prompt. A failed flush is shown as Casso's
+  refusal.
 - **A file name that is illegal on the host**: get and drag-out substitute
   host-legal characters and tell the user the resulting name.
 - **A host file name that is illegal on the target file system**: put and
@@ -245,8 +303,8 @@ window with a screen reader.
   size in the message; nothing is written.
 - **Both roots show the same folder**: the Casso root lists it as known;
   This PC lists it in place. Selecting either fills the same list.
-- **Known folder no longer exists**: it stays listed, grayed, with a
-  Remove item in its context menu.
+- **Known folder no longer exists**: it stays listed, grayed, and Remove
+  from Casso works on it as on any known folder.
 - **Two Cassque windows edit the same image**: last write wins, and the
   other window refreshes on focus; no locking.
 - **Casso launched Cassque and then exited**: Insert falls back to the
@@ -275,7 +333,13 @@ window with a screen reader.
   This PC root listing the host's drives, each navigable to any depth.
 - **FR-005**: Known folders MUST be a persisted preference shared with
   Casso, seeded on first run from the folders of Casso's recent disks,
-  and extended with any host folder in which the user opens a disk image.
+  and extended with the folder of any disk image handed to Casso from
+  Cassque: Insert into a drive, Open in new Casso, or a drag onto a Casso
+  window. Browsing, previewing, copying out or editing MUST NOT add a
+  folder.
+- **FR-005a**: Every host folder's context menu MUST offer Add to Casso,
+  and every known folder's MUST offer Remove from Casso, whether or not
+  the folder still exists.
 - **FR-006**: Casso's disk picker MUST read the same known-folder list.
 - **FR-007**: Disk images with a supported extension MUST appear in the
   tree as expandable nodes, ProDOS subdirectories as children, DOS 3.3
@@ -318,12 +382,37 @@ window with a screen reader.
 
 - **FR-016**: A drag between two Apple disk images MUST copy raw with no
   conversion, preserving type, address and locked flag.
-- **FR-017**: A drag from a disk image to a host folder, in Cassque or
-  another application, MUST convert per file type: BASIC to a listing,
+- **FR-017**: A drag or Get from a disk image to a host folder, in Cassque
+  or another application, MUST convert per file type: BASIC to a listing,
   text to text, everything else raw, with the file materialized only when
-  the target asks for it.
-- **FR-018**: A drag from the host into a disk image MUST put with the
-  inverse conversion.
+  the target asks for it, and MUST give the host file a descriptive
+  suffix, since catalog names carry none: `NAME.Applesoft BASIC.txt`,
+  `NAME.Integer BASIC.txt` and `NAME.Text.txt` for converted files;
+  `NAME.Binary.$AAAA.bin` for binary on either file system;
+  `NAME.ProDOS.$TT.bin`, with `.$AAAA` before `.bin` when aux is nonzero,
+  for other ProDOS types; `NAME.DOS.X.bin` for other DOS 3.3 types.
+  Host-illegal characters are substituted and the user told the
+  resulting name.
+- **FR-017a**: A setting, Host file names: Descriptive or CiderPress,
+  default Descriptive, MUST switch what Cassque writes to the CiderPress
+  `NAME#TTAAAA` form for raw copies. Reading MUST accept both forms and
+  bare names regardless of the setting.
+- **FR-017b**: A ProDOS directory dragged out MUST become a host folder
+  recursively; a host folder dragged onto a ProDOS image MUST become a
+  directory recursively; a folder dropped on a DOS 3.3 image MUST be
+  refused with a message, since DOS 3.3 is flat.
+- **FR-018**: A drag from the host into a disk image MUST choose its
+  conversion by content: Applesoft when every non-blank line is an
+  ascending line number at most 63999 followed by a keyword or an
+  identifier and `=`; otherwise text when entirely printable; otherwise
+  binary put raw, with the put dialog opened once for the load address,
+  prefilled $2000 for 8192-byte files and $803 otherwise. A file carrying
+  a descriptive suffix or a CiderPress `#TTAAAA` suffix MUST take its
+  type and aux from the suffix with no dialog, and the suffix MUST be
+  stripped from the catalog name. Otherwise extension MUST NOT decide.
+  Integer BASIC listings are not tokenized and fall to the text rule.
+- **FR-018a**: Get and preview with the BASIC conversion MUST refuse with
+  the decoder's error rather than write or show a partial listing.
 - **FR-019**: A drag of a disk image onto a running Casso window MUST be
   accepted by Casso's existing drop handling.
 
@@ -340,7 +429,12 @@ window with a screen reader.
 - **FR-023**: Open in new Casso MUST always launch a new instance with the
   disk in drive 1.
 - **FR-024**: A write to an image mounted in a running Casso MUST tell
-  that Casso to reload the image.
+  that Casso to reload the image, and MUST show Casso's answer when it is
+  a conflict or a refusal rather than a reload.
+- **FR-024a**: Insert into an occupied drive MUST replace the disk without
+  a confirmation in Cassque. Casso flushes the outgoing image's unwritten
+  changes before the swap; Cassque MUST show Casso's refusal when the
+  drive is mid-write or the flush fails.
 
 **Tabs, keyboard, themes**
 
@@ -351,8 +445,11 @@ window with a screen reader.
 - **FR-027**: The theme menu MUST offer Light, Dark, Follow system, and
   Casso's three themes, with the skeuomorphic entry marked as colors
   only; Follow system MUST track the Windows setting live.
-- **FR-028**: Theme choice, preview-pane state and window placement MUST
-  persist in the shared preferences.
+- **FR-028**: Theme choice, preview-pane state, host file naming and
+  window placement MUST persist in the shared preferences file under
+  Cassque's own keys. The theme key MUST be separate from Casso's; on
+  first run it MUST be seeded from Casso's current theme mapped onto
+  Cassque's palette for it, after which the two are independent.
 - **FR-029**: Every control MUST carry an accessible name and role.
   Announcement to assistive technology is out of scope; the UI library's
   automation provider is a follow-on feature.
@@ -411,10 +508,13 @@ window with a screen reader.
   a Cassque-only one.
 - Supported image formats are the ones the command-line tool supports
   today. No new container formats.
-- Conversion rules on get, put and drag are the command-line tool's rules
-  and nothing more. A host-side file type table decides which conversion
-  a drag applies: BASIC types to a listing, text types to text, all else
-  raw.
+- Conversion rules on get, put and drag are the command-line tool's rules,
+  plus an Integer BASIC detokenizer this feature adds for preview and Get.
+  The tree detokenizes Applesoft only today. No Integer BASIC tokenizer:
+  an Integer listing dragged in is put as text.
+- Preview and Get show what a decoder can decode and mark where it
+  stopped, since the Apple saves programs without validating them and a
+  type A or I file may hold anything.
 - Rename is offered only where the file system supports it in place;
   otherwise it is absent from the menu rather than emulated by copy and
   delete.
