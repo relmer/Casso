@@ -35,8 +35,8 @@
 
 **Purpose**: A master baseline to compare against, taken before any code moves.
 
-- [ ] T001 Build master `Casso.exe` Release x64 from a second worktree or before checkout, and copy it to `scripts/out/baseline/Casso.exe`
-- [ ] T002 Run `scripts/CaptureScreenshotMatrix.ps1 -Configuration Release -CassoPath scripts/out/baseline/Casso.exe -OutDir scripts/out/screenshots/master` and keep the output
+- [X] T001 Master `Casso.exe` Release x64 built from an isolated worktree at `origin/master` (8e58f86b, reports 1.24.2). Kept at `C:SERSELMERAPPDATAocaltempsso-baseline`, not under `scripts/out/baseline`, because the runtime dlls ship beside it and a lone copied exe would not run
+- [X] T002 Matrix captured to `scripts/out/screenshots/master` with `-DelaySecs 6`, plus a control set in `scripts/out/screenshots/master-control` from the same binary. Chrome bands verified identical across both runs for all nine states; whole images are NOT reproducible and must never be compared directly
 - [ ] T003 With the baseline binary, capture by hand each open top-level menu and the toolbar band in Skeuomorphic, DarkModern and RetroTerminal, and record the client widths at which each toolbar entry loses its label, right to left, into `scripts/out/screenshots/master/collapse-widths.txt`
 
 ---

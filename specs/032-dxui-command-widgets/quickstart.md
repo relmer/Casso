@@ -31,6 +31,24 @@ Crop the menu bar band and the toolbar band from each boot-screen capture
 and compare byte for byte. Expected: identical for all four monitor colors.
 Neither band contains emulated video, so a difference is a defect.
 
+**Do not compare whole captures.** Measured on the 1.24.2 baseline: the same
+binary captured twice produces a different file for three of the four boot
+states, because those images carry live emulated video with a blinking cursor
+and non-deterministic startup memory. A whole-image hash therefore reports a
+difference that means nothing. Cropped to the top 100 rows, which covers both
+chrome bands at the default size of 560 by 601, all nine captures were
+identical across two runs of the same binary. That control is what makes the
+band comparison an oracle rather than a coin toss, and it is worth re-running
+whenever the capture method changes.
+
+**Run the capture with a settle delay.** At the default two seconds the script
+reached the wrong state for three of the nine captures, producing byte-identical
+frames for states that should differ. Six seconds cut that to one. Always hash
+the nine outputs and count the distinct values before trusting a set; identical
+hashes for states that should differ mean the run is bad, not that the states
+match. Use the SAME delay for the master and branch runs, so a timing
+difference can never be read as a code difference.
+
 ## 2. Open dropdowns, three themes
 
 For master and branch, in Skeuomorphic, DarkModern and RetroTerminal: open
