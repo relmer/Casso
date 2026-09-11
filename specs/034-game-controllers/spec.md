@@ -33,6 +33,7 @@ Paddle mode and arrows-to-joystick are mutually exclusive, since both drive PDL0
 - Q: How does a controller coexist with arrows-to-joystick? -> A: Mutually exclusive, but while the selected controller is disconnected the arrow keys stand in until it returns (FR-008, FR-008a).
 - Q: How is calibration triggered? -> A: Both: automatic by default (center at connect, limits from observed travel), plus a user Calibrate action that overrides it (FR-007, FR-007a).
 - Q: Should control mapping be customizable, and should a controller's settings follow it? -> A: Yes. Controller settings UI edits a per-controller profile (calibration, deadzone, mapping) that is restored automatically when that controller connects, recognized by unit and falling back to model (User Story 5, FR-018 to FR-025).
+- Q: Which device APIs? -> A: XInput for Xbox-class controllers and DirectInput for all other controllers. DirectInput alone cannot read an Xbox controller's triggers independently, and XInput alone does not see non-Xbox devices.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -205,8 +206,9 @@ A user's flight stick puts its fire button on button 3, and a Lode Runner player
 
 - **Scope of mapping**: one controller drives one joystick (PDL0/PDL1, PB0/PB1). A second joystick on PDL2/PDL3, PB2, rumble, and mapping controller controls to Apple II keyboard keys are out of scope for v1. The Guide button is not assignable.
 - **Automatic calibration assumes the stick is at rest when it connects**; the Calibrate action exists for the case where it is not, and for sticks whose automatic limits never settle.
-- **Device access**: the issue suggested DirectInput on the grounds that only the left stick and two buttons were needed. Control mapping (FR-020) undoes part of that reasoning: DirectInput reports an Xbox-class controller's two triggers on one shared axis, so it cannot tell LT from RT or read both held at once. The device API is a planning decision, and the plan must address how triggers are read for Xbox-class controllers.
-- **Unit recognition is best effort**: a controller without a unique serial number may not be recognizable as the same unit after moving to a different port. FR-018's model-level fallback covers that case.
+- **Device access**: XInput for Xbox-class controllers, DirectInput for everything else, with XInput devices filtered out of the DirectInput enumeration so no controller appears twice. DirectInput alone was ruled out because it reports an Xbox-class controller's two triggers on one shared axis by design, which control mapping (FR-020) cannot live with.
+- **Unit recognition is best effort, and weakest for XInput devices**: XInput exposes only a slot number (0-3), with no product, vendor or serial identity, and a controller can change slots across reconnects. Recognizing an XInput controller's model therefore has to come from correlating it with its underlying device, and two identical XInput controllers may not be distinguishable as units at all; FR-018's model-level fallback covers both cases. DirectInput devices without a unique serial number may likewise not be recognized as the same unit after moving to a different port.
+- **XInput's four-controller limit** applies to Xbox-class controllers; DirectInput devices are not counted against it.
 - **Focus**: controller input applies only while Casso is the foreground window, matching the keyboard's existing button behavior.
 - **Absolute positioning**: the stick sets paddle position directly (joystick semantics). It does not integrate stick deflection into relative motion the way the mouse-to-paddle capture does.
 - **Persistence location**: the selection lives with the existing per-machine input preferences; profiles (calibration and mapping) are global and keyed by controller identity, since a stick's physical quirks and the user's preferred layout for it do not change with the emulated machine.
