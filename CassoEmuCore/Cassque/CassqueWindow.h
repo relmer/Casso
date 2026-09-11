@@ -121,6 +121,8 @@ private:
     void  ReportOutcome       (const CassqueActions::Outcome & outcome, const wchar_t * verbName);
     void  InsertIntoDrive     (const std::wstring & imagePath, int drive);
     void  OpenInNewCasso      (const std::wstring & imagePath);
+    HWND  FindCassoTarget     () const;
+    void  AskCassoToDescribe  ();
     void  ShowMessage         (const std::wstring & text, UINT icon);
     std::wstring  GetSelectedImagePath() const;
 
@@ -137,18 +139,19 @@ private:
     Win32ProcessLauncher                         m_launcher;
     std::vector<std::unique_ptr<DxuiCommand>>    m_menuCommands;
     std::vector<Win32IntentChannel::Reply>       m_pendingReplies;
-    bool                                         m_dragArmed      = false;
+    bool                                         m_dragArmed       = false;
+    int                                          m_cassoDriveCount = 0;
     DxuiDragDropTarget                           m_dropTarget;
     DxuiHitTester                                m_dropHits;
-    POINT                                        m_dragStart      = {};
+    POINT                                        m_dragStart       = {};
     CassqueCommands                              m_commands;
     DxuiLightTheme                               m_lightTheme;
     DxuiDarkTheme                                m_darkTheme;
     CassoTheme                                   m_cassoTheme;
-    const DxuiTheme                            * m_theme          = nullptr;
+    const DxuiTheme                            * m_theme           = nullptr;
     DxuiDpiScaler                                m_scaler;
-    RECT                                         m_client         = {};
-    Pane                                         m_focus          = Pane::Tree;
+    RECT                                         m_client          = {};
+    Pane                                         m_focus           = Pane::Tree;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;

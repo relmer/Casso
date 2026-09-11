@@ -1149,6 +1149,7 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
 
 
     m_menuCommands.clear();
+    AskCassoToDescribe();
 
     for (CassqueActions::Verb verb : m_actions.GetListVerbs())
     {
@@ -1163,6 +1164,13 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
         command->id       = (int) verb;
         command->label    = GetVerbLabel (verb);
         command->dispatch = [this, verb]() { RunVerb (verb); };
+
+        //  A machine known to have one drive cannot take drive 2; one not
+        //  described yet is given the benefit of the doubt.
+        if (verb == CassqueActions::Verb::InsertDrive2)
+        {
+            command->isEnabled = [this]() { return m_cassoDriveCount != 1; };
+        }
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
         m_menuCommands.push_back (std::move (command));
@@ -1402,14 +1410,7 @@ void CassqueWindow::InsertIntoDrive (const std::wstring & imagePath, int drive)
         return;
     }
 
-    if (m_context.owner != nullptr && IsWindow (m_context.owner))
-    {
-        target = m_context.owner;
-    }
-    else
-    {
-        target = FindWindowExW (nullptr, nullptr, Win32IntentChannel::kWindowClass, nullptr);
-    }
+    target = FindCassoTarget();
 
     if (target == nullptr)
     {
@@ -1545,6 +1546,10 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         switch (reply.kind)
         {
+            case Win32IntentChannel::ReplyKind::MachineDescription:
+                m_cassoDriveCount = reply.driveCount;
+                break;
+
             case Win32IntentChannel::ReplyKind::InsertDone:
                 m_status->SetText (1, L"Inserted into Casso");
                 break;
@@ -1902,4 +1907,58 @@ CassqueActions::AddressFn CassqueWindow::MakeAddressPrompt()
             ShowMessage (L"Type an address from $0000 to $FFFF.", MB_ICONWARNING);
         }
     };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FindCassoTarget
+//
+//  The Casso that launched this browser while it is still there, otherwise
+//  any running Casso, otherwise none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND CassqueWindow::FindCassoTarget() const
+{
+    if (m_context.owner != nullptr && IsWindow (m_context.owner))
+    {
+        return m_context.owner;
+    }
+
+    return FindWindowExW (nullptr, nullptr, Win32IntentChannel::kWindowClass, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::AskCassoToDescribe
+//
+//  The answer arrives as a reply message and updates the drive count the
+//  menus read. With no Casso running, a new one opens with the default
+//  machine, which has two drives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::AskCassoToDescribe()
+{
+    HWND  target = FindCassoTarget();
+    bool  sent   = false;
+
+
+
+    if (target == nullptr)
+    {
+        m_cassoDriveCount = Win32IntentChannel::kMaxDriveCount;
+        return;
+    }
+
+    sent = Win32IntentChannel::SendTo (target, GetHwnd(), Win32IntentChannel::GetMessageId(), Win32IntentChannel::EncodeDescribe());
+    IGNORE_RETURN_VALUE (sent, true);
 }
