@@ -924,6 +924,16 @@ in conversation.
 - **NEVER** run `Invoke-WebRequest` or `curl` to fetch executables
 - If a tool is needed, it MUST be buildable from source within the repo
 - GPL-licensed source files (e.g., Dormann test suite) may be downloaded for on-demand testing but MUST be deleted after use and MUST NOT be committed to the repository
+- **`scripts/FetchRoms.ps1` is a sanctioned exception to the two NEVERs above,
+  and an agent may run it without asking.** The machine ROMs are gitignored and
+  so are absent from every fresh clone and every new worktree. `RunTests.ps1`
+  verifies the fixture set before it runs anything, so on a machine without them
+  the suite refuses to start and NOTHING can be validated -- not one test, not a
+  filtered run. Fetch them with `scripts/FetchRoms.ps1 -Fixtures`. It downloads
+  only the eleven ROM images the fixtures call for, writes them under
+  `UnitTest/Fixtures/`, and that path is already gitignored, so nothing it
+  fetches can reach a commit. This widens nothing else: no other script may
+  fetch a binary, and a ROM is still never committed.
 
 ## Tone & Personality
 
