@@ -1,0 +1,15 @@
+Cassowary picture and application icon
+=======================================
+
+  Cassowary.png   (the picture in Cassque's About box)
+  Resources/Icons/Casso-4-silhouette-accent.ico   (referenced from Cassque.rc)
+
+Both are derived from "Mrs Cassowary closeup" (c) by Mr. Smiley / BunyipCo,
+the photograph Casso's README shows and Casso's own icons are built from.
+Cassowary.png is Resources/Icons/Casso-0-silhouette.png scaled to 256 pixels.
+
+Licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0
+Unported License (CC BY-NC-SA 3.0). To view a copy of this license, visit
+https://creativecommons.org/licenses/by-nc-sa/3.0/
+
+Source: https://bunyipco.blogspot.com/2015/04/cassowary-update.html

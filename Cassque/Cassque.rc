@@ -6,7 +6,8 @@
 // shows for Cassque.exe, and it is the only one.
 IDI_CASSQUE                  ICON "..\\Resources\\Icons\\Casso-4-silhouette-accent.ico"
 
-// The cassowary the About box shows. See Assets/README.md for its source.
+// The cassowary the About box shows, from a photo by Mr. Smiley / BunyipCo,
+// CC BY-NC-SA 3.0 -- see Assets/ATTRIBUTION.txt.
 IDR_CASSQUE_CASSOWARY_PNG    RCDATA "Assets\\Cassowary.png"
 
 // The same built-in themes Casso embeds. AssetBootstrap::EnsureThemes compares

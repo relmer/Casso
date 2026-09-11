@@ -11,15 +11,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  wmain
+//  wCassqueMain
 //
 //  Cassque's process entry point, in the same order as the emulator's.
 //
-//  WMAIN RATHER THAN wWinMain, because the emulator's wWinMain lives in this
-//  same library. A library holding two definitions of one symbol keeps only
-//  the first, so both executables would link the emulator's. Cassque links
-//  with the wide console startup and the Windows subsystem, which gives it
-//  wmain with no console and the arguments already split.
+//  The name is Cassque's own rather than wWinMain because the emulator's entry
+//  point lives in this same library, and a library keeps only one definition
+//  of a symbol. Cassque.vcxproj maps the C runtime's call to wWinMain onto this
+//  function with /ALTERNATENAME, which is also why it has C linkage.
 //
 //  DPI awareness first, for the reason the emulator gives: without per-monitor
 //  v2 Windows bitmap-scales the window. The EHM hooks next, so a failure from
@@ -33,7 +32,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int wmain (int argc, wchar_t * argv[])
+extern "C" int WINAPI wCassqueMain (
+    _In_     HINSTANCE hInstance,
+    _In_opt_ HINSTANCE hPrevInstance,
+    _In_     LPWSTR    lpCmdLine,
+    _In_     int       nCmdShow)
 {
     //  What a refused command line exits with, as the emulator does.
     constexpr int  kRefusedCommandLineStatus = 2;
@@ -41,13 +44,12 @@ int wmain (int argc, wchar_t * argv[])
 
 
     HRESULT                        hr          = S_OK;
-    HINSTANCE                      instance    = GetModuleHandleW (nullptr);
+    int                            argc        = 0;
+    LPWSTR *                       argv        = nullptr;
     std::vector<std::wstring>      arguments;
     CassqueLaunchOptions           options;
     CassquePrefs                   prefs;
     Win32FileSystem                fs;
-    STARTUPINFOW                   startup     = { sizeof (startup) };
-    int                            showCommand = SW_SHOWDEFAULT;
     int                            exitCode    = 0;
     HWND                           existing    = nullptr;
     HRESULT                        hrOptional  = S_OK;
@@ -60,10 +62,21 @@ int wmain (int argc, wchar_t * argv[])
     SetNotifyFunction (&CassqueShell::NotifyUser);
     SetBreakpointFunction (&CassqueShell::ReportAssertion);
 
+    //  lpCmdLine arrives as one string. The full command line is split by the
+    //  runtime's quoting rules instead, and the program name dropped.
+    UNREFERENCED_PARAMETER (hPrevInstance);
+    UNREFERENCED_PARAMETER (lpCmdLine);
+
+    argv = CommandLineToArgvW (GetCommandLineW(), &argc);
+    CWR (argv != nullptr);
+
     if (argc > 1)
     {
         arguments.assign (argv + 1, argv + argc);
     }
+
+    LocalFree (argv);
+    argv = nullptr;
 
     hr = CassqueShell::ParseArguments (arguments, options);
 
@@ -85,20 +98,13 @@ int wmain (int argc, wchar_t * argv[])
 
     BAIL_OUT_IF (existing != nullptr, S_OK);
 
-    hrOptional = AssetBootstrap::EnsureThemes (instance);
+    hrOptional = AssetBootstrap::EnsureThemes (hInstance);
     IGNORE_RETURN_VALUE (hrOptional, S_OK);
 
     hrOptional = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), fs);
     IGNORE_RETURN_VALUE (hrOptional, S_OK);
 
-    GetStartupInfoW (&startup);
-
-    if ((startup.dwFlags & STARTF_USESHOWWINDOW) != 0)
-    {
-        showCommand = startup.wShowWindow;
-    }
-
-    hr = shell->Initialize (instance, options, prefs, showCommand);
+    hr = shell->Initialize (hInstance, options, prefs, nCmdShow);
     CHR (hr);
 
     exitCode = shell->RunMessageLoop();

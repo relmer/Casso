@@ -162,7 +162,7 @@ public:
     EmulatorShell();
     ~EmulatorShell();
 
-    // The show state Windows handed wWinMain. Set before Initialize; the
+    // The show state Windows handed wCassoMain. Set before Initialize; the
     // first ShowWindow honors it when the launcher asked for something
     // particular, and falls back to the saved placement when it did not.
     void  SetStartupShowCommand (int nCmdShow) { m_startShowCmd = nCmdShow; }
@@ -708,7 +708,7 @@ public:
 
     // The failure-path counterpart of FlushPendingNotifications. Only
     // CreateEmulatorWindow drains the queue, and a startup that fails before
-    // it never gets there. wWinMain calls this on its failure exit; a system
+    // it never gets there. wCassoMain calls this on its failure exit; a system
     // box is the only surface left. Static because it runs after the shell
     // has given up.
     static void  ShowPendingNotificationsWithoutWindow ();
@@ -1266,7 +1266,7 @@ private:
     static void  NotifyUser (const wchar_t * message);
 
     // Holds a report raised before there is a window to show it in. Public
-    // and static because wWinMain installs the sink before the shell exists.
+    // and static because wCassoMain installs the sink before the shell exists.
     static void  QueueNotification (const std::wstring & message);
 
     // Shows one notification, marshaling as needed. Callable from any

@@ -3055,7 +3055,7 @@ namespace CommandLineTests
         //  the tests that loop never had.
         //
         //  NO PROGRAM NAME LEADS THESE LINES, unlike every other test in this
-        //  file. wWinMain is handed `lpCmdLine`, which does not contain one, so
+        //  file. wCassoMain is handed `lpCmdLine`, which does not contain one, so
         //  the first argument Windows gives this grammar is the first argument
         //  the USER typed. The tests wrote a "Casso.exe" in front anyway, which
         //  cost nothing while an unmatched argument was dropped and would have
