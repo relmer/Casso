@@ -36,6 +36,10 @@ Paddle mode and arrows-to-joystick are mutually exclusive, since both drive PDL0
 - Q: Which device APIs? -> A: XInput for Xbox-class controllers and DirectInput for all other controllers. DirectInput alone cannot read an Xbox controller's triggers independently, and XInput alone does not see non-Xbox devices.
 - Q: Must identical Xbox controllers be told apart? -> A: No. Xbox-class controllers are factory-calibrated and need no calibration, so they are recognized by model only (FR-018a).
 - Q: Can a user keep different mappings for different games? -> A: Yes. Named profiles per controller model, each a control mapping, chosen from the input selector and remembered per machine. Calibration is split out of the profile and stays with the physical unit (User Story 6, FR-026 to FR-030).
+- Q: How do toolbar controller and profile pickers relate to the 032 command-widget work, which replaces `CommandToolbar` and supplies the shared dropdown? -> A: 034 depends on 032. The toolbar pickers are built on 032's toolbar and dropdown widgets after 032 merges, not on today's `CommandToolbar` (FR-031).
+- Q: When a controller connects and none is selected, is it selected automatically? -> A: Yes, always: whenever the current machine has no controller selected, a newly connected controller becomes its selection, even if the user had deliberately chosen arrow keys or paddle mode (FR-032).
+- Q: Where do the controller settings live? -> A: A new Controllers page in the Settings sheet, following its Apply/Cancel model; the input selector's Controller Settings item opens the sheet to that page (FR-019).
+- Q: Does controller input apply while Casso is not the foreground window? -> A: Yes. The selected controller keeps driving the game port in the background, unlike the keyboard (FR-003, FR-033).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -71,6 +75,7 @@ A user with more than one controller attached (a gamepad and a flight stick) pic
 2. **Given** controller B is selected, **When** controller A's stick moves, **Then** the game port does not change.
 3. **Given** a controller is selected for a machine, **When** Casso restarts with that controller attached, **Then** the same controller is selected with no user action.
 4. **Given** the selected controller is not attached at launch, **When** Casso starts, **Then** the selection is kept and takes effect when that controller connects.
+5. **Given** a machine with no controller selected and arrows-to-joystick on, **When** a controller is plugged in, **Then** it becomes the selection, arrows-to-joystick turns off, and a notice says which controller was selected.
 
 ---
 
@@ -148,10 +153,13 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 
 ### Edge Cases
 
+- **User switches back to arrow keys with a controller still attached**: the switch holds for the session, because the controller is not newly connecting. The next time a controller connects (unplug and replug, relaunch, or switching to this machine) it is selected again (FR-032).
+- **Several controllers attached at launch with none selected**: the first one enumerated is selected; the rest only appear in the selector.
 - **Arrow keys held at the moment the controller reconnects**: the controller takes the joystick back immediately; held arrows stop driving the axes.
 - **Arrow keys during fallback on a machine where arrows-to-joystick was never used**: the fallback still applies, since it follows the controller selection, not the arrows-to-joystick setting.
 - **Keyboard button and controller button at once**: a button reads pressed if either source holds it. Releasing one does not release a button the other still holds.
-- **Casso loses focus**: controller input stops driving the game port while Casso is not the foreground window, matching the keyboard's existing behavior, and the port returns to rest.
+- **Casso loses focus or is minimized**: the selected controller keeps driving the game port. Keyboard-driven inputs (arrow keys, including the disconnect fallback, and Open-Apple and Solid-Apple keys) keep their existing foreground-only behavior, so a button held on the keyboard is released on focus loss while one held on the controller stays pressed.
+- **Controllers page open in the Settings sheet**: the sheet taking focus does not stop controller input; the game port keeps following the applied mapping.
 - **Machine switch**: controller input never reaches a machine being torn down; the new machine adopts its own saved selection.
 - **Machine with no game port** (for example a configuration without one): controller selection is unavailable or has no effect, and nothing faults.
 - **Paddle games**: a controller stick drives PDL0/PDL1 as absolute positions, so paddle software (Breakout-style games reading PDL0) works with the X axis.
@@ -169,6 +177,8 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **Axis at rest assigned to a button target**: an analog trigger or axis assigned to a button reads pressed past a threshold, not at any nonzero value.
 - **Digital and analog sources on the same axis**: the source deflected furthest from center wins, so a D-pad press is not diluted by a stick at rest.
 - **A target with nothing assigned**: an axis reads center and a button reads released.
+- **Active profile switched from the menu while the Controllers page has unapplied edits to it**: the switch takes effect on the emulated machine immediately; the page's unapplied edits stay pending and are applied to the profile they were made to, not to the newly active one.
+- **Calibrate action and Cancel**: a calibration captured on the Controllers page follows Apply/Cancel like any other edit on the page.
 - **Controller removed while its settings are open**: the settings stay open, show it disconnected, and keep unsaved edits until it returns or the user closes them.
 - **Profile or calibration data that cannot be read** (hand-edited, from a newer version): the affected profile falls back to the default mapping, or the controller to automatic calibration, and the problem is reported rather than silently producing an unmapped controller. Readable profiles for the same model are unaffected.
 - **Pause or step**: controller state is sampled into the port the same way keyboard state is; pausing emulation does not queue stale presses.
@@ -179,7 +189,7 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 
 - **FR-001**: Casso MUST enumerate attached game controllers, including Xbox-class controllers, generic USB/Bluetooth gamepads, and joysticks.
 - **FR-002**: Casso MUST detect controllers being attached and removed while running, without a restart.
-- **FR-003**: When a controller is the selected source, Casso MUST sample it continuously while the emulator window is foreground, at least as often as the display refreshes (60 Hz), and apply its mapped axis controls to PDL0 (X) and PDL1 (Y) over the full 0-255 range. With no custom mapping, the left stick (or a joystick's primary axes) drives them.
+- **FR-003**: When a controller is the selected source, Casso MUST sample it continuously whether or not the emulator window is foreground (FR-033), at least as often as the display refreshes (60 Hz), and apply its mapped axis controls to PDL0 (X) and PDL1 (Y) over the full 0-255 range. With no custom mapping, the left stick (or a joystick's primary axes) drives them.
 - **FR-004**: The mapping MUST be proportional: center at rest maps to 127/128, full deflection maps to 0 or 255, and intermediate deflection maps monotonically between them.
 - **FR-005**: The mapped button controls MUST drive PB0 and PB1, reaching the same machine inputs Open-Apple and Solid-Apple reach on a //e and //c. With no custom mapping, the first two face buttons (on an Xbox-class controller, A and B; on a joystick, its first two buttons) drive them.
 - **FR-006**: A deadzone around center MUST suppress rest jitter; a stick within it reads exactly center.
@@ -198,18 +208,21 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **FR-017**: Machines without a game port MUST NOT offer controller selection, or MUST ignore it without faulting.
 - **FR-018**: Casso MUST recognize a controller at two levels: the specific unit, and its model (vendor and product). Calibration is keyed by unit; profiles are keyed by model, so every controller of a model shares them. A unit with no saved calibration starts with automatic calibration.
 - **FR-018a**: Xbox-class controllers are recognized at the model level only. They are factory-calibrated, so they get no automatic calibration and no Calibrate action; the deadzone and profiles are all that apply. A saved selection of an Xbox-class model matches whichever controller of that model is connected.
-- **FR-019**: Casso MUST provide controller settings UI, reachable from the input selector, where the user picks an attached controller, edits its calibration (FR-007) and deadzone, and manages and edits its profiles.
+- **FR-019**: Casso MUST provide a Controllers page in the Settings sheet where the user picks an attached controller, edits its calibration (FR-007) and deadzone, and manages and edits its profiles. A Controller Settings item in the input selector MUST open the Settings sheet to that page. The page MUST follow the sheet's Apply/Cancel model: mapping, deadzone and profile edits take effect on the emulated machine only on Apply and are discarded on Cancel, while the live readings (FR-023) preview the edited mapping before it is applied.
 - **FR-020**: Each game-port target (PDL0, PDL1, PB0, PB1) MUST accept one or more assigned controls. Assignable controls are every axis, button, D-pad direction and trigger the controller reports.
 - **FR-021**: An axis target MUST accept an analog axis (optionally inverted) or a pair of digital controls (one for each direction, driving the axis to its extreme while held). A button target MUST accept a button, a D-pad direction, or an analog axis or trigger past a threshold.
 - **FR-022**: The user MUST be able to assign a control by activating it on the controller while the target is waiting for input, as well as by choosing it from a list. Waiting for input MUST be cancelable, and MUST ignore a control already deflected or held when waiting began.
 - **FR-023**: The controller settings MUST show live readings of the controller's controls and of the resulting PDL0/PDL1 and PB0/PB1 values while open.
 - **FR-024**: The user MUST be able to reset a profile's mapping to the default mapping.
+- **FR-025**: The settings MUST show which controls drive more than one target, and MUST NOT remove an existing assignment as a side effect of adding one.
 - **FR-026**: Each controller model MUST have a Default profile, created automatically with the default mapping (FR-003, FR-005), which can be edited and reset but not deleted or renamed.
 - **FR-027**: The user MUST be able to create a profile (from the default mapping or as a copy of an existing profile), rename it, and delete it. Profile names MUST be unique per model, case-insensitively, and nonempty.
 - **FR-028**: The active profile MUST be selectable from the input selector (Machine menu and toolbar input control) without opening the controller settings, and MUST take effect on the next sample without resetting the emulated machine.
 - **FR-029**: The active profile MUST be remembered per machine alongside the controller selection. If it no longer exists, Default MUST be used.
 - **FR-030**: Switching profiles MUST release any button and center any axis that the new profile no longer drives from a currently held or deflected control.
-- **FR-025**: The settings MUST show which controls drive more than one target, and MUST NOT remove an existing assignment as a side effect of adding one.
+- **FR-031**: The toolbar's controller and profile pickers and its status indicator (FR-008, FR-008a, FR-028) MUST be built on the toolbar and dropdown widgets from the Dxui command-widgets feature (branch `032-dxui-command-widgets`), not on the current emulator toolbar. Toolbar work in this feature starts only after that feature is on master.
+- **FR-032**: Whenever the current machine has no controller selected and a controller connects, that controller MUST become the machine's selection automatically, replacing arrows-to-joystick or mouse-to-paddle if either is on, and Casso MUST show a brief notice saying which controller was selected. A controller already attached when Casso starts, or when the user switches to a machine with no controller selected, counts as connecting. A controller connecting while one is already selected (connected or not) MUST NOT change the selection.
+- **FR-033**: The selected controller MUST keep driving the game port while Casso is not the foreground window, including while minimized. Keyboard-driven game-port inputs keep their existing foreground-only behavior.
 
 ### Key Entities
 
@@ -232,10 +245,10 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **SC-004**: Both axes reach 0 and 255, and both buttons register, on each of: an Xbox-class controller, a generic USB gamepad, and a USB joystick.
 - **SC-005**: After a disconnect the game port reads centered and released within 100 ms, and after reconnect the controller drives it again within 2 seconds, with no user action in either case.
 - **SC-006**: The selection, calibration and control mapping are restored on 100% of relaunches and reconnects with the same controller attached.
+- **SC-007**: Controller support adds no measurable CPU cost while no controller is selected.
 - **SC-008**: A user can reassign both buttons and switch the axes to the D-pad in under one minute from opening the controller settings.
 - **SC-009**: A controller not yet recognized as a unit, but of a model with saved profiles, drives the game port with those profiles available on its first connection.
 - **SC-010**: Switching the active profile from the input selector takes two actions or fewer and no more than 5 seconds, with no emulated machine reset.
-- **SC-007**: Controller support adds no measurable CPU cost while no controller is selected.
 
 ## Assumptions
 
@@ -245,9 +258,10 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **Xbox-class controllers need no unit recognition**: XInput exposes only a slot number (0-3), with no product, vendor or serial identity, and a controller can change slots across reconnects. That would make telling two identical Xbox controllers apart unreliable, but nothing requires it: calibration is the only per-unit data and they need none (FR-018a). Recognizing the model still has to come from correlating the slot with its underlying device.
 - **DirectInput unit recognition is best effort**: a device without a unique serial number may not be recognized as the same unit after moving to a different port; FR-018's model-level fallback covers that case.
 - **XInput's four-controller limit** applies to Xbox-class controllers; DirectInput devices are not counted against it.
-- **Focus**: controller input applies only while Casso is the foreground window, matching the keyboard's existing button behavior.
+- **Focus**: controller input applies whether or not Casso is the foreground window (FR-033); the device access in the plan must support background reading for both XInput and DirectInput devices.
 - **Absolute positioning**: the stick sets paddle position directly (joystick semantics). It does not integrate stick deflection into relative motion the way the mouse-to-paddle capture does.
 - **Persistence location**: the controller selection and active profile live with the existing per-machine input preferences; profiles, calibration and deadzone are global and keyed by controller model or unit, since a stick's physical quirks and the user's layouts for it do not change with the emulated machine.
 - **Profiles are chosen by hand**: activating a profile automatically when a particular disk is mounted is tracked by GH #78, which owns known-disk recognition. The profile storage here must allow a profile to be looked up by controller model and profile name so that work can associate disks with profiles.
 - **Profiles belong to a model**: a profile refers to that model's controls, so profiles are not shared across different models. Copying a profile to another model is out of scope.
+- **Dependency on 032**: the Dxui command-widgets feature must merge before this feature's toolbar work. Device reading, mapping, profiles, persistence and the Machine menu entries do not depend on it and can proceed first.
 - **Deadzone default**: a conventional default (on the order of 10-15% of travel) works for most controllers without calibration.
