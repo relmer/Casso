@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "Core/DxuiCommand.h"
+#include "Core/UnicodeSymbols.h"
+#include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiPopupMenu.h"
 
@@ -66,6 +68,10 @@ public:
     CassqueCommands & operator= (const CassqueCommands &) = delete;
 
     std::vector<DxuiMenuBarItem>  BuildMenuItems() const;
+
+    //  The toolbar's entries, in strip order: navigation, refresh, a new tab,
+    //  and the preview pane's toggle.
+    std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
     const DxuiCommand *           Find (int id) const;
 
     //  The command a key reaches, or zero. Alt combinations are included, so
@@ -82,6 +88,16 @@ private:
         const wchar_t  * label;
         const wchar_t  * accelerator;
         bool             checkable;
+    };
+
+    struct ToolbarRow
+    {
+        int                id;
+        DxuiToolbar::Kind  kind;
+        int                group;
+        const wchar_t    * glyph;
+        const wchar_t    * shortLabel;
+        const wchar_t    * tip;
     };
 
     struct Key
@@ -119,6 +135,16 @@ private:
         { kForward,           Menu::Go,   L"&Forward",            L"Alt+Right", false },
         { kUp,                Menu::Go,   L"&Up one level",       L"Alt+Up",   false },
         { kAbout,             Menu::Help, L"&About Cassque...",   L"F1",       false },
+    };
+
+    static constexpr ToolbarRow  kToolbarRows[] =
+    {
+        { kBack,          DxuiToolbar::Kind::Command, 0, s_kpszMdl2Back,    L"Back",    L"Back (Alt+Left)"        },
+        { kForward,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Forward, L"Forward", L"Forward (Alt+Right)"    },
+        { kUp,            DxuiToolbar::Kind::Command, 0, s_kpszMdl2Up,      L"Up",      L"Up one level (Alt+Up)"  },
+        { kRefresh,       DxuiToolbar::Kind::Command, 1, s_kpszMdl2Refresh, L"Refresh", L"Refresh (F5)"           },
+        { kNewTab,        DxuiToolbar::Kind::Command, 2, s_kpszMdl2Add,     L"New tab", L"New tab (Ctrl+T)"       },
+        { kTogglePreview, DxuiToolbar::Kind::Toggle,  3, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)"   },
     };
 
     static constexpr Key  kKeys[] =

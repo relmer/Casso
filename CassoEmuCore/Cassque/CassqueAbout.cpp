@@ -28,8 +28,10 @@ std::vector<DialogTextRun> CassqueAbout::GetBody()
     runs.push_back ({ L"" });
     runs.push_back ({ L"Browses Apple II disk images: their catalogs, their files, and what the files hold." });
     runs.push_back ({ L"" });
-    runs.push_back ({ L"The cassowary wears a casque, the tall helmet-like crest on its head. Casso is named for the "
-                      L"bird; Cassque, for the part that holds what is inside." });
+    runs.push_back ({ L"Where the name comes from:" });
+    runs.push_back ({ L"    cask, a container, the barrel that holds the disks" });
+    runs.push_back ({ L"  + casque, the tall helmet-like crest on a cassowary's head" });
+    runs.push_back ({ L"  = Cassque, the browser, and the cassowary Casso is named for" });
     runs.push_back ({ L"" });
 
     credit.text         = L"Cassowary photo by Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0";

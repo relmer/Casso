@@ -93,6 +93,9 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
 
     ApplyTheme();
 
+    //  The tooltip's dwell runs on a timer: nothing else ticks this window.
+    SetTimer (GetHwnd(), kTooltipTimerId, kTooltipTickMs, nullptr);
+
     //  A file dropped on the list while it shows an image goes into it. A
     //  failure to register leaves the window without drops, not without a
     //  window.
@@ -206,7 +209,13 @@ void CassqueWindow::OnCreate()
     m_previewSplitter = previewSplitter;
     m_status          = CreateChild<DxuiStatusBar>();
     m_tabs            = CreateChild<DxuiTabStrip>();
+    m_toolbar         = CreateChild<DxuiToolbar>();
     m_menuBar         = CreateChild<DxuiMenuBar>();
+
+    m_toolbar->SetTextRenderer (GetTextRenderer());
+    m_toolbar->SetPopupHost    (GetPopupHost());
+    m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
+    m_tooltip.SetPopupHost     (GetPopupHost());
 
     m_menuBar->SetPopupHost (GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
@@ -335,6 +344,12 @@ void CassqueWindow::ApplyTheme()
                                       m_theme->dropdownAccel, m_theme->panelEdge, m_theme->buttonBorder);
     }
 
+    if (m_toolbar != nullptr)
+    {
+        m_toolbar->SetStripColors (m_theme->navStrip, m_theme->navItemText);
+        m_tooltip.SetTheme (*m_theme);
+    }
+
     if (GetHwnd() != nullptr)
     {
         uint32_t  background = m_theme->Background();
@@ -402,6 +417,13 @@ void CassqueWindow::RecomputeLayout()
 
     m_menuBar->SetHostClientRect (m_client);
     m_menuBar->Layout (menu, m_scaler);
+
+    m_toolbar->PlanForWidth (m_client.right - m_client.left, m_scaler);
+    m_toolbar->SetHostClientRect (m_client);
+    m_toolbar->Layout (RECT { m_client.left, menu.bottom, m_client.right, menu.bottom + m_scaler.ToPx (m_toolbar->GetBandDp()) }, m_scaler);
+    body.top = m_toolbar->GetBounds().bottom;
+    m_tooltip.SetDpi (m_scaler.GetDpi());
+    m_tooltip.SetViewportSize (m_client.right - m_client.left, m_client.bottom - m_client.top);
     m_status->Layout (status, m_scaler);
 
     m_treeSplitter->Layout (body, m_scaler);
@@ -693,6 +715,12 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (m_menuBar->OnMouse (ev))
     {
+        return true;
+    }
+
+    if (RouteToolbarMouse (ev))
+    {
+        Invalidate();
         return true;
     }
 
@@ -2106,4 +2134,113 @@ void CassqueWindow::RunRawVerb (CassqueActions::Verb verb)
 
     ReportOutcome (outcome, L"Write");
     FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetNowMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t CassqueWindow::GetNowMs()
+{
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+               std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RouteToolbarMouse
+//
+//  The toolbar takes its pointer input through its own calls rather than
+//  OnMouse. A move always reaches it, so its hover clears when the pointer
+//  leaves; it is consumed only over the strip. The tooltip follows the hover.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::RouteToolbarMouse (const DxuiMouseEvent & ev)
+{
+    int              x      = ev.positionDip.x;
+    int              y      = ev.positionDip.y;
+    bool             took   = false;
+    RECT             anchor = {};
+    const wchar_t *  tip    = nullptr;
+    int64_t          nowMs  = GetNowMs();
+
+
+
+    switch (ev.kind)
+    {
+        case DxuiMouseEventKind::Move:
+            took = m_toolbar->OnToolbarMouseMove (x, y);
+            tip  = took ? m_toolbar->GetTooltipAt (x, y, anchor) : nullptr;
+
+            if (tip != nullptr && *tip != L'\0')
+            {
+                m_tooltip.RequestShow (anchor, tip, nowMs);
+            }
+            else
+            {
+                m_tooltip.RequestHide (nowMs);
+            }
+
+            break;
+
+        case DxuiMouseEventKind::Down:
+            took = ev.button == DxuiMouseButton::Left && m_toolbar->OnToolbarLButtonDown (x, y);
+
+            if (took)
+            {
+                m_tooltip.HideImmediate();
+            }
+
+            break;
+
+        case DxuiMouseEventKind::Up:
+            took = ev.button == DxuiMouseButton::Left && m_toolbar->OnToolbarLButtonUp (x, y);
+            break;
+
+        case DxuiMouseEventKind::Leave:
+            m_toolbar->OnToolbarMouseLeave();
+            m_tooltip.RequestHide (nowMs);
+            break;
+
+        default:
+            break;
+    }
+
+    return took;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::OnTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
+{
+    if (timerId != kTooltipTimerId)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (m_tooltip.WantsTick())
+    {
+        m_tooltip.Tick (GetNowMs());
+    }
+
+    return DxuiMessageResult::Handled;
 }

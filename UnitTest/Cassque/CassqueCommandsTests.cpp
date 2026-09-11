@@ -76,4 +76,24 @@ public:
         Assert::AreEqual (0, CassqueCommands::TranslateKey (VK_LEFT, false, false, false));
         Assert::AreEqual (0, CassqueCommands::TranslateKey (VK_F5,   true,  false, false));
     }
+
+
+    TEST_METHOD (Toolbar_ShowsNavigationRefreshNewTabAndPreview)
+    {
+        CassqueCommands                  commands ({});
+        std::vector<DxuiToolbar::Entry>  entries = commands.BuildToolbarEntries();
+
+        Assert::AreEqual ((size_t) 6, entries.size());
+        Assert::AreEqual ((int) CassqueCommands::kBack, entries[0].command->id);
+        Assert::IsTrue   (entries[5].kind == DxuiToolbar::Kind::Toggle);
+        Assert::AreEqual ((int) CassqueCommands::kTogglePreview, entries[5].command->id);
+
+        for (const DxuiToolbar::Entry & entry : entries)
+        {
+            Assert::IsNotNull (entry.command->glyph);
+            Assert::IsFalse   (entry.command->tip.empty());
+        }
+
+        Assert::IsTrue (entries[2].group != entries[3].group);
+    }
 };

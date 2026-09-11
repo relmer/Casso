@@ -57,6 +57,21 @@ CassqueCommands::CassqueCommands (Handlers handlers)
 
         m_commands.push_back (std::move (command));
     }
+
+    //  The toolbar shows some of the same commands; they carry the glyph,
+    //  short label and tip the strip draws.
+    for (const ToolbarRow & row : kToolbarRows)
+    {
+        for (std::unique_ptr<DxuiCommand> & command : m_commands)
+        {
+            if (command->id == row.id)
+            {
+                command->glyph      = row.glyph;
+                command->shortLabel = row.shortLabel;
+                command->tip        = row.tip;
+            }
+        }
+    }
 }
 
 
@@ -171,4 +186,34 @@ int CassqueCommands::TranslateKey (WPARAM vk, bool ctrl, bool alt, bool shift)
     }
 
     return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildToolbarEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildToolbarEntries() const
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    for (const ToolbarRow & row : kToolbarRows)
+    {
+        DxuiToolbar::Entry  entry;
+
+        entry.command = Find (row.id);
+        entry.kind    = row.kind;
+        entry.group   = row.group;
+
+        entries.push_back (std::move (entry));
+    }
+
+    return entries;
 }

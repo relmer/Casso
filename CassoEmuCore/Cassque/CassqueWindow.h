@@ -21,6 +21,8 @@
 #include "Widgets/DxuiSplitter.h"
 #include "Widgets/DxuiStatusBar.h"
 #include "Widgets/DxuiTabStrip.h"
+#include "Widgets/DxuiToolbar.h"
+#include "Widgets/DxuiTooltip.h"
 #include "Widgets/DxuiTreeView.h"
 #include "Core/DxuiHitTester.h"
 #include "Window/DxuiDragDropTarget.h"
@@ -73,12 +75,14 @@ public:
     bool    OnKey             (const DxuiKeyEvent & ev) override;
     LPCWSTR GetCursorForPoint (POINT clientPx) const override;
 
-    static constexpr int  kMaxCatalogName     = 30;
-    static constexpr int  kTabHeightDip       = 32;
-    static constexpr int  kTabWidthDip        = 180;
-    static constexpr int  kMinTreeWidthDip    = 140;
-    static constexpr int  kMinListWidthDip    = 220;
-    static constexpr int  kMinPreviewWidthDip = 160;
+    static constexpr int       kMaxCatalogName     = 30;
+    static constexpr UINT_PTR  kTooltipTimerId     = 0x5153;
+    static constexpr UINT      kTooltipTickMs      = 50;
+    static constexpr int       kTabHeightDip       = 32;
+    static constexpr int       kTabWidthDip        = 180;
+    static constexpr int       kMinTreeWidthDip    = 140;
+    static constexpr int       kMinListWidthDip    = 220;
+    static constexpr int       kMinPreviewWidthDip = 160;
 
     //  The private message that carries a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
@@ -89,6 +93,7 @@ protected:
 
     DxuiMessageResult  OnCopyData   (WPARAM sender, LPARAM data) override;
     DxuiMessageResult  OnActivateApp (bool active) override;
+    DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
     DxuiMessageResult  OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 private:
@@ -112,6 +117,9 @@ private:
     void  ShowAbout();
 
     void  ShowListContextMenu (int x, int y);
+    bool  RouteToolbarMouse   (const DxuiMouseEvent & ev);
+
+    static int64_t  GetNowMs();
     void  BeginDragOut();
     void  OnDropFile (const std::wstring & path);
     CassqueActions::AddressFn  MakeAddressPrompt();
@@ -166,4 +174,6 @@ private:
     DxuiLabel            * m_previewMessage  = nullptr;
     DxuiStatusBar        * m_status          = nullptr;
     DxuiTabStrip         * m_tabs            = nullptr;
+    DxuiToolbar          * m_toolbar         = nullptr;
+    DxuiTooltip            m_tooltip;
 };

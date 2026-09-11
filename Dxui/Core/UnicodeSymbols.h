@@ -37,6 +37,12 @@ static constexpr LPCWSTR s_kpszLock          = L"\U0001F512";   // U+1F512 LOCK 
 static constexpr LPCWSTR s_kpszMdl2Play      = L"\xE768";       // U+E768 Segoe MDL2 Play
 static constexpr LPCWSTR s_kpszMdl2Copy      = L"\xE8C8";       // U+E8C8 Segoe MDL2 Copy
 static constexpr LPCWSTR s_kpszMdl2Accept    = L"\xE73E";       // U+E73E Segoe MDL2 Accept (check mark)
+static constexpr LPCWSTR s_kpszMdl2Back      = L"\xE72B";       // U+E72B Segoe MDL2 Back
+static constexpr LPCWSTR s_kpszMdl2Forward   = L"\xE72A";       // U+E72A Segoe MDL2 Forward
+static constexpr LPCWSTR s_kpszMdl2Up        = L"\xE74A";       // U+E74A Segoe MDL2 Up
+static constexpr LPCWSTR s_kpszMdl2Refresh   = L"\xE72C";       // U+E72C Segoe MDL2 Refresh
+static constexpr LPCWSTR s_kpszMdl2Add       = L"\xE710";       // U+E710 Segoe MDL2 Add
+static constexpr LPCWSTR s_kpszMdl2Preview   = L"\xE8A1";       // U+E8A1 Segoe MDL2 PreviewLink
 
 // Casso's own symbol font (Resources/Fonts/CassoSymbols.ttf, embedded and
 // registered by AssetBootstrap::RegisterSymbolFont). These need no family at
