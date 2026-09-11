@@ -300,9 +300,7 @@ void DxuiTextRenderer::Shutdown()
     m_framebufferBitmap.Reset();
     m_framebufferBitmapW = 0;
     m_framebufferBitmapH = 0;
-    m_iconBitmap.Reset();
-    m_iconBitmapW = 0;
-    m_iconBitmapH = 0;
+    m_iconBitmaps.clear();
     m_brushCache.clear();
     m_layoutCache.clear();
     m_formatCache.clear();
@@ -1755,11 +1753,14 @@ Error:
 //
 //  DrawIconBitmap
 //
-//  Same upload-and-blit logic as DrawFramebuffer but uses a dedicated
-//  cached ID2D1Bitmap so the title-bar app icon (stable size) and the
-//  emulator framebuffer (560x384) don't ping-pong recreating the same
-//  cache slot every frame. Source pixels are interpreted as
-//  premultiplied BGRA8 so the alpha channel composites correctly.
+//  Same upload-and-blit logic as DrawFramebuffer, over a cache of its own so
+//  the title-bar app icon and the emulator framebuffer (560x384) don't
+//  ping-pong recreating one cache slot every frame. The cache holds one
+//  bitmap per distinct picture, because D2D batches a frame's draws: pixels
+//  uploaded into a bitmap that has already been drawn change that earlier
+//  draw too, which showed every picture of one size as the last one uploaded.
+//  Source pixels are interpreted as premultiplied BGRA8 so the alpha channel
+//  composites correctly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1772,8 +1773,10 @@ HRESULT DxuiTextRenderer::DrawIconBitmap (
     float            destWidthDip,
     float            destHeightDip)
 {
-    HRESULT       hr     = S_OK;
-    D2D1_RECT_F   dest   = {};
+    HRESULT        hr     = S_OK;
+    uint64_t       key    = 0;
+    ID2D1Bitmap *  bitmap = nullptr;
+    D2D1_RECT_F    dest   = {};
 
 
 
@@ -1784,31 +1787,21 @@ HRESULT DxuiTextRenderer::DrawIconBitmap (
     CBRA (srcBgraPremul);
     CBRA (srcWidthPx > 0 && srcHeightPx > 0);
 
-    if (m_iconBitmap == nullptr ||
-        m_iconBitmapW != srcWidthPx ||
-        m_iconBitmapH != srcHeightPx)
+    key = HashPixels (srcBgraPremul, (size_t) srcWidthPx * (size_t) srcHeightPx);
+
+    for (const IconBitmap & cached : m_iconBitmaps)
     {
-        D2D1_BITMAP_PROPERTIES  props = {};
-
-        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
-        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-        props.dpiX                  = 96.0f;
-        props.dpiY                  = 96.0f;
-
-        m_iconBitmap.Reset();
-        hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
-                                         nullptr, 0, &props, &m_iconBitmap);
-        CHRA (hr);
-        m_iconBitmapW = srcWidthPx;
-        m_iconBitmapH = srcHeightPx;
+        if (cached.key == key && cached.width == srcWidthPx && cached.height == srcHeightPx)
+        {
+            bitmap = cached.bitmap.Get();
+            break;
+        }
     }
 
+    if (bitmap == nullptr)
     {
-        D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
-
-        hr = m_iconBitmap->CopyFromMemory (&srcRect, srcBgraPremul,
-                                           (UINT32) (srcWidthPx * sizeof (uint32_t)));
-        CHRA (hr);
+        hr = AddIconBitmap (srcBgraPremul, srcWidthPx, srcHeightPx, key, bitmap);
+        CHR (hr);
     }
 
     dest.left   = destXDip;
@@ -1816,13 +1809,102 @@ HRESULT DxuiTextRenderer::DrawIconBitmap (
     dest.right  = destXDip + destWidthDip;
     dest.bottom = destYDip + destHeightDip;
 
-    m_d2dContext->DrawBitmap (m_iconBitmap.Get(),
+    m_d2dContext->DrawBitmap (bitmap,
                               &dest, m_globalAlpha,
                               D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
                               nullptr);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddIconBitmap
+//
+//  The oldest entry goes when the cache is full. D2D holds its own reference
+//  to a bitmap it has been given to draw, so dropping ours mid-frame is safe;
+//  what a batched frame cannot survive is a bitmap's pixels changing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::AddIconBitmap (
+    const uint32_t  * srcBgraPremul,
+    int               srcWidthPx,
+    int               srcHeightPx,
+    uint64_t          key,
+    ID2D1Bitmap    * & outBitmap)
+{
+    HRESULT                 hr      = S_OK;
+    IconBitmap              entry;
+    D2D1_BITMAP_PROPERTIES  props   = {};
+    D2D1_RECT_U             srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
+
+
+
+    props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+    props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+    props.dpiX                  = 96.0f;
+    props.dpiY                  = 96.0f;
+
+    hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
+                                     nullptr, 0, &props, &entry.bitmap);
+    CHRA (hr);
+
+    hr = entry.bitmap->CopyFromMemory (&srcRect, srcBgraPremul,
+                                       (UINT32) (srcWidthPx * sizeof (uint32_t)));
+    CHRA (hr);
+
+    entry.key    = key;
+    entry.width  = srcWidthPx;
+    entry.height = srcHeightPx;
+    outBitmap    = entry.bitmap.Get();
+
+    if (m_iconBitmaps.size() >= s_kMaxIconBitmaps)
+    {
+        m_iconBitmaps.erase (m_iconBitmaps.begin());
+    }
+
+    m_iconBitmaps.push_back (std::move (entry));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HashPixels
+//
+//  FNV-1a over the picture's pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiTextRenderer::HashPixels (const uint32_t * pixels, size_t count)
+{
+    constexpr uint64_t  kOffsetBasis = 14695981039346656037ULL;
+    constexpr uint64_t  kPrime       = 1099511628211ULL;
+
+
+
+    uint64_t  hash = kOffsetBasis;
+    size_t    i    = 0;
+
+
+
+    for (i = 0; i < count; i++)
+    {
+        hash = (hash ^ (uint64_t) pixels[i]) * kPrime;
+    }
+
+    return hash;
 }
 
 
