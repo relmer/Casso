@@ -35,8 +35,9 @@ folder that no longer exists stays listed until Remove from Casso.
 | splitters | object | Tree and preview widths in dp |
 | tabs | array | Each tab's location, restored on launch |
 
-Seeded on first run: `theme` from Casso's `activeTheme` in
-`UserPrefs.json`, read-only.
+Seeded on first run: `theme` from Casso's `activeTheme` under the
+`global` object in `UserPrefs.json`, read-only. Not the top-level
+`activeTheme` in `GlobalUserPrefs.json`, which exists and does nothing.
 
 ## In memory
 
