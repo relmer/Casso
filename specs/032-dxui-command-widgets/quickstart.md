@@ -64,6 +64,18 @@ no zero-impact route: `PathResolver::GetLocalAppDataDir` asks
 `SHGetKnownFolderPath` first and only reads the variable if that call fails.
 Editing the real prefs and putting them back is the way.
 
+**Capture without foreground, at physical pixels.** The baseline was taken
+by posting a click to each title and printing the main window plus the
+dropdown's own popup window with `PrintWindow`, composited at its offset.
+Nothing takes focus: `SetForegroundWindow` is refused to a background process
+and `SendKeys` then types into whatever is in front, which happened once. The
+capture process must set its DPI awareness before touching the display,
+because this monitor runs at 125 percent; a non-aware process gets a
+downscaled image, and the popup, being per-monitor aware, prints at physical
+size into a virtual-sized bitmap and loses its bottom rows. The procedure
+and its lessons are in `scripts/out/screenshots/README.txt`, and the script
+is the scratchpad's `CaptureChrome.ps1`; run the same script for the branch.
+
 For master and branch, in Skeuomorphic, DarkModern and RetroTerminal: open
 each top-level menu by click and capture the window. Expected: the same
 rows in the same order, the same separators, disabled rows, check marks
