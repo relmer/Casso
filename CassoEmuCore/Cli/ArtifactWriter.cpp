@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ArtifactWriter.h"
+#include "CliOutput.h"
 #include "Assembler.h"
 #include "CommandLineParser.h"
 #include "OutputFormats.h"
@@ -397,10 +398,10 @@ HRESULT ArtifactWriter::WriteBinary (const AssemblyResult & result,
 
         if (!fitsDos)
         {
-            std::println (stderr,
-                          "Error: {} bytes is too large for a DOS 3.3 binary (limit {})",
-                          spanBytes,
-                          OutputFormats::kMaxDosBinaryLength);
+            CliOutput::PrintLine (stderr,
+                                  "Error: {} bytes is too large for a DOS 3.3 binary (limit {})",
+                                  spanBytes,
+                                  OutputFormats::kMaxDosBinaryLength);
             reported = true;
         }
     }

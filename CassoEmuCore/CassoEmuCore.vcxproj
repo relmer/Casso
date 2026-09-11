@@ -264,6 +264,7 @@
     <ClCompile Include="Cli\SourceAssembler.cpp" />
     <ClCompile Include="Cli\HostFile.cpp" />
     <ClCompile Include="Cli\CliMain.cpp" />
+    <ClCompile Include="Cli\CliOutput.cpp" />
     <ClCompile Include="Machines\Apple2\Common\DirectBootBuilder.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Dos33Skeleton.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosSkeleton.cpp" />
@@ -506,6 +507,7 @@
     <ClInclude Include="Cli\SourceAssembler.h" />
     <ClInclude Include="Cli\HostFile.h" />
     <ClInclude Include="Cli\CliMain.h" />
+    <ClInclude Include="Cli\CliOutput.h" />
     <ClInclude Include="Machines\Apple2\Common\DirectBootBuilder.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Skeleton.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosSkeleton.h" />

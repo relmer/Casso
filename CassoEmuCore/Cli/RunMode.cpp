@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "RunMode.h"
+#include "CliOutput.h"
 #include "Utils.h"
 #include "AssemblerMode.h"
 #include "HostFile.h"
@@ -131,7 +132,7 @@ HRESULT RunMode::RunCpu (Cpu & cpu,
 
         if (!cpu.GetMicrocode (opcode).isLegal)
         {
-            std::println (stderr, "Illegal opcode ${:02X} at ${:04X}", opcode, cpu.GetPC());
+            CliOutput::PrintLine (stderr, "Illegal opcode ${:02X} at ${:04X}", opcode, cpu.GetPC());
             // Bad input, the same as a source that will not assemble: the
             // bytes describe something this CPU cannot execute.
             hr       = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
