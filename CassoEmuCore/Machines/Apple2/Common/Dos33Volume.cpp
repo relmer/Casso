@@ -1786,3 +1786,85 @@ bool Dos33Volume::IsRunnableAsGreeting (const VolumeListing & listing, const std
 
     return runnable;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::Rename
+//
+//  Thirty bytes of the catalog entry change and nothing else does: no sector
+//  moves, the track/sector list stays where it was, and the free bitmap is
+//  untouched. DOS's own RENAME refuses a locked file, and so does this.
+//
+//  A NAME ALREADY ON THE VOLUME IS REFUSED unless it is the file's own,
+//  which lets a name be re-cased without a detour through a temporary.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::Rename (
+    const FilePath     & from,
+    const std::string  & to,
+    vector<Byte>       & outBuffer) const
+{
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    bool                   single      = from.IsSingleComponent();
+    bool                   nameOk      = false;
+    bool                   found       = false;
+    bool                   taken       = false;
+    bool                   isLocked    = false;
+    bool                   fullyParsed = true;
+    uint16_t               owner       = 0;
+    uint16_t               holder      = 0;
+    size_t                 i           = 0;
+    vector<Byte>           nameBytes;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    nameOk = TryEncodeCatalogName (to, nameBytes);
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    found = TryFindEntry (entries, from.GetLeaf(), owner);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    isLocked = (entries[owner].typeByte & kLockedBit) != 0;
+    CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    taken = TryFindEntry (entries, to, holder) && holder != owner;
+    CBREx (!taken, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_sectors;
+
+    for (i = 0; i < kNameBytes; i++)
+    {
+        WriteByteAt (result,
+                     entries[owner].catalogTrack,
+                     entries[owner].catalogSector,
+                     entries[owner].entryOffset + kEntOffName + i,
+                     nameBytes[i]);
+    }
+
+    // The same self-check every other mutating call runs over its own output.
+    // A rename moves nothing, so a disagreement would mean the name landed
+    // outside the entry it was meant for.
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}

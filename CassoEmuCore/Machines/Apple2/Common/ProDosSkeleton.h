@@ -80,6 +80,7 @@ private:
     static constexpr size_t  kEntOffEof           = 0x15;
     static constexpr size_t  kEntOffAccess        = 0x1E;
     static constexpr size_t  kEntOffAuxType       = 0x1F;
+    static constexpr size_t  kEntOffModified      = 0x21;   // date word, then time word
     static constexpr size_t  kEntOffHeaderPointer = 0x25;
 
     //  The storage-type nibble of a directory record. Zero means the record is

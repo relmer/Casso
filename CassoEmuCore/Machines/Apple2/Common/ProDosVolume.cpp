@@ -141,6 +141,8 @@ void ProDosVolume::CollectEntries (
             entry.blocksUsed  = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffBlocksUsed);
             entry.access      = ReadByte (dirBlock, at + ProDosSkeleton::kEntOffAccess);
             entry.auxType     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffAuxType);
+            entry.modDate     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffModified);
+            entry.modTime     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffModified + 2);
 
             entry.eof = (uint32_t)
                 (ReadByte (dirBlock, at + ProDosSkeleton::kEntOffEof)
@@ -362,6 +364,7 @@ HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
         listed.hasEofBytes    = true;
         listed.auxType        = entry.auxType;
         listed.hasAuxType     = true;
+        listed.hasModified    = TryToUnixTime (entry.modDate, entry.modTime, listed.modifiedUnix);
 
         // For a binary, the auxiliary type IS the load address. Naming it as
         // such saves every caller from knowing that.
@@ -1755,6 +1758,177 @@ HRESULT ProDosVolume::SetStartupProgram (const FilePath & path, vector<Byte> & o
     // The same self-check every other mutating call runs over its own output.
     // A swap moves no block and frees nothing, so a disagreement here would mean
     // the records were not the ones the walk described.
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::TryToUnixTime
+//
+//  The directory's packed date and time as Unix seconds. A zero date word is
+//  the "no date" ProDOS itself writes and a listing shows as <NO DATE>, and
+//  fields outside their ranges are treated the same way rather than being
+//  read as a date nobody set.
+//
+//  The day count uses the proleptic Gregorian arithmetic every civil-date
+//  routine reduces to, so no library calendar with a time zone of its own is
+//  consulted: the stamp is wall-clock time on a machine that had no zone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosVolume::TryToUnixTime (Word date, Word time, int64_t & outUnix)
+{
+    constexpr int      kDaysPerEra       = 146097;
+    constexpr int      kYearsPerEra      = 400;
+    constexpr int64_t  kEpochDayOffset   = 719468;   // days from 0000-03-01 to 1970-01-01
+    constexpr int      kMonthsInYear     = 12;
+    constexpr int      kDaysInMonth      = 31;
+    constexpr int      kHoursInDay       = 24;
+    constexpr int      kMinutesInHour    = 60;
+    constexpr int      kSecondsInMinute  = 60;
+    constexpr int      kSecondsInDay     = 86400;
+    constexpr int      kFirstCentury     = 1900;
+    constexpr int      kSecondCentury    = 2000;
+
+
+
+    int       year   = (date >> 9) & 0x7F;
+    int       month  = (date >> 5) & 0x0F;
+    int       day    = date & 0x1F;
+    int       hour   = (time >> 8) & 0xFF;
+    int       minute = time & 0xFF;
+    int       era    = 0;
+    int       yoe    = 0;
+    int       doy    = 0;
+    int       doe    = 0;
+    int64_t   days   = 0;
+
+
+
+    outUnix = 0;
+
+    if (date == 0 || month < 1 || month > kMonthsInYear || day < 1 || day > kDaysInMonth
+     || hour >= kHoursInDay || minute >= kMinutesInHour)
+    {
+        return false;
+    }
+
+    year += (year < kCenturyPivotYear) ? kSecondCentury : kFirstCentury;
+
+    // Howard Hinnant's days-from-civil, with March as the first month so a
+    // leap day falls at the end of the year it belongs to.
+    if (month <= 2)
+    {
+        year--;
+    }
+
+    era  = year / kYearsPerEra;
+    yoe  = year - era * kYearsPerEra;
+    doy  = (153 * (month + ((month > 2) ? -3 : 9)) + 2) / 5 + day - 1;
+    doe  = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    days = (int64_t) era * kDaysPerEra + doe - kEpochDayOffset;
+
+    outUnix = days * kSecondsInDay + (int64_t) hour * kMinutesInHour * kSecondsInMinute
+            + (int64_t) minute * kSecondsInMinute;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Rename
+//
+//  The record's name field and its length nibble change; the storage type,
+//  the key pointer, the dates and every block stay as they were.
+//
+//  A SUBDIRECTORY IS REFUSED, for the reason Delete refuses one: its name is
+//  held twice, in the parent's record and in its own header block, and this
+//  layer does not walk into it to fix the second copy. ProDOS gates renaming
+//  on its own access bit, distinct from write and destroy, and that bit is the
+//  one consulted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Rename (
+    const FilePath     & from,
+    const std::string  & to,
+    vector<Byte>       & outBuffer) const
+{
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    bool                   single      = from.IsSingleComponent();
+    bool                   nameOk      = false;
+    bool                   found       = false;
+    bool                   taken       = false;
+    bool                   isLocked    = false;
+    bool                   isDirectory = false;
+    bool                   fullyParsed = true;
+    uint16_t               owner       = 0;
+    uint16_t               holder      = 0;
+    size_t                 i           = 0;
+    std::string            name;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    nameOk = TryEncodeDirectoryName (to, name);
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    found = TryFindEntry (entries, from.GetLeaf(), owner);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
+    isLocked    = (entries[owner].access & kAccessRenameEnable) == 0;
+
+    CBREx (!isDirectory, HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED));
+    CBREx (!isLocked,    HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    taken = TryFindEntry (entries, name, holder) && holder != owner;
+    CBREx (!taken, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_sectors;
+
+    WriteByteAt (result,
+                 entries[owner].dirBlock,
+                 entries[owner].entryOffset + ProDosSkeleton::kEntOffTypeName,
+                 (Byte) (entries[owner].storage | (Byte) name.size()));
+
+    for (i = 0; i < ProDosSkeleton::kVolumeNameBytes; i++)
+    {
+        Byte  c = (i < name.size()) ? (Byte) name[i] : (Byte) 0;
+
+        WriteByteAt (result,
+                     entries[owner].dirBlock,
+                     entries[owner].entryOffset + ProDosSkeleton::kEntOffName + i,
+                     c);
+    }
+
+    // The same self-check every other mutating call runs over its own output.
+    // A rename moves no block, so a disagreement would mean the name landed
+    // outside the record it was meant for.
     hr = HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
 

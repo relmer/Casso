@@ -79,6 +79,11 @@ struct FileEntry
     bool         hasEofBytes    = false;   // ProDOS records an exact length; DOS 3.3 does not
     bool         hasLoadAddress = false;
     bool         hasAuxType     = false;
+
+    //  When the file was last written, as Unix seconds. ProDOS records one per
+    //  entry; DOS 3.3 records nothing, and a zero here would read as 1970.
+    int64_t      modifiedUnix   = 0;
+    bool         hasModified    = false;
 };
 
 

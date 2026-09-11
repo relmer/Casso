@@ -77,4 +77,11 @@ public:
     //  The two filesystems do this by entirely different means and are
     //  deliberately NOT unified behind a shared helper.
     virtual HRESULT  SetStartupProgram (const FilePath & path, std::vector<Byte> & outBuffer) const = 0;
+
+    //  Gives a file a new name, in place: the catalog record is rewritten and
+    //  nothing else moves. Applies the filesystem's own name rules and refuses
+    //  a name another entry already holds.
+    virtual HRESULT  Rename (const FilePath     & from,
+                             const std::string  & to,
+                             std::vector<Byte>  & outBuffer) const = 0;
 };

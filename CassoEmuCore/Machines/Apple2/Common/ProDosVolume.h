@@ -63,6 +63,10 @@ public:
     HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const override;
     HRESULT  SetStartupProgram    (const FilePath & path, vector<Byte> & outBuffer) const override;
 
+    HRESULT  Rename    (const FilePath     & from,
+                        const std::string  & to,
+                        vector<Byte>       & outBuffer) const override;
+
     //  The self-check every computed write and delete runs over its own output,
     //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
     //  that disagrees with itself in a way the buffer it was computed from did
@@ -99,6 +103,15 @@ public:
     //  the two refusals are decided by different bits.
     static constexpr Byte  kAccessDestroyEnable = 0x80;
 
+    //  Rename-enable bit, which gates renaming the same way.
+    static constexpr Byte  kAccessRenameEnable  = 0x40;
+
+    //  A ProDOS date and time as Unix seconds, or false when the fields hold
+    //  no date. The date word packs year, month and day; the time word packs
+    //  hour and minute. Years below 40 belong to this century, the convention
+    //  ProDOS 8 adopted once its two-digit years ran out.
+    static bool  TryToUnixTime (Word date, Word time, int64_t & outUnix);
+
 private:
     //  One directory record, plus where it was found.
     struct RawEntry
@@ -111,9 +124,14 @@ private:
         Word      keyPointer  = 0;
         Word      blocksUsed  = 0;
         Word      auxType     = 0;
+        Word      modDate     = 0;
+        Word      modTime     = 0;
         uint32_t  eof         = 0;
         string    name;
     };
+
+    //  The two-digit year at which the ProDOS century convention turns over.
+    static constexpr int  kCenturyPivotYear = 40;
 
     //  The largest EOF a directory entry can record, the field being three
     //  bytes wide.

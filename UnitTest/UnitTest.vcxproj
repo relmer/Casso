@@ -332,6 +332,10 @@
     <ClCompile Include="EmuTests\GoldenImage.cpp" />
     <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
     <ClCompile Include="Cassque\CassqueFixtureTests.cpp" />
+    <ClCompile Include="Cassque\IntegerBasicDetokenizerTests.cpp" />
+    <ClCompile Include="Cassque\DisassemblerTests.cpp" />
+    <ClCompile Include="EmuTests\VolumeRenameTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
     <ClCompile Include="EmuTests\OpenAppleResetTests.cpp" />
     <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />
