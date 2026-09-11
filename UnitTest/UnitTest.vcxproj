@@ -334,6 +334,17 @@
     <ClCompile Include="Cassque\CassqueFixtureTests.cpp" />
     <ClCompile Include="Cassque\IntegerBasicDetokenizerTests.cpp" />
     <ClCompile Include="Cassque\DisassemblerTests.cpp" />
+    <ClCompile Include="Cassque\HostFileNamingTests.cpp" />
+    <ClCompile Include="Cassque\ContentSnifferTests.cpp" />
+    <ClCompile Include="Cassque\CatalogModelTests.cpp" />
+    <ClCompile Include="Cassque\PreviewDecoderTests.cpp" />
+    <ClCompile Include="Cassque\DiskOperationsTests.cpp" />
+    <ClCompile Include="Cassque\TreeModelTests.cpp" />
+    <ClCompile Include="Cassque\BrowserModelTests.cpp" />
+    <ClCompile Include="Cassque\KnownFolderStoreTests.cpp" />
+    <ClCompile Include="Cassque\CassquePrefsTests.cpp" />
+    <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
+    <ClCompile Include="Cassque\DragPayloadTests.cpp" />
     <ClCompile Include="EmuTests\VolumeRenameTests.cpp" />
     <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
