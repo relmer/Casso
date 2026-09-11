@@ -604,20 +604,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  THE NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both are up the
     //  notice is the one on top -- it is the newer of the two, and the older
     //  one is still readable in the strip above it.
-    //
-    //  Its backing is a SCRIM rather than the panel color the capture bar
-    //  uses: this bar hangs over the picture instead of docking above it, and
-    //  filling that strip opaque would take a slice out of what the user is
-    //  looking at every time they photograph it.
-    m_noticeScrim.SetToken   (DxuiSurface::Token::Background);
-    m_noticeScrim.SetOpacity (s_kNoticeScrimAlpha);
-    m_noticeScrim.SetVisible (false);
-    m_host->GetRoot().Adopt (m_noticeScrim);
     m_host->GetRoot().Adopt (m_notice);
-
-    m_notice.SetSeverity (DxuiInfoBanner::Severity::Info);
-    m_notice.SetCentered (true);
-    m_notice.SetVisible  (false);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.

@@ -67,6 +67,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Widgets/DxuiActionBanner.h"
 #include "Widgets/DxuiInfoBanner.h"
+#include "Widgets/DxuiTimedInfoBanner.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
@@ -1598,14 +1599,9 @@ private:
     // the photograph. It now reads as the same kind of thing the
     // pointer-capture bar is, and says so by looking like it.
     //
-    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. A docked band costs the
-    // picture its height, and a strip that comes and goes on a four-second
-    // timer would reflow the machine twice per screenshot. So this one hangs
-    // under whatever docked chrome is at the top and covers a little of the
-    // picture instead, with a scrim thin enough to read through.
-    DxuiInfoBanner             m_notice;
-    DxuiSurface                m_noticeScrim;
-    int64_t                    m_noticeUntilMs = 0;
+    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. It hangs under whatever docked
+    // chrome is at the top and covers a little of the picture instead.
+    DxuiTimedInfoBanner            m_notice;
 
     void  ShowNotice   (const std::wstring & text);
     void  PostNotice   (const std::wstring & text);

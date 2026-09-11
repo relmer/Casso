@@ -151,16 +151,6 @@ static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 static const wchar_t * const  s_kpszCaptureNotice =
     L"Press Esc to release the mouse and exit paddle mode";
 
-// How long a notice stays up. Long enough to read a filename without hunting
-// for it, short enough that it is gone before the next thing the user wants
-// to look at.
-static constexpr int64_t s_kNoticeMs         = 4000;
-
-// How much of the picture the notice's scrim lets through. Enough dimming
-// that a filename stays legible over a bright screen, little enough that what
-// was just captured is still visible behind the words describing it.
-static constexpr float   s_kNoticeScrimAlpha = 0.82f;
-
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //

@@ -1251,8 +1251,7 @@ void EmulatorShell::ShowNotice (const std::wstring & text)
 
 
 
-    m_notice.SetText (text);
-    m_noticeUntilMs = nowMs + s_kNoticeMs;
+    m_notice.Show (text, nowMs);
 
     SyncNotice();
 
@@ -1335,10 +1334,9 @@ void EmulatorShell::SyncNotice()
 
 
 
-    if (nowMs >= m_noticeUntilMs || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    if (!m_notice.IsShowing (nowMs) || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        m_notice.SetVisible      (false);
-        m_noticeScrim.SetVisible (false);
+        m_notice.SetVisible (false);
         return;
     }
 
@@ -1348,20 +1346,13 @@ void EmulatorShell::SyncNotice()
     rc.right = client.right;
     rc.top   = ComputeTopOverlayEdgePx (client);
 
-    //  MEASURED WHERE THERE IS A RENDERER TO ASK. The bar centers its text,
-    //  and a centered banner picks its line width from that measurement; the
-    //  estimate behind GetPreferredHeightPx works from an average glyph
-    //  width, so a wide face or a long path measures past it and the last
-    //  line lands outside the strip. The estimate stays as the fallback for
-    //  the frames before the renderer exists.
+    //  Measured where there is a renderer to ask; the estimate is the
+    //  fallback for the frames before the renderer exists.
     m_notice.SetDpi (m_scaler.GetDpi());
 
     rc.bottom = rc.top + (LONG) ((text != nullptr)
                                  ? m_notice.GetMeasuredHeightPx (*text, width, m_scaler)
                                  : m_notice.GetPreferredHeightPx (width, m_scaler));
-
-    m_noticeScrim.Layout     (rc, m_scaler);
-    m_noticeScrim.SetVisible (true);
 
     m_notice.Layout     (rc, m_scaler);
     m_notice.SetVisible (true);
@@ -1454,8 +1445,7 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
 
         //  Including this one. Two captures inside the notice's few seconds
         //  would otherwise photograph the first one's filename.
-        m_notice.SetVisible      (false);
-        m_noticeScrim.SetVisible (false);
+        m_notice.SetVisible (false);
     }
     else
     {
