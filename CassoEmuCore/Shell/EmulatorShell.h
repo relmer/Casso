@@ -1587,10 +1587,10 @@ private:
 
     PendingCapture             m_pendingCapture;
 
-    // The screenshot result notice: the filename on success, the reason
-    // otherwise. Its own bar rather than the mouse-capture one's, because the
-    // two can be wanted at once and this one expires on a timer while that
-    // one tracks a state.
+    // The transient notice: a screenshot's filename or the reason it failed,
+    // or which write-protect mechanism a Disk menu command changed. Its own
+    // bar rather than the mouse-capture one's, because the two can be wanted
+    // at once and this one expires on a timer while that one tracks a state.
     //
     // A MESSAGE BAR ACROSS THE TOP, NOT A CAPTION ON THE PICTURE. It was
     // shadowed text over the bottom of the viewport, which put a filename --
@@ -1603,12 +1603,13 @@ private:
     // timer would reflow the machine twice per screenshot. So this one hangs
     // under whatever docked chrome is at the top and covers a little of the
     // picture instead, with a scrim thin enough to read through.
-    DxuiInfoBanner             m_screenshotNotice;
-    DxuiSurface                m_screenshotNoticeScrim;
-    int64_t                    m_screenshotNoticeUntilMs = 0;
+    DxuiInfoBanner             m_notice;
+    DxuiSurface                m_noticeScrim;
+    int64_t                    m_noticeUntilMs = 0;
 
-    void  ShowCaptureNotice   (const std::wstring & text);
-    void  SyncCaptureNotice   ();
+    void  ShowNotice   (const std::wstring & text);
+    void  PostNotice   (const std::wstring & text);
+    void  SyncNotice   ();
 
     // The lowest edge of whatever chrome is docked (or, in fullscreen,
     // revealed) at the top of the client, which is where an overlay that

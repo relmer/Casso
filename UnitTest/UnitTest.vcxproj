@@ -359,6 +359,7 @@
     <ClCompile Include="EmuTests\BootDiskTests.cpp" />
     <ClCompile Include="EmuTests\GameBootTests.cpp" />
     <ClCompile Include="EmuTests\DiskWritePathTests.cpp" />
+    <ClCompile Include="EmuTests\WriteProtectChangeTests.cpp" />
     <ClCompile Include="EmuTests\Pr3AuxClearTest.cpp" />
     <ClCompile Include="EmuTests\DamagedDisk.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskDecodeTests.cpp" />

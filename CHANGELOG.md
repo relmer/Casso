@@ -28,6 +28,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Fixed bug preventing write-enabling images that rely on +R attribute for
+  write protection.
 - CassoCli now exits quietly when the program reading its output stops early,
   as `Select-Object -First` does. Previously, it aborted, and a Debug build
   raised a modal error dialog.
