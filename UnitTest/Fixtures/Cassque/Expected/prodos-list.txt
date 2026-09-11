@@ -1,0 +1,12 @@
+/CASSQUE
+
+ HELLO                $FC     1  eof=87 aux=$0801
+ NOTES                $04     1  eof=101 aux=$0000
+ PICTURE              $06    17  eof=8192 aux=$2000
+ LORES                $06     3  eof=1024 aux=$0400
+ DHIRES               $06    33  eof=16384 aux=$2000
+ ODD                  $06     3  eof=777 aux=$0803
+ SUBDIR           DIR $0F     1  eof=512 aux=$0000
+
+214 blocks free of 280
+
