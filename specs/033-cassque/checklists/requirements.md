@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain (two open: screen-reader scope in story 5 and FR-029; second-launch behavior in Edge Cases)
+- [x] No [NEEDS CLARIFICATION] markers remain (resolved 2026-09-10: screen-reader provider is a follow-on feature; a second launch fronts the existing window)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,8 +31,6 @@
 
 ## Notes
 
-- Two clarifications are held open on purpose; both change scope, not
-  wording. Resolve them before `/speckit-plan`.
 - The graphics-buffer rule in FR-012 quotes addresses and lengths because
   they are the user-facing rule, not an implementation choice.
 - Dependence on the preceding feature's command widgets is recorded in

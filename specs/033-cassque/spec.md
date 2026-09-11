@@ -197,8 +197,9 @@ list, Enter to open, Delete to delete, F2 to rename where the file system
 allows it, the application key for the context menu, Ctrl+T and Ctrl+W
 for tabs. The window follows the Windows light or dark setting as it
 changes, or a manual override, or one of Casso's three themes, with the
-skeuomorphic one offered as colors only. A screen reader announces the
-tree, list and preview with their names and roles.
+skeuomorphic one offered as colors only. Every control carries an
+accessible name and role, ready for the automation provider a later
+feature adds.
 
 **Why this priority**: Polish that makes the tool complete, none of it
 blocking the stories above.
@@ -219,13 +220,10 @@ window with a screen reader.
 4. **Given** the theme menu, **When** opened, **Then** it lists Light,
    Dark, Follow system, and Casso's three themes with the skeuomorphic
    entry marked as colors only.
-5. **Given** a screen reader running, **When** focus moves to the file
-   list, **Then** the list's name and the focused row's text are
-   announced. [NEEDS CLARIFICATION: Dxui exposes accessible names and
-   roles on controls but has no UI Automation provider, so nothing is
-   announced to a screen reader today. Is a UI Automation provider in
-   scope for this feature, or is this feature keyboard-complete with
-   names and roles set, and the provider a follow-on?]
+5. **Given** any control in the window, **When** it is inspected, **Then**
+   it carries an accessible name and role. Announcement to a screen
+   reader is out of scope: the UI library has no automation provider,
+   and adding one is a follow-on feature that serves Casso's chrome too.
 
 ---
 
@@ -253,9 +251,9 @@ window with a screen reader.
   other window refreshes on focus; no locking.
 - **Casso launched Cassque and then exited**: Insert falls back to the
   standalone behavior.
-- **Cassque menu item clicked while Cassque is already open**: [NEEDS
-  CLARIFICATION: bring the existing window to front, open a second
-  window, or open a new tab in the existing window?]
+- **Cassque menu item clicked while Cassque is already open**: the
+  existing window launched by that Casso is brought to the front. A
+  standalone Cassque is a separate instance from one Casso launched.
 
 ## Requirements *(mandatory)*
 
@@ -266,6 +264,8 @@ window with a screen reader.
 - **FR-001**: Cassque MUST ship as a separate executable holding no code,
   with all logic in the core library that Casso and the unit tests link.
 - **FR-002**: Cassque MUST be launchable from Casso's menu and standalone.
+  A second launch from the same Casso MUST bring that Casso's existing
+  Cassque window to the front rather than open another.
 - **FR-003**: Cassque MUST have an About dialog that explains the name
   with a picture of a cassowary.
 
@@ -354,8 +354,8 @@ window with a screen reader.
 - **FR-028**: Theme choice, preview-pane state and window placement MUST
   persist in the shared preferences.
 - **FR-029**: Every control MUST carry an accessible name and role.
-  Announcement to assistive technology depends on the clarification in
-  story 5.
+  Announcement to assistive technology is out of scope; the UI library's
+  automation provider is a follow-on feature.
 
 **Testability**
 
@@ -429,5 +429,9 @@ window with a screen reader.
   channel, which gains an insert intent and a describe-machine reply.
   Cassque is told the channel name on its command line when Casso
   launches it.
-- Dxui's screen-reader support is the one open scope question and is
-  marked in story 5.
+- Screen-reader announcement is out of scope. Dxui draws every control
+  itself, so unlike native Windows controls nothing is announced until
+  the library has an automation provider; that provider is one generic
+  walk of the existing control tree plus a few patterns, serves Casso's
+  chrome as well, and is its own follow-on feature. Cassque sets names
+  and roles now so that provider needs no per-control work here.
