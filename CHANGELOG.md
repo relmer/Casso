@@ -17,6 +17,10 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- `CassoCli disk list` ends with a "Not bootable" line when the image has no
+  operating system to boot: no DOS on tracks 0 to 2, or no PRODOS file on the
+  volume. Previously a data disk listed exactly like a bootable one, and the
+  first sign was the monitor prompt after a boot.
 - The menu bar, the toolbar and the debug panels' right-click menus now share
   one command model and one dropdown. Dropdowns fit their content instead of
   a fixed width, with the check column present only in a menu that has a
