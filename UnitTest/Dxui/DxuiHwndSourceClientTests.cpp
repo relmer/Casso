@@ -92,6 +92,8 @@ public:
         int      onInitMenuPopupCount  = 0;
         int      onPaintCount          = 0;
         int      onCloseCount          = 0;
+        int      onSetFocusCount       = 0;
+        int      onKillFocusCount      = 0;
         int      onDestroyCount        = 0;
         int      onNcMouseMoveCount    = 0;
         int      onNcMouseLeaveCount   = 0;
@@ -119,6 +121,8 @@ public:
         DxuiMessageResult  OnInitMenuPopup  (HMENU, UINT, bool)                 override { ++onInitMenuPopupCount; return claim; }
         DxuiMessageResult  OnPaint          ()                                  override { ++onPaintCount;         return claim; }
         DxuiMessageResult  OnClose          ()                                  override { ++onCloseCount;         return claim; }
+        DxuiMessageResult  OnSetFocus       ()                                  override { ++onSetFocusCount;      return claim; }
+        DxuiMessageResult  OnKillFocus      ()                                  override { ++onKillFocusCount;     return claim; }
         void               OnDestroy        ()                                  override { ++onDestroyCount; }
         DxuiMessageResult  OnNcMouseMove    (LRESULT ht, int, int)              override { ++onNcMouseMoveCount; lastNcHitTest = ht;                                   return claim; }
         DxuiMessageResult  OnNcMouseLeave()                                     override { ++onNcMouseLeaveCount; return claim; }
@@ -294,6 +298,30 @@ public:
         (void) host->WndProc (WM_DESTROY, 0, 0);
 
         Assert::AreEqual (1, client.onDestroyCount);
+    }
+
+
+
+    //
+    //  WM_SETFOCUS and WM_KILLFOCUS each dispatch to their own client
+    //  hook, so a client can bracket the span it holds keyboard focus.
+    //
+    TEST_METHOD (Client_WmSetFocusAndKillFocus_DispatchSeparately)
+    {
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
+        RecordingClient                  client;
+
+        host->SetClient (&client);
+
+        (void) host->WndProc (WM_SETFOCUS, 0, 0);
+
+        Assert::AreEqual (1, client.onSetFocusCount);
+        Assert::AreEqual (0, client.onKillFocusCount);
+
+        (void) host->WndProc (WM_KILLFOCUS, 0, 0);
+
+        Assert::AreEqual (1, client.onSetFocusCount);
+        Assert::AreEqual (1, client.onKillFocusCount);
     }
 
 

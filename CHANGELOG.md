@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.24.1]: The one with all the shouting
+
+### Fixed
+
+- Caps Lock now defaults to on, the way a //e and //c ship, so DOS 3.3 and
+  BASIC receive the upper-case letters they expect. While the Casso window has
+  keyboard focus the host Caps Lock LED shows Casso's setting and the real key
+  changes it; the host's own setting is put back when focus leaves.
+  Previously, letters passed through in whatever case Windows delivered, so a
+  session with Caps Lock off started with `SYNTAX ERROR`.
+
 ## [1.24.0]: The one where I sneak in some minor bug fixes while working on a massive refactor
 
 ### Fixed
