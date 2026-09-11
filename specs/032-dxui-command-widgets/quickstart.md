@@ -5,7 +5,7 @@
 Two oracles: pixels for "the emulator did not change", and headless tests
 for "the widgets behave on their own". Contracts:
 [dxui-command.md](contracts/dxui-command.md),
-[dxui-menu-flyout.md](contracts/dxui-menu-flyout.md),
+[dxui-popup-menu.md](contracts/dxui-popup-menu.md),
 [dxui-toolbar.md](contracts/dxui-toolbar.md). Model:
 [data-model.md](data-model.md).
 
@@ -85,7 +85,7 @@ new files include nothing from CassoEmuCore. Required coverage:
 
 - `DxuiCommandTests.cpp`: defaults for absent functors; `GetLabelText` and
   `GetShortText` precedence.
-- `DxuiMenuFlyoutTests.cpp`: identical layout from `ShowUnder` and `ShowAt`
+- `DxuiPopupMenuTests.cpp`: identical layout from `ShowUnder` and `ShowAt`
   for one list; width fits content and grows only when a row has
   accelerator text; a `ShowAt` near the client edge is clamped inside the
   host rect; Down skips a separator and a disabled row and wraps; Right
@@ -95,10 +95,10 @@ new files include nothing from CassoEmuCore. Required coverage:
   disabled command does not dispatch on Enter; reopen guard swallows a
   show inside the close window.
 - `DxuiMenuBarTests.cpp`: existing file, item construction retyped to
-  `DxuiMenuFlyoutItem` over `DxuiCommand`, every assertion unchanged,
+  `DxuiPopupMenuItem` over `DxuiCommand`, every assertion unchanged,
   passing against the rebuilt bar.
 - `DxuiWidgetIDxuiControlTests.cpp`: the three `DxuiPopupMenu` conformance
-  rows become `DxuiMenuFlyout` rows, plus new `DxuiToolbar` rows.
+  rows become `DxuiPopupMenu` rows, plus new `DxuiToolbar` rows.
 - `ChromeCommandRoutingTests.cpp`: walks `EmulatorCommands` instead of
   the old menu table; its every-id-present and no-duplicate assertions
   unchanged.

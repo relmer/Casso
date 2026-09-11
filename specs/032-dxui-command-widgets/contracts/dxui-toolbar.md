@@ -4,7 +4,7 @@
 
 `Dxui/Widgets/DxuiToolbar.h`. Signatures are intent; the header is
 authoritative once it exists. Commands: [dxui-command.md](dxui-command.md).
-Pickers open the dropdown in [dxui-menu-flyout.md](dxui-menu-flyout.md).
+Pickers open the dropdown in [dxui-popup-menu.md](dxui-popup-menu.md).
 
 ## Entries
 
@@ -80,7 +80,7 @@ a picker is open and consumed the key.
 ## Pickers and flyout
 
 ```cpp
-    void  SetDropDownItems   (int commandId, std::vector<DxuiMenuFlyoutItem> items);
+    void  SetDropDownItems   (int commandId, std::vector<DxuiPopupMenuItem> items);
     void  SetDropDownSinks   (int commandId, ChoiceFn preview, ChoiceFn commit);
     void  SetFlyoutControl (int commandId, IDxuiControl * control, SIZE panelDp);
     bool  IsFlyoutOpen     (int commandId) const;

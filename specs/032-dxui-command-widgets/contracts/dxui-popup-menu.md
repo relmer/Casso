@@ -1,30 +1,30 @@
-# Contract: DxuiMenuFlyout and the menu bar over it
+# Contract: DxuiPopupMenu and the menu bar over it
 
 **Feature**: 032-dxui-command-widgets | **Date**: 2026-09-10
 
-`Dxui/Widgets/DxuiMenuFlyout.h`, evolved from `DxuiPopupMenu`. Signatures are
-intent; the header is authoritative once it exists.
+`Dxui/Widgets/DxuiPopupMenu.h`, the existing widget extended in place rather
+than replaced. Signatures are intent; the header stays authoritative.
 
 ## Items
 
 ```cpp
-struct DxuiMenuFlyoutItem
+struct DxuiPopupMenuItem
 {
     enum class Kind { Command, Separator, Submenu };
     Kind                            kind;
     const DxuiCommand *             command;    // Command and Submenu
-    std::vector<DxuiMenuFlyoutItem>   children;   // Submenu only
+    std::vector<DxuiPopupMenuItem>   children;   // Submenu only
 
-    static DxuiMenuFlyoutItem  ForCommand   (const DxuiCommand * cmd);
-    static DxuiMenuFlyoutItem  ForSeparator ();
-    static DxuiMenuFlyoutItem  ForSubmenu   (const DxuiCommand * cmd, std::vector<DxuiMenuFlyoutItem> children);
+    static DxuiPopupMenuItem  ForCommand   (const DxuiCommand * cmd);
+    static DxuiPopupMenuItem  ForSeparator ();
+    static DxuiPopupMenuItem  ForSubmenu   (const DxuiCommand * cmd, std::vector<DxuiPopupMenuItem> children);
 };
 ```
 
 ## Widget
 
 ```cpp
-class DxuiMenuFlyout : public IDxuiControl
+class DxuiPopupMenu : public IDxuiControl
 {
 public:
     using IndexFn  = std::function<void (int index)>;
@@ -37,8 +37,8 @@ public:
     void  SetOnClosed          (ClosedFn fn);
     void  SetOnSelect          (IndexFn fn);
 
-    void  ShowUnder   (const RECT & anchor, std::vector<DxuiMenuFlyoutItem> items, IDxuiTextRenderer &, const RECT & hostClient);
-    void  ShowAt      (int x, int y,       std::vector<DxuiMenuFlyoutItem> items, IDxuiTextRenderer &, const RECT & hostClient);
+    void  ShowUnder   (const RECT & anchor, std::vector<DxuiPopupMenuItem> items, IDxuiTextRenderer &, const RECT & hostClient);
+    void  ShowAt      (int x, int y,       std::vector<DxuiPopupMenuItem> items, IDxuiTextRenderer &, const RECT & hostClient);
     void  Hide        ();
 
     bool  IsVisible   () const;
@@ -88,7 +88,7 @@ Rules:
 class DxuiContextMenu
 {
 public:
-    static void  Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiMenuFlyoutItem> items);
+    static void  Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items);
 };
 ```
 
@@ -104,10 +104,10 @@ manual check, not by a test of its own.
 
 `DxuiMenuBar` keeps its public surface for titles, mnemonics, open and
 close, focus and keyboard, and retypes `DxuiMenuBarItem::submenu` to
-`std::vector<DxuiMenuFlyoutItem>`. `DxuiMenuBarSubitem` is deleted, and the
+`std::vector<DxuiPopupMenuItem>`. `DxuiMenuBarSubitem` is deleted, and the
 existing menu bar tests retype their item construction to match with no
 assertion changed. The bar
-owns one `DxuiMenuFlyout`, shows it under the open title, swaps its items on
+owns one `DxuiPopupMenu`, shows it under the open title, swaps its items on
 Left, Right and hover-swap, and forwards Up, Down, Enter and Escape to it.
 `SetStripColors` stays; `SetDropdownColors` becomes a setter on the
 dropdown that the bar forwards, so the emulator's chrome overrides land in
@@ -117,8 +117,10 @@ the one place.
 
 | Consumer | Before | After |
 |---|---|---|
-| `MainMenu` | `DxuiMenuBar` painting its own dropdown | titles over `DxuiMenuFlyout` |
-| Toolbar pickers | three `DxuiPopupMenu` by value | one `DxuiMenuFlyout` inside `DxuiToolbar` |
+| `MainMenu` | `DxuiMenuBar` painting its own dropdown | titles over `DxuiPopupMenu` |
+| Toolbar pickers | three `DxuiPopupMenu` by value | one `DxuiPopupMenu` inside `DxuiToolbar` |
 | `Disk2DebugPanel`, `InputDebugPanel` | `DxuiPopupMenu` by value | `DxuiContextMenu::Show` |
 
-`DxuiPopupMenu.h/.cpp` are removed once the three consumers have moved.
+Nothing is removed. The widget the three consumers already hold is the widget
+they keep holding; what changes is that each stops owning its own copy and
+stops turning a row index back into an action.

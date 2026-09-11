@@ -17,9 +17,9 @@ from a `MenuBarItem`, an `AppBarButton`'s flyout property, or a right-click.
 The toolbar knows nothing about menus; it opens whatever flyout the button
 holds.
 
-**Decision**: three library types. `DxuiCommand` is the declaration.
-`DxuiMenuFlyout` is the one dropdown, evolved from `DxuiPopupMenu`.
-`DxuiToolbar` is the strip. `DxuiMenuBar` becomes titles over `DxuiMenuFlyout`.
+**Decision**: two new library types and one extended in place. `DxuiCommand` is
+the declaration and `DxuiToolbar` is the strip, both new. `DxuiPopupMenu` grows
+into the one menu every opener uses. `DxuiMenuBar` becomes titles over it.
 
 ## R2. What exists and where it diverges
 
@@ -32,9 +32,12 @@ holds.
 - `DxuiPopupMenu` (`Dxui/Widgets/DxuiPopupMenu.h`) is label plus checked
   per item, owner-routed, with `SetOnSelect`, `SetOnHighlightChange`,
   `SetOnClosed (committed)` fired closed-before-select, and opt-in popup
-  hosting via `DxuiHwndSource`'s pool with submenu chaining through
-  `DxuiPopupHost::SetParentPopup`. Consumers: `CommandToolbar` (three
-  pickers), `Disk2DebugPanel` and `InputDebugPanel` (right-click).
+  hosting via `DxuiHwndSource`'s pool. Consumers: `CommandToolbar` (three
+  pickers), `Disk2DebugPanel` and `InputDebugPanel` (right-click). Its header
+  mentions cascading submenus chaining through
+  `DxuiPopupHost::SetParentPopup`, but that describes a capability of the
+  popup host: the widget holds no child, no chain and no Right-arrow arm, so
+  submenus are new code rather than a move.
 - `CommandToolbar` (`CassoEmuCore/Ui/Chrome/CommandToolbar.cpp`, 1,958
   lines, 44 functions) holds button chrome, collapse, tooltips, three
   pickers, a hover flyout with `DxuiSlider`, and the emulator's entries,
@@ -45,10 +48,10 @@ holds.
   label functors.
 
 **Decision**: `DxuiMenuBarSubitem` is already most of a command. It becomes
-`DxuiCommand` plus a dropdown item wrapper. `DxuiPopupMenu` already has the
-hosting, the callbacks and the submenu chain; it becomes `DxuiMenuFlyout` by
-taking the richer item model and the menu bar's painting. The menu bar
-keeps only what is bar-specific.
+`DxuiCommand` plus an item wrapper. `DxuiPopupMenu` already has the hosting,
+the callbacks and the content-fitted width, so it is extended in place rather
+than copied: it takes the richer item model and the menu bar's painting and
+gains submenus. The menu bar keeps only what is bar-specific.
 
 ## R3. DxuiCommand fields
 
@@ -65,7 +68,7 @@ command. Reset is one command whether it sits in a menu or a toolbar.
 
 ## R4. Dropdown item model
 
-**Decision**: `DxuiMenuFlyoutItem` is a variant of three kinds: a command
+**Decision**: `DxuiPopupMenuItem` is a variant of three kinds: a command
 reference, a separator, and a command reference with a child item list. The
 command is held by pointer to a `DxuiCommand` the application owns, so
 placement never copies a declaration. The dropdown evaluates the functors
@@ -87,7 +90,7 @@ copies are the defect being removed.
 | Separators | none | 10 dp tall, 10 dp inset |
 | Colors | elevated, hover, foreground | plus disabled, muted, divider, border |
 
-**Decision**: `DxuiMenuFlyout` keeps the shared row height and text start,
+**Decision**: `DxuiPopupMenu` keeps the shared row height and text start,
 takes the menu bar's font, separators and color set, and takes the popup
 menu's content-fitted width. The owner ruled a fixed width wrong in every
 case. Width is the widest label, plus the accelerator column only when
@@ -151,14 +154,15 @@ three themes against a master binary on the same machine; row content,
 states and row positions for each open dropdown, whose width now fits its
 content. Headless tests for command propagation, dropdown layout and
 navigation from three anchors, toolbar collapse and dispatch. Existing
-tests keep every assertion; four of them compile against types this
-feature removes and are retyped at their construction sites only:
-`DxuiMenuBarTests.cpp` (subitem aggregates), `DxuiWidgetIDxuiControlTests.cpp`
-(`DxuiPopupMenu` rows), `ChromeCommandRoutingTests.cpp` (walks the menu
-entry table; re-pointed at the new command table so its every-id-once
-assertion survives) and `MainMenuDropdownTests.cpp` (drives `MainMenu`'s
-public surface, which is preserved). The owner ruled out adapters that
-would keep the old types alive for the tests' sake.
+tests keep every assertion. Only two are edited, at their construction sites
+only: `DxuiMenuBarTests.cpp` (subitem aggregates become commands and items)
+and `ChromeCommandRoutingTests.cpp` (walks the menu entry table; re-pointed at
+the new command table so its every-id-once assertion survives).
+`DxuiWidgetIDxuiControlTests.cpp` keeps its three existing conformance rows as
+they stand, since the widget they name is extended rather than replaced, and
+only gains rows for `DxuiToolbar`. `MainMenuDropdownTests.cpp` is untouched,
+because `MainMenu`'s public surface is preserved. The owner ruled out adapters
+that would keep a removed type alive for a test's sake.
 
 ## R10. Style constraints that bite this work
 
@@ -182,14 +186,14 @@ shares none of that. It has no resting presence, holds no selection, and its
 rows are commands, separators and submenus. The two collided on one identifier
 and the plan did not catch it.
 
-**Decision**: three types, using the vocabulary WPF and WinUI already carry for
-this exact split.
+**Decision**: rename only the widget that holds the wrong name, and leave the
+menu where it is. Three roles, kept lexically distinct.
 
-| This tree | WinUI | What it is |
-|---|---|---|
-| `DxuiComboBox` | `ComboBox` | the form field that displays its value |
-| A `DxuiToolbar` entry of kind `DropDown` | `DropDownButton` | a button that opens a menu and keeps its own label |
-| `DxuiMenuFlyout` | `MenuFlyout` | the menu itself, whatever opened it |
+| This tree | Win32 | WinUI | What it is |
+|---|---|---|---|
+| `DxuiComboBox` | combo box | `ComboBox` | the form field that displays its value |
+| A `DxuiToolbar` entry of kind `DropDown` | `BTNS_DROPDOWN` | `DropDownButton` | a button that opens a menu and keeps its own label |
+| `DxuiPopupMenu` | popup menu | `MenuFlyout` | the menu itself, whatever opened it |
 
 The existing widget becomes `DxuiComboBox` in one mechanical pass. The
 identifier is the same length, so no column alignment moves and no include
@@ -209,7 +213,19 @@ opposite. The current choice appears as a check on a row inside the menu, which
 upstream is a radio menu item and here is a picker row with an `isChecked`
 functor.
 
-**Alternatives considered**: leaving the combo box as `DxuiDropdown` and
-calling the new type `DxuiMenuPopup`. Rejected; it reads as a near-duplicate of
-the `DxuiPopupMenu` being deleted, and it leaves the ambiguous word in the tree
-next to the type it is ambiguous with.
+**Alternatives considered**, both rejected by the owner:
+
+- Leaving the combo box where it was and calling the menu `DxuiMenuPopup`. It
+  reads as a near-duplicate of `DxuiPopupMenu` and leaves the ambiguous word in
+  the tree beside the type it is ambiguous with.
+- Renaming the menu to `DxuiMenuFlyout` after WinUI. Carried for two commits and
+  reversed. Once the combo box moved, nothing forced the menu to move at all;
+  this tree is Win32 and Direct2D, where the term for the object is a popup
+  menu; and `Flyout` is already taken in this feature by the toolbar entry kind
+  that hosts the volume slider, which is not a menu. Upstream makes those two
+  siblings on purpose, here they are unrelated, so the words stay apart.
+
+Extending in place rather than copying and deleting also keeps the three
+consumers compiling throughout and leaves
+`UnitTest/Dxui/DxuiWidgetIDxuiControlTests.cpp` untouched, where a rename would
+have retyped its three conformance rows for no behavioral reason.

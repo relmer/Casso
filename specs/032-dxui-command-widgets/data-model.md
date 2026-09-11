@@ -24,15 +24,15 @@ from every surface.
 
 Validation: ids unique within an application; `dispatch` required.
 
-## DxuiMenuFlyoutItem
+## DxuiPopupMenuItem
 
 | Kind | Fields |
 |---|---|
 | Command | `const DxuiCommand *` |
 | Separator | none |
-| Submenu | `const DxuiCommand *` for the row, `std::vector<DxuiMenuFlyoutItem>` children |
+| Submenu | `const DxuiCommand *` for the row, `std::vector<DxuiPopupMenuItem>` children |
 
-## DxuiMenuFlyout
+## DxuiPopupMenu
 
 | Field | Meaning |
 |---|---|
@@ -57,7 +57,7 @@ closes only the child. Escape on the root closes it uncommitted.
 | items | The dropdown item list for that title |
 
 The bar keeps: open index, opened-by-keyboard flag, focused title, hover
-title. It owns one `DxuiMenuFlyout` and reuses it for whichever title is open.
+title. It owns one `DxuiPopupMenu` and reuses it for whichever title is open.
 
 ## Toolbar entry
 
@@ -84,7 +84,7 @@ widget acts on the kind, which is how a collapsed cluster opens a picker.
 | labeledCount | Result of planning: entries from the left that keep labels |
 | bandDp | Band height for the plan |
 | pickers | One item list, `openedOn`, preview and commit sinks per picker entry, keyed by command id |
-| dropdown | One `DxuiMenuFlyout` reused for whichever picker is open |
+| dropdown | One `DxuiPopupMenu` reused for whichever picker is open |
 | flyout | Hosted control, panel rect, keep-alive rect, open flag |
 
 Plan rule: from all labeled, drop the rightmost label until the strip fits
@@ -93,7 +93,7 @@ or none is labeled.
 ## Context menu
 
 Not a type: a static call that takes a host, a point and an item list, and
-drives one `DxuiMenuFlyout` owned by the host window. A picked row runs its
+drives one `DxuiPopupMenu` owned by the host window. A picked row runs its
 command; there is no completion callback. `Disk2DebugPanel` and
 `InputDebugPanel` use it.
 
