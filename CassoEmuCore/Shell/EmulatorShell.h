@@ -18,8 +18,10 @@
 #include "Devices/IAciaEndpoint.h"
 #include "Print/PrinterWorker.h"
 #include "Seams/Win32Clipboard.h"
+#include "Seams/Win32HostCapsLock.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Shell/AudioSampleBudget.h"
+#include "Shell/Input/CapsLockLatch.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/FrameClock.h"
@@ -324,6 +326,7 @@ private:
     DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
+    DxuiMessageResult  OnSetFocus      () override;
     DxuiMessageResult  OnKillFocus     () override;
 
     // Release the guest keyboard latch + auto-repeat + modifiers. Called on
@@ -1999,6 +2002,12 @@ private:
     Win32Clipboard                            m_hostClipboard;
     Win32HostDialogs                          m_hostDialogs;
     ModernPrintDialog                         m_printDialog;
+
+    // The Caps Lock key an Apple ][ ships latched down, driven onto the host
+    // keyboard while this window has focus. Declared after the host toggle it
+    // holds a reference to.
+    Win32HostCapsLock                         m_hostCapsLock;
+    CapsLockLatch                             m_capsLockLatch { m_hostCapsLock };
 
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;

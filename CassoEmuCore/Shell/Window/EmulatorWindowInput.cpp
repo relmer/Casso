@@ -1964,6 +1964,13 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (lParam);
 
+    // A released Caps Lock is the user setting the latch, unless the press
+    // was the one the latch itself sent; the latch tells the two apart.
+    if (vk == VK_CAPITAL)
+    {
+        m_capsLockLatch.OnCapsLockKeyUp();
+    }
+
     // Key-up is deliberately unconditional (no chrome / settings gate): a
     // release must always reach the //e so a modifier or repeat can never
     // stick when focus moved to the chrome mid-press. The viewport forwards

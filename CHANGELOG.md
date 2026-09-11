@@ -10,6 +10,13 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Caps Lock now defaults to on, the way a //e and //c ship, so DOS 3.3 and
+  BASIC receive the upper-case letters they expect. While the Casso window has
+  keyboard focus the host Caps Lock LED shows Casso's setting and the real key
+  changes it; the host's own setting is put back when focus leaves.
+  Previously, letters passed through in whatever case Windows delivered, so a
+  session with Caps Lock off started with `SYNTAX ERROR`.
+
 - Apple //e now uses the correct character ROM. Previously, it used the Apple
   //e Enhanced ROM.
 - `disk get --basic` now lists an Applesoft file whose recorded length runs

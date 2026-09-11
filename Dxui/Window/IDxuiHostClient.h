@@ -333,15 +333,21 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
-    // WM_ACTIVATEAPP (active = wParam != 0), WM_KILLFOCUS, and
-    // WM_CANCELMODE. Surfaced so a consumer can release a live mouse
+    // WM_ACTIVATEAPP (active = wParam != 0), WM_SETFOCUS, WM_KILLFOCUS,
+    // and WM_CANCELMODE. Surfaced so a consumer can release a live mouse
     // capture (e.g. paddle-input mode) when the app loses the
     // foreground / focus, or the OS cancels capture (secure desktop,
-    // lock). Default returns NotHandled (DxuiHwndSource calls
-    // DefWindowProc).
+    // lock), and can apply per-window keyboard state (a Caps Lock latch)
+    // while it holds focus. Default returns NotHandled (DxuiHwndSource
+    // calls DefWindowProc).
     virtual DxuiMessageResult  OnActivateApp    (bool active)
     {
         UNREFERENCED_PARAMETER (active);
+        return DxuiMessageResult::NotHandled;
+    }
+
+    virtual DxuiMessageResult  OnSetFocus       ()
+    {
         return DxuiMessageResult::NotHandled;
     }
 

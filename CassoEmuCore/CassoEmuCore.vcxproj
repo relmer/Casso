@@ -272,6 +272,7 @@
     <ClCompile Include="Devices\Disk\ChangePrompt.cpp" />
     <ClCompile Include="Devices\Disk\PreservedCopy.cpp" />
     <ClCompile Include="Seams\Win32IntentChannel.cpp" />
+    <ClCompile Include="Seams\Win32HostCapsLock.cpp" />
     <ClCompile Include="Seams\Win32HostDialogs.cpp" />
     <ClCompile Include="Seams\Win32Clipboard.cpp" />
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
@@ -423,6 +424,7 @@
     <ClCompile Include="Shell\FramePacing.cpp" />
     <ClCompile Include="Shell\FrameClock.cpp" />
     <ClCompile Include="Shell\Input\AppleKeyMapping.cpp" />
+    <ClCompile Include="Shell\Input\CapsLockLatch.cpp" />
     <ClCompile Include="Shell\Layout\DriveRowLayout.cpp" />
     <ClCompile Include="Shell\Layout\ChromeBandLayout.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
@@ -511,9 +513,11 @@
     <ClInclude Include="Devices\Disk\Win32ImageWatcher.h" />
     <ClInclude Include="Seams\IIntentChannel.h" />
     <ClInclude Include="Seams\Win32IntentChannel.h" />
+    <ClInclude Include="Seams\Win32HostCapsLock.h" />
     <ClInclude Include="Seams\Win32HostDialogs.h" />
     <ClInclude Include="Seams\Win32Clipboard.h" />
     <ClInclude Include="Seams\IPrintDialog.h" />
+    <ClInclude Include="Seams\IHostCapsLock.h" />
     <ClInclude Include="Seams\IHostDialogs.h" />
     <ClInclude Include="Seams\IHostClipboard.h" />
     <ClInclude Include="Devices\Disk\IImageWatcher.h" />
@@ -716,6 +720,7 @@
     <ClInclude Include="Shell\AudioSampleBudget.h" />
     <ClInclude Include="Shell\FrameClock.h" />
     <ClInclude Include="Shell\Input\AppleKeyMapping.h" />
+    <ClInclude Include="Shell\Input\CapsLockLatch.h" />
     <ClInclude Include="Shell\Layout\DriveRowLayout.h" />
     <ClInclude Include="Shell\Layout\ChromeBandLayout.h" />
   </ItemGroup>
