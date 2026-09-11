@@ -375,7 +375,7 @@ private:
 
     // ICpuCommandTarget: the outcomes a queued command can ask for, each one
     // call into the machine, the disk manager or a mixer. SwitchMachine,
-    // SoftReset, PowerCycle, SetDriveUserWriteProtect, RunSalvageFlow and the
+    // SoftReset, PowerCycle, SetDriveUserWriteProtect and the
     // three drive-audio setters are members of long standing that already
     // have the target's signature; these are the ones that were inline in
     // the dispatch switch before it became CpuCommandDispatcher.

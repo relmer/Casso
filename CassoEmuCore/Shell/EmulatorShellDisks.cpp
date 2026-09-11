@@ -450,29 +450,15 @@ void EmulatorShell::RunSalvageFlow (int drive)
     DenibblizeReport                        report;
     DialogDefinition                        def;
     std::unique_ptr<SalvageDialogContent>   content;
-    HRESULT                                 hr          = S_OK;
-    int                                     choice      = 0;
-    bool                                    isOffThread = false;
+    HRESULT                                 hr     = S_OK;
+    int                                     choice = 0;
     std::wstring                            sourcePath;
     std::wstring                            destName;
     std::wstring                            summary;
 
 
 
-    // The Disk menu dispatches on the CPU thread and this builds a Dxui modal.
-    // Reached from the damage prompt it is already on the UI thread; reached
-    // from the menu it was not, so the dialog never appeared and the command
-    // looked like it did nothing at all.
-    isOffThread = (m_hwnd != nullptr) &&
-                  (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
-
-    if (isOffThread)
-    {
-        PostMessageW (m_hwnd, WM_APP_RUN_SALVAGE, (WPARAM) drive, 0);
-        return;
-    }
-
-    hr = m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr =m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
     if (FAILED (hr))
     {
         return;

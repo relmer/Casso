@@ -9,6 +9,29 @@ class EmulatorShell;
 
 
 
+// The handler WindowCommandManager::OnCommand calls for a command id. None
+// means the id is dropped.
+enum class WindowCommandRoute
+{
+    None,
+    File,
+    Edit,
+    Machine,
+    Disk,
+    View,
+    Printer,
+    PrinterPreview,
+    PrinterModernSent,
+    PrinterModernFailed,
+    Help,
+    ExternalDrive,
+    MouseConnect,
+};
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WindowCommandManager
@@ -36,6 +59,8 @@ public:
     // Public because it is no longer print-specific: the salvage failure
     // dialog wants the same trailer, and error dialogs should read alike.
     static std::wstring  FormatSystemError (HRESULT hr);
+
+    static WindowCommandRoute  GetCommandRoute (int id);
 
     explicit WindowCommandManager (EmulatorShell & shell);
 

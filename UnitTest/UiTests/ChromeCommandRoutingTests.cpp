@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Shell/WindowCommandManager.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "resource.h"
 
@@ -188,6 +189,42 @@ public:
         }
 
         Assert::IsTrue (checked > 0, L"The command table has no entries to check");
+    }
+
+
+    TEST_METHOD (Every_Command_Table_Id_Routes_To_A_Handler)
+    {
+        // Menu and toolbar picks go through WindowCommandManager::OnCommand,
+        // which drops an id that falls outside every range it checks.
+        size_t  checked = 0;
+
+
+
+        for (const EmulatorMenuEntry & e : EmulatorCommands::GetMenuEntries())
+        {
+            wchar_t             msg[128] = {};
+            WindowCommandRoute  route    = WindowCommandRoute::None;
+
+            if (EmulatorCommands::IsSeparator (e))
+            {
+                continue;
+            }
+
+            route = WindowCommandManager::GetCommandRoute (e.commandId);
+
+            swprintf_s (msg, L"Command table id %u reaches no OnCommand handler", (unsigned) e.commandId);
+            Assert::IsTrue (route != WindowCommandRoute::None, msg);
+            checked++;
+        }
+
+        Assert::IsTrue (checked > 0, L"The command table has no entries to check");
+    }
+
+
+    TEST_METHOD (Salvage_Menu_Picks_Route_To_The_Disk_Handler)
+    {
+        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE1) == WindowCommandRoute::Disk);
+        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE2) == WindowCommandRoute::Disk);
     }
 
 
