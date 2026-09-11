@@ -20,7 +20,6 @@ public:
     virtual HRESULT EnumerateDevices   (std::vector<ControllerDeviceInfo> & outDevices) = 0;
     virtual HRESULT ReadSample         (const ControllerUnitKey & unit,
                                         ControllerSample        & outSample) = 0;
-    virtual bool    IsBackgroundCapable (ControllerKind kind) const = 0;
 };
 
 class IControllerBackendEvents
@@ -41,7 +40,7 @@ public:
 | `EnumerateDevices` | Returns every attached controller exactly once: XInput slots that report connected, then DirectInput game controllers (`DI8DEVCLASS_GAMECTRL`, attached only) whose `DIPROP_GUIDANDPATH` does not contain `IG_`. Order is stable for an unchanged set of devices. |
 | `ReadSample` | Fills a normalized sample (R7). A device that is gone returns `HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED)` and `outSample.connected = false`. `DIERR_INPUTLOST` / `DIERR_NOTACQUIRED` trigger one `Acquire` + `Poll` retry before failing. Never returns a centered sample with `S_OK` for a device it could not read (FR-015). |
 | `OnDevicesChanged` | Raised on the controller thread after a HID arrival or removal, at the +300 ms and +2 s rescans (R4). |
-| `IsBackgroundCapable` | `DirectInput` is always true. `XInput` returns the result of the hardware validation baked in as policy (R2); if false, the service reads Xbox-class controllers through DirectInput while Casso is not foreground and marks trigger bindings as degraded. |
+| Activation | The backend does not know about focus. `ControllerInputService` gates samples on Casso's activation state (R2), set from the shell's `WM_ACTIVATEAPP` handling. |
 
 ## Threading
 

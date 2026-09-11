@@ -6,13 +6,13 @@
 
 ## Summary
 
-Xbox-class controllers are read through XInput and every other controller through DirectInput 8, on a dedicated controller thread that samples at 250 Hz, handles hot-plug through HID device notifications, and keeps reading while Casso is in the background. Both APIs sit behind one `IControllerBackend` seam that delivers a normalized sample; everything the spec asks for (calibration, deadzone, control mapping, profiles, selection and fallback, press-to-assign) is pure logic in `CassoEmuCore/Controllers/`, driven in tests by a scripted fake backend.
+Xbox-class controllers are read through XInput and every other controller through DirectInput 8, on a dedicated controller thread that samples at a rate measured from the real devices (R13), handles hot-plug through HID device notifications, and applies input only while Casso is active. Both APIs sit behind one `IControllerBackend` seam that delivers a normalized sample; everything the spec asks for (calibration, deadzone, control mapping, profiles, selection and fallback, press-to-assign) is pure logic in `CassoEmuCore/Controllers/`, driven in tests by a scripted fake backend.
 
 A new `GamePortInputMixer` becomes the single writer of PDL0/PDL1/PB0/PB1. Today the keyboard, Alt and mouse sources overwrite each other, and a controller on another thread could not satisfy FR-014 against that; the existing writers are migrated onto the mixer first.
 
 Two findings change delivery order and need the owner's attention:
 
-1. **Background XInput is unproven** (research R2). Microsoft documents that Windows 10+ gates XInput by window focus; field reports say input keeps flowing. A hardware check on this machine is the first task, and a DirectInput fallback for unfocused Xbox controllers is designed in.
+1. **Focus and sample rate need a hardware check** (research R2, R13). Background input was dropped in favor of XInput, so the check now answers two narrower questions: whether XInput keeps delivering while the Settings sheet is the active Casso window, and what report rate each controller actually delivers.
 2. **032 also replaces the Machine menu's command table**, not only the toolbar (R11). The controller and profile menu entries therefore move behind 032 along with the toolbar pickers. Until then the feature is complete through automatic selection (FR-032) and the Controllers page, which gains a per-machine controller and active-profile choice. This narrows FR-008/FR-028's "Machine menu" for the pre-032 slices; the spec says the menu is part of the input selector.
 
 ## Technical Context
@@ -29,9 +29,9 @@ Two findings change delivery order and need the owner's attention:
 
 **Project Type**: Desktop application (emulator)
 
-**Performance Goals**: sample at 250 Hz; a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: the thread idles on its message wait and rechecks empty XInput slots once per second)
+**Performance Goals**: sample at the measured device report rate (R13; provisional 125 Hz, unmeasured); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: the thread idles on its message wait and rechecks empty XInput slots once per second)
 
-**Constraints**: no redistributables; no real device access in unit tests; no undocumented API on a required path (`XInputGetCapabilitiesEx` is optional with fallback, R6); background input for both APIs (FR-033)
+**Constraints**: no redistributables; no real device access in unit tests; no undocumented API on a required path (`XInputGetCapabilitiesEx` is optional with fallback, R6); input applies only while Casso is active, and Xbox-class controllers always use XInput (FR-033)
 
 **Scale/Scope**: up to 4 XInput slots plus any number of DirectInput devices; one controller drives the game port at a time
 
@@ -45,7 +45,7 @@ Two findings change delivery order and need the owner's attention:
 | II. Testing Discipline, Test Isolation | Pass | Only `Win32ControllerBackend` touches devices and it holds no rule worth asserting: POV decoding, range normalization and XInput bit mapping are pure decoders tested with synthetic `DIJOYSTATE2`/`XINPUT_STATE`. Everything else runs against `FakeControllerBackend`. Degraded operation is observable: a failed read reports disconnected, never a healthy rest sample (FR-015). |
 | III. UX Consistency | Pass | Settings page follows the sheet's Apply/Cancel; notices reuse the existing overlay; no CLI change. |
 | IV. Performance | Pass | Change-only sink writes; empty-slot backoff; no allocation in the sample loop (fixed-size sample). |
-| V. Simplicity | Pass with note | The mixer adds a class, justified by FR-014 (research R9). The dedicated thread is the minimum that satisfies FR-033 while minimized (R3). |
+| V. Simplicity | Pass with note | The mixer adds a class, justified by FR-014 (research R9). The dedicated thread is needed because the UI frame hook stops while the machine is idle and in modal loops (R3). |
 | VI. Thin Executable, Testable Core | Pass | All code in `CassoEmuCore` (and Dxui for nothing new before 032). `Casso.exe` unchanged. The Win32 backend lives in core like `Win32HostCapsLock`. |
 | Dependencies | Pass | Windows SDK only; no allowlist change. |
 
@@ -137,7 +137,7 @@ Each slice leaves the build green and is committed on its own (constitution: com
 
 | # | Slice | Depends on | Stories | Notes |
 |---|---|---|---|---|
-| 0 | **Hardware check**: throwaway probe (not committed) reading XInput and DirectInput from a worker thread while unfocused and minimized | none | gate | Records the R2 outcome; picks the Xbox background policy |
+| 0 | **Hardware check**: throwaway probe (not committed) reading XInput and DirectInput from a worker thread; measures report rate per controller and whether XInput delivers while a second top-level window of the process is active | none | gate | Records R2 and R13 outcomes |
 | 1 | **Mixer**: `GamePortInputMixer`, `MachineGamePortSink`, migrate every existing writer | none | FR-014 | Pure refactor for existing behavior; existing input tests unchanged |
 | 2 | **Backend + decoders**: seam, Win32 backend, decoders, controller thread, hot-plug | 0 | FR-001, FR-002, FR-015 | |
 | 3 | **Play (MVP)**: default mapping, deadzone, evaluator, service, automatic selection, disconnect fallback, notice, per-machine persistence | 1, 2 | US1, US2 (auto), US3, FR-032, FR-033 | Usable end to end with no UI |

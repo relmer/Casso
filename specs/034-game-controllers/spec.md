@@ -39,7 +39,7 @@ Paddle mode and arrows-to-joystick are mutually exclusive, since both drive PDL0
 - Q: How do toolbar controller and profile pickers relate to the 032 command-widget work, which replaces `CommandToolbar` and supplies the shared dropdown? -> A: 034 depends on 032. The toolbar pickers are built on 032's toolbar and dropdown widgets after 032 merges, not on today's `CommandToolbar` (FR-031).
 - Q: When a controller connects and none is selected, is it selected automatically? -> A: Yes, always: whenever the current machine has no controller selected, a newly connected controller becomes its selection, even if the user had deliberately chosen arrow keys or paddle mode (FR-032).
 - Q: Where do the controller settings live? -> A: A new Controllers page in the Settings sheet, following its Apply/Cancel model; the input selector's Controller Settings item opens the sheet to that page (FR-019).
-- Q: Does controller input apply while Casso is not the foreground window? -> A: Yes. The selected controller keeps driving the game port in the background, unlike the keyboard (FR-003, FR-033).
+- Q: Does controller input apply while Casso is not the foreground window? -> A: No. Revised the same day: XInput takes priority over background input, and Windows documents XInput as focus-gated, so controller input follows Casso's activation like the keyboard. Casso counts as active while any of its windows (including the Settings sheet) is active (FR-003, FR-033).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -158,8 +158,8 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **Arrow keys held at the moment the controller reconnects**: the controller takes the joystick back immediately; held arrows stop driving the axes.
 - **Arrow keys during fallback on a machine where arrows-to-joystick was never used**: the fallback still applies, since it follows the controller selection, not the arrows-to-joystick setting.
 - **Keyboard button and controller button at once**: a button reads pressed if either source holds it. Releasing one does not release a button the other still holds.
-- **Casso loses focus or is minimized**: the selected controller keeps driving the game port. Keyboard-driven inputs (arrow keys, including the disconnect fallback, and Open-Apple and Solid-Apple keys) keep their existing foreground-only behavior, so a button held on the keyboard is released on focus loss while one held on the controller stays pressed.
-- **Controllers page open in the Settings sheet**: the sheet taking focus does not stop controller input; the game port keeps following the applied mapping.
+- **Another application becomes active, or Casso is minimized**: controller input stops driving the game port and the controller's contribution returns to rest, the same as a held keyboard button. It resumes when Casso is active again.
+- **Controllers page open in the Settings sheet**: the sheet is a Casso window, so controller input continues; the game port keeps following the applied mapping, and the live readings and press-to-assign keep working.
 - **Machine switch**: controller input never reaches a machine being torn down; the new machine adopts its own saved selection.
 - **Machine with no game port** (for example a configuration without one): controller selection is unavailable or has no effect, and nothing faults.
 - **Paddle games**: a controller stick drives PDL0/PDL1 as absolute positions, so paddle software (Breakout-style games reading PDL0) works with the X axis.
@@ -189,7 +189,7 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 
 - **FR-001**: Casso MUST enumerate attached game controllers, including Xbox-class controllers, generic USB/Bluetooth gamepads, and joysticks.
 - **FR-002**: Casso MUST detect controllers being attached and removed while running, without a restart.
-- **FR-003**: When a controller is the selected source, Casso MUST sample it continuously whether or not the emulator window is foreground (FR-033), at least as often as the display refreshes (60 Hz), and apply its mapped axis controls to PDL0 (X) and PDL1 (Y) over the full 0-255 range. With no custom mapping, the left stick (or a joystick's primary axes) drives them.
+- **FR-003**: When a controller is the selected source, Casso MUST sample it continuously while Casso is active (FR-033), at least as often as the display refreshes (60 Hz), and apply its mapped axis controls to PDL0 (X) and PDL1 (Y) over the full 0-255 range. With no custom mapping, the left stick (or a joystick's primary axes) drives them.
 - **FR-004**: The mapping MUST be proportional: center at rest maps to 127/128, full deflection maps to 0 or 255, and intermediate deflection maps monotonically between them.
 - **FR-005**: The mapped button controls MUST drive PB0 and PB1, reaching the same machine inputs Open-Apple and Solid-Apple reach on a //e and //c. With no custom mapping, the first two face buttons (on an Xbox-class controller, A and B; on a joystick, its first two buttons) drive them.
 - **FR-006**: A deadzone around center MUST suppress rest jitter; a stick within it reads exactly center.
@@ -222,7 +222,7 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **FR-030**: Switching profiles MUST release any button and center any axis that the new profile no longer drives from a currently held or deflected control.
 - **FR-031**: The toolbar's controller and profile pickers and its status indicator (FR-008, FR-008a, FR-028) MUST be built on the toolbar and dropdown widgets from the Dxui command-widgets feature (branch `032-dxui-command-widgets`), not on the current emulator toolbar. Toolbar work in this feature starts only after that feature is on master.
 - **FR-032**: Whenever the current machine has no controller selected and a controller connects, that controller MUST become the machine's selection automatically, replacing arrows-to-joystick or mouse-to-paddle if either is on, and Casso MUST show a brief notice saying which controller was selected. A controller already attached when Casso starts, or when the user switches to a machine with no controller selected, counts as connecting. A controller connecting while one is already selected (connected or not) MUST NOT change the selection.
-- **FR-033**: The selected controller MUST keep driving the game port while Casso is not the foreground window, including while minimized. Keyboard-driven game-port inputs keep their existing foreground-only behavior.
+- **FR-033**: Controller input MUST drive the game port only while Casso is active, meaning one of its windows (the emulator window or the Settings sheet) is the active window. When Casso becomes inactive or is minimized, the controller's contribution MUST return to rest; it resumes on reactivation. Xbox-class controllers MUST be read through XInput regardless of this limit.
 
 ### Key Entities
 
@@ -258,7 +258,7 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **Xbox-class controllers need no unit recognition**: XInput exposes only a slot number (0-3), with no product, vendor or serial identity, and a controller can change slots across reconnects. That would make telling two identical Xbox controllers apart unreliable, but nothing requires it: calibration is the only per-unit data and they need none (FR-018a). Recognizing the model still has to come from correlating the slot with its underlying device.
 - **DirectInput unit recognition is best effort**: a device without a unique serial number may not be recognized as the same unit after moving to a different port; FR-018's model-level fallback covers that case.
 - **XInput's four-controller limit** applies to Xbox-class controllers; DirectInput devices are not counted against it.
-- **Focus**: controller input applies whether or not Casso is the foreground window (FR-033); the device access in the plan must support background reading for both XInput and DirectInput devices.
+- **Focus**: controller input applies only while Casso is active (FR-033). Background input was considered and dropped: Windows documents XInput as gated by window focus, and XInput is required for Xbox controllers.
 - **Absolute positioning**: the stick sets paddle position directly (joystick semantics). It does not integrate stick deflection into relative motion the way the mouse-to-paddle capture does.
 - **Persistence location**: the controller selection and active profile live with the existing per-machine input preferences; profiles, calibration and deadzone are global and keyed by controller model or unit, since a stick's physical quirks and the user's layouts for it do not change with the emulated machine.
 - **Profiles are chosen by hand**: activating a profile automatically when a particular disk is mounted is tracked by GH #78, which owns known-disk recognition. The profile storage here must allow a profile to be looked up by controller model and profile name so that work can associate disks with profiles.

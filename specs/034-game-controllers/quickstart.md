@@ -24,20 +24,12 @@ Expected coverage, by contract:
 - [contracts/prefs-schema.md](contracts/prefs-schema.md): round trip and every rejection rule.
 - Selection policy, calibration state transitions, mapping evaluation, deadzone, profile store, capture-by-press: rules in [data-model.md](data-model.md).
 
-## 2. Hardware check: background XInput (do this first)
+## 2. Hardware check (do this first)
 
-Research R2 gates FR-033 for Xbox-class controllers on this check.
+Research R2 and R13 depend on it. It uses a throwaway probe, not Casso.
 
-1. Launch minimized with a label, per the workspace rules:
-
-   ```powershell
-   $label = Split-Path -Leaf (git rev-parse --show-toplevel)
-   Start-Process .\x64\Debug\Casso.exe -WindowStyle Minimized -ArgumentList '--title', $label
-   ```
-
-2. With the Xbox controller connected, focus another application.
-3. Watch the Controllers page's live readings, or the input debug panel, while moving the stick.
-4. **Pass**: readings follow the stick while Casso is unfocused and while minimized. **Fail**: readings freeze at rest. On failure, record it in `research.md` R2 and switch `IsBackgroundCapable (XInput)` to false per the fallback.
+1. **Report rate**: for each controller (Xbox wired, Xbox wireless or Bluetooth, a DirectInput device), read as fast as the API allows for 10 seconds while moving the stick continuously, and count distinct samples per second. Record the numbers in R13 and set the sample period from the highest.
+2. **Second window**: with the probe's main window active, open a second top-level window of the same process and activate it. **Pass**: XInput readings keep changing. **Fail**: they freeze; record it in R2, and the Controllers page shows Xbox controllers as paused while the Settings sheet is active.
 
 ## 3. Game port readout program
 
@@ -59,7 +51,7 @@ Boot DOS 3.3 or any Applesoft prompt and enter:
 | 3 | Leave the stick untouched for 10 s. | Both paddles stay exactly at center. | SC-003 |
 | 4 | Hold the stick right and A, then unplug. | Within 100 ms both paddles center and both buttons release; arrow keys now drive the joystick; status shows the fallback. | FR-010, FR-008a, SC-005 |
 | 5 | Plug back in while holding an arrow key. | Controller takes over within 2 s; the arrow no longer moves the paddles. | FR-010, SC-005 |
-| 6 | Focus another window; move the stick; minimize Casso. | Readings keep following the controller; a held keyboard Open-Apple is released on focus loss. | FR-033 |
+| 6 | Hold the stick right and A; activate another application; release; reactivate Casso. | On deactivation both paddles center and both buttons release; nothing moves while inactive; input resumes on reactivation. With the Settings sheet active, input still applies. | FR-033 |
 | 7 | Settings > Controllers: create profile "D-pad", assign the D-pad to both axes and LT to PB0, Apply. | D-pad drives the paddles to 0/255; LT past its threshold reads PB0 = 1. | FR-019-022, SC-008 |
 | 8 | Make "D-pad" active, restart Casso, switch machines and back. | "D-pad" still active on that machine; Default active on the other. | FR-029, SC-006 |
 | 9 | Connect the DirectInput joystick with the stick held off center; open Controllers; run Calibrate; Apply; restart. | User calibration persists; rest reads center; limits reach 0/255. | FR-007, FR-007a, US4 |

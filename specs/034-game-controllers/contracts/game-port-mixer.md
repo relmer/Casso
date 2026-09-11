@@ -41,7 +41,7 @@ public:
 | Buttons | Final PBn = OR of every source's PBn (FR-014) |
 | Axes | Final PDLn = the owner's contribution, or center (127) when the owner has none or is `None` |
 | Owner switch | Takes effect immediately; the new owner's last contribution is used, so arrows held when the controller reconnects stop driving the axes at once (spec edge case) |
-| Writes | The sink is called only when a final value changes, so a 250 Hz controller at rest writes nothing |
+| Writes | The sink is called only when a final value changes, so a controller at rest writes nothing however often it is sampled |
 | Teardown | `Attach (nullptr)` drops writes; contributions are kept and replayed when a new sink attaches, after `ReleaseAll` if the machine changed |
 | Threading | All members lock one internal mutex; callers are the UI thread (keyboard and mouse sources) and the controller thread. The sink is invoked outside the lock after computing the change set |
 
