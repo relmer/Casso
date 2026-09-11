@@ -169,7 +169,9 @@
     <ClCompile Include="Theme\DxuiWindowsThemeColors.cpp" />
     <ClCompile Include="Widgets\DxuiButton.cpp" />
     <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
-    <ClCompile Include="Widgets\DxuiDropdown.cpp" />
+    <ClCompile Include="Widgets\DxuiComboBox.cpp" />
+    <ClCompile Include="Widgets\DxuiContextMenu.cpp" />
+    <ClCompile Include="Widgets\DxuiToolbar.cpp" />
     <ClCompile Include="Widgets\DxuiShadowedText.cpp" />
     <ClCompile Include="Widgets\DxuiOrbitControl.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
@@ -215,6 +217,7 @@
     <ClInclude Include="Core\DxuiTextElide.h" />
     <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
     <ClInclude Include="Core\DxuiAnimation.h" />
+    <ClInclude Include="Core\DxuiCommand.h" />
     <ClInclude Include="Core\DxuiFrameRate.h" />
     <ClInclude Include="Core\DxuiDockLayout.h" />
     <ClInclude Include="Core\DxuiDpiScaler.h" />
@@ -245,7 +248,9 @@
     <ClInclude Include="Theme\IDxuiTheme.h" />
     <ClInclude Include="Widgets\DxuiButton.h" />
     <ClInclude Include="Widgets\DxuiCheckbox.h" />
-    <ClInclude Include="Widgets\DxuiDropdown.h" />
+    <ClInclude Include="Widgets\DxuiComboBox.h" />
+    <ClInclude Include="Widgets\DxuiContextMenu.h" />
+    <ClInclude Include="Widgets\DxuiToolbar.h" />
     <ClInclude Include="Widgets\DxuiLabel.h" />
     <ClInclude Include="Widgets\DxuiHudNotice.h" />
     <ClInclude Include="Widgets\DxuiShadowedText.h" />

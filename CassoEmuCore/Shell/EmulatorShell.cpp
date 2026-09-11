@@ -812,6 +812,7 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     m_mainMenu.SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
     m_switchBar.SetTextRenderer          (&m_uiShell.GetTextRenderer());
     m_toolbar.SetTextRenderer            (&m_uiShell.GetTextRenderer());
+    m_inputCluster.SetTextRenderer       (&m_uiShell.GetTextRenderer());
 
     // Global prefs are already loaded by PrimeChromeThemeEarly, so there is
     // no second LoadAll here. Discover scans the themes directory (an empty
@@ -851,7 +852,7 @@ void EmulatorShell::WireToolbarPickers()
 {
     m_toolbar.SetPopupHost (m_host.get());
 
-    m_toolbar.SetThemeSinks (
+    m_toolbar.SetDropDownSinks (EmulatorCommands::kIdTheme,
         [this] (int index)
         {
             HRESULT  hrTheme = S_OK;
@@ -870,18 +871,20 @@ void EmulatorShell::WireToolbarPickers()
 
             if (inRange)
             {
+                m_mainMenu.GetCommands().SetThemeIndex (index);
                 hrTheme = ApplyAndPersistTheme (m_toolbarThemeIds[index]);
                 IGNORE_RETURN_VALUE (hrTheme, S_OK);
             }
         });
 
-    m_toolbar.SetMonitorSinks (
+    m_toolbar.SetDropDownSinks (EmulatorCommands::kIdColor,
         [this] (int index)
         {
             SetColorModeLive (index);
         },
         [this] (int index)
         {
+            m_mainMenu.GetCommands().SetMonitorColorIndex (index);
             SetColorModeLive              (index);
             PersistColorModeForMachine    (index);
         });

@@ -86,17 +86,21 @@ merge commit or the code is on master instead.
 <!-- SPECKIT START -->
 ## Active features
 
-**032-dxui-command-widgets** (implementing in its own worktree) -- Dxui gains
-the WPF/WinUI command model: `DxuiCommand`, `DxuiDropdown`,
-`DxuiToolbar`; `CommandToolbar` deleted; one emulator command table.
-Pixel-identical chrome is the bar.
+**032-dxui-command-widgets** -- Dxui gains the WPF/WinUI command model:
+`DxuiCommand` (one declaration per action), `DxuiDropdown` (one dropdown
+for the menu bar, toolbar pickers and context menus), `DxuiToolbar`
+(extracted from `CommandToolbar`, which is deleted). The emulator's menu and
+toolbar tables become one command table. Pixel-identical chrome is the bar.
+Cassque (033) is built on it.
 
 - Plan: `specs/032-dxui-command-widgets/plan.md`
-- Tasks: `specs/032-dxui-command-widgets/tasks.md`
+- Spec: `specs/032-dxui-command-widgets/spec.md`
+- Contracts: `specs/032-dxui-command-widgets/contracts/`
+- Validation: `specs/032-dxui-command-widgets/quickstart.md`
 
-**033-cassque** (planned, not started) -- the disk-image file browser as a
-second thin executable. Phases 1-5 need only master; the shell phase is
-gated on 032 merging. Known folders and Cassque prefs are two new files
+**033-cassque** (implementing in worktree phases-1-6-impl-ebe44b) -- the
+disk-image file browser as a second thin executable. Phases 1-6 are done; the
+shell phase builds on 032. Known folders and Cassque prefs are two new files
 beside `UserPrefs.json` because `GlobalUserPrefs::Save` is an unguarded
 read-modify-write that a running Casso would clobber.
 

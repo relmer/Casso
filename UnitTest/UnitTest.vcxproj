@@ -392,6 +392,7 @@
     <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
+    <ClCompile Include="UiTests\ChromeToolbarPartsTests.cpp" />
     <ClCompile Include="UiTests\CpuManagerCommandTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
@@ -429,6 +430,7 @@
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
     <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
+    <ClCompile Include="Dxui\DxuiCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiFrameRateTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextElideTests.cpp" />
@@ -445,6 +447,9 @@
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanZoomTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPopupMenuTests.cpp" />
+    <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
     <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />

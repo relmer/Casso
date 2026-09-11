@@ -6,7 +6,7 @@
 
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiLabel.h"
-#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiTreeView.h"
 
 
@@ -24,9 +24,9 @@ class DxuiHwndSource;
 //  Hosts the settings sheet's "Machine" tab (GH #84 merged the old standalone
 //  Machine tab in here; the class name is retained). Top to bottom:
 //
-//      * Machine selector (DxuiDropdown) -- the outermost control; switching
+//      * Machine selector (DxuiComboBox) -- the outermost control; switching
 //        machines reloads the rest of the sheet.
-//      * CPU speed        (DxuiDropdown: authentic / 2x / max)
+//      * CPU speed        (DxuiComboBox: authentic / 2x / max)
 //      * Hardware spec    (read-only CPU / clock / memory-region rows)
 //      * Device tree      (DxuiTreeView of internal devices + slots)
 //
@@ -72,9 +72,9 @@ public:
 
     void  Rebuild    ();
 
-    DxuiDropdown       & GetMachineDropdown ()       { return m_machineDropdown; }
-    DxuiDropdown       & GetSpeedDropdown   ()       { return m_speed; }
-    const DxuiDropdown & GetSpeedDropdown   () const { return m_speed; }
+    DxuiComboBox       & GetMachineDropdown ()       { return m_machineDropdown; }
+    DxuiComboBox       & GetSpeedDropdown   ()       { return m_speed; }
+    const DxuiComboBox & GetSpeedDropdown   () const { return m_speed; }
     DxuiTreeView       & GetTree ()       { return m_tree; }
     const DxuiTreeView & GetTree () const { return m_tree; }
     const std::vector<std::string> & GetMachines () const { return m_machines; }
@@ -126,8 +126,8 @@ private:
 
     DxuiLabel                            m_machineLabel;
     DxuiLabel                            m_speedLabel;
-    DxuiDropdown                         m_machineDropdown;
-    DxuiDropdown                         m_speed;
+    DxuiComboBox                         m_machineDropdown;
+    DxuiComboBox                         m_speed;
 
     std::array<DxuiLabel, kInfoRowCount>  m_infoLabels;
     std::array<DxuiLabel, kInfoRowCount>  m_infoValues;

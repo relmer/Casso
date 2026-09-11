@@ -212,3 +212,45 @@ public:
     virtual void   SetGlobalAlpha (float alpha)                               { (void) alpha; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiNullTextRenderer
+//
+//  The renderer for a widget that has to lay itself out before any real one
+//  exists: it draws nothing and reports that it cannot measure, so every
+//  caller takes its own glyph-width fallback rather than dereferencing a
+//  null pointer. A menu bar opened by a unit test with no renderer installed
+//  is the case that needs it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DxuiNullTextRenderer : public IDxuiTextRenderer
+{
+public:
+    HRESULT  DrawString    (const wchar_t *, float, float, float, float, uint32_t, float,
+                            const wchar_t *, DxuiTextHAlign, DxuiTextVAlign, DxuiFontWeight, bool) override
+    {
+        return S_OK;
+    }
+
+    HRESULT  PushClipRect  (float, float, float, float) override             { return S_OK; }
+    HRESULT  PopClipRect   () override                                       { return S_OK; }
+    HRESULT  FillRect      (float, float, float, float, uint32_t) override   { return S_OK; }
+
+    HRESULT  MeasureString (const wchar_t *, float, const wchar_t *, float & outWidthDip, float & outHeightDip) override
+    {
+        outWidthDip  = 0.0f;
+        outHeightDip = 0.0f;
+        return E_NOTIMPL;
+    }
+
+    HRESULT  DrawIconBitmap (const uint32_t *, int, int, float, float, float, float) override
+    {
+        return S_OK;
+    }
+};

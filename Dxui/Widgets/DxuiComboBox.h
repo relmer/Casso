@@ -13,13 +13,13 @@ class IDxuiTheme;
 
 
 
-class DxuiDropdown : public IDxuiControl
+class DxuiComboBox : public IDxuiControl
 {
 public:
     using SelectFn = std::function<void (int index)>;
 
-    DxuiDropdown() { m_focusable = true; }
-    ~DxuiDropdown() override = default;
+    DxuiComboBox() { m_focusable = true; }
+    ~DxuiComboBox() override = default;
 
     void  SetRect     (const RECT & rect) { SetBounds (rect); }
     void  SetItems    (const std::vector<std::wstring> & items);

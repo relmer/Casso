@@ -226,15 +226,17 @@ static constexpr Byte    s_kPaddleCenterByte         = 127;
 static constexpr uint32_t s_kMonoSourceTextBgra       = 0xFF00FF00;   // green
 
 // Chrome keyboard-focus ring indices (see EmulatorShell::m_chromeFocusIndex).
-// -1 = guest (//e has focus); 0..6 = the seven menu titles File..Help; 7/8 =
-// drive widgets 1/2. The ring wraps modulo s_kChromeFocusCount when traversed
-// with Tab.
+// -1 = guest (//e has focus); 0..6 = the seven menu titles File..Help; 7..16 =
+// the ten toolbar entries in strip order; 17/18 = drive widgets 1/2. The ring
+// wraps modulo s_kChromeFocusCount when traversed with Tab.
 static constexpr int     s_kChromeFocusNone          = -1;
 static constexpr int     s_kChromeFocusMenuFirst     = 0;
 static constexpr int     s_kChromeFocusMenuLast      = 6;
-static constexpr int     s_kChromeFocusDrive0        = 7;
-static constexpr int     s_kChromeFocusDrive1        = 8;
-static constexpr int     s_kChromeFocusCount         = 9;
+static constexpr int     s_kChromeFocusToolbarFirst  = 7;
+static constexpr int     s_kChromeFocusToolbarLast   = 16;
+static constexpr int     s_kChromeFocusDrive0        = 17;
+static constexpr int     s_kChromeFocusDrive1        = 18;
+static constexpr int     s_kChromeFocusCount         = 19;
 
 
 

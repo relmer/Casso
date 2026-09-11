@@ -6,7 +6,7 @@
 
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiInfoBanner.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiCheckbox.h"
@@ -30,8 +30,8 @@ class DxuiHwndSource;
 //  controller persists them on OK and reverts them on Cancel. None have a live
 //  effect -- they bind at the next delivery.
 //
-//      * Resolution     (DxuiDropdown: 288 / 576 dpi, FR-028)
-//      * Dot style      (DxuiDropdown: ink / plain, FR-027)
+//      * Resolution     (DxuiComboBox: 288 / 576 dpi, FR-028)
+//      * Dot style      (DxuiComboBox: ink / plain, FR-027)
 //
 //  Plus the ImageWriter II mechanical-sound knobs (FR-034), which likewise
 //  write straight into GlobalUserPrefs and bind when the printer next sounds.
@@ -72,10 +72,10 @@ public:
     void  Rebuild              ();
 
     // Test / wiring accessors.
-    DxuiDropdown       & GetResolutionDropdown  ()       { return m_dpi;         }
-    DxuiDropdown       & GetDotStyleDropdown    ()       { return m_dotStyle;     }
-    const DxuiDropdown & GetResolutionDropdown  () const { return m_dpi;         }
-    const DxuiDropdown & GetDotStyleDropdown    () const { return m_dotStyle;     }
+    DxuiComboBox       & GetResolutionDropdown  ()       { return m_dpi;         }
+    DxuiComboBox       & GetDotStyleDropdown    ()       { return m_dotStyle;     }
+    const DxuiComboBox & GetResolutionDropdown  () const { return m_dpi;         }
+    const DxuiComboBox & GetDotStyleDropdown    () const { return m_dotStyle;     }
     DxuiToggle         & GetSoundsToggle        ()       { return m_soundsToggle; }
     DxuiSlider         & GetVolumeSlider        ()       { return m_volume;       }
     DxuiCheckbox       & GetPanOverrideCheckbox ()       { return m_panOverride;  }
@@ -104,9 +104,9 @@ private:
     DxuiInfoBanner  m_printerBanner;
 
     DxuiLabel     m_dpiLabel;
-    DxuiDropdown  m_dpi;
+    DxuiComboBox  m_dpi;
     DxuiLabel     m_styleLabel;
-    DxuiDropdown  m_dotStyle;
+    DxuiComboBox  m_dotStyle;
 
     DxuiLabel     m_audioLabel;
     DxuiToggle    m_soundsToggle;
