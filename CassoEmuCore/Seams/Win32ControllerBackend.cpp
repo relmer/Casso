@@ -4,6 +4,13 @@
 
 #include "Controllers/XInputSampleDecoder.h"
 
+// hidclass.h only DECLARES the HID device-interface GUID; something has to
+// define it. Doing that here keeps it to this translation unit rather than
+// pulling <initguid.h> into the Pch, where it would define every GUID every
+// other header declares.
+extern "C" const GUID  DECLSPEC_SELECTANY  GUID_DEVINTERFACE_HID_LOCAL =
+    { 0x4D1E55B2, 0xF16F, 0x11CF, { 0x88, 0xCB, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30 } };
+
 #pragma comment (lib, "xinput.lib")
 #pragma comment (lib, "dinput8.lib")
 #pragma comment (lib, "dxguid.lib")
@@ -166,7 +173,7 @@ HRESULT Win32ControllerBackend::CreateNotifyWindow()
 
     filter.dbcc_size       = sizeof (filter);
     filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
-    filter.dbcc_classguid  = GUID_DEVINTERFACE_HID;
+    filter.dbcc_classguid  = GUID_DEVINTERFACE_HID_LOCAL;
 
     m_notifyHandle = RegisterDeviceNotificationW (m_notifyWindow, &filter, DEVICE_NOTIFY_WINDOW_HANDLE);
     CWRA (m_notifyHandle);

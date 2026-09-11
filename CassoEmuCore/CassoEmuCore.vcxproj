@@ -283,6 +283,10 @@
     <ClCompile Include="Controllers\XInputSampleDecoder.cpp" />
     <ClCompile Include="Seams\Win32ControllerBackend.cpp" />
     <ClCompile Include="Shell\ControllerInputThread.cpp" />
+    <ClCompile Include="Controllers\ControlMapping.cpp" />
+    <ClCompile Include="Controllers\DeadzoneShaper.cpp" />
+    <ClCompile Include="Controllers\MappingEvaluator.cpp" />
+    <ClCompile Include="Controllers\ControllerInputService.cpp" />
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
@@ -539,6 +543,10 @@
     <ClInclude Include="Seams\IControllerBackend.h" />
     <ClInclude Include="Seams\Win32ControllerBackend.h" />
     <ClInclude Include="Shell\ControllerInputThread.h" />
+    <ClInclude Include="Controllers\ControlMapping.h" />
+    <ClInclude Include="Controllers\DeadzoneShaper.h" />
+    <ClInclude Include="Controllers\MappingEvaluator.h" />
+    <ClInclude Include="Controllers\ControllerInputService.h" />
     <ClInclude Include="Controllers\DirectInputSampleDecoder.h" />
     <ClInclude Include="Controllers\XInputSampleDecoder.h" />
     <ClInclude Include="Devices\Disk\IImageWatcher.h" />

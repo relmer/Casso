@@ -1643,6 +1643,14 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
         StopPaddleCapture();
     }
 
+    // Controller input follows the application, not one window: the Settings
+    // sheet is Casso too, and XInput was measured still delivering while
+    // another application was in front, so the gate has to be ours.
+    if (m_controllerService != nullptr)
+    {
+        m_controllerService->SetActive (active);
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 

@@ -29,9 +29,10 @@ class ControllerInputThread
 {
 public:
 
-    // Runs on the controller thread on every wake. Returns how long to wait
-    // for the next one, or an empty result to wait indefinitely.
-    using TickFn = std::function<std::optional<DWORD>()>;
+    // Runs on the controller thread on every wake, and says what to wait on
+    // before the next one: the devices' own change events, a timeout, or
+    // neither.
+    using TickFn = std::function<ControllerWaitSources()>;
 
     ~ControllerInputThread ();
 

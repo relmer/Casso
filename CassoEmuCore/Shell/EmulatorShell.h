@@ -8,7 +8,10 @@
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
+#include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
+#include "Seams/Win32ControllerBackend.h"
+#include "Shell/ControllerInputThread.h"
 #include "Shell/MachineGamePortSink.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/EmuCpu.h"
@@ -1972,6 +1975,13 @@ private:
     // source submits to the mixer; only the sink touches the machine.
     GamePortInputMixer                    m_gamePortMixer;
     std::unique_ptr<MachineGamePortSink>  m_gamePortSink;
+
+    // Physical controllers: the devices, the rules that read them, and the
+    // thread they are read on. Declared after the mixer so they are torn down
+    // before it, since the service submits to it.
+    std::unique_ptr<Win32ControllerBackend>  m_controllerBackend;
+    std::unique_ptr<ControllerInputService>  m_controllerService;
+    std::unique_ptr<ControllerInputThread>   m_controllerThread;
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

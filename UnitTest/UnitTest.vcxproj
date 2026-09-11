@@ -279,6 +279,9 @@
     <ClCompile Include="ControllerTests\MachineGamePortSinkTests.cpp" />
     <ClCompile Include="ControllerTests\DirectInputSampleDecoderTests.cpp" />
     <ClCompile Include="ControllerTests\XInputSampleDecoderTests.cpp" />
+    <ClCompile Include="ControllerTests\DeadzoneShaperTests.cpp" />
+    <ClCompile Include="ControllerTests\MappingEvaluatorTests.cpp" />
+    <ClCompile Include="ControllerTests\ControllerInputServiceTests.cpp" />
     <ClCompile Include="EmuTests\KeyboardTests.cpp" />
     <ClCompile Include="EmuTests\InputEventRingTests.cpp" />
     <ClCompile Include="EmuTests\InputEventCoalescingTests.cpp" />

@@ -424,6 +424,17 @@ HRESULT EmulatorShell::Initialize (
 
     m_gamePortMixer.SetSink (m_gamePortSink.get());
 
+    // Physical controllers. The backend is initialized on the controller
+    // thread, which owns the window its device notifications arrive at, so
+    // nothing here touches a device.
+    m_controllerBackend = std::make_unique<Win32ControllerBackend>();
+    m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
+    m_controllerThread  = std::make_unique<ControllerInputThread>();
+
+    hr = m_controllerThread->Start (m_controllerBackend.get(), m_controllerService.get(),
+                                    [this] { return m_controllerService->Tick(); });
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     // Mark the display pages so a write into them raises the bus video-dirty
     // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
     // hi-res pages 1/2 ($2000-$5FFF). Aux writes share these page indices (the

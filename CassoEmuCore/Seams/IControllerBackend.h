@@ -32,6 +32,27 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ControllerWaitSources
+//
+//  What the controller thread should wait on until its next read: the events
+//  the devices signal their own changes with, and a timeout for the ones that
+//  signal nothing. No events and no timeout means wait until something
+//  happens -- a device arriving, or the thread being woken deliberately.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ControllerWaitSources
+{
+    std::vector<HANDLE>   events;
+    std::optional<DWORD>  timeoutMs;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IControllerBackend
 //
 //  The only boundary between controller logic and real devices. Every call

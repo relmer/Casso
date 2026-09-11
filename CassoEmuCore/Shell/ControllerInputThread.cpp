@@ -129,10 +129,10 @@ void ControllerInputThread::Wake()
 
 void ControllerInputThread::Run()
 {
-    HRESULT              hr           = S_OK;
-    HRESULT              hrCom        = S_OK;
-    std::vector<HANDLE>  waitHandles;
-    std::optional<DWORD> timeout;
+    HRESULT                hr    = S_OK;
+    HRESULT                hrCom = S_OK;
+    std::vector<HANDLE>    waitHandles;
+    ControllerWaitSources  wait;
 
 
 
@@ -148,21 +148,23 @@ void ControllerInputThread::Run()
         DWORD  waitResult   = WAIT_FAILED;
         DWORD  waitDuration = INFINITE;
 
-        timeout = m_tick();
+        wait = m_tick();
 
         if (m_stopping)
         {
             break;
         }
 
-        waitHandles.clear();
+        // The device's own change events come first, then the wake event. A
+        // controller that signals its state needs no timeout at all, which is
+        // why the events have to reach the wait: without them the thread
+        // would sleep through everything that controller did.
+        waitHandles = wait.events;
         waitHandles.push_back (m_wakeEvent);
 
-        // The tick decided which controller is being read, so the backend's
-        // wake sources for it are current as of now.
-        if (timeout.has_value())
+        if (wait.timeoutMs.has_value())
         {
-            waitDuration = timeout.value();
+            waitDuration = wait.timeoutMs.value();
         }
 
         waitResult = MsgWaitForMultipleObjectsEx ((DWORD) waitHandles.size(), waitHandles.data(),
