@@ -209,6 +209,7 @@
     <ClInclude Include="Core\DxuiTextElide.h" />
     <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
     <ClInclude Include="Core\DxuiAnimation.h" />
+    <ClInclude Include="Core\DxuiCommand.h" />
     <ClInclude Include="Core\DxuiFrameRate.h" />
     <ClInclude Include="Core\DxuiDockLayout.h" />
     <ClInclude Include="Core\DxuiDpiScaler.h" />

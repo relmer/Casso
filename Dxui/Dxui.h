@@ -108,6 +108,7 @@ struct IDCompositionVisual;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "Core/DxuiAnimation.h"
+#include "Core/DxuiCommand.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiHitTester.h"
