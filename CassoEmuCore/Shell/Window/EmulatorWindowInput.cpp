@@ -1723,14 +1723,20 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 void EmulatorShell::ReleaseGuestKeys()
 {
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
-    auto *                               iieKbd = lifetime.owns_lock() ? m_machine.GetRefs().iieKeyboard : nullptr;
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::defer_lock);
 
 
+
+    // The modifier and fire keys go through the mixer, which takes the lock
+    // itself when it writes: the release reaches the machine now, or when a
+    // rebuild in progress finishes.
+    m_appleModifierContribution = GamePortContribution();
+    m_gamePortMixer.ReleaseSource (GamePortSource::AppleModifierKeys);
+    m_gamePortMixer.ReleaseSource (GamePortSource::FireKeys);
 
     // A machine switch holds the lock exclusively while it replaces the
     // devices; the new machine starts with every key up anyway.
-    if (!lifetime.owns_lock())
+    if (!lifetime.try_lock())
     {
         return;
     }
@@ -1739,13 +1745,6 @@ void EmulatorShell::ReleaseGuestKeys()
     {
         m_machine.GetRefs().keyboard->SetKeyDown (false);
         m_machine.GetRefs().keyboard->BeginKeyRepeat (0);
-    }
-
-    if (iieKbd != nullptr)
-    {
-        iieKbd->SetOpenApple   (false);
-        iieKbd->SetClosedApple (false);
-        iieKbd->SetShift       (false);
     }
 }
 
@@ -1810,36 +1809,40 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
 //
 //  ApplyAppleModifierKeys
 //
-//  Mirror the host modifier state onto the //e soft switches: left Alt ->
-//  Open Apple ($C061), right Alt -> Closed Apple ($C062), Shift -> Shift
-//  ($C063). GetKeyState gives the canonical left/right state, so a modifier
-//  stays asserted while either physical key is still down. A no-op on the
-//  ][/][+ where the keyboard is not an Apple //e keyboard.
+//  Submits the host modifier state to the game-port mixer as the //e modifier
+//  keys' contribution: left Alt -> Open Apple (PB0, $C061), right Alt ->
+//  Closed Apple (PB1, $C062), Shift -> Shift (PB2, $C063). GetKeyState gives
+//  the canonical left/right state, so a modifier stays asserted while either
+//  physical key is still down. A no-op on the ][/][+ where the keyboard is
+//  not an Apple //e keyboard.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
 {
-    HRESULT   hr     = S_OK;
-    auto    * iieKbd = m_machine.GetRefs().iieKeyboard;
-    bool      lAlt   = false;
-    bool      rAlt   = false;
+    constexpr size_t  kOpenAppleButton  = 0;
+    constexpr size_t  kSolidAppleButton = 1;
+    constexpr size_t  kShiftButton      = 2;
+    HRESULT           hr                = S_OK;
+    auto            * iieKbd            = m_machine.GetRefs().iieKeyboard;
+    bool              isAlt             = vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU;
+    bool              isShift           = vk == VK_SHIFT;
 
 
 
-    CBR (iieKbd != nullptr);
+    BAIL_OUT_IF (iieKbd == nullptr || !(isAlt || isShift), S_OK);
 
-    if (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU)
+    if (isAlt)
     {
-        lAlt = (GetKeyState (VK_LMENU) & 0x8000) != 0;
-        rAlt = (GetKeyState (VK_RMENU) & 0x8000) != 0;
-        iieKbd->SetOpenApple   (lAlt);
-        iieKbd->SetClosedApple (rAlt);
+        m_appleModifierContribution.buttons.set (kOpenAppleButton,  (GetKeyState (VK_LMENU) & 0x8000) != 0);
+        m_appleModifierContribution.buttons.set (kSolidAppleButton, (GetKeyState (VK_RMENU) & 0x8000) != 0);
     }
-    else if (vk == VK_SHIFT)
+    else
     {
-        iieKbd->SetShift (keyDown);
+        m_appleModifierContribution.buttons.set (kShiftButton, keyDown);
     }
+
+    m_gamePortMixer.Submit (GamePortSource::AppleModifierKeys, m_appleModifierContribution);
 
 Error:
     return;
@@ -2298,10 +2301,10 @@ bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
 //  UpdateJoystickAxesFromKeys
 //
 //  Host UI thread. Resolves the four arrow keys into the two emulated
-//  joystick axes and stages them on the game port: the //e soft-switch
-//  bank (Apple2eSoftSwitchBank) or the ][/][+ AppleGamePort, whichever is
-//  present. The PREAD timer ($C070 / $C064-$C067) turns them into analog
-//  readings. No-op only when neither device is present.
+//  joystick axes and submits them to the game-port mixer as the arrow keys'
+//  contribution. The mixer writes them to whichever game port the machine
+//  has while the arrow keys own the axes; the PREAD timer ($C070 /
+//  $C064-$C067) turns them into analog readings.
 //
 //  Reads real-time physical key state via GetAsyncKeyState rather than the
 //  per-thread GetKeyState table, which can desync (and leave an axis stuck)
@@ -2313,19 +2316,15 @@ bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
 
 void EmulatorShell::UpdateJoystickAxesFromKeys()
 {
-    HRESULT  hr       = S_OK;
-    auto   * iieSw    = m_machine.GetRefs().iieSoftSwitches;
-    auto   * gamePort = m_machine.GetRefs().gamePort;
-    bool     left     = false;
-    bool     right    = false;
-    bool     up       = false;
-    bool     down     = false;
-    Byte     x        = Apple2eSoftSwitchBank::s_knPaddleCenter;
-    Byte     y        = Apple2eSoftSwitchBank::s_knPaddleCenter;
+    GamePortContribution  contribution;
+    bool                  left         = false;
+    bool                  right        = false;
+    bool                  up           = false;
+    bool                  down         = false;
+    Byte                  x            = GamePortState::kPaddleCenter;
+    Byte                  y            = GamePortState::kPaddleCenter;
 
 
-
-    BAIL_OUT_IF (iieSw == nullptr && gamePort == nullptr, S_OK);
 
     left  = (GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
     right = (GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
@@ -2358,20 +2357,8 @@ void EmulatorShell::UpdateJoystickAxesFromKeys()
         y = s_kPaddleAxisMax;
     }
 
-    if (iieSw != nullptr)
-    {
-        iieSw->SetPaddle (0, x);
-        iieSw->SetPaddle (1, y);
-    }
-
-    if (gamePort != nullptr)
-    {
-        gamePort->SetPaddle (0, x);
-        gamePort->SetPaddle (1, y);
-    }
-
-Error:
-    return;
+    contribution.paddle = std::array<Byte, 2> { x, y };
+    m_gamePortMixer.Submit (GamePortSource::ArrowKeys, contribution);
 }
 
 
@@ -2383,10 +2370,10 @@ Error:
 //  UpdateJoystickButtonsFromKeys
 //
 //  Host UI thread. Resolves the X / Z letter keys into the two emulated
-//  joystick fire buttons. On the //e they stage on the keyboard's
-//  Open/Closed-Apple state (button 0 reads at $C061, button 1 at $C062);
-//  on the ][/][+ they stage on the AppleGamePort pushbuttons (PB0/$C061,
-//  PB1/$C062). No-op only when neither device is present.
+//  joystick fire buttons and submits them to the game-port mixer as the fire
+//  keys' contribution. The mixer writes PB0/PB1 to the //e keyboard's
+//  Open/Closed-Apple lines or the ][/][+ game port's pushbuttons ($C061,
+//  $C062), whichever the machine has.
 //
 //  Reads real-time physical key state via GetAsyncKeyState, matching the
 //  axis helper so a key-up lost to a focus change can't wedge a button on.
@@ -2398,16 +2385,11 @@ Error:
 
 void EmulatorShell::UpdateJoystickButtonsFromKeys()
 {
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
-    HRESULT  hr       = S_OK;
-    auto   * iieKbd   = lifetime.owns_lock() ? m_machine.GetRefs().iieKeyboard : nullptr;
-    auto   * gamePort = lifetime.owns_lock() ? m_machine.GetRefs().gamePort    : nullptr;
-    bool     button0  = false;
-    bool     button1  = false;
+    GamePortContribution  contribution;
+    bool                  button0      = false;
+    bool                  button1      = false;
 
 
-
-    BAIL_OUT_IF (iieKbd == nullptr && gamePort == nullptr, S_OK);
 
     // Only read the physical keys while WE are the foreground app. The async
     // key state is global, so a held Alt during the Alt-Tab switcher (or any
@@ -2424,20 +2406,9 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys()
                   (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
     }
 
-    if (iieKbd != nullptr)
-    {
-        iieKbd->SetOpenApple   (button0);
-        iieKbd->SetClosedApple (button1);
-    }
-
-    if (gamePort != nullptr)
-    {
-        gamePort->SetButton (0, button0);
-        gamePort->SetButton (1, button1);
-    }
-
-Error:
-    return;
+    contribution.buttons.set (0, button0);
+    contribution.buttons.set (1, button1);
+    m_gamePortMixer.Submit (GamePortSource::FireKeys, contribution);
 }
 
 
@@ -2508,12 +2479,6 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 void EmulatorShell::SetArrowsJoystick (bool on)
 {
-    auto * iieSw    = m_machine.GetRefs().iieSoftSwitches;
-    auto * iieKbd   = m_machine.GetRefs().iieKeyboard;
-    auto * gamePort = m_machine.GetRefs().gamePort;
-
-
-
     // Mirror of the rule in SetPointerMapping: the Keys axis drives PDL0/1,
     // so enabling it must drop an active Paddle (they fight over the same
     // game-port lines). Mouse uses a separate slot card and may coexist.
@@ -2523,6 +2488,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
     }
 
     m_arrowsJoystick = on;
+    SyncGamePortAxisOwner();
     SyncInputModeUi();
 
     if (on)
@@ -2532,34 +2498,11 @@ void EmulatorShell::SetArrowsJoystick (bool on)
         return;
     }
 
-    if (m_pointerMode != InputMappingMode::Paddle)
-    {
-        if (iieSw != nullptr)
-        {
-            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
-            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
-        }
-
-        if (gamePort != nullptr)
-        {
-            gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
-            gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
-        }
-    }
-
-    if (gamePort != nullptr)
-    {
-        gamePort->SetButton (0, false);
-        gamePort->SetButton (1, false);
-    }
-
-    if (iieKbd != nullptr)
-    {
-        bool  fg = (GetForegroundWindow() == m_hwnd);   // never latch Alt-as-Open-Apple while backgrounded
-
-        iieKbd->SetOpenApple   (fg && (GetKeyState (VK_LMENU) & 0x8000) != 0);
-        iieKbd->SetClosedApple (fg && (GetKeyState (VK_RMENU) & 0x8000) != 0);
-    }
+    // The arrows drive nothing now: the axes go to whichever owner is left
+    // (center when none) and the fire buttons release. Alt held as Open or
+    // Solid-Apple is the modifier keys' own contribution, so it stays pressed.
+    m_gamePortMixer.ReleaseSource (GamePortSource::ArrowKeys);
+    m_gamePortMixer.ReleaseSource (GamePortSource::FireKeys);
 }
 
 
@@ -2578,8 +2521,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
 void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 {
-    auto             * iieSw = m_machine.GetRefs().iieSoftSwitches;
-    InputMappingMode   prev  = m_pointerMode;
+    InputMappingMode  prev = m_pointerMode;
 
 
 
@@ -2614,6 +2556,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
     }
 
     m_pointerMode = pointer;
+    SyncGamePortAxisOwner();
     SyncInputModeUi();
 
     if (pointer == InputMappingMode::Paddle)
@@ -2621,14 +2564,9 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        if (iieSw != nullptr)
-        {
-            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
-            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
-        }
-
         m_paddleAxisX = (float) s_kPaddleCenterByte;
         m_paddleAxisY = (float) s_kPaddleCenterByte;
+        PushPaddlePosition();
 
         // THE HUD NOTICE SAYS THIS NOW, in both presentations. Entering
         // paddle mode used to force a tooltip up for eight seconds, because
@@ -2649,6 +2587,38 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
         StartPaddleCapture();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncGamePortAxisOwner
+//
+//  Paddle mode owns PDL0/PDL1 while it is on, then arrows-to-joystick, and
+//  otherwise nothing, which rests the axes at center. The setters keep the
+//  two mutually exclusive, so the order matters only mid-switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncGamePortAxisOwner()
+{
+    AxisOwner  owner = AxisOwner::None;
+
+
+
+    if (m_pointerMode == InputMappingMode::Paddle)
+    {
+        owner = AxisOwner::MousePaddle;
+    }
+    else if (m_arrowsJoystick)
+    {
+        owner = AxisOwner::ArrowKeys;
+    }
+
+    m_gamePortMixer.SetAxisOwner (owner);
 }
 
 
@@ -3080,31 +3050,20 @@ Error:
 //
 //  PushPaddlePosition
 //
-//  Stages the held paddle axes onto whichever game port is present (the
-//  //e soft-switch bank and / or the ][/][+ AppleGamePort).
+//  Submits the held paddle axes to the game-port mixer as the mouse paddle's
+//  contribution, keeping its buttons as they are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PushPaddlePosition()
 {
-    auto * iieSw    = m_machine.GetRefs().iieSoftSwitches;
-    auto * gamePort = m_machine.GetRefs().gamePort;
-    Byte   x        = (Byte) (m_paddleAxisX + 0.5f);
-    Byte   y        = (Byte) (m_paddleAxisY + 0.5f);
+    Byte  x = (Byte) (m_paddleAxisX + 0.5f);
+    Byte  y = (Byte) (m_paddleAxisY + 0.5f);
 
 
 
-    if (iieSw != nullptr)
-    {
-        iieSw->SetPaddle (0, x);
-        iieSw->SetPaddle (1, y);
-    }
-
-    if (gamePort != nullptr)
-    {
-        gamePort->SetPaddle (0, x);
-        gamePort->SetPaddle (1, y);
-    }
+    m_mousePaddleContribution.paddle = std::array<Byte, 2> { x, y };
+    m_gamePortMixer.Submit (GamePortSource::MousePaddle, m_mousePaddleContribution);
 }
 
 
@@ -3115,35 +3074,25 @@ void EmulatorShell::PushPaddlePosition()
 //
 //  PushPaddleButton
 //
-//  Stages a paddle / joystick fire button (0 or 1) onto the game port:
-//  the AppleGamePort pushbuttons on the ][/][+ and the //e keyboard's
-//  Open/Closed-Apple state. No-op for indices without a mapping.
+//  Submits a paddle fire button (0 or 1) to the game-port mixer as part of
+//  the mouse paddle's contribution, keeping its axes as they are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PushPaddleButton (int index, bool pressed)
 {
-    auto * iieKbd   = m_machine.GetRefs().iieKeyboard;
-    auto * gamePort = m_machine.GetRefs().gamePort;
+    constexpr int  kMouseButtonCount = 2;
+    HRESULT        hr                = S_OK;
 
 
 
-    if (gamePort != nullptr)
-    {
-        gamePort->SetButton (index, pressed);
-    }
+    CBRA (index >= 0 && index < kMouseButtonCount);
 
-    if (iieKbd != nullptr)
-    {
-        if (index == 0)
-        {
-            iieKbd->SetOpenApple (pressed);
-        }
-        else if (index == 1)
-        {
-            iieKbd->SetClosedApple (pressed);
-        }
-    }
+    m_mousePaddleContribution.buttons.set (static_cast<size_t> (index), pressed);
+    m_gamePortMixer.Submit (GamePortSource::MousePaddle, m_mousePaddleContribution);
+
+Error:
+    return;
 }
 
 

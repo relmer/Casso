@@ -95,6 +95,10 @@ public:
     // shift-read / no-op behavior stands.
     void SetMouse (class AppleMouse * mouse) { m_mouse = mouse; }
 
+    // Whether $C063 reads the //c mouse button rather than Shift, so a host
+    // input that means PB2 has no line to drive.
+    bool HasMouseOnShiftLine () const { return m_mouse != nullptr; }
+
     // Apple //c case switches (two latching pushbuttons on the top of the
     // case). SetApple2cMode enables the //c-only behaviors below; on the //e
     // and earlier they stay dormant (the //e leaves $C060 floating and never

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bitset>
 #include <chrono>
 #include <condition_variable>
 #include <cmath>

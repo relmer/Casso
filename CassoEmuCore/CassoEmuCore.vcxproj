@@ -276,6 +276,9 @@
     <ClCompile Include="Seams\Win32HostCapsLock.cpp" />
     <ClCompile Include="Seams\Win32HostDialogs.cpp" />
     <ClCompile Include="Seams\Win32Clipboard.cpp" />
+    <ClCompile Include="Controllers\ControllerTokens.cpp" />
+    <ClCompile Include="Controllers\GamePortInputMixer.cpp" />
+    <ClCompile Include="Shell\MachineGamePortSink.cpp" />
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
@@ -525,6 +528,10 @@
     <ClInclude Include="Seams\IHostCapsLock.h" />
     <ClInclude Include="Seams\IHostDialogs.h" />
     <ClInclude Include="Seams\IHostClipboard.h" />
+    <ClInclude Include="Controllers\ControllerTokens.h" />
+    <ClInclude Include="Controllers\ControllerTypes.h" />
+    <ClInclude Include="Controllers\GamePortInputMixer.h" />
+    <ClInclude Include="Shell\MachineGamePortSink.h" />
     <ClInclude Include="Devices\Disk\IImageWatcher.h" />
     <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
     <ClInclude Include="Devices\Disk\MountedImageState.h" />

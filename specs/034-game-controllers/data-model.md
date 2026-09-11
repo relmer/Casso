@@ -26,10 +26,10 @@ All types live in `CassoEmuCore/Controllers/` unless stated. All are plain data 
 | Field | Type | Notes |
 |---|---|---|
 | model | `ControllerModelKey` | |
-| unitId | `std::wstring` | HID serial when nonempty, else `guidInstance` text; empty for XInput |
+| unitId | `std::string` | HID serial when nonempty, else `guidInstance` text; empty for XInput. Narrow text, since it is stored in JSON |
 | source | enum `Serial`, `InstanceGuid`, `None` | How `unitId` was obtained |
 
-- Token form `<model token>/<unitId>`; XInput units have no `/` part (FR-018a).
+- Token form `<model token>/serial:<unitId>` or `<model token>/guid:<unitId>`; a unit with source `None` (every XInput unit, and a DirectInput unit with no identity) is just its model token (FR-018a). The model part ends at the first `/`, so a serial containing `/` round trips.
 - Used as the key for calibration and as the per-machine selection.
 
 ### ControllerDeviceInfo (enumeration result)

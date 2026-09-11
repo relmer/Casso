@@ -8,6 +8,8 @@
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
+#include "Controllers/GamePortInputMixer.h"
+#include "Shell/MachineGamePortSink.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/EmuCpu.h"
 #include "Core/InterruptController.h"
@@ -550,6 +552,9 @@ private:
 
     // Stage the emulated joystick fire buttons from the host X / Y keys.
     void    UpdateJoystickButtonsFromKeys ();
+
+    // Hands PDL0/PDL1 to whichever host input mode currently drives them.
+    void    SyncGamePortAxisOwner ();
 
     // Set the host input mapping mode (Off / Joystick / Paddle): persists
     // it, re-syncs the game port (resolving joystick axes / buttons from
@@ -1963,6 +1968,11 @@ private:
     InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
     bool              m_arrowsJoystick = false;                    // Keys axis
 
+    // The single writer of the paddles and pushbuttons. Every host input
+    // source submits to the mixer; only the sink touches the machine.
+    GamePortInputMixer                    m_gamePortMixer;
+    std::unique_ptr<MachineGamePortSink>  m_gamePortSink;
+
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),
     // and the mouse buttons drive the fire buttons. m_paddleAxis* are float
@@ -1970,6 +1980,14 @@ private:
     bool              m_paddleCaptured = false;
     float             m_paddleAxisX    = 127.0f;
     float             m_paddleAxisY    = 127.0f;
+
+    // What the captured mouse asks of the game port: the held paddle axes and
+    // the two mouse buttons, submitted to the mixer together.
+    GamePortContribution  m_mousePaddleContribution;
+
+    // What the //e modifier keys ask of the game port: left Alt as
+    // Open-Apple (PB0), right Alt as Solid-Apple (PB1), Shift as PB2.
+    GamePortContribution  m_appleModifierContribution;
 
     // Keyboard focus ring across the painted chrome ("Z" Tab order, left
     // to right, top to bottom): -1 = guest (//e has focus), 0..6 = the

@@ -2432,6 +2432,16 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // Game-port input submitted off the UI thread (the controller thread, or a
+    // machine rebuild) waits here to be written: the device setters report
+    // host input to the input debug panel, which is UI-thread only.
+    if (msg == WM_APP_GAMEPORT_FLUSH)
+    {
+        m_gamePortMixer.FlushPending();
+
+        return DxuiMessageResult::Handled;
+    }
+
     // A mount that ran on the CPU thread wants its damage report raised here,
     // where a modal can be built.
     if (msg == WM_APP_REPORT_DAMAGE)

@@ -184,6 +184,10 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
                                         m_globalPrefs.pointerMapping,
                                         m_arrowsJoystick,
                                         m_pointerMode);
+
+    // The mixer is thread-safe and writes on the UI thread, so handing the
+    // axes over from here is safe on the CPU thread too.
+    SyncGamePortAxisOwner();
 }
 
 

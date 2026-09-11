@@ -404,6 +404,26 @@ HRESULT EmulatorShell::Initialize (
     hr = BuildMachineDevices (config);
     CHR (hr);
 
+    // Every paddle and pushbutton write goes through the mixer from here on.
+    // Writes happen on this (the UI) thread; a submission from any other
+    // thread posts a flush back to the window.
+    m_gamePortSink = std::make_unique<MachineGamePortSink> (m_machine.GetLifetimeLock(), [this]
+    {
+        GamePortTargets  targets;
+
+        targets.gamePort    = m_machine.GetRefs().gamePort;
+        targets.iieSwitches = m_machine.GetRefs().iieSoftSwitches;
+        targets.iieKeyboard = m_machine.GetRefs().iieKeyboard;
+        return targets;
+    });
+
+    m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_hwnd]
+    {
+        PostMessageW (hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+    });
+
+    m_gamePortMixer.SetSink (m_gamePortSink.get());
+
     // Mark the display pages so a write into them raises the bus video-dirty
     // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
     // hi-res pages 1/2 ($2000-$5FFF). Aux writes share these page indices (the

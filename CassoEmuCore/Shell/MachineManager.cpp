@@ -533,6 +533,11 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         CHR (hr);
     }
 
+    // The new devices hold none of the game-port state the mixer wrote to the
+    // old ones, and a write refused while the rebuild held the lock is still
+    // pending. Both are delivered by this, on the UI thread.
+    m_shell.m_gamePortMixer.NotifyMachineRebuilt();
+
     // The build unregistered the old disk-audio sources and created new
     // ones. They are registered with the mixer but hold no sample data yet
     // -- SetMechanism is what triggers LoadSamples on each registered

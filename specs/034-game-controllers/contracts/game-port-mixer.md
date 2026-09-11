@@ -2,76 +2,95 @@
 
 **Feature**: `034-game-controllers` | **Research**: [../research.md](../research.md) R9
 
-Replaces last-writer-wins on PDL0/PDL1/PB0/PB1 with one owner of the final values.
+Replaces last-writer-wins on PDL0/PDL1/PB0-PB2 with one owner of the final values.
 
 ## Interface
 
 `CassoEmuCore/Controllers/GamePortInputMixer.h`
 
 ```cpp
-enum class GamePortSource { FireKeys, AppleModifierKeys, MousePaddle, Controller };
+enum class GamePortSource { ArrowKeys, FireKeys, AppleModifierKeys, MousePaddle, Controller };
 enum class AxisOwner      { None, ArrowKeys, MousePaddle, Controller };
 
 struct GamePortState
 {
-    std::array<Byte, 2>  paddle  = { 127, 127 };
+    static constexpr Byte  kPaddleCenter = 127;
+
+    std::array<Byte, 2>  paddle  = { kPaddleCenter, kPaddleCenter };
     std::bitset<3>       buttons;
 };
 
 class IGamePortSink
 {
 public:
-
     virtual ~IGamePortSink () = default;
 
-    // Applies every field that differs from lastApplied; false if the machine
-    // could not be written right now (lifetime lock busy).
-    virtual bool TryApply (const GamePortState & state, const GamePortState & lastApplied) = 0;
+    // lastApplied is null when every field must be written.
+    virtual bool TryApply (const GamePortState & target, const GamePortState * lastApplied) = 0;
 };
 
 class GamePortInputMixer
 {
 public:
-
-    void Attach         (IGamePortSink * pSink);   // nullptr on machine teardown
-    void SetAxisOwner   (AxisOwner owner);
-    void Submit         (GamePortSource source, const GamePortContribution & contribution);
-    void ReleaseSource  (GamePortSource source);   // contribution := rest
-    void ReleaseAll     ();
-    bool FlushPending   ();                        // retry a refused write; true when nothing is pending
-    bool HasPendingWrite () const;
+    void           SetSink              (IGamePortSink * sink);
+    void           SetApplyThread       (std::thread::id applyThread, std::function<void()> requestFlush);
+    void           SetAxisOwner         (AxisOwner owner);
+    void           Submit               (GamePortSource source, const GamePortContribution & contribution);
+    void           ReleaseSource        (GamePortSource source);
+    void           NotifyMachineRebuilt ();
+    bool           FlushPending         ();
+    bool           HasPendingWrite      () const;
+    GamePortState  GetTargetState       () const;
 };
 ```
+
+## Sources
+
+| Source | Carries | Submitted by |
+|---|---|---|
+| `ArrowKeys` | Axes | Arrow keys in arrows-to-joystick mode and during the controller disconnect fallback |
+| `FireKeys` | PB0, PB1 | X/Z plus left/right Alt in arrows-to-joystick mode, foreground only |
+| `AppleModifierKeys` | PB0, PB1, PB2 | Left Alt, right Alt and Shift on the //e and //c (PB2 is Shift) |
+| `MousePaddle` | Axes, PB0, PB1 | Captured mouse in paddle mode |
+| `Controller` | Axes, PB0-PB2 | The controller service |
+
+Arrow axes and fire buttons are separate sources so focus loss can release the buttons without moving the axes, which is how the machine behaved before the mixer.
 
 ## Behavior
 
 | Rule | Detail |
 |---|---|
-| Buttons | Final PBn = OR of every source's PBn for PB0-PB2 (FR-014) |
-| PB2 per machine | ][/][+: `AppleGamePort` button 2. //e: ORs with the Shift key, which is the same `$C063` line. //c: dropped, since `$C063` is the mouse button (R15) |
+| Buttons | Final PBn = OR of every source's PBn (FR-014) |
 | Axes | Final PDLn = the owner's contribution, or center (127) when the owner has none or is `None` |
-| Owner switch | Takes effect immediately; the new owner's last contribution is used, so arrows held when the controller reconnects stop driving the axes at once (spec edge case) |
-| Writes | The sink is called only when a final value changes, so a controller at rest writes nothing however often it is sampled |
-| Refused write | If `TryApply` returns false, the mixer keeps the target state and `lastApplied` unchanged and reports `HasPendingWrite`. Every later `Submit`, `ReleaseSource` or `FlushPending` retries the whole target state, so a release is never lost. The controller thread calls `FlushPending` on each wake and, while a write is pending, waits with a 5 ms timeout even if no controller needs polling; the UI thread's input handlers call it too. A disconnect release therefore reaches the machine within one machine-switch lock hold plus 5 ms (FR-010, SC-005). |
-| Teardown | `Attach (nullptr)` drops writes; contributions are kept and replayed when a new sink attaches, after `ReleaseAll` if the machine changed |
-| Threading | All members lock one internal mutex; callers are the UI thread (keyboard and mouse sources) and the controller thread. The sink is invoked outside the lock after computing the change set |
+| Owner switch | Takes effect immediately with the new owner's last contribution, so arrows held when the controller reconnects stop driving the axes at once (spec edge case) |
+| Writes | The sink is called only when the final state differs from the last applied state, so a controller at rest writes nothing however often it is sampled |
+| Apply thread | The sink is called only on the apply thread (the UI thread in the shell). The device setters behind it notify the input debug panel, whose host-input callbacks are UI-thread only. A `Submit` from another thread records its values and calls `requestFlush` once until the next `FlushPending`; the shell posts a window message that calls `FlushPending`. With no apply thread set, every caller writes inline |
+| Refused write | `TryApply` returns false when the machine sink cannot take the lifetime lock, which only a machine rebuild holds exclusively. The target state stays pending and `HasPendingWrite` is true. It is delivered by the next `Submit`, `SetAxisOwner` or `FlushPending` on the apply thread, and always by `NotifyMachineRebuilt`, which the rebuild calls when it releases the lock. So no release is lost across a machine switch (FR-010) |
+| Rebuild | `NotifyMachineRebuilt` marks the machine as holding nothing the mixer wrote; the next write covers every field and is scheduled immediately |
+| Threading | All members lock one internal mutex; the sink runs outside it |
 
 ## Sink implementations
 
 | Class | Writes |
 |---|---|
-| `MachineGamePortSink` (`CassoEmuCore/Shell/`) | ][+: `AppleGamePort::SetPaddle`/`SetButton` (indexes 0-2). //e and //c: `Apple2eSoftSwitchBank::SetPaddle`, `Apple2eKeyboard::SetOpenApple`/`SetClosedApple`; PB2 on the //e through the keyboard's Shift state, and not at all on the //c. Takes the machine lifetime lock with `try_to_lock`; returns false if it is not available. Writes nothing and returns true when the machine has no game port (FR-017). |
+| `MachineGamePortSink` (`CassoEmuCore/Shell/`) | ][/][+: `AppleGamePort::SetPaddle`/`SetButton` (indexes 0-2). //e and //c: `Apple2eSoftSwitchBank::SetPaddle`, `Apple2eKeyboard::SetOpenApple`/`SetClosedApple`; PB2 through `Apple2eKeyboard::SetShift` on the //e and not at all on the //c, whose `$C063` is the mouse button. Takes the machine lifetime lock with `try_to_lock` and returns false if unavailable; returns true without writing when the machine has no game port (FR-017). It receives its device pointers through a small targets structure rather than `MachineHost`, so tests construct real devices directly |
 | `RecordingGamePortSink` (`UnitTest/ControllerTests/`) | Records every applied state; can be told to refuse the next N writes |
 
 ## Migration of existing writers
 
-Every direct write listed in research R9 becomes a `Submit` or `ReleaseSource` on the mixer. After migration, no code outside `MachineGamePortSink` calls the four device setters; a unit test sweeps for this by construction (the sink is the only type given `MachineRefs` for game-port writes).
+Every direct write listed in research R9 becomes a `Submit` or `ReleaseSource` on the mixer. After migration, no code outside `MachineGamePortSink` calls the device setters for the game port.
+
+Deliberate behavior changes, both toward the rule that the axis owner decides:
+
+- Leaving paddle mode for Off recenters the paddles; before, they kept the last mouse position.
+- Entering paddle mode centers the paddles on the ][ and ][+ as well as the //e; before, only the //e was centered.
 
 ## Unit-test obligations
 
-- Keyboard PB0 held, controller PB0 pressed then released: PB0 stays pressed.
-- Owner switch from `Controller` to `ArrowKeys` while arrows are held and the stick is deflected: axes follow arrows on the next evaluation.
+- A button held by one source stays pressed when another source releases it.
+- Owner switch uses the new owner's last contribution immediately; no owner rests at center.
 - No sink call when a submission changes nothing.
-- A refused release is retried by `FlushPending` and by the next submission, and reaches the sink; `HasPendingWrite` is true only in between.
-- `MachineGamePortSink` against real `AppleGamePort`, `Apple2eSoftSwitchBank` and `Apple2eKeyboard` instances: ][+ routing including PB2, //e routing with PB2 as Shift, //c dropping PB2, a machine with no game port returning true and writing nothing, and a held lifetime lock returning false.
+- A refused release is delivered by `FlushPending`, by the next submission, and by `NotifyMachineRebuilt`.
+- A submission from another thread requests one flush and does not write.
+- `MachineGamePortSink` against real `AppleGamePort`, `Apple2eSoftSwitchBank` and `Apple2eKeyboard` instances: ][+ routing including PB2, //e routing with PB2 as Shift, //c leaving `$C063` alone, no game port returning true and writing nothing, a held lifetime lock returning false.
 - Existing input tests (`UnitTest/EmuTests/GamePortTests.cpp`, `InputEventCoalescingTests.cpp`) continue to pass unchanged.
