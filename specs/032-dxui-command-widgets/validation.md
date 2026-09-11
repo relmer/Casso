@@ -80,6 +80,13 @@ Taken so far, all against the master baseline built at 8e58f86b:
   Escape closes the flyout with Volume still focused, and Escape again
   leaves the ring. This is the keyboard access added after the merge, not
   a parity check against master, which had none.
+- Debug panel right-click menus (`scratchpad/WalkPanels.ps1`, frames under
+  `scripts/out/screenshots/branch7-panels`): each panel opened by a posted
+  WM_COMMAND, found by its window class, its column header right-clicked by
+  posted input. Disk ][ debug lists Time, Uptime, Cycle, Drive, Event,
+  Detail, all checked; Input events lists Wall, Uptime, Cycle, Source,
+  Address, Value, Meaning, all checked. A posted click on the first row
+  hides that column and relays the list, in both panels.
 - Volume flyout by pointer: not provable by posted input. A posted WM_MOUSEMOVE with
   the real pointer elsewhere is followed by the WM_MOUSELEAVE that
   TrackMouseEvent fires, which closes the flyout before a capture; master
