@@ -174,14 +174,36 @@ void CassqueWindow::StorePlacement()
 
 void CassqueWindow::OnCreate()
 {
-    m_tree            = CreateChild<DxuiTreeView>();
-    m_list            = CreateChild<DxuiListView>();
+    CassqueNamedControl<DxuiTreeView>         * tree            = CreateChild<CassqueNamedControl<DxuiTreeView>>();
+    CassqueNamedControl<DxuiListView>         * list            = CreateChild<CassqueNamedControl<DxuiListView>>();
+    CassqueNamedControl<DxuiListView>         * previewList     = nullptr;
+    CassqueNamedControl<DxuiFramebufferView>  * picture         = nullptr;
+    CassqueNamedControl<DxuiSplitter>         * treeSplitter    = nullptr;
+    CassqueNamedControl<DxuiSplitter>         * previewSplitter = nullptr;
+
+
+
+    tree->SetAccessibleName (L"Folders and disk images");
+    list->SetAccessibleName (L"Files");
+
+    m_tree            = tree;
+    m_list            = list;
     m_listMessage     = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-    m_previewList     = CreateChild<DxuiListView>();
-    m_picture         = CreateChild<DxuiFramebufferView>();
+    previewList       = CreateChild<CassqueNamedControl<DxuiListView>>();
+    picture           = CreateChild<CassqueNamedControl<DxuiFramebufferView>>();
     m_previewMessage  = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-    m_treeSplitter    = CreateChild<DxuiSplitter>();
-    m_previewSplitter = CreateChild<DxuiSplitter>();
+    treeSplitter      = CreateChild<CassqueNamedControl<DxuiSplitter>>();
+    previewSplitter   = CreateChild<CassqueNamedControl<DxuiSplitter>>();
+
+    previewList->SetAccessibleName     (L"Preview");
+    picture->SetAccessibleName         (L"Picture preview");
+    treeSplitter->SetAccessibleName    (L"Folder pane width");
+    previewSplitter->SetAccessibleName (L"Preview pane width");
+
+    m_previewList     = previewList;
+    m_picture         = picture;
+    m_treeSplitter    = treeSplitter;
+    m_previewSplitter = previewSplitter;
     m_status          = CreateChild<DxuiStatusBar>();
     m_tabs            = CreateChild<DxuiTabStrip>();
     m_menuBar         = CreateChild<DxuiMenuBar>();

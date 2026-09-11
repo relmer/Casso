@@ -455,6 +455,7 @@
     <ClInclude Include="Cassque\CassqueBrowser.h" />
     <ClInclude Include="Cassque\CassqueCommands.h" />
     <ClInclude Include="Cassque\CassqueDragOut.h" />
+    <ClInclude Include="Cassque\CassqueNamedControl.h" />
     <ClInclude Include="Cassque\CassqueNewDiskDialog.h" />
     <ClInclude Include="Cassque\CassquePromptDialog.h" />
     <ClInclude Include="Cassque\CassqueWindow.h" />

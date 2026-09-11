@@ -5,6 +5,7 @@
 #include "Cassque/CassqueActions.h"
 #include "Cassque/CassqueBrowser.h"
 #include "Cassque/CassqueCommands.h"
+#include "Cassque/CassqueNamedControl.h"
 #include "Cassque/Model/CassquePrefs.h"
 #include "Config/IFileSystem.h"
 #include "Seams/Win32HostDialogs.h"
