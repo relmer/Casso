@@ -275,6 +275,7 @@
     <ClCompile Include="Cassque\CassqueCommandsTests.cpp" />
     <ClCompile Include="Cassque\CassqueActionsTests.cpp" />
     <ClCompile Include="Cassque\CassqueAboutTests.cpp" />
+    <ClCompile Include="Cassque\CassqueDragOutTests.cpp" />
     <ClCompile Include="Cassque\IntegerBasicDetokenizerTests.cpp" />
     <ClCompile Include="Cassque\DisassemblerTests.cpp" />
     <ClCompile Include="Cassque\HostFileNamingTests.cpp" />

@@ -2,6 +2,7 @@
 
 #include "Cassque/CassqueWindow.h"
 #include "Cassque/CassqueAbout.h"
+#include "Cassque/CassqueDragOut.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Cassque/CassqueShell.h"
 #include "Cassque/Model/KnownFolderStore.h"
@@ -47,6 +48,7 @@ CassqueWindow::CassqueWindow (CassqueBrowser & browser, CassqueActions & actions
 
 CassqueWindow::~CassqueWindow()
 {
+    m_dropTarget.Shutdown();
     DestroyBackend();
 }
 
@@ -89,6 +91,17 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
     CHR (hr);
 
     ApplyTheme();
+
+    //  A file dropped on the list while it shows an image goes into it. A
+    //  failure to register leaves the window without drops, not without a
+    //  window.
+    {
+        HRESULT  hrDrop = m_dropTarget.Initialize (GetHwnd(), &m_dropHits,
+                                                   [this] (int, const std::wstring & path) { OnDropFile (path); },
+                                                   [this] (const std::wstring &) { return m_browser.IsImageLocation(); });
+
+        IGNORE_RETURN_VALUE (hrDrop, S_OK);
+    }
 
     if (m_prefs.placement.valid && m_prefs.placement.w > 0 && m_prefs.placement.h > 0)
     {
@@ -398,6 +411,9 @@ void CassqueWindow::RecomputeLayout()
         m_list->Layout        (right, m_scaler);
         m_listMessage->Layout (right, m_scaler);
     }
+
+    m_dropHits.Clear();
+    m_dropHits.Register (DxuiHitRect { m_list->GetBounds(), DxuiHitSlot::Custom, 0 });
 
     Invalidate();
 }
@@ -710,6 +726,24 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
             }
 
             ShowListContextMenu (point.x, point.y);
+            return true;
+        }
+
+        if (press && ev.button == DxuiMouseButton::Left)
+        {
+            m_dragArmed = true;
+            m_dragStart = point;
+        }
+        else if (ev.kind == DxuiMouseEventKind::Up)
+        {
+            m_dragArmed = false;
+        }
+        else if (ev.kind == DxuiMouseEventKind::Move && m_dragArmed
+              && (abs (point.x - m_dragStart.x) > GetSystemMetrics (SM_CXDRAG)
+               || abs (point.y - m_dragStart.y) > GetSystemMetrics (SM_CYDRAG)))
+        {
+            m_dragArmed = false;
+            BeginDragOut();
             return true;
         }
 
@@ -1685,4 +1719,60 @@ void CassqueWindow::SwitchToTab (size_t index)
     {
         FillList();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::BeginDragOut
+//
+//  The drag runs its own loop until the drop or the cancel, so the list is
+//  told the button came up afterwards; it saw the press and never the
+//  release.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::BeginDragOut()
+{
+    HRESULT                                  hr      = S_OK;
+    DWORD                                    effect  = DROPEFFECT_NONE;
+    DxuiMouseEvent                           release;
+    HostFileNaming::Style                    style   = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress)
+                                                     ? HostFileNaming::Style::CiderPress : HostFileNaming::Style::Descriptive;
+    std::vector<DxuiDragDropSource::Format>  formats = CassqueDragOut::BuildFormats (m_browser, style);
+
+
+
+    release.kind   = DxuiMouseEventKind::Up;
+    release.button = DxuiMouseButton::Left;
+    m_list->OnMouse (release);
+
+    if (formats.empty())
+    {
+        return;
+    }
+
+    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY, effect);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::OnDropFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::OnDropFile (const std::wstring & path)
+{
+    ReportOutcome (m_actions.PutFiles ({ path }), L"Put");
+    FillList();
 }

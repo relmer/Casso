@@ -20,6 +20,8 @@
 #include "Widgets/DxuiStatusBar.h"
 #include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiTreeView.h"
+#include "Core/DxuiHitTester.h"
+#include "Window/DxuiDragDropTarget.h"
 #include "Window/DxuiWindow.h"
 
 
@@ -105,6 +107,8 @@ private:
     void  ShowAbout();
 
     void  ShowListContextMenu (int x, int y);
+    void  BeginDragOut();
+    void  OnDropFile (const std::wstring & path);
     void  ShowTreeContextMenu (int x, int y, const std::wstring & id);
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
     void  RebuildTree();
@@ -128,6 +132,10 @@ private:
     Win32ProcessLauncher                         m_launcher;
     std::vector<std::unique_ptr<DxuiCommand>>    m_menuCommands;
     std::vector<Win32IntentChannel::Reply>       m_pendingReplies;
+    bool                                         m_dragArmed      = false;
+    DxuiDragDropTarget                           m_dropTarget;
+    DxuiHitTester                                m_dropHits;
+    POINT                                        m_dragStart      = {};
     CassqueCommands                              m_commands;
     DxuiLightTheme                               m_lightTheme;
     DxuiDarkTheme                                m_darkTheme;

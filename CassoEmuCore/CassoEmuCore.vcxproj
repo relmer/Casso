@@ -189,6 +189,7 @@
     <ClCompile Include="Cassque\CassqueActions.cpp" />
     <ClCompile Include="Cassque\CassqueBrowser.cpp" />
     <ClCompile Include="Cassque\CassqueCommands.cpp" />
+    <ClCompile Include="Cassque\CassqueDragOut.cpp" />
     <ClCompile Include="Cassque\CassquePromptDialog.cpp" />
     <ClCompile Include="Cassque\CassqueWindow.cpp" />
     <ClCompile Include="Cassque\Model\BrowserModel.cpp" />
@@ -452,6 +453,7 @@
     <ClInclude Include="Cassque\CassqueActions.h" />
     <ClInclude Include="Cassque\CassqueBrowser.h" />
     <ClInclude Include="Cassque\CassqueCommands.h" />
+    <ClInclude Include="Cassque\CassqueDragOut.h" />
     <ClInclude Include="Cassque\CassquePromptDialog.h" />
     <ClInclude Include="Cassque\CassqueWindow.h" />
     <ClInclude Include="Cassque\Model\BrowserModel.h" />
