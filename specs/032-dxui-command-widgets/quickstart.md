@@ -34,17 +34,22 @@ Neither band contains emulated video, so a difference is a defect.
 ## 2. Open dropdowns, three themes
 
 For master and branch, in Skeuomorphic, DarkModern and RetroTerminal: open
-each top-level menu by click and capture the window. Compare the dropdown
-rect byte for byte. Expected: identical, including separators, disabled
-rows, check marks and accelerator hints.
+each top-level menu by click and capture the window. Expected: the same
+rows in the same order, the same separators, disabled rows, check marks
+and accelerator hints, at the same row height and the same top edge. The
+dropdown is narrower than master, fitted to its widest row.
 
 ## 3. What is allowed to look different
 
-The toolbar pickers and the two debug panel right-click menus now use the
-menu bar's dropdown metrics instead of the old popup menu's. Their open
-state will differ from master in row height and padding. Compare them for
-row content, check placement and behavior, not pixels. Nothing else may
-differ.
+Two things, and only these:
+
+- Menu bar dropdowns are no longer a fixed 300 dp wide. They fit their
+  content, with the accelerator column present only when a row has one.
+- The toolbar pickers and the two debug panel right-click menus use the
+  dropdown's 14 dp font instead of the old popup menu's 13 dp. Rows stay
+  26 dp tall and text starts at the same offset.
+
+Anything else that differs is a defect.
 
 ## 4. Behavior unchanged
 

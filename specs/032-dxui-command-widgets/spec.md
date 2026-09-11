@@ -51,9 +51,10 @@ is the whole acceptance bar for the emulator, and captures plus the
 existing test suite are its proof.
 
 **Independent Test**: Capture the screenshot matrix on the branch and on
-master. Capture each open menu bar dropdown and the toolbar band in each
-theme. Every capture is pixel identical. The existing unit test suite passes
-with no test modified.
+master. The menu bar band and the toolbar band are pixel identical in each
+theme. Each open menu bar dropdown shows the same rows, checks, disabled
+rows and accelerator hints, sized to its content instead of a fixed width.
+The existing unit test suite passes with no test modified.
 
 **Acceptance Scenarios**:
 
@@ -61,8 +62,10 @@ with no test modified.
    window is captured, **Then** the menu bar and toolbar bands match master
    pixel for pixel.
 2. **Given** each top-level menu opened by click, **When** captured,
-   **Then** the dropdown matches master pixel for pixel, including
-   separators, disabled rows, check marks and accelerator hints.
+   **Then** the dropdown shows the same rows in the same order with the
+   same separators, disabled rows, check marks and accelerator hints as
+   master, at the same row height and font, and its width fits the widest
+   row rather than a fixed value.
 3. **Given** a menu is open, **When** the user presses Left, Right, Up,
    Down, Enter, Escape or a mnemonic letter, **Then** the result matches
    master.
@@ -236,8 +239,9 @@ cluster and to nothing about buttons, collapse or dropdown mechanics.
   accelerator hints and submenu arrows, and MUST skip separators and
   disabled rows during keyboard navigation.
 - **FR-005**: The dropdown MUST open anchored under a rect or at a point,
-  MUST stay inside the host client rect, and MUST host itself through the
-  window's popup pool when a host is supplied.
+  MUST size its width to its widest row with a small minimum and never to a
+  fixed value, MUST stay inside the host client rect, and MUST host itself
+  through the window's popup pool when a host is supplied.
 - **FR-006**: The dropdown MUST fire a highlight-change callback for
   previewing, a closed callback before the select callback with a
   committed flag, and MUST dispatch the selected command.
@@ -300,9 +304,10 @@ cluster and to nothing about buttons, collapse or dropdown mechanics.
 
 ### Measurable Outcomes
 
-- **SC-001**: Every capture in the matrix, every open menu bar dropdown,
-  and the toolbar band in each theme is pixel identical between branch and
-  master.
+- **SC-001**: Every capture in the matrix and the menu bar and toolbar
+  bands in each theme are pixel identical between branch and master; every
+  open dropdown carries the same rows and states as master and is sized to
+  its content.
 - **SC-002**: The existing unit test suite passes with zero tests modified.
 - **SC-003**: A command placed in a menu, a toolbar and a context menu shows
   one enabled change in all three, in a headless test.

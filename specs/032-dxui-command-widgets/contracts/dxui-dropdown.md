@@ -54,9 +54,12 @@ public:
 
 Rules:
 
-- **Layout** uses the menu bar's current dropdown metrics: row height,
-  check column, accelerator column, separator height, border. Row width is
-  the widest label plus accelerator across the list.
+- **Layout**: rows are 26 dp, text starts 28 dp in after a 10 dp pad and
+  an 18 dp check gutter, font 14 dp, separators 10 dp tall with a 10 dp
+  inset, 1 dp border. Width always fits content: the widest label, plus an
+  accelerator column only when some row carries accelerator text, plus
+  padding, with a 140 dp minimum. There is no fixed width and no setter
+  for one.
 - **Painting** reads the command at paint time: checked draws the check
   glyph, disabled draws in the disabled color, an accelerator draws right
   aligned, a submenu draws the arrow.

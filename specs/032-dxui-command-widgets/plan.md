@@ -35,9 +35,9 @@ popup pool); no new third-party dependencies
 **Performance Goals**: no change; command functors are evaluated once per
 paint per visible row or entry, which is the cost the menu bar already pays
 
-**Constraints**: menu bar band, every open menu bar dropdown, and the
-toolbar band pixel identical to master in three themes; no existing unit
-test modified; `Dxui/` includes nothing from `CassoEmuCore`
+**Constraints**: menu bar band and toolbar band pixel identical to master
+in three themes; every open dropdown carries master's rows and states at
+the same row positions, fitted to content; no existing unit test modified; `Dxui/` includes nothing from `CassoEmuCore`
 
 **Scale/Scope**: three new library types, one rebuilt widget, one removed
 widget, one removed emulator class, ~2,000 lines moved, ~40 shell call
@@ -51,7 +51,7 @@ sites edited, four new test files
 |---|---|---|
 | I. Code Quality | PASS | Moved functions keep their bodies; new code follows EHM, VerbNoun, class-static helpers. |
 | II. Testing Discipline | PASS | Four headless test files on the existing mocks; no file, registry or window access. |
-| III. UX Consistency | PASS | No user-visible change for the emulator except the picker and debug menu metrics noted in research R5. |
+| III. UX Consistency | PASS | Two deliberate visible changes, both in research R5: dropdowns fit content instead of a fixed 300 dp, and pickers gain the menu font. Nothing else moves. |
 | IV. Performance | PASS | Functor evaluation per paint matches the menu bar's current cost. |
 | V. Simplicity | PASS | Removes two duplicate dropdowns and one duplicate command table; adds no abstraction beyond the three types. |
 | VI. Thin Executable | PASS | Executables untouched. |
@@ -152,8 +152,9 @@ branch can merge after any of them if it has to.
 
 ### DxuiDropdown
 
-Takes `DxuiPopupMenu`'s hosting, callbacks and submenu chain, and the menu
-bar's metrics, check glyph, accelerator column and disabled color. One
+Takes `DxuiPopupMenu`'s hosting, callbacks, submenu chain and
+content-fitted width, and the menu bar's font, check glyph, separators,
+accelerator column and disabled color. No fixed width anywhere. One
 instance serves a whole submenu chain by owning its children. The reopen
 guard moves here from the toolbar so titles and pickers share it.
 

@@ -74,23 +74,34 @@ at paint and at key navigation.
 **Alternatives considered**: items owning a copy of their command. Rejected;
 copies are the defect being removed.
 
-## R5. Menu bar over the dropdown, pixel identical
+## R5. One set of dropdown metrics
 
-**Finding**: the menu bar's dropdown metrics, check glyph, accelerator
-column and disabled color live in `DxuiMenuBar.cpp`; `DxuiPopupMenu` has
-its own, simpler metrics. They differ today.
+**Finding**: the two dropdowns differ in four places.
 
-**Decision**: `DxuiDropdown` takes the menu bar's metrics and painting,
-since the menu bar is the reference surface the emulator user sees most.
-The toolbar pickers and the two debug panel menus therefore change
-appearance to match the menu bar. That is a visible change in three
-places, and the spec's identical-window bar is scoped to the menu bar, the
-toolbar band and the closed state of the debug panels; the open picker and
-open debug menus are compared for row content and behavior, not pixels.
-This is stated in quickstart so no one treats it as a regression.
+| Metric | `DxuiPopupMenu` | `DxuiMenuBar` dropdown |
+|---|---|---|
+| Row height | 26 dp | 26 dp |
+| Font | 13 dp | 14 dp |
+| Text start | 28 dp | 28 dp (10 pad + 18 check gutter) |
+| Width | fits content, 140 dp minimum | fixed 300 dp, accelerator column at 190 |
+| Separators | none | 10 dp tall, 10 dp inset |
+| Colors | elevated, hover, foreground | plus disabled, muted, divider, border |
 
-**Alternatives considered**: keeping two skins on one widget. Rejected; a
-skin switch is a second code path with no consumer wanting it.
+**Decision**: `DxuiDropdown` keeps the shared row height and text start,
+takes the menu bar's font, separators and color set, and takes the popup
+menu's content-fitted width. The owner ruled a fixed width wrong in every
+case. Width is the widest label, plus the accelerator column only when
+some row carries accelerator text, plus padding, with the 140 dp minimum.
+
+**Consequence**: two visible changes for the emulator user, both stated in
+quickstart §3 so neither is mistaken for a regression. Menu bar dropdowns
+narrow from 300 dp to fit their content. The toolbar pickers and the two
+debug panel menus read one point larger. Row heights and positions do not
+move anywhere. The closed-state bands stay pixel identical.
+
+**Alternatives considered**: a fixed-width setter the menu bar would use
+to stay at 300. Rejected by the owner. Keeping the 13 dp font for pickers.
+Rejected; one font, and the menu bar is the reference.
 
 ## R6. The toolbar's generic and specific split
 
@@ -135,9 +146,10 @@ or DPI. No unit test constructs the toolbar; `DxuiMenuBarTests.cpp` is the
 headless model with `MockDxuiTextRenderer`, `MockDxuiPainter` and
 `MockDxuiTheme`.
 
-**Decision**: pixels for the menu bar band, each open menu bar dropdown,
-and the toolbar band, in all three themes, against a master binary on the
-same machine. Headless tests for command propagation, dropdown layout and
+**Decision**: pixels for the menu bar band and the toolbar band in all
+three themes against a master binary on the same machine; row content,
+states and row positions for each open dropdown, whose width now fits its
+content. Headless tests for command propagation, dropdown layout and
 navigation from three anchors, toolbar collapse and dispatch. Existing
 tests untouched; `DxuiMenuBarTests.cpp` must keep passing against the
 rebuilt bar, which is the strongest behavioral oracle the tree has.
