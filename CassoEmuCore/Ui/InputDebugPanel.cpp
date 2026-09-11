@@ -846,8 +846,8 @@ void InputDebugPanel::OnCreate()
     m_paddleCheck       = CreateChild<DxuiCheckbox> (s_kpszPaddleLabel);
     m_hostKeyboardCheck = CreateChild<DxuiCheckbox> (s_kpszKeyboardLabel);
 
-    m_pairView[0] = CreateChild<DxuiDropdown> ();
-    m_pairView[1] = CreateChild<DxuiDropdown> ();
+    m_pairView[0] = CreateChild<DxuiComboBox> ();
+    m_pairView[1] = CreateChild<DxuiComboBox> ();
     m_pauseButton = CreateChild<DxuiButton>   (s_kpszPauseLabel);
     m_clearButton = CreateChild<DxuiButton>   (s_kpszClearLabel);
     m_copyButton  = CreateChild<DxuiButton>   (s_kpszCopyLabel);
@@ -857,7 +857,6 @@ void InputDebugPanel::OnCreate()
 
     m_pairView[0]->SetPopupHost (GetPopupHost());
     m_pairView[1]->SetPopupHost (GetPopupHost());
-    m_columnMenu.SetPopupHost   (GetPopupHost());
     m_tooltip.SetPopupHost      (GetPopupHost());
 }
 
@@ -1100,17 +1099,6 @@ void InputDebugPanel::ConfigureWidgets()
     m_joystickCheck->SetOnChange        ([this] (bool) { OnFilterChanged(); });
     m_paddleCheck->SetOnChange          ([this] (bool) { OnFilterChanged(); });
     m_hostKeyboardCheck->SetOnChange    ([this] (bool) { OnFilterChanged(); });
-
-    m_columnMenu.SetOnSelect ([this] (int id)
-    {
-        auto & columns = m_columnsModel;
-        if (id >= 0 && id < kInputColumnCount)
-        {
-            columns[id].visible = !columns[id].visible;
-            m_eventList->SetColumns (PlanVisibleColumns (columns));
-            PushListViewRows();
-        }
-    });
 
     UpdatePairVisibility();
     SyncAllCheck();
@@ -2315,26 +2303,24 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 //  window theme is shell-owned and outlives the popup, so the pointer is safe
 //  to hold.
 //
-//  A null text renderer bails instead of being dereferenced: the shared
-//  renderer that measures and lays the menu out only exists once the backend
-//  is up, and a right-click can arrive before then.
+//  One command per column, checked while it is visible and flipping it when
+//  picked, raised through the window's context menu. No host means no popup
+//  pool to raise it in, which is the state before the backend is up, and a
+//  right-click then does nothing. The menu takes the commands by pointer, so
+//  the previous set is kept alive until the new one is showing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
-    auto                              & columns      = m_columnsModel;
-    std::vector<DxuiPopupMenu::Item>    items;
-    IDxuiTextRenderer                 * textRenderer = GetTextRenderer();
-    RECT                                hostRect     = { 0, 0, m_widthPx, m_heightPx };
-    int                                 i            = 0;
+    DxuiHwndSource                            * host = GetPopupHost();
+    std::vector<DxuiPopupMenuItem>              items;
+    std::vector<std::unique_ptr<DxuiCommand>>   commands;
+    int                                         i    = 0;
 
 
 
-    // Bail rather than dereference a null renderer -- the shared text
-    // renderer used to measure / lay the menu out is only available once
-    // the backend exists.
-    if (textRenderer == nullptr)
+    if (host == nullptr)
     {
         return;
     }
@@ -2342,20 +2328,23 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
     items.reserve (kInputColumnCount);
     for (i = 0; i < kInputColumnCount; i++)
     {
-        DxuiPopupMenu::Item  item;
+        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
 
-        item.label   = columns[i].headerText;
-        item.checked = columns[i].visible;
-        items.push_back (std::move (item));
+        cmd->label     = m_columnsModel[i].headerText;
+        cmd->isChecked = [this, i] () { return m_columnsModel[i].visible; };
+        cmd->dispatch  = [this, i] ()
+        {
+            m_columnsModel[i].visible = !m_columnsModel[i].visible;
+            m_eventList->SetColumns (PlanVisibleColumns (m_columnsModel));
+            PushListViewRows();
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        commands.push_back (std::move (cmd));
     }
 
-    // Hand the popup the current window theme at show time. The menu
-    // renders deferred in a pooled popup host (not the widget tree), so
-    // it can't pick the theme up from a paint-pump pass; the window theme
-    // is stable (owned by the shell), so this pointer never dangles.
-    m_columnMenu.SetTheme (m_theme);
-
-    m_columnMenu.Show (anchorX, anchorY, std::move (items), *textRenderer, hostRect);
+    DxuiContextMenu::Show (*host, anchorX, anchorY, std::move (items));
+    m_columnCommands = std::move (commands);
 }
 
 

@@ -5,7 +5,7 @@
 #include "SettingsPanelState.h"
 
 #include "Window/DxuiPropertyPage.h"
-#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiToggle.h"
@@ -30,9 +30,9 @@ class DxuiHwndSource;
 //  that only exists when the machine actually has a Disk ][ controller:
 //
 //      * Write protect (one DxuiCheckbox per drive: D1 / D2)
-//      * Write mode    (DxuiDropdown: buffer+flush / copy-on-write)
+//      * Write mode    (DxuiComboBox: buffer+flush / copy-on-write)
 //      * Drive audio   (DxuiToggle: floppy sound on/off) + its children:
-//          - Mechanism  (DxuiDropdown: shugart / alps)
+//          - Mechanism  (DxuiComboBox: shugart / alps)
 //          - Motor / head / door volume sliders + audition play buttons
 //          - Drive 1 / 2 pan sliders + audition play buttons
 //          - Restore defaults
@@ -64,15 +64,15 @@ public:
     void  Rebuild               ();
 
     // Test / wiring accessors.
-    DxuiDropdown          & WriteModeDropdown    () { return m_writeMode; }
-    DxuiDropdown          & GetMechanismDropdown () { return m_mechanism; }
+    DxuiComboBox          & WriteModeDropdown    () { return m_writeMode; }
+    DxuiComboBox          & GetMechanismDropdown () { return m_mechanism; }
     DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
     DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
 
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
     const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
-    const DxuiDropdown    & WriteModeDropdown    () const { return m_writeMode; }
-    const DxuiDropdown    & GetMechanismDropdown () const { return m_mechanism; }
+    const DxuiComboBox    & WriteModeDropdown    () const { return m_writeMode; }
+    const DxuiComboBox    & GetMechanismDropdown () const { return m_mechanism; }
 
 private:
     static RECT  MakeRect (int l, int t, int w, int h);
@@ -95,8 +95,8 @@ private:
     DxuiLabel                        m_panOneLabel;
     DxuiLabel                        m_panTwoLabel;
 
-    DxuiDropdown                     m_writeMode;
-    DxuiDropdown                     m_mechanism;
+    DxuiComboBox                     m_writeMode;
+    DxuiComboBox                     m_mechanism;
     DxuiToggle                       m_driveAudio;
     std::array<DxuiCheckbox, 2>      m_writeProtect;
     DxuiSlider                       m_motorVol;

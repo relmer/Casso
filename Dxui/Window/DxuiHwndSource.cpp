@@ -3,6 +3,7 @@
 #include "DxuiHwndSource.h"
 #include "DxuiCaptionBar.h"
 #include "DxuiPopupHost.h"
+#include "Widgets/DxuiPopupMenu.h"
 #include "DxuiSystemButton.h"
 #include "IDxuiHostClient.h"
 #include "Theme/DxuiDwm.h"
@@ -250,6 +251,30 @@ DxuiHwndSource::DxuiHwndSource (RECT                       clientBoundsDip,
 DxuiHwndSource::~DxuiHwndSource()
 {
     Destroy();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetContextMenu
+//
+//  Created on first use rather than with the window, since most windows
+//  never raise one and the widget header need not reach every consumer of
+//  this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupMenu & DxuiHwndSource::GetContextMenu()
+{
+    if (m_contextMenu == nullptr)
+    {
+        m_contextMenu = std::make_unique<DxuiPopupMenu>();
+    }
+
+    return *m_contextMenu;
 }
 
 

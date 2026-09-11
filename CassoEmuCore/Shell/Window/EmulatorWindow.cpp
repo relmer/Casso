@@ -704,27 +704,30 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
 
-    // Command toolbar (DCR-2): commands route through the same HandleCommand
-    // path as the menu; the volume group drives the master output gain and
-    // persists in GlobalUserPrefs through the coalescing save below.
-    m_toolbar.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+    // Command toolbar: its entries are the same command table the menu
+    // reads, so a click dispatches through HandleCommand like a menu row;
+    // the volume group drives the master output gain and persists in
+    // GlobalUserPrefs through the coalescing save below.
+    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, m_printerLed, m_inputCluster, m_volumeFlyout);
 
     // Input-mode segments route through the same toggle the band selector
     // used, so the leave-time neutralization of held arrow / X / Z inputs
     // runs identically.
-    m_toolbar.SetInputSink ([this] (InputMappingMode mode) { ToggleInputMappingMode (mode); });
-    m_toolbar.SetVolumeSink ([this] (float volume01, bool muted)
+    m_inputCluster.SetSink ([this] (InputMappingMode mode) { ToggleInputMappingMode (mode); });
+    m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {
         m_globalPrefs.masterVolume = volume01;
         m_globalPrefs.masterMuted  = muted;
         m_wasapiAudio.SetMasterGain (muted ? 0.0f : volume01);
+        m_mainMenu.GetCommands().SetMuted (muted);
 
         // Deferred, not immediate: the slider reports every intermediate
         // value, so a save here would rewrite the prefs file on each tick of
         // a drag.
         SaveGlobalPrefsDeferred();
     });
-    m_toolbar.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
+    m_volumeFlyout.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
+    m_mainMenu.GetCommands().SetMuted (m_globalPrefs.masterMuted);
     m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
 
     // The theme + monitor-color pickers, and the catalog behind the first of

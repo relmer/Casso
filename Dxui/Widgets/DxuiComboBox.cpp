@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DxuiDropdown.h"
+#include "DxuiComboBox.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
 #include "Theme/IDxuiTheme.h"
@@ -44,7 +44,7 @@ static constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDropdown::IsPointInRect (const RECT & rect, int x, int y)
+bool DxuiComboBox::IsPointInRect (const RECT & rect, int x, int y)
 {
     return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
 }
@@ -59,7 +59,7 @@ bool DxuiDropdown::IsPointInRect (const RECT & rect, int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::SetItems (const std::vector<std::wstring> & items)
+void DxuiComboBox::SetItems (const std::vector<std::wstring> & items)
 {
     m_items = items;
 
@@ -79,7 +79,7 @@ void DxuiDropdown::SetItems (const std::vector<std::wstring> & items)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::SetSelected (int index)
+void DxuiComboBox::SetSelected (int index)
 {
     if (index < 0 || index >= (int) m_items.size())
     {
@@ -126,7 +126,7 @@ void DxuiDropdown::SetSelected (int index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::Open()
+void DxuiComboBox::Open()
 {
     DxuiPopupHost::ShowParams  showParams;
     POINT                      tl       = {};
@@ -208,7 +208,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::Close()
+void DxuiComboBox::Close()
 {
     DxuiPopupHost *  popup  = m_activePopup;
 
@@ -240,7 +240,7 @@ void DxuiDropdown::Close()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::OnPopupMove (POINT localPx)
+void DxuiComboBox::OnPopupMove (POINT localPx)
 {
     int   rowHeight = m_scaler.ToPx (s_kRowHeightDip);
     int   row       = -1;
@@ -285,7 +285,7 @@ void DxuiDropdown::OnPopupMove (POINT localPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::OnPopupClick (POINT localPx)
+void DxuiComboBox::OnPopupClick (POINT localPx)
 {
     int   rowHeight = m_scaler.ToPx (s_kRowHeightDip);
     int   row       = -1;
@@ -318,7 +318,7 @@ void DxuiDropdown::OnPopupClick (POINT localPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDropdown::HitTest (int x, int y) const
+bool DxuiComboBox::HitTest (int x, int y) const
 {
     return IsPointInRect (m_boundsDip, x, y);
 }
@@ -341,7 +341,7 @@ bool DxuiDropdown::HitTest (int x, int y) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiDropdown::GetInWindowMenuRect() const
+RECT DxuiComboBox::GetInWindowMenuRect() const
 {
     RECT  menuRect = {};
 
@@ -376,7 +376,7 @@ RECT DxuiDropdown::GetInWindowMenuRect() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiDropdown::HitTestItem (int x, int y) const
+int DxuiComboBox::HitTestItem (int x, int y) const
 {
     RECT  menuRect  = m_boundsDip;
     int   index     = -1;
@@ -417,7 +417,7 @@ int DxuiDropdown::HitTestItem (int x, int y) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::SetMouseHover (int x, int y)
+void DxuiComboBox::SetMouseHover (int x, int y)
 {
     int  item = HitTestItem (x, y);
 
@@ -452,7 +452,7 @@ void DxuiDropdown::SetMouseHover (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDropdown::OnLButtonDown (int x, int y)
+bool DxuiComboBox::OnLButtonDown (int x, int y)
 {
     bool  onBox     = m_enabled && HitTest (x, y);
     bool  onItem    = m_enabled && !onBox && HitTestItem (x, y) >= 0;
@@ -500,7 +500,7 @@ bool DxuiDropdown::OnLButtonDown (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDropdown::OnLButtonUp (int x, int y)
+bool DxuiComboBox::OnLButtonUp (int x, int y)
 {
     int   item     = HitTestItem (x, y);
     bool  wasArmed = m_armed;
@@ -564,7 +564,7 @@ bool DxuiDropdown::OnLButtonUp (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDropdown::HandleKey (WPARAM vk)
+bool DxuiComboBox::HandleKey (WPARAM vk)
 {
     HRESULT  hr      = S_OK;
     int      count   = (int) m_items.size();
@@ -617,7 +617,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::Commit (int index)
+void DxuiComboBox::Commit (int index)
 {
     bool  changed  = index != m_selected;
     bool  inRange  = index >= 0 && index < (int) m_items.size();
@@ -651,7 +651,7 @@ void DxuiDropdown::Commit (int index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiComboBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     PaintBase (painter, text);
     PaintMenu (painter, text);
@@ -672,7 +672,7 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiDropdown::ResolvedColors DxuiDropdown::ResolveColors() const
+DxuiComboBox::ResolvedColors DxuiComboBox::ResolveColors() const
 {
     ResolvedColors  c = { s_kBoxIdleArgb,  s_kBoxHoverArgb,     s_kBoxPressedArgb,
                           s_kBoxDisabledArgb, s_kMenuArgb,      s_kMenuHoverArgb,
@@ -699,7 +699,7 @@ DxuiDropdown::ResolvedColors DxuiDropdown::ResolveColors() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::SetTheme (const IDxuiTheme * theme) const
+void DxuiComboBox::SetTheme (const IDxuiTheme * theme) const
 {
     if (theme == nullptr)
     {
@@ -735,7 +735,7 @@ void DxuiDropdown::SetTheme (const IDxuiTheme * theme) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT         hr           = S_OK;
     ResolvedColors  c            = ResolveColors();
@@ -846,7 +846,7 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT         hr        = S_OK;
     int             i         = 0;
@@ -909,7 +909,7 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
+void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT         hr        = S_OK;
     int             i         = 0;
@@ -954,11 +954,11 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDropdown::Layout  (IDxuiControl override)
+//  DxuiComboBox::Layout  (IDxuiControl override)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+void DxuiComboBox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
@@ -970,14 +970,14 @@ void DxuiDropdown::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDropdown::Paint  (IDxuiControl override)
+//  DxuiComboBox::Paint  (IDxuiControl override)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+void DxuiComboBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     SetTheme (&theme);
-    static_cast<const DxuiDropdown *> (this)->Paint (painter, text);
+    static_cast<const DxuiComboBox *> (this)->Paint (painter, text);
 }
 
 
@@ -986,7 +986,7 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDropdown::OnMouse
+//  DxuiComboBox::OnMouse
 //
 //  The IDxuiControl entry point: unpacks the event and forwards to the
 //  per-gesture handlers, which take plain coordinates and are testable without
@@ -1002,7 +1002,7 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDropdown::OnMouse (const DxuiMouseEvent & ev)
+bool DxuiComboBox::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  handled = false;
 
@@ -1040,11 +1040,11 @@ bool DxuiDropdown::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDropdown::OnKey  (IDxuiControl override)
+//  DxuiComboBox::OnKey  (IDxuiControl override)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDropdown::OnKey (const DxuiKeyEvent & ev)
+bool DxuiComboBox::OnKey (const DxuiKeyEvent & ev)
 {
     bool  handled = false;
 
@@ -1064,13 +1064,13 @@ bool DxuiDropdown::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDropdown::GetAccessibleName  (IDxuiControl override)
+//  DxuiComboBox::GetAccessibleName  (IDxuiControl override)
 //
 //  Returns the label of the selected item (or empty if no selection).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiDropdown::GetAccessibleName() const
+std::wstring DxuiComboBox::GetAccessibleName() const
 {
     std::wstring  name;
     bool          hasSelection = m_selected >= 0 && m_selected < (int) m_items.size();

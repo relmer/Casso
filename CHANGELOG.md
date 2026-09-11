@@ -8,6 +8,13 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Changed
+
+- The menu bar, the toolbar and the debug panels' right-click menus now share
+  one command model and one dropdown. Dropdowns fit their content instead of
+  a fixed width, with the check column present only in a menu that has a
+  checkable row, and accelerator hints sit against the right edge.
+
 ### Fixed
 
 - CassoCli now exits quietly when the program reading its output stops early,

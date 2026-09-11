@@ -3,31 +3,7 @@
 #include "Pch.h"
 
 #include "CassoTheme.h"
-
-
-
-
-
-enum class MainMenuId
-{
-    File    = 0,
-    Edit    = 1,
-    Machine = 2,
-    Disk    = 3,
-    View    = 4,
-    Debug   = 5,
-    Help    = 6,
-};
-
-
-struct MainMenuCommandEntry
-{
-    WORD            commandId;
-    MainMenuId      menu;
-    const wchar_t * label;
-    const wchar_t * accelerator;
-    bool            checkable = false;
-};
+#include "EmulatorCommands.h"
 
 
 
@@ -37,11 +13,11 @@ struct MainMenuCommandEntry
 //
 //  MainMenu
 //
-//  Casso's application menu bar. Configures a `DxuiMenuBar` with the
-//  Casso command set and translates per-command dispatch / check-query
-//  callbacks (WORD command id -> functor) into the generic per-subitem
-//  callbacks the widget expects. Renamed when the legacy nav-strip menu
-//  logic was promoted to the Dxui framework.
+//  Casso's application menu bar: a DxuiMenuBar whose titles and rows come
+//  from the emulator's command table. The shell's dispatch, check, enable
+//  and label queries are set on the table through this class, which is
+//  where the shell already sets them; the toolbar reads the same table
+//  through GetCommands.
 //
 //  Visual parity with the legacy chrome is preserved by mirroring the
 //  Casso-specific palette (`CassoTheme::nav*Argb` etc.) onto the
@@ -53,30 +29,23 @@ struct MainMenuCommandEntry
 class MainMenu : public DxuiMenuBar
 {
 public:
-    using DispatchFn = std::function<void (WORD commandId)>;
-    using CheckFn    = std::function<bool (WORD commandId)>;
+    using DispatchFn = EmulatorCommands::DispatchFn;
+    using CheckFn    = EmulatorCommands::CheckFn;
+    using LabelFn    = EmulatorCommands::LabelFn;
 
     MainMenu  ();
     ~MainMenu () override;
 
-    using LabelFn = std::function<std::wstring (WORD commandId)>;
+    void  SetDispatch     (DispatchFn dispatch)   { m_commands.SetDispatch    (std::move (dispatch)); }
+    void  SetCheckQuery   (CheckFn query)         { m_commands.SetCheckQuery  (std::move (query)); }
+    void  SetEnableQuery  (CheckFn query)         { m_commands.SetEnableQuery (std::move (query)); }
+    void  SetLabelQuery   (LabelFn query)         { m_commands.SetLabelQuery  (std::move (query)); }
 
-    void                                   SetDispatch        (DispatchFn dispatch);
-    void                                   SetCheckQuery      (CheckFn query);
-    void                                   SetEnableQuery     (CheckFn query);
-
-    // Dynamic label override. Consulted live at paint / mnemonic time; an
-    // empty return falls back to the entry's static label, so a query only
-    // has to answer for the commands it customizes.
-    void                                   SetLabelQuery      (LabelFn query);
-
-    static std::span<const MainMenuCommandEntry>  GetCommandEntries  ();
-    static const wchar_t                       *  GetMenuName        (MainMenuId menu);
-    static std::string                            EmitParityMarkdown ();
-    static bool                                   IsSeparator        (const MainMenuCommandEntry & entry);
+    EmulatorCommands       &  GetCommands ()        { return m_commands; }
+    const EmulatorCommands &  GetCommands () const  { return m_commands; }
 
     void  Show           ();
-    void  Dispatch       (WORD commandId) const;
+    void  Dispatch       (WORD commandId) const     { m_commands.Dispatch (commandId); }
     void  PaintStrip     (DxuiPainter             & painter,
                           DxuiTextRenderer        & text,
                           const ChromeVisualState & visual,
@@ -103,14 +72,8 @@ public:
     void        SetFocusedMenu (MainMenuId menu) { DxuiMenuBar::SetFocusedMenu ((int) menu); }
     using DxuiMenuBar::SetFocusedMenu;
 
-    static constexpr int  kMenuCount = 7;
+    static constexpr int  kMenuCount = EmulatorCommands::kMenuCount;
 
 private:
-    void  Rebuild           ();
-
-
-    DispatchFn  m_dispatch;
-    CheckFn     m_isChecked;
-    CheckFn     m_isEnabled;
-    LabelFn     m_labelQuery;
+    EmulatorCommands  m_commands;
 };
