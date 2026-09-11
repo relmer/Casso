@@ -84,16 +84,24 @@ origin/<branch> origin/master` answers no for work that shipped. Ask whether the
 merge commit or the code is on master instead.
 
 <!-- SPECKIT START -->
-## Active feature
+## Active features
 
-**031-thin-exe-shim** -- both executables are now linker targets holding no
-code: `Casso.exe` went from 93,927 lines and 1,235 functions to zero of each,
-and `CassoCli.exe`'s `main` went with it. Closes GH #85.
+**032-dxui-command-widgets** (implementing in its own worktree) -- Dxui gains
+the WPF/WinUI command model: `DxuiCommand`, `DxuiDropdown`,
+`DxuiToolbar`; `CommandToolbar` deleted; one emulator command table.
+Pixel-identical chrome is the bar.
 
-- Plan: `specs/031-thin-exe-shim/plan.md`
-- Spec: `specs/031-thin-exe-shim/spec.md`
-- Measurements: `specs/031-thin-exe-shim/measurements.md`
-- Executable contract: `specs/031-thin-exe-shim/contracts/executable-project.md`
-- Machine layout contract: `specs/031-thin-exe-shim/contracts/machine-layout.md`
-- Validation: `specs/031-thin-exe-shim/quickstart.md`
+- Plan: `specs/032-dxui-command-widgets/plan.md`
+- Tasks: `specs/032-dxui-command-widgets/tasks.md`
+
+**033-cassque** (planned, not started) -- the disk-image file browser as a
+second thin executable. Phases 1-5 need only master; the shell phase is
+gated on 032 merging. Known folders and Cassque prefs are two new files
+beside `UserPrefs.json` because `GlobalUserPrefs::Save` is an unguarded
+read-modify-write that a running Casso would clobber.
+
+- Plan: `specs/033-cassque/plan.md`
+- Spec: `specs/033-cassque/spec.md`
+- Contracts: `specs/033-cassque/contracts/`
+- Validation: `specs/033-cassque/quickstart.md`
 <!-- SPECKIT END -->
