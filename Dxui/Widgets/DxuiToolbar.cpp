@@ -63,8 +63,8 @@ DxuiToolbar::~DxuiToolbar()
 void DxuiToolbar::SetEntries (std::vector<Entry> entries)
 {
     m_dropdown.Hide();
-    m_flyoutOpen    = false;
-    m_flyoutPressed = false;
+    CloseFlyout();
+    m_focusIndex = -1;
 
     m_slots.clear();
     m_slots.reserve (entries.size());
@@ -227,12 +227,155 @@ void DxuiToolbar::SetDropDownSinks (int commandId, ChoiceFn preview, ChoiceFn co
 
 void DxuiToolbar::SetFlyoutControl (int commandId, IDxuiControl * control, SIZE panelDp)
 {
+    CloseFlyout();
+
     m_flyoutId      = commandId;
     m_flyoutControl = control;
     m_flyoutPanelDp = panelDp;
-    m_flyoutOpen    = false;
 
     LayoutFlyout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::OpenFlyout / CloseFlyout
+//
+//  A flyout opened by keyboard gives its hosted control focus, so the keys
+//  that follow reach it, and only Escape or a collapse closes it; the
+//  pointer wandering off cannot. Closing takes the focus back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::OpenFlyout (bool byKeyboard)
+{
+    if (m_flyoutControl == nullptr)
+    {
+        return;
+    }
+
+    m_flyoutOpen = true;
+
+    if (byKeyboard && !m_flyoutKeyboard)
+    {
+        m_flyoutKeyboard = true;
+        m_flyoutControl->OnFocusChanged (true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::CloseFlyout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::CloseFlyout()
+{
+    if (m_flyoutKeyboard && m_flyoutControl != nullptr)
+    {
+        m_flyoutControl->OnFocusChanged (false);
+    }
+
+    m_flyoutOpen     = false;
+    m_flyoutKeyboard = false;
+    m_flyoutPressed  = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::SetFocusIndex / ActivateFocused / OwnsKeyboard
+//
+//  Focus moving off an entry closes a flyout it opened by keyboard, since
+//  the panel's keys belong to that entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::SetFocusIndex (int index)
+{
+    if (index < 0 || index >= (int) m_slots.size())
+    {
+        index = -1;
+    }
+
+    if (index != m_focusIndex && m_flyoutKeyboard)
+    {
+        CloseFlyout();
+    }
+
+    m_focusIndex = index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::ActivateFocused
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::ActivateFocused()
+{
+    Slot *               slot = (m_focusIndex >= 0 && m_focusIndex < (int) m_slots.size()) ? &m_slots[(size_t) m_focusIndex] : nullptr;
+    const DxuiCommand *  cmd  = (slot != nullptr) ? slot->entry.command : nullptr;
+
+
+
+    if (cmd == nullptr || !cmd->IsEnabled())
+    {
+        return;
+    }
+
+    switch (slot->entry.kind)
+    {
+    case Kind::DropDown:
+        OpenDropDown (cmd->id);
+        break;
+
+    case Kind::Flyout:
+        if (cmd->id == m_flyoutId && m_flyoutControl != nullptr)
+        {
+            OpenFlyout (true);
+        }
+        else if (cmd->dispatch)
+        {
+            cmd->dispatch();
+        }
+
+        break;
+
+    case Kind::Command:
+    case Kind::Toggle:
+        if (cmd->dispatch) { cmd->dispatch(); }
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::OwnsKeyboard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbar::OwnsKeyboard() const
+{
+    return m_dropdown.IsVisible() || (m_flyoutOpen && m_flyoutKeyboard);
 }
 
 
@@ -275,6 +418,27 @@ bool DxuiToolbar::HandleKey (WPARAM vk)
     if (m_dropdown.IsVisible())
     {
         handled = m_dropdown.OnKey (vk);
+    }
+    else if (m_flyoutOpen && m_flyoutKeyboard && m_flyoutControl != nullptr)
+    {
+        // The panel owns the keyboard: Escape gives it back to the entry,
+        // everything else is the hosted control's.
+        if (vk == VK_ESCAPE)
+        {
+            CloseFlyout();
+            handled = true;
+        }
+        else
+        {
+            DxuiKeyEvent  ev;
+
+            ev.kind  = DxuiKeyEventKind::Down;
+            ev.vk    = vk;
+            ev.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+            ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+
+            handled = m_flyoutControl->OnKey (ev);
+        }
     }
 
     return handled;
@@ -589,7 +753,7 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
         if (wasLabeled && !slot.labeled && slot.entry.command != nullptr && slot.entry.command->id == m_flyoutId)
         {
-            m_flyoutOpen = false;
+            CloseFlyout();
         }
 
         index++;
@@ -826,11 +990,11 @@ bool DxuiToolbar::OnToolbarMouseMove (int x, int y)
 
     if (overFlyout)
     {
-        m_flyoutOpen = true;
+        OpenFlyout (false);
     }
-    else if (m_flyoutOpen && !m_flyoutPressed && !IsPointInRect (GetFlyoutKeepAliveRc(), x, y))
+    else if (m_flyoutOpen && !m_flyoutKeyboard && !m_flyoutPressed && !IsPointInRect (GetFlyoutKeepAliveRc(), x, y))
     {
-        m_flyoutOpen = false;
+        CloseFlyout();
     }
 
     return over || (m_flyoutOpen && IsPointInRect (m_flyoutRc, x, y)) ||
@@ -865,9 +1029,9 @@ void DxuiToolbar::OnToolbarMouseLeave()
         }
     }
 
-    if (!m_flyoutPressed)
+    if (!m_flyoutPressed && !m_flyoutKeyboard)
     {
-        m_flyoutOpen = false;
+        CloseFlyout();
     }
 }
 
@@ -1158,6 +1322,16 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
         painter.FillRect    (bl, bt, bw, bh, fill);
         painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.ButtonBorder());
+    }
+
+    // The keyboard focus ring sits just outside the entry, as the drive
+    // widgets draw theirs, so it never covers the hover chrome.
+    if (&slot == &m_slots[(size_t) (std::max) (m_focusIndex, 0)] && m_focusIndex >= 0)
+    {
+        float  ring = (float) m_scaler.ToPx (2);
+        float  pen  = (float) (std::max) (1, m_scaler.ToPx (1));
+
+        painter.OutlineRect (bl - ring, bt - ring, bw + ring * 2.0f, bh + ring * 2.0f, pen, theme.FocusRing());
     }
 
     if (slot.entry.custom != nullptr)

@@ -163,8 +163,19 @@ public:
     const wchar_t *  GetTooltipAt         (int x, int y, RECT & anchor) const;
     bool             HitTest              (int x, int y) const;
 
-    //  An open menu owns the keyboard.
+    //  Keyboard access. The host's focus ring hands the strip a focused entry
+    //  index (-1 for none) and every keydown while the strip owns the
+    //  keyboard, which is while a menu is open or a flyout was opened by
+    //  keyboard. ActivateFocused is Enter on the focused entry: a Command
+    //  dispatches, a DropDown opens its list, a Flyout opens its panel and
+    //  gives the hosted control focus, so arrows reach it; Escape closes the
+    //  panel and leaves the entry focused.
+    int   GetEntryCount    () const                      { return (int) m_slots.size(); }
+    void  SetFocusIndex    (int index);
+    int   GetFocusIndex    () const                      { return m_focusIndex; }
+    void  ActivateFocused  ();
     bool  IsMenuOpen       () const;
+    bool  OwnsKeyboard     () const;
     bool  HandleKey        (WPARAM vk);
 
     //  A drop-down's rows are commands too, typically with `isChecked`
@@ -232,6 +243,8 @@ private:
     int           GetTotalWidthPx      (int labeledCount) const;
     RECT          GetFlyoutKeepAliveRc () const;
     void          LayoutFlyout         ();
+    void          OpenFlyout           (bool byKeyboard);
+    void          CloseFlyout          ();
     void          OpenDropDown         (int commandId);
     void          WireDropDown         ();
     void          ForwardToFlyout      (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, bool & handled);
@@ -250,8 +263,10 @@ private:
     SIZE                     m_flyoutPanelDp  = {};
     int                      m_flyoutId       = -1;
     bool                     m_flyoutOpen     = false;
+    bool                     m_flyoutKeyboard = false;   // opened by Enter: the pointer cannot close it
     bool                     m_flyoutPressed  = false;
     RECT                     m_flyoutRc       = {};
+    int                      m_focusIndex     = -1;
 
     IDxuiTextRenderer      * m_textRenderer   = nullptr;
     const wchar_t          * m_iconFace       = L"Segoe MDL2 Assets";

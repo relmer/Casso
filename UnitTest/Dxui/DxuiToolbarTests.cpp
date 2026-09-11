@@ -526,6 +526,123 @@ public:
     }
 
 
+    //
+    //  A hosted control that records focus and the keys it was handed.
+    //
+    struct StubPanel : public IDxuiControl
+    {
+        int     focusOn  = 0;
+        int     focusOff = 0;
+        int     keys     = 0;
+        WPARAM  lastVk   = 0;
+
+        void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { (void) scaler; SetBounds (boundsDip); }
+        void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override { (void) painter; (void) text; (void) theme; }
+        bool  OnKey  (const DxuiKeyEvent & ev) override { keys++; lastVk = ev.vk; return true; }
+        void  OnFocusChanged (bool focused) override { if (focused) { focusOn++; } else { focusOff++; } }
+    };
+
+
+    TEST_METHOD (Keyboard_EnterOnFocusedCommandDispatches_OutlinePaintsFocus)
+    {
+        Fixture  f;
+        int      rings = 0;
+
+
+        f.Build();
+        f.LayoutAt (f.FullWidth());
+
+        f.bar.SetFocusIndex (0);
+        Assert::AreEqual (5, f.bar.GetEntryCount());
+        Assert::AreEqual (0, f.bar.GetFocusIndex());
+        Assert::IsFalse  (f.bar.OwnsKeyboard());
+
+        f.bar.ActivateFocused();
+        Assert::AreEqual (1, f.dispatched);
+        Assert::AreEqual (1, f.lastDispatched);
+
+        f.bar.Paint (f.painter, f.text, f.theme);
+
+        for (const RecordedPaintCall & c : f.painter.Calls())
+        {
+            if (c.kind == RecordedPaintKind::OutlineRect && c.argb == MockDxuiTheme::s_kFocusRing) { rings++; }
+        }
+
+        Assert::AreEqual (1, rings);
+
+        f.bar.SetFocusIndex (-1);
+        f.painter.Reset();
+        f.bar.Paint (f.painter, f.text, f.theme);
+
+        for (const RecordedPaintCall & c : f.painter.Calls())
+        {
+            Assert::IsFalse (c.kind == RecordedPaintKind::OutlineRect && c.argb == MockDxuiTheme::s_kFocusRing);
+        }
+    }
+
+
+    TEST_METHOD (Keyboard_EnterOnDropDownOpensItsList)
+    {
+        Fixture  f;
+
+
+        f.Build();
+        f.LayoutAt (f.FullWidth());
+
+        f.bar.SetFocusIndex (1);
+        f.bar.ActivateFocused();
+
+        Assert::IsTrue (f.bar.IsMenuOpen());
+        Assert::IsTrue (f.bar.OwnsKeyboard());
+        Assert::IsTrue (f.bar.HandleKey (VK_ESCAPE));
+        Assert::IsFalse (f.bar.OwnsKeyboard());
+        Assert::AreEqual (1, f.bar.GetFocusIndex());
+    }
+
+
+    TEST_METHOD (Keyboard_EnterOnFlyoutOpensPanel_KeysReachIt_EscapeCloses)
+    {
+        Fixture    f;
+        StubPanel  panel;
+
+
+        f.Build();
+        f.bar.SetFlyoutControl (5, &panel, SIZE { 56, 154 });
+        f.LayoutAt (f.FullWidth());
+
+        f.bar.SetFocusIndex (4);
+        f.bar.ActivateFocused();
+
+        Assert::IsTrue   (f.bar.IsFlyoutOpen (5));
+        Assert::IsTrue   (f.bar.OwnsKeyboard());
+        Assert::AreEqual (1, panel.focusOn);
+        Assert::AreEqual (0, f.dispatched);                          // Enter opened, it did not toggle
+
+        Assert::IsTrue   (f.bar.HandleKey (VK_UP));
+        Assert::IsTrue   (f.bar.HandleKey (VK_HOME));
+        Assert::AreEqual (2, panel.keys);
+        Assert::AreEqual ((WPARAM) VK_HOME, panel.lastVk);
+
+        // The pointer leaving cannot close a keyboard-opened flyout.
+        f.bar.OnToolbarMouseMove (0, 400);
+        f.bar.OnToolbarMouseLeave();
+        Assert::IsTrue (f.bar.IsFlyoutOpen (5));
+
+        Assert::IsTrue   (f.bar.HandleKey (VK_ESCAPE));
+        Assert::IsFalse  (f.bar.IsFlyoutOpen (5));
+        Assert::IsFalse  (f.bar.OwnsKeyboard());
+        Assert::AreEqual (1, panel.focusOff);
+        Assert::AreEqual (4, f.bar.GetFocusIndex());                 // the entry keeps focus
+
+        // Focus moving off the entry closes a flyout it opened.
+        f.bar.ActivateFocused();
+        Assert::IsTrue (f.bar.IsFlyoutOpen (5));
+        f.bar.SetFocusIndex (3);
+        Assert::IsFalse (f.bar.IsFlyoutOpen (5));
+        Assert::AreEqual (2, panel.focusOff);
+    }
+
+
     TEST_METHOD (CustomEntry_ClickNotConsumedOnDropDownOpensItsList)
     {
         Fixture    f;
