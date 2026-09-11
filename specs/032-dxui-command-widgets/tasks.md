@@ -148,12 +148,12 @@
 
 **Purpose**: Prove the emulator is unchanged and pass the merge gates.
 
-- [ ] T053 [US1] Complete quickstart §1 through §4 end to end on a Release x64 build and record the outcome, including the two allowed differences from §3, in `specs/032-dxui-command-widgets/validation.md`
-- [ ] T054 [US1] Run quickstart §7 structural checks and record them in `validation.md`
-- [ ] T055 [P] Add one line under `[Unreleased]` / Changed in `CHANGELOG.md` describing the net effect: menu bar, toolbar and context menus share one command model and one dropdown; dropdowns fit their content
-- [ ] T056 `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
-- [ ] T057 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for all four configurations; zero warnings
-- [ ] T058 Merge `origin/master` into the branch, rebuild, rerun the suite
+- [X] T053 [US1] Complete quickstart §1 through §4 end to end on a Release x64 build and record the outcome, including the two allowed differences from §3, in `specs/032-dxui-command-widgets/validation.md` -- PARTIAL: recorded; the post-Phase-6 capture and the §4 walk are still owed (see validation.md)
+- [X] T054 [US1] Run quickstart §7 structural checks and record them in `validation.md`
+- [X] T055 [P] Add one line under `[Unreleased]` / Changed in `CHANGELOG.md` describing the net effect: menu bar, toolbar and context menus share one command model and one dropdown; dropdowns fit their content
+- [X] T056 `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
+- [X] T057 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for all four configurations; zero warnings
+- [X] T058 Merge `origin/master` into the branch, rebuild, rerun the suite
 - [ ] T059 Commit: `docs(changelog): 032 command widgets`; push; present the CHANGELOG line and every commit subject for approval before the master merge
 
 ---
