@@ -17,13 +17,12 @@ R3). Everything else is in memory per window.
 |---|---|
 | path | Absolute host folder, stored as written, compared case-insensitively |
 | lastUsedUnix | Last hand-off or manual add |
-| pinned | True when added by Add to Casso; never auto-pruned |
 
 Rules: written by atomic replace through one core helper that reads,
 merges, and writes. Read on demand by both executables, never cached
 across a picker open or a tree refresh. Seeded once from the disk MRU's
-distinct folders when the file is absent. A folder that no longer exists
-stays listed.
+distinct folders when the file is absent. Nothing is ever auto-pruned; a
+folder that no longer exists stays listed until Remove from Casso.
 
 ### CassquePrefs.json
 
@@ -61,6 +60,7 @@ What a tab shows. One of:
 | location | The `Location` selecting it fills |
 | childrenLoaded | Lazy flag; children fetched on first expand |
 | missing | Known folder that no longer exists, drawn grayed |
+| loadError | Non-empty when a disk image failed to parse: no expand affordance, the text is the tooltip, and selecting the node shows it in the list area |
 
 ### CatalogRow
 
@@ -74,7 +74,7 @@ entry.
 | sizeBytes | `eofBytes` when present, else `sizeUnits` times the unit |
 | addressText | `$AAAA` from `loadAddress` when `hasLoadAddress`, or aux type |
 | locked | `FileEntry::isLocked` |
-| modified | Host files only; blank for catalog entries |
+| modified | Host files and ProDOS entries (`FileEntry::modifiedUnix` when `hasModified`); blank for DOS 3.3 |
 | isDirectory | ProDOS directory or host folder or disk image |
 
 ### PreviewContent
@@ -128,6 +128,10 @@ Result of sniffing a host file with no usable suffix: `Applesoft`,
 | history | Back and forward stack of locations |
 | selection | Selected row ids |
 | sort | Column and direction |
+| previewScroll | Scroll position of the preview for this tab |
+| disassemble | Whether the hex preview shows disassembly for this tab |
+
+Preview-pane visibility is window-wide, in `CassquePrefs`, not here.
 
 ## Intent channel messages
 
@@ -137,4 +141,5 @@ Result of sniffing a host file with no usable suffix: `Applesoft`,
 | InsertDisk | Cassque to Casso | intent byte, drive byte, path |
 | DescribeMachine | Cassque to Casso | intent byte |
 | MachineDescription | Casso to Cassque | reply id, drive count byte, display name UTF-8 |
-| InsertRefused | Casso to Cassque | reply id, reason UTF-8 |
+| InsertDone, InsertRefused | Casso to Cassque | reply id, reason UTF-8 on refusal |
+| ReloadDone, ReloadConflict, ReloadRefused | Casso to Cassque | reply id, description or reason UTF-8 |

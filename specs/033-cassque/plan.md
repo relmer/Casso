@@ -132,8 +132,14 @@ CassoEmuCore/
 │   ├── IProcessLauncher.h             # NEW
 │   ├── Win32ProcessLauncher.h/.cpp    # NEW
 │   └── Win32IntentChannel.h/.cpp      # InsertDisk, DescribeMachine, reply path
+├── Machines/Apple2/Common/
+│   ├── IVolume.h                      # Rename added
+│   ├── Dos33Volume.h/.cpp             # Rename
+│   ├── ProDosVolume.h/.cpp            # Rename; modified date surfaced on FileEntry
+│   └── VolumeTypes.h                  # FileEntry gains modifiedUnix and hasModified
 ├── Shell/
-│   ├── EmulatorShell.cpp              # OnCopyData: insert and describe; Cassque menu launch
+│   ├── Window/EmulatorWindow.cpp      # OnCopyData: insert, describe, reload replies; drop path appends known folder
+│   ├── EmulatorShell.cpp              # Cassque menu launch
 │   └── WindowCommandManager.cpp       # picker reads KnownFolderStore
 ├── Ui/Dialogs/
 │   ├── DialogDefinition.h             # optional image
@@ -159,9 +165,12 @@ knows about HWNDs.
 ### Phases, in dependency order
 
 Each phase leaves the tree building and every existing test green.
-Phases 1 through 5 branch from master and need nothing from 032.
+tasks.md prepends a fixtures phase, so its numbering runs one ahead of
+this list; phases here through the executable need nothing from 032.
 
-1. **Codecs**: `IntegerBasicDetokenizer`, `Disassembler`, with tests.
+1. **Codecs**: `IntegerBasicDetokenizer`, `Disassembler`, plus
+   `IVolume::Rename` on both file systems and the ProDOS modified date
+   on `FileEntry`, with tests.
 2. **Model**: `HostFileNaming`, `ContentSniffer`, `PreviewDecoder`,
    `PicturePreview`, `CatalogModel`, `DiskOperations`, `BrowserModel`,
    `TreeModel`, `DragPayload`, `KnownFolderStore`, `CassquePrefs`,

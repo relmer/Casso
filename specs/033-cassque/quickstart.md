@@ -50,6 +50,15 @@ image or file.
   disassembly toggle, and catalog, in that order.
 - Alt+P hides the preview; close and reopen Cassque. Expected: still
   hidden.
+- Build a folder of 200 copies of a fixture image and select it under
+  This PC with a stopwatch. Expected: the list is full within one
+  second. Select one image. Expected: its catalog appears within 200 ms.
+- Rename a file on a DOS 3.3 image and on a ProDOS image with F2.
+  Expected: the CLI `list` shows the new name; a name that collides is
+  refused with a message.
+- Point the tree at a file with a `.dsk` extension that is not a disk
+  image. Expected: no expand affordance, the parse error as its tooltip,
+  and the same error in the list area when selected.
 
 ## 3. Known folders (Story 1, FR-005)
 
