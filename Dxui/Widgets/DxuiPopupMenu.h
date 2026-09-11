@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/DxuiCommand.h"
 #include "Core/IDxuiControl.h"
 
 
@@ -13,17 +14,88 @@ class DxuiPopupHost;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPopupMenuItem
+//
+//  One row of a popup menu: a command, a separator, or a command whose row
+//  opens a child list. The command is held by pointer and the application
+//  owns it, so placing one command in several menus never copies the
+//  declaration.
+//
+//  A row is CHECKABLE when its command supplies an `isChecked` functor, and
+//  a list containing any checkable row reserves a check gutter for every row.
+//  A command that can never be checked leaves the functor absent and the list
+//  stays flush.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+struct DxuiPopupMenuItem
+{
+    enum class Kind
+    {
+        Command,
+        Separator,
+        Submenu,
+    };
+
+    Kind                             kind     = Kind::Command;
+    const DxuiCommand              * command  = nullptr;
+    std::vector<DxuiPopupMenuItem>   children;
+
+    static DxuiPopupMenuItem  ForCommand   (const DxuiCommand * cmd);
+    static DxuiPopupMenuItem  ForSeparator ();
+    static DxuiPopupMenuItem  ForSubmenu   (const DxuiCommand * cmd, std::vector<DxuiPopupMenuItem> children);
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPopupMenu
 //
-//  Lightweight DX-rendered popup. Each item carries a label and an
-//  optional checked flag (rendered as a leading check glyph). The
-//  owning panel calls `Show()` from a right-click handler and routes
-//  mouse / keyboard events to the popup as long as `IsVisible()` is
-//  true; once a click selects an item or lands outside the panel
-//  the popup hides and the panel resumes normal input.
+//  The one menu, whatever opens it. A menu bar title hangs it under a rect,
+//  a toolbar drop-down button hangs it under the button, and a right-click
+//  raises it at a point; the widget never learns which.
 //
-//  All metrics are DPI-scaled. Theming reads BackgroundElevated /
-//  HoverBackground / Foreground from the active `IDxuiTheme`.
+//  Rows come from `DxuiPopupMenuItem` and every label, check, accelerator and
+//  enabled state is read from the row's command AT PAINT TIME, never cached.
+//  Rows are 26 dp, separators 10 dp, the font 14 dp, and the width fits the
+//  widest row with a 140 dp floor; there is no fixed width and no setter for
+//  one.
+//
+//  Up and Down skip separators and disabled rows and wrap. Right on a submenu
+//  row opens its child with the first enabled row highlighted; the pointer
+//  resting on it opens the child unhighlighted, and hovering another row of
+//  the parent closes it again. Left or Escape with a child open closes only
+//  the child. Escape on the root hides it uncommitted.
+//
+//  Three callbacks. Highlight change fires on every move by pointer or key,
+//  for a caller that previews. Closed fires once per visible-to-hidden edge,
+//  BEFORE select, with a flag saying whether a row was picked. Select fires
+//  with the picked row's index, and then the row's command dispatches if it
+//  is enabled. For a pick inside a submenu the index is the row within that
+//  submenu; the command is the reliable handle.
+//
+//  With a popup host each level acquires a pooled top-level popup on show
+//  and releases it on hide, and a child links to its parent through the host
+//  so click-outside dismisses the whole chain. Without a host the owner
+//  paints the menu and routes input to it.
+//
+//  A show requested within a short window of the last hide, from the same
+//  anchor, is ignored. A click on the title or button that opened the menu
+//  reaches the strip after the popup has already dismissed itself on that
+//  same click, and without the guard the release would open the menu again
+//  and the button would never appear to toggle.
+//
+//  The legacy `Item` list and the show that takes it remain for the callers
+//  that still build rows as a label and a checked flag. They are converted
+//  to commands the widget owns, so there is one paint path and one
+//  navigation path. Both go once the last such caller has moved.
+//
+//  All metrics are DPI-scaled. Every public method runs on the UI thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,44 +110,68 @@ public:
 
     using SelectFn = std::function<void (int index)>;
     using ClosedFn = std::function<void (bool committed)>;
+    using ClockFn  = std::function<uint64_t ()>;
 
-    ~DxuiPopupMenu() override = default;
+    DxuiPopupMenu  ();
+    ~DxuiPopupMenu () override;
 
     void  SetDpi      (UINT dpi)                { m_scaler.SetDpi (dpi); }
     void  SetTheme    (const IDxuiTheme * th)   { m_theme = th; }
     void  SetOnSelect (SelectFn fn)             { m_onSelect = std::move (fn); }
 
-    // Fired whenever the highlighted row changes, by pointer or by arrow
-    // key, for a caller that PREVIEWS what the row would do.
     void  SetOnHighlightChange (SelectFn fn)    { m_onHighlight = std::move (fn); }
-
-    // Fired once per visible -> hidden edge, BEFORE the select callback (see
-    // OnLButtonUp on why the hide comes first). `committed` says whether the
-    // closing gesture picked a row, which is what lets a previewing caller
-    // put the old value back on a dismissal without undoing a pick.
     void  SetOnClosed          (ClosedFn fn)    { m_onClosed = std::move (fn); }
 
-    //
-    //  Opt-in popup hosting (FR-054 / FR-061). When a host window is
-    //  supplied the popup acquires a pooled DxuiPopupHost on Show()
-    //  and releases it on Hide(), so the menu renders into a top-
-    //  level WS_POPUP HWND not clipped by the owner's client area.
-    //  Cascading submenus link through DxuiPopupHost::SetParentPopup
-    //  so click-outside dismiss walks the chain.
-    //
-    void  SetPopupHost  (DxuiHwndSource * host) { m_popupHost = host; }
+    //  Colors an application supplies in place of the theme's, so a host
+    //  whose chrome palette differs from the generic mapping lands its
+    //  override in the one place every menu paints from. Disabled text always
+    //  comes from the theme.
+    void  SetColors   (uint32_t bgArgb,
+                       uint32_t hoverArgb,
+                       uint32_t textArgb,
+                       uint32_t accelArgb,
+                       uint32_t borderArgb,
+                       uint32_t dividerArgb);
+    void  ClearColors ()                        { m_colorsSet = false; }
+
+    //  Underline each row's mnemonic letter, as a menu opened from the
+    //  keyboard does.
+    void  SetShowMnemonicCues (bool show)       { m_showCues = show; }
+
+    //  The clock the reopen guard reads. Defaults to the tick count; a test
+    //  installs its own so the guard window can be crossed without waiting.
+    void  SetClock    (ClockFn fn)              { m_clock = std::move (fn); }
+
+    //  Whether a hosted popup takes mouse capture. A menu bar turns this off
+    //  so the strip still sees the pointer and can swap titles on hover.
+    void  SetGrabsCapture (bool grabs)          { m_grabsCapture = grabs; }
+
+    void              SetPopupHost   (DxuiHwndSource * host) { m_popupHost = host; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
-    bool                       IsVisible () const { return m_visible; }
-    const std::vector<Item>  & GetItems  () const { return m_items;   }
-    const RECT               & GetRect   () const { return m_boundsDip;    }
+    bool                                    IsVisible    () const { return m_visible; }
+    bool                                    HasOpenChild () const;
+    const DxuiPopupMenu                   * GetChild     () const { return m_child.get(); }
+    int                                     GetHighlight () const { return m_hover; }
+    const std::vector<Item>               & GetItems     () const { return m_legacyItems; }
+    const std::vector<DxuiPopupMenuItem>  & GetRows      () const { return m_rows; }
+    const RECT                            & GetRect      () const { return m_boundsDip; }
 
-    void  Show           (int anchorX,
-                          int anchorY,
-                          std::vector<Item> items,
-                          IDxuiTextRenderer & text,
-                          const RECT & hostClient);
+    void  ShowUnder      (const RECT                     & anchor,
+                          std::vector<DxuiPopupMenuItem>   items,
+                          IDxuiTextRenderer              & text,
+                          const RECT                     & hostClient);
+    void  ShowAt         (int                              x,
+                          int                              y,
+                          std::vector<DxuiPopupMenuItem>   items,
+                          IDxuiTextRenderer              & text,
+                          const RECT                     & hostClient);
+    void  Show           (int                              anchorX,
+                          int                              anchorY,
+                          std::vector<Item>                items,
+                          IDxuiTextRenderer              & text,
+                          const RECT                     & hostClient);
     void  Hide           ();
 
     bool  HitTest        (int x, int y) const;
@@ -85,43 +181,125 @@ public:
     bool  OnKey          (WPARAM vk);
     void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
-    //
-    //  IDxuiControl overrides — additive shims so DxuiPopupMenu can
-    //  appear in a DxuiPanel tree (typical hosting is via
-    //  DxuiPopupHost, so the panel-tree path is rare but supported
-    //  for consistency).
-    //
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
 
+    //  Public so the menu bar, which still strips mnemonics for its titles,
+    //  and this widget, which strips them for its rows, share one parser.
+    //  "&&" collapses to a literal "&" and never marks a mnemonic.
+    static void  ParseMnemonic (const std::wstring & label,
+                                std::wstring       & outStripped,
+                                int                & outIndex,
+                                wchar_t            & outLower);
+
 private:
-    static constexpr int    kItemHeightDip    = 26;
-    static constexpr int    kItemPadLeftDip   = 28;
-    static constexpr int    kItemPadRightDip  = 16;
-    static constexpr int    kBorderDip        =  1;
-    static constexpr float  kFontDip          = 13.0f;
+    static constexpr int       kRowHeightDip           = 26;
+    static constexpr int       kSeparatorHeightDip     = 10;
+    static constexpr int       kSeparatorInsetDip      = 10;
+    static constexpr int       kRowPadDip              = 10;
+    static constexpr int       kRowPadTopDip           = 5;
+    static constexpr int       kCheckGutterDip         = 18;
+    static constexpr int       kAccelGapDip            = 20;
+    static constexpr int       kMinWidthDip            = 140;
+    static constexpr int       kBorderDip              = 1;
+    static constexpr int       kFallbackGlyphWidthDip  = 8;
+    static constexpr float     kFontDip                = 14.0f;
+    static constexpr float     kUnderlineThicknessDip  = 1.0f;
+    static constexpr uint64_t  kReopenGuardMs          = 250;
 
-    int   HitTestIndex    (int x, int y) const;
-    void  SetHover        (int index);
-    void  PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
-    void  RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    void  OnPopupMove     (POINT localPx);
-    void  OnPopupClick    (POINT localPx);
+    struct Palette
+    {
+        uint32_t  bg       = 0;
+        uint32_t  hover    = 0;
+        uint32_t  text     = 0;
+        uint32_t  accel    = 0;
+        uint32_t  border   = 0;
+        uint32_t  divider  = 0;
+        uint32_t  disabled = 0;
+    };
+
+    //  Where a child hangs relative to its parent row, or where a root hangs
+    //  relative to what opened it.
+    enum class Anchoring
+    {
+        Below,
+        AtPoint,
+        Beside,
+    };
+
+    static bool  IsPointInRect (const RECT & rc, int x, int y);
+
+    bool  IsSelectable       (int index) const;
+    int   FindNextSelectable (int from, int direction) const;
+    int   FindFirstSelectable () const;
+    bool  IsReopenSuppressed (const RECT & anchor) const;
+
+    int   GetRowHeightPx     (int index) const;
+    int   GetRowTopPx        (int index) const;
+    int   GetContentHeightPx () const;
+    int   MeasureRunPx       (const std::wstring & run, float fontDip, IDxuiTextRenderer & text) const;
+    int   MeasureWidthPx     (IDxuiTextRenderer & text);
+    int   GetRowAtOffset     (int relY) const;
+    int   HitTestIndex       (int x, int y) const;
+
+    void  ShowCore           (int                              originX,
+                              int                              originY,
+                              const RECT                     & anchor,
+                              Anchoring                        anchoring,
+                              std::vector<DxuiPopupMenuItem>   items,
+                              IDxuiTextRenderer              & text,
+                              const RECT                     & hostClient);
+    void  AcquirePopup       (const RECT & anchor, Anchoring anchoring);
+    void  SetHover           (int index);
+    void  OpenChild          (int index, bool highlightFirst);
+    void  CloseChild         ();
+    void  Commit             (int index);
+    DxuiPopupMenu *  GetRoot ();
+
+    Palette  ResolvePalette  () const;
+    void     PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
+    void     PaintRow        (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal,
+                              int index, float left, float top, float width, float fontDip) const;
+    void     PaintUnderline  (IDxuiPainter & painter, IDxuiTextRenderer & text, const std::wstring & stripped,
+                              int mnIdx, float labelX, float labelY, float fontDip, uint32_t ink) const;
+    void     RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void     OnPopupMove     (POINT localPx);
+    void     OnPopupClick    (POINT localPx);
 
 
-    std::vector<Item>    m_items;
+    std::vector<DxuiPopupMenuItem>              m_rows;
+    std::vector<Item>                           m_legacyItems;
+    std::vector<std::unique_ptr<DxuiCommand>>   m_ownedCommands;
+    std::unique_ptr<DxuiPopupMenu>              m_child;
+    DxuiPopupMenu                             * m_parent      = nullptr;
+    int                                         m_childRow    = -1;
+
     SelectFn             m_onSelect;
     SelectFn             m_onHighlight;
     ClosedFn             m_onClosed;
-    bool                 m_committing  = false;   // a pick is closing the menu
-    const IDxuiTheme   * m_theme       = nullptr;
-    int                  m_hover       = -1;
-    int                  m_pressed     = -1;
-    bool                 m_visible     = false;
+    ClockFn              m_clock;
+    bool                 m_committing   = false;
+    const IDxuiTheme   * m_theme        = nullptr;
+    IDxuiTextRenderer  * m_text         = nullptr;
+    int                  m_hover        = -1;
+    int                  m_pressed      = -1;
+    bool                 m_visible      = false;
+    bool                 m_hasGutter    = false;
+    bool                 m_hasAccel     = false;
+    bool                 m_showCues     = false;
+    RECT                 m_hostClient   = {};
+    RECT                 m_anchor       = {};
+    RECT                 m_lastAnchor   = {};
+    uint64_t             m_closedAtMs   = 0;
+    bool                 m_hasClosed    = false;
     DxuiDpiScaler        m_scaler;
-    DxuiHwndSource     * m_popupHost   = nullptr;
-    DxuiPopupHost      * m_activePopup = nullptr;
+    DxuiHwndSource     * m_popupHost    = nullptr;
+    DxuiPopupHost      * m_activePopup  = nullptr;
+    bool                 m_grabsCapture = true;
+
+    bool                 m_colorsSet   = false;
+    Palette              m_colors;
 };
