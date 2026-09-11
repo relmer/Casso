@@ -32,9 +32,10 @@ Paddle mode and arrows-to-joystick are mutually exclusive, since both drive PDL0
 
 - Q: How does a controller coexist with arrows-to-joystick? -> A: Mutually exclusive, but while the selected controller is disconnected the arrow keys stand in until it returns (FR-008, FR-008a).
 - Q: How is calibration triggered? -> A: Both: automatic by default (center at connect, limits from observed travel), plus a user Calibrate action that overrides it (FR-007, FR-007a).
-- Q: Should control mapping be customizable, and should a controller's settings follow it? -> A: Yes. Controller settings UI edits a per-controller profile (calibration, deadzone, mapping) that is restored automatically when that controller connects, recognized by unit and falling back to model (User Story 5, FR-018 to FR-025).
+- Q: Should control mapping be customizable, and should a controller's settings follow it? -> A: Yes. Controller settings UI edits the control mapping, calibration and deadzone, restored automatically when that controller connects (User Story 5, FR-018 to FR-025).
 - Q: Which device APIs? -> A: XInput for Xbox-class controllers and DirectInput for all other controllers. DirectInput alone cannot read an Xbox controller's triggers independently, and XInput alone does not see non-Xbox devices.
-- Q: Must identical Xbox controllers be told apart? -> A: No. Xbox-class controllers are factory-calibrated and need no calibration, so they are recognized by model only and share one profile per model (FR-018a).
+- Q: Must identical Xbox controllers be told apart? -> A: No. Xbox-class controllers are factory-calibrated and need no calibration, so they are recognized by model only (FR-018a).
+- Q: Can a user keep different mappings for different games? -> A: Yes. Named profiles per controller model, each a control mapping, chosen from the input selector and remembered per machine. Calibration is split out of the profile and stays with the physical unit (User Story 6, FR-026 to FR-030).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -114,7 +115,7 @@ A user's flight stick puts its fire button on button 3, and a Lode Runner player
 
 **Why this priority**: The default mapping covers Xbox-class controllers and most gamepads. Remapping is what makes odd joysticks, D-pad play, and personal preference work.
 
-**Independent Test**: With a mock controller, assign a nondefault button to PB0 and the D-pad to the axes; the game port follows the new controls and ignores the old ones. Save, reload, and reconnect the mock with the same identity; the mapping is restored. Connect a second mock of the same model with a different identity; it receives the model's profile.
+**Independent Test**: With a mock controller, assign a nondefault button to PB0 and the D-pad to the axes; the game port follows the new controls and ignores the old ones. Save, reload, and reconnect the mock; the mapping is restored. Connect a second mock of the same model with a different unit identity; it uses the same mapping but its own calibration.
 
 **Acceptance Scenarios**:
 
@@ -123,9 +124,27 @@ A user's flight stick puts its fire button on button 3, and a Lode Runner player
 3. **Given** an axis is marked inverted, **When** the stick is pushed fully up, **Then** PDL1 reads 255 instead of 0.
 4. **Given** both A and X are assigned to PB0, **When** either is held, **Then** PB0 reads pressed.
 5. **Given** the controller settings are open, **When** the user moves any control, **Then** the settings show the live reading of that control and of the resulting game-port values.
-6. **Given** a remapped controller, **When** the user chooses Reset to Defaults, **Then** the default mapping and automatic calibration are restored.
-7. **Given** a controller with a saved profile is unplugged and plugged back in, possibly into a different port, **When** it connects, **Then** its own mapping and calibration apply.
-8. **Given** a controller with no saved profile of its own, **When** another controller of the same model has one, **Then** the new controller starts from that model's profile.
+6. **Given** a remapped profile, **When** the user chooses Reset to Defaults, **Then** that profile's mapping returns to the default mapping.
+7. **Given** a remapped and calibrated controller is unplugged and plugged back in, possibly into a different port, **When** it connects, **Then** its active profile and its calibration apply.
+8. **Given** a DirectInput controller with no calibration of its own, **When** another controller of the same model is connected for the first time, **Then** it uses that model's profiles and starts with automatic calibration.
+
+---
+
+### User Story 6 - Keep a mapping per game and switch between them (Priority: P3)
+
+A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the analog stick, trigger as fire, and inverted Y. They save each as a named profile for the controller and pick the one they want before playing, without re-assigning controls every time they change games.
+
+**Why this priority**: Remapping without profiles means redoing the mapping on every game change, which in practice means users stop remapping.
+
+**Independent Test**: With a mock controller, create two profiles with different PB0 assignments; activating each routes only that profile's controls. Save, reload, and confirm both profiles exist and the last active one is still active.
+
+**Acceptance Scenarios**:
+
+1. **Given** a controller with only its Default profile, **When** the user creates a profile called "Lode Runner" from the current mapping and edits it, **Then** Default is unchanged.
+2. **Given** a controller with profiles "Default" and "Flight", **When** the user chooses "Flight" from the input selector, **Then** the game port follows Flight's mapping on the next sample, without opening the settings and without resetting the emulated machine.
+3. **Given** "Flight" is active for a machine, **When** Casso restarts or the user switches machines and back, **Then** "Flight" is still active on that machine.
+4. **Given** a profile, **When** the user renames, duplicates or deletes it, **Then** the list updates; deleting the active profile makes Default active.
+5. **Given** two controllers of the same model, **When** the user creates a profile on one, **Then** it is available on the other too.
 
 ### Edge Cases
 
@@ -139,14 +158,19 @@ A user's flight stick puts its fire button on button 3, and a Lode Runner player
 - **Controller with no second button** (some joysticks): PB1 stays released; nothing faults.
 - **Controllers that expose the stick on non-standard axes**: the default mapping uses the device's primary X/Y axes; the user can remap to the right ones.
 - **Many controllers attached** (8+): all appear in the selector.
-- **Two Xbox-class controllers of the same model**: both appear in the selector and share the model's profile. Selecting either selects the model; if both are connected, the one in the lower slot drives the game port.
-- **Two DirectInput controllers of the same model**: they remain distinguishable in the selector, each keeps its own profile, and the persisted selection restores the right one when possible. If a specific unit cannot be told apart after a reconnect (for example, a controller with no serial number moved to another port), it falls back to the model's profile rather than silently taking the other unit's.
+- **Two Xbox-class controllers of the same model**: both appear in the selector and share the model's profiles. Selecting either selects the model; if both are connected, the one in the lower slot drives the game port.
+- **Two DirectInput controllers of the same model**: they remain distinguishable in the selector, share the model's profiles, keep separate calibration, and the persisted selection restores the right one when possible. If a specific unit cannot be told apart after a reconnect (for example, a controller with no serial number moved to another port), it starts with automatic calibration rather than silently taking the other unit's.
+- **Profile names**: names are unique per controller model, case-insensitively. Creating or renaming to a name already in use is refused with a message; empty names are refused.
+- **Default profile**: every model always has one. It can be edited and reset, but not deleted or renamed.
+- **Profile deleted while another machine has it active**: a machine whose remembered active profile no longer exists uses Default, and does not recreate the deleted profile.
+- **Switching profiles while a button is held**: controls that stop being assigned release their targets immediately; nothing stays stuck pressed or deflected across the switch.
+- **Unsaved edits when switching profiles in the settings**: the user is asked to keep or discard them; they are never silently applied to the newly chosen profile.
 - **Assigning a control already used elsewhere**: the control is added to the new target; the settings show every target a control drives, and the user can remove the old assignment. Nothing is removed silently.
 - **Axis at rest assigned to a button target**: an analog trigger or axis assigned to a button reads pressed past a threshold, not at any nonzero value.
 - **Digital and analog sources on the same axis**: the source deflected furthest from center wins, so a D-pad press is not diluted by a stick at rest.
 - **A target with nothing assigned**: an axis reads center and a button reads released.
 - **Controller removed while its settings are open**: the settings stay open, show it disconnected, and keep unsaved edits until it returns or the user closes them.
-- **Profile data that cannot be read** (hand-edited, from a newer version): that controller falls back to defaults, and the problem is reported rather than silently producing an unmapped controller.
+- **Profile or calibration data that cannot be read** (hand-edited, from a newer version): the affected profile falls back to the default mapping, or the controller to automatic calibration, and the problem is reported rather than silently producing an unmapped controller. Readable profiles for the same model are unaffected.
 - **Pause or step**: controller state is sampled into the port the same way keyboard state is; pausing emulation does not queue stale presses.
 
 ## Requirements *(mandatory)*
@@ -166,29 +190,36 @@ A user's flight stick puts its fire button on button 3, and a Lode Runner player
 - **FR-009**: Only the selected controller MUST drive the game port; other attached controllers are ignored.
 - **FR-010**: On disconnect of the selected controller, Casso MUST return both axes to center and release both buttons within one sampling interval, then hand the joystick to the arrow keys (FR-008a), and MUST resume from that controller automatically on reconnect.
 - **FR-011**: The selection MUST persist per machine alongside the existing input-mapping preferences, and MUST be restored at launch and on machine switch. A selection whose controller is absent MUST be retained rather than discarded.
-- **FR-012**: Calibration and control mapping MUST persist together as a profile per controller and be restored automatically when that controller connects, without any user action.
+- **FR-012**: Calibration MUST persist per controller unit, profiles MUST persist per controller model, and both MUST be restored automatically when a controller connects, without any user action.
 - **FR-013**: The user MUST be able to tell when the selected controller is not connected.
 - **FR-014**: Button state MUST combine with keyboard and mouse button sources: a button reads pressed while any enabled source holds it.
 - **FR-015**: A controller-reading failure (device lost, access denied, driver error) MUST NOT fault emulation; it is treated as a disconnect, and the failure MUST be observable (for example as a disconnected indicator), not silently read as a centered stick.
 - **FR-016**: All mapping, deadzone, calibration, selection, source-combination and connect/disconnect state logic MUST be exercisable by the unit test suite through a substitute controller, with no access to real devices in unit tests.
 - **FR-017**: Machines without a game port MUST NOT offer controller selection, or MUST ignore it without faulting.
-- **FR-018**: Casso MUST recognize a controller at two levels: the specific unit, and its model (vendor and product). A profile saved for the unit MUST take precedence; failing that, a profile saved for the model applies; failing that, defaults apply.
-- **FR-018a**: Xbox-class controllers are recognized at the model level only. They are factory-calibrated, so they get no automatic calibration and no Calibrate action; their profile holds the deadzone and control mapping, shared by every controller of that model. A saved selection of an Xbox-class model matches whichever controller of that model is connected.
-- **FR-019**: Casso MUST provide controller settings UI, reachable from the input selector, where the user picks an attached controller and edits its profile: calibration (FR-007), deadzone, and control mapping.
+- **FR-018**: Casso MUST recognize a controller at two levels: the specific unit, and its model (vendor and product). Calibration is keyed by unit; profiles are keyed by model, so every controller of a model shares them. A unit with no saved calibration starts with automatic calibration.
+- **FR-018a**: Xbox-class controllers are recognized at the model level only. They are factory-calibrated, so they get no automatic calibration and no Calibrate action; the deadzone and profiles are all that apply. A saved selection of an Xbox-class model matches whichever controller of that model is connected.
+- **FR-019**: Casso MUST provide controller settings UI, reachable from the input selector, where the user picks an attached controller, edits its calibration (FR-007) and deadzone, and manages and edits its profiles.
 - **FR-020**: Each game-port target (PDL0, PDL1, PB0, PB1) MUST accept one or more assigned controls. Assignable controls are every axis, button, D-pad direction and trigger the controller reports.
 - **FR-021**: An axis target MUST accept an analog axis (optionally inverted) or a pair of digital controls (one for each direction, driving the axis to its extreme while held). A button target MUST accept a button, a D-pad direction, or an analog axis or trigger past a threshold.
 - **FR-022**: The user MUST be able to assign a control by activating it on the controller while the target is waiting for input, as well as by choosing it from a list. Waiting for input MUST be cancelable, and MUST ignore a control already deflected or held when waiting began.
 - **FR-023**: The controller settings MUST show live readings of the controller's controls and of the resulting PDL0/PDL1 and PB0/PB1 values while open.
-- **FR-024**: The user MUST be able to reset a controller's profile to defaults, and to choose whether a saved profile applies to that unit only or to every controller of its model.
+- **FR-024**: The user MUST be able to reset a profile's mapping to the default mapping.
+- **FR-026**: Each controller model MUST have a Default profile, created automatically with the default mapping (FR-003, FR-005), which can be edited and reset but not deleted or renamed.
+- **FR-027**: The user MUST be able to create a profile (from the default mapping or as a copy of an existing profile), rename it, and delete it. Profile names MUST be unique per model, case-insensitively, and nonempty.
+- **FR-028**: The active profile MUST be selectable from the input selector (Machine menu and toolbar input control) without opening the controller settings, and MUST take effect on the next sample without resetting the emulated machine.
+- **FR-029**: The active profile MUST be remembered per machine alongside the controller selection. If it no longer exists, Default MUST be used.
+- **FR-030**: Switching profiles MUST release any button and center any axis that the new profile no longer drives from a currently held or deflected control.
 - **FR-025**: The settings MUST show which controls drive more than one target, and MUST NOT remove an existing assignment as a side effect of adding one.
 
 ### Key Entities
 
 - **Controller**: an attached input device. Has a unit identity usable to recognize it across reconnects and launches, a model identity (vendor and product) shared by every unit of the same model, a human-readable product description, a connected state, the set of controls it reports, and a current sample of those controls.
 - **Controller selection**: per machine, which controller (if any) is the joystick source. Refers to a controller identity that may or may not currently be attached.
-- **Controller profile**: saved per unit or per model. Holds the calibration, the deadzone, and the control mapping. Machine-independent.
-- **Calibration**: part of a profile. Rest center and travel limits per axis, and whether they are automatic or user-set.
-- **Control mapping**: part of a profile. For each game-port target, the list of assigned controls with their options (invert for an axis, threshold for an analog control driving a button, direction for a digital control driving an axis).
+- **Controller profile**: a named control mapping belonging to a controller model, shared by every unit of that model. Each model has a Default profile plus any the user creates. Machine-independent.
+- **Active profile**: per machine and controller selection, which profile is in use.
+- **Calibration**: per DirectInput controller unit. Rest center and travel limits per axis, and whether they are automatic or user-set. Xbox-class controllers have none.
+- **Deadzone**: per controller model.
+- **Control mapping**: the content of a profile. For each game-port target, the list of assigned controls with their options (invert for an axis, threshold for an analog control driving a button, direction for a digital control driving an axis).
 - **Game port state**: the existing PDL0/PDL1 positions and PB0/PB1 states. Controller samples feed it through the same path the keyboard and mouse sources use.
 
 ## Success Criteria *(mandatory)*
@@ -202,7 +233,8 @@ A user's flight stick puts its fire button on button 3, and a Lode Runner player
 - **SC-005**: After a disconnect the game port reads centered and released within 100 ms, and after reconnect the controller drives it again within 2 seconds, with no user action in either case.
 - **SC-006**: The selection, calibration and control mapping are restored on 100% of relaunches and reconnects with the same controller attached.
 - **SC-008**: A user can reassign both buttons and switch the axes to the D-pad in under one minute from opening the controller settings.
-- **SC-009**: A controller not yet recognized as a unit, but of a model with a saved profile, drives the game port with that profile on its first connection.
+- **SC-009**: A controller not yet recognized as a unit, but of a model with saved profiles, drives the game port with those profiles available on its first connection.
+- **SC-010**: Switching the active profile from the input selector takes two actions or fewer and no more than 5 seconds, with no emulated machine reset.
 - **SC-007**: Controller support adds no measurable CPU cost while no controller is selected.
 
 ## Assumptions
@@ -210,10 +242,12 @@ A user's flight stick puts its fire button on button 3, and a Lode Runner player
 - **Scope of mapping**: one controller drives one joystick (PDL0/PDL1, PB0/PB1). A second joystick on PDL2/PDL3, PB2, rumble, and mapping controller controls to Apple II keyboard keys are out of scope for v1. The Guide button is not assignable.
 - **Automatic calibration assumes the stick is at rest when it connects**; the Calibrate action exists for the case where it is not, and for sticks whose automatic limits never settle.
 - **Device access**: XInput for Xbox-class controllers, DirectInput for everything else, with XInput devices filtered out of the DirectInput enumeration so no controller appears twice. DirectInput alone was ruled out because it reports an Xbox-class controller's two triggers on one shared axis by design, which control mapping (FR-020) cannot live with.
-- **Xbox-class controllers need no unit recognition**: XInput exposes only a slot number (0-3), with no product, vendor or serial identity, and a controller can change slots across reconnects. That would make telling two identical Xbox controllers apart unreliable, but nothing requires it: they need no calibration (FR-018a), so a per-model profile serves every unit. Recognizing the model still has to come from correlating the slot with its underlying device.
+- **Xbox-class controllers need no unit recognition**: XInput exposes only a slot number (0-3), with no product, vendor or serial identity, and a controller can change slots across reconnects. That would make telling two identical Xbox controllers apart unreliable, but nothing requires it: calibration is the only per-unit data and they need none (FR-018a). Recognizing the model still has to come from correlating the slot with its underlying device.
 - **DirectInput unit recognition is best effort**: a device without a unique serial number may not be recognized as the same unit after moving to a different port; FR-018's model-level fallback covers that case.
 - **XInput's four-controller limit** applies to Xbox-class controllers; DirectInput devices are not counted against it.
 - **Focus**: controller input applies only while Casso is the foreground window, matching the keyboard's existing button behavior.
 - **Absolute positioning**: the stick sets paddle position directly (joystick semantics). It does not integrate stick deflection into relative motion the way the mouse-to-paddle capture does.
-- **Persistence location**: the selection lives with the existing per-machine input preferences; profiles (calibration and mapping) are global and keyed by controller identity, since a stick's physical quirks and the user's preferred layout for it do not change with the emulated machine.
+- **Persistence location**: the controller selection and active profile live with the existing per-machine input preferences; profiles, calibration and deadzone are global and keyed by controller model or unit, since a stick's physical quirks and the user's layouts for it do not change with the emulated machine.
+- **Profiles are chosen by hand**: activating a profile automatically when a particular disk is inserted is out of scope for this feature.
+- **Profiles belong to a model**: a profile refers to that model's controls, so profiles are not shared across different models. Copying a profile to another model is out of scope.
 - **Deadzone default**: a conventional default (on the order of 10-15% of travel) works for most controllers without calibration.
