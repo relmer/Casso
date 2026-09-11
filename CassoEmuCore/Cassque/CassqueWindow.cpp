@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Cassque/CassqueWindow.h"
+#include "Cassque/CassquePromptDialog.h"
 #include "Cassque/CassqueShell.h"
 #include "Cassque/Model/KnownFolderStore.h"
 #include "Cassque/Model/LaunchCommand.h"
@@ -796,6 +797,12 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    if (ev.vk == VK_F2 && m_focus == Pane::List && m_browser.IsImageLocation() && m_browser.GetSelectedRows().size() == 1)
+    {
+        RunVerb (CassqueActions::Verb::Rename);
+        return true;
+    }
+
     if (ev.vk == VK_DELETE && m_focus == Pane::List && m_browser.IsImageLocation() && !m_browser.GetSelectedRows().empty())
     {
         RunVerb (CassqueActions::Verb::Delete);
@@ -1039,7 +1046,6 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
 //  CassqueWindow::ShowListContextMenu
 //
 //  The rows come from the actions' verb list; each command runs its verb.
-//  Rename waits on its dialog and is not offered yet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1054,11 +1060,6 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
     for (CassqueActions::Verb verb : m_actions.GetListVerbs())
     {
         std::unique_ptr<DxuiCommand>  command;
-
-        if (verb == CassqueActions::Verb::Rename)
-        {
-            continue;
-        }
 
         if (verb == CassqueActions::Verb::Refresh && !items.empty())
         {
@@ -1116,6 +1117,8 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
     FileDialogSpec           spec;
     int                      answer  = 0;
     CassqueActions::Outcome  outcome;
+    std::vector<FileEntry>   entries;
+    std::wstring             newName;
     HostFileNaming::Style    style   = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress)
                                      ? HostFileNaming::Style::CiderPress : HostFileNaming::Style::Descriptive;
 
@@ -1170,6 +1173,19 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
         case CassqueActions::Verb::Boot:
             ReportOutcome (m_actions.BootSelected(), L"Set startup program");
             FillList();
+            break;
+
+        case CassqueActions::Verb::Rename:
+            m_browser.GetSelectedEntries (entries);
+
+            if (entries.size() == 1
+             && CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Rename", L"New name:",
+                                          TextEncoding::NarrowToWide (entries[0].name), kMaxCatalogName, newName))
+            {
+                ReportOutcome (m_actions.RenameSelected (newName), L"Rename");
+                FillList();
+            }
+
             break;
 
         case CassqueActions::Verb::InsertDrive1:

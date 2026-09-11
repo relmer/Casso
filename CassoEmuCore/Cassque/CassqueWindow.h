@@ -68,6 +68,7 @@ public:
     bool    OnKey             (const DxuiKeyEvent & ev) override;
     LPCWSTR GetCursorForPoint (POINT clientPx) const override;
 
+    static constexpr int  kMaxCatalogName     = 30;
     static constexpr int  kMinTreeWidthDip    = 140;
     static constexpr int  kMinListWidthDip    = 220;
     static constexpr int  kMinPreviewWidthDip = 160;
