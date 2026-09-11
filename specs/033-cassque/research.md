@@ -75,7 +75,9 @@ atomic replace and read on demand rather than cached.
   missing. First-run seeding is the MRU's distinct folders.
 - `CassquePrefs.json`: theme, preview-pane state, host-naming setting,
   placement, open tabs. Casso never touches it. First-run theme seeding
-  reads Casso's `activeTheme` from `UserPrefs.json` read-only.
+  reads Casso's `activeTheme` under `global` in `UserPrefs.json` read-only;
+the top-level `activeTheme` in `GlobalUserPrefs.json` is a decoy the 032
+session lost four capture runs to.
 
 **Alternatives considered**: teaching `GlobalUserPrefs` a file lock and a
 change watcher. Rejected as a change to Casso's persistence for a

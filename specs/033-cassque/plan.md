@@ -190,7 +190,7 @@ this list; phases here through the executable need nothing from 032.
    `Cassque.rc`, solution entries, `CassqueMain.cpp` opening an empty
    `CassqueShell` window. Proves the thin-exe shape early.
 6. **Shell, gated on 032 merged**: `CassqueCommands` over `DxuiCommand`,
-   menu bar, toolbar, context menus via `DxuiContextMenu`; layout of tree,
+   menu bar, toolbar, context menus via `DxuiPopupMenu`; layout of tree,
    list, preview, tabs, status bar with splitters; routing to the models;
    drag and drop wiring; theme switching; About with the picture.
 7. **Validation and gates**: quickstart §1 through §9, `validation.md`,
