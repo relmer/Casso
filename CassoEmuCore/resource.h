@@ -122,6 +122,10 @@
 #define IDI_CASSO_FLAT_COLOR_HEAD   105
 #define IDI_CASSO_PHOTOREAL         106
 #define IDI_CASSO                   IDI_CASSO_SILHOUETTE
+// Cassque, the disk-image browser: its application icon, the lowest icon id
+// in its own module, and the cassowary picture its About box shows.
+#define IDI_CASSQUE                 107
+#define IDR_CASSQUE_CASSOWARY_PNG   600
 
 // Embedded default machine configs (RCDATA) — extracted to disk on
 // first run when the user has no Machines/ folder.

@@ -238,6 +238,8 @@
     <ClCompile Include="Machines\Apple2\Common\Dos33Volume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AssembledFilePlacement.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
+    <ClCompile Include="Cassque\CassqueMain.cpp" />
+    <ClCompile Include="Cassque\CassqueShell.cpp" />
     <ClCompile Include="Cassque\Model\BrowserModel.cpp" />
     <ClCompile Include="Cassque\Model\CassoTargeting.cpp" />
     <ClCompile Include="Cassque\Model\CassquePrefs.cpp" />
@@ -491,6 +493,7 @@
     <ClInclude Include="Machines\Apple2\Common\AssembledFilePlacement.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Volume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
+    <ClInclude Include="Cassque\CassqueShell.h" />
     <ClInclude Include="Cassque\Model\BrowserModel.h" />
     <ClInclude Include="Cassque\Model\CassoTargeting.h" />
     <ClInclude Include="Cassque\Model\CassquePrefs.h" />

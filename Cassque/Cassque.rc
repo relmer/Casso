@@ -1,0 +1,62 @@
+#include "resource.h"
+#include <windows.h>
+#include "Version.h"    // single source of truth for the app version
+
+// Application icon. The lowest icon id in this module is the one Explorer
+// shows for Cassque.exe, and it is the only one.
+IDI_CASSQUE                  ICON "..\\Resources\\Icons\\Casso-4-silhouette-accent.ico"
+
+// The cassowary the About box shows. See Assets/README.md for its source.
+IDR_CASSQUE_CASSOWARY_PNG    RCDATA "Assets\\Cassowary.png"
+
+// The same built-in themes Casso embeds. AssetBootstrap::EnsureThemes compares
+// the files on disk against the running module's embedded copies, so both
+// programs must carry identical ones or each would rewrite the other's.
+// Sources live under Resources/Themes/<Name>/.
+IDR_THEME_SKEUO_THEME_JSON         RCDATA "..\\Resources\\Themes\\Skeuomorphic\\theme.json"
+IDR_THEME_SKEUO_FONT_TTF           RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\Inter-Regular.ttf"
+IDR_THEME_SKEUO_FONT_OFL           RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\OFL.txt"
+IDR_THEME_SKEUO_FONT_TODO          RCDATA "..\\Resources\\Themes\\Skeuomorphic\\fonts\\TODO_FONTS.md"
+
+IDR_THEME_DARK_THEME_JSON          RCDATA "..\\Resources\\Themes\\DarkModern\\theme.json"
+IDR_THEME_DARK_FONT_TTF            RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\Inter-Regular.ttf"
+IDR_THEME_DARK_FONT_OFL            RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\OFL.txt"
+IDR_THEME_DARK_FONT_TODO           RCDATA "..\\Resources\\Themes\\DarkModern\\fonts\\TODO_FONTS.md"
+
+IDR_THEME_RETRO_THEME_JSON         RCDATA "..\\Resources\\Themes\\RetroTerminal\\theme.json"
+IDR_THEME_RETRO_FONT_TTF           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\VT323-Regular.ttf"
+IDR_THEME_RETRO_FONT_OFL           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\OFL.txt"
+IDR_THEME_RETRO_FONT_TODO          RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\TODO_FONTS.md"
+
+// Version Information
+VS_VERSION_INFO VERSIONINFO
+    FILEVERSION     VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
+    PRODUCTVERSION  VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
+    FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+    FILEFLAGS       VS_FF_DEBUG
+#else
+    FILEFLAGS       0
+#endif
+    FILEOS          VOS_NT_WINDOWS32
+    FILETYPE        VFT_APP
+    FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "\0"
+            VALUE "FileDescription",  "Cassque Apple ][ Disk Image Browser\0"
+            VALUE "FileVersion",      VERSION_STRING ".0\0"
+            VALUE "InternalName",     "Cassque\0"
+            VALUE "OriginalFilename", "Cassque.exe\0"
+            VALUE "ProductName",      "Casso\0"
+            VALUE "ProductVersion",   VERSION_STRING ".0\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END
