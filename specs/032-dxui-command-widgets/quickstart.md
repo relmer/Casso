@@ -51,6 +51,19 @@ difference can never be read as a code difference.
 
 ## 2. Open dropdowns, three themes
 
+**Switching theme: two files carry `activeTheme`, and the obvious one loses.**
+`GlobalUserPrefs.json` has one at its top level and setting it changes nothing.
+The effective one is `activeTheme` under `global` in `UserPrefs.json`. Set both,
+then prove it took by comparing bands against the previous theme; a run that
+wrote only the first produces nine files, reports success, carries the name of
+the theme you asked for and the pixels of the one you already had. That cost
+four capture runs to notice.
+
+Redirecting `LOCALAPPDATA` to a throwaway prefs tree does NOT work, so there is
+no zero-impact route: `PathResolver::GetLocalAppDataDir` asks
+`SHGetKnownFolderPath` first and only reads the variable if that call fails.
+Editing the real prefs and putting them back is the way.
+
 For master and branch, in Skeuomorphic, DarkModern and RetroTerminal: open
 each top-level menu by click and capture the window. Expected: the same
 rows in the same order, the same separators, disabled rows, check marks

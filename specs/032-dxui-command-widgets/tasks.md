@@ -37,7 +37,7 @@
 
 - [X] T001 Master `Casso.exe` Release x64 built from an isolated detached worktree at `origin/master` (8e58f86b, reports 1.24.2). Kept at `%TEMP%/casso-baseline` rather than under `scripts/out/baseline`: the release ships the VC runtime beside the executable, so a lone copied exe would not run. The worktree MUST sit at a short path. The session scratchpad is about 160 characters deep, and a build there dies at project load with MSB6003 over a missing tlog directory, which is MAX_PATH rather than anything in the code
 - [X] T002 Matrix captured to `scripts/out/screenshots/master` with `-DelaySecs 6`, plus a control set in `scripts/out/screenshots/master-control` from the same binary. Chrome bands verified identical across both runs for all nine states; whole images are NOT reproducible and must never be compared directly
-- [ ] T003 With the baseline binary, capture by hand each open top-level menu and the toolbar band in Skeuomorphic, DarkModern and RetroTerminal, and record the client widths at which each toolbar entry loses its label, right to left, into `scripts/out/screenshots/master/collapse-widths.txt`
+- [~] T003 Toolbar band captured in all three themes: `master` (RetroTerminal), `master-skeuo`, `master-dark`, all mutually distinct from row 0 in all nine states. See `scripts/out/screenshots/README.txt`. STILL OPEN: the open top-level menus, and the collapse widths into `collapse-widths.txt`, both of which need the window driven rather than just launched
 
 ---
 
