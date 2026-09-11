@@ -40,6 +40,10 @@ public:
         kForward,
         kUp,
         kAbout,
+        kNewTab,
+        kCloseTab,
+        kNextTab,
+        kPreviousTab,
     };
 
     enum class Menu { File, View, Go, Help, Count };
@@ -88,6 +92,9 @@ private:
 
     static constexpr Row  kRows[] =
     {
+        { kNewTab,            Menu::File, L"&New tab",            L"Ctrl+T",   false },
+        { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
+        { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },
         { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
@@ -110,6 +117,10 @@ private:
         { VK_LEFT,  false, true,  false, kBack          },
         { VK_RIGHT, false, true,  false, kForward       },
         { VK_UP,    false, true,  false, kUp            },
+        { 'T',      true,  false, false, kNewTab        },
+        { 'W',      true,  false, false, kCloseTab      },
+        { VK_TAB,   true,  false, false, kNextTab       },
+        { VK_TAB,   true,  false, true,  kPreviousTab   },
     };
 
     Handlers                                   m_handlers;

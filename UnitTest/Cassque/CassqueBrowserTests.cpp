@@ -380,11 +380,58 @@ public:
     }
 
 
+    TEST_METHOD (Tabs_KeepTheirOwnLocationAndSelection)
+    {
+        Host          host;
+        std::wstring  folder = host.OpenDisksFolder();
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
+
+        Assert::AreEqual ((size_t) 1, host.browser.NewTab());
+        Assert::IsTrue   (host.browser.GoUp());
+        Assert::AreEqual (std::wstring (L"Disks"), host.browser.GetTabLabel (1));
+
+        Assert::IsTrue   (host.browser.SwitchTab (0));
+        Assert::AreEqual (std::wstring (L"dos33.dsk"), host.browser.GetTabLabel (0));
+        Assert::AreEqual ((size_t) 1, host.browser.GetSelectedRows().size());
+        Assert::AreEqual (std::wstring (L"NOTES"), host.browser.GetRows()[host.browser.GetSelectedRows()[0]].name);
+
+        Assert::IsTrue   (host.browser.CloseTab (0));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
+        Assert::IsFalse  (host.browser.CloseTab (0));
+    }
+
+
+    TEST_METHOD (RestoreTabs_OpensEachAndActivatesTheFirst)
+    {
+        Host  host;
+
+        host.OpenDisksFolder();
+        host.browser.RestoreTabs ({ Location::MakeDiskImage (L"C:\\Disks\\prodos.po"), Location::MakeHostFolder (kDisks) });
+
+        Assert::AreEqual ((size_t) 2, host.browser.GetBrowserModel().GetTabCount());
+        Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::DiskImage);
+        Assert::IsFalse  (host.browser.GetRows().empty());
+    }
+
+
+    TEST_METHOD (LocationLabels)
+    {
+        Assert::AreEqual (std::wstring (L"C:\\"),    CassqueBrowser::GetLocationLabel (Location::MakeHostFolder (L"C:\\")));
+        Assert::AreEqual (std::wstring (L"Disks"),   CassqueBrowser::GetLocationLabel (Location::MakeHostFolder (L"C:\\Disks\\")));
+        Assert::AreEqual (std::wstring (L"SUB"),     CassqueBrowser::GetLocationLabel (Location::MakeDiskDirectory (L"C:\\a.po", "/CASSQUE/SUB")));
+    }
+
+
     TEST_METHOD (Formatting)
     {
         Assert::AreEqual (std::wstring (L"777 bytes"), CassqueBrowser::FormatSize (777));
         Assert::AreEqual (std::wstring (L"8.0 KB"),    CassqueBrowser::FormatSize (8192));
         Assert::AreEqual (std::wstring (L"1 item"),    CassqueBrowser::FormatSelection (0, 1));
         Assert::AreEqual (std::wstring (L"7 items, 3 selected"), CassqueBrowser::FormatSelection (3, 7));
+
+        //  1984-08-17 12:34, as the scratch ProDOS volume records it.
+        Assert::AreEqual (std::wstring (L"1984-08-17 12:34"), CassqueBrowser::FormatModified (461594040, true));
     }
 };

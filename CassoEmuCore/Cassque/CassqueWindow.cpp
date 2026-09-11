@@ -168,6 +168,7 @@ void CassqueWindow::OnCreate()
     m_treeSplitter    = CreateChild<DxuiSplitter>();
     m_previewSplitter = CreateChild<DxuiSplitter>();
     m_status          = CreateChild<DxuiStatusBar>();
+    m_tabs            = CreateChild<DxuiTabStrip>();
     m_menuBar         = CreateChild<DxuiMenuBar>();
 
     m_menuBar->SetPopupHost (GetPopupHost());
@@ -257,6 +258,10 @@ void CassqueWindow::ConfigureWidgets()
     });
 
     m_status->SetFields ({ { L"", 0, true }, { L"", 280, false }, { L"", 140, false } });
+
+    m_tabs->SetOnChange ([this] (int index) { SwitchToTab ((size_t) index); });
+
+    m_browser.RestoreTabs (m_prefs.tabs);
 
     m_tree->OnFocusChanged (true);
     FillList();
@@ -359,6 +364,10 @@ void CassqueWindow::RecomputeLayout()
     m_tree->Layout (RECT { body.left, body.top, sashRect.left, body.bottom }, m_scaler);
 
     right    = RECT { sashRect.right, body.top, body.right, body.bottom };
+
+    m_tabs->Layout (RECT { right.left, right.top, right.right, right.top + m_scaler.ToPx (kTabHeightDip) }, m_scaler);
+    FillTabs();
+    right.top += m_scaler.ToPx (kTabHeightDip);
     rightDip = MulDiv (right.right - right.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi());
 
     m_previewSplitter->SetVisible (preview);
@@ -454,6 +463,7 @@ void CassqueWindow::FillList()
     m_listMessage->SetVisible (!message.empty());
     m_list->SetVisible (message.empty());
 
+    FillTabs();
     FillPreview();
     FillStatus();
     Invalidate();
@@ -636,6 +646,12 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
     }
 
     if (m_treeSplitter->OnMouse (ev) || (m_previewSplitter->IsVisible() && m_previewSplitter->OnMouse (ev)))
+    {
+        Invalidate();
+        return true;
+    }
+
+    if (Contains (m_tabs->GetBounds(), point) && m_tabs->OnMouse (ev))
     {
         Invalidate();
         return true;
@@ -864,6 +880,9 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassqueCommands::kUp:                return m_browser.CanGoUp();
         case CassqueCommands::kToggleDisassembly: return model.HasTabs();
+        case CassqueCommands::kCloseTab:
+        case CassqueCommands::kNextTab:
+        case CassqueCommands::kPreviousTab:       return model.GetTabCount() > 1;
         default:                                  return true;
     }
 }
@@ -951,6 +970,27 @@ void CassqueWindow::Dispatch (int id)
             ShowAbout();
             break;
 
+        case CassqueCommands::kNewTab:
+            m_browser.NewTab();
+            refill = true;
+            break;
+
+        case CassqueCommands::kCloseTab:
+            refill = m_browser.CloseTab (m_browser.GetBrowserModel().GetActiveIndex());
+            break;
+
+        case CassqueCommands::kNextTab:
+        case CassqueCommands::kPreviousTab:
+            if (m_browser.GetBrowserModel().GetTabCount() > 1)
+            {
+                size_t  count = m_browser.GetBrowserModel().GetTabCount();
+                size_t  next  = (m_browser.GetBrowserModel().GetActiveIndex() + (id == CassqueCommands::kNextTab ? 1 : count - 1)) % count;
+
+                SwitchToTab (next);
+            }
+
+            break;
+
         default:
             break;
     }
@@ -1004,6 +1044,7 @@ void CassqueWindow::ShowAbout()
 
 void CassqueWindow::OnWindowClose()
 {
+    m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
     StorePlacement();
     Hide();
     PostQuitMessage (0);
@@ -1598,4 +1639,58 @@ DxuiMessageResult CassqueWindow::OnActivateApp (bool active)
     }
 
     return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FillTabs
+//
+//  Fixed-width tabs from the left of the strip, labeled by where each tab is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::FillTabs()
+{
+    const BrowserModel &            model  = m_browser.GetBrowserModel();
+    RECT                            strip  = m_tabs->GetBounds();
+    int                             width  = m_scaler.ToPx (kTabWidthDip);
+    std::vector<DxuiTabStrip::Tab>  tabs;
+    size_t                          index  = 0;
+
+
+
+    for (index = 0; index < model.GetTabCount(); index++)
+    {
+        DxuiTabStrip::Tab  tab;
+
+        tab.label = m_browser.GetTabLabel (index);
+        tab.rect  = RECT { strip.left + (int) index * width, strip.top, strip.left + (int) (index + 1) * width, strip.bottom };
+
+        tabs.push_back (tab);
+    }
+
+    m_tabs->SetTabs (std::move (tabs));
+    m_tabs->SetSelected ((int) model.GetActiveIndex());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SwitchToTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SwitchToTab (size_t index)
+{
+    if (m_browser.SwitchTab (index))
+    {
+        FillList();
+    }
 }

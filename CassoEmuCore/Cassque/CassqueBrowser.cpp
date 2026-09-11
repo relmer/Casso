@@ -770,7 +770,7 @@ std::vector<DxuiListView::Cell> CassqueBrowser::ToCells (const CatalogRow & row)
     cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSize (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
-    cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix, row.modifiedIsWallClock) : std::wstring(), false });
 
     return cells;
 }
@@ -806,15 +806,16 @@ std::wstring CassqueBrowser::FormatSize (uint64_t bytes)
 //
 //  CassqueBrowser::FormatModified
 //
-//  In local time, as Explorer shows it.
+//  A host file's instant in local time, as Explorer shows it; a catalog's
+//  wall-clock time as it was recorded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassqueBrowser::FormatModified (int64_t unixSeconds)
+std::wstring CassqueBrowser::FormatModified (int64_t unixSeconds, bool wallClock)
 {
     __time64_t  seconds = (__time64_t) unixSeconds;
     tm          local   = {};
-    errno_t     err     = _localtime64_s (&local, &seconds);
+    errno_t     err     = wallClock ? _gmtime64_s (&local, &seconds) : _localtime64_s (&local, &seconds);
 
 
 
@@ -1278,4 +1279,189 @@ bool CassqueBrowser::CanRemoveFromCasso (const std::wstring & id) const
 
 
     return found != m_nodes.end() && found->second.kind == TreeNode::Kind::KnownFolder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetLocationLabel
+//
+//  A folder's own name, a drive's root as written, an image's file name, and
+//  the innermost directory of a path inside an image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueBrowser::GetLocationLabel (const Location & location)
+{
+    std::wstring  path  = location.path;
+    size_t        slash = 0;
+    std::string   inner = location.innerPath;
+
+
+
+    switch (location.kind)
+    {
+        case Location::Kind::None:
+            return L"Home";
+
+        case Location::Kind::DiskDirectory:
+            slash = inner.find_last_of ("/:");
+            return TextEncoding::NarrowToWide ((slash == std::string::npos) ? inner : inner.substr (slash + 1));
+
+        default:
+            break;
+    }
+
+    while (path.size() > 3 && path.back() == L'\\')
+    {
+        path.pop_back();
+    }
+
+    if (path.size() <= 3)
+    {
+        return path;
+    }
+
+    slash = path.rfind (L'\\');
+
+    return (slash == std::wstring::npos) ? path : path.substr (slash + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetTabLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueBrowser::GetTabLabel (size_t index) const
+{
+    if (index >= m_model.GetTabCount())
+    {
+        return std::wstring();
+    }
+
+    return GetLocationLabel (m_model.GetTab (index).location);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::NewTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassqueBrowser::NewTab()
+{
+    size_t  index = m_model.OpenTab (GetLocation());
+
+
+
+    m_rootId.clear();
+    ReloadAfterNavigation();
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::SwitchTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::SwitchTab (size_t index)
+{
+    std::vector<std::wstring>  names;
+    std::vector<int>           rows;
+
+
+
+    if (!m_model.SwitchTo (index))
+    {
+        return false;
+    }
+
+    names = m_model.GetActiveTab().selection;
+    m_rootId.clear();
+    ReloadAfterNavigation();
+
+    for (size_t row = 0; row < m_rows.size(); row++)
+    {
+        if (std::find (names.begin(), names.end(), m_rows[row].name) != names.end())
+        {
+            rows.push_back ((int) row);
+        }
+    }
+
+    SetSelectedRows (rows);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::CloseTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::CloseTab (size_t index)
+{
+    if (m_model.GetTabCount() <= 1 || !m_model.CloseTab (index))
+    {
+        return false;
+    }
+
+    return SwitchTab (m_model.GetActiveIndex());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::RestoreTabs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueBrowser::RestoreTabs (const std::vector<Location> & locations)
+{
+    bool  switched = false;
+
+
+
+    if (locations.empty())
+    {
+        return;
+    }
+
+    for (bool closed = true; closed && m_model.GetTabCount() > 0; )
+    {
+        closed = m_model.CloseTab (0);
+    }
+
+    for (const Location & location : locations)
+    {
+        m_model.OpenTab (location);
+    }
+
+    switched = SwitchTab (0);
+    IGNORE_RETURN_VALUE (switched, true);
 }

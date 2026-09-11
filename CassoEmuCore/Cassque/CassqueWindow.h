@@ -18,6 +18,7 @@
 #include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiSplitter.h"
 #include "Widgets/DxuiStatusBar.h"
+#include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiTreeView.h"
 #include "Window/DxuiWindow.h"
 
@@ -69,6 +70,8 @@ public:
     LPCWSTR GetCursorForPoint (POINT clientPx) const override;
 
     static constexpr int  kMaxCatalogName     = 30;
+    static constexpr int  kTabHeightDip       = 32;
+    static constexpr int  kTabWidthDip        = 180;
     static constexpr int  kMinTreeWidthDip    = 140;
     static constexpr int  kMinListWidthDip    = 220;
     static constexpr int  kMinPreviewWidthDip = 160;
@@ -91,6 +94,8 @@ private:
     void  ApplyTheme();
     void  RecomputeLayout();
     void  FillList();
+    void  FillTabs();
+    void  SwitchToTab (size_t index);
     void  FillPreview();
     void  FillStatus();
     void  SetFocusPane (Pane pane);
@@ -141,4 +146,5 @@ private:
     DxuiFramebufferView  * m_picture         = nullptr;
     DxuiLabel            * m_previewMessage  = nullptr;
     DxuiStatusBar        * m_status          = nullptr;
+    DxuiTabStrip         * m_tabs            = nullptr;
 };

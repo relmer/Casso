@@ -99,6 +99,15 @@ CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind
     row.modifiedUnix = entry.modifiedUnix;
     row.sourceIndex  = sourceIndex;
 
+    row.modifiedIsWallClock = true;
+
+    //  A directory's auxiliary field holds nothing a reader would call an
+    //  address.
+    if (entry.isDirectory)
+    {
+        return row;
+    }
+
     if (entry.hasLoadAddress)
     {
         row.addressText = FormatAddress (entry.loadAddress);

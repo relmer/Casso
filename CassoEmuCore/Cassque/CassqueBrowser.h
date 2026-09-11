@@ -78,6 +78,18 @@ public:
     bool  CanRemoveFromCasso (const std::wstring & id) const;
     bool  TryGetNodePath     (const std::wstring & id, std::wstring & outPath) const;
 
+    //  Tabs. A new tab opens where the active one is. The last tab does not
+    //  close, since the window always shows somewhere. Switching restores
+    //  the tab's selection by name. Restoring opens one tab per location and
+    //  makes the first active; an empty list leaves the tabs as they are.
+    size_t        NewTab      ();
+    bool          CloseTab    (size_t index);
+    bool          SwitchTab   (size_t index);
+    void          RestoreTabs (const std::vector<Location> & locations);
+    std::wstring  GetTabLabel (size_t index) const;
+
+    static std::wstring  GetLocationLabel (const Location & location);
+
     //  Opens a folder or disk image row in place, as a double-click does.
     //  False, with nothing changed, for a row that is neither.
     bool  OpenRow (int row);
@@ -128,7 +140,7 @@ public:
     static DxuiTreeNode  ToTreeNode (const TreeNode & node);
 
     static std::wstring  FormatSize      (uint64_t bytes);
-    static std::wstring  FormatModified  (int64_t unixSeconds);
+    static std::wstring  FormatModified  (int64_t unixSeconds, bool wallClock);
     static std::wstring  FormatSelection (size_t selected, size_t total);
 
 private:

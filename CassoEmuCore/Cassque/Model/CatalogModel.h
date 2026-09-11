@@ -30,9 +30,14 @@ struct CatalogRow
     uint64_t      sizeBytes    = 0;
     int64_t       modifiedUnix = 0;
     bool          hasModified  = false;
-    bool          locked       = false;
-    bool          isDirectory  = false;
-    bool          isDiskImage  = false;
+
+    //  A catalog records its date as the wall-clock time where it was written,
+    //  converted with no zone; a host file's is a real instant. The first is
+    //  shown as recorded, the second in local time.
+    bool  modifiedIsWallClock = false;
+    bool  locked              = false;
+    bool  isDirectory         = false;
+    bool  isDiskImage         = false;
 
     //  Where the row came from in the listing it was built from, so a sort
     //  can be undone by the consumer and a selection can find its entry.
