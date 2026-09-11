@@ -3,6 +3,7 @@
 #include "Cassque/CassqueWindow.h"
 #include "Cassque/CassqueAbout.h"
 #include "Cassque/CassqueDragOut.h"
+#include "Cassque/CassqueNewDiskDialog.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Cassque/CassqueShell.h"
 #include "Cassque/Model/KnownFolderStore.h"
@@ -1122,6 +1123,8 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
         case CassqueActions::Verb::InsertDrive1:   return L"Insert into drive &1";
         case CassqueActions::Verb::InsertDrive2:   return L"Insert into drive &2";
         case CassqueActions::Verb::OpenInNewCasso: return L"Open in &new Casso";
+        case CassqueActions::Verb::NewDisk:        return L"New disk &image...";
+        case CassqueActions::Verb::Format:         return L"&Format disk image...";
         case CassqueActions::Verb::Refresh:        return L"&Refresh";
         default:                                   return L"";
     }
@@ -1201,14 +1204,15 @@ std::wstring CassqueWindow::GetSelectedImagePath() const
 
 void CassqueWindow::RunVerb (CassqueActions::Verb verb)
 {
-    HRESULT                  hr      = S_OK;
-    std::filesystem::path    picked;
-    bool                     chosen  = false;
-    FileDialogSpec           spec;
-    int                      answer  = 0;
-    CassqueActions::Outcome  outcome;
-    std::vector<FileEntry>   entries;
-    std::wstring             newName;
+    HRESULT                        hr      = S_OK;
+    std::filesystem::path          picked;
+    bool                           chosen  = false;
+    FileDialogSpec                 spec;
+    int                            answer  = 0;
+    CassqueActions::Outcome        outcome;
+    std::vector<FileEntry>         entries;
+    std::wstring                   newName;
+    CassqueNewDiskDialog::Outcome  newDisk;
     HostFileNaming::Style    style   = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress)
                                      ? HostFileNaming::Style::CiderPress : HostFileNaming::Style::Descriptive;
 
@@ -1285,6 +1289,36 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
 
         case CassqueActions::Verb::OpenInNewCasso:
             OpenInNewCasso (GetSelectedImagePath());
+            break;
+
+        case CassqueActions::Verb::NewDisk:
+            newDisk = CassqueNewDiskDialog::Ask (GetHwnd(), m_theme, false);
+
+            if (newDisk.confirmed)
+            {
+                ReportOutcome (m_actions.CreateImage (m_browser.GetLocation().path, newDisk.fileName, newDisk.request), L"New disk");
+                FillList();
+            }
+
+            break;
+
+        case CassqueActions::Verb::Format:
+            newDisk = CassqueNewDiskDialog::Ask (GetHwnd(), m_theme, true);
+
+            if (newDisk.confirmed)
+            {
+                answer = DxuiMessageBox (GetHwnd(), m_theme,
+                                         (L"Format " + CassqueActions::GetLeafName (m_actions.GetFormatTarget())
+                                          + L"? Everything on it will be erased.").c_str(),
+                                         L"Format", MB_YESNO | MB_ICONWARNING);
+
+                if (answer == IDYES)
+                {
+                    ReportOutcome (m_actions.FormatImage (newDisk.request), L"Format");
+                    FillList();
+                }
+            }
+
             break;
 
         case CassqueActions::Verb::Refresh:

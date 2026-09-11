@@ -45,6 +45,8 @@ public:
         InsertDrive1,
         InsertDrive2,
         OpenInNewCasso,
+        NewDisk,
+        Format,
         Refresh,
     };
 
@@ -88,6 +90,16 @@ public:
     Outcome  DeleteSelected ();
     Outcome  BootSelected   ();
     Outcome  RenameSelected (const std::wstring & newName);
+
+    //  A new image in a host folder, refused when the file exists already.
+    Outcome  CreateImage (const std::wstring & folder, const std::wstring & fileName, const DiskOperations::NewDiskRequest & request);
+
+    //  Formats the selected image in a host folder, or the image the list
+    //  shows. Everything on it is lost.
+    Outcome  FormatImage (const DiskOperations::NewDiskRequest & request);
+
+    //  The image a format would act on, or empty.
+    std::wstring  GetFormatTarget() const;
 
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
 

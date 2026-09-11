@@ -66,6 +66,7 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
         }
 
         verbs.push_back (Verb::Put);
+        verbs.push_back (Verb::Format);
     }
     else if (m_browser.AreSelectedRowsImages() && selected == 1)
     {
@@ -73,6 +74,12 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
         verbs.push_back (Verb::InsertDrive1);
         verbs.push_back (Verb::InsertDrive2);
         verbs.push_back (Verb::OpenInNewCasso);
+        verbs.push_back (Verb::Format);
+    }
+
+    if (!m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder)
+    {
+        verbs.push_back (Verb::NewDisk);
     }
 
     verbs.push_back (Verb::Refresh);
@@ -597,6 +604,110 @@ CassqueActions::Outcome CassqueActions::RenameSelected (const std::wstring & new
     if (outcome.written > 0)
     {
         FinishWrite (imagePath);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::CreateImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::CreateImage (const std::wstring & folder, const std::wstring & fileName, const DiskOperations::NewDiskRequest & request)
+{
+    Outcome       outcome;
+    std::wstring  path = CassqueBrowser::JoinPath (folder, fileName);
+    HRESULT       hr   = S_OK;
+
+
+
+    if (fileName.empty() || m_fs.Exists (path))
+    {
+        outcome.hr      = HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS);
+        outcome.message = fileName.empty() ? L"The new disk needs a file name." : fileName + L" already exists.";
+        return outcome;
+    }
+
+    Append (outcome, m_browser.GetOperations().Create (TextEncoding::WideToNarrow (path), request));
+
+    if (outcome.written > 0 && m_browser.GetLocation() == Location::MakeHostFolder (folder))
+    {
+        hr = m_browser.Reload (false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::GetFormatTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueActions::GetFormatTarget() const
+{
+    std::vector<std::wstring>  paths;
+
+
+
+    if (m_browser.IsImageLocation())
+    {
+        return m_browser.GetLocation().path;
+    }
+
+    if (m_browser.AreSelectedRowsImages())
+    {
+        m_browser.GetSelectedHostPaths (paths);
+
+        if (paths.size() == 1)
+        {
+            return paths[0];
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::FormatImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::FormatImage (const DiskOperations::NewDiskRequest & request)
+{
+    Outcome       outcome;
+    std::wstring  target = GetFormatTarget();
+
+
+
+    if (target.empty())
+    {
+        outcome.hr      = E_INVALIDARG;
+        outcome.message = L"Select one disk image to format.";
+        return outcome;
+    }
+
+    Append (outcome, m_browser.GetOperations().Init (TextEncoding::WideToNarrow (target), request));
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (target);
     }
 
     return outcome;

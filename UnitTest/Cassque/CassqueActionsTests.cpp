@@ -4,6 +4,7 @@
 #include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Cassque/CassqueActions.h"
+#include "Cassque/CassqueNewDiskDialog.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -244,6 +245,53 @@ public:
         Assert::IsTrue      (outcome.Succeeded());
         Assert::AreNotEqual (-1, host.Find (L"PUTPROG"));
         Assert::AreEqual    ((size_t) 1, host.written.size());
+    }
+
+
+    TEST_METHOD (NewDiskChoices_MapToTheRunnersNames)
+    {
+        DiskOperations::NewDiskRequest  request = CassqueNewDiskChoices::MakeRequest (1, 2, L"MYVOL", true);
+
+        Assert::AreEqual (std::string ("prodos"), request.formatName);
+        Assert::AreEqual (std::string ("po"),     request.containerType);
+        Assert::AreEqual (std::string ("MYVOL"),  request.volumeName);
+        Assert::IsTrue   (request.bootable);
+
+        request = CassqueNewDiskChoices::MakeRequest (2, 99, L"", true);
+        Assert::AreEqual (std::string ("none"), request.formatName);
+        Assert::AreEqual (std::string ("woz"),  request.containerType);
+        Assert::IsFalse  (request.bootable);
+
+        Assert::AreEqual (std::wstring (L"Games.dsk"), CassqueNewDiskChoices::ApplyExtension (L"Games", 1));
+        Assert::AreEqual (std::wstring (L"Games.po"),  CassqueNewDiskChoices::ApplyExtension (L"Games.po", 1));
+    }
+
+
+    TEST_METHOD (CreateImage_WritesANewDiskAndRefusesAnExistingName)
+    {
+        Host                            host;
+        DiskOperations::NewDiskRequest  request = CassqueNewDiskChoices::MakeRequest (0, 1, L"", false);
+
+        host.OpenImage();
+        host.browser.GoUp();
+
+        Assert::IsTrue   (host.actions.CreateImage (L"C:\\Disks", L"fresh.dsk", request).Succeeded());
+        Assert::IsTrue   (host.io.files.count ("C:\\Disks\\fresh.dsk") == 1);
+
+        Assert::IsFalse  (host.actions.CreateImage (L"C:\\Disks", L"dos33.dsk", request).Succeeded());
+    }
+
+
+    TEST_METHOD (FormatImage_EmptiesTheCatalog)
+    {
+        Host  host;
+
+        host.OpenImage();
+        Assert::AreNotEqual (-1, host.Find (L"HELLO"));
+
+        Assert::IsTrue   (host.actions.FormatImage (CassqueNewDiskChoices::MakeRequest (0, 1, L"", false)).Succeeded());
+        Assert::AreEqual (-1, host.Find (L"HELLO"));
+        Assert::AreEqual ((size_t) 1, host.written.size());
     }
 
 
