@@ -8,7 +8,7 @@
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiContextMenu.h"
 #include "Widgets/DxuiRadio.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Widgets/DxuiTooltip.h"
@@ -198,7 +198,7 @@ private:
     DxuiButton                                     * m_clearButton        = nullptr;
     DxuiListView                                   * m_eventList          = nullptr;
     DxuiTooltip                                      m_tooltip;
-    DxuiPopupMenu                                    m_columnMenu;
+    std::vector<std::unique_ptr<DxuiCommand>>        m_columnCommands;
     DxuiFocusManager                                 m_focusMgr;
 
     FilterState                              m_filter;

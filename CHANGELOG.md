@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Added
+
+- The toolbar is reachable from the keyboard. F10 or Tab into the chrome
+  focus ring walks the menu titles, the ten toolbar entries and the drives;
+  Enter on an entry activates it, and Enter on Volume opens the flyout with
+  the arrow, Home, End and page keys moving the slider until Escape.
+
+### Changed
+
+- The menu bar, the toolbar and the debug panels' right-click menus now share
+  one command model and one dropdown. Dropdowns fit their content instead of
+  a fixed width, with the check column present only in a menu that has a
+  checkable row, and accelerator hints sit against the right edge.
+
+### Fixed
+
+- CassoCli now exits quietly when the program reading its output stops early,
+  as `Select-Object -First` does. Previously, it aborted, and a Debug build
+  raised a modal error dialog.
+
 ## [1.24.2]: The one with the redist dist
 
 ### Fixed

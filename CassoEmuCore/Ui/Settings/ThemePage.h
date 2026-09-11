@@ -11,7 +11,7 @@
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiSlider.h"
 
@@ -110,8 +110,8 @@ public:
     // recovered by a downcast inside the definition.
     void  Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
-    DxuiDropdown                       & GetThemeDropdown ()       { return m_themeDropdown; }
-    const DxuiDropdown                 & GetThemeDropdown () const { return m_themeDropdown; }
+    DxuiComboBox                       & GetThemeDropdown ()       { return m_themeDropdown; }
+    const DxuiComboBox                 & GetThemeDropdown () const { return m_themeDropdown; }
     const std::vector<std::string> & GetThemes           () const { return m_themeIds; }
     int                              GetActiveThemeIndex () const { return m_activeIndex; }
 
@@ -238,7 +238,7 @@ private:
     CrtMonitorFn         m_onCrtMonitorToggled;
 
     DxuiLabel      m_themeLabel;
-    DxuiDropdown   m_themeDropdown;
+    DxuiComboBox   m_themeDropdown;
     DxuiButton     m_applyNowButton;
     DxuiCheckbox   m_crtMonitorCheckbox;
     DxuiLabel      m_aaLabel;

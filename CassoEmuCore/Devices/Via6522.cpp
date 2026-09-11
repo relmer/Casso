@@ -119,10 +119,6 @@ Byte Via6522::ReadRegister (Byte reg)
 
 void Via6522::WriteRegister (Byte reg, Byte value)
 {
-    HRESULT  hr = S_OK;
-
-
-
     switch (reg & kRegisterMask)
     {
     case kRegOrb:
@@ -230,9 +226,6 @@ void Via6522::WriteRegister (Byte reg, Byte value)
     default:
         break;
     }
-
-Error:
-    return;
 }
 
 

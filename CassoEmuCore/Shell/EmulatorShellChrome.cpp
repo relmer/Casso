@@ -598,14 +598,19 @@ void EmulatorShell::RefreshToolbarThemeList()
         row++;
     }
 
+    // An OPEN picker is mid-preview and owns the index, so a sync from here is
+    // dropped rather than fighting the highlight the user is moving -- the
+    // preview itself arrives back here as a sync.
     if (ids != m_toolbarThemeIds)
     {
         m_toolbarThemeIds = std::move (ids);
-        m_toolbar.SetThemes (displayNames, activeIndex);
+        m_mainMenu.GetCommands().SetThemeNames (displayNames);
+        m_mainMenu.GetCommands().SetThemeIndex (activeIndex);
+        m_toolbar.SetDropDownItems (EmulatorCommands::kIdTheme, m_mainMenu.GetCommands().GetThemeItems());
     }
-    else if (activeIndex >= 0)
+    else if (activeIndex >= 0 && !m_toolbar.IsMenuOpen())
     {
-        m_toolbar.SetThemeIndex (activeIndex);
+        m_mainMenu.GetCommands().SetThemeIndex (activeIndex);
     }
 }
 
@@ -664,14 +669,19 @@ void EmulatorShell::SyncToolbarState()
         m_toolbar.SetHostClientRect (client);
     }
 
-    m_toolbar.SetMachineDisplayName (std::wstring (m_machine.GetConfig().name.begin(), m_machine.GetConfig().name.end()));
+    m_mainMenu.GetCommands().SetMachineDisplayName (std::wstring (m_machine.GetConfig().name.begin(), m_machine.GetConfig().name.end()));
     m_switchBar.SetMachineDisplayName (std::wstring (m_machine.GetConfig().name.begin(), m_machine.GetConfig().name.end()));
-    m_toolbar.SetFullscreen         (m_d3dRenderer.IsFullscreen());
-    m_toolbar.SetMonitorColorIndex  (colorIndex);
+    m_mainMenu.GetCommands().SetFullscreen (m_d3dRenderer.IsFullscreen());
 
-    if (themeIndex >= 0)
+    // An OPEN picker is mid-preview and owns its index; see RefreshToolbarThemeList.
+    if (!m_toolbar.IsMenuOpen())
     {
-        m_toolbar.SetThemeIndex (themeIndex);
+        m_mainMenu.GetCommands().SetMonitorColorIndex (colorIndex);
+
+        if (themeIndex >= 0)
+        {
+            m_mainMenu.GetCommands().SetThemeIndex (themeIndex);
+        }
     }
 }
 
@@ -1187,7 +1197,12 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact
     // (DarkModern / retro) themes the top-down glyphs.
-    m_toolbar.SetInputSkeuoStyle     (!theme.compactDrives);
+    m_inputCluster.SetSkeuoStyle     (!theme.compactDrives);
+
+    // The strip continues the menu bar's themed surface (navStrip) and its
+    // labels take the bar's ink; neither is a color the generic theme
+    // mapping carries.
+    m_toolbar.SetStripColors (theme.navStrip, theme.navItemText);
 
     // Push the nav/dropdown palette onto the menu bar so both the
     // in-window strip and the popup-backed dropdown render with chrome

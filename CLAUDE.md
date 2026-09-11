@@ -87,9 +87,9 @@ merge commit or the code is on master instead.
 ## Active feature
 
 **034-game-controllers** -- Xbox controllers through XInput and other
-controllers through DirectInput, driving PDL0/PDL1/PB0/PB1 through a single
+controllers through DirectInput, driving PDL0/PDL1/PB0-PB2 through a single
 game-port mixer, with per-model profiles and per-unit calibration. GH #97.
-Menu and toolbar entries wait for 032.
+Menu and toolbar entries build on 032's command table, now on master.
 
 - Plan: `specs/034-game-controllers/plan.md`
 - Spec: `specs/034-game-controllers/spec.md`

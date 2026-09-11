@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "SourceAssembler.h"
+#include "CliOutput.h"
 #include "Utils.h"
 #include "HostFile.h"
 #include "Assembler.h"
@@ -143,12 +144,12 @@ void SourceAssembler::ReportDiagnostics (const SourceAssembler::Result & ar)
     // file stops being attributed to the top-level source.
     for (const auto & w : ar.result.warnings)
     {
-        std::println (stderr, "{}", DiagnosticFormatter::Format (w, ar.inputFile, DiagnosticSeverity::Warning));
+        CliOutput::PrintLine (stderr, "{}", DiagnosticFormatter::Format (w, ar.inputFile, DiagnosticSeverity::Warning));
     }
 
     for (const auto & e : ar.result.errors)
     {
-        std::println (stderr, "{}", DiagnosticFormatter::Format (e, ar.inputFile, DiagnosticSeverity::Error));
+        CliOutput::PrintLine (stderr, "{}", DiagnosticFormatter::Format (e, ar.inputFile, DiagnosticSeverity::Error));
     }
 
     //  A COUNT ONLY WHEN THERE IS SOMETHING TO COUNT. `CassoCli as65 joij`
@@ -158,17 +159,17 @@ void SourceAssembler::ReportDiagnostics (const SourceAssembler::Result & ar)
     //  failure has already said everything there is to say.
     if (!ar.ok && !ar.result.errors.empty())
     {
-        std::println (stderr, "Assembly failed with {} {}",
-                      ar.result.errors.size(),
-                      Utils::GetSingularOrPluralForm ((long long) ar.result.errors.size(),
-                                                      "error", "errors"));
+        CliOutput::PrintLine (stderr, "Assembly failed with {} {}",
+                              ar.result.errors.size(),
+                              Utils::GetSingularOrPluralForm ((long long) ar.result.errors.size(),
+                                                              "error", "errors"));
     }
     else if (!ar.ok && ar.sourceRead)
     {
         //  Read, not assembled, and silent about why. Nothing produces this
         //  today; it is here so that if something ever does, it says so
         //  rather than exiting non-zero with nothing on the screen.
-        std::println (stderr, "Assembly failed");
+        CliOutput::PrintLine (stderr, "Assembly failed");
     }
 }
 

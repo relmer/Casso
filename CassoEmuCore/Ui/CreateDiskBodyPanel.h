@@ -6,7 +6,7 @@
 
 class DxuiButton;
 class DxuiCheckbox;
-class DxuiDropdown;
+class DxuiComboBox;
 class DxuiLabel;
 class DxuiListView;
 class DxuiTextInput;
@@ -43,9 +43,9 @@ public:
         DxuiLabel     * pathLabel      = nullptr;
         DxuiListView  * list           = nullptr;
         DxuiLabel     * formatLabel    = nullptr;   // DOS 3.3 / ProDOS / Unformatted
-        DxuiDropdown  * format         = nullptr;
+        DxuiComboBox  * format         = nullptr;
         DxuiLabel     * imageTypeLabel = nullptr;   // WOZ / DSK / PO
-        DxuiDropdown  * imageType      = nullptr;
+        DxuiComboBox  * imageType      = nullptr;
         DxuiCheckbox  * bootable       = nullptr;
         DxuiButton    * download       = nullptr;
         DxuiLabel     * nameLabel      = nullptr;

@@ -992,7 +992,7 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     SetAlphaForRow (-1, m_restoreRowRect);
     m_restore.Paint (painter, text, theme);
 
-    // DxuiDropdown menu floats above the page; paint last so it overlays.
+    // DxuiComboBox menu floats above the page; paint last so it overlays.
     SetAlphaForRow (kControlMonitor, m_monitorRowRect);
     m_monitor.PaintMenu     (painter, text);
 

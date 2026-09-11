@@ -108,6 +108,7 @@ struct IDCompositionVisual;
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "Core/DxuiAnimation.h"
+#include "Core/DxuiCommand.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiHitTester.h"
@@ -145,7 +146,8 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Theme/IDxuiTheme.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiComboBox.h"
+#include "Widgets/DxuiContextMenu.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiMenuBar.h"
@@ -157,6 +159,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Widgets/DxuiToggle.h"
+#include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiTooltip.h"
 #include "Widgets/DxuiTreeView.h"
 #include "Window/DxuiDragDropTarget.h"

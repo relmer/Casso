@@ -8,7 +8,7 @@
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
@@ -106,9 +106,9 @@ private:
     DxuiLabel             m_pathLabel;
     DxuiListView          m_list;
     DxuiLabel             m_formatLabel;
-    DxuiDropdown          m_formatDropdown;      // DOS 3.3 / ProDOS / Unformatted
+    DxuiComboBox          m_formatDropdown;      // DOS 3.3 / ProDOS / Unformatted
     DxuiLabel             m_imageTypeLabel;
-    DxuiDropdown          m_imageTypeDropdown;   // WOZ / DSK / PO
+    DxuiComboBox          m_imageTypeDropdown;   // WOZ / DSK / PO
     DxuiCheckbox          m_bootableCheck;
     DxuiButton            m_downloadButton;
     DxuiLabel             m_nameLabel;

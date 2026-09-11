@@ -282,7 +282,6 @@ void Disk2DebugPanel::OnCreate()
     ConfigureWidgets();
     UpdateDynamicLabels();
 
-    m_columnMenu.SetPopupHost (GetPopupHost());
     m_tooltip.SetPopupHost    (GetPopupHost());
 }
 
@@ -402,47 +401,54 @@ bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
 //
 //  ShowColumnMenu
 //
-//  Builds a popup menu item for each column with the current
-//  visibility as the check state and anchors it at the click point.
-//  Selection callback is wired in ConfigureWidgets and flips the
-//  selected column's visibility, then re-runs layout so width / sort
-//  reflect the change.
+//  Builds one command per column, checked while the column is visible and
+//  flipping it when picked, then raises the window's context menu at the
+//  click point. Re-runs layout after a flip so width / sort reflect the
+//  change.
+//
+//  The menu takes the commands by pointer, so the previous set is kept
+//  alive until the new one is showing and only replaced afterwards.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
-    std::vector<DxuiPopupMenu::Item>  items;
-    IDxuiTextRenderer              *  textRenderer = GetTextRenderer();
-    RECT                              host         = { 0, 0, m_widthPx, m_heightPx };
+    DxuiHwndSource                            * host  = GetPopupHost();
+    std::vector<DxuiPopupMenuItem>              items;
+    std::vector<std::unique_ptr<DxuiCommand>>   commands;
+    size_t                                      count = m_eventList->GetColumnCount();
 
 
 
-    // Bail rather than dereference a null renderer -- the shared text
-    // renderer used to measure / lay the menu out is only available once
-    // the backend exists.
-    if (textRenderer == nullptr)
+    // No host means no popup pool to raise the menu in, which is the state
+    // before the backend exists; the click does nothing rather than
+    // dereferencing a null pointer.
+    if (host == nullptr)
     {
         return;
     }
 
-    items.reserve (m_eventList->GetColumnCount());
+    items.reserve (count);
 
-    for (size_t i = 0; i < m_eventList->GetColumnCount(); ++i)
+    for (size_t i = 0; i < count; ++i)
     {
-        DxuiPopupMenu::Item  item;
-        item.label   = m_eventList->GetColumnAt (i).title;
-        item.checked = m_eventList->IsColumnVisible (i);
-        items.push_back (std::move (item));
+        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+
+        cmd->label     = m_eventList->GetColumnAt (i).title;
+        cmd->isChecked = [this, i] () { return m_eventList->IsColumnVisible (i); };
+        cmd->dispatch  = [this, i] ()
+        {
+            m_eventList->SetColumnVisible (i, !m_eventList->IsColumnVisible (i));
+            LayoutWidgets();
+            m_focusMgr.Rebuild();
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        commands.push_back (std::move (cmd));
     }
 
-    // Hand the popup the current window theme at show time. The menu
-    // renders deferred in a pooled popup host (not the widget tree), so
-    // it can't pick the theme up from a paint-pump pass; the window theme
-    // is stable (owned by the shell), so this pointer never dangles.
-    m_columnMenu.SetTheme (m_theme);
-
-    m_columnMenu.Show (anchorX, anchorY, std::move (items), *textRenderer, host);
+    DxuiContextMenu::Show (*host, anchorX, anchorY, std::move (items));
+    m_columnCommands = std::move (commands);
 }
 
 
@@ -589,11 +595,6 @@ bool Disk2DebugPanel::OnMouseMove (const DxuiMouseEvent & ev)
         // Left explicitly.
         (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
     }
-    else if (m_columnMenu.IsVisible())
-    {
-        m_columnMenu.OnMouse (ev);
-        m_tooltip.RequestHide (GetNowMs());
-    }
     else
     {
         for (auto & cb : m_eventChecks)        { cb->SetMouseHover (x, y); }
@@ -639,11 +640,6 @@ bool Disk2DebugPanel::OnMouseDownLeft (const DxuiMouseEvent & ev)
     bool  handled = false;
 
 
-
-    if (m_columnMenu.IsVisible() && m_columnMenu.OnMouse (ev))
-    {
-        handled = true;
-    }
 
     for (auto & eventCheck : m_eventChecks)
     {
@@ -741,10 +737,6 @@ bool Disk2DebugPanel::OnMouseUpLeft (const DxuiMouseEvent & ev)
         // mid-drag, so forward the release unconditionally. DxuiWindow releases
         // the Win32 capture before routing this release.
         (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
-    }
-    else if (m_columnMenu.IsVisible() && m_columnMenu.OnMouse (ev))
-    {
-        // The menu took it.
     }
     else
     {
@@ -862,29 +854,21 @@ bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
     }
     else if (ev.kind == DxuiKeyEventKind::Down)
     {
-        if (m_columnMenu.IsVisible())
-        {
-            // The column popup, when visible, captures every key-down.
-            handled = m_columnMenu.OnKey (ev);
-        }
-        else
-        {
-            // Focused-first: the focused control sees the key before the
-            // panel's Tab traversal. A focused list owns Tab, cycling its
-            // header / divider / body sub-stops (column sort / resize / row
-            // navigation) and declining only when Tab steps past either end;
-            // focused checkboxes / buttons self-activate on Space / Enter.
-            focused = m_focusMgr.GetFocusedControl();
-            handled = (focused != nullptr) && focused->OnKey (ev);
+        // Focused-first: the focused control sees the key before the
+        // panel's Tab traversal. A focused list owns Tab, cycling its
+        // header / divider / body sub-stops (column sort / resize / row
+        // navigation) and declining only when Tab steps past either end;
+        // focused checkboxes / buttons self-activate on Space / Enter.
+        focused = m_focusMgr.GetFocusedControl();
+        handled = (focused != nullptr) && focused->OnKey (ev);
 
-            // Tab then advances the panel's control focus, once the focused
-            // control (e.g. the list at a sub-stop boundary) has declined it.
-            if (!handled && (WPARAM) ev.vk == VK_TAB)
-            {
-                m_focusMgr.HandleKey ((GetKeyState (VK_SHIFT) & 0x8000) ? DxuiFocusKey::ShiftTab
-                                                                        : DxuiFocusKey::Tab);
-                handled = true;
-            }
+        // Tab then advances the panel's control focus, once the focused
+        // control (e.g. the list at a sub-stop boundary) has declined it.
+        if (!handled && (WPARAM) ev.vk == VK_TAB)
+        {
+            m_focusMgr.HandleKey ((GetKeyState (VK_SHIFT) & 0x8000) ? DxuiFocusKey::ShiftTab
+                                                                    : DxuiFocusKey::Tab);
+            handled = true;
         }
     }
 
@@ -1247,14 +1231,6 @@ void Disk2DebugPanel::ConfigureWidgets()
     m_eventList->SetRowProvider (0, [this] (int row, std::vector<DxuiListView::Cell> & out)
     {
         FillRow (row, out);
-    });
-
-    m_columnMenu.SetOnSelect ([this] (int index)
-    {
-        if (index < 0 || index >= (int) m_eventList->GetColumnCount()) { return; }
-        m_eventList->SetColumnVisible ((size_t) index, !m_eventList->IsColumnVisible ((size_t) index));
-        LayoutWidgets();
-        m_focusMgr.Rebuild();
     });
 
     m_focusMgr.Attach  (this);

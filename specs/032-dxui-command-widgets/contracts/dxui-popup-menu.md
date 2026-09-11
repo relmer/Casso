@@ -1,0 +1,133 @@
+# Contract: DxuiPopupMenu and the menu bar over it
+
+**Feature**: 032-dxui-command-widgets | **Date**: 2026-09-10
+
+`Dxui/Widgets/DxuiPopupMenu.h`, the existing widget extended in place rather
+than replaced. Signatures are intent; the header stays authoritative.
+
+## Items
+
+```cpp
+struct DxuiPopupMenuItem
+{
+    enum class Kind { Command, Separator, Submenu };
+    Kind                            kind;
+    const DxuiCommand *             command;    // Command and Submenu
+    std::vector<DxuiPopupMenuItem>   children;   // Submenu only
+
+    static DxuiPopupMenuItem  ForCommand   (const DxuiCommand * cmd);
+    static DxuiPopupMenuItem  ForSeparator ();
+    static DxuiPopupMenuItem  ForSubmenu   (const DxuiCommand * cmd, std::vector<DxuiPopupMenuItem> children);
+};
+```
+
+## Widget
+
+```cpp
+class DxuiPopupMenu : public IDxuiControl
+{
+public:
+    using IndexFn  = std::function<void (int index)>;
+    using ClosedFn = std::function<void (bool committed)>;
+
+    void  SetDpi               (UINT dpi);
+    void  SetTheme             (const IDxuiTheme * theme);
+    void  SetPopupHost         (DxuiHwndSource * host);
+    void  SetOnHighlightChange (IndexFn fn);
+    void  SetOnClosed          (ClosedFn fn);
+    void  SetOnSelect          (IndexFn fn);
+
+    void  ShowUnder   (const RECT & anchor, std::vector<DxuiPopupMenuItem> items, IDxuiTextRenderer &, const RECT & hostClient);
+    void  ShowAt      (int x, int y,       std::vector<DxuiPopupMenuItem> items, IDxuiTextRenderer &, const RECT & hostClient);
+    void  Hide        ();
+
+    bool  IsVisible   () const;
+    int   GetHighlight () const;
+    bool  HitTest     (int x, int y) const;     // includes open children
+    void  OnMouseMove (int x, int y);
+    bool  OnLButtonDown (int x, int y);
+    bool  OnLButtonUp   (int x, int y);
+    bool  OnKey       (WPARAM vk);
+    void  Paint       (IDxuiPainter &, IDxuiTextRenderer &) const;
+};
+```
+
+Rules:
+
+- **Layout**: rows are 26 dp, font 14 dp, separators 10 dp tall with a 10 dp
+  inset, 1 dp border. Text starts after a 10 dp pad, plus an 18 dp check
+  gutter ONLY when some row in that list is checkable, which is the menu bar's
+  existing rule and must be carried across: a flat 28 dp would shift every
+  label right in the menus that have no checkable row. Width always fits
+  content: the widest label, plus an accelerator column only when some row
+  carries accelerator text, plus the same conditional gutter, plus padding,
+  with a 140 dp minimum. There is no fixed width and no setter for one, and
+  the width and the painter read the gutter rule from one place so they
+  cannot disagree.
+- **Accelerator text is right aligned** against the trailing padding. The menu
+  bar draws it at a fixed 190 dp offset today, which only worked because its
+  width never fell below 300 dp; at a fitted width a fixed offset overflows.
+- **Painting** reads the command at paint time: checked draws the check
+  glyph, disabled draws in the disabled color, an accelerator draws right
+  aligned, a submenu draws the arrow.
+- **Navigation**: Up and Down skip separators and disabled rows and wrap.
+  Right on a submenu row, or the pointer dwelling on it, opens the child;
+  Right highlights the child's first enabled row, hover leaves it
+  unhighlighted. Left or Escape with a child open closes only the child.
+  Hovering a different row of the parent closes the child.
+  Escape on the root hides uncommitted. Enter on an enabled command row
+  commits. Enter on a submenu row opens it.
+- **Callbacks**: highlight change fires on every highlight move, pointer or
+  key. Closed fires before select with `committed` true only when a row was
+  picked. Select fires with the picked row's index and then calls that
+  command's `dispatch`, if the command is enabled.
+- **Hosting**: with a popup host, each level acquires a pooled popup on
+  show and releases it on hide; children link to their parent through the
+  popup host chain so click-outside dismisses the whole chain. Without a
+  host, the owner paints it and routes to it, as today.
+- **Reopen guard**: a show requested within the close window of the last
+  hide from the same anchor is ignored. This preserves the click-to-toggle
+  behavior the toolbar pickers and the menu bar titles both have.
+
+## Context menu call
+
+```cpp
+class DxuiContextMenu
+{
+public:
+    static void  Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items);
+};
+```
+
+Rules: uses a dropdown owned by the host window, with the host's DPI,
+theme, text renderer and client rect. The host routes input to it while it
+is visible, which `DxuiHwndSource` already does for pooled popups. There is
+no completion callback: a picked row runs its command's `dispatch`, which
+is all the two debug panels use today. `Show` is a short adapter over the
+dropdown and is covered by the dropdown's headless tests plus the panels'
+manual check, not by a test of its own.
+
+## Menu bar
+
+`DxuiMenuBar` keeps its public surface for titles, mnemonics, open and
+close, focus and keyboard, and retypes `DxuiMenuBarItem::submenu` to
+`std::vector<DxuiPopupMenuItem>`. `DxuiMenuBarSubitem` is deleted, and the
+existing menu bar tests retype their item construction to match with no
+assertion changed. The bar
+owns one `DxuiPopupMenu`, shows it under the open title, swaps its items on
+Left, Right and hover-swap, and forwards Up, Down, Enter and Escape to it.
+`SetStripColors` stays; `SetDropdownColors` becomes a setter on the
+dropdown that the bar forwards, so the emulator's chrome overrides land in
+the one place.
+
+## Consumers after the change
+
+| Consumer | Before | After |
+|---|---|---|
+| `MainMenu` | `DxuiMenuBar` painting its own dropdown | titles over `DxuiPopupMenu` |
+| Toolbar pickers | three `DxuiPopupMenu` by value | one `DxuiPopupMenu` inside `DxuiToolbar` |
+| `Disk2DebugPanel`, `InputDebugPanel` | `DxuiPopupMenu` by value | `DxuiContextMenu::Show` |
+
+Nothing is removed. The widget the three consumers already hold is the widget
+they keep holding; what changes is that each stops owning its own copy and
+stops turning a row index back into an action.
