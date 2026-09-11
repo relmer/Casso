@@ -236,6 +236,7 @@
     <ClCompile Include="CommandLineTests.cpp" />
     <ClCompile Include="EmuTests\DemoAssets.cpp" />
     <ClCompile Include="CliMainTests.cpp" />
+    <ClCompile Include="CliOutputTests.cpp" />
     <ClCompile Include="CliSwitchCoverageTests.cpp" />
     <ClCompile Include="Win32DiskFileIoTests.cpp" />
     <ClCompile Include="UsageTextTests.cpp" />
