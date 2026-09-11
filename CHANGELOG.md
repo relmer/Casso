@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.24.2]: The one with the redist dist
+
+### Fixed
+
+- The release zips now include the Visual C++ runtime DLLs beside the
+  executables. Previously, a machine without the Visual C++ Redistributable
+  could not start Casso or CassoCli.
+
 ## [1.24.1]: The one with all the shouting
 
 ### Fixed

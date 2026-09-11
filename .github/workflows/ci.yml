@@ -301,6 +301,32 @@ jobs:
           # update` does not rewrite -- it swaps URLs and hashes. Per-platform
           # so extracting both still gives two directories. The zip's own name
           # keeps the version, which is what identifies a download.
+          # THE C RUNTIME SHIPS BESIDE THE EXE. The build links the dynamic CRT,
+          # so Casso.exe imports vcruntime140.dll, msvcp140.dll and their
+          # companions, and a Windows without the Visual C++ Redistributable
+          # fails to start it with STATUS_DLL_NOT_FOUND -- which is exactly how
+          # winget's validation VM saw 1.23.2 (winget-pkgs #431697), and what
+          # any user without that redist installed gets from the zip. Microsoft
+          # supports copying those DLLs next to the executable (app-local
+          # deployment), so the zip carries them.
+          #
+          # THE LIST COMES FROM THE BINARY, NOT FROM A HAND-WRITTEN TABLE: every
+          # CRT import dumpbin reports is copied from this runner's redist
+          # folder, and one it cannot find fails the release rather than
+          # shipping a zip that cannot start. The redist is the newest one in
+          # the VS install that built the binaries, so the DLLs are never older
+          # than the toolset.
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsRoot  = & $vswhere -latest -products * -property installationPath
+          $dumpbin = & $vswhere -latest -products * -find '**\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          if (-not $vsRoot -or -not $dumpbin) { throw 'Cannot locate Visual Studio or dumpbin.exe on this runner.' }
+
+          $redist = Get-ChildItem (Join-Path $vsRoot 'VC\Redist\MSVC') -Directory |
+            Where-Object { $_.Name -match '^\d+(\.\d+)+$' } |
+            Sort-Object { [version] $_.Name } -Descending |
+            Select-Object -First 1
+          if (-not $redist) { throw "No versioned redist folder under $vsRoot\VC\Redist\MSVC." }
+
           foreach ($plat in @('x64', 'ARM64')) {
             $stagingDir = "staging/Casso-$plat"
             $demoDir    = Join-Path $stagingDir 'Apple2/Demos'
@@ -310,6 +336,23 @@ jobs:
             Copy-Item README.md                    $stagingDir
             Copy-Item CHANGELOG.md                 $stagingDir
             Copy-Item LICENSE                      $stagingDir
+
+            $crtDir = Get-ChildItem (Join-Path $redist.FullName $plat) -Directory -Filter 'Microsoft.VC*.CRT' |
+              Select-Object -First 1
+            if (-not $crtDir) { throw "No Microsoft.VC*.CRT folder for $plat under $($redist.FullName)." }
+
+            $crtDlls = foreach ($exe in @('Casso.exe', 'CassoCli.exe')) {
+              & $dumpbin /DEPENDENTS "$plat/Release/$exe" |
+                Where-Object { $_ -match '^\s+((?:vcruntime|msvcp|concrt|vccorlib)\S*\.dll)\s*$' } |
+                ForEach-Object { $Matches[1].ToLowerInvariant() }
+            }
+
+            foreach ($dll in ($crtDlls | Sort-Object -Unique)) {
+              $src = Join-Path $crtDir.FullName $dll
+              if (-not (Test-Path $src)) { throw "$plat/$dll is imported but $($crtDir.FullName) has no copy of it." }
+              Copy-Item $src $stagingDir
+              Write-Host "  runtime: $plat/$dll from $($crtDir.Name)"
+            }
 
             foreach ($disk in $demos) {
               $src = Join-Path 'Apple2/Demos' $disk
