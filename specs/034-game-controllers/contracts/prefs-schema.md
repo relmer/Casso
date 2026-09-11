@@ -32,14 +32,17 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
 
 ```json
 {
-  "pdl0": [ { "analog": "axis:0", "inverted": false } ],
+  "pdl0": [ { "analog": "axis:0", "inverted": false, "response": "rate", "maxSpeed": 256 } ],
   "pdl1": [ { "negative": "dpad-up:0", "positive": "dpad-down:0" } ],
   "pb0":  [ { "control": "button:0" }, { "control": "trigger:1", "threshold": 0.12 } ],
-  "pb1":  [ { "control": "axis:2", "threshold": 0.5, "negative": true } ]
+  "pb1":  [ { "control": "axis:2", "threshold": 0.5, "negative": true } ],
+  "pb2":  [ { "control": "button:4" } ]
 }
 ```
 
 - An axis binding has either `analog` or both `negative` and `positive`.
+- `response` is `absolute` (default when absent) or `rate`; `maxSpeed` is read only for `rate` and clamped to [16, 1024].
+- `pb2` may be absent; it is kept on load and save for every machine, and ignored at evaluation on the //c.
 - `ControlId` tokens are defined in the data model.
 
 ### Rules

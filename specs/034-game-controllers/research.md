@@ -77,9 +77,26 @@ Each entry gives the decision, why, and what was rejected. Items marked **UNVERI
 
 ## R13. Sample rate
 
-- **No source recommends a rate.** Microsoft's XInput guidance covers only backing off empty slots. The constraints are FR-003's 60 Hz floor, SC-002's one-frame budget (reading at 60 Hz alone can add up to one frame of wait before a change is seen), and the device's own report interval, which is set per device by its USB descriptor; reading faster than a device reports only rereads the same state.
-- **Decision**: measure. The hardware check reads each available controller (the Xbox controller wired and wireless, and a DirectInput device) as fast as the API allows for 10 seconds while the stick is moved continuously, and counts distinct samples per second. The controller thread then samples at the highest measured report rate, rounded up to a whole-millisecond period. Until the check runs, the provisional period is 8 ms (125 Hz), which is **UNMEASURED**.
-- **Rejected**: sampling once per emulated frame (ties input to emulation speed and pause); an unmeasured high rate (wasted wakeups for no new data).
+- **No API recommends a rate, and neither reports a device's report interval.** The interval lives in the USB endpoint descriptor, which neither API exposes and which Bluetooth devices do not have.
+- **DirectInput needs no rate: it can wake on the device's own reports.** `IDirectInputDevice8::SetEventNotification` sets an event handle whenever the device's state changes (DirectInput 8 reference, `IDirectInputDevice8::SetEventNotification`; link to be confirmed during the hardware check). The controller thread waits on those handles and reads when one fires. The exception is a device whose `DIDEVCAPS` has `DIDC_POLLEDDEVICE`, which reports nothing until `Poll` is called; those are polled on the XInput cadence below. `DIPROP_BUFFERSIZE` with `GetDeviceData` additionally delivers every button transition with a sequence number, so a press shorter than a read interval is never lost.
+- **XInput has no event, only a change counter.** `XINPUT_STATE::dwPacketNumber` changes when, and only when, the controller's state changed ([XINPUT_STATE](https://learn.microsoft.com/en-us/windows/win32/api/xinput/ns-xinput-xinput_state)), so a read that returns the same packet number is skipped without further work, but the thread still has to call `XInputGetState` on a cadence.
+- **Decision**: the thread waits with `MsgWaitForMultipleObjectsEx` on the DirectInput event handles and its message queue, with a timeout equal to the XInput and polled-device period. That period is set from measurement: the hardware check counts `dwPacketNumber` changes per second while the stick moves continuously, on the Xbox controller wired and wireless, and the period becomes the fastest measured interval rounded down to a whole millisecond. With no XInput controller connected and no polled DirectInput device, the timeout is the 1 s empty-slot recheck (R4), so an idle thread costs nothing (SC-007). Until the check runs, the provisional period is 8 ms, which is **UNMEASURED**.
+- **Rejected**: one fixed rate for every device (wakes for no new data on some, lags others); sampling once per emulated frame (ties input to emulation speed and pause).
+
+## R14. Paddle games: rate-mode axis bindings
+
+- **Finding**: an absolute binding makes a self-centering stick a poor paddle. Releasing the stick sends the paddle back to the middle, and the paddle's whole travel maps onto the stick's short throw. A real paddle is a knob that stays where it is left, which is why mouse-to-paddle accumulates motion.
+- **Decision** (owner): an analog axis binding has a `Rate` response in addition to `Absolute`. In rate mode, deflection beyond the deadzone moves the paddle value at a speed proportional to deflection, up to a per-binding maximum in paddle units per second, and the value holds when the stick is released. The accumulated value is integrated on the controller thread from the elapsed time between samples, clamped to [0, 255], and reset to center when the selection, profile, or machine changes. A built-in "Paddles" template, offered when creating a profile, binds left stick X in rate mode to PDL0, right stick X in rate mode to PDL1, and A and B to PB0 and PB1.
+- **Rejected**: absolute only (unusable for paddle games on gamepads); a separate controller paddle input mode (a second place to configure the same thing profiles already hold).
+
+## R15. PB2
+
+- **Finding**: the machines already model the line, with different meanings per machine.
+  - ][ and ][+: `AppleGamePort` handles PB2 at `$C063` (`CassoEmuCore/Machines/Apple2/Common/AppleGamePort.h:18`, `SetButton` index 2).
+  - //e: `$C063` bit 7 reads the Shift key, the shift-key modification (`CassoEmuCore/Machines/Apple2/Apple2e/Apple2eKeyboard.cpp:92`). On real hardware the game-port PB2 pin and that modification share the line.
+  - //c: `$C063` is the built-in mouse button, active low, and the //c's game port has no PB2 pin.
+- **Decision**: PB2 is a mapping target on the ][, ][+ and //e. On the //e it ORs with Shift through the mixer, matching the shared line, so software reading Shift through `$C063` sees a controller PB2 press as Shift, as it would on the hardware. On the //c the PB2 target is shown as unavailable and bindings to it are ignored, so a controller cannot press the mouse button. PB2 has no default binding.
+- **Rationale for the earlier exclusion being wrong**: it was scoped out as rarely used without checking the emulator, and the line already exists on two of the three machine families.
 
 ## R12. Transient notice and opening the Settings sheet to a page
 

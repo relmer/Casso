@@ -20,6 +20,8 @@ public:
     virtual HRESULT EnumerateDevices   (std::vector<ControllerDeviceInfo> & outDevices) = 0;
     virtual HRESULT ReadSample         (const ControllerUnitKey & unit,
                                         ControllerSample        & outSample) = 0;
+    virtual void    GetWakeSources     (std::vector<HANDLE> & outEvents,
+                                        bool                & outNeedsTimedPoll) = 0;
 };
 
 class IControllerBackendEvents
@@ -39,6 +41,7 @@ public:
 | `Initialize` | Called on the controller thread. Creates the message-only window, registers for HID notifications, creates DirectInput, resolves `XInputGetCapabilitiesEx` (ordinal 108) if present. Failure of DirectInput or XInput individually is not fatal: the backend runs with whichever API succeeded and reports the missing one through `EnumerateDevices` returning no devices of that kind plus a logged HRESULT. Fails only if neither is available. |
 | `EnumerateDevices` | Returns every attached controller exactly once: XInput slots that report connected, then DirectInput game controllers (`DI8DEVCLASS_GAMECTRL`, attached only) whose `DIPROP_GUIDANDPATH` does not contain `IG_`. Order is stable for an unchanged set of devices. |
 | `ReadSample` | Fills a normalized sample (R7). A device that is gone returns `HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED)` and `outSample.connected = false`. `DIERR_INPUTLOST` / `DIERR_NOTACQUIRED` trigger one `Acquire` + `Poll` retry before failing. Never returns a centered sample with `S_OK` for a device it could not read (FR-015). |
+| Wake sources | The backend exposes the DirectInput event handles it registered with `SetEventNotification` and reports which devices need polling (`DIDC_POLLEDDEVICE`) or are XInput, so the thread waits on events and uses a timeout only for those (R13). A read of an XInput slot whose `dwPacketNumber` is unchanged returns the previous sample without decoding. |
 | `OnDevicesChanged` | Raised on the controller thread after a HID arrival or removal, at the +300 ms and +2 s rescans (R4). |
 | Activation | The backend does not know about focus. `ControllerInputService` gates samples on Casso's activation state (R2), set from the shell's `WM_ACTIVATEAPP` handling. |
 

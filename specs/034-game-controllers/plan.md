@@ -6,7 +6,7 @@
 
 ## Summary
 
-Xbox-class controllers are read through XInput and every other controller through DirectInput 8, on a dedicated controller thread that samples at a rate measured from the real devices (R13), handles hot-plug through HID device notifications, and applies input only while Casso is active. Both APIs sit behind one `IControllerBackend` seam that delivers a normalized sample; everything the spec asks for (calibration, deadzone, control mapping, profiles, selection and fallback, press-to-assign) is pure logic in `CassoEmuCore/Controllers/`, driven in tests by a scripted fake backend.
+Xbox-class controllers are read through XInput and every other controller through DirectInput 8, on a dedicated controller thread that wakes on DirectInput's own state-change events and polls XInput at a period measured from the real controllers (R13), handles hot-plug through HID device notifications, and applies input only while Casso is active. Both APIs sit behind one `IControllerBackend` seam that delivers a normalized sample; everything the spec asks for (calibration, deadzone, control mapping, profiles, selection and fallback, press-to-assign) is pure logic in `CassoEmuCore/Controllers/`, driven in tests by a scripted fake backend.
 
 A new `GamePortInputMixer` becomes the single writer of PDL0/PDL1/PB0/PB1. Today the keyboard, Alt and mouse sources overwrite each other, and a controller on another thread could not satisfy FR-014 against that; the existing writers are migrated onto the mixer first.
 
@@ -29,7 +29,7 @@ Two findings change delivery order and need the owner's attention:
 
 **Project Type**: Desktop application (emulator)
 
-**Performance Goals**: sample at the measured device report rate (R13; provisional 125 Hz, unmeasured); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: the thread idles on its message wait and rechecks empty XInput slots once per second)
+**Performance Goals**: DirectInput devices read on their own change events; XInput polled at the measured packet rate (R13; provisional 8 ms, unmeasured); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: the thread idles on its message wait and rechecks empty XInput slots once per second)
 
 **Constraints**: no redistributables; no real device access in unit tests; no undocumented API on a required path (`XInputGetCapabilitiesEx` is optional with fallback, R6); input applies only while Casso is active, and Xbox-class controllers always use XInput (FR-033)
 
@@ -143,7 +143,7 @@ Each slice leaves the build green and is committed on its own (constitution: com
 | 3 | **Play (MVP)**: default mapping, deadzone, evaluator, service, automatic selection, disconnect fallback, notice, per-machine persistence | 1, 2 | US1, US2 (auto), US3, FR-032, FR-033 | Usable end to end with no UI |
 | 4 | **Calibration** | 3 | US4 | |
 | 5 | **Controllers page**: selection, live readings, mapping edit, capture, deadzone, calibrate, Apply/Cancel, open-to-page | 3, 4 | US2 (manual), US5 | |
-| 6 | **Profiles**: store, create/rename/delete/reset, active profile per machine | 5 | US6 | |
+| 6 | **Profiles**: store, create/rename/delete/reset, active profile per machine, rate response, Paddles template, PB2 target | 5 | US6, FR-020, FR-021a | |
 | 7 | **Menu + toolbar** on 032's command table, dropdown and input cluster | 6, 032 on master | FR-008, FR-028, FR-031, SC-010 | Merge master first |
 | 8 | **Polish**: CHANGELOG, README, full gates | 7 | | |
 

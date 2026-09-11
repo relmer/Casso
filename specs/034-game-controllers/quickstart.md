@@ -28,19 +28,20 @@ Expected coverage, by contract:
 
 Research R2 and R13 depend on it. It uses a throwaway probe, not Casso.
 
-1. **Report rate**: for each controller (Xbox wired, Xbox wireless or Bluetooth, a DirectInput device), read as fast as the API allows for 10 seconds while moving the stick continuously, and count distinct samples per second. Record the numbers in R13 and set the sample period from the highest.
-2. **Second window**: with the probe's main window active, open a second top-level window of the same process and activate it. **Pass**: XInput readings keep changing. **Fail**: they freeze; record it in R2, and the Controllers page shows Xbox controllers as paused while the Settings sheet is active.
+1. **XInput packet rate**: for the Xbox controller wired and wireless (or Bluetooth), call `XInputGetState` in a tight loop for 10 seconds while moving the stick continuously, and count `dwPacketNumber` changes per second. Record the numbers in R13 and set the poll period from the fastest.
+2. **DirectInput events**: confirm `SetEventNotification` fires on stick movement for the DirectInput device, and whether it reports `DIDC_POLLEDDEVICE`.
+3. **Second window**: with the probe's main window active, open a second top-level window of the same process and activate it. **Pass**: XInput readings keep changing. **Fail**: they freeze; record it in R2, and the Controllers page shows Xbox controllers as paused while the Settings sheet is active.
 
 ## 3. Game port readout program
 
 Boot DOS 3.3 or any Applesoft prompt and enter:
 
 ```basic
-10 PRINT PDL(0); " "; PDL(1); " "; PEEK(49249) > 127; " "; PEEK(49250) > 127
+10 PRINT PDL(0); " "; PDL(1); " "; PEEK(49249) > 127; " "; PEEK(49250) > 127; " "; PEEK(49251) > 127
 20 GOTO 10
 ```
 
-`49249` and `49250` are `$C061` (PB0) and `$C062` (PB1); `1` means pressed.
+`49249`, `49250` and `49251` are `$C061` (PB0), `$C062` (PB1) and `$C063` (PB2); `1` means pressed. On the //c the last column reads the mouse button, inverted.
 
 ## 4. Scenarios
 
@@ -56,6 +57,8 @@ Boot DOS 3.3 or any Applesoft prompt and enter:
 | 8 | Make "D-pad" active, restart Casso, switch machines and back. | "D-pad" still active on that machine; Default active on the other. | FR-029, SC-006 |
 | 9 | Connect the DirectInput joystick with the stick held off center; open Controllers; run Calibrate; Apply; restart. | User calibration persists; rest reads center; limits reach 0/255. | FR-007, FR-007a, US4 |
 | 10 | Switch the ][+ and the //e with the controller selected. | PB0/PB1 reach `$C061`/`$C062` on both; Open/Solid-Apple on the //e. | US1 #5 |
+| 10a | Create a profile from the Paddles starting point on the Xbox controller; push the left stick right briefly and release. | PDL0 climbs while deflected and holds its value after release; the right stick moves PDL1 the same way. | FR-021a |
+| 10b | Bind LB to PB2; press it on the ][+, the //e and the //c. | Last column reads 1 on the ][+ and //e (and the //e treats it as Shift); on the //c the page shows PB2 unavailable and the mouse button column does not change. | FR-020 |
 | 11 | After 032 is on master: choose a controller and a profile from the Machine menu and the toolbar input control. | Selection and profile change without opening Settings, without a reset. | FR-008, FR-028, FR-031, SC-010 |
 
 ## 5. Pre-merge gates

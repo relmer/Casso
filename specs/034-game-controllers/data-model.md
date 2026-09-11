@@ -112,6 +112,8 @@ Per model: `float` fraction of travel, [0, 0.9]. Defaults and radial/axial rule 
 | kind | enum `Analog`, `DigitalPair` | |
 | analog | `ControlId` | `Axis` or `Trigger` |
 | inverted | `bool` | Analog only |
+| response | enum `Absolute`, `Rate` | Analog only (R14) |
+| maxSpeed | `float` | Rate only: paddle units per second at full deflection, [16, 1024], default 256 |
 | negative | `ControlId` | DigitalPair: drives 0 while held |
 | positive | `ControlId` | DigitalPair: drives 255 while held |
 
@@ -131,10 +133,13 @@ Per model: `float` fraction of travel, [0, 0.9]. Defaults and radial/axial rule 
 | pdl1 | `std::vector<AxisBinding>` | Empty = center |
 | pb0 | `std::vector<ButtonBinding>` | Empty = released |
 | pb1 | `std::vector<ButtonBinding>` | Empty = released |
+| pb2 | `std::vector<ButtonBinding>` | Empty = released; ignored on the //c (R15) |
 
-Evaluation rules (`MappingEvaluator`, pure): buttons OR across bindings; an axis takes the binding whose output is furthest from center; digital pair with both directions held reads center.
+Evaluation rules (`MappingEvaluator`, pure, given the elapsed time since the previous sample): buttons OR across bindings; an axis takes the binding whose output is furthest from center; digital pair with both directions held reads center. A rate binding owns an accumulator `float` in [0, 255], advanced by `deflection * maxSpeed * elapsedSeconds` after the deadzone and clamped; the accumulator lives in the evaluator, not the profile, and resets to center on selection, profile or machine change.
 
-Default mapping (`DefaultMapping::For (ControllerModelKey, controls)`): PDL0/PDL1 = axis 0/1 (Xbox: left stick); PB0/PB1 = button 0/1 (Xbox: A/B). A device lacking a control leaves that target empty.
+Default mapping (`DefaultMapping::For (ControllerModelKey, controls)`): PDL0/PDL1 = axis 0/1 absolute (Xbox: left stick); PB0/PB1 = button 0/1 (Xbox: A/B); PB2 empty. A device lacking a control leaves that target empty.
+
+Paddles template (`DefaultMapping::MakePaddles`): PDL0 = axis 0 rate, PDL1 = axis 3 rate (Xbox: right stick X; DirectInput: Rx when reported, else empty), PB0/PB1 = button 0/1.
 
 ### ControllerProfile
 
@@ -195,8 +200,8 @@ Xbox-class selection matches any unit of the selected model; with several connec
 | Field | Type | Notes |
 |---|---|---|
 | paddle | `std::optional<std::array<Byte, 2>>` | Absent = this source does not drive axes |
-| buttons | `std::bitset<2>` | PB0, PB1 |
+| buttons | `std::bitset<3>` | PB0, PB1, PB2 |
 
 ### GamePortInputMixer (pure, mutex-guarded)
 
-Sources: `FireKeys`, `AppleModifierKeys`, `MousePaddle`, `Controller`. Axis owner: `ArrowKeys`, `MousePaddle`, `Controller`, `None`, chosen from input mode plus the arrow fallback state. Final buttons = OR of all sources; final axes = owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.
+Sources: `FireKeys`, `AppleModifierKeys` (Open-Apple, Solid-Apple, and on the //e Shift as PB2), `MousePaddle`, `Controller`. Axis owner: `ArrowKeys`, `MousePaddle`, `Controller`, `None`, chosen from input mode plus the arrow fallback state. Final buttons = OR of all sources; final axes = owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.

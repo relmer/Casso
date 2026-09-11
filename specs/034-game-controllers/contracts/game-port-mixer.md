@@ -38,7 +38,8 @@ public:
 
 | Rule | Detail |
 |---|---|
-| Buttons | Final PBn = OR of every source's PBn (FR-014) |
+| Buttons | Final PBn = OR of every source's PBn for PB0-PB2 (FR-014) |
+| PB2 per machine | ][/][+: `AppleGamePort` button 2. //e: ORs with the Shift key, which is the same `$C063` line. //c: dropped, since `$C063` is the mouse button (R15) |
 | Axes | Final PDLn = the owner's contribution, or center (127) when the owner has none or is `None` |
 | Owner switch | Takes effect immediately; the new owner's last contribution is used, so arrows held when the controller reconnects stop driving the axes at once (spec edge case) |
 | Writes | The sink is called only when a final value changes, so a controller at rest writes nothing however often it is sampled |
@@ -49,7 +50,7 @@ public:
 
 | Class | Writes |
 |---|---|
-| `MachineGamePortSink` (`CassoEmuCore/Shell/`) | ][+: `AppleGamePort::SetPaddle`/`SetButton`. //e and //c: `Apple2eSoftSwitchBank::SetPaddle`, `Apple2eKeyboard::SetOpenApple`/`SetClosedApple`. Takes the machine lifetime lock with `try_to_lock`; if it is not available the write is dropped and the change set stays pending for the next submit. |
+| `MachineGamePortSink` (`CassoEmuCore/Shell/`) | ][+: `AppleGamePort::SetPaddle`/`SetButton` (indexes 0-2). //e and //c: `Apple2eSoftSwitchBank::SetPaddle`, `Apple2eKeyboard::SetOpenApple`/`SetClosedApple`; PB2 on the //e through the keyboard's Shift state, and not at all on the //c. Takes the machine lifetime lock with `try_to_lock`; if it is not available the write is dropped and the change set stays pending for the next submit. |
 | `RecordingGamePortSink` (`UnitTest/ControllerTests/`) | Records every call for assertions |
 
 ## Migration of existing writers

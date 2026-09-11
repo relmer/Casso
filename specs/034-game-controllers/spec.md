@@ -39,7 +39,9 @@ Paddle mode and arrows-to-joystick are mutually exclusive, since both drive PDL0
 - Q: How do toolbar controller and profile pickers relate to the 032 command-widget work, which replaces `CommandToolbar` and supplies the shared dropdown? -> A: 034 depends on 032. The toolbar pickers are built on 032's toolbar and dropdown widgets after 032 merges, not on today's `CommandToolbar` (FR-031).
 - Q: When a controller connects and none is selected, is it selected automatically? -> A: Yes, always: whenever the current machine has no controller selected, a newly connected controller becomes its selection, even if the user had deliberately chosen arrow keys or paddle mode (FR-032).
 - Q: Where do the controller settings live? -> A: A new Controllers page in the Settings sheet, following its Apply/Cancel model; the input selector's Controller Settings item opens the sheet to that page (FR-019).
-- Q: Does controller input apply while Casso is not the foreground window? -> A: No. Revised the same day: XInput takes priority over background input, and Windows documents XInput as focus-gated, so controller input follows Casso's activation like the keyboard. Casso counts as active while any of its windows (including the Settings sheet) is active (FR-003, FR-033).
+- Q: Does controller input apply while Casso is not the foreground window? -> A: No. Revised the same day (and see the two entries below): XInput takes priority over background input, and Windows documents XInput as focus-gated, so controller input follows Casso's activation like the keyboard. Casso counts as active while any of its windows (including the Settings sheet) is active (FR-003, FR-033).
+- Q: How does a controller serve paddle games? -> A: Analog axis bindings get a rate response that moves the paddle at a speed proportional to deflection and holds it on release, plus a "Paddles" starting point for new profiles (FR-021a).
+- Q: Why is PB2 excluded? -> A: It no longer is. PB2 is a target on the ][, ][+ and //e (shared with Shift on the //e) and unavailable on the //c, where `$C063` is the mouse button (FR-020).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -162,7 +164,7 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **Controllers page open in the Settings sheet**: the sheet is a Casso window, so controller input continues; the game port keeps following the applied mapping, and the live readings and press-to-assign keep working.
 - **Machine switch**: controller input never reaches a machine being torn down; the new machine adopts its own saved selection.
 - **Machine with no game port** (for example a configuration without one): controller selection is unavailable or has no effect, and nothing faults.
-- **Paddle games**: a controller stick drives PDL0/PDL1 as absolute positions, so paddle software (Breakout-style games reading PDL0) works with the X axis.
+- **Paddle games**: with the default absolute response, a self-centering stick returns the paddle to the middle when released. Rate response (FR-021a) makes the paddle hold its position, and the "Paddles" starting point sets up two-player paddle games on the two sticks.
 - **Controller with no second button** (some joysticks): PB1 stays released; nothing faults.
 - **Controllers that expose the stick on non-standard axes**: the default mapping uses the device's primary X/Y axes; the user can remap to the right ones.
 - **Many controllers attached** (8+): all appear in the selector.
@@ -209,10 +211,11 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **FR-018**: Casso MUST recognize a controller at two levels: the specific unit, and its model (vendor and product). Calibration is keyed by unit; profiles are keyed by model, so every controller of a model shares them. A unit with no saved calibration starts with automatic calibration.
 - **FR-018a**: Xbox-class controllers are recognized at the model level only. They are factory-calibrated, so they get no automatic calibration and no Calibrate action; the deadzone and profiles are all that apply. A saved selection of an Xbox-class model matches whichever controller of that model is connected.
 - **FR-019**: Casso MUST provide a Controllers page in the Settings sheet where the user picks an attached controller, edits its calibration (FR-007) and deadzone, and manages and edits its profiles. A Controller Settings item in the input selector MUST open the Settings sheet to that page. The page MUST follow the sheet's Apply/Cancel model: mapping, deadzone and profile edits take effect on the emulated machine only on Apply and are discarded on Cancel, while the live readings (FR-023) preview the edited mapping before it is applied.
-- **FR-020**: Each game-port target (PDL0, PDL1, PB0, PB1) MUST accept one or more assigned controls. Assignable controls are every axis, button, D-pad direction and trigger the controller reports.
+- **FR-020**: Each game-port target (PDL0, PDL1, PB0, PB1, PB2) MUST accept one or more assigned controls. PB2 is available on the ][, ][+ and //e, where on the //e it shares `$C063` with the Shift key; on the //c, whose `$C063` is the mouse button, the PB2 target MUST be shown as unavailable and its bindings ignored. PB2 has no default binding. Assignable controls are every axis, button, D-pad direction and trigger the controller reports.
 - **FR-021**: An axis target MUST accept an analog axis (optionally inverted) or a pair of digital controls (one for each direction, driving the axis to its extreme while held). A button target MUST accept a button, a D-pad direction, or an analog axis or trigger past a threshold.
+- **FR-021a**: An analog axis binding MUST offer two responses. **Absolute**: stick position sets paddle position. **Rate**: deflection beyond the deadzone moves the paddle at a speed proportional to deflection, up to a user-set maximum speed, and the paddle holds its position when the stick is released; the held position resets to center when the controller selection, the active profile, or the machine changes. Creating a profile MUST offer a "Paddles" starting point: left stick X in rate mode to PDL0, right stick X in rate mode to PDL1, first two face buttons to PB0 and PB1.
 - **FR-022**: The user MUST be able to assign a control by activating it on the controller while the target is waiting for input, as well as by choosing it from a list. Waiting for input MUST be cancelable, and MUST ignore a control already deflected or held when waiting began.
-- **FR-023**: The controller settings MUST show live readings of the controller's controls and of the resulting PDL0/PDL1 and PB0/PB1 values while open.
+- **FR-023**: The controller settings MUST show live readings of the controller's controls and of the resulting PDL0/PDL1 and PB0-PB2 values while open.
 - **FR-024**: The user MUST be able to reset a profile's mapping to the default mapping.
 - **FR-025**: The settings MUST show which controls drive more than one target, and MUST NOT remove an existing assignment as a side effect of adding one.
 - **FR-026**: Each controller model MUST have a Default profile, created automatically with the default mapping (FR-003, FR-005), which can be edited and reset but not deleted or renamed.
@@ -233,7 +236,7 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **Calibration**: per DirectInput controller unit. Rest center and travel limits per axis, and whether they are automatic or user-set. Xbox-class controllers have none.
 - **Deadzone**: per controller model.
 - **Control mapping**: the content of a profile. For each game-port target, the list of assigned controls with their options (invert for an axis, threshold for an analog control driving a button, direction for a digital control driving an axis).
-- **Game port state**: the existing PDL0/PDL1 positions and PB0/PB1 states. Controller samples feed it through the same path the keyboard and mouse sources use.
+- **Game port state**: the existing PDL0/PDL1 positions and PB0-PB2 states. Controller samples feed it through the same path the keyboard and mouse sources use.
 
 ## Success Criteria *(mandatory)*
 
@@ -252,14 +255,14 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 
 ## Assumptions
 
-- **Scope of mapping**: one controller drives one joystick (PDL0/PDL1, PB0/PB1). A second joystick on PDL2/PDL3, PB2, rumble, and mapping controller controls to Apple II keyboard keys are out of scope for v1. The Guide button is not assignable.
+- **Scope of mapping**: one controller drives PDL0/PDL1 and PB0-PB2. PDL2/PDL3, rumble, and mapping controller controls to Apple II keyboard keys are out of scope for v1. The Guide button is not assignable.
 - **Automatic calibration assumes the stick is at rest when it connects**; the Calibrate action exists for the case where it is not, and for sticks whose automatic limits never settle.
 - **Device access**: XInput for Xbox-class controllers, DirectInput for everything else, with XInput devices filtered out of the DirectInput enumeration so no controller appears twice. DirectInput alone was ruled out because it reports an Xbox-class controller's two triggers on one shared axis by design, which control mapping (FR-020) cannot live with.
 - **Xbox-class controllers need no unit recognition**: XInput exposes only a slot number (0-3), with no product, vendor or serial identity, and a controller can change slots across reconnects. That would make telling two identical Xbox controllers apart unreliable, but nothing requires it: calibration is the only per-unit data and they need none (FR-018a). Recognizing the model still has to come from correlating the slot with its underlying device.
 - **DirectInput unit recognition is best effort**: a device without a unique serial number may not be recognized as the same unit after moving to a different port; FR-018's model-level fallback covers that case.
 - **XInput's four-controller limit** applies to Xbox-class controllers; DirectInput devices are not counted against it.
 - **Focus**: controller input applies only while Casso is active (FR-033). Background input was considered and dropped: Windows documents XInput as gated by window focus, and XInput is required for Xbox controllers.
-- **Absolute positioning**: the stick sets paddle position directly (joystick semantics). It does not integrate stick deflection into relative motion the way the mouse-to-paddle capture does.
+- **Absolute positioning by default**: the default mapping sets paddle position directly (joystick semantics); rate response is opt-in per binding (FR-021a).
 - **Persistence location**: the controller selection and active profile live with the existing per-machine input preferences; profiles, calibration and deadzone are global and keyed by controller model or unit, since a stick's physical quirks and the user's layouts for it do not change with the emulated machine.
 - **Profiles are chosen by hand**: activating a profile automatically when a particular disk is mounted is tracked by GH #78, which owns known-disk recognition. The profile storage here must allow a profile to be looked up by controller model and profile name so that work can associate disks with profiles.
 - **Profiles belong to a model**: a profile refers to that model's controls, so profiles are not shared across different models. Copying a profile to another model is out of scope.
