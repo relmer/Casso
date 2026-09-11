@@ -18,10 +18,9 @@
 #include "Devices/IAciaEndpoint.h"
 #include "Print/PrinterWorker.h"
 #include "Seams/Win32Clipboard.h"
-#include "Seams/Win32HostCapsLock.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Shell/AudioSampleBudget.h"
-#include "Shell/Input/CapsLockLatch.h"
+#include "Shell/Input/CapsLockTracker.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/FrameClock.h"
@@ -329,7 +328,6 @@ private:
     DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
-    DxuiMessageResult  OnSetFocus      () override;
     DxuiMessageResult  OnKillFocus     () override;
 
     // Release the guest keyboard latch + auto-repeat + modifiers. Called on
@@ -366,6 +364,10 @@ private:
     // clipboard, write the PNG if saving is on, and say what happened.
     // Bound to the toolbar camera, Edit > Copy screenshot, and Ctrl+Alt+C.
     void TakeScreenshot();
+
+    // Paste the clipboard's text into the guest keyboard with Caps Lock
+    // applied, and say so when that changed the text. Ctrl+V and Edit > Paste.
+    void PasteClipboardText();
 
     // Hands the //e keyboard the real time that has passed since the previous
     // CPU-thread frame, which is what its auto-repeat cadence runs on. Not
@@ -2011,11 +2013,10 @@ private:
     Win32HostDialogs                          m_hostDialogs;
     ModernPrintDialog                         m_printDialog;
 
-    // The Caps Lock key an Apple ][ ships latched down, driven onto the host
-    // keyboard while this window has focus. Declared after the host toggle it
-    // holds a reference to.
-    Win32HostCapsLock                         m_hostCapsLock;
-    CapsLockLatch                             m_capsLockLatch { m_hostCapsLock };
+    // Whether the //e and //c Caps Lock key is down: down until the first
+    // Caps Lock press in this window, the host's from then on. Session-scoped,
+    // so a machine switch keeps it and every launch starts over.
+    CapsLockTracker                           m_capsLock;
 
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;

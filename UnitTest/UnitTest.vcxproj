@@ -346,7 +346,7 @@
     <ClCompile Include="EmuTests\MmuTests.cpp" />
     <ClCompile Include="EmuTests\ResetSemanticsTests.cpp" />
     <ClCompile Include="EmuTests\EmulatorShellResetTests.cpp" />
-    <ClCompile Include="EmuTests\CapsLockLatchTests.cpp" />
+    <ClCompile Include="EmuTests\CapsLockTrackerTests.cpp" />
     <ClCompile Include="EmuTests\VideoTimingTests.cpp" />
     <ClCompile Include="EmuTests\TextScreenScraper.cpp" />
     <ClCompile Include="EmuTests\KeystrokeInjector.cpp" />
@@ -553,7 +553,6 @@
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
     <ClInclude Include="EmuTests\MachineIdle.h" />
-    <ClInclude Include="EmuTests\FakeHostCapsLock.h" />
     <ClInclude Include="EmuTests\FakeImageWatcher.h" />
     <ClInclude Include="EmuTests\FakeIntentChannel.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />

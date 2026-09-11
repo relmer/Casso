@@ -3,6 +3,7 @@
 #include "ClipboardManager.h"
 
 #include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Shell/Input/CapsLockTracker.h"
 
 
 
@@ -302,27 +303,35 @@ void ClipboardManager::BuildDib (const CapturedImage & image, std::vector<Byte> 
 //  own pace, so delivery is paced by DrainPasteBuffer against the strobe; this
 //  function only fills the buffer.
 //
+//  Caps Lock applies as it would to the same text typed: with it down, a
+//  lower-case letter goes in upper case. Returns true when that changed at
+//  least one letter, so the caller can say why the paste differs from the
+//  clipboard.
+//
 //  The buffer is filled under the command mutex because it is drained on the
 //  CPU thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::PasteFromClipboard (HWND hwnd)
+bool ClipboardManager::PasteFromClipboard (HWND hwnd, bool capsLockOn)
 {
     std::wstring  text;
+    bool          raisedLetters = false;
 
 
 
     if (!m_clipboard.GetText (hwnd, text))
     {
-        return;
+        return false;
     }
 
     {
         std::lock_guard<std::mutex>  lock (m_cmdMutex);
 
-        AppendPasteText (text, m_pasteBuffer);
+        raisedLetters = AppendPasteText (text, capsLockOn, m_pasteBuffer);
     }
+
+    return raisedLetters;
 }
 
 
@@ -335,11 +344,14 @@ void ClipboardManager::PasteFromClipboard (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::AppendPasteText (const std::wstring & text, std::string & pasteBuffer)
+bool ClipboardManager::AppendPasteText (const std::wstring & text, bool capsLockOn, std::string & pasteBuffer)
 {
     constexpr Byte     kCarriageReturn = 0x0D;
     constexpr wchar_t  kNewline        = L'\n';
     constexpr wchar_t  kReturn         = L'\r';
+    bool               raisedLetters   = false;
+    Byte               typed           = 0;
+    Byte               delivered       = 0;
 
 
 
@@ -356,9 +368,14 @@ void ClipboardManager::AppendPasteText (const std::wstring & text, std::string &
         }
         else if (ch >= kPrintableLow && ch < (wchar_t) (kPrintableHigh + 1))
         {
-            pasteBuffer += static_cast<char> (ch);
+            typed         = static_cast<Byte> (ch);
+            delivered     = CapsLockTracker::ApplyCapsLock (typed, capsLockOn);
+            raisedLetters = raisedLetters || delivered != typed;
+            pasteBuffer  += static_cast<char> (delivered);
         }
     }
+
+    return raisedLetters;
 }
 
 
