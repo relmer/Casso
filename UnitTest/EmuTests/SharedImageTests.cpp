@@ -4,6 +4,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/CommitPlan.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -303,6 +304,51 @@ public:
         Assert::IsTrue (rig.watcher.watched[0] == std::string (kDirectory),
                         L"the directory, not the file: a rename over the image "
                         L"would take a file watch out with it");
+    }
+
+
+
+    //  A WOZ whose write-protect flag the store can patch: ordinary bytes,
+    //  nothing damaged, mounted from a path so the bay records an identity.
+    static vector<Byte> MakeWoz()
+    {
+        DiskImage     src;
+        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  woz;
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, src));
+        src.SetSourceFormat (DiskFormat::Woz);
+        AssertSucceeded (WozLoader::Serialize (src, woz));
+
+        return woz;
+    }
+
+
+
+    TEST_METHOD (WriteProtectingAWozIsNotReportedAsAChangeFromOutside)
+    {
+        //  The store wrote this file itself, at the user's request, so the
+        //  identity it watches has to move with it. It did not, and the next
+        //  poll found bytes that disagreed with the mount-time identity and
+        //  reported the disk as changed outside Casso -- over a change made
+        //  from the Disk menu two seconds earlier.
+        Rig          rig;
+        std::string  wozPath = "C:\\work\\Loader.woz";
+
+
+
+        rig.files[wozPath] = MakeWoz();
+        rig.Stamp (wozPath);
+
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, wozPath));
+        AssertSucceeded (rig.store.SetImageWriteProtect (kSlot, kDrive, true));
+
+        rig.FireAndSettle (wozPath);
+
+        Assert::AreEqual ((size_t) 0, rig.reports.size(),
+            L"the user's own write-protect must not come back as somebody else's edit");
+        Assert::AreEqual ((size_t) 0, rig.questions.size(),
+            L"and it must not raise the question either");
     }
 
 

@@ -32,6 +32,8 @@ Entries before versioning was introduced use dates only.
   write protection.
 - The padlock on a drive appears and clears as soon as the disk is
   write-protected or write-enabled, rather than at the next repaint.
+- Write-protecting a WOZ image no longer triggers the external disk
+  modification notification.
 - CassoCli now exits quietly when the program reading its output stops early,
   as `Select-Object -First` does. Previously, it aborted, and a Debug build
   raised a modal error dialog.
