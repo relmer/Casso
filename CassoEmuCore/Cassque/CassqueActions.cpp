@@ -433,7 +433,7 @@ CassqueActions::Outcome CassqueActions::GetSelected (const std::wstring & hostFo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring> & hostPaths)
+CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress)
 {
     Outcome        outcome;
     std::wstring   imagePath = m_browser.GetLocation().path;
@@ -470,6 +470,11 @@ CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring
         {
             outcome.hr       = E_FAIL;
             outcome.message += (outcome.message.empty() ? L"" : L"\n") + GetLeafName (hostPath) + L": " + plan.refusal;
+            continue;
+        }
+
+        if (plan.guessedAddress && askAddress && !askAddress (GetLeafName (hostPath), plan.loadAddress, plan.loadAddress))
+        {
             continue;
         }
 
@@ -711,4 +716,64 @@ CassqueActions::Outcome CassqueActions::FormatImage (const DiskOperations::NewDi
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::TryParseAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::TryParseAddress (const std::wstring & text, Word & outAddress)
+{
+    std::wstring  digits = text;
+    int           base   = 16;
+    wchar_t     * end    = nullptr;
+    unsigned long value  = 0;
+
+
+
+    while (!digits.empty() && iswspace (digits.front()))
+    {
+        digits.erase (digits.begin());
+    }
+
+    while (!digits.empty() && iswspace (digits.back()))
+    {
+        digits.pop_back();
+    }
+
+    if (!digits.empty() && digits[0] == L'$')
+    {
+        digits.erase (0, 1);
+    }
+    else if (digits.size() > 2 && digits[0] == L'0' && (digits[1] == L'x' || digits[1] == L'X'))
+    {
+        digits.erase (0, 2);
+    }
+    else if (!digits.empty() && digits[0] == L'#')
+    {
+        digits.erase (0, 1);
+        base = 10;
+    }
+
+    if (digits.empty() || !iswxdigit (digits[0]))
+    {
+        return false;
+    }
+
+    value = wcstoul (digits.c_str(), &end, base);
+
+    if (end == nullptr || *end != L'\0' || value > 0xFFFF)
+    {
+        return false;
+    }
+
+    outAddress = (Word) value;
+
+    return true;
 }

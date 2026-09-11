@@ -295,6 +295,62 @@ public:
     }
 
 
+    TEST_METHOD (Put_BinaryAsksForItsAddress)
+    {
+        Host               host;
+        std::vector<Byte>  binary (300, 0x60);
+        int                asked = 0;
+
+        host.SeedBytes (binary, L"C:\\In\\routine.obj");
+        host.OpenImage();
+
+        CassqueActions::Outcome  outcome = host.actions.PutFiles ({ L"C:\\In\\routine.obj" },
+            [&asked] (const std::wstring &, Word suggested, Word & outAddress)
+            {
+                asked++;
+                Assert::AreEqual ((int) 0x0803, (int) suggested);
+                outAddress = 0x6000;
+                return true;
+            });
+
+        Assert::IsTrue      (outcome.Succeeded());
+        Assert::AreEqual    (1, asked);
+        Assert::AreNotEqual (-1, host.Find (L"ROUTINE"));
+    }
+
+
+    TEST_METHOD (Put_DeclinedAddressSkipsTheFile)
+    {
+        Host               host;
+        std::vector<Byte>  binary (300, 0x60);
+
+        host.SeedBytes (binary, L"C:\\In\\skip.obj");
+        host.OpenImage();
+
+        CassqueActions::Outcome  outcome = host.actions.PutFiles ({ L"C:\\In\\skip.obj" },
+            [] (const std::wstring &, Word, Word &) { return false; });
+
+        Assert::AreEqual (0, outcome.written);
+        Assert::AreEqual (-1, host.Find (L"SKIP"));
+    }
+
+
+    TEST_METHOD (Address_ParsesTheUsualForms)
+    {
+        Word  address = 0;
+
+        Assert::IsTrue   (CassqueActions::TryParseAddress (L"$2000", address));
+        Assert::AreEqual ((int) 0x2000, (int) address);
+        Assert::IsTrue   (CassqueActions::TryParseAddress (L" 0x0803 ", address));
+        Assert::AreEqual ((int) 0x0803, (int) address);
+        Assert::IsTrue   (CassqueActions::TryParseAddress (L"#768", address));
+        Assert::AreEqual ((int) 768, (int) address);
+        Assert::IsFalse  (CassqueActions::TryParseAddress (L"$10000", address));
+        Assert::IsFalse  (CassqueActions::TryParseAddress (L"zz", address));
+        Assert::IsFalse  (CassqueActions::TryParseAddress (L"", address));
+    }
+
+
     TEST_METHOD (Put_OutsideAnImage_IsRefused)
     {
         Host  host;

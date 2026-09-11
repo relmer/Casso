@@ -78,6 +78,10 @@ public:
 
     using WrittenFn = std::function<void (const std::wstring & imagePath)>;
 
+    //  Asked once per binary file whose name records no address, with the
+    //  address the content suggests. False skips the file.
+    using AddressFn = std::function<bool (const std::wstring & hostName, Word suggested, Word & outAddress)>;
+
     CassqueActions (CassqueBrowser & browser, IFileSystem & fs);
 
     void  SetOnImageWritten (WrittenFn fn) { m_onWritten = std::move (fn); }
@@ -86,7 +90,7 @@ public:
     std::vector<Verb>  GetListVerbs() const;
 
     Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style);
-    Outcome  PutFiles       (const std::vector<std::wstring> & hostPaths);
+    Outcome  PutFiles       (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {});
     Outcome  DeleteSelected ();
     Outcome  BootSelected   ();
     Outcome  RenameSelected (const std::wstring & newName);
@@ -114,6 +118,10 @@ public:
     static std::string  SanitizeCatalogName (const std::wstring & stem, VolumeKind kind);
 
     static std::wstring  GetLeafName (const std::wstring & path);
+
+    //  An address as typed: $2000, 0x2000 or 2000 are hexadecimal, as the
+    //  Apple II writes addresses; a leading # marks decimal.
+    static bool  TryParseAddress (const std::wstring & text, Word & outAddress);
 
 private:
     void  FinishWrite (const std::wstring & imagePath);

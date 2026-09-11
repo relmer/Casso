@@ -1243,7 +1243,7 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
 
             if (SUCCEEDED (hr) && chosen)
             {
-                outcome = m_actions.PutFiles ({ picked.wstring() });
+                outcome = m_actions.PutFiles ({ picked.wstring() }, MakeAddressPrompt());
                 ReportOutcome (outcome, L"Put");
                 FillList();
             }
@@ -1830,7 +1830,7 @@ void CassqueWindow::BeginDragOut()
 
 void CassqueWindow::OnDropFile (const std::wstring & path)
 {
-    ReportOutcome (m_actions.PutFiles ({ path }), L"Put");
+    ReportOutcome (m_actions.PutFiles ({ path }, MakeAddressPrompt()), L"Put");
     FillList();
 }
 
@@ -1865,4 +1865,41 @@ bool CassqueWindow::IsCassoThemeName (const std::string & name)
     return name == CassquePrefs::kThemeSkeuomorphic
         || name == CassquePrefs::kThemeDarkModern
         || name == CassquePrefs::kThemeRetroTerminal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::MakeAddressPrompt
+//
+//  Asks for a binary's load address, prefilled with the content's
+//  suggestion, and asks again after an address that does not parse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::AddressFn CassqueWindow::MakeAddressPrompt()
+{
+    return [this] (const std::wstring & hostName, Word suggested, Word & outAddress)
+    {
+        std::wstring  text = std::format (L"${:04X}", suggested);
+
+        for (;;)
+        {
+            if (!CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Load Address",
+                                           hostName + L" is a binary. Load address:", text, 8, text))
+            {
+                return false;
+            }
+
+            if (CassqueActions::TryParseAddress (text, outAddress))
+            {
+                return true;
+            }
+
+            ShowMessage (L"Type an address from $0000 to $FFFF.", MB_ICONWARNING);
+        }
+    };
 }

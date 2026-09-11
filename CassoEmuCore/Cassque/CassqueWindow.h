@@ -113,6 +113,7 @@ private:
     void  ShowListContextMenu (int x, int y);
     void  BeginDragOut();
     void  OnDropFile (const std::wstring & path);
+    CassqueActions::AddressFn  MakeAddressPrompt();
     void  ShowTreeContextMenu (int x, int y, const std::wstring & id);
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
     void  RebuildTree();
