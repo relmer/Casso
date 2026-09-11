@@ -86,14 +86,15 @@ merge commit or the code is on master instead.
 <!-- SPECKIT START -->
 ## Active feature
 
-**031-thin-exe-shim** -- both executables are now linker targets holding no
-code: `Casso.exe` went from 93,927 lines and 1,235 functions to zero of each,
-and `CassoCli.exe`'s `main` went with it. Closes GH #85.
+**034-game-controllers** -- Xbox controllers through XInput and other
+controllers through DirectInput, driving PDL0/PDL1/PB0/PB1 through a single
+game-port mixer, with per-model profiles and per-unit calibration. GH #97.
+Menu and toolbar entries wait for 032.
 
-- Plan: `specs/031-thin-exe-shim/plan.md`
-- Spec: `specs/031-thin-exe-shim/spec.md`
-- Measurements: `specs/031-thin-exe-shim/measurements.md`
-- Executable contract: `specs/031-thin-exe-shim/contracts/executable-project.md`
-- Machine layout contract: `specs/031-thin-exe-shim/contracts/machine-layout.md`
-- Validation: `specs/031-thin-exe-shim/quickstart.md`
+- Plan: `specs/034-game-controllers/plan.md`
+- Spec: `specs/034-game-controllers/spec.md`
+- Research: `specs/034-game-controllers/research.md`
+- Data model: `specs/034-game-controllers/data-model.md`
+- Contracts: `specs/034-game-controllers/contracts/`
+- Validation: `specs/034-game-controllers/quickstart.md`
 <!-- SPECKIT END -->
