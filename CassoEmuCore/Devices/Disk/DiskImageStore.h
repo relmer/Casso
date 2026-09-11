@@ -280,6 +280,20 @@ public:
 
     void          SetBayChangeSink (BayChangeSink sink) { m_bayChangeSink = std::move (sink); }
 
+    //  What a settled change to a mounted image was decided to be, reported
+    //  once per decision so a tool that stated the intent can be told.
+    //
+    //  `guestCopyPreserved` says the guest's unsaved writes were moved to
+    //  `preservedPath` before the decision was taken again as an ordinary
+    //  change. A decision that puts a question to the user is not reported;
+    //  nothing has been decided yet.
+    //
+    //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where the decision is taken.
+    using DecisionSink = std::function<void (const string & path, ChangeAction action,
+                                             bool guestCopyPreserved, const string & preservedPath)>;
+
+    void          SetDecisionSink (DecisionSink sink) { m_decisionSink = std::move (sink); }
+
     //  The user answered a question this store asked.
     //
     //  ON THE THREAD THAT OWNS DISK WRITES, like every other entry point that
@@ -618,6 +632,7 @@ private:
     AskSink                  m_askSink;
     RescueSink               m_rescueSink;
     BayChangeSink            m_bayChangeSink;
+    DecisionSink             m_decisionSink;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;
 

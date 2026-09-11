@@ -56,6 +56,19 @@ public:
 
     bool  Exists () const;
 
+    //  The folders a disk picker scans: every known folder, then each of the
+    //  recent-disks list's folders not already among them, so the picker
+    //  never loses a folder it showed before the list existed.
+    static std::vector<std::filesystem::path>  MergePickerFolders (const std::vector<Entry>          & known,
+                                                                   const std::vector<DiskMru::Entry> & mru);
+
+    //  Loads the list for a picker, seeding it from the recent disks on first
+    //  use. A file that cannot be read yields the recent disks' folders alone.
+    static std::vector<std::filesystem::path>  LoadPickerFolders (IFileSystem                       & fs,
+                                                                  const std::wstring                & baseDir,
+                                                                  const std::vector<DiskMru::Entry> & mru,
+                                                                  int64_t                             nowUnix);
+
     static std::wstring  GetFilePath (const std::wstring & baseDir);
     static bool          ArePathsEqual (const std::wstring & a, const std::wstring & b);
 

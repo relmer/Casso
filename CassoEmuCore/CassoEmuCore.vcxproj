@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -247,6 +247,9 @@
     <ClCompile Include="Cassque\Model\DragPayload.cpp" />
     <ClCompile Include="Cassque\Model\HostFileNaming.cpp" />
     <ClCompile Include="Cassque\Model\KnownFolderStore.cpp" />
+    <ClCompile Include="Cassque\Model\LaunchCommand.cpp" />
+    <ClCompile Include="Seams\IntentReplyTracker.cpp" />
+    <ClCompile Include="Seams\Win32ProcessLauncher.cpp" />
     <ClCompile Include="Cassque\Model\PicturePreview.cpp" />
     <ClCompile Include="Cassque\Model\PreviewDecoder.cpp" />
     <ClCompile Include="Cassque\Model\TreeModel.cpp" />
@@ -496,6 +499,10 @@
     <ClInclude Include="Cassque\Model\DragPayload.h" />
     <ClInclude Include="Cassque\Model\HostFileNaming.h" />
     <ClInclude Include="Cassque\Model\KnownFolderStore.h" />
+    <ClInclude Include="Cassque\Model\LaunchCommand.h" />
+    <ClInclude Include="Seams\IntentReplyTracker.h" />
+    <ClInclude Include="Seams\IProcessLauncher.h" />
+    <ClInclude Include="Seams\Win32ProcessLauncher.h" />
     <ClInclude Include="Cassque\Model\Location.h" />
     <ClInclude Include="Cassque\Model\PicturePreview.h" />
     <ClInclude Include="Cassque\Model\PreviewDecoder.h" />

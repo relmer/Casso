@@ -987,6 +987,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     }
 
     InstallChangeReporting();
+    InstallIntentReplies();
     InstallIntentMessageFilter();
 
 Error:
@@ -1033,7 +1034,14 @@ void EmulatorShell::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.GetHitTester(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
+    //  A drop is a hand-off like an insert from another tool: its folder joins
+    //  the known-folder list once the mount succeeds, with nobody to answer.
+    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.GetHitTester(), [this] (int tag, const std::wstring & path)
+                                          {
+                                              m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
+                                              Mount (6, tag, path);
+                                          },
+                                          IsSupportedDiskImageExtension);
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
 
     // UIPI whitelist. When Casso runs at a higher integrity

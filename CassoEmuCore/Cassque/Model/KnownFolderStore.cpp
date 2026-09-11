@@ -81,6 +81,85 @@ bool KnownFolderStore::ArePathsEqual (const std::wstring & a, const std::wstring
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  KnownFolderStore::MergePickerFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::filesystem::path> KnownFolderStore::MergePickerFolders (
+    const std::vector<Entry>           & known,
+    const std::vector<DiskMru::Entry>  & mru)
+{
+    std::vector<std::filesystem::path>  merged;
+    std::vector<std::filesystem::path>  recent = DiskMru::DistinctFolders (mru);
+
+
+
+    for (const Entry & entry : known)
+    {
+        bool  already = std::any_of (merged.begin(), merged.end(), [&entry] (const std::filesystem::path & p)
+                                     { return ArePathsEqual (p.wstring(), entry.path); });
+
+        if (!already)
+        {
+            merged.push_back (std::filesystem::path (entry.path));
+        }
+    }
+
+    for (const std::filesystem::path & folder : recent)
+    {
+        bool  already = std::any_of (merged.begin(), merged.end(), [&folder] (const std::filesystem::path & p)
+                                     { return ArePathsEqual (p.wstring(), folder.wstring()); });
+
+        if (!already)
+        {
+            merged.push_back (folder);
+        }
+    }
+
+    return merged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KnownFolderStore::LoadPickerFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::filesystem::path> KnownFolderStore::LoadPickerFolders (
+    IFileSystem                        & fs,
+    const std::wstring                 & baseDir,
+    const std::vector<DiskMru::Entry>  & mru,
+    int64_t                              nowUnix)
+{
+    KnownFolderStore    store (fs, baseDir);
+    std::vector<Entry>  known;
+    HRESULT             hr    = S_OK;
+
+
+
+    hr = store.SeedFromMru (mru, nowUnix);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = store.Load (known);
+
+    if (FAILED (hr))
+    {
+        known.clear();
+    }
+
+    return MergePickerFolders (known, mru);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  KnownFolderStore::Exists
 //
 ////////////////////////////////////////////////////////////////////////////////

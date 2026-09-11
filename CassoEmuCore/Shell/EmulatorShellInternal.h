@@ -26,6 +26,7 @@
 #define WM_APP_MOUNT_COMPLETED (WM_APP + 0x25)
 #define WM_APP_CHANGE_REPORT   (WM_APP + 0x26)
 #define WM_APP_CHANGE_ASK      (WM_APP + 0x27)
+#define WM_APP_INTENT_REPLY    (WM_APP + 0x28)
 
 
 

@@ -29,6 +29,11 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
+#include "Cassque/Model/KnownFolderStore.h"
+#include "Cassque/Model/LaunchCommand.h"
+#include "Config/Win32FileSystem.h"
+#include "Core/PathResolver.h"
+#include "Seams/Win32ProcessLauncher.h"
 
 
 
@@ -428,6 +433,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { OnViewCommand (id); }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { OnViewCommand (id); }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { OnViewCommand (id); }
+    else if (id == IDM_DISK_OPEN_CASSQUE)                                  { OnDiskCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_PRINT)                                      { OnPrinterCommand (id); }
@@ -1282,6 +1288,17 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, bool & outMountSta
                                       && !AssetBootstrap::IsForeignCheckoutDisk (p);
                            });
 
+    {
+        Win32FileSystem  fs;
+        int64_t          nowUnix = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                       std::chrono::system_clock::now().time_since_epoch()).count();
+
+        AssetBootstrap::AppendSiblingDisksFromFolders (
+            KnownFolderStore::LoadPickerFolders (fs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                 mruPruned, nowUnix),
+            mruPruned);
+    }
+
     AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
     AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 
@@ -1370,6 +1387,50 @@ void WindowCommandManager::OnDiskCommand (int id)
             m_shell.PostCommand (static_cast<WORD> (id));
             break;
         }
+
+        case IDM_DISK_OPEN_CASSQUE:
+        {
+            OpenCassque();
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenCassque
+//
+//  Starts the disk browser beside this executable, telling it which emulator
+//  launched it. A browser this emulator already launched fronts itself and
+//  exits, so a second click brings the first window forward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OpenCassque()
+{
+    Win32ProcessLauncher     launcher;
+    std::wstring             moduleDir = PathResolver::GetExecutableDirectory().wstring();
+    LaunchCommand::Outcome   outcome   = LaunchCommand::Outcome::Launched;
+    std::wstring             message;
+
+
+
+    outcome = LaunchCommand::LaunchCassque (launcher, moduleDir, m_shell.m_hwnd, m_shell.m_titlePrefix);
+
+    if (outcome == LaunchCommand::Outcome::Missing)
+    {
+        message = LaunchCommand::DescribeMissing (LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassqueExe));
+        EhmNotifyUser (message.c_str());
+    }
+    else if (outcome == LaunchCommand::Outcome::Failed)
+    {
+        message = L"Cassque could not be started\nWindows refused to start "
+                + LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassqueExe) + L".";
+        EhmNotifyUser (message.c_str());
     }
 }
 

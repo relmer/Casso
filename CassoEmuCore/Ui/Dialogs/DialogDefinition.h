@@ -71,6 +71,21 @@ struct DialogButton
 
 
 
+//
+//  A picture drawn centered above the body: straight-alpha RGBA rows, top
+//  first, and the square it is shown in. An About box that explains a name
+//  with a photograph is the case; an app icon keeps using DialogIcon.
+//
+struct DialogImage
+{
+    std::vector<Byte>  rgba;
+    int                width     = 0;
+    int                height    = 0;
+    float              displayDp = 0.0f;
+};
+
+
+
 struct DialogPaintContext
 {
     DxuiPainter       * painter        = nullptr;
@@ -106,6 +121,10 @@ struct DialogDefinition
     float                      iconSizeOverrideDp = 0.0f;
     std::vector<DialogTextRun> body;
     std::vector<DialogButton>  buttons;
+
+    // A picture above the body. Takes the place of an app icon when both are
+    // set, since the two occupy the same spot.
+    std::optional<DialogImage> image;
 
     // When set, a window-close gesture (title-bar X, Alt+F4, Escape)
     // returns this result code instead of the cancel button's. Use to

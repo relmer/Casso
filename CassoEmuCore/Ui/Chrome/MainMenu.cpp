@@ -37,6 +37,8 @@ static constexpr MainMenuCommandEntry  s_kEntries[] =
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
     { IDM_DISK_WP2,                 MainMenuId::Disk,    L"Write-&protect disk 2",  nullptr          },
     { IDM_DISK_SALVAGE2,            MainMenuId::Disk,    L"Salvage readable sec&tors...", nullptr    },
+    { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
+    { IDM_DISK_OPEN_CASSQUE,        MainMenuId::Disk,    L"Browse disks in Cassq&ue...", nullptr     },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Full screen",           L"Alt+Enter"     },
     { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (full screen)", L"Ctrl+D"      },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },

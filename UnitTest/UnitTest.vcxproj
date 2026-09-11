@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -345,6 +345,8 @@
     <ClCompile Include="Cassque\CassquePrefsTests.cpp" />
     <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
     <ClCompile Include="Cassque\DragPayloadTests.cpp" />
+    <ClCompile Include="UiTests\IntentReplyTests.cpp" />
+    <ClCompile Include="UiTests\KnownFolderPickerTests.cpp" />
     <ClCompile Include="EmuTests\VolumeRenameTests.cpp" />
     <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
@@ -564,6 +566,7 @@
     <ClInclude Include="EmuTests\FakeHostCapsLock.h" />
     <ClInclude Include="EmuTests\FakeImageWatcher.h" />
     <ClInclude Include="EmuTests\FakeIntentChannel.h" />
+    <ClInclude Include="Cassque\FakeProcessLauncher.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />
     <ClInclude Include="Dxui\MockDxuiControl.h" />
     <ClInclude Include="Dxui\MockDxuiPainter.h" />

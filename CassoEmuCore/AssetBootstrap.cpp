@@ -1356,6 +1356,29 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable)
 {
     std::vector<fs::path>  folders = DiskMru::DistinctFolders (mountable);
+
+
+
+    AppendSiblingDisksFromFolders (folders, mountable);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendSiblingDisksFromFolders
+//
+//  The scan AppendSiblingDisksFromMruFolders describes, over a folder list the
+//  caller supplies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssetBootstrap::AppendSiblingDisksFromFolders (
+    const std::vector<fs::path>    & folders,
+    std::vector<DiskMru::Entry>    & mountable)
+{
     std::vector<fs::path>  discovered;
 
 

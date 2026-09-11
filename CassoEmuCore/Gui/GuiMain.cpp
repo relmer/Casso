@@ -16,6 +16,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
+#include "Cassque/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Window/DxuiMessageBox.h"
 
@@ -344,6 +345,13 @@ static HRESULT LoadMachineConfig (
                                        return fs::exists (p)
                                               && !AssetBootstrap::IsForeignCheckoutDisk (p);
                                    });
+
+            AssetBootstrap::AppendSiblingDisksFromFolders (
+                KnownFolderStore::LoadPickerFolders (fs_prefs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                     mruPruned,
+                                                     (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                                         std::chrono::system_clock::now().time_since_epoch()).count()),
+                mruPruned);
 
             AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
             AssetBootstrap::AppendBundledDemoDisks (mruPruned);

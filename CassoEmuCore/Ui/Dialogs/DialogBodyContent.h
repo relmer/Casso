@@ -37,6 +37,15 @@ public:
     // run stack at `displaySizeDip` square. Pass empty pixels for none.
     void  SetIcon  (std::vector<uint32_t> bgraPremul, int srcW, int srcH, int displaySizeDip);
 
+    // A DialogImage in the same spot, converted from straight-alpha RGBA.
+    // False when the image's size and its bytes disagree.
+    bool  SetImage (const DialogImage & image);
+
+    // Straight-alpha RGBA bytes to premultiplied BGRA pixels, the form the
+    // icon bitmap draw takes. Empty when the byte count is not width x
+    // height x 4.
+    static std::vector<uint32_t>  ToPremultipliedBgra (const DialogImage & image);
+
     // Optional semantic icon glyph (Segoe MDL2 Assets codepoint) drawn in
     // a left column at `sizeDip` square, with the run stack inset to its
     // right. `argb` is the glyph color. Pass glyph 0 for none. Mutually

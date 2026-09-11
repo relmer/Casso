@@ -42,6 +42,9 @@
 #define IDM_DISK_SALVAGE1           40070
 #define IDM_DISK_SALVAGE2           40071
 
+// Start the disk browser beside this executable.
+#define IDM_DISK_OPEN_CASSQUE       40080
+
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that
 //  owns disk writes, so it travels as a command like every other mount-path

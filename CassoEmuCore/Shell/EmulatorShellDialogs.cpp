@@ -371,19 +371,27 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 
 
 
-    std::unique_ptr<DialogBodyContent>  content   = std::make_unique<DialogBodyContent>();
+    std::unique_ptr<DialogBodyContent>  content    = std::make_unique<DialogBodyContent>();
     MessageDialog                       dlg;
     DxuiWindow::CreateParams            params;
     std::vector<MessageDialog::Button>  buttons;
-    HRESULT                             hr        = S_OK;
-    int                                 heightDip = 0;
-    int                                 widthDip  = 0;
-    int                                 result    = -1;
+    HRESULT                             hr         = S_OK;
+    int                                 heightDip  = 0;
+    int                                 widthDip   = 0;
+    int                                 result     = -1;
+    bool                                imageShown = false;
 
 
     content->SetRuns (def.body);
 
-    if (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat)
+    // A picture takes the app icon's place above the body; a severity glyph
+    // sits beside the body and is unaffected.
+    if (def.image.has_value())
+    {
+        imageShown = content->SetImage (*def.image);
+    }
+
+    if (!imageShown && (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat))
     {
         std::vector<uint32_t>  iconPixels;
         int                    iconW   = 0;

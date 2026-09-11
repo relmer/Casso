@@ -32,4 +32,10 @@ enum class ExternalChangeIntent
     Unstated,
     ReloadInPlace,
     Restart,
+
+    //  Not changes to a mounted image but requests of the emulator, carried on
+    //  the same channel so a second tool needs no second protocol: put this
+    //  image in a drive, and say what machine is running.
+    InsertDisk,
+    DescribeMachine,
 };

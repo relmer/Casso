@@ -20,6 +20,8 @@
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostCapsLock.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/IntentReplyTracker.h"
+#include "Seams/Win32IntentChannel.h"
 #include "Shell/AudioSampleBudget.h"
 #include "Shell/Input/CapsLockLatch.h"
 #include "Shell/ClipboardManager.h"
@@ -1232,6 +1234,28 @@ private:
     // Initialize, before the message loop that would service it is running.
     void    HandleMountCompletion (const MountCompletion & completion);
 
+    // An answer to a tool that asked, carried to the UI thread when the
+    // outcome was known on another one.
+    struct IntentReplyPost
+    {
+        HWND                       target = nullptr;
+        Win32IntentChannel::Reply  reply;
+    };
+
+    // Sends one answer, from the UI thread. A tool that has gone away is
+    // not an error: the send simply finds no window.
+    void    SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
+
+    // Posts one answer to the UI thread from whichever thread knows it.
+    void    PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
+
+    // Records the folder a handed-off disk lives in, in the known-folder
+    // list the disk browser and the picker share.
+    void    RecordKnownFolder (const std::string & imagePath);
+
+    // Wires the store's decision report to the tools waiting on a reload.
+    void    InstallIntentReplies ();
+
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
     // dialog. Nothing had ever installed one, so they all fell through to
@@ -1781,6 +1805,10 @@ private:
     // controller.
     DriveWidgetController  m_driveWidgets;
     DxuiDragDropTarget     m_dragDropTarget;
+
+    // Tools waiting on an insert or a reload, and hand-offs whose folder is
+    // recorded once the mount succeeds.
+    IntentReplyTracker     m_intentReplies;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired

@@ -28,6 +28,13 @@
 //  duration of the call, which posting cannot promise -- and the send carries a
 //  timeout, so a hung emulator cannot hang a build.
 //
+//  A SECOND DIRECTION, FOR A TOOL THAT WAITS FOR AN ANSWER. A request to insert
+//  a disk or describe the machine is sent to one window, with the sender's own
+//  window in `wParam`, and the emulator answers with a WM_COPYDATA of its own
+//  under a second registered id. The two ids keep the directions apart, and a
+//  fire-and-forget writer that passes no window gets no answer, exactly as
+//  before.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class Win32IntentChannel : public IIntentChannel
@@ -41,6 +48,9 @@ public:
     //  filter that lets the message through the integrity boundary takes a
     //  WINDOW MESSAGE and cannot see this, so it is checked in the handler.
     static ULONG_PTR  GetMessageId();
+
+    //  What an answer from the emulator carries in its `dwData`.
+    static ULONG_PTR  GetReplyMessageId();
 
     //  The window class every Casso emulator window is registered under.
     static constexpr const wchar_t *  kWindowClass = L"CassoWindow";
@@ -57,6 +67,27 @@ public:
     {
         ExternalChangeIntent  intent    = ExternalChangeIntent::Unstated;
         std::string           imagePath;
+
+        //  1 or 2, for InsertDisk; zero for every other intent.
+        int                   drive     = 0;
+    };
+
+    //  What the emulator can answer.
+    enum class ReplyKind : Byte
+    {
+        MachineDescription = 1,
+        InsertDone,
+        InsertRefused,
+        ReloadDone,
+        ReloadConflict,
+        ReloadRefused,
+    };
+
+    struct Reply
+    {
+        ReplyKind    kind       = ReplyKind::InsertDone;
+        int          driveCount = 0;       // MachineDescription only
+        std::string  text;                 // the machine name, or the reason
     };
 
     //  Packs an intent and a path into the bytes a message carries.
@@ -65,6 +96,12 @@ public:
     //  receiver holds its own spelling of the same file and matches after
     //  normalizing, so a relative path would name nothing on the other side.
     static std::vector<Byte>  Encode (const std::string & imagePath, ExternalChangeIntent intent);
+
+    //  An insert: the intent, the drive byte, then the path.
+    static std::vector<Byte>  EncodeInsert (const std::string & imagePath, int drive);
+
+    //  A describe request: the intent byte and nothing else.
+    static std::vector<Byte>  EncodeDescribe();
 
     //  Reads bytes back, refusing anything that is not a whole valid payload.
     //
@@ -76,9 +113,21 @@ public:
     //  read past.
     static bool  Decode (const Byte * bytes, size_t byteCount, Payload & outPayload);
 
+    //  The answer's bytes: the kind, a drive count for a description, then
+    //  the text.
+    static std::vector<Byte>  EncodeReply (const Reply & reply);
+    static bool               DecodeReply (const Byte * bytes, size_t byteCount, Reply & outReply);
+
     //  The largest payload worth reading. A path cannot approach this, and a
     //  length that does is a message this channel did not send.
     static constexpr size_t  kMaxPayloadBytes = 4096;
 
+    //  The largest drive count a description can report.
+    static constexpr int  kMaxDriveCount = 2;
+
     void  StateIntent (const std::string & imagePath, ExternalChangeIntent intent) override;
+
+    //  One message to one window, carrying `sender` as its `wParam`. False when
+    //  the window did not take it within the timeout.
+    static bool  SendTo (HWND target, HWND sender, ULONG_PTR messageId, const std::vector<Byte> & bytes);
 };

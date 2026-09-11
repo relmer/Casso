@@ -2463,6 +2463,21 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // An answer for a tool that asked, known on another thread or inside the
+    // tool's own send.
+    if (msg == WM_APP_INTENT_REPLY)
+    {
+        IntentReplyPost *  carried = reinterpret_cast<IntentReplyPost *> (lParam);
+
+        if (carried != nullptr)
+        {
+            SendIntentReply (carried->target, carried->reply);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (msg == WM_APP_DXUI_UPDATE_TITLE)
     {
         UpdateWindowTitle();
@@ -2514,12 +2529,13 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 {
     const COPYDATASTRUCT *       carried    = reinterpret_cast<const COPYDATASTRUCT *> (data);
+    HWND                         replyTo    = reinterpret_cast<HWND> (sender);
     bool                         wellFormed = false;
     Win32IntentChannel::Payload  payload;
+    Win32IntentChannel::Reply    reply;
+    std::wstring                 widePath;
 
 
-
-    UNREFERENCED_PARAMETER (sender);
 
     if (carried == nullptr || carried->dwData != Win32IntentChannel::GetMessageId())
     {
@@ -2531,9 +2547,43 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 
     //  A malformed payload is claimed rather than passed on: it carried our own
     //  id, so it was meant for us and simply was not readable.
-    if (wellFormed)
+    if (!wellFormed)
     {
-        m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent);
+        return DxuiMessageResult::Handled;
+    }
+
+    switch (payload.intent)
+    {
+        case ExternalChangeIntent::InsertDisk:
+            //  Through the drive widget's own mount, so an occupied drive is
+            //  flushed and ejected before the new disk goes in. The answer
+            //  waits for the mount to finish on the CPU thread.
+            widePath = fs::path (std::u8string (payload.imagePath.begin(), payload.imagePath.end())).wstring();
+
+            m_intentReplies.NoteInsert (payload.drive - 1, fs::path (widePath).string(), replyTo);
+            Mount (6, payload.drive - 1, widePath);
+            break;
+
+        case ExternalChangeIntent::DescribeMachine:
+            reply.kind       = Win32IntentChannel::ReplyKind::MachineDescription;
+            reply.driveCount = m_machine.GetConfig().AttachedDiskIiDriveCount();
+            reply.text       = m_machine.GetConfig().name;
+
+            //  Answered after this handler returns: the sender is still inside
+            //  its own send, and a send back to it now would wait on itself.
+            PostIntentReply (replyTo, reply);
+            break;
+
+        default:
+            //  A tool that passed its window wants to hear what came of the
+            //  change; one that did not is the command line, and hears nothing.
+            if (replyTo != nullptr)
+            {
+                m_intentReplies.NoteReload (payload.imagePath, replyTo);
+            }
+
+            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent);
+            break;
     }
 
     return DxuiMessageResult::Handled;

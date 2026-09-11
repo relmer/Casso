@@ -47,6 +47,7 @@ public:
     void  OnMachineCommand     (int id);
     void  OnViewCommand        (int id);
     void  OnDiskCommand        (int id);
+    void  OpenCassque          ();
     void  OnPrinterCommand     (int id);
     void  OnHelpCommand        (int id);
     void  OnExternalDriveCommand (int id);

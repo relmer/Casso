@@ -56,6 +56,9 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Cassque/Model/KnownFolderStore.h"
+#include "Config/Win32FileSystem.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -220,6 +223,8 @@ void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESU
 void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
 {
     std::wstring  message;
+    HWND          replyTo   = nullptr;
+    bool          handedOff = m_intentReplies.TryTakeInsert (completion.drive, completion.path, replyTo);
 
 
 
@@ -227,13 +232,145 @@ void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
 
     if (SUCCEEDED (completion.result))
     {
+        if (handedOff)
+        {
+            RecordKnownFolder (completion.path);
+        }
+
+        if (replyTo != nullptr)
+        {
+            SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result, std::string()));
+        }
+
         ReportDamagedMount (completion.drive);
         return;
     }
 
     message = DiskImageStore::FormatMountFailureMessage (completion.path, completion.diagnosis);
 
+    //  A tool that asked is told why instead; the dialog would sit behind the
+    //  window the user is looking at.
+    if (replyTo != nullptr)
+    {
+        SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result,
+                                                                       TextEncoding::WideToNarrow (message)));
+        return;
+    }
+
     EhmNotifyUser (message.c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SendIntentReply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
+{
+    bool  delivered = Win32IntentChannel::SendTo (target, m_hwnd, Win32IntentChannel::GetReplyMessageId(),
+                                                  Win32IntentChannel::EncodeReply (reply));
+
+
+
+    IGNORE_RETURN_VALUE (delivered, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PostIntentReply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
+{
+    IntentReplyPost *  carried = new (std::nothrow) IntentReplyPost { target, reply };
+
+
+
+    if (carried == nullptr)
+    {
+        return;
+    }
+
+    if (m_hwnd == nullptr || !PostMessageW (m_hwnd, WM_APP_INTENT_REPLY, 0, (LPARAM) carried))
+    {
+        delete carried;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RecordKnownFolder
+//
+//  Best effort: a hand-off that mounted is not undone because the list could
+//  not be written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RecordKnownFolder (const std::string & imagePath)
+{
+    Win32FileSystem   fsKnown;
+    KnownFolderStore  store (fsKnown, AssetBootstrap::GetAssetBaseDirectory().wstring());
+    std::wstring      folder  = fs::path (imagePath).parent_path().wstring();
+    int64_t           nowUnix = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                    std::chrono::system_clock::now().time_since_epoch()).count();
+    HRESULT           hr      = S_OK;
+
+
+
+    BAIL_OUT_IF (folder.empty(), S_OK);
+
+    hr = store.Append (folder, nowUnix);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InstallIntentReplies
+//
+//  A reload a tool asked for is decided on the thread that owns disk writes;
+//  the answer is composed there and carried to the UI thread to be sent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InstallIntentReplies()
+{
+    m_machine.GetDiskStore().SetDecisionSink ([this] (const std::string & path, ChangeAction action,
+                                                      bool guestCopyPreserved, const std::string & preservedPath)
+    {
+        HWND                       replyTo = nullptr;
+        Win32IntentChannel::Reply  reply;
+
+        if (!m_intentReplies.TryTakeReload (path, replyTo) || replyTo == nullptr)
+        {
+            return;
+        }
+
+        if (IntentReplyTracker::TryMakeReloadReply (action, guestCopyPreserved, preservedPath, reply))
+        {
+            PostIntentReply (replyTo, reply);
+        }
+    });
 }
 
 

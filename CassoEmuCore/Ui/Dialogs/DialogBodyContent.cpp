@@ -149,6 +149,86 @@ void DialogBodyContent::SetIcon (std::vector<uint32_t> bgraPremul, int srcW, int
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DialogBodyContent::ToPremultipliedBgra
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> DialogBodyContent::ToPremultipliedBgra (const DialogImage & image)
+{
+    constexpr size_t    kChannels = 4;
+    constexpr uint32_t  kOpaque   = 255;
+
+
+
+    std::vector<uint32_t>  pixels;
+    size_t                 count = 0;
+    size_t                 i     = 0;
+
+
+
+    if (image.width <= 0 || image.height <= 0)
+    {
+        return pixels;
+    }
+
+    count = (size_t) image.width * (size_t) image.height;
+
+    if (image.rgba.size() != count * kChannels)
+    {
+        return pixels;
+    }
+
+    pixels.resize (count);
+
+    for (i = 0; i < count; i++)
+    {
+        uint32_t  r = image.rgba[i * kChannels];
+        uint32_t  g = image.rgba[i * kChannels + 1];
+        uint32_t  b = image.rgba[i * kChannels + 2];
+        uint32_t  a = image.rgba[i * kChannels + 3];
+
+        r = (r * a + kOpaque / 2) / kOpaque;
+        g = (g * a + kOpaque / 2) / kOpaque;
+        b = (b * a + kOpaque / 2) / kOpaque;
+
+        pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    return pixels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogBodyContent::SetImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DialogBodyContent::SetImage (const DialogImage & image)
+{
+    std::vector<uint32_t>  pixels = ToPremultipliedBgra (image);
+
+
+
+    if (pixels.empty())
+    {
+        return false;
+    }
+
+    SetIcon (std::move (pixels), image.width, image.height, (int) image.displayDp);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DialogBodyContent::SetGlyphIcon
 //
 ////////////////////////////////////////////////////////////////////////////////
