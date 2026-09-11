@@ -35,7 +35,7 @@
 
 **Purpose**: A master baseline to compare against, taken before any code moves.
 
-- [X] T001 Master `Casso.exe` Release x64 built from an isolated worktree at `origin/master` (8e58f86b, reports 1.24.2). Kept at `C:SERSELMERAPPDATAocaltempsso-baseline`, not under `scripts/out/baseline`, because the runtime dlls ship beside it and a lone copied exe would not run
+- [X] T001 Master `Casso.exe` Release x64 built from an isolated detached worktree at `origin/master` (8e58f86b, reports 1.24.2). Kept at `%TEMP%/casso-baseline` rather than under `scripts/out/baseline`: the release ships the VC runtime beside the executable, so a lone copied exe would not run. The worktree MUST sit at a short path. The session scratchpad is about 160 characters deep, and a build there dies at project load with MSB6003 over a missing tlog directory, which is MAX_PATH rather than anything in the code
 - [X] T002 Matrix captured to `scripts/out/screenshots/master` with `-DelaySecs 6`, plus a control set in `scripts/out/screenshots/master-control` from the same binary. Chrome bands verified identical across both runs for all nine states; whole images are NOT reproducible and must never be compared directly
 - [ ] T003 With the baseline binary, capture by hand each open top-level menu and the toolbar band in Skeuomorphic, DarkModern and RetroTerminal, and record the client widths at which each toolbar entry loses its label, right to left, into `scripts/out/screenshots/master/collapse-widths.txt`
 
@@ -63,7 +63,7 @@
 
 - [ ] T009 [US3] In `Dxui/Widgets/DxuiPopupMenu.h`, add `DxuiPopupMenuItem` as a free type with `ForCommand`, `ForSeparator`, `ForSubmenu`; retype the item list from the nested `Item` and delete it; add `ShowUnder` beside the existing anchor-at-a-point show, `GetHighlight`, and the submenu members, keeping `Hide`, `IsVisible`, `HitTest`, the four input handlers, `Paint`, the three callback setters, `SetPopupHost` and the `IDxuiControl` overrides as they stand, per `contracts/dxui-popup-menu.md`
 - [ ] T010 [US3] In `Dxui/Widgets/DxuiPopupMenu.cpp`, keep every existing body that survives the item-model change: hosting via the `DxuiHwndSource` popup pool, the three callbacks with closed-before-select, the reopen-free show and hide paths, and the content-fitted width. The widget is EXTENDED IN PLACE, never copied to a new file and never deleted, so its three consumers keep compiling through the whole phase
-- [ ] T011 [US3] In `DxuiPopupMenu.cpp`, replace the label-plus-checked item painting with the menu bar's row painting moved from `Dxui/Widgets/DxuiMenuBar.cpp`: 26 dp rows, 10 dp pad plus 18 dp check gutter, 14 dp font, separators 10 dp tall with 10 dp inset, accelerator text right aligned, submenu arrow, colors `BackgroundElevated`, `HoverBackground`, `Foreground`, `ForegroundDisabled`, `ForegroundMuted`, `Divider`, `Border`, all read from the command at paint time
+- [ ] T011 [US3] In `DxuiPopupMenu.cpp`, replace the label-plus-checked item painting with the menu bar's row painting moved from `Dxui/Widgets/DxuiMenuBar.cpp`: 26 dp rows, a 10 dp pad plus an 18 dp check gutter ONLY when some row in that list is checkable, 14 dp font, separators 10 dp tall with 10 dp inset, accelerator text right aligned, submenu arrow, colors `BackgroundElevated`, `HoverBackground`, `Foreground`, `ForegroundDisabled`, `ForegroundMuted`, `Divider`, `Border`, all read from the command at paint time
 - [ ] T012 [US3] In `DxuiPopupMenu.cpp`, implement content-fitted width: widest `GetLabelText` across rows, plus an accelerator column only when some row has accelerator text, plus padding, 140 dp minimum; no fixed width and no setter for one
 - [ ] T013 [US3] In `DxuiPopupMenu.cpp`, implement navigation per contract: Up and Down skip separators and disabled rows and wrap; Right opens a submenu with its first enabled row highlighted; pointer dwell on a submenu row opens it unhighlighted and hovering another parent row closes it; Left or Escape with a child open closes only the child; Escape on the root hides uncommitted; Enter on an enabled command commits and calls its `dispatch`; Enter on a submenu row opens it; `ShowAt` clamps the dropdown inside the host client rect
 - [ ] T014 [US3] In `DxuiPopupMenu.cpp`, copy the reopen guard from `CassoEmuCore/Ui/Chrome/CommandToolbar.cpp` `IsReopenSuppressed` so a show inside the close window from the same anchor is ignored; leave the toolbar's copy in place until T038 deletes it, so the pickers keep click-to-toggle between commits
@@ -72,7 +72,7 @@
 - [ ] T017 [US3] Add `Dxui\DxuiPopupMenuTests.cpp` to `UnitTest/UnitTest.vcxproj`; run `scripts/RunTests.ps1 -Configuration Debug -Filter DxuiPopupMenu`
 - [ ] T018 Commit: `refactor(dxui): DxuiPopupMenu, one dropdown for every opener`
 
-**Checkpoint**: The dropdown exists beside `DxuiPopupMenu`; nothing consumes it yet.
+**Checkpoint**: The widget carries the richer item model and its three existing consumers still compile against it.
 
 ---
 
