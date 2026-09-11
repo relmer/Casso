@@ -86,14 +86,15 @@ merge commit or the code is on master instead.
 <!-- SPECKIT START -->
 ## Active feature
 
-**031-thin-exe-shim** -- both executables are now linker targets holding no
-code: `Casso.exe` went from 93,927 lines and 1,235 functions to zero of each,
-and `CassoCli.exe`'s `main` went with it. Closes GH #85.
+**032-dxui-command-widgets** -- Dxui gains the WPF/WinUI command model:
+`DxuiCommand` (one declaration per action), `DxuiDropdown` (one dropdown
+for the menu bar, toolbar pickers and context menus), `DxuiToolbar`
+(extracted from `CommandToolbar`, which is deleted). The emulator's menu and
+toolbar tables become one command table. Pixel-identical chrome is the bar.
+Cassque (033) is built on it.
 
-- Plan: `specs/031-thin-exe-shim/plan.md`
-- Spec: `specs/031-thin-exe-shim/spec.md`
-- Measurements: `specs/031-thin-exe-shim/measurements.md`
-- Executable contract: `specs/031-thin-exe-shim/contracts/executable-project.md`
-- Machine layout contract: `specs/031-thin-exe-shim/contracts/machine-layout.md`
-- Validation: `specs/031-thin-exe-shim/quickstart.md`
+- Plan: `specs/032-dxui-command-widgets/plan.md`
+- Spec: `specs/032-dxui-command-widgets/spec.md`
+- Contracts: `specs/032-dxui-command-widgets/contracts/`
+- Validation: `specs/032-dxui-command-widgets/quickstart.md`
 <!-- SPECKIT END -->
