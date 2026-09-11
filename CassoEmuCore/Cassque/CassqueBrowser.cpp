@@ -1078,3 +1078,90 @@ bool CassqueBrowser::GoForward()
 
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetSelectedEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueBrowser::GetSelectedEntries (std::vector<FileEntry> & outEntries) const
+{
+    outEntries.clear();
+
+    if (!m_isImage)
+    {
+        return;
+    }
+
+    for (int row : m_selectedRows)
+    {
+        size_t  source = m_rows[row].sourceIndex;
+
+        if (source < m_listing.entries.size())
+        {
+            outEntries.push_back (m_listing.entries[source]);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetSelectedHostPaths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueBrowser::GetSelectedHostPaths (std::vector<std::wstring> & outPaths) const
+{
+    Location  location = GetLocation();
+
+
+
+    outPaths.clear();
+
+    if (m_isImage || location.kind != Location::Kind::HostFolder)
+    {
+        return;
+    }
+
+    for (int row : m_selectedRows)
+    {
+        outPaths.push_back (JoinPath (location.path, m_rows[row].name));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::AreSelectedRowsImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::AreSelectedRowsImages() const
+{
+    if (m_isImage || m_selectedRows.empty() || GetLocation().kind != Location::Kind::HostFolder)
+    {
+        return false;
+    }
+
+    for (int row : m_selectedRows)
+    {
+        if (!m_rows[row].isDiskImage)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}

@@ -15,8 +15,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 CassqueShell::CassqueShell()
-    : m_browser (m_fs, m_fileIo)
+    : m_browser (m_fs, m_fileIo),
+      m_actions (m_browser, m_fs)
 {
+    //  A write to an image tells any Casso with it mounted to reload it.
+    m_browser.GetOperations().SetIntentChannel (&m_intentChannel);
 }
 
 
@@ -385,7 +388,16 @@ HRESULT CassqueShell::Initialize (HINSTANCE instance, const CassqueLaunchOptions
         return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
     });
 
-    m_window = std::make_unique<CassqueWindow> (m_browser, m_prefs);
+    {
+        CassqueWindow::Context  context;
+
+        context.fs          = &m_fs;
+        context.baseDir     = m_baseDir;
+        context.owner       = m_options.owner;
+        context.titlePrefix = m_options.titlePrefix;
+
+        m_window = std::make_unique<CassqueWindow> (m_browser, m_actions, m_prefs, context);
+    }
 
     hr = m_window->Open (instance, ComposeTitle (m_options.titlePrefix), showCommand);
     CHR (hr);

@@ -2,6 +2,10 @@
 
 #include "Cassque/CassqueWindow.h"
 #include "Cassque/CassqueShell.h"
+#include "Cassque/Model/KnownFolderStore.h"
+#include "Cassque/Model/LaunchCommand.h"
+#include "Core/TextEncoding.h"
+#include "Widgets/DxuiContextMenu.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"
 #include "Window/DxuiMessageBox.h"
@@ -17,9 +21,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassqueWindow::CassqueWindow (CassqueBrowser & browser, CassquePrefs & prefs)
+CassqueWindow::CassqueWindow (CassqueBrowser & browser, CassqueActions & actions, CassquePrefs & prefs, Context context)
     : m_browser  (browser),
+      m_actions  (actions),
       m_prefs    (prefs),
+      m_context  (std::move (context)),
       m_commands (CassqueCommands::Handlers {
                       [this] (int id)       { Dispatch (id); },
                       [this] (int id)       { return IsEnabled (id); },
@@ -655,12 +661,27 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (m_list->IsVisible() && Contains (m_list->GetBounds(), point))
     {
+        DxuiMouseEvent  local = ToLocal (ev, m_list->GetBounds());
+
         if (press)
         {
             SetFocusPane (Pane::List);
         }
 
-        m_list->OnMouse (ToLocal (ev, m_list->GetBounds()));
+        if (press && ev.button == DxuiMouseButton::Right)
+        {
+            int  row = m_list->HitTestRow (local.positionDip.x, local.positionDip.y);
+
+            if (row >= 0 && !m_list->IsRowSelected (row))
+            {
+                m_list->ClickRow (row, false, false);
+            }
+
+            ShowListContextMenu (point.x, point.y);
+            return true;
+        }
+
+        m_list->OnMouse (local);
         Invalidate();
         return true;
     }
@@ -750,6 +771,20 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.alt && ev.vk >= 0x20 && ev.vk <= 0x7E && m_menuBar->HandleAltKey ((wchar_t) ev.vk))
     {
+        return true;
+    }
+
+    if ((ev.vk == VK_APPS || (ev.vk == VK_F10 && ev.shift)) && m_focus == Pane::List)
+    {
+        RECT  bounds = m_list->GetBounds();
+
+        ShowListContextMenu (bounds.left + m_scaler.ToPx (24), bounds.top + m_scaler.ToPx (40));
+        return true;
+    }
+
+    if (ev.vk == VK_DELETE && m_focus == Pane::List && m_browser.IsImageLocation() && !m_browser.GetSelectedRows().empty())
+    {
+        RunVerb (CassqueActions::Verb::Delete);
         return true;
     }
 
@@ -951,4 +986,430 @@ void CassqueWindow::OnWindowClose()
     StorePlacement();
     Hide();
     PostQuitMessage (0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetVerbLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
+{
+    switch (verb)
+    {
+        case CassqueActions::Verb::Open:           return L"&Open";
+        case CassqueActions::Verb::Get:            return L"&Copy to folder...";
+        case CassqueActions::Verb::Put:            return L"&Put file...";
+        case CassqueActions::Verb::Delete:         return L"&Delete";
+        case CassqueActions::Verb::Rename:         return L"Re&name...";
+        case CassqueActions::Verb::Boot:           return L"Set as &startup program";
+        case CassqueActions::Verb::InsertDrive1:   return L"Insert into drive &1";
+        case CassqueActions::Verb::InsertDrive2:   return L"Insert into drive &2";
+        case CassqueActions::Verb::OpenInNewCasso: return L"Open in &new Casso";
+        case CassqueActions::Verb::Refresh:        return L"&Refresh";
+        default:                                   return L"";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowListContextMenu
+//
+//  The rows come from the actions' verb list; each command runs its verb.
+//  Rename waits on its dialog and is not offered yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowListContextMenu (int x, int y)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    m_menuCommands.clear();
+
+    for (CassqueActions::Verb verb : m_actions.GetListVerbs())
+    {
+        std::unique_ptr<DxuiCommand>  command;
+
+        if (verb == CassqueActions::Verb::Rename)
+        {
+            continue;
+        }
+
+        if (verb == CassqueActions::Verb::Refresh && !items.empty())
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        command           = std::make_unique<DxuiCommand>();
+        command->id       = (int) verb;
+        command->label    = GetVerbLabel (verb);
+        command->dispatch = [this, verb]() { RunVerb (verb); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetSelectedImagePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueWindow::GetSelectedImagePath() const
+{
+    std::vector<std::wstring>  paths;
+
+
+
+    m_browser.GetSelectedHostPaths (paths);
+
+    return (paths.size() == 1) ? paths[0] : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RunVerb
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::RunVerb (CassqueActions::Verb verb)
+{
+    HRESULT                  hr      = S_OK;
+    std::filesystem::path    picked;
+    bool                     chosen  = false;
+    FileDialogSpec           spec;
+    int                      answer  = 0;
+    CassqueActions::Outcome  outcome;
+    HostFileNaming::Style    style   = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress)
+                                     ? HostFileNaming::Style::CiderPress : HostFileNaming::Style::Descriptive;
+
+
+
+    switch (verb)
+    {
+        case CassqueActions::Verb::Open:
+            if (!m_browser.GetSelectedRows().empty() && m_browser.OpenRow (m_browser.GetSelectedRows()[0]))
+            {
+                FillList();
+            }
+
+            break;
+
+        case CassqueActions::Verb::Get:
+            hr = m_dialogs.PickFolder (GetHwnd(), picked, chosen);
+
+            if (SUCCEEDED (hr) && chosen)
+            {
+                ReportOutcome (m_actions.GetSelected (picked.wstring(), style), L"Copy");
+            }
+
+            break;
+
+        case CassqueActions::Verb::Put:
+            hr = m_dialogs.PickFileToOpen (GetHwnd(), spec, picked, chosen);
+
+            if (SUCCEEDED (hr) && chosen)
+            {
+                outcome = m_actions.PutFiles ({ picked.wstring() });
+                ReportOutcome (outcome, L"Put");
+                FillList();
+            }
+
+            break;
+
+        case CassqueActions::Verb::Delete:
+            answer = DxuiMessageBox (GetHwnd(), m_theme,
+                                     std::format (L"Delete {} selected file(s) from this disk image? This cannot be undone.",
+                                                  m_browser.GetSelectedRows().size()).c_str(),
+                                     L"Delete", MB_YESNO | MB_ICONWARNING);
+
+            if (answer == IDYES)
+            {
+                ReportOutcome (m_actions.DeleteSelected(), L"Delete");
+                FillList();
+            }
+
+            break;
+
+        case CassqueActions::Verb::Boot:
+            ReportOutcome (m_actions.BootSelected(), L"Set startup program");
+            FillList();
+            break;
+
+        case CassqueActions::Verb::InsertDrive1:
+        case CassqueActions::Verb::InsertDrive2:
+            InsertIntoDrive (GetSelectedImagePath(), verb == CassqueActions::Verb::InsertDrive1 ? 1 : 2);
+            break;
+
+        case CassqueActions::Verb::OpenInNewCasso:
+            OpenInNewCasso (GetSelectedImagePath());
+            break;
+
+        case CassqueActions::Verb::Refresh:
+            Dispatch (CassqueCommands::kRefresh);
+            break;
+
+        default:
+            break;
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ReportOutcome
+//
+//  A failure shows what the runner said; a success is quiet, since the list
+//  already shows the result.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ReportOutcome (const CassqueActions::Outcome & outcome, const wchar_t * verbName)
+{
+    if (outcome.Succeeded())
+    {
+        m_status->SetText (1, std::format (L"{}: {} file(s)", verbName, outcome.written));
+        return;
+    }
+
+    ShowMessage (outcome.message.empty() ? std::wstring (verbName) + L" did not complete." : outcome.message, MB_ICONERROR);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowMessage (const std::wstring & text, UINT icon)
+{
+    int  result = DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), CassqueShell::kAppName, MB_OK | icon);
+
+
+
+    IGNORE_RETURN_VALUE (result, IDOK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::InsertIntoDrive
+//
+//  The Casso that launched this browser when it is still there, otherwise
+//  any running Casso, otherwise a new one with the disk in drive 1. The
+//  answer arrives later as a reply message.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::InsertIntoDrive (const std::wstring & imagePath, int drive)
+{
+    HWND  target = nullptr;
+    bool  sent   = false;
+
+
+
+    if (imagePath.empty())
+    {
+        return;
+    }
+
+    if (m_context.owner != nullptr && IsWindow (m_context.owner))
+    {
+        target = m_context.owner;
+    }
+    else
+    {
+        target = FindWindowExW (nullptr, nullptr, Win32IntentChannel::kWindowClass, nullptr);
+    }
+
+    if (target == nullptr)
+    {
+        OpenInNewCasso (imagePath);
+        return;
+    }
+
+    sent = Win32IntentChannel::SendTo (target, GetHwnd(), Win32IntentChannel::GetMessageId(),
+                                       Win32IntentChannel::EncodeInsert (TextEncoding::WideToNarrow (imagePath), drive));
+
+    if (!sent)
+    {
+        ShowMessage (L"Casso did not answer the request to insert the disk.", MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::OpenInNewCasso
+//
+//  The folder is recorded here, since the new Casso learns of the disk from
+//  its command line rather than from a hand-off it would record itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::OpenInNewCasso (const std::wstring & imagePath)
+{
+    wchar_t       module[MAX_PATH] = {};
+    DWORD         length           = GetModuleFileNameW (nullptr, module, ARRAYSIZE (module));
+    std::wstring  exe;
+    HRESULT       hr               = S_OK;
+
+
+
+    if (imagePath.empty() || length == 0 || length >= ARRAYSIZE (module))
+    {
+        return;
+    }
+
+    exe = LaunchCommand::GetSiblingPath (std::filesystem::path (module).parent_path().wstring(), LaunchCommand::kCassoExe);
+
+    if (!m_launcher.Exists (exe))
+    {
+        ShowMessage (LaunchCommand::DescribeMissing (exe), MB_ICONERROR);
+        return;
+    }
+
+    hr = m_launcher.Launch (exe, LaunchCommand::MakeCassoArguments (imagePath, m_context.titlePrefix));
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"Casso could not be started.", MB_ICONERROR);
+        return;
+    }
+
+    if (m_context.fs != nullptr)
+    {
+        KnownFolderStore  store (*m_context.fs, m_context.baseDir);
+
+        hr = store.Append (std::filesystem::path (imagePath).parent_path().wstring(), (int64_t) _time64 (nullptr));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::OnCopyData
+//
+//  A reply is queued and shown after the send returns: Casso is blocked in
+//  its send until this handler does, and a dialog opened here would hold it
+//  there until the send timed out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassqueWindow::OnCopyData (WPARAM sender, LPARAM data)
+{
+    const COPYDATASTRUCT *     copy  = (const COPYDATASTRUCT *) data;
+    Win32IntentChannel::Reply  reply;
+    bool                       ours  = copy != nullptr && copy->dwData == Win32IntentChannel::GetReplyMessageId();
+
+
+
+    UNREFERENCED_PARAMETER (sender);
+
+    if (!ours || !Win32IntentChannel::DecodeReply ((const Byte *) copy->lpData, copy->cbData, reply))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    m_pendingReplies.push_back (reply);
+    PostMessageW (GetHwnd(), kReplyMessage, 0, 0);
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::OnAppMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    std::vector<Win32IntentChannel::Reply>  replies;
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (msg != kReplyMessage)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    replies.swap (m_pendingReplies);
+
+    for (const Win32IntentChannel::Reply & reply : replies)
+    {
+        std::wstring  text = TextEncoding::NarrowToWide (reply.text);
+
+        switch (reply.kind)
+        {
+            case Win32IntentChannel::ReplyKind::InsertDone:
+                m_status->SetText (1, L"Inserted into Casso");
+                break;
+
+            case Win32IntentChannel::ReplyKind::InsertRefused:
+                ShowMessage (L"Casso did not insert the disk.\n\n" + text, MB_ICONWARNING);
+                break;
+
+            case Win32IntentChannel::ReplyKind::ReloadConflict:
+            case Win32IntentChannel::ReplyKind::ReloadRefused:
+                ShowMessage (L"Casso did not reload the changed disk.\n\n" + text, MB_ICONWARNING);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    Invalidate();
+
+    return DxuiMessageResult::Handled;
 }

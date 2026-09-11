@@ -91,6 +91,19 @@ public:
     const std::vector<int> &         GetSelectedRows () const { return m_selectedRows; }
     Location                         GetLocation   () const;
     VolumeKind                       GetVolumeKind () const { return m_kind; }
+    bool                             IsImageLocation () const { return m_isImage; }
+    const VolumeListing &            GetListing    () const { return m_listing; }
+
+    //  The catalog entries behind the selected rows, in row order, when the
+    //  location is an image; empty otherwise.
+    void  GetSelectedEntries (std::vector<FileEntry> & outEntries) const;
+
+    //  The host paths behind the selected rows, when the location is a host
+    //  folder; empty otherwise.
+    void  GetSelectedHostPaths (std::vector<std::wstring> & outPaths) const;
+
+    //  Whether the selected rows are all disk images in a host folder.
+    bool  AreSelectedRowsImages() const;
 
     //  The list widget's columns, in CatalogModel::Column order, and one
     //  row's cells.

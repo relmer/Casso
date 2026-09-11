@@ -2,9 +2,14 @@
 
 #include "Pch.h"
 
+#include "Cassque/CassqueActions.h"
 #include "Cassque/CassqueBrowser.h"
 #include "Cassque/CassqueCommands.h"
 #include "Cassque/Model/CassquePrefs.h"
+#include "Config/IFileSystem.h"
+#include "Seams/Win32HostDialogs.h"
+#include "Seams/Win32IntentChannel.h"
+#include "Seams/Win32ProcessLauncher.h"
 #include "Theme/DxuiDarkTheme.h"
 #include "Theme/DxuiLightTheme.h"
 #include "Widgets/DxuiFramebufferView.h"
@@ -41,7 +46,15 @@
 class CassqueWindow : public DxuiWindow
 {
 public:
-    CassqueWindow (CassqueBrowser & browser, CassquePrefs & prefs);
+    struct Context
+    {
+        IFileSystem   * fs          = nullptr;
+        std::wstring    baseDir;
+        HWND            owner       = nullptr;
+        std::wstring    titlePrefix;
+    };
+
+    CassqueWindow (CassqueBrowser & browser, CassqueActions & actions, CassquePrefs & prefs, Context context);
     ~CassqueWindow() override;
 
     HRESULT  Open (HINSTANCE instance, const std::wstring & title, int showCommand);
@@ -59,9 +72,15 @@ public:
     static constexpr int  kMinListWidthDip    = 220;
     static constexpr int  kMinPreviewWidthDip = 160;
 
+    //  The private message that carries a deferred Casso reply to the UI.
+    static constexpr UINT  kReplyMessage = WM_APP + 0x31;
+
 protected:
     void  OnCreate        () override;
     void  OnWindowClose   () override;
+
+    DxuiMessageResult  OnCopyData   (WPARAM sender, LPARAM data) override;
+    DxuiMessageResult  OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 private:
     enum class Pane { Tree, List, Preview };
@@ -78,18 +97,34 @@ private:
     bool  IsChecked    (int id) const;
     void  ShowAbout();
 
+    void  ShowListContextMenu (int x, int y);
+    void  RunVerb             (CassqueActions::Verb verb);
+    void  ReportOutcome       (const CassqueActions::Outcome & outcome, const wchar_t * verbName);
+    void  InsertIntoDrive     (const std::wstring & imagePath, int drive);
+    void  OpenInNewCasso      (const std::wstring & imagePath);
+    void  ShowMessage         (const std::wstring & text, UINT icon);
+    std::wstring  GetSelectedImagePath() const;
+
+    static const wchar_t *  GetVerbLabel (CassqueActions::Verb verb);
+
     static bool  Contains (const RECT & rect, POINT point);
     static DxuiMouseEvent  ToLocal (const DxuiMouseEvent & ev, const RECT & bounds);
 
-    CassqueBrowser         & m_browser;
-    CassquePrefs           & m_prefs;
-    CassqueCommands          m_commands;
-    DxuiLightTheme           m_lightTheme;
-    DxuiDarkTheme            m_darkTheme;
-    const DxuiTheme        * m_theme          = nullptr;
-    DxuiDpiScaler            m_scaler;
-    RECT                     m_client         = {};
-    Pane                     m_focus          = Pane::Tree;
+    CassqueBrowser                             & m_browser;
+    CassqueActions                             & m_actions;
+    CassquePrefs                               & m_prefs;
+    Context                                      m_context;
+    Win32HostDialogs                             m_dialogs;
+    Win32ProcessLauncher                         m_launcher;
+    std::vector<std::unique_ptr<DxuiCommand>>    m_menuCommands;
+    std::vector<Win32IntentChannel::Reply>       m_pendingReplies;
+    CassqueCommands                              m_commands;
+    DxuiLightTheme                               m_lightTheme;
+    DxuiDarkTheme                                m_darkTheme;
+    const DxuiTheme                            * m_theme          = nullptr;
+    DxuiDpiScaler                                m_scaler;
+    RECT                                         m_client         = {};
+    Pane                                         m_focus          = Pane::Tree;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;
