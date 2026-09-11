@@ -197,3 +197,9 @@ Test-Path CassoEmuCore\Ui\Chrome\CommandToolbar.cpp; Test-Path Dxui\Widgets\Dxui
 
 Expected: both false. And a grep of `CassoEmuCore/` for `CommandToolbar`,
 `MainMenuCommandEntry` and `DxuiPopupMenu` returns nothing.
+
+**RetroTerminal is excluded from the strip oracle.** Its scanline overlay
+differs between two runs of the same binary by several hundred pixels in
+the strip rows, measured master against master. Compare that theme's menus by
+row content and row positions, and use Skeuomorphic and DarkModern for the
+byte comparison.
