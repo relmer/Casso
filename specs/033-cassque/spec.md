@@ -64,7 +64,7 @@ the browser layout needs and the browser itself.
   writes. Only a raw copy round-trips byte for byte; a converted listing
   is a different file from the tokenized original.
 - Q: Is the theme choice shared with Casso or Cassque's own? → A:
-  Cassque's own, stored in the shared preferences file under its own key.
+  Cassque's own, stored beside Casso's preferences in Cassque's own file.
   On first run it starts from Casso's current theme mapped onto Cassque's
   palette for it, then the two diverge independently.
 - Q: What adds a folder to the Casso root, and can the user manage the
@@ -446,8 +446,9 @@ window with a screen reader.
   Casso's three themes, with the skeuomorphic entry marked as colors
   only; Follow system MUST track the Windows setting live.
 - **FR-028**: Theme choice, preview-pane state, host file naming and
-  window placement MUST persist in the shared preferences file under
-  Cassque's own keys. The theme key MUST be separate from Casso's; on
+  window placement MUST persist in Cassque's own preferences file beside
+  Casso's, since Casso's file is rewritten whole by a running Casso and
+  would lose them. The theme key MUST be separate from Casso's; on
   first run it MUST be seeded from Casso's current theme mapped onto
   Cassque's palette for it, after which the two are independent.
 - **FR-029**: Every control MUST carry an accessible name and role.
@@ -502,10 +503,12 @@ window with a screen reader.
 - The command widgets, meaning command, dropdown, toolbar, menu bar and
   context menu, are delivered by the preceding feature and are not
   re-specified here.
-- Widgets this feature adds to the UI library: a tree of any depth with
-  lazy expansion, a splitter, a status bar, drag-out support beside the
-  existing drop-in support, and a tab host. Each is a general widget, not
-  a Cassque-only one.
+- Widgets this feature adds to the UI library: lazy expansion, stable ids
+  and hidden checkboxes on the existing tree (which already recurses to
+  any depth), multi-select on the list, a splitter, a status bar, a
+  framebuffer view, drag-out support beside the existing drop-in
+  support, and light and dark palettes. Each is general, not
+  Cassque-only. The tab strip exists already.
 - Supported image formats are the ones the command-line tool supports
   today. No new container formats.
 - Conversion rules on get, put and drag are the command-line tool's rules,
