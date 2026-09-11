@@ -405,7 +405,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     // Command toolbar hover / slider drag (DCR-2). In icon-only mode the
     // hovered button's label surfaces as a tooltip (no labels on the strip).
-    if (m_toolbar.OnToolbarMouseMove (x, y, leftDown))
+    if (m_toolbar.OnToolbarMouseMove (x, y))
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -2669,8 +2669,27 @@ void EmulatorShell::SyncInputModeUi()
 
 void EmulatorShell::SyncSelectorState()
 {
-    m_toolbar.SetInputState   (m_arrowsJoystick, m_pointerMode,
-                               m_machine.GetMouse() != nullptr && m_mouseConnected);
+    bool  countChanged = m_inputCluster.SetInputState (m_arrowsJoystick, m_pointerMode,
+                                                       m_machine.GetMouse() != nullptr && m_mouseConnected);
+    RECT  bounds       = m_toolbar.GetBounds();
+
+
+
+    // Whether the mouse exists decides HOW MANY segments there are, and the
+    // segment rects belong to Layout -- so a state push that adds or drops
+    // the mouse has to re-lay the entry, or the new segment keeps the empty
+    // rect it was left with and never paints. A machine switch does exactly
+    // that: it reflows the chrome first and syncs this state after. The
+    // picker list is handed over again for the same reason.
+    if (countChanged)
+    {
+        m_toolbar.SetDropDownItems (EmulatorCommands::kIdInput, m_inputCluster.GetPickerItems());
+
+        if (bounds.right > bounds.left)
+        {
+            m_toolbar.Layout (bounds, m_scaler);
+        }
+    }
 }
 
 

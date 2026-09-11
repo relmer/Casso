@@ -212,11 +212,11 @@ void EmulatorShell::UpdatePrinterStatus()
 
     if (m_machine.GetRefs().printerCard == nullptr)
     {
-        m_toolbar.SetPrinterPresent (false);
+        m_printerLed.SetPresent (false);
         return;   // no card: the toolbar's printer button disables
     }
 
-    m_toolbar.SetPrinterPresent (true);
+    m_printerLed.SetPresent (true);
 
     nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -243,7 +243,7 @@ void EmulatorShell::UpdatePrinterStatus()
     if (status != m_printerStatusShown)
     {
         m_printerStatusShown = status;
-        m_toolbar.SetPrinterStatus (status);
+        m_printerLed.SetStatus (status);
         m_d3dRenderer.MarkRedrawNeeded();
     }
 }

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -435,6 +435,7 @@
     <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
+    <ClCompile Include="UiTests\ChromeToolbarPartsTests.cpp" />
     <ClCompile Include="UiTests\CpuManagerCommandTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
@@ -491,6 +492,7 @@
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />

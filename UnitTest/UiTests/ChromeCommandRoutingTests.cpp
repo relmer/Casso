@@ -16,12 +16,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Enforces the FR-026 / SC-006 menu-command parity guarantee: every
 //  IDM_* command exposed in Casso/resource.h must have a corresponding
-//  entry in MainMenu::GetCommandEntries(). The test iterates the
+//  entry in EmulatorCommands::GetMenuEntries(). The test iterates the
 //  published id set so a future PR that adds a new menu item without
-//  registering it in MainMenu fails CI loudly.
+//  registering it in the command table fails CI loudly.
 //
 //  See specs/007-ui-overhaul/menu-command-parity.md for the rendered
-//  table (generated from `MainMenu::EmitParityMarkdown`).
+//  table (generated from `EmulatorCommands::EmitParityMarkdown`).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,9 +36,9 @@ public:
 
     // The authoritative menu-command id set. Mirrors the IDM_*
     // identifiers in Casso/resource.h that the nav layer wires up.
-    // When you add a new menu item, add it here AND to MainMenu's
-    // kEntries table — this test will fail until both are in sync,
-    // which is exactly the point.
+    // When you add a new menu item, add it here AND to the
+    // EmulatorCommands menu table — this test will fail until both are
+    // in sync, which is exactly the point.
     static constexpr WORD kKnownMenuCommandIds[] =
     {
         IDM_FILE_EXIT,
@@ -70,7 +70,7 @@ public:
     {
         std::unordered_set<WORD>  registered;
 
-        for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
+        for (const EmulatorMenuEntry & e : EmulatorCommands::GetMenuEntries())
         {
             registered.insert (e.commandId);
         }
@@ -78,7 +78,7 @@ public:
         for (WORD id : kKnownMenuCommandIds)
         {
             wchar_t  msg[128] = {};
-            swprintf_s (msg, L"IDM_ command 0x%04X missing from MainMenu parity table", id);
+            swprintf_s (msg, L"IDM_ command 0x%04X missing from the command parity table", id);
             Assert::IsTrue (registered.count (id) == 1, msg);
         }
     }
@@ -88,16 +88,16 @@ public:
     {
         std::unordered_set<WORD>  seen;
 
-        for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
+        for (const EmulatorMenuEntry & e : EmulatorCommands::GetMenuEntries())
         {
             wchar_t  msg[128] = {};
 
-            if (MainMenu::IsSeparator (e))
+            if (EmulatorCommands::IsSeparator (e))
             {
                 continue;
             }
 
-            swprintf_s (msg, L"Duplicate command id 0x%04X in MainMenu table", e.commandId);
+            swprintf_s (msg, L"Duplicate command id 0x%04X in the command table", e.commandId);
             Assert::IsTrue (seen.insert (e.commandId).second, msg);
         }
     }
@@ -105,25 +105,25 @@ public:
 
     TEST_METHOD (MainMenu_Entries_Have_NonEmpty_Labels_And_Known_Menu)
     {
-        for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
+        for (const EmulatorMenuEntry & e : EmulatorCommands::GetMenuEntries())
         {
             const wchar_t * name = nullptr;
 
-            if (MainMenu::IsSeparator (e))
+            if (EmulatorCommands::IsSeparator (e))
             {
                 continue;
             }
 
             Assert::IsNotNull (e.label,
-                               L"MainMenu entry must have a non-null label");
+                               L"Menu entry must have a non-null label");
             Assert::IsTrue   (e.label[0] != L'\0',
-                               L"MainMenu entry label must be non-empty");
+                               L"Menu entry label must be non-empty");
 
             // GetMenuName returns "?" for unknown enumerators — bare
             // pointer compare against the known menus is enough.
-            name = MainMenu::GetMenuName (e.menu);
+            name = EmulatorCommands::GetMenuName (e.menu);
             Assert::IsTrue (name[0] != L'?',
-                            L"MainMenu entry uses an unknown MainMenuId enumerator");
+                            L"Menu entry uses an unknown MainMenuId enumerator");
         }
     }
 
@@ -139,14 +139,14 @@ public:
 
     TEST_METHOD (EmitParityMarkdown_Includes_Every_Command)
     {
-        std::string  md = MainMenu::EmitParityMarkdown();
+        std::string  md = EmulatorCommands::EmitParityMarkdown();
 
-        for (const MainMenuCommandEntry & e : MainMenu::GetCommandEntries())
+        for (const EmulatorMenuEntry & e : EmulatorCommands::GetMenuEntries())
         {
             char     needle[32] = {};
             wchar_t  msg[160]   = {};
 
-            if (MainMenu::IsSeparator (e))
+            if (EmulatorCommands::IsSeparator (e))
             {
                 continue;
             }
@@ -157,6 +157,21 @@ public:
             Assert::IsTrue (md.find (needle) != std::string::npos, msg);
         }
     }
+
+
+    TEST_METHOD (Toolbar_Entries_Share_The_Menu_Commands)
+    {
+        // A command on both surfaces is one declaration: the toolbar's
+        // Settings entry is the menu's Settings row, with the short label
+        // the strip draws and the mnemonic label the menu draws.
+        EmulatorCommands     cmds;
+        const DxuiCommand *  settings = cmds.Find (IDM_VIEW_SETTINGS);
+
+        Assert::IsNotNull (settings);
+        Assert::AreEqual  (L"Settings",       settings->GetShortText().c_str());
+        Assert::AreEqual  (L"Se&ttings...",   settings->GetLabelText().c_str());
+        Assert::IsNotNull (settings->glyph);
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdTheme));
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdInput));
+    }
 };
-
-

@@ -38,7 +38,9 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/CommandToolbar.h"
+#include "Ui/Chrome/InputClusterEntry.h"
+#include "Ui/Chrome/PrinterStatusLed.h"
+#include "Ui/Chrome/VolumeFlyout.h"
 #include "Widgets/DxuiShadowedText.h"
 #include "Widgets/DxuiOrbitControl.h"
 #include "Ui/Chrome/MainMenu.h"
@@ -1347,12 +1349,16 @@ private:
     CassoTheme                  m_chromeTheme = CassoTheme::MakeSkeuomorphic();
     std::array<DriveWidget, 2>  m_driveChrome;
 
-    // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
-    // Settings / theme + monitor-color pickers / Printer (+status LED) /
-    // master Volume + Mute / Input / Fullscreen / Screenshot / Reset / Power.
-    // Its printer button carries the status light (the old standalone
-    // PrinterIndicator is deleted).
-    CommandToolbar      m_toolbar;
+    // The command toolbar: the strip below the menu bar with Settings /
+    // theme + monitor-color pickers / Printer (+status LED) / master Volume
+    // + Mute / Input / Fullscreen / Screenshot / Reset / Power, filled from
+    // the same command table the menu bar reads. The three emulator parts
+    // it hosts -- the printer light, the input cluster and the volume
+    // flyout -- are held by pointer from its entries, so they sit beside it.
+    DxuiToolbar         m_toolbar;
+    PrinterStatusLed    m_printerLed;
+    InputClusterEntry   m_inputCluster;
+    VolumeFlyout        m_volumeFlyout;
 
     // Theme ids in the toolbar picker's row order, so a picked row resolves
     // to the id ThemeManager wants. Rebuilt whenever the catalog is.
