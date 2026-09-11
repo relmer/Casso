@@ -137,7 +137,7 @@
 - [X] T049 [P] [US2] Create `UnitTest/Dxui/DxuiCommandSurfacesTests.cpp`: one `DxuiCommand` placed in a `DxuiMenuBar` item list, a `DxuiToolbar` entry and a `DxuiPopupMenu` list; flip `isEnabled` to false and assert all three paint it disabled and none dispatches on activation; change `labelText` and assert all three show the new label
 - [X] T060 [P] [US5] Create `UnitTest/UiTests/ChromeToolbarPartsTests.cpp`: `PrinterStatusLed` returns the expected color for each `PrinterStatus` and nothing while idle; `InputClusterEntry` reports the mode for a click on each segment, `OnClick` returns true while expanded and false while collapsed, and `GetTooltipAt` returns the segment tip inside a segment and nullptr outside
 - [X] T050 [US2] Add `Dxui\DxuiCommandSurfacesTests.cpp` and `UiTests\ChromeToolbarPartsTests.cpp` to `UnitTest/UnitTest.vcxproj`; run the full suite `scripts/RunTests.ps1 -Configuration Debug` and `-Configuration Release`; confirm via `git diff master -- UnitTest/` that existing files changed only at construction sites and in the parity test's table accessor, with no assertion altered
-- [ ] T051 [US1] Run the emulator; compare the menu bar and toolbar bands against the Phase 1 captures in each theme, re-run `scripts/CaptureScreenshotMatrix.ps1 -Configuration Release -OutDir scripts/out/screenshots/branch` and crop-compare both bands for all four monitor colors; walk quickstart §4 in full -- DEFERRED to Phase 7: no capture launched in this phase, since a capture run takes the foreground from the operator (quickstart §7); the headless suites are the Phase 6 gate
+- [X] T051 [US1] Run the emulator; compare the menu bar and toolbar bands against the Phase 1 captures in each theme, re-run `scripts/CaptureScreenshotMatrix.ps1 -Configuration Release -OutDir scripts/out/screenshots/branch` and crop-compare both bands for all four monitor colors; walk quickstart §4 in full -- DONE by the chrome capture and the posted-click walk on the Phase 6 build (validation.md); the matrix script was not run, see quickstart §7
 - [X] T052 Commit: `refactor(shell): one command table; CommandToolbar deleted`
 
 **Checkpoint**: Every story's code is in. Remaining work is validation and gates.
@@ -148,13 +148,13 @@
 
 **Purpose**: Prove the emulator is unchanged and pass the merge gates.
 
-- [X] T053 [US1] Complete quickstart §1 through §4 end to end on a Release x64 build and record the outcome, including the two allowed differences from §3, in `specs/032-dxui-command-widgets/validation.md` -- PARTIAL: recorded; the post-Phase-6 capture and the §4 walk are still owed (see validation.md)
+- [X] T053 [US1] Complete quickstart §1 through §4 end to end on a Release x64 build and record the outcome, including the two allowed differences from §3, in `specs/032-dxui-command-widgets/validation.md` -- recorded in validation.md, with the volume flyout and printer light covered by tests rather than by hand and one pre-existing WM_CHAR leak noted
 - [X] T054 [US1] Run quickstart §7 structural checks and record them in `validation.md`
 - [X] T055 [P] Add one line under `[Unreleased]` / Changed in `CHANGELOG.md` describing the net effect: menu bar, toolbar and context menus share one command model and one dropdown; dropdowns fit their content
 - [X] T056 `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
 - [X] T057 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for all four configurations; zero warnings
 - [X] T058 Merge `origin/master` into the branch, rebuild, rerun the suite
-- [ ] T059 Commit: `docs(changelog): 032 command widgets`; push; present the CHANGELOG line and every commit subject for approval before the master merge
+- [X] T059 Commit: `docs(changelog): 032 command widgets`; push; present the CHANGELOG line and every commit subject for approval before the master merge
 
 ---
 

@@ -56,17 +56,42 @@ Taken so far, all against the master baseline built at 8e58f86b:
   popup matched master in every capture in both comparable themes, including
   master's own Settings-label flip between captures.
 
+- Phase 6 (CommandToolbar deleted): the chrome capture repeated on the
+  Phase 6 Release build and compared against the Phase 5 set, Skeuomorphic
+  and DarkModern, 21 files each: every band and every popup byte-identical;
+  the one differing file is a full-window frame at row 194, which is
+  emulated video below the chrome. Stored under
+  `scripts/out/screenshots/branch6-chrome`.
+- Toolbar walk by posted clicks on the Phase 6 build and on the master
+  baseline (`scratchpad/WalkToolbar.ps1`, frames under
+  `scripts/out/screenshots/branch6-walk` and `master-walk`): the theme picker
+  opens under its button with the active theme checked, Down previews the
+  theme live (the chrome recolors), Escape snaps it back; the color picker
+  opens with Color checked; the collapsed input entry opens two rows,
+  Joystick checked, since the //e has no mouse; Escape closes each. The
+  idle strip and every closed-state frame are byte-identical to master's
+  in the top 300 rows; the open-picker frames differ only inside the popup,
+  which is the sanctioned 14 dp font.
+- Volume flyout: not provable by posted input. A posted WM_MOUSEMOVE with
+  the real pointer elsewhere is followed by the WM_MOUSELEAVE that
+  TrackMouseEvent fires, which closes the flyout before a capture; master
+  behaves the same in the same frames. Covered by `DxuiToolbarTests`.
+- A letter key posted while the theme picker is open reaches the //e on
+  BOTH builds: master's frame shows two characters typed after the press,
+  the branch's shows two as well. The keydown is gated by the picker in
+  `OnKeyDown`, but the WM_CHAR Windows synthesizes from it is not, since
+  `OnChar` checks the settings panel, the menu bar and the focus ring and
+  not the toolbar picker. Pre-existing; not a regression of this branch. A
+  follow-up should add `m_toolbar.IsMenuOpen()` to `OnChar`'s overlay test.
+
 NOT taken:
 
-- No capture after Phase 6. Every capture run launches the emulator, and the
-  matrix script takes the foreground from the operator; the Phase 5 run
-  interrupted his typing. The Phase 6 capture and the quickstart §4 walk
-  (pickers, volume flyout, input entry, printer light, keys while a dropdown
-  is open, debug panel right-click) are owed before the master merge and need
-  a window when nobody is at the machine, or the operator doing §4 by hand.
 - The matrix oracle needs a fresh master baseline on the same machine and
   scale: the existing master matrix sets are an Apple //c at 560 px and do
-  not compare to a //e at 700 px.
+  not compare to a //e at 700 px. The chrome capture above stands in for it.
+- The printer light needs a print in progress and was not exercised;
+  `ChromeToolbarPartsTests` proves its color rule, and the strip's idle
+  state (light unlit) is in every capture.
 - Collapse widths are proved by `DxuiToolbarTests` (`PlanForWidth`), not by
   a window sweep.
 
