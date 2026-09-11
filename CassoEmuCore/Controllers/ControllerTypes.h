@@ -58,9 +58,11 @@ enum class ControlKind
 //
 //  ControllerModelKey
 //
-//  Every unit of one controller model shares this key. Vendor and product 0
-//  on an XInput key is the generic Xbox model, used when the slot's hardware
-//  IDs could not be read.
+//  Every unit of one controller model shares this key. An XInput key always
+//  carries vendor and product 0: every Xbox-class controller shares one key,
+//  because XInput reports them all through one fixed layout and because the
+//  same controller reports different product IDs on USB and on Bluetooth. Its
+//  real IDs reach the user only through ControllerDeviceInfo::description.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
