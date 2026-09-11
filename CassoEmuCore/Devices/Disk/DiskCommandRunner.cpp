@@ -2400,9 +2400,9 @@ Error:
 //
 //  THE OTHER HALF OF sectorwrite, and the reason it is worth having: get goes
 //  through a catalog, so on a disk with no filesystem there was no way at all
-//  to read back what had just been written. The listing said as much -- "it
-//  simply keeps its files somewhere this tool does not read" -- which was true
-//  and is no longer.
+//  to read back what had just been written. The listing said as much -- "its
+//  files are in a layout this tool does not read" -- which was true and is no
+//  longer.
 //
 //  A count is a parameter here and not on the write because a write knows its
 //  own length and a read cannot: what usually records where a file ends is the
