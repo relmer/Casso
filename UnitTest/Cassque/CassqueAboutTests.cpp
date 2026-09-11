@@ -49,27 +49,53 @@ public:
     }
 
 
-    TEST_METHOD (Body_DescribesTheAppAndLinksTheCredit)
+    TEST_METHOD (Body_StampsTheVersionAndDescribesTheApp)
     {
         std::vector<DialogTextRun>  runs      = CassqueAbout::GetBody ({});
+        bool                        copyright = false;
+        bool                        version   = false;
+        bool                        built     = false;
         bool                        described = false;
         bool                        asked     = false;
         bool                        homophone = false;
-        bool                        credited  = false;
 
         for (const DialogTextRun & run : runs)
         {
-            described = described || run.text == L"Apple II disk image explorer";
+            copyright = copyright || run.text.find (L"Copyright (C) by Robert Elmer") != std::wstring::npos;
+            version   = version   || run.text.find (L"Version ") == 0;
+            built     = built     || run.text.find (L"Built ")   == 0;
+            described = described || run.text == L"An Apple II disk image explorer.";
             asked     = asked     || run.text == L"What's with the name?";
             homophone = homophone || run.text.find (L"homophone of casque") != std::wstring::npos;
-            credited  = credited  || (run.isHyperlink && run.hyperlinkUrl == CassqueAbout::kPhotoCreditUrl
-                                                      && run.text.find (L"CC BY-NC-SA 3.0") != std::wstring::npos);
         }
 
+        Assert::IsTrue (copyright);
+        Assert::IsTrue (version);
+        Assert::IsTrue (built);
         Assert::IsTrue (described);
         Assert::IsTrue (asked);
         Assert::IsTrue (homophone);
-        Assert::IsTrue (credited);
+    }
+
+
+    TEST_METHOD (Body_CarriesTheSameLinksCassoDoes)
+    {
+        std::vector<DialogTextRun>  runs  = CassqueAbout::GetBody ({});
+        std::vector<std::wstring>   urls;
+
+        for (const DialogTextRun & run : runs)
+        {
+            if (run.isHyperlink)
+            {
+                urls.push_back (run.hyperlinkUrl);
+            }
+        }
+
+        Assert::AreEqual ((size_t) 4, urls.size());
+        Assert::AreEqual (std::wstring (CassqueAbout::kRepositoryUrl),  urls[0]);
+        Assert::AreEqual (std::wstring (CassqueAbout::kBugReportUrl),   urls[1]);
+        Assert::AreEqual (std::wstring (CassqueAbout::kLicenseUrl),     urls[2]);
+        Assert::AreEqual (std::wstring (CassqueAbout::kPhotoCreditUrl), urls[3]);
     }
 
 
@@ -126,7 +152,7 @@ public:
     TEST_METHOD (Picture_MissingFromTheModuleFails)
     {
         DialogImage  image;
-        HRESULT      hr = CassqueAbout::LoadPicture (GetModuleHandleW (L"UnitTest.dll"), IDR_CASSQUE_PICTURE_PNG, CassqueAbout::kPictureDp, image);
+        HRESULT      hr = CassqueAbout::LoadPicture (GetModuleHandleW (L"UnitTest.dll"), IDR_CASSQUE_CASSOWARY_PNG, CassqueAbout::kHeaderPictureDp, image);
 
         Assert::IsTrue (FAILED (hr));
         Assert::IsTrue (image.rgba.empty());

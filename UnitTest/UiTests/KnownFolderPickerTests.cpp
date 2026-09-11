@@ -177,12 +177,12 @@ public:
         label = content.GetChild (0)->GetBounds();
 
         Assert::AreEqual ((size_t) 1, content.GetChildCount());
-        Assert::AreEqual (48 + 2 * 3, content.GetPreferredHeightDip());
+        Assert::AreEqual (48 + 2 * 5, content.GetPreferredHeightDip());
 
         //  The strip is 48 + 8 + 18 wide, centered in 400; the label follows the
-        //  picture and sits centered on the 54-high line.
+        //  picture and sits centered on the 58-high line.
         Assert::AreEqual ((LONG) ((400 - 74) / 2 + 48 + 8), label.left);
-        Assert::AreEqual ((LONG) ((54 - 18) / 2),           label.top);
+        Assert::AreEqual ((LONG) ((58 - 18) / 2),           label.top);
     }
 
 
@@ -201,9 +201,9 @@ public:
         withPicture.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
         label = withPicture.GetChild (0)->GetBounds();
 
-        Assert::AreEqual (32 + 2 * 3,      withPicture.GetPreferredHeightDip());
+        Assert::AreEqual (32 + 2 * 5,      withPicture.GetPreferredHeightDip());
         Assert::AreEqual ((LONG) (32 + 8), label.left);
-        Assert::AreEqual ((LONG) ((38 - 18) / 2), label.top);
+        Assert::AreEqual ((LONG) ((42 - 18) / 2), label.top);
 
         run.leadingImage->rgba.clear();
 
@@ -212,5 +212,31 @@ public:
 
         Assert::AreEqual (18, withoutPixels.GetPreferredHeightDip());
         Assert::AreEqual ((LONG) 0, withoutPixels.GetChild (0)->GetBounds().left);
+    }
+
+
+
+    TEST_METHOD (DialogTrailingPicture_KeepsTheRunsBesideItClear)
+    {
+        DialogBodyContent  content;
+        DialogImage        picture = MakePicture (128.0f);
+        DialogTextRun      heading;
+        DialogTextRun      below;
+
+        heading.text = L"Cassque";
+        below.text   = L"What's with the name?";
+
+        content.SetImagePlacement (DialogBodyContent::ImagePlacement::TrailingBeside);
+        Assert::IsTrue (content.SetImage (picture));
+
+        //  Eight lines carry the runs past the 128-high picture.
+        content.SetRuns ({ heading, {}, {}, {}, {}, {}, {}, {}, below });
+        content.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
+
+        //  The picture takes the top right corner, so the first run stops one
+        //  gap short of it; the ninth run starts below it and runs full width.
+        Assert::AreEqual (9 * 18, content.GetPreferredHeightDip());
+        Assert::AreEqual ((LONG) (400 - 128 - 12), content.GetChild (0)->GetBounds().right);
+        Assert::AreEqual ((LONG) 400, content.GetChild (8)->GetBounds().right);
     }
 };

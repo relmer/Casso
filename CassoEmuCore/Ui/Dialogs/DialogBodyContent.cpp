@@ -18,7 +18,7 @@ static constexpr int      s_kColGapDip     = 10;   // each side of the arrow col
 static constexpr int      s_kArrowColDip   = 16;   // the arrow glyph's own column
 static constexpr int      s_kStripGapDip   = 8;    // between the pieces of a strip run
 static constexpr int      s_kLeadGapDip    = 8;    // between a leading picture and its text
-static constexpr int      s_kPicturePadDip = 3;    // above and below a run's tallest picture
+static constexpr int      s_kPicturePadDip = 5;    // above and below a run that carries a picture
 
 
 
@@ -238,14 +238,22 @@ void DialogBodyContent::SetGlyphIcon (wchar_t glyph, uint32_t argb, int sizeDip)
 
 int DialogBodyContent::GetPreferredHeightDip() const
 {
-    int  iconTop = 0;
-    int  runs    = 0;
+    int  iconTop  = 0;
+    int  besides  = 0;
+    int  runs     = 0;
 
 
 
     if (!m_iconPixels.empty() && m_iconSizeDip > 0)
     {
-        iconTop = m_iconSizeDip + s_kIconGapDip;
+        if (m_placement == ImagePlacement::TrailingBeside)
+        {
+            besides = m_iconSizeDip;
+        }
+        else
+        {
+            iconTop = m_iconSizeDip + s_kIconGapDip;
+        }
     }
 
     for (const Item & item : m_items)
@@ -258,7 +266,7 @@ int DialogBodyContent::GetPreferredHeightDip() const
         runs = m_glyphSizeDip;
     }
 
-    return iconTop + runs;
+    return iconTop + (std::max) (runs, besides);
 }
 
 
@@ -346,11 +354,21 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         int  iconPx = scaler.ToPx (m_iconSizeDip);
         int  cx     = (boundsPx.left + boundsPx.right) / 2;
 
-        m_iconRectPx.left   = cx - iconPx / 2;
-        m_iconRectPx.top    = y;
-        m_iconRectPx.right  = cx + iconPx / 2;
-        m_iconRectPx.bottom = y + iconPx;
-        y += iconPx + scaler.ToPx (s_kIconGapDip);
+        if (m_placement == ImagePlacement::TrailingBeside)
+        {
+            m_iconRectPx.left   = boundsPx.right - iconPx;
+            m_iconRectPx.top    = y;
+            m_iconRectPx.right  = boundsPx.right;
+            m_iconRectPx.bottom = y + iconPx;
+        }
+        else
+        {
+            m_iconRectPx.left   = cx - iconPx / 2;
+            m_iconRectPx.top    = y;
+            m_iconRectPx.right  = cx + iconPx / 2;
+            m_iconRectPx.bottom = y + iconPx;
+            y += iconPx + scaler.ToPx (s_kIconGapDip);
+        }
     }
 
     if (m_glyph != 0 && m_glyphSizeDip > 0)
@@ -366,8 +384,18 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     for (Item & item : m_items)
     {
-        int   hPx = item.pictures.empty() ? item.lines * linePx : scaler.ToPx (GetItemHeightDip (item));
-        RECT  b   = { runsLeft, y, boundsPx.right, y + hPx };
+        int   hPx     = item.pictures.empty() ? item.lines * linePx : scaler.ToPx (GetItemHeightDip (item));
+        int   rightPx = boundsPx.right;
+        RECT  b       = {};
+
+
+        //  A run that starts level with a trailing picture stops short of it.
+        if (m_placement == ImagePlacement::TrailingBeside && y < m_iconRectPx.bottom)
+        {
+            rightPx = m_iconRectPx.left - scaler.ToPx (s_kIconGapDip);
+        }
+
+        b = { runsLeft, y, rightPx, y + hPx };
 
         if (item.arrowWidget != nullptr)
         {
@@ -381,7 +409,7 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
             RECT  leftBox  = { runsLeft, y, runsLeft + leftPx,  y + hPx };
             RECT  arrowBox = { arrowX,   y, arrowX + arrowPx,   y + hPx };
-            RECT  rightBox = { rightX,   y, boundsPx.right,     y + hPx };
+            RECT  rightBox = { rightX,   y, rightPx,            y + hPx };
 
             item.widget->Layout      (leftBox,  scaler);
             item.arrowWidget->Layout (arrowBox, scaler);
@@ -389,7 +417,7 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         }
         else if (!item.strip.empty())
         {
-            LayoutStripRow (item, y, hPx, runsLeft, boundsPx.right, scaler);
+            LayoutStripRow (item, y, hPx, runsLeft, rightPx, scaler);
         }
         else if (item.leadingDip > 0 && item.widget != nullptr)
         {
@@ -400,7 +428,7 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
             int   pictureTop = y + (std::max) (0, (hPx - picturePx) / 2);
             int   textTop    = y + (std::max) (0, (hPx - textPx) / 2);
             int   textLeft   = runsLeft + picturePx + scaler.ToPx (s_kLeadGapDip);
-            RECT  textBox    = { textLeft, textTop, boundsPx.right, textTop + textPx };
+            RECT  textBox    = { textLeft, textTop, rightPx, textTop + textPx };
 
             item.pictures[0].rectPx = { runsLeft, pictureTop, runsLeft + picturePx, pictureTop + picturePx };
             item.widget->Layout (textBox, scaler);
@@ -655,9 +683,16 @@ int DialogBodyContent::GetItemHeightDip (const Item & item)
 
 
 
+    //  The padding goes on whichever is taller, text or picture, so rows of
+    //  pictures keep one margin between them however long their text runs.
     for (const Picture & picture : item.pictures)
     {
-        height = (std::max) (height, picture.sizeDip + 2 * s_kPicturePadDip);
+        height = (std::max) (height, picture.sizeDip);
+    }
+
+    if (!item.pictures.empty())
+    {
+        height += 2 * s_kPicturePadDip;
     }
 
     return height;

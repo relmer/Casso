@@ -6,6 +6,7 @@ Produces:
   Cassque/Assets/Cassque.png    - 256x256, the picture in Cassque's About box
   Cassque/Assets/CassqueCask.png  - 128x128, the bare cask, for the About box
   Cassque/Assets/CassqueCasso.png - 128x128, Casso's icon, for the About box
+  Cassque/Assets/Cassowary.png    - 256x256, the photograph, heading the About box
 
 The casque is the top of the same cassowary silhouette Casso's icons use.
 """
@@ -20,6 +21,7 @@ HERE = Path(__file__).parent
 ABOUT_PNG = HERE.parent.parent / "Cassque" / "Assets" / "Cassque.png"
 ABOUT_CASK_PNG = ABOUT_PNG.with_name("CassqueCask.png")
 ABOUT_CASSO_PNG = ABOUT_PNG.with_name("CassqueCasso.png")
+ABOUT_PHOTO_PNG = ABOUT_PNG.with_name("Cassowary.png")
 
 MASTER = 1024
 DARK = (18, 16, 22)
@@ -199,10 +201,12 @@ def compose(with_casque=True):
 
 
 def main() -> None:
-    # The About box explains the name as cask + Casso = Cassque, with icons.
+    # The About box explains the name as cask + Casso = Cassque, with icons,
+    # and heads itself with the photograph all of them come from.
     inline = 128
     compose(with_casque=False).resize((inline, inline), Image.LANCZOS).save(ABOUT_CASK_PNG, "PNG", optimize=True)
     bi.variant_silhouette(MASTER).resize((inline, inline), Image.LANCZOS).save(ABOUT_CASSO_PNG, "PNG", optimize=True)
+    bi.variant_photoreal(512).resize((256, 256), Image.LANCZOS).save(ABOUT_PHOTO_PNG, "PNG", optimize=True)
 
     master = compose()
 
@@ -215,7 +219,7 @@ def main() -> None:
 
     master.resize((256, 256), Image.LANCZOS).save(ABOUT_PNG, "PNG", optimize=True)
 
-    for path in (png_path, ico_path, ABOUT_PNG, ABOUT_CASK_PNG, ABOUT_CASSO_PNG):
+    for path in (png_path, ico_path, ABOUT_PNG, ABOUT_CASK_PNG, ABOUT_CASSO_PNG, ABOUT_PHOTO_PNG):
         print(f"  {path.name:18} {path.stat().st_size:>8} B")
 
 

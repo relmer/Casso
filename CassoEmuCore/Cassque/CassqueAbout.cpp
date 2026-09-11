@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Cassque/CassqueAbout.h"
+#include "Core/UnicodeSymbols.h"
 #include "Devices/Printer/PngCodec.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
@@ -15,9 +16,11 @@
 //
 //  CassqueAbout::GetBody
 //
-//  The name as an equation of the three icons, then a row for each. An icon
-//  left empty gives its place in the equation to its word and leaves its row
-//  as text alone.
+//  The heading lines sit beside the photograph, so they come first and end
+//  with a blank line that clears it. Then the name as an equation of the
+//  three icons, a row for each, and the links, grouped in pairs by blank
+//  lines the way Casso's About box groups them. An icon left empty gives its
+//  place in the equation to its word and leaves its row as text alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,14 +28,19 @@ std::vector<DialogTextRun> CassqueAbout::GetBody (const Pictures & pictures)
 {
     std::vector<DialogTextRun>  runs;
     DialogTextRun               equation;
-    DialogTextRun               credit;
+    std::wstring                repository = L"Casso on GitHub ";
 
 
 
-    runs.push_back ({ L"Cassque " VERSION_STRING });
+    runs.push_back ({ L"Cassque" });
+    runs.push_back ({ L"Copyright (C) by Robert Elmer" });
     runs.push_back ({ L"" });
-    runs.push_back ({ L"Apple II disk image explorer" });
+    runs.push_back ({ L"Version " VERSION_STRING });
+    runs.push_back ({ L"Built " VERSION_BUILD_TIMESTAMP });
     runs.push_back ({ L"" });
+    runs.push_back ({ L"An Apple II disk image explorer." });
+    runs.push_back ({ L"" });
+
     runs.push_back ({ L"What's with the name?" });
 
     equation.strip = { { MakeSized (pictures.cask,    kEquationPictureDp), L"Cask"    },
@@ -41,16 +49,23 @@ std::vector<DialogTextRun> CassqueAbout::GetBody (const Pictures & pictures)
                        { {},                                               L"="       },
                        { MakeSized (pictures.cassque, kEquationPictureDp), L"Cassque" } };
     runs.push_back (equation);
+    runs.push_back ({ L"" });
 
     runs.push_back (MakeLeadingRun (pictures.cask,    L"Cask, a container that stores things, and a homophone of casque, the keratin-covered crest atop a cassowary's head"));
     runs.push_back (MakeLeadingRun (pictures.casso,   L"Casso, a spiffy Apple II emulator"));
     runs.push_back (MakeLeadingRun (pictures.cassque, L"Thus Cassque, Casso's Apple II disk image explorer"));
     runs.push_back ({ L"" });
 
-    credit.text         = L"Cassowary photo by Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0";
-    credit.isHyperlink  = true;
-    credit.hyperlinkUrl = kPhotoCreditUrl;
-    runs.push_back (credit);
+    repository += s_kchEmDash;
+    repository += L" ";
+    repository += s_kpszStar;
+    repository += L" stars welcome";
+
+    runs.push_back (MakeLink (repository,  kRepositoryUrl));
+    runs.push_back (MakeLink (L"Log a bug", kBugReportUrl));
+    runs.push_back ({ L"" });
+    runs.push_back (MakeLink (L"MIT License", kLicenseUrl));
+    runs.push_back (MakeLink (L"Cassowary photo by Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0", kPhotoCreditUrl));
 
     return runs;
 }
@@ -104,6 +119,29 @@ DialogTextRun CassqueAbout::MakeLeadingRun (const DialogImage & picture, const w
     {
         run.leadingImage = MakeSized (picture, kRowPictureDp);
     }
+
+    return run;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueAbout::MakeLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DialogTextRun CassqueAbout::MakeLink (const std::wstring & text, const wchar_t * url)
+{
+    DialogTextRun  run;
+
+
+
+    run.text         = text;
+    run.isHyperlink  = true;
+    run.hyperlinkUrl = url;
 
     return run;
 }
@@ -199,25 +237,26 @@ CassqueAbout::Pictures CassqueAbout::LoadPictures (HINSTANCE instance)
 
 void CassqueAbout::Show (HWND owner, const IDxuiTheme * theme, HINSTANCE instance)
 {
-    static constexpr int                kWidthDip        = 460;
+    static constexpr int                kWidthDip        = 480;
     static constexpr int                kChromeHeightDip = 108;
-    static constexpr int                kMaxHeightDip    = 720;
+    static constexpr int                kMaxHeightDip    = 760;
     std::unique_ptr<DialogBodyContent>  content          = std::make_unique<DialogBodyContent>();
     MessageDialog                       dialog;
     DxuiWindow::CreateParams            params;
-    DialogImage                         picture;
+    DialogImage                         photo;
     HRESULT                             hr               = S_OK;
     int                                 result           = 0;
 
 
 
     content->SetRuns (GetBody (LoadPictures (instance)));
+    content->SetImagePlacement (DialogBodyContent::ImagePlacement::TrailingBeside);
 
-    hr = LoadPicture (instance, IDR_CASSQUE_PICTURE_PNG, kPictureDp, picture);
+    hr = LoadPicture (instance, IDR_CASSQUE_CASSOWARY_PNG, kHeaderPictureDp, photo);
 
     if (SUCCEEDED (hr))
     {
-        content->SetImage (picture);
+        content->SetImage (photo);
     }
 
     params.title                    = L"About Cassque";

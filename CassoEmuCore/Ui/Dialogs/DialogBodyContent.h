@@ -28,6 +28,16 @@ class IDxuiControl;
 class DialogBodyContent : public DxuiPanel
 {
 public:
+    //  Where the body's picture goes: centered over the runs, or in the top
+    //  right corner with the runs that start beside it kept clear of it.
+    enum class ImagePlacement
+    {
+        CenteredAbove,
+        TrailingBeside
+    };
+
+    void  SetImagePlacement (ImagePlacement placement) { m_placement = placement; }
+
     // Build one child widget per body run. Normal runs render with the
     // theme's Body text role (resolved at paint); hyperlink runs become
     // DxuiButton(Link) controls whose click opens the URL.
@@ -135,6 +145,7 @@ private:
 
 
     std::vector<Item>      m_items;
+    ImagePlacement         m_placement    = ImagePlacement::CenteredAbove;
     std::vector<uint32_t>  m_iconPixels;
     int                    m_iconSrcW     = 0;
     int                    m_iconSrcH     = 0;

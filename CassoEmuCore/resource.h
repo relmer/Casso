@@ -128,6 +128,7 @@
 #define IDR_CASSQUE_PICTURE_PNG     600
 #define IDR_CASSQUE_CASK_PNG        601
 #define IDR_CASSQUE_CASSO_PNG       602
+#define IDR_CASSQUE_CASSOWARY_PNG   603
 
 // Embedded default machine configs (RCDATA) — extracted to disk on
 // first run when the user has no Machines/ folder.
