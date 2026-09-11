@@ -11,6 +11,7 @@
 
 
 class DxuiPopupHost;
+class DxuiPopupMenu;
 class IDxuiHostClient;
 class DxuiCaptionBar;
 
@@ -328,6 +329,12 @@ public:
     DxuiPanel  &  GetRoot          ()       { return *GetRootPanel(); }
     const DxuiDpiScaler &  GetScaler  () const { return m_scaler; }
     void          SetTheme      (const IDxuiTheme * theme);
+    const IDxuiTheme *  GetTheme () const { return m_theme; }
+
+    //  The one menu this window raises for a right-click, created on first
+    //  use. Owned here so every context menu in the window shares one popup
+    //  and one set of callbacks; see DxuiContextMenu::Show.
+    DxuiPopupMenu &  GetContextMenu ();
 
     //
     //  Host-owned caption (SetWindowText model). Active only when the
@@ -766,6 +773,7 @@ private:
     bool                              m_captionVisible     = true;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
+    std::unique_ptr<DxuiPopupMenu>    m_contextMenu;
 
     bool  m_ownsHwnd                = false;
     bool  m_ownsPaintPump           = false;

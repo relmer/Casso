@@ -9,7 +9,7 @@
 #include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
-#include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiContextMenu.h"
 #include "Widgets/DxuiTooltip.h"
 
 #include "Ui/Debug/InputDebugDialogState.h"
@@ -180,22 +180,22 @@ private:
     UINT                m_dpi      = 96;
     DxuiDpiScaler       m_scaler;
 
-    DxuiLabel                               * m_emuLabel          = nullptr;
-    DxuiLabel                               * m_hostLabel         = nullptr;
-    std::array<DxuiLabel*, 2>                 m_pairLabel         = {};
-    DxuiCheckbox                            * m_allCheck          = nullptr;
-    DxuiCheckbox                            * m_emuKeyboardCheck  = nullptr;
-    DxuiCheckbox                            * m_joystickCheck     = nullptr;
-    DxuiCheckbox                            * m_paddleCheck       = nullptr;
-    DxuiCheckbox                            * m_hostKeyboardCheck = nullptr;
-    std::array<DxuiComboBox*, 2>              m_pairView          = {};
-    DxuiButton                              * m_pauseButton       = nullptr;
-    DxuiButton                              * m_clearButton       = nullptr;
-    DxuiButton                              * m_copyButton        = nullptr;
-    DxuiListView                            * m_eventList         = nullptr;
-    DxuiTooltip                               m_tooltip;
-    DxuiPopupMenu                             m_columnMenu;
-    DxuiFocusManager                          m_focusMgr;
+    DxuiLabel                                  * m_emuLabel          = nullptr;
+    DxuiLabel                                  * m_hostLabel         = nullptr;
+    std::array<DxuiLabel*, 2>                    m_pairLabel         = {};
+    DxuiCheckbox                               * m_allCheck          = nullptr;
+    DxuiCheckbox                               * m_emuKeyboardCheck  = nullptr;
+    DxuiCheckbox                               * m_joystickCheck     = nullptr;
+    DxuiCheckbox                               * m_paddleCheck       = nullptr;
+    DxuiCheckbox                               * m_hostKeyboardCheck = nullptr;
+    std::array<DxuiComboBox*, 2>                 m_pairView          = {};
+    DxuiButton                                 * m_pauseButton       = nullptr;
+    DxuiButton                                 * m_clearButton       = nullptr;
+    DxuiButton                                 * m_copyButton        = nullptr;
+    DxuiListView                               * m_eventList         = nullptr;
+    DxuiTooltip                                  m_tooltip;
+    std::vector<std::unique_ptr<DxuiCommand>>    m_columnCommands;
+    DxuiFocusManager                             m_focusMgr;
 
     InputFilterState                                     m_filter;
     std::array<InputLogicalColumn, kInputColumnCount>    m_columnsModel          = {};

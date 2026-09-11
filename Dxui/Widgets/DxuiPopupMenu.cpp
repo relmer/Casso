@@ -281,7 +281,7 @@ void DxuiPopupMenu::ShowCore (
 
 
 
-    if (m_parent == nullptr && IsReopenSuppressed (anchor))
+    if (m_parent == nullptr && m_reopenGuard && IsReopenSuppressed (anchor))
     {
         return;
     }

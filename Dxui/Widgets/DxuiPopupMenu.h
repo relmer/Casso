@@ -175,6 +175,22 @@ public:
     void  Hide           ();
 
     bool  HitTest        (int x, int y) const;
+
+    //  For an owner that keeps its own gesture rules, as the menu bar does:
+    //  which row is under a point, moving the highlight, and picking a row
+    //  outright. The row index is the item index, separators included.
+    int   HitTestRow     (int x, int y) const   { return HitTestIndex (x, y); }
+    void  SetHighlight   (int index)            { SetHover (index); }
+    void  HighlightFirst ()                     { SetHover (FindFirstSelectable()); }
+    void  ActivateRow    (int index)            { Commit (index); }
+
+    //  The reopen guard exists for an opener whose hosted popup dismisses
+    //  itself on the click BEFORE the opener sees that click. An opener that
+    //  sees the click first, as the menu bar does because its popup takes no
+    //  capture, toggles correctly on its own and turns the guard off, since
+    //  it would otherwise refuse a legitimate reopen right after a pick.
+    void  SetReopenGuard (bool enabled)         { m_reopenGuard = enabled; }
+
     void  OnMouseMove    (int x, int y);
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
@@ -299,6 +315,7 @@ private:
     DxuiHwndSource     * m_popupHost    = nullptr;
     DxuiPopupHost      * m_activePopup  = nullptr;
     bool                 m_grabsCapture = true;
+    bool                 m_reopenGuard  = true;
 
     bool                 m_colorsSet   = false;
     Palette              m_colors;

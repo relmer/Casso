@@ -37,11 +37,10 @@ struct MainMenuCommandEntry
 //
 //  MainMenu
 //
-//  Casso's application menu bar. Configures a `DxuiMenuBar` with the
-//  Casso command set and translates per-command dispatch / check-query
-//  callbacks (WORD command id -> functor) into the generic per-subitem
-//  callbacks the widget expects. Renamed when the legacy nav-strip menu
-//  logic was promoted to the Dxui framework.
+//  Casso's application menu bar. Turns the Casso command table into one
+//  `DxuiCommand` per entry, with the per-command dispatch, check, enable
+//  and label queries (WORD command id -> functor) behind each command's
+//  functors, and hands the menu bar one item list per title.
 //
 //  Visual parity with the legacy chrome is preserved by mirroring the
 //  Casso-specific palette (`CassoTheme::nav*Argb` etc.) onto the
@@ -113,4 +112,10 @@ private:
     CheckFn     m_isChecked;
     CheckFn     m_isEnabled;
     LabelFn     m_labelQuery;
+
+    //  One command per table entry that is not a separator. Held by pointer
+    //  from the menu bar's item lists, so the addresses must not move while
+    //  the bar exists; a fresh vector is built on every Rebuild and the bar
+    //  is closed first.
+    std::vector<std::unique_ptr<DxuiCommand>>  m_commands;
 };

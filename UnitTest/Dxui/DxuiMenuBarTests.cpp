@@ -43,6 +43,39 @@ public:
     static constexpr UINT  s_kTestDpi           = 96;
 
 
+    //  One command per row, owned by the test instance so the bar's item
+    //  lists can hold pointers for the life of the test. A checkable row is
+    //  one whose command supplies a checked functor.
+    std::vector<std::unique_ptr<DxuiCommand>>  m_commands;
+
+    const DxuiCommand *  Cmd (const wchar_t *         label,
+                              const wchar_t *         accel,
+                              std::function<void()>   dispatch  = nullptr,
+                              std::function<bool()>   isChecked = nullptr,
+                              bool                    enabled   = true)
+    {
+        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+
+
+
+        cmd->label       = label;
+        cmd->accelerator = accel;
+        cmd->dispatch    = std::move (dispatch);
+        cmd->isChecked   = std::move (isChecked);
+
+        if (!enabled)
+        {
+            cmd->isEnabled = [] () { return false; };
+        }
+
+        m_commands.push_back (std::move (cmd));
+        return m_commands.back().get();
+    }
+
+    DxuiPopupMenuItem  Row (const DxuiCommand * cmd) { return DxuiPopupMenuItem::ForCommand (cmd); }
+    DxuiPopupMenuItem  Sep()                        { return DxuiPopupMenuItem::ForSeparator();  }
+
+
     std::vector<DxuiMenuBarItem>  MakeTestItems()
     {
         std::vector<DxuiMenuBarItem>  items;
@@ -50,19 +83,19 @@ public:
 
 
         items.push_back ({ L"&File", 0, {
-            { L"&New",     L"Ctrl+N",  nullptr, nullptr, true,  false, false },
-            { L"&Open",    L"Ctrl+O",  nullptr, nullptr, true,  false, false },
-            { L"",         L"",        nullptr, nullptr, true,  false, true  },
-            { L"E&xit",    L"",        nullptr, nullptr, true,  false, false },
+            Row (Cmd (L"&New",     L"Ctrl+N")),
+            Row (Cmd (L"&Open",    L"Ctrl+O")),
+            Sep(),
+            Row (Cmd (L"E&xit",    L"")),
         } });
         items.push_back ({ L"&Edit", 0, {
-            { L"&Cut",     L"Ctrl+X",  nullptr, nullptr, true,  false, false },
-            { L"C&opy",    L"Ctrl+C",  nullptr, nullptr, true,  false, false },
-            { L"&Paste",   L"Ctrl+V",  nullptr, nullptr, false, false, false },
+            Row (Cmd (L"&Cut",     L"Ctrl+X")),
+            Row (Cmd (L"C&opy",    L"Ctrl+C")),
+            Row (Cmd (L"&Paste",   L"Ctrl+V", nullptr, nullptr, false)),
         } });
         items.push_back ({ L"&View", 0, {
-            { L"&Toolbar", L"",        nullptr, nullptr, true,  true,  false },
-            { L"&Status",  L"",        nullptr, nullptr, true,  true,  false },
+            Row (Cmd (L"&Toolbar", L"", nullptr, [] () { return false; })),
+            Row (Cmd (L"&Status",  L"", nullptr, [] () { return false; })),
         } });
         return items;
     }
@@ -380,7 +413,7 @@ public:
 
 
         items.push_back ({ L"&Run", 0, {
-            { L"&Go",    L"", [&] { dispatched = 42; }, nullptr, true, false, false },
+            Row (Cmd (L"&Go", L"", [&] { dispatched = 42; })),
         } });
         bar.SetItems (std::move (items));
         bar.Open (0, true);
@@ -403,7 +436,7 @@ public:
 
 
         items.push_back ({ L"&View", 0, {
-            { L"&Toolbar", L"", nullptr, [&] { return isChecked; }, true, true, false },
+            Row (Cmd (L"&Toolbar", L"", nullptr, [&] { return isChecked; })),
         } });
         bar.SetItems (std::move (items));
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
@@ -441,7 +474,7 @@ public:
 
 
         items.push_back ({ L"&File", 0, {
-            { L"&Disabled", L"", [&] { dispatched++; }, nullptr, false, false, false },
+            Row (Cmd (L"&Disabled", L"", [&] { dispatched++; }, nullptr, false)),
         } });
         bar.SetItems (std::move (items));
         bar.Open (0, true);
@@ -467,9 +500,9 @@ public:
 
         std::vector<DxuiMenuBarItem>  items;
         items.push_back ({ L"&File", 0, {
-            { L"&New",     L"", [&] { dispatched++; }, nullptr, true, false, false },
-            { L"",         L"", nullptr, nullptr, true, false, true  },
-            { L"E&xit",    L"", [&] { dispatched++; }, nullptr, true, false, false },
+            Row (Cmd (L"&New",  L"", [&] { dispatched++; })),
+            Sep(),
+            Row (Cmd (L"E&xit", L"", [&] { dispatched++; })),
         } });
         bar.SetItems (std::move (items));
         bar.Layout (s_kStripX, s_kStripY, s_kStripWidth, 96, &text);
@@ -645,8 +678,8 @@ public:
 
 
         items.push_back ({ L"&File", 0, {
-            { L"&New",     L"", [&] { dispatched = 1; }, nullptr, true, false, false },
-            { L"&Open",    L"", [&] { dispatched = 2; }, nullptr, true, false, false },
+            Row (Cmd (L"&New",  L"", [&] { dispatched = 1; })),
+            Row (Cmd (L"&Open", L"", [&] { dispatched = 2; })),
         } });
         bar.SetItems (std::move (items));
         bar.Open (0, true);

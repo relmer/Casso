@@ -376,19 +376,28 @@ void MainMenu::PaintDropdown (
 //
 //  MainMenu::Rebuild
 //
-//  Materializes the Casso `s_kEntries` table into the generic
-//  `DxuiMenuBar` item shape. Each subitem's dispatch lambda captures
-//  the entry's `commandId` and the MainMenu instance so it can fan
-//  into the stored Casso-level dispatch callback.
+//  Materializes the Casso `s_kEntries` table into one `DxuiCommand` per
+//  entry and one item list per title. Each command's functors capture the
+//  entry's `commandId` and the MainMenu instance so they fan into the stored
+//  Casso-level dispatch, check, enable and label queries.
+//
+//  A checkable entry is the ONLY kind that gets an `isChecked` functor. The
+//  menu reserves its check gutter for a list with any checkable row, so
+//  giving every command one would push every menu's labels right.
+//
+//  The bar is closed before the commands are replaced, since its open list
+//  points at them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MainMenu::Rebuild()
 {
-    std::vector<DxuiMenuBarItem>  items;
+    std::vector<DxuiMenuBarItem>               items;
+    std::vector<std::unique_ptr<DxuiCommand>>  commands;
 
 
 
+    Close();
     items.reserve (kMenuCount);
 
     for (int m = 0; m < kMenuCount; m++)
@@ -399,8 +408,9 @@ void MainMenu::Rebuild()
 
         for (const MainMenuCommandEntry & e : s_kEntries)
         {
-            DxuiMenuBarSubitem  sub;
-            WORD                commandId = 0;
+            std::unique_ptr<DxuiCommand>  cmd;
+            WORD                          commandId   = e.commandId;
+            std::wstring                  staticLabel;
 
             if (e.menu != (MainMenuId) m)
             {
@@ -409,55 +419,50 @@ void MainMenu::Rebuild()
 
             if (IsSeparator (e))
             {
-                sub.isSeparator = true;
-                topItem.submenu.push_back (std::move (sub));
+                topItem.submenu.push_back (DxuiPopupMenuItem::ForSeparator());
                 continue;
             }
 
-            sub.label       = e.label;
-            sub.hotkey      = (e.accelerator != nullptr) ? std::wstring (e.accelerator) : std::wstring();
-            sub.enabled     = true;
-            sub.checkable   = e.checkable;
-            sub.isSeparator = false;
+            cmd              = std::make_unique<DxuiCommand>();
+            cmd->id          = commandId;
+            cmd->label       = e.label;
+            cmd->accelerator = (e.accelerator != nullptr) ? std::wstring (e.accelerator) : std::wstring();
+            staticLabel      = cmd->label;
 
-            commandId = e.commandId;
-
-            sub.dispatch = [this, commandId] ()
+            cmd->dispatch = [this, commandId] ()
             {
                 Dispatch (commandId);
             };
 
             if (e.checkable)
             {
-                sub.isChecked = [this, commandId] () -> bool
+                cmd->isChecked = [this, commandId] () -> bool
                 {
                     return m_isChecked ? m_isChecked (commandId) : false;
                 };
             }
 
-            sub.isEnabled = [this, commandId] () -> bool
+            cmd->isEnabled = [this, commandId] () -> bool
             {
                 return m_isEnabled ? m_isEnabled (commandId) : true;
             };
 
+            cmd->labelText = [this, commandId, staticLabel] () -> std::wstring
             {
-                std::wstring  staticLabel = sub.label;
+                std::wstring  dynamic = m_labelQuery ? m_labelQuery (commandId)
+                                                     : std::wstring();
 
-                sub.labelText = [this, commandId, staticLabel] () -> std::wstring
-                {
-                    std::wstring  dynamic = m_labelQuery ? m_labelQuery (commandId)
-                                                         : std::wstring();
+                return dynamic.empty() ? staticLabel : dynamic;
+            };
 
-                    return dynamic.empty() ? staticLabel : dynamic;
-                };
-            }
-
-            topItem.submenu.push_back (std::move (sub));
+            topItem.submenu.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+            commands.push_back (std::move (cmd));
         }
 
         items.push_back (std::move (topItem));
     }
 
+    m_commands = std::move (commands);
     SetItems (std::move (items));
 }
 
