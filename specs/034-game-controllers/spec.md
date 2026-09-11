@@ -248,6 +248,6 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **Focus**: controller input applies only while Casso is the foreground window, matching the keyboard's existing button behavior.
 - **Absolute positioning**: the stick sets paddle position directly (joystick semantics). It does not integrate stick deflection into relative motion the way the mouse-to-paddle capture does.
 - **Persistence location**: the controller selection and active profile live with the existing per-machine input preferences; profiles, calibration and deadzone are global and keyed by controller model or unit, since a stick's physical quirks and the user's layouts for it do not change with the emulated machine.
-- **Profiles are chosen by hand**: activating a profile automatically when a particular disk is inserted is out of scope for this feature.
+- **Profiles are chosen by hand**: activating a profile automatically when a particular disk is mounted is tracked by GH #78, which owns known-disk recognition. The profile storage here must allow a profile to be looked up by controller model and profile name so that work can associate disks with profiles.
 - **Profiles belong to a model**: a profile refers to that model's controls, so profiles are not shared across different models. Copying a profile to another model is out of scope.
 - **Deadzone default**: a conventional default (on the order of 10-15% of travel) works for most controllers without calibration.
