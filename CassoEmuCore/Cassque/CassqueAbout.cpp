@@ -15,26 +15,39 @@
 //
 //  CassqueAbout::GetBody
 //
+//  The name as an equation of the three icons, then a row for each. An icon
+//  left empty gives its place in the equation to its word and leaves its row
+//  as text alone.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DialogTextRun> CassqueAbout::GetBody()
+std::vector<DialogTextRun> CassqueAbout::GetBody (const Pictures & pictures)
 {
     std::vector<DialogTextRun>  runs;
+    DialogTextRun               equation;
     DialogTextRun               credit;
 
 
 
     runs.push_back ({ L"Cassque " VERSION_STRING });
     runs.push_back ({ L"" });
-    runs.push_back ({ L"Browses Apple II disk images: their catalogs, their files, and what the files hold." });
+    runs.push_back ({ L"Apple II disk image explorer" });
     runs.push_back ({ L"" });
-    runs.push_back ({ L"Where the name comes from:" });
-    runs.push_back ({ L"    cask, a container, the barrel that holds the disks" });
-    runs.push_back ({ L"  + casque, the tall helmet-like crest on a cassowary's head" });
-    runs.push_back ({ L"  = Cassque, the browser, and the cassowary Casso is named for" });
+    runs.push_back ({ L"What's with the name?" });
+
+    equation.strip = { { MakeSized (pictures.cask,    kEquationPictureDp), L"Cask"    },
+                       { {},                                               L"+"       },
+                       { MakeSized (pictures.casso,   kEquationPictureDp), L"Casso"   },
+                       { {},                                               L"="       },
+                       { MakeSized (pictures.cassque, kEquationPictureDp), L"Cassque" } };
+    runs.push_back (equation);
+
+    runs.push_back (MakeLeadingRun (pictures.cask,    L"Cask, a container that stores things, and a homophone of casque, the keratin-covered crest atop a cassowary's head"));
+    runs.push_back (MakeLeadingRun (pictures.casso,   L"Casso, a spiffy Apple II emulator"));
+    runs.push_back (MakeLeadingRun (pictures.cassque, L"Thus Cassque, Casso's Apple II disk image explorer"));
     runs.push_back ({ L"" });
 
-    credit.text         = L"Casque from a cassowary photo by Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0";
+    credit.text         = L"Cassowary photo by Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0";
     credit.isHyperlink  = true;
     credit.hyperlinkUrl = kPhotoCreditUrl;
     runs.push_back (credit);
@@ -48,14 +61,67 @@ std::vector<DialogTextRun> CassqueAbout::GetBody()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueAbout::MakeSized
+//
+//  A copy of the picture to be shown at displayDp. An empty picture stays
+//  empty, so the body still reads it as missing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DialogImage CassqueAbout::MakeSized (const DialogImage & image, float displayDp)
+{
+    DialogImage  sized = image;
+
+
+
+    if (!sized.rgba.empty())
+    {
+        sized.displayDp = displayDp;
+    }
+
+    return sized;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueAbout::MakeLeadingRun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DialogTextRun CassqueAbout::MakeLeadingRun (const DialogImage & picture, const wchar_t * text)
+{
+    DialogTextRun  run;
+
+
+
+    run.text = text;
+
+    if (!picture.rgba.empty())
+    {
+        run.leadingImage = MakeSized (picture, kRowPictureDp);
+    }
+
+    return run;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueAbout::LoadPicture
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassqueAbout::LoadPicture (HINSTANCE instance, DialogImage & outImage)
+HRESULT CassqueAbout::LoadPicture (HINSTANCE instance, int resourceId, float displayDp, DialogImage & outImage)
 {
     HRESULT            hr       = S_OK;
-    HRSRC              resource = FindResourceW (instance, MAKEINTRESOURCEW (IDR_CASSQUE_PICTURE_PNG), RT_RCDATA);
+    HRSRC              resource = FindResourceW (instance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
     HGLOBAL            loaded   = nullptr;
     const Byte       * data     = nullptr;
     DWORD              size     = 0;
@@ -81,7 +147,7 @@ HRESULT CassqueAbout::LoadPicture (HINSTANCE instance, DialogImage & outImage)
     outImage.rgba      = std::move (image.rgba);
     outImage.width     = image.width;
     outImage.height    = image.height;
-    outImage.displayDp = kPictureDp;
+    outImage.displayDp = displayDp;
 
 Error:
     return hr;
@@ -93,9 +159,40 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueAbout::LoadPictures
+//
+//  An icon that fails to load stays empty, and the body shows its word.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueAbout::Pictures CassqueAbout::LoadPictures (HINSTANCE instance)
+{
+    Pictures  pictures;
+    HRESULT   hr       = S_OK;
+
+
+
+    hr = LoadPicture (instance, IDR_CASSQUE_CASK_PNG, kRowPictureDp, pictures.cask);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = LoadPicture (instance, IDR_CASSQUE_CASSO_PNG, kRowPictureDp, pictures.casso);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = LoadPicture (instance, IDR_CASSQUE_PICTURE_PNG, kRowPictureDp, pictures.cassque);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return pictures;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueAbout::Show
 //
-//  The picture is optional: a build without it still says what the name
+//  The pictures are optional: a build without them still says what the name
 //  means.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +201,7 @@ void CassqueAbout::Show (HWND owner, const IDxuiTheme * theme, HINSTANCE instanc
 {
     static constexpr int                kWidthDip        = 460;
     static constexpr int                kChromeHeightDip = 108;
-    static constexpr int                kMaxHeightDip    = 640;
+    static constexpr int                kMaxHeightDip    = 720;
     std::unique_ptr<DialogBodyContent>  content          = std::make_unique<DialogBodyContent>();
     MessageDialog                       dialog;
     DxuiWindow::CreateParams            params;
@@ -114,9 +211,9 @@ void CassqueAbout::Show (HWND owner, const IDxuiTheme * theme, HINSTANCE instanc
 
 
 
-    content->SetRuns (GetBody());
+    content->SetRuns (GetBody (LoadPictures (instance)));
 
-    hr = LoadPicture (instance, picture);
+    hr = LoadPicture (instance, IDR_CASSQUE_PICTURE_PNG, kPictureDp, picture);
 
     if (SUCCEEDED (hr))
     {

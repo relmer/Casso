@@ -10,6 +10,11 @@ IDI_CASSQUE                  ICON "..\\Resources\\Icons\\Cassque.ico"
 // Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0 -- see Assets/ATTRIBUTION.txt.
 IDR_CASSQUE_PICTURE_PNG      RCDATA "Assets\\Cassque.png"
 
+// The bare cask and Casso's icon, which the About box sets beside Cassque's
+// own to explain the name.
+IDR_CASSQUE_CASK_PNG         RCDATA "Assets\\CassqueCask.png"
+IDR_CASSQUE_CASSO_PNG        RCDATA "Assets\\CassqueCasso.png"
+
 // The same built-in themes Casso embeds. AssetBootstrap::EnsureThemes compares
 // the files on disk against the running module's embedded copies, so both
 // programs must carry identical ones or each would rewrite the other's.

@@ -39,6 +39,33 @@ enum class DialogIcon
 
 
 
+//
+//  A picture: straight-alpha RGBA rows, top first, and the square it is shown
+//  in. It goes above the body, or inline in a run. An About box that explains
+//  a name with pictures is the case; an app icon keeps using DialogIcon.
+//
+struct DialogImage
+{
+    std::vector<Byte>  rgba;
+    int                width     = 0;
+    int                height    = 0;
+    float              displayDp = 0.0f;
+};
+
+
+
+//
+//  One piece of a strip run: the picture when `image` has pixels, otherwise
+//  `text`. A piece with neither takes no room.
+//
+struct DialogInlinePiece
+{
+    DialogImage   image;
+    std::wstring  text;
+};
+
+
+
 struct DialogTextRun
 {
     std::wstring  text;
@@ -50,6 +77,15 @@ struct DialogTextRun
     // shares its column positions, measured across all of them, so the arrows
     // form a single vertical line whatever the rows say.
     std::wstring  rightText;
+
+    // When not empty, the run is one centered line of pictures and short
+    // text, an equation of icons for instance, and `text` is not shown.
+    // Nothing in it wraps.
+    std::vector<DialogInlinePiece>  strip;
+
+    // A picture at the start of the run, with `text` wrapping beside it. A
+    // picture without pixels leaves an ordinary line of prose.
+    std::optional<DialogImage>  leadingImage;
 
     // A hyperlink wins: SetRuns tests this first, and a run carrying both
     // would otherwise render as plain text with the URL silently dropped.
@@ -67,21 +103,6 @@ struct DialogButton
     // Pins the button bottom-left as a secondary / navigation action (e.g.
     // "Browse...") instead of joining the right-aligned OK/Cancel group.
     bool          anchorLeft = false;
-};
-
-
-
-//
-//  A picture drawn centered above the body: straight-alpha RGBA rows, top
-//  first, and the square it is shown in. An About box that explains a name
-//  with a photograph is the case; an app icon keeps using DialogIcon.
-//
-struct DialogImage
-{
-    std::vector<Byte>  rgba;
-    int                width     = 0;
-    int                height    = 0;
-    float              displayDp = 0.0f;
 };
 
 

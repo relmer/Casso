@@ -4,6 +4,8 @@ Produces:
   Resources/Icons/Cassque.png   - 1024x1024 master PNG
   Resources/Icons/Cassque.ico   - Multi-resolution ICO (16, 24, 32, 48, 64, 128, 256)
   Cassque/Assets/Cassque.png    - 256x256, the picture in Cassque's About box
+  Cassque/Assets/CassqueCask.png  - 128x128, the bare cask, for the About box
+  Cassque/Assets/CassqueCasso.png - 128x128, Casso's icon, for the About box
 
 The casque is the top of the same cassowary silhouette Casso's icons use.
 """
@@ -16,6 +18,8 @@ import build_icons as bi
 
 HERE = Path(__file__).parent
 ABOUT_PNG = HERE.parent.parent / "Cassque" / "Assets" / "Cassque.png"
+ABOUT_CASK_PNG = ABOUT_PNG.with_name("CassqueCask.png")
+ABOUT_CASSO_PNG = ABOUT_PNG.with_name("CassqueCasso.png")
 
 MASTER = 1024
 DARK = (18, 16, 22)
@@ -178,17 +182,28 @@ def set_down(canvas, piece, contact, height, max_base):
 
 # ---------- driver -----------------------------------------------------------
 
-def compose():
+def compose(with_casque=True):
+    """The icon, or with_casque=False the bare cask, centered on the same tile."""
     s = MASTER
     img = Image.new("RGBA", (s, s), DARK + (255,))
-    layer, contact, max_base = side_barrel(s, (int(s * 0.16), int(s * 0.50), int(s * 0.80), int(s * 0.88)))
+    if with_casque:
+        box = (int(s * 0.16), int(s * 0.50), int(s * 0.80), int(s * 0.88))
+    else:
+        box = (int(s * 0.16), int(s * 0.31), int(s * 0.80), int(s * 0.69))
+    layer, contact, max_base = side_barrel(s, box)
     img.alpha_composite(layer)
-    set_down(img, casque(), contact, s * 0.40, max_base * 0.95)
+    if with_casque:
+        set_down(img, casque(), contact, s * 0.40, max_base * 0.95)
     img.putalpha(bi.rounded_mask(s, int(s * bi.RADIUS_FRAC)))
     return img
 
 
 def main() -> None:
+    # The About box explains the name as cask + Casso = Cassque, with icons.
+    inline = 128
+    compose(with_casque=False).resize((inline, inline), Image.LANCZOS).save(ABOUT_CASK_PNG, "PNG", optimize=True)
+    bi.variant_silhouette(MASTER).resize((inline, inline), Image.LANCZOS).save(ABOUT_CASSO_PNG, "PNG", optimize=True)
+
     master = compose()
 
     png_path = bi.OUT_DIR / "Cassque.png"
@@ -200,8 +215,8 @@ def main() -> None:
 
     master.resize((256, 256), Image.LANCZOS).save(ABOUT_PNG, "PNG", optimize=True)
 
-    for path in (png_path, ico_path, ABOUT_PNG):
-        print(f"  {path.name:14} {path.stat().st_size:>8} B")
+    for path in (png_path, ico_path, ABOUT_PNG, ABOUT_CASK_PNG, ABOUT_CASSO_PNG):
+        print(f"  {path.name:18} {path.stat().st_size:>8} B")
 
 
 if __name__ == "__main__":

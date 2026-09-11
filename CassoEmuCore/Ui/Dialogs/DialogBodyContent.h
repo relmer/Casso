@@ -67,6 +67,24 @@ public:
 
 
 private:
+    struct Picture
+    {
+        std::vector<uint32_t>  pixels;
+        int                    srcW    = 0;
+        int                    srcH    = 0;
+        int                    sizeDip = 0;
+        RECT                   rectPx  = {};
+    };
+
+    // One piece of a strip run: a picture, as an index into the run's
+    // pictures, or a label, and the width it takes on the line.
+    struct Piece
+    {
+        int             picture  = -1;
+        IDxuiControl *  label    = nullptr;
+        int             widthDip = 0;
+    };
+
     struct Item
     {
         IDxuiControl *  widget = nullptr;
@@ -76,7 +94,37 @@ private:
         // cells and the right cell. Null on an ordinary prose run.
         IDxuiControl *  arrowWidget = nullptr;
         IDxuiControl *  rightWidget = nullptr;
+
+        // A strip run's pieces, left to right, or a leading picture's square
+        // (0 for none). Either way the pictures themselves are kept here for
+        // Paint.
+        std::vector<Piece>    strip;
+        std::vector<Picture>  pictures;
+        int                   leadingDip = 0;
     };
+
+    // Builds a strip run's pieces, one label per text piece.
+    void  BuildStripRow   (const DialogTextRun & run, Item & item);
+
+    // Builds a run led by a picture. False, building nothing, when the run
+    // has no leading picture with pixels.
+    bool  BuildLeadingRow (const DialogTextRun & run, Item & item);
+
+    // Converts a DialogImage to a picture. False when it has no pixels or no
+    // size to be shown at.
+    static bool  MakePicture       (const DialogImage & image, Picture & outPicture);
+
+    // Lines a string takes wrapped at `wrapColumns` characters, estimated the
+    // same way for every run.
+    static int   EstimateLineCount (const std::wstring & text, size_t wrapColumns);
+
+    // The height a run takes: its lines, or its tallest picture with room
+    // around it.
+    static int   GetItemHeightDip  (const Item & item);
+
+    // Centers a strip run's pieces across the line, each picture and label
+    // centered on the line's height.
+    static void  LayoutStripRow    (Item & item, int topPx, int heightPx, int leftPx, int rightPx, const DxuiDpiScaler & scaler);
 
     // Width one string needs, estimated from an average glyph width because
     // layout runs without a text renderer -- the same trade DxuiButtonRow

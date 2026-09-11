@@ -3,6 +3,7 @@
 #include "InMemoryFileSystem.h"
 #include "Cassque/Model/KnownFolderStore.h"
 #include "Cassque/Model/LaunchCommand.h"
+#include "Core/DxuiDpiScaler.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "../Cassque/FakeProcessLauncher.h"
 
@@ -134,5 +135,82 @@ public:
         image.rgba.pop_back();
 
         Assert::IsTrue (DialogBodyContent::ToPremultipliedBgra (image).empty());
+    }
+
+
+
+    static DialogImage MakePicture (float displayDp)
+    {
+        DialogImage  image;
+
+        image.width     = 1;
+        image.height    = 1;
+        image.rgba      = { 0x10, 0x20, 0x30, 0xFF };
+        image.displayDp = displayDp;
+
+        return image;
+    }
+
+
+    static DxuiDpiScaler MakeScaler96()
+    {
+        DxuiDpiScaler  scaler;
+
+        scaler.SetDpi (96);   // 1:1 DIP == px
+
+        return scaler;
+    }
+
+
+
+    TEST_METHOD (DialogStrip_CentersItsPiecesOnTheTallestPicture)
+    {
+        DialogBodyContent  content;
+        DialogTextRun      run;
+        RECT               label = {};
+
+        //  48 + "+" (18, its floor) + an empty piece, which takes no room.
+        run.strip = { { MakePicture (48.0f), L"" }, { {}, L"+" }, { {}, L"" } };
+
+        content.SetRuns ({ run });
+        content.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
+        label = content.GetChild (0)->GetBounds();
+
+        Assert::AreEqual ((size_t) 1, content.GetChildCount());
+        Assert::AreEqual (48 + 2 * 3, content.GetPreferredHeightDip());
+
+        //  The strip is 48 + 8 + 18 wide, centered in 400; the label follows the
+        //  picture and sits centered on the 54-high line.
+        Assert::AreEqual ((LONG) ((400 - 74) / 2 + 48 + 8), label.left);
+        Assert::AreEqual ((LONG) ((54 - 18) / 2),           label.top);
+    }
+
+
+
+    TEST_METHOD (DialogLeadingPicture_SetsItsTextBesideItOrLeavesProse)
+    {
+        DialogBodyContent  withPicture;
+        DialogBodyContent  withoutPixels;
+        DialogTextRun      run;
+        RECT               label = {};
+
+        run.text         = L"Casso";
+        run.leadingImage = MakePicture (32.0f);
+
+        withPicture.SetRuns ({ run });
+        withPicture.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
+        label = withPicture.GetChild (0)->GetBounds();
+
+        Assert::AreEqual (32 + 2 * 3,      withPicture.GetPreferredHeightDip());
+        Assert::AreEqual ((LONG) (32 + 8), label.left);
+        Assert::AreEqual ((LONG) ((38 - 18) / 2), label.top);
+
+        run.leadingImage->rgba.clear();
+
+        withoutPixels.SetRuns ({ run });
+        withoutPixels.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
+
+        Assert::AreEqual (18, withoutPixels.GetPreferredHeightDip());
+        Assert::AreEqual ((LONG) 0, withoutPixels.GetChild (0)->GetBounds().left);
     }
 };
