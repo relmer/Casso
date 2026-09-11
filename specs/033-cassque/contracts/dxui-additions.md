@@ -88,7 +88,7 @@ Rules: one stretch field takes the remainder; text elides with
 class DxuiDragDropSource
 {
 public:
-    struct Format { CLIPFORMAT format; std::function<HRESULT (std::vector<Byte> &)> render; };   // render on demand
+    struct Format { CLIPFORMAT format; int count; std::function<HRESULT (int index, std::vector<Byte> &)> render; };   // render on demand, per lindex
     HRESULT  Begin (std::vector<Format> formats, DWORD allowedEffects, DWORD & resultEffect);
 };
 ```

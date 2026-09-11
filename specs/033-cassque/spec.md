@@ -333,10 +333,11 @@ window with a screen reader.
   This PC root listing the host's drives, each navigable to any depth.
 - **FR-005**: Known folders MUST be a persisted preference shared with
   Casso, seeded on first run from the folders of Casso's recent disks,
-  and extended with the folder of any disk image handed to Casso from
-  Cassque: Insert into a drive, Open in new Casso, or a drag onto a Casso
-  window. Browsing, previewing, copying out or editing MUST NOT add a
-  folder.
+  and extended with the folder of any disk image handed to Casso: Insert
+  into a drive, Open in new Casso, or a drop onto a Casso window from any
+  source, including File Explorer. Casso records the hand-off, since
+  only it sees every mount. Browsing, previewing, copying out or editing
+  MUST NOT add a folder.
 - **FR-005a**: Every host folder's context menu MUST offer Add to Casso,
   and every known folder's MUST offer Remove from Casso, whether or not
   the folder still exists.
@@ -351,8 +352,9 @@ window with a screen reader.
 **File list and status**
 
 - **FR-009**: The file list MUST show name, type, size, load address or
-  aux type, locked, and modified where the file system records it, with
-  sortable columns and multiple selection.
+  aux type, locked, and modified, with sortable columns and multiple
+  selection. Modified is shown for ProDOS entries and host files; DOS 3.3
+  records no date and its rows leave the column blank.
 - **FR-010**: The status bar MUST show the selection count, the selected
   entry's type, size and address, and the volume's free space.
 
@@ -373,6 +375,9 @@ window with a screen reader.
   from context menus and produce byte-identical results: list, get, put,
   delete, boot, create, init, sector read and write, block read and
   write, with the text and BASIC conversions.
+- **FR-013a**: Rename MUST be offered on files in both DOS 3.3 and ProDOS
+  images and on host files, from the context menu and F2, applying the
+  target file system's name rules and refusing a collision.
 - **FR-014**: Operations MUST call the core disk runner directly, never
   spawn the command-line tool.
 - **FR-015**: Destructive operations, meaning delete, format and
@@ -438,8 +443,11 @@ window with a screen reader.
 
 **Tabs, keyboard, themes**
 
-- **FR-025**: Cassque MUST support multiple tabs, each with its own tree
-  selection, list and preview state, with Ctrl+T, Ctrl+W and Ctrl+Tab.
+- **FR-025**: Cassque MUST support multiple tabs, each with its own
+  location, history, selection, sort, and preview scroll and
+  disassembly toggle, with Ctrl+T, Ctrl+W and Ctrl+Tab, and Alt+Left and
+  Alt+Right for back and forward. Preview-pane visibility is one setting
+  for the window, not per tab. Open tabs are restored on the next launch.
 - **FR-026**: Every operation MUST be reachable from the keyboard, and
   every context menu MUST open from the application key and Shift+F10.
 - **FR-027**: The theme menu MUST offer Light, Dark, Follow system, and
@@ -476,7 +484,8 @@ window with a screen reader.
   conversions the host side would need.
 - **Casso target**: the instance an insert goes to: launcher, a running
   instance, or a new one; with its machine's drive count.
-- **Tab**: a location, its selection, and its preview state.
+- **Tab**: a location, its history, selection, sort, and the preview's
+  scroll position and disassembly toggle.
 
 ## Success Criteria *(mandatory)*
 
@@ -518,9 +527,8 @@ window with a screen reader.
 - Preview and Get show what a decoder can decode and mark where it
   stopped, since the Apple saves programs without validating them and a
   type A or I file may hold anything.
-- Rename is offered only where the file system supports it in place;
-  otherwise it is absent from the menu rather than emulated by copy and
-  delete.
+- Rename is added to both disk file systems as an in-place catalog edit;
+  it is never emulated by copy and delete.
 - Executable detection is not attempted; hex dump is the default for
   binaries and the graphics rule is the only exception.
 - Sector and block operations live under an Advanced submenu and confirm
