@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/ProDosSkeleton.h"
-#include "Devices/Disk/TrackWritability.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/TrackWritability.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

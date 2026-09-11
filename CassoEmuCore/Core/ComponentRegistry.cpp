@@ -4,18 +4,18 @@
 #include "MachineConfig.h"
 #include "../Devices/RamDevice.h"
 #include "../Devices/RomDevice.h"
-#include "../Devices/AppleKeyboard.h"
-#include "../Devices/AppleGamePort.h"
-#include "../Devices/AppleSoftSwitchBank.h"
-#include "../Devices/AppleSpeaker.h"
-#include "../Devices/LanguageCard.h"
-#include "../Devices/Disk2Controller.h"
-#include "../Devices/Apple2eKeyboard.h"
-#include "../Devices/Apple2eMmu.h"
-#include "../Devices/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Machines/Apple2/Common/AppleGamePort.h"
+#include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "../Devices/Acia6551.h"
-#include "../Devices/Printer/PrinterCard.h"
-#include "../Devices/Mockingboard/MockingboardCard.h"
+#include "Machines/Apple2/Common/PrinterCard.h"
+#include "Machines/Apple2/Common/MockingboardCard.h"
 
 
 
@@ -122,12 +122,12 @@ vector<string> ComponentRegistry::GetRegisteredTypes() const
 
 void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
 {
-    registry.Register ("apple2-keyboard",      AppleKeyboard::Create);
-    registry.Register ("apple2e-keyboard",     Apple2eKeyboard::Create);
-    registry.Register ("apple2-speaker",       AppleSpeaker::Create);
-    registry.Register ("apple2-softswitches",  AppleSoftSwitchBank::Create);
-    registry.Register ("apple2-gameport",      AppleGamePort::Create);
-    registry.Register ("apple2e-softswitches", Apple2eSoftSwitchBank::Create);
+    registry.Register ("apple2-family-keyboard",      AppleKeyboard::Create);
+    registry.Register ("apple2e-family-keyboard",     Apple2eKeyboard::Create);
+    registry.Register ("apple2-family-speaker",       AppleSpeaker::Create);
+    registry.Register ("apple2-family-softswitches",  AppleSoftSwitchBank::Create);
+    registry.Register ("apple2-family-gameport",      AppleGamePort::Create);
+    registry.Register ("apple2e-family-softswitches", Apple2eSoftSwitchBank::Create);
     registry.Register ("language-card",        LanguageCard::Create);
     registry.Register ("disk-ii",              Disk2Controller::Create);
     registry.Register ("acia-6551",            Acia6551::Create);

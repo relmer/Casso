@@ -3,12 +3,12 @@
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/ProDosVolume.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -287,17 +287,17 @@ public:
     //  satisfied by a payload that happened to be sitting there already, and on
     //  a machine that boots the same disk every time "happened to be sitting
     //  there" is not a remote possibility.
-    static void AssertBloadLandsThePayload (EmulatorCore & core, const std::string & command)
+    static void AssertBloadLandsThePayload (MachineHost & machine, const std::string & command)
     {
-        std::vector<Byte>         before = GuestSession::GuestBytesAt (core, kLoadAddress, kPayloadBytes);
+        std::vector<Byte>         before = GuestSession::GuestBytesAt (machine, kLoadAddress, kPayloadBytes);
         std::vector<std::string>  rows;
         std::vector<Byte>         after;
 
         Assert::IsFalse (before == MakePayload(),
             L"the payload must not already be at the load address, or the load proves nothing");
 
-        rows  = GuestSession::TypeAndCollect (core, command);
-        after = GuestSession::GuestBytesAt (core, kLoadAddress, kPayloadBytes);
+        rows  = GuestSession::TypeAndCollect (machine, command);
+        after = GuestSession::GuestBytesAt (machine, kLoadAddress, kPayloadBytes);
 
         Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"),
             L"the guest must not report an error loading the file it just listed");
@@ -315,8 +315,7 @@ public:
 
     TEST_METHOD (Dos33_APlacedBinary_IsCatalogedByTheGuestAndBloadsToItsAddress)
     {
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e");
         DiskCommandResult         put;
         std::vector<Byte>         master  = GuestSession::RequireDos33Master();
         std::vector<Byte>         written = PutBinaryOnto (master, "B", put);
@@ -331,22 +330,21 @@ public:
 
         AssertTheWrittenImageIsStillADisk (written, master, kMasterCarries, false);
 
-        GuestSession::BootToPrompt (host, core, written);
+        GuestSession::BootToPrompt (machine, written);
 
-        rows = GuestSession::TypeAndCollect (core, "CATALOG");
+        rows = GuestSession::TypeAndCollect (machine, "CATALOG");
 
         Assert::IsTrue (GuestSession::AnyRowIs (rows, kMasterHeading),
             L"the guest must have printed its own catalog heading, or nothing was cataloged");
 
         GuestSession::AssertTheOnlyRowsMentioning (rows, kPlacedName, kDos33Row);
 
-        AssertBloadLandsThePayload (core, "BLOAD PROG");
+        AssertBloadLandsThePayload (machine, "BLOAD PROG");
     }
 
     TEST_METHOD (ProDos_APlacedBinary_IsCatalogedAsBinByTheGuestAndBloadsToItsAuxAddress)
     {
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e");
         DiskCommandResult         put;
         std::vector<Byte>         fixture = ProDosFixtureBytes();
         std::vector<Byte>         written = PutBinaryOnto (fixture, "BIN", put);
@@ -361,16 +359,16 @@ public:
 
         AssertTheWrittenImageIsStillADisk (written, fixture, kProDosCarries, true);
 
-        GuestSession::BootToPrompt (host, core, written);
+        GuestSession::BootToPrompt (machine, written);
 
         //  EIGHTY COLUMNS FIRST, and it is not cosmetic. BASIC.SYSTEM's short
         //  listing stops at the block count, so the auxiliary type -- the whole
         //  ProDOS half of this gate -- is simply not on the screen at forty
         //  columns. The long listing carries it, and needs the width to print
         //  it. Measured: at forty columns the row ends at `1  <NO DATE>`.
-        GuestSession::TypeAndCollect (core, "PR#3");
+        GuestSession::TypeAndCollect (machine, "PR#3");
 
-        rows = GuestSession::TypeAndCollect (core, "CATALOG");
+        rows = GuestSession::TypeAndCollect (machine, "CATALOG");
 
         Assert::IsTrue (GuestSession::AnyRowContains (rows, kProDosHeading),
             L"the guest must have identified the volume it is listing");
@@ -381,13 +379,12 @@ public:
         //  its AUXILIARY TYPE says, which is the field a binary's load address
         //  is stored in. Naming the address here would prove only that the
         //  guest can follow an instruction it was given.
-        AssertBloadLandsThePayload (core, "BLOAD PROG");
+        AssertBloadLandsThePayload (machine, "BLOAD PROG");
     }
 
     TEST_METHOD (Dos33_TheStockMastersLockedGreeting_IsRefused_AndTheGuestAgreesItIsLocked)
     {
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e");
         FakeDiskFileIo            io;
         DiskCommandResult         put;
         std::vector<Byte>         master   = GuestSession::RequireDos33Master();
@@ -400,9 +397,9 @@ public:
         //  The guest's own account of the file first. Our reader would only
         //  restate the type byte it parsed; DOS drawing a lock marker beside
         //  its own greeting is independent evidence that $82 means locked.
-        GuestSession::BootToPrompt (host, core, master);
+        GuestSession::BootToPrompt (machine, master);
 
-        rows = GuestSession::TypeAndCollect (core, "CATALOG");
+        rows = GuestSession::TypeAndCollect (machine, "CATALOG");
 
         GuestSession::AssertTheOnlyRowsMentioning (rows, kLockedFile, kLockedRow);
 

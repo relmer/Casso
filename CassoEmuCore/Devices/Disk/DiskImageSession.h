@@ -5,7 +5,7 @@
 #include "CommitPlan.h"
 #include "DiskCommandResult.h"
 #include "IDiskFileIo.h"
-#include "SectorDecodeReport.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 enum class VolumeKind;
 

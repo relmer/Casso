@@ -230,6 +230,50 @@ public:
         Assert::AreEqual (-1.0f, speaker[1], 1e-6f);
     }
 
+    TEST_METHOD (TwoSourcesAtKnownPans_MixToTheExpectedSamples_AndClampOnlyPastTheBoundary)
+    {
+        DriveAudioMixer       mixer;
+        MockDriveAudioSource  one;
+        MockDriveAudioSource  two;
+        float                 drive[4]   = {};
+        float                 speaker[4] = {};
+
+        //  Two sources whose products are exact in binary floating point, so
+        //  the expected mix is arithmetic rather than a tolerance.
+        //
+        //    L = 0.5 * 0.75 + 0.25 * 0.5  = 0.5
+        //    R = 0.5 * 0.25 + 0.25 * 1.0  = 0.375
+        one.m_value = 0.5f;
+        one.SetPan (0.75f, 0.25f);
+        two.m_value = 0.25f;
+        two.SetPan (0.5f, 1.0f);
+        mixer.RegisterSource (&one);
+        mixer.RegisterSource (&two);
+
+        mixer.GeneratePCM (drive, 2);
+
+        Assert::AreEqual (0.5f,   drive[0], L"left, sample 0");
+        Assert::AreEqual (0.375f, drive[1], L"right, sample 0");
+        Assert::AreEqual (0.5f,   drive[2], L"left, sample 1");
+        Assert::AreEqual (0.375f, drive[3], L"right, sample 1");
+
+        //  Summed into a speaker signal chosen so the left channel lands
+        //  EXACTLY on the rail and the right channel crosses it. Full scale
+        //  is a legal sample and must come through untouched; only what is
+        //  past it is clamped.
+        speaker[0] =  0.5f;      // 0.5   + 0.5   = 1.0 exactly
+        speaker[1] =  0.75f;     // 0.75  + 0.375 = 1.125, over
+        speaker[2] = -1.5f;      // -1.5  + 0.5   = -1.0 exactly
+        speaker[3] = -1.5f;      // -1.5  + 0.375 = -1.125, under
+
+        DriveAudioMixer::MixDriveIntoSpeakerStereo (speaker, drive, 2);
+
+        Assert::AreEqual ( 1.0f, speaker[0], L"a sample at full scale is not clipped");
+        Assert::AreEqual ( 1.0f, speaker[1], L"one past it is held at the rail");
+        Assert::AreEqual (-1.0f, speaker[2], L"the same at the negative rail");
+        Assert::AreEqual (-1.0f, speaker[3], L"and past it");
+    }
+
     TEST_METHOD (PanToStereo_center_equalPowerBothChannels)
     {
         float  l = 0.0f;

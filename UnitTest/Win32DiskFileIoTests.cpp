@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Cli/Win32DiskFileIo.h"
+#include "Seams/Win32DiskFileIo.h"
 #include "CppUnitTest.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

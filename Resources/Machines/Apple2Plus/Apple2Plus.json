@@ -3,19 +3,14 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 12,
+    "$cassoMachineVersion": 13,
     "name": "Apple ][ plus",
     "releaseYear": 1979,
-    "cpu": "6502",
-    "cpuManufacturer": "MOS Technology",
     "timing": {
         "videoStandard": "ntsc",
         "clockSpeed": 1022727,
         "cyclesPerScanline": 65
     },
-    "ram": [
-        { "address": "0x0000", "size": "0xC000" }
-    ],
     "systemRom": {
         "address": "0xD000",
         "file": "Apple2Plus.rom"
@@ -23,12 +18,6 @@
     "characterRom": {
         "file": "Apple2_Video.rom"
     },
-    "internalDevices": [
-        { "type": "apple2-keyboard" },
-        { "type": "apple2-speaker" },
-        { "type": "apple2-softswitches" },
-        { "type": "apple2-gameport" }
-    ],
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
         { "slot": 4, "device": "mockingboard-c" },
@@ -37,11 +26,5 @@
         // detaches that drive without changing the card.
         { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom",
           "ports": ["disk-ii-drive", "disk-ii-drive"] }
-    ],
-    "video": {
-        "modes": ["apple2-text40", "apple2-lores", "apple2-hires"]
-    },
-    "keyboard": {
-        "type": "apple2-uppercase"
-    }
+    ]
 }

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "../Casso/Ui/Dialogs/StartupDownloadDialog.h"
+#include "Ui/Dialogs/StartupDownloadDialog.h"
 
 
 
@@ -22,6 +22,10 @@ namespace StartupDownloadSetTests
                           : (kind == StartupAssetKind::DriveAudio) ? L"Drive audio"
                                                                    : L"Boot disk";
         entry.source      = L"Test source";
+
+        // A ROM the machine cannot boot without is not the user's to
+        // untick; the bootstrap builds them that way.
+        entry.selectable  = (kind != StartupAssetKind::Rom);
         return entry;
     }
 
@@ -49,6 +53,17 @@ namespace StartupDownloadSetTests
             Assert::IsFalse (set.IsEmpty(),       L"ROM-only set is not empty");
             Assert::IsTrue  (set.RequiresRoms(), L"any ROM forces RequiresRoms");
             Assert::AreEqual ((size_t) 2, set.entries.size());
+        }
+
+
+        TEST_METHOD (ASelectableRom_DoesNotRequireRoms)
+        {
+            StartupDownloadSet  set;
+            set.entries.push_back (MakeEntry (StartupAssetKind::Rom, L"Apple //e Character Generator"));
+            set.entries.back().selectable = true;
+
+            Assert::IsFalse (set.RequiresRoms(),
+                L"a replacement for a ROM already on disk is optional, so the dialog offers Skip");
         }
 
 

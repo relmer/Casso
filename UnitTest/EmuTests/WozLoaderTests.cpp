@@ -1,6 +1,6 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

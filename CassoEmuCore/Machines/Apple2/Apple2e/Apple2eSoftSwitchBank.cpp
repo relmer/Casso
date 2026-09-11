@@ -1,0 +1,611 @@
+#include "Pch.h"
+
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/AppleMouse.h"
+#include "Devices/IInputEventSink.h"
+#include "Devices/IRomBankSwitch.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Common/IVideoTiming.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2eSoftSwitchBank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Apple2eSoftSwitchBank::Apple2eSoftSwitchBank (MemoryBus * bus)
+    : AppleSoftSwitchBank(),
+      m_bus               (bus)
+{
+    for (atomic<Byte> & axis : m_paddlePosition)
+    {
+        axis.store (s_knPaddleCenter, memory_order_relaxed);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Is80Store
+//
+//  Delegates to the MMU which owns the canonical 80STORE flag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2eSoftSwitchBank::Is80Store() const
+{
+    return m_mmu != nullptr && m_mmu->Get80Store();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadStatusRegister
+//
+//  Phase 6 / T061 / T064 / FR-001 / FR-003 / audit §1.2.
+//  Bit 7 is sourced from the canonical state-owning device:
+//    $C011 BSRBANK2     -> LanguageCard
+//    $C012 BSRREADRAM   -> LanguageCard
+//    $C013 RDRAMRD      -> Apple2eMmu
+//    $C014 RDRAMWRT     -> Apple2eMmu
+//    $C015 RDINTCXROM   -> Apple2eMmu
+//    $C016 RDALTZP      -> Apple2eMmu
+//    $C017 RDSLOTC3ROM  -> Apple2eMmu
+//    $C018 RD80STORE    -> Apple2eMmu
+//    $C019 RDVBLBAR     -> VideoTiming (bit 7 = 1 during display, 0 during vblank)
+//    $C01A RDTEXT       -> AppleSoftSwitchBank (text mode)
+//    $C01B RDMIXED      -> AppleSoftSwitchBank
+//    $C01C RDPAGE2      -> AppleSoftSwitchBank
+//    $C01D RDHIRES      -> AppleSoftSwitchBank
+//    $C01E RDALTCHAR    -> this (alt char set)
+//    $C01F RD80VID      -> this (80-column display)
+//
+//  Bits 0-6 are the keyboard data latch (floating-bus convention).
+//  Reads do not perturb any state, including the keyboard strobe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
+{
+    Byte  kbdBits  = 0;
+    Byte  topBit   = 0;
+    bool  flag     = false;
+    bool  isMouseC = false;
+
+
+
+    if (m_keyboard != nullptr)
+    {
+        kbdBits = m_keyboard->GetLatchedKeyDataBits();
+    }
+
+    // //c IOU mouse overrides: with no slots, the //c repurposes
+    // $C015/$C017 as the mouse X0/Y0 interrupt-status reads (RDINTCXROM /
+    // RDSLOTC3ROM are meaningless there -- the //c ROM never reads them for
+    // MMU state), and $C019 reads the VBL interrupt LATCH (set at VBL onset,
+    // cleared by $C070) instead of the //e's live RDVBLBAR signal. These
+    // three addresses therefore never reach the //e table below.
+    if (m_mouse != nullptr)
+    {
+        isMouseC = true;
+
+        switch (address)
+        {
+            case 0xC015: topBit = m_mouse->ReadXInterruptStatus(); break;
+            case 0xC017: topBit = m_mouse->ReadYInterruptStatus(); break;
+            case 0xC019: topBit = m_mouse->ReadVblInterrupt(); break;
+            default:     isMouseC = false;                         break;
+        }
+    }
+
+    if (!isMouseC)
+    {
+        switch (address)
+        {
+            case 0xC011: flag = m_lc          != nullptr && m_lc->IsBank2          (); break;
+            case 0xC012: flag = m_lc          != nullptr && m_lc->IsReadRam        (); break;
+            case 0xC013: flag = m_mmu         != nullptr && m_mmu->GetRamRd        (); break;
+            case 0xC014: flag = m_mmu         != nullptr && m_mmu->GetRamWrt       (); break;
+            case 0xC015: flag = m_mmu         != nullptr && m_mmu->GetIntCxRom     (); break;
+            case 0xC016: flag = m_mmu         != nullptr && m_mmu->GetAltZp        (); break;
+            case 0xC017: flag = m_mmu         != nullptr && m_mmu->GetSlotC3Rom    (); break;
+            case 0xC018: flag = m_mmu         != nullptr && m_mmu->Get80Store      (); break;
+            case 0xC019: flag = m_videoTiming != nullptr && !m_videoTiming->IsInVblank(); break;
+            case 0xC01A: flag = !IsGraphicsMode(); break;
+            case 0xC01B: flag = IsMixedMode    (); break;
+            case 0xC01C: flag = IsPage2        (); break;
+            case 0xC01D: flag = IsHiresMode    (); break;
+            case 0xC01E: flag = m_altCharSet; break;
+            case 0xC01F: flag = m_80colMode;  break;
+            default:     flag = false;        break;
+        }
+
+        topBit = flag ? 0x80 : 0x00;
+    }
+
+    return static_cast<Byte> (kbdBits | topBit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadPaddle
+//
+//  Models the //e 558 one-shot: after a $C070 strobe each axis holds bit 7
+//  high for a span proportional to its position, so PREAD's poll loop
+//  counts up to the position value. With no cycle source wired (tests) the
+//  timer reads as already expired so a poll loop can never hang.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::ReadPaddle (Word address) const
+{
+    int       axis    = static_cast<int> (address - s_kwPaddle0Address);
+    Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
+    uint64_t  elapsed = UINT64_MAX;
+
+
+
+    if (m_cpuCycleSource != nullptr)
+    {
+        elapsed = *m_cpuCycleSource - m_paddleTriggerCycle;
+    }
+
+    return (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? 0x80 : 0x00;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPaddle
+//
+//  Host UI thread. Stages an axis position; the CPU thread observes it on
+//  the next $C064-$C067 read. axis 0/1 = joystick X/Y, 2/3 = paddles 2/3;
+//  callers always pass an in-range axis, so an out-of-range value asserts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::SetPaddle (int axis, Byte position)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBRA (axis >= 0 && axis < s_knPaddleAxisCount);
+
+    m_paddlePosition[axis].store (position, memory_order_release);
+    EmitHostPaddle (axis, position);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitHostPaddle
+//
+//  Host UI thread. Coalesced emit for a host-set analog axis: fires only
+//  when the staged axis value changed since the last host-input emit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::EmitHostPaddle (int axis, Byte value)
+{
+    // No sink, or the same value we last reported: either way there is no
+    // change to announce.
+    if (m_inputSink != nullptr && m_lastEmittedHostPaddle[axis] != value)
+    {
+        m_lastEmittedHostPaddle[axis] = value;
+        m_inputSink->OnHostPaddle (axis, value);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitPaddleTrigger
+//
+//  CPU thread. Fires a PaddleTrigger event on each $C070 PTRIG strobe so the
+//  input-debug panel can show the program arming the game-port one-shots.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::EmitPaddleTrigger()
+{
+    // Not coalesced, unlike the read emitters: every strobe is a distinct
+    // arming event the panel wants to show.
+    if (m_inputSink != nullptr)
+    {
+        m_inputSink->OnPaddleTrigger (s_kwPaddleTimerStrobe);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitPaddleRead
+//
+//  CPU thread. Coalesced emit for a guest read of $C064-$C067: fires only
+//  when that axis's returned byte (bit 7 = timer still counting) changed
+//  since the last emit, so PREAD's tight poll loop yields one event per
+//  timer transition rather than one per read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
+{
+    int  idx = static_cast<int> (address - s_kwPaddle0Address);
+
+
+
+    // Same coalescing rule as EmitHostPaddle, on the guest-read side.
+    if (m_inputSink != nullptr && m_lastEmittedPaddle[idx] != value)
+    {
+        m_lastEmittedPaddle[idx] = value;
+        m_inputSink->OnPaddleRead (address, value);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Read
+//
+//  $C00C-$C00F (80COL/ALTCHARSET) toggle on read OR write per real //e.
+//  $C054-$C057 (PAGE2/HIRES) trigger banking-changed so MMU can re-resolve.
+//  $C05E/$C05F toggle DHIRES (display-only).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::Read (Word address)
+{
+    Byte  result        = 0;
+    bool  bankingChange = false;
+
+
+
+    // Phase 6 / T061: $C011-$C01F status reads owned by this bank.
+    // Bit 7 from the canonical state device, bits 0-6 from the
+    // keyboard latch via a read-only accessor (no strobe-clear).
+    if (address >= 0xC011 && address <= 0xC01F)
+    {
+        result = ReadStatusRegister (address);
+    }
+    else if ((address & 0xFFF0) == s_kwPaddleTimerStrobe)
+    {
+        // $C070-$C07F (PTRIG): the paddle-timer trigger is only partially
+        // decoded -- ANY access across the whole $C07x page strobes it. Latch
+        // the current CPU cycle so subsequent $C064-$C067 reads measure the
+        // resistor-capacitor countdown.
+        m_paddleTriggerCycle = (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0;
+
+        if (m_mouse != nullptr)
+        {
+            // //c: the same partial decode means ANY $C07x access clears the
+            // VBL interrupt latch. The mouse firmware's IRQ handler
+            // acknowledges VBL as a side effect of its IOU-access toggle
+            // (MousePaint does STA $C079 each interrupt); honoring only $C070
+            // left the latch stuck asserted, re-firing the IRQ every time
+            // interrupts were enabled and starving the guest's main loop.
+            m_mouse->AccessPtrig();
+
+            // Two address pairs drive the one IOUDIS latch, and both must
+            // work: $C078 / $C079 (named "disable / enable IOU access", the
+            // pair the ROM 4 firmware itself brackets its IOU writes with) and
+            // $C07E / $C07F (SETIOUDIS / CLRIOUDIS). IOU access OFF leaves
+            // $C058-$C05F as annunciator/DHIRES; ON makes them the mouse and
+            // VBL interrupt switches. Apple //c Technical Note #9 spells the
+            // second pair out -- a program polling VBL "must have turned
+            // IOUDis off by writing to $C07F, then accessed ENVBL at $C05B" --
+            // so honoring only $C078/$C079 left that documented sequence
+            // silently programming annunciators instead of the mouse.
+            if (address == 0xC078 || address == 0xC07E)
+            {
+                m_mouse->WriteIouAccess (false);
+            }
+            else if (address == 0xC079 || address == 0xC07F)
+            {
+                m_mouse->WriteIouAccess (true);
+            }
+        }
+
+        EmitPaddleTrigger();
+    }
+    else if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
+    {
+        // //c: $C066/$C067 are the mouse direction lines MOUX1/MOUY1 (the
+        // //c has no paddles 2/3; the IRQ prologue reads these at entry).
+        result = (address == 0xC066) ? m_mouse->ReadMouX1()
+                                     : m_mouse->ReadMouY1();
+    }
+    else if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
+    {
+        // $C064-$C067 (PADDL0-3): bit 7 = 1 while the axis's timer is still
+        // counting down, proportional to position. PREAD polls this in a loop.
+        result = ReadPaddle (address);
+
+        EmitPaddleRead (address, result);
+    }
+    else if (m_mouse != nullptr && m_mouse->IsIouAccessEnabled()
+             && address >= 0xC058 && address <= 0xC05F)
+    {
+        // //c with IOU access enabled ($C079): $C058-$C05F program the mouse
+        // and VBL interrupt switches instead of the annunciator/DHIRES bank.
+        // Any access programs (the firmware uses STA via the Write->Read
+        // fall-through).
+        m_mouse->AccessIouSwitch (address);
+    }
+    else
+    {
+        switch (address)
+        {
+            case 0xC00C:
+                m_80colMode = false;
+                break;
+            case 0xC00D:
+                m_80colMode = true;
+                break;
+            case 0xC00E:
+                m_altCharSet = false;
+                break;
+            case 0xC00F:
+                m_altCharSet = true;
+                break;
+            case 0xC028:
+                // Apple //c ROM-bank flip-flop: any access flips the visible
+                // 16K firmware bank across $C100-$FFFF. No effect on the //e
+                // (m_romBank is null there). Reached on writes too -- Write()
+                // forwards non-MMU addresses here.
+                if (m_romBank != nullptr)
+                {
+                    m_romBank->ToggleRomBank();
+                }
+
+                break;
+            case 0xC05E:
+                m_doubleHiRes = true;
+                bankingChange = true;
+                break;
+            case 0xC05F:
+                m_doubleHiRes = false;
+                bankingChange = true;
+                break;
+            // $C078/$C079 (//c IOU access toggle) are handled in the
+            // $C070-$C07F PTRIG branch above, since any $C07x access must
+            // also strobe the paddle timer / clear the VBL interrupt latch.
+            default:
+                break;
+        }
+
+        if (address >= 0xC054 && address <= 0xC057)
+        {
+            bankingChange = true;
+        }
+
+        if (address >= 0xC050 && address <= 0xC057)
+        {
+            result = AppleSoftSwitchBank::Read (address);
+        }
+
+        if (bankingChange)
+        {
+            if (m_mmu != nullptr)
+            {
+                m_mmu->OnSoftSwitchChanged();
+            }
+
+            if (m_bus != nullptr)
+            {
+                m_bus->NotifyBankingChanged();
+            }
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MMU write-switch pairs
+//
+//  Per Apple //e Tech Ref, $C000-$C00B is twelve addresses but only six
+//  switches -- the EVEN address of each pair clears the flag, the ODD one
+//  sets it:
+//    $C000 write -> 80STORE OFF      $C001 write -> 80STORE ON
+//    $C002 write -> RAMRD   OFF      $C003 write -> RAMRD   ON
+//    $C004 write -> RAMWRT  OFF      $C005 write -> RAMWRT  ON
+//    $C006 write -> INTCXROM OFF     $C007 write -> INTCXROM ON
+//    $C008 write -> ALTZP   OFF      $C009 write -> ALTZP   ON
+//    $C00A write -> SLOTC3ROM OFF    $C00B write -> SLOTC3ROM ON
+//
+//  Listing the pairs makes that regularity checkable at a glance, which
+//  twelve separate switch cases did not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const Apple2eSoftSwitchBank::MmuSwitch  s_kMmuSwitches[6] =
+{
+    { 0xC000, &IMmu::Set80Store   },
+    { 0xC002, &IMmu::SetRamRd     },
+    { 0xC004, &IMmu::SetRamWrt    },
+    { 0xC006, &IMmu::SetIntCxRom  },
+    { 0xC008, &IMmu::SetAltZp     },
+    { 0xC00A, &IMmu::SetSlotC3Rom },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Write
+//
+//  MMU-owned switches ($C000-$C00B, table above) forward to the MMU, which
+//  owns the flag and rebinds the page table. Everything else -- including
+//  $C00C-$C00F (80COL, ALTCHARSET) -- behaves exactly as the matching read.
+//
+//  Audit §1.1 fix-by-relocation: this is the correct addressing surface;
+//  the legacy AuxRamCard's $C003-$C006 was wrong and is deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::Write (Word address, Byte value)
+{
+    bool  handled = false;
+
+
+
+    UNREFERENCED_PARAMETER (value);
+
+    if (address >= 0xC000 && address <= 0xC00B && m_mmu != nullptr)
+    {
+        for (const MmuSwitch & sw : s_kMmuSwitches)
+        {
+            if (!handled && (address == sw.offAddress || address == sw.offAddress + 1))
+            {
+                (m_mmu->*sw.Set) (address != sw.offAddress);
+                handled = true;
+            }
+        }
+    }
+
+    // Everything else -- including $C00C-$C00F, which toggle on write exactly
+    // as they do on read -- goes through the read path.
+    if (!handled)
+    {
+        Read (address);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Reset
+//
+//  Returns the //e switches to their power-on state, on top of the base bank's
+//  reset.
+//
+//  The //c ROM-BANK flip-flop is cleared here because /RESET clears it in
+//  hardware. Without that, a Ctrl-Reset while the alternate bank is selected
+//  would read the reset vector from the wrong bank and jump somewhere
+//  meaningless -- both power-on and Ctrl-Reset must land in the main monitor.
+//
+//  Paddle axes reset to CENTER rather than zero. Zero is a rail, so a program
+//  reading the game port before anything moves would see a controller held
+//  hard over.
+//
+//  The last-emitted paddle values reset to -1, a sentinel no real position can
+//  take, so the first event after a reset is emitted rather than suppressed as
+//  a duplicate of whatever was current before it.
+//
+//  The trigger cycle is cleared so a PREAD started before the reset cannot
+//  complete against a stale timestamp and report an arbitrary position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::Reset()
+{
+    AppleSoftSwitchBank::Reset();
+    m_80colMode   = false;
+    m_doubleHiRes = false;
+    m_altCharSet  = false;
+
+    // //c: /RESET clears the ROM-bank flip-flop to bank 0 so both power-on
+    // and Ctrl-Reset read the reset vector from the main monitor bank.
+    if (m_romBank != nullptr)
+    {
+        m_romBank->ResetRomBank();
+    }
+
+    m_paddleTriggerCycle = 0;
+
+    for (int & last : m_lastEmittedPaddle)
+    {
+        last = -1;
+    }
+
+    for (int & last : m_lastEmittedHostPaddle)
+    {
+        last = -1;
+    }
+
+    for (atomic<Byte> & axis : m_paddlePosition)
+    {
+        axis.store (s_knPaddleCenter, memory_order_release);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoftReset
+//
+//  Phase 4 / FR-034 / audit §10 [CRITICAL]: a //e soft reset clears 80COL
+//  and ALTCHARSET — the bug fix that prevents the originally-reported
+//  80-col-mode-survives-reset behavior.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eSoftSwitchBank::SoftReset()
+{
+    Reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Create
+//
+////////////////////////////////////////////////////////////////////////////////
+
+unique_ptr<MemoryDevice> Apple2eSoftSwitchBank::Create (const DeviceConfig & config, MemoryBus & bus)
+{
+    UNREFERENCED_PARAMETER (config);
+
+    return make_unique<Apple2eSoftSwitchBank> (&bus);
+}

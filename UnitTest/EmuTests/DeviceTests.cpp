@@ -2,7 +2,7 @@
 #include "Core/MemoryBus.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 // Disk2Controller embeds two DiskImage objects (~143KB each) which exceed
 // the C6262 stack-size threshold when stack-allocated in test methods.

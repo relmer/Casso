@@ -1,11 +1,11 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Devices/Disk/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/Disk/ProDosSkeleton.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

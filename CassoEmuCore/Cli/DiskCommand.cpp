@@ -2,8 +2,8 @@
 
 #include "CommandLine.h"
 #include "DiskCommand.h"
-#include "Win32DiskFileIo.h"
-#include "Win32IntentChannel.h"
+#include "Seams/Win32DiskFileIo.h"
+#include "Seams/Win32IntentChannel.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 

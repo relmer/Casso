@@ -1,6 +1,6 @@
 #include "Pch.h"
-#include "DebugDialogProjection.h"
-#include "Disk2DebugDialogState.h"
+#include "Ui/Debug/DebugDialogProjection.h"
+#include "Ui/Debug/Disk2DebugDialogState.h"
 
 // Code-analysis: CppUnitTest's TEST_METHOD bodies inline an entire
 // std::deque<Disk2EventDisplay> (each entry ~ a few hundred bytes,

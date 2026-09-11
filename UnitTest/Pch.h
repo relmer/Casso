@@ -8,7 +8,7 @@
 // redefine, spraying C4005 through every PCH rebuild).
 #include "../CassoEmuCore/Pch.h"
 #include "../CassoCore/Pch.h"
-#include "../Casso/Pch.h"
+#include "Pch.h"
 
 #include "Dxui.h"
 

@@ -6,13 +6,13 @@
 #include "AssemblerTypes.h"
 
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "KeystrokeInjector.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk2Controller.h"
-#include "Devices/Apple2eSoftSwitchBank.h"
-#include "Video/AppleHiResMode.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "TextScreenScraper.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -162,7 +162,7 @@ public:
     //  COUT wrote 40-column output onto an 80-column screen, and an ESC
     //  left in the keyboard latch for GETLN to read as a cursor move and
     //  swallow the next character with.
-    void AssertSignedOffToBasic (EmulatorCore & core,
+    void AssertSignedOffToBasic (MachineHost & machine,
                                  const wchar_t * route,
                                  size_t          togglesBeforeExit)
     {
@@ -173,7 +173,7 @@ public:
         size_t                    echoRow   = 0;
         bool                      echoed    = false;
 
-        screen = TextScreenScraper::Scrape40 (*core.bus, 0x0400);
+        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
 
         Assert::IsTrue (screen.size() > size_t (kPromptRow),
             L"the text screen must have all 24 rows");
@@ -187,7 +187,7 @@ public:
         Assert::AreEqual (']', screen[kPromptRow][0],
             L"Applesoft's prompt must be in column 0 of the bottom row");
 
-        Assert::IsFalse (core.diskController->IsMotorOn(),
+        Assert::IsFalse (machine.GetRefs().diskController->IsMotorOn(),
             L"the drive must be stopped by the time the demo hands over");
 
         //  AND IT LEAVES QUIETLY. The //e's reset handler bells on its way
@@ -200,20 +200,20 @@ public:
         //  than a delayed keystroke. Going to $E000 direct is silent, and
         //  this is what holds it there.
         Assert::AreEqual (togglesBeforeExit,
-            core.speaker->GetToggleTimestamps().size(),
+            machine.GetRefs().speaker->GetToggleTimestamps().size(),
             (swprintf_s (msg, L"%ls: the exit must not touch the speaker.",
                          route), msg));
 
         for (size_t i = 0; typed[i] != '\0'; i++)
         {
-            core.keyboard->PressKey (typed[i]);
-            core.RunCycles (100'000ULL);
+            machine.GetRefs().iieKeyboard->PressKey (typed[i]);
+            machine.RunCycles (100'000ULL);
         }
 
-        core.keyboard->PressKey ('\r');
-        core.RunCycles (2'000'000ULL);
+        machine.GetRefs().iieKeyboard->PressKey ('\r');
+        machine.RunCycles (2'000'000ULL);
 
-        screen = TextScreenScraper::Scrape40 (*core.bus, 0x0400);
+        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
 
         for (size_t r = 0; !echoed && r + 1 < screen.size(); r++)
         {
@@ -283,8 +283,7 @@ public:
             std::vector<Byte>        monoAuxPayload;
             std::vector<Byte>        monoMainPayload;
             Cpu                      cpu;
-            HeadlessHost             host;
-            EmulatorCore             core;
+            TestMachine             machine ("Apple2e");
             HRESULT                  hr              = S_OK;
             DiskImage              * img             = nullptr;
             Apple2eSoftSwitchBank  * ss              = nullptr;
@@ -471,18 +470,17 @@ public:
             StitchPayload (12, hgrPayload);           // tracks 12+13 -> HGR color @ main $A000
 
 
-            hr = host.BuildApple2eWithDisk2 (core);
             AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-            core.PowerCycle();
+            machine.PowerCycle();
 
-            hr = core.diskStore->MountFromBytes (6, 0, "casso-rocks.dsk",
+            hr = machine.GetDiskStore().MountFromBytes (6, 0, "casso-rocks.dsk",
                                                  DiskFormat::Dsk, raw);
             AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-            img = core.diskStore->GetImage (6, 0);
+            img = machine.GetDiskStore().GetImage (6, 0);
             Assert::IsNotNull (img);
-            core.diskController->SetExternalDisk (0, img);
+            machine.GetRefs().diskController->SetExternalDisk (0, img);
 
             // The cheap questions, asked of the container the drive is
             // actually holding and before a processor is involved. The demo's
@@ -512,14 +510,14 @@ public:
             //  the exit bugs were all found by hand in the emulator
             //  instead. Booting the way the machine does costs about
             //  200k cycles.
-            core.RunCycles (kDemoCycleBudget);
+            machine.RunCycles (kDemoCycleBudget);
 
             // BOOT LANDING IS THE QUESTION, NOT A PICTURE. Nothing can
             // detect the monitor -- no Apple II can, the video connectors
             // are output only -- so the demo asks, and waits in TEXT until
             // it is answered. Everything is loaded by then, which is the
             // point of asking first: the disk works behind the question.
-            ss = core.softSwitches.get();
+            ss = machine.GetRefs().iieSoftSwitches;
 
             Assert::IsNotNull (ss, L"Apple2eSoftSwitchBank must be present");
             Assert::IsFalse (ss->IsGraphicsMode(),
@@ -536,7 +534,7 @@ public:
                 for (size_t i = 0; expected[i] != '\0'; i++)
                 {
                     Byte  want   = static_cast<Byte> (expected[i]) | 0x80;
-                    Byte  actual = core.bus->ReadByte (
+                    Byte  actual = machine.GetMemoryBus().ReadByte (
                         static_cast<Word> (0x05AC + i));
 
                     if (actual != want)
@@ -555,9 +553,9 @@ public:
             //  Answer M. The monochrome halves were staged into the
             //  framebuffer during the load phase, so this is only the
             //  display switches, and the picture is there immediately.
-            Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
-            core.keyboard->PressKey ('M');
-            core.RunCycles (200'000ULL);
+            Assert::IsNotNull (machine.GetRefs().iieKeyboard, L"AppleKeyboard must be present");
+            machine.GetRefs().iieKeyboard->PressKey ('M');
+            machine.RunCycles (200'000ULL);
 
             Assert::IsTrue (ss->IsGraphicsMode(),
                 L"Answering M must leave the //e in graphics mode (TEXT off)");
@@ -596,7 +594,7 @@ public:
                 for (size_t i = 0; i < kHgrPayloadSize; i++)
                 {
                     Byte  e = expected[i];
-                    Byte  actual = core.bus->ReadByte (
+                    Byte  actual = machine.GetMemoryBus().ReadByte (
                         static_cast<Word> (baseAddr + i));
 
                     if (actual != e)
@@ -640,7 +638,7 @@ public:
                 L"Stashed HGR color cassowary (main $A000)");
 
             // The DHGR aux half is at aux $2000 — read via MMU aux buffer.
-            auxBuf = core.mmu->GetAuxBuffer();
+            auxBuf = machine.GetMmu()->GetAuxBuffer();
             Assert::IsNotNull (auxBuf, L"MMU aux buffer must be available");
             {
                 size_t  m = 0;
@@ -663,8 +661,8 @@ public:
             // HGR page 2 and the step is a PAGE2 flip out of DHGR, so what
             // is asserted is the switch state and that page 2 still holds
             // the image.
-            core.keyboard->PressKey (' ');
-            core.RunCycles (200'000ULL);
+            machine.GetRefs().iieKeyboard->PressKey (' ');
+            machine.RunCycles (200'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 1 (HGR mono) must keep HIRES on");
             Assert::IsTrue (ss->IsPage2(),
@@ -684,8 +682,8 @@ public:
             //  content: it is mid-flight at any given cycle, and
             //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
             //  models what BKGND paints, mask by mask, against the ROM.
-            core.keyboard->PressKey (' ');
-            core.RunCycles (1'500'000ULL);
+            machine.GetRefs().iieKeyboard->PressKey (' ');
+            machine.RunCycles (1'500'000ULL);
 
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 2 (sweep) must turn HIRES on");
@@ -697,12 +695,12 @@ public:
                 L"Step 2 (sweep) paints hi-res page 1");
 
             {
-                Byte    mask   = core.bus->ReadByte (0x0048);
+                Byte    mask   = machine.GetMemoryBus().ReadByte (0x0048);
                 size_t  intact = 0;
 
                 for (size_t i = 0; i < kHgrPayloadSize; i++)
                 {
-                    if (core.bus->ReadByte (static_cast<Word> (0x2000 + i))
+                    if (machine.GetMemoryBus().ReadByte (static_cast<Word> (0x2000 + i))
                         == hgrMonoPayload[i])
                     {
                         intact++;
@@ -712,16 +710,16 @@ public:
                 Assert::IsTrue (intact < kHgrPayloadSize,
                     L"the sweep must paint over what step 1 left on the page");
 
-                core.RunCycles (1'500'000ULL);
+                machine.RunCycles (1'500'000ULL);
 
-                Assert::AreNotEqual (mask, core.bus->ReadByte (0x0048),
+                Assert::AreNotEqual (mask, machine.GetMemoryBus().ReadByte (0x0048),
                     L"the sweep's mask counter must keep advancing, or the "
                     L"sweep has stopped sweeping");
             }
 
-            quietMark = core.speaker->GetToggleTimestamps().size();
-            core.keyboard->PressKey (' ');
-            core.RunCycles (500'000ULL);
+            quietMark = machine.GetRefs().speaker->GetToggleTimestamps().size();
+            machine.GetRefs().iieKeyboard->PressKey (' ');
+            machine.RunCycles (500'000ULL);
             //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
             //  dropped into Applesoft with the 80-column hardware on and
@@ -747,7 +745,7 @@ public:
             //  leaves the screen alone, so what the user is left looking
             //  at is the sign-off with a prompt below it rather than
             //  whatever the demo happened to leave in text memory.
-            AssertSignedOffToBasic (core, L"the monochrome route", quietMark);
+            AssertSignedOffToBasic (machine, L"the monochrome route", quietMark);
 
             //  THE OTHER ANSWER, on the same mounted disk. Re-boot and say
             //  C instead: a different pair of images, reached by re-staging
@@ -758,20 +756,20 @@ public:
             //  A power cycle drops what the drive was holding and hands
             //  out fresh MMU buffers, so the disk has to be re-bound and
             //  every cached pointer re-fetched before the second boot.
-            core.PowerCycle();
-            core.diskController->SetExternalDisk (0, img);
-            ss     = core.softSwitches.get();
-            auxBuf = core.mmu->GetAuxBuffer();
+            machine.PowerCycle();
+            machine.GetRefs().diskController->SetExternalDisk (0, img);
+            ss     = machine.GetRefs().iieSoftSwitches;
+            auxBuf = machine.GetMmu()->GetAuxBuffer();
             Assert::IsNotNull (ss,     L"soft switches must survive the re-boot");
             Assert::IsNotNull (auxBuf, L"aux buffer must survive the re-boot");
 
-            core.RunCycles (kDemoCycleBudget);
+            machine.RunCycles (kDemoCycleBudget);
 
             Assert::IsFalse (ss->IsGraphicsMode(),
                 L"The re-booted demo must wait in TEXT for its answer too");
 
-            core.keyboard->PressKey ('C');
-            core.RunCycles (600'000ULL);
+            machine.GetRefs().iieKeyboard->PressKey ('C');
+            machine.RunCycles (600'000ULL);
 
             Assert::IsTrue (ss->IsGraphicsMode(),
                 L"Answering C must leave the //e in graphics mode");
@@ -795,8 +793,8 @@ public:
 
             // Step 1 on the color answer is the HGR color cassowary,
             // restored from the main $A000 stash to page 1.
-            core.keyboard->PressKey (' ');
-            core.RunCycles (300'000ULL);
+            machine.GetRefs().iieKeyboard->PressKey (' ');
+            machine.RunCycles (300'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 1 (HGR color) must keep HIRES on");
             Assert::IsFalse (ss->IsPage2(),
@@ -821,8 +819,8 @@ public:
             //  content: it is mid-flight at any given cycle, and
             //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
             //  models what BKGND paints, mask by mask, against the ROM.
-            core.keyboard->PressKey (' ');
-            core.RunCycles (1'500'000ULL);
+            machine.GetRefs().iieKeyboard->PressKey (' ');
+            machine.RunCycles (1'500'000ULL);
 
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 2 (sweep) must turn HIRES on");
@@ -834,12 +832,12 @@ public:
                 L"Step 2 (sweep) paints hi-res page 1");
 
             {
-                Byte    mask   = core.bus->ReadByte (0x0048);
+                Byte    mask   = machine.GetMemoryBus().ReadByte (0x0048);
                 size_t  intact = 0;
 
                 for (size_t i = 0; i < kHgrPayloadSize; i++)
                 {
-                    if (core.bus->ReadByte (static_cast<Word> (0x2000 + i))
+                    if (machine.GetMemoryBus().ReadByte (static_cast<Word> (0x2000 + i))
                         == hgrPayload[i])
                     {
                         intact++;
@@ -849,9 +847,9 @@ public:
                 Assert::IsTrue (intact < kHgrPayloadSize,
                     L"the sweep must paint over what step 1 left on the page");
 
-                core.RunCycles (1'500'000ULL);
+                machine.RunCycles (1'500'000ULL);
 
-                Assert::AreNotEqual (mask, core.bus->ReadByte (0x0048),
+                Assert::AreNotEqual (mask, machine.GetMemoryBus().ReadByte (0x0048),
                     L"the sweep's mask counter must keep advancing, or the "
                     L"sweep has stopped sweeping");
             }
@@ -860,9 +858,9 @@ public:
             //  monochrome path used. Both routes run the same do_exit, and
             //  what matters is that it leaves the same habitable screen
             //  whichever step it was called from.
-            quietMark = core.speaker->GetToggleTimestamps().size();
-            core.keyboard->PressKey (0x1B);
-            core.RunCycles (200'000ULL);
+            quietMark = machine.GetRefs().speaker->GetToggleTimestamps().size();
+            machine.GetRefs().iieKeyboard->PressKey (0x1B);
+            machine.RunCycles (200'000ULL);
             //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
             //  dropped into Applesoft with the 80-column hardware on and
@@ -881,7 +879,7 @@ public:
             Assert::IsFalse (ss->IsPage2(),
                 L"do_exit must leave PAGE1 selected");
 
-            AssertSignedOffToBasic (core, L"the ESC route out of the color "
+            AssertSignedOffToBasic (machine, L"the ESC route out of the color "
                                           L"cycle", quietMark);
 
             //  NOTHING HERE TOUCHES THE TRACKED IMAGE, IN EITHER DIRECTION.
@@ -1049,15 +1047,15 @@ public:
     //  RunUntilPc
     //
     //  Steps the CPU until the program counter reaches `stopPc` or the
-    //  cycle budget is exhausted, mirroring EmulatorCore::RunCycles'
+    //  cycle budget is exhausted, mirroring MachineHost::RunCycles'
     //  step/accumulate pairing. Returns the cycles actually consumed so
     //  callers can time an individual ROM call.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static uint64_t RunUntilPc (EmulatorCore & core, Word stopPc, uint64_t cycleBudget)
+    static uint64_t RunUntilPc (MachineHost & machine, Word stopPc, uint64_t cycleBudget)
     {
-        uint64_t   startCycles = core.cpu->GetTotalCycles();
+        uint64_t   startCycles = machine.GetCpu()->GetTotalCycles();
         uint64_t   spent       = 0;
         uint32_t   stepCycles  = 0;
 
@@ -1065,15 +1063,15 @@ public:
 
         while (spent < cycleBudget)
         {
-            if (core.cpu->GetPC() == stopPc)
+            if (machine.GetCpu()->GetPC() == stopPc)
             {
                 break;
             }
 
-            core.cpu->StepOne();
-            stepCycles = core.cpu->GetLastInstructionCycles();
-            core.cpu->AddCycles (stepCycles);
-            spent = core.cpu->GetTotalCycles() - startCycles;
+            machine.GetCpu()->StepOne();
+            stepCycles = machine.GetCpu()->GetLastInstructionCycles();
+            machine.GetCpu()->AddCycles (stepCycles);
+            spent = machine.GetCpu()->GetTotalCycles() - startCycles;
         }
 
         return spent;
@@ -1086,7 +1084,7 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static void PlantBytes (EmulatorCore & core, Word base, const Byte * code, size_t len)
+    static void PlantBytes (MachineHost & machine, Word base, const Byte * code, size_t len)
     {
         size_t   i = 0;
 
@@ -1094,7 +1092,7 @@ public:
 
         for (i = 0; i < len; i++)
         {
-            core.bus->WriteByte (static_cast<Word> (base + i), code[i]);
+            machine.GetMemoryBus().WriteByte (static_cast<Word> (base + i), code[i]);
         }
     }
 
@@ -1115,7 +1113,7 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static void PlantHgrStub (EmulatorCore & core)
+    static void PlantHgrStub (MachineHost & machine)
     {
         const Byte   code[] =
         {
@@ -1125,7 +1123,7 @@ public:
 
 
 
-        PlantBytes (core, kHgrStubBase, code, sizeof (code));
+        PlantBytes (machine, kHgrStubBase, code, sizeof (code));
     }
 
 
@@ -1140,7 +1138,7 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static void PlantSweepStub (EmulatorCore & core)
+    static void PlantSweepStub (MachineHost & machine)
     {
         const Byte   code[] =
         {
@@ -1156,7 +1154,7 @@ public:
 
 
 
-        PlantBytes (core, kSweepStubBase, code, sizeof (code));
+        PlantBytes (machine, kSweepStubBase, code, sizeof (code));
     }
 
 
@@ -1198,7 +1196,7 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    static void VerifySweptPage (EmulatorCore & core, Byte mask)
+    static void VerifySweptPage (MachineHost & machine, Byte mask)
     {
         size_t   byteIndex       = 0;
         size_t   mismatchCount   = 0;
@@ -1214,7 +1212,7 @@ public:
         for (byteIndex = 0; byteIndex < kHiresPageBytes; byteIndex++)
         {
             expected = ExpectedFillByte (mask, byteIndex);
-            actual   = core.bus->ReadByte (
+            actual   = machine.GetMemoryBus().ReadByte (
                 static_cast<Word> (kHiresPage1Base + byteIndex));
 
             if (actual == expected)
@@ -1260,8 +1258,7 @@ public:
 
     TEST_METHOD (Applesoft_HgrColorSweep_AllMasksMatchRomFill)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         uint64_t       fillCycles      = 0;
         uint64_t       totalFillCycles = 0;
         uint64_t       minFillCycles   = UINT64_MAX;
@@ -1269,48 +1266,48 @@ public:
         size_t         maskIndex       = 0;
         Byte           mask            = 0;
 
-        HRESULT   hr = host.BuildApple2e (core);
+        HRESULT   hr = S_OK;
 
 
 
         AssertSucceeded (hr, L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
+        Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
-        core.PowerCycle();
-        core.RunCycles  (kSweepColdBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles  (kSweepColdBootCycles);
 
         // HGR: select page 1, clear it, latch the display mode
-        PlantHgrStub (core);
-        core.cpu->SetPC (kHgrStubBase);
-        fillCycles = RunUntilPc (core, kHgrStubDone, kOneFillCycleBudget);
+        PlantHgrStub (machine);
+        machine.GetCpu()->SetPC (kHgrStubBase);
+        fillCycles = RunUntilPc (machine, kHgrStubDone, kOneFillCycleBudget);
 
-        Assert::AreEqual (Word (kHgrStubDone), core.cpu->GetPC(),
+        Assert::AreEqual (Word (kHgrStubDone), machine.GetCpu()->GetPC(),
             L"HGR ($F3E2) must return within the cycle budget");
-        Assert::AreEqual (kHiresPage1High, core.bus->ReadByte (kZpHiresPage),
+        Assert::AreEqual (kHiresPage1High, machine.GetMemoryBus().ReadByte (kZpHiresPage),
             L"HGR must set HPAG ($E6) to $20 (hi-res page 1)");
-        Assert::IsTrue  (core.softSwitches->IsGraphicsMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"HGR must clear TEXT");
-        Assert::IsTrue  (core.softSwitches->IsHiresMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsHiresMode(),
             L"HGR must set HIRES");
-        Assert::IsTrue  (core.softSwitches->IsMixedMode(),
+        Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsMixedMode(),
             L"HGR (unlike HGR2) must leave MIXED on -- $F3E7 touches $C053, "
             L"so the bottom four text rows stay visible");
-        Assert::IsFalse (core.softSwitches->IsPage2(),
+        Assert::IsFalse (machine.GetRefs().iieSoftSwitches->IsPage2(),
             L"HGR must select PAGE1");
 
         // Sweep every raw color mask
-        PlantSweepStub (core);
+        PlantSweepStub (machine);
 
         for (maskIndex = 0; maskIndex < kColorMaskCount; maskIndex++)
         {
             mask = static_cast<Byte> (maskIndex);
 
-            core.bus->WriteByte (kSweepStubMaskAt, mask);
-            core.cpu->SetPC (kSweepStubBase);
+            machine.GetMemoryBus().WriteByte (kSweepStubMaskAt, mask);
+            machine.GetCpu()->SetPC (kSweepStubBase);
 
-            fillCycles = RunUntilPc (core, kSweepStubDone, kOneFillCycleBudget);
+            fillCycles = RunUntilPc (machine, kSweepStubDone, kOneFillCycleBudget);
 
-            Assert::AreEqual (Word (kSweepStubDone), core.cpu->GetPC(),
+            Assert::AreEqual (Word (kSweepStubDone), machine.GetCpu()->GetPC(),
                 L"HPLOT + BKGND must return within the cycle budget");
 
             totalFillCycles += fillCycles;
@@ -1320,13 +1317,13 @@ public:
 
             // HPLOT copies 228 into the working color; 8192 phase flips
             // is an even number, so $1C lands back on the mask itself.
-            Assert::AreEqual (mask, core.bus->ReadByte (kZpColorMask),
+            Assert::AreEqual (mask, machine.GetMemoryBus().ReadByte (kZpColorMask),
                 L"The fill must not disturb the poked mask at 228 ($E4)");
-            Assert::AreEqual (mask, core.bus->ReadByte (kZpWorkColor),
+            Assert::AreEqual (mask, machine.GetMemoryBus().ReadByte (kZpWorkColor),
                 L"HPLOT 0,0 must copy 228 into the working color at $1C "
                 L"verbatim (byte 0 is even, so no phase flip)");
 
-            VerifySweptPage (core, mask);
+            VerifySweptPage (machine, mask);
         }
 
         Logger::WriteMessage (std::format (
@@ -1356,8 +1353,7 @@ public:
 
     TEST_METHOD (Applesoft_HgrColorSweep_RendersDeterministicFrames)
     {
-        HeadlessHost  host;
-        EmulatorCore  core;
+        TestMachine  machine ("Apple2e", TestMachine::Slots::Empty);
         uint64_t      hash      = 0;
         size_t        maskIndex = 0;
         size_t        byteIndex = 0;
@@ -1366,17 +1362,16 @@ public:
         std::vector<uint32_t>   fb (static_cast<size_t> (kFbWidth) * kFbHeight, 0);
         hash = 0xcbf29ce484222325ULL;
 
-        hr = host.BuildApple2e (core);
 
 
 
         AssertSucceeded (hr, L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
+        Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
-        core.PowerCycle();
-        core.RunCycles  (kSweepColdBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles  (kSweepColdBootCycles);
 
-        AppleHiResMode   hires (*core.bus);
+        AppleHiResMode   hires (machine.GetMemoryBus());
 
         hires.SetPage2 (false);
 
@@ -1386,7 +1381,7 @@ public:
 
             for (byteIndex = 0; byteIndex < kHiresPageBytes; byteIndex++)
             {
-                core.bus->WriteByte (
+                machine.GetMemoryBus().WriteByte (
                     static_cast<Word> (kHiresPage1Base + byteIndex),
                     ExpectedFillByte (mask, byteIndex));
             }
@@ -1415,32 +1410,31 @@ public:
 
     TEST_METHOD (Applesoft_HgrColorSweep_OneLinerRunsToCompletion)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e", TestMachine::Slots::Empty);
         size_t         consumed    = 0;
         HRESULT        hrReturn    = S_OK;
         uint64_t       startCycles = 0;
         uint64_t       elapsed     = 0;
 
-        HRESULT   hr = host.BuildApple2e (core);
+        HRESULT   hr = S_OK;
 
 
 
         AssertSucceeded (hr, L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
+        Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
-        core.PowerCycle();
-        core.RunCycles  (kSweepColdBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles  (kSweepColdBootCycles);
 
-        consumed = KeystrokeInjector::InjectString (core, kSweepOneLiner);
+        consumed = KeystrokeInjector::InjectString (machine, kSweepOneLiner);
         Assert::AreEqual (strlen (kSweepOneLiner), consumed,
             L"The whole one-liner must be consumed by the ROM input routine");
 
         hrReturn = KeystrokeInjector::InjectKey (
-            core, KeystrokeInjector::kAppleReturn);
+            machine, KeystrokeInjector::kAppleReturn);
         AssertSucceeded (hrReturn, L"Return must be consumed");
 
-        startCycles = core.cpu->GetTotalCycles();
+        startCycles = machine.GetCpu()->GetTotalCycles();
 
         // Completion signal: the loop has reached its last mask AND that
         // mask's fill has written the final byte of the page. $FF at an
@@ -1449,11 +1443,11 @@ public:
         // never phase-flips.
         while (elapsed < kSweepCycleCeiling)
         {
-            core.RunCycles (kSweepPollChunk);
-            elapsed = core.cpu->GetTotalCycles() - startCycles;
+            machine.RunCycles (kSweepPollChunk);
+            elapsed = machine.GetCpu()->GetTotalCycles() - startCycles;
 
-            if (core.bus->ReadByte (kZpColorMask) == kLastColorMask &&
-                core.bus->ReadByte (kHiresPage1LastByte) == kLastColorMask)
+            if (machine.GetMemoryBus().ReadByte (kZpColorMask) == kLastColorMask &&
+                machine.GetMemoryBus().ReadByte (kHiresPage1LastByte) == kLastColorMask)
             {
                 break;
             }
@@ -1462,12 +1456,12 @@ public:
         Assert::IsTrue (elapsed < kSweepCycleCeiling,
             L"The one-liner must finish all 256 steps within the ceiling");
 
-        Assert::IsTrue (core.softSwitches->IsHiresMode(),
+        Assert::IsTrue (machine.GetRefs().iieSoftSwitches->IsHiresMode(),
             L"The sweep must leave the //e in hi-res");
-        Assert::IsTrue (core.softSwitches->IsMixedMode(),
+        Assert::IsTrue (machine.GetRefs().iieSoftSwitches->IsMixedMode(),
             L"HGR leaves MIXED on, so the text window stays visible");
 
-        VerifySweptPage (core, kLastColorMask);
+        VerifySweptPage (machine, kLastColorMask);
 
         Logger::WriteMessage (std::format (
             "Applesoft one-liner: 256 steps in {} cycles "

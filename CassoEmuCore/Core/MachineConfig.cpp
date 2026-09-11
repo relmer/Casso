@@ -4,6 +4,8 @@
 #include "JsonParser.h"
 #include "PathResolver.h"
 
+#include "Machines/MachineDefinitions.h"
+
 
 static constexpr int    kMinSlot       = 1;
 static constexpr int    kMaxSlot       = 7;
@@ -976,8 +978,8 @@ HRESULT MachineConfigLoader::Load (
     const JsonValue    * pRamArray      = nullptr;
     const JsonValue    * pSystemRom     = nullptr;
     const JsonValue    * pInternalDevs  = nullptr;
-    const JsonValue    * pVideo         = nullptr;
     const JsonValue    * pKeyboard      = nullptr;
+    bool                 fDefined       = false;
 
 
 
@@ -992,15 +994,29 @@ HRESULT MachineConfigLoader::Load (
 
     CHR (hr);
 
-    // Required: name, cpu
+    //
+    //  A shipped machine states its own CPU, RAM, devices, video modes and
+    //  keyboard layout in code, so its document does not carry them and is not
+    //  asked for them. A machine with no definition -- someone's own, copied
+    //  from a shipped one and renamed -- still declares everything, because
+    //  nothing else knows what it is.
+    //
+    fDefined = (MachineDefinitions::Find (machineName) != nullptr);
+
+    outConfig.machineId = machineName;
+
+    // Required: name
     hr = root.GetString ("name", outConfig.name);
     CHRF (hr, outError = "Missing or invalid field: 'name'");
 
-    hr = root.GetString ("cpu", outConfig.cpu);
-    CHRF (hr, outError = "Missing or invalid field: 'cpu'");
+    if (!fDefined)
+    {
+        hr = root.GetString ("cpu", outConfig.cpu);
+        CHRF (hr, outError = "Missing or invalid field: 'cpu'");
 
-    CBRF (outConfig.cpu == "6502" || outConfig.cpu == "65C02",
-          outError = format ("Invalid CPU type: '{}' (expected '6502' or '65C02')", outConfig.cpu));
+        CBRF (outConfig.cpu == "6502" || outConfig.cpu == "65C02",
+              outError = format ("Invalid CPU type: '{}' (expected '6502' or '65C02')", outConfig.cpu));
+    }
 
     // Required: timing
     hr = root.GetObject ("timing", pTiming);
@@ -1009,12 +1025,15 @@ HRESULT MachineConfigLoader::Load (
     hr = LoadTiming (*pTiming, outConfig, outError);
     CHR (hr);
 
-    // Required: ram (array)
-    hr = root.GetArray ("ram", pRamArray);
-    CHRF (hr, outError = "Missing required field: 'ram'");
+    // Required unless the machine's definition supplies it: ram (array)
+    if (!fDefined)
+    {
+        hr = root.GetArray ("ram", pRamArray);
+        CHRF (hr, outError = "Missing required field: 'ram'");
 
-    hr = LoadRam (*pRamArray, outConfig, outError);
-    CHR (hr);
+        hr = LoadRam (*pRamArray, outConfig, outError);
+        CHR (hr);
+    }
 
     // Required: systemRom (object)
     hr = root.GetObject ("systemRom", pSystemRom);
@@ -1037,12 +1056,15 @@ HRESULT MachineConfigLoader::Load (
         }
     }
 
-    // Required: internalDevices (array, may be empty)
-    hr = root.GetArray ("internalDevices", pInternalDevs);
-    CHRF (hr, outError = "Missing required field: 'internalDevices'");
+    // Required unless the machine's definition supplies it: internalDevices
+    if (!fDefined)
+    {
+        hr = root.GetArray ("internalDevices", pInternalDevs);
+        CHRF (hr, outError = "Missing required field: 'internalDevices'");
 
-    hr = LoadInternalDevices (*pInternalDevs, outConfig, outError);
-    CHR (hr);
+        hr = LoadInternalDevices (*pInternalDevs, outConfig, outError);
+        CHR (hr);
+    }
 
     // Optional: slots (array)
     {
@@ -1063,18 +1085,59 @@ HRESULT MachineConfigLoader::Load (
     // slotless machine still gets to say what it has and what is on it.
     ParsePorts (root, outConfig.ports);
 
-    // Required: video
-    hr = root.GetObject ("video", pVideo);
-    CHRF (hr, outError = "Missing required field: 'video'");
-    LoadVideoConfig (*pVideo, outConfig);
+    // Required unless the machine's definition supplies them: video, keyboard
+    if (!fDefined)
+    {
+        hr = root.GetObject ("keyboard", pKeyboard);
+        CHRF (hr, outError = "Missing required field: 'keyboard'");
+        LoadKeyboardConfig (*pKeyboard, outConfig);
+    }
 
-    // Required: keyboard
-    hr = root.GetObject ("keyboard", pKeyboard);
-    CHRF (hr, outError = "Missing required field: 'keyboard'");
-    LoadKeyboardConfig (*pKeyboard, outConfig);
+    //
+    // Last, and deliberately last: a shipped machine's invariant hardware comes
+    // from its definition in code, whatever the document just said.
+    //
+    ApplyMachineDefinition (machineName, outConfig);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfigLoader::ApplyMachineDefinition
+//
+//  Replaces the parsed values for a shipped machine's invariant hardware with
+//  the ones its definition declares.
+//
+//  This runs after every other field is parsed rather than instead of parsing
+//  them, so a malformed document is still reported as malformed. A file that
+//  says a //c has an apple2-keyboard is not an error to the parser -- it is
+//  well-formed and wrong -- and this is where being wrong stops mattering.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ApplyMachineDefinition (
+    const string  & machineName,
+    MachineConfig & outConfig)
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (machineName);
+
+
+
+    if (definition == nullptr)
+    {
+        return;
+    }
+
+    outConfig.cpu                = definition->cpu;
+    outConfig.ram                = definition->ram;
+    outConfig.internalDevices    = definition->internalDevices;
+    outConfig.keyboardType       = definition->keyboardType;
 }
 
 
@@ -1138,39 +1201,6 @@ HRESULT MachineConfigLoader::GetValue (
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadVideoConfig
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfig & outConfig)
-{
-    HRESULT           hr     = S_OK;
-    const JsonValue * pModes = nullptr;
-
-
-
-    hr = video.GetArray ("modes", pModes);
-    if (SUCCEEDED (hr))
-    {
-        for (size_t i = 0; i < pModes->GetArraySize(); i++)
-        {
-            if (pModes->GetArrayElement (i).GetType() == JsonType::String)
-            {
-                outConfig.videoConfig.modes.push_back (pModes->GetArrayElement (i).GetString());
-            }
-        }
-    }
-
-    video.GetInt ("width",  outConfig.videoConfig.width);
-    video.GetInt ("height", outConfig.videoConfig.height);
 }
 
 

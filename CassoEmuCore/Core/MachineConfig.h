@@ -203,23 +203,6 @@ struct SlotConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  VideoConfig
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct VideoConfig
-{
-    vector<string> modes;
-    int            width  = 560;
-    int            height = 384;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  VideoStandard
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -277,6 +260,10 @@ static constexpr uint32_t kAppleCyclesPerFrame = kCyclesPerScanline * kScanlines
 struct MachineConfig
 {
     string                      name;
+
+    //  The model's directory name under Resources/Machines, e.g. "Apple2e".
+    //  This is what selects the machine; `name` above is what a person reads.
+    string                      machineId;
     string                      cpu;
 
     // Timing (parsed from "timing" section)
@@ -302,7 +289,6 @@ struct MachineConfig
     // need to be: a //c's internal drive is soldered in, not attached, so it
     // is not a port and never appears in this list.
     vector<PortConfig>          ports;
-    VideoConfig                 videoConfig;
     string                      keyboardType;
 
     // True when an enabled slot hosts the given device type -- e.g. a query for
@@ -445,6 +431,21 @@ struct MachineConfig
 class MachineConfigLoader
 {
 public:
+
+    // Overwrites the fields a shipped machine does not get to have an opinion
+    // about with the values from its definition in code: CPU, RAM layout,
+    // internal devices, video modes and keyboard layout. Whatever the JSON
+    // said about those is discarded, which is the point -- a preferences delta
+    // used to be able to give a //c an original keyboard and nothing refused
+    // it.
+    //
+    // A machine name with no definition behind it is left exactly as parsed.
+    // That is the documented way to add a machine: copy a definition, give it
+    // a new name, edit it. Such a machine is the author's to compose; a
+    // shipped one is not.
+    static void ApplyMachineDefinition (const string  & machineName,
+                                        MachineConfig & outConfig);
+
     // Callable that resolves a relative path given search directories.
     // Returns the resolved path, or empty path if not found.
     using FileResolver = function<fs::path (const vector<fs::path> &,
@@ -482,6 +483,8 @@ private:
         Word   T::  * wDest;
         int    T::  * intDest;
     };
+
+
 
     template <typename T>
     static HRESULT GetValue (
@@ -542,6 +545,7 @@ private:
                                         MachineConfig   & outConfig,
                                         string          & outError);
 
+
     static HRESULT LoadSlots          (const JsonValue        & slotsArray,
                                        const string           & machineName,
                                        const vector<fs::path> & searchPaths,
@@ -549,6 +553,5 @@ private:
                                        MachineConfig          & outConfig,
                                        string                 & outError);
 
-    static void    LoadVideoConfig    (const JsonValue & video,    MachineConfig & outConfig);
     static void    LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig);
 };

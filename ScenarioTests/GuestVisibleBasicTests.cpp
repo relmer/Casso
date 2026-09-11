@@ -2,11 +2,11 @@
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "ApplesoftTokenizer.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -113,9 +113,9 @@ public:
     //  ------------------------------------------------------------------
     //
 
-    static Word ReadGuestWord (EmulatorCore & core, Word address)
+    static Word ReadGuestWord (MachineHost & machine, Word address)
     {
-        std::vector<Byte>  bytes = GuestSession::GuestBytesAt (core, address, 2);
+        std::vector<Byte>  bytes = GuestSession::GuestBytesAt (machine, address, 2);
 
         return (Word) (bytes[0] | (bytes[1] << 8));
     }
@@ -138,8 +138,7 @@ public:
 
     TEST_METHOD (Tokenize_ProducesTheBytesApplesoftItselfStoresForTheSameListing)
     {
-        HeadlessHost       host;
-        EmulatorCore       core;
+        TestMachine       machine ("Apple2e");
         std::vector<Byte>  master   = GuestSession::RequireDos33Master();
         std::vector<Byte>  expected = TokenizedListing();
         std::vector<Byte>  stored;
@@ -149,16 +148,16 @@ public:
 
 
 
-        GuestSession::BootToPrompt (host, core, master);
+        GuestSession::BootToPrompt (machine, master);
 
-        GuestSession::TypeAndCollect (core, "NEW");
-        GuestSession::TypeAndCollect (core, "10 HOME");
-        GuestSession::TypeAndCollect (core, "20 PRINT \"CASSO\"");
-        GuestSession::TypeAndCollect (core, "30 FOR I = 1 TO 3: PRINT I: NEXT");
-        GuestSession::TypeAndCollect (core, "40 END");
+        GuestSession::TypeAndCollect (machine, "NEW");
+        GuestSession::TypeAndCollect (machine, "10 HOME");
+        GuestSession::TypeAndCollect (machine, "20 PRINT \"CASSO\"");
+        GuestSession::TypeAndCollect (machine, "30 FOR I = 1 TO 3: PRINT I: NEXT");
+        GuestSession::TypeAndCollect (machine, "40 END");
 
-        txtTab = ReadGuestWord (core, kTxtTab);
-        varTab = ReadGuestWord (core, kVarTab);
+        txtTab = ReadGuestWord (machine, kTxtTab);
+        varTab = ReadGuestWord (machine, kVarTab);
 
         Assert::AreEqual ((int) ApplesoftTokenizer::kProgramBase, (int) txtTab,
             L"Applesoft must be holding its program where this tokenizer builds its links "
@@ -168,7 +167,7 @@ public:
             L"and must be holding at least as many bytes as were produced for the same "
             L"text, or the comparison below would read past the program");
 
-        stored = GuestSession::GuestBytesAt (core, txtTab, expected.size());
+        stored = GuestSession::GuestBytesAt (machine, txtTab, expected.size());
 
         message  = L"the bytes this tokenizer produced must be the bytes Applesoft stored "
                    L"for the same lines, links and all\n  Applesoft: ";
@@ -271,8 +270,7 @@ public:
 
     TEST_METHOD (Dos33_APlacedListing_IsWhatTheGuestLISTsAndWhatItRUNs)
     {
-        HeadlessHost              host;
-        EmulatorCore              core;
+        TestMachine              machine ("Apple2e");
         DiskCommandResult         put;
         std::vector<Byte>         master  = GuestSession::RequireDos33Master();
         std::vector<Byte>         written = PutListingOnto (master, put);
@@ -288,11 +286,11 @@ public:
 
         AssertTheWrittenImageIsStillADisk (written, master);
 
-        GuestSession::BootToPrompt (host, core, written);
+        GuestSession::BootToPrompt (machine, written);
 
-        GuestSession::TypeAndCollect (core, "LOAD PROG");
+        GuestSession::TypeAndCollect (machine, "LOAD PROG");
 
-        rows = GuestSession::TypeAndCollect (core, "LIST");
+        rows = GuestSession::TypeAndCollect (machine, "LIST");
 
         // ASKING ONLY WHETHER THE SCREEN CONTAINS THE TEXT IS NOT ENOUGH -- the
         // echo of the line that produced the row satisfies that, and so does a
@@ -306,7 +304,7 @@ public:
         // And it is a PROGRAM, not merely something LIST could render: the
         // difference is a line whose tokens are right and whose links are not,
         // which lists perfectly and runs off the end of itself.
-        rows = GuestSession::TypeAndCollect (core, "RUN");
+        rows = GuestSession::TypeAndCollect (machine, "RUN");
 
         Assert::IsTrue (GuestSession::AnyRowIs (rows, "CASSO"),
             L"running it must print the string on a line of its own, which the listing "

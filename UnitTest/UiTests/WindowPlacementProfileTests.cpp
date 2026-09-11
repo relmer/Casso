@@ -282,4 +282,34 @@ public:
             Assert::IsTrue (placed.top  >= work.top,  L"caption pushed off the top edge");
         }
     }
+
+    TEST_METHOD (PlacementForAMonitorArrangementThatIsGone_LandsOnAnAttachedWorkArea)
+    {
+        GlobalUserPrefs                 prefs;
+        WindowPlacementProfile::Bounds  saved  = { 3200, 1400, 1024, 768 };
+        WindowPlacementProfile::Bounds  loaded = {};
+        WindowPlacementProfile          profile (prefs);
+        RECT                            attached = MakeWork (0, 0, 1280, 720);
+        RECT                            placed   = {};
+
+        //
+        // The saved window sat on a second monitor to the right of and below
+        // the primary. That monitor is gone, so its topology key is gone with
+        // it, and the stored rectangle at x=3200 describes coordinates no
+        // attached display covers. Restoring it verbatim would open the window
+        // where nobody can see or reach it.
+        //
+        profile.Save (s_kpszKeyA, saved);
+
+        Assert::IsFalse (profile.TryLoad (s_kpszKeyB, loaded),
+                         L"a topology that is gone must not yield its old bounds");
+
+        //  Nothing to restore, so the window is placed on what IS attached.
+        placed = WindowPlacementProfile::FitToWorkArea (attached, saved.w, saved.h);
+
+        Assert::IsTrue (placed.left   >= attached.left,   L"off the left edge");
+        Assert::IsTrue (placed.top    >= attached.top,    L"off the top edge");
+        Assert::IsTrue (placed.right  <= attached.right,  L"off the right edge");
+        Assert::IsTrue (placed.bottom <= attached.bottom, L"off the bottom edge");
+    }
 };

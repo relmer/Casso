@@ -1,11 +1,11 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Devices/RamDevice.h"
-#include "Devices/Apple2eMmu.h"
-#include "Devices/Apple2eSoftSwitchBank.h"
-#include "Devices/Apple2eKeyboard.h"
-#include "Devices/LanguageCard.h"
-#include "Video/VideoTiming.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/LanguageCard.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

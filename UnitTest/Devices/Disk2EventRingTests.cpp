@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Devices/Disk2EventRing.h"
+#include "Machines/Apple2/Common/Disk2EventRing.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

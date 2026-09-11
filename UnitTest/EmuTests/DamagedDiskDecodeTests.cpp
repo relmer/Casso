@@ -2,8 +2,8 @@
 
 #include "DamagedDisk.h"
 
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

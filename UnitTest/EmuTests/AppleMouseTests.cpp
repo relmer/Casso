@@ -1,13 +1,13 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "FixtureProvider.h"
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
-#include "Devices/AppleMouse.h"
-#include "Devices/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Core/InterruptController.h"
-#include "Video/VideoTiming.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -26,8 +26,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  polarity, and the IOU access gate. The firmware tier is the oracle: it
 //  boots the real //c ROM 4 and calls the mouse firmware's own protocol
 //  entry points (phantom slot 7 on ROM 4 — $C712-$C719 table) against the
-//  hardware model, proving the register contract end to end. Firmware
-//  tests skip when the copyrighted ROM fixture is absent.
+//  hardware model, proving the register contract end to end. The ROM comes
+//  from scripts/FetchRoms.ps1 -Fixtures, and its absence fails the build
+//  step by name rather than skipping anything.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -408,20 +409,18 @@ public:
     // routing). This is how MousePaint-class software finds the mouse.
     TEST_METHOD (FirmwareIdentifiesMouseAtSlot7)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2c");
 
 
 
 
-        AssertSucceeded (host.BuildApple2c (core));
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        Assert::AreEqual<Byte> (0x38, core.bus->ReadByte (0xC705), L"$C705 signature");
-        Assert::AreEqual<Byte> (0x18, core.bus->ReadByte (0xC707), L"$C707 signature");
-        Assert::AreEqual<Byte> (0x01, core.bus->ReadByte (0xC70B), L"$C70B signature");
-        Assert::AreEqual<Byte> (0x20, core.bus->ReadByte (0xC70C), L"$C70C device class");
-        Assert::AreEqual<Byte> (0xD6, core.bus->ReadByte (0xC7FB), L"$C7FB mouse id");
+        Assert::AreEqual<Byte> (0x38, machine.GetMemoryBus().ReadByte (0xC705), L"$C705 signature");
+        Assert::AreEqual<Byte> (0x18, machine.GetMemoryBus().ReadByte (0xC707), L"$C707 signature");
+        Assert::AreEqual<Byte> (0x01, machine.GetMemoryBus().ReadByte (0xC70B), L"$C70B signature");
+        Assert::AreEqual<Byte> (0x20, machine.GetMemoryBus().ReadByte (0xC70C), L"$C70C device class");
+        Assert::AreEqual<Byte> (0xD6, machine.GetMemoryBus().ReadByte (0xC7FB), L"$C7FB mouse id");
     }
 
 
@@ -433,12 +432,11 @@ public:
     // direction reads, position update, $C048 acknowledge -- one interrupt
     // per unit. READMOUSE ($C728) must report the summed position in the
     // slot-7 screen holes, and the button must read through bit 7 of the
-    // status hole. Skips when the ROM fixture is absent.
+    // status hole.
     TEST_METHOD (FirmwareTracksMotionAndButton_TransparentMode)
     {
         {
-            HeadlessHost  host;
-            EmulatorCore  core;
+            TestMachine  machine ("Apple2c");
             Word          addr    = 0;
             int           x       = 0;
             int           y       = 0;
@@ -447,13 +445,12 @@ public:
             int           ty      = 0;
             char          msg[96];
 
-            AssertSucceeded (host.BuildApple2c (core));
-            core.PowerCycle();
+            machine.PowerCycle();
 
             // Let the reset firmware initialize (screen, zero page) and run
             // past the first VBL onset so the VBL latch is set -- the firmware's
             // interrupt-enable path samples $C019 before programming the IOU.
-            core.RunCycles (60'000);
+            machine.RunCycles (60'000);
 
             // Driver 1 @ $0300: INITMOUSE, SETMOUSE(mode 1), CLI, spin.
             // Protocol: X = $Cn, Y = $n0 (n = 7), A = argument.
@@ -470,14 +467,14 @@ public:
                 0x4C, 0x11, 0x03,    // JMP $0311   spin, interrupts enabled
             };
             addr = 0x0300;
-            for (Byte b : kInit) { core.cpu->WriteByte (addr++, b); }
+            for (Byte b : kInit) { machine.GetCpu()->WriteByte (addr++, b); }
 
-            core.cpu->SetPC (0x0300);
-            core.RunCycles (150'000);
+            machine.GetCpu()->SetPC (0x0300);
+            machine.RunCycles (150'000);
 
             // Inject host motion; the firmware services it one unit per IRQ.
-            core.mouse->MoveBy (+5, +3);
-            core.RunCycles (300'000);
+            machine.GetMouse()->MoveBy (+5, +3);
+            machine.RunCycles (300'000);
 
             // Driver 2 @ $0320: READMOUSE, spin.
             const Byte kRead[] =
@@ -488,14 +485,14 @@ public:
                 0x4C, 0x27, 0x03,    // JMP $0327   spin
             };
             addr = 0x0320;
-            for (Byte b : kRead) { core.cpu->WriteByte (addr++, b); }
+            for (Byte b : kRead) { machine.GetCpu()->WriteByte (addr++, b); }
 
-            core.cpu->SetPC (0x0320);
-            core.RunCycles (100'000);
+            machine.GetCpu()->SetPC (0x0320);
+            machine.RunCycles (100'000);
 
             // Slot-7 screen holes: $047F/$057F = X lo/hi, $04FF/$05FF = Y lo/hi.
-            x = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
-            y = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
+            x = machine.GetCpu()->ReadByte (0x047F) | (machine.GetCpu()->ReadByte (0x057F) << 8);
+            y = machine.GetCpu()->ReadByte (0x04FF) | (machine.GetCpu()->ReadByte (0x05FF) << 8);
 
             // Diagnostics for the firmware-oracle iteration loop.
             {
@@ -503,14 +500,14 @@ public:
                 sprintf_s (diag,
                     "DIAG: x=%d y=%d PC=%04X xyEn=%d vblEn=%d xInt=%02X yInt=%02X "
                     "mode07FF=%02X status077F=%02X anyIrq=%d",
-                    x, y, core.cpu->GetPC(),
-                    core.mouse->AreXyInterruptsEnabled() ? 1 : 0,
-                    core.mouse->AreVblInterruptsEnabled() ? 1 : 0,
-                    core.mouse->ReadXInterruptStatus(),
-                    core.mouse->ReadYInterruptStatus(),
-                    core.cpu->ReadByte (0x07FF),
-                    core.cpu->ReadByte (0x077F),
-                    core.interruptController->IsAnyAsserted() ? 1 : 0);
+                    x, y, machine.GetCpu()->GetPC(),
+                    machine.GetMouse()->AreXyInterruptsEnabled() ? 1 : 0,
+                    machine.GetMouse()->AreVblInterruptsEnabled() ? 1 : 0,
+                    machine.GetMouse()->ReadXInterruptStatus(),
+                    machine.GetMouse()->ReadYInterruptStatus(),
+                    machine.GetCpu()->ReadByte (0x07FF),
+                    machine.GetCpu()->ReadByte (0x077F),
+                    machine.GetInterruptController().IsAnyAsserted() ? 1 : 0);
                 Logger::WriteMessage (diag);
             }
 
@@ -518,11 +515,11 @@ public:
             Assert::AreEqual (3, y, L"firmware-tracked Y after +3 units");
 
             // Button: press, READMOUSE again, status hole $077F bit 7 = down.
-            core.mouse->SetButton (true);
-            core.cpu->SetPC (0x0320);
-            core.RunCycles (100'000);
+            machine.GetMouse()->SetButton (true);
+            machine.GetCpu()->SetPC (0x0320);
+            machine.RunCycles (100'000);
 
-            status = core.cpu->ReadByte (0x077F);
+            status = machine.GetCpu()->ReadByte (0x077F);
             Assert::IsTrue ((status & 0x80) != 0, L"$077F bit 7: button currently down");
 
             // Absolute targeting (the GUI path)
@@ -532,14 +529,14 @@ public:
             // unit. Default clamps are 0..1023, so 50%/50% ~= (511, 511).
             // Regression: the original UI-thread PeekByte mapping read stale
             // memory and silently no-oped in production (X/Y stuck at 0).
-            core.mouse->SetHostTargetFraction (0x8000, 0x8000);
-            core.RunCycles (8'000'000);
+            machine.GetMouse()->SetHostTargetFraction (0x8000, 0x8000);
+            machine.RunCycles (8'000'000);
 
-            core.cpu->SetPC (0x0320);                          // READMOUSE stub
-            core.RunCycles (100'000);
+            machine.GetCpu()->SetPC (0x0320);                          // READMOUSE stub
+            machine.RunCycles (100'000);
 
-            tx = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
-            ty = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
+            tx = machine.GetCpu()->ReadByte (0x047F) | (machine.GetCpu()->ReadByte (0x057F) << 8);
+            ty = machine.GetCpu()->ReadByte (0x04FF) | (machine.GetCpu()->ReadByte (0x05FF) << 8);
             sprintf_s (msg, "absolute target -> firmware position (%d, %d)", tx, ty);
             Logger::WriteMessage (msg);
             Assert::IsTrue (tx > 495 && tx < 528, L"absolute X lands near mid-clamp (~511)");
@@ -582,43 +579,41 @@ public:
         }
         else
         {
-            HeadlessHost  host;
-            EmulatorCore  core;
+            TestMachine  machine ("Apple2c");
             char          st[128];
 
             std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
 
-            AssertSucceeded (host.BuildApple2c (core));
-            core.PowerCycle();
-            AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
-            core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
+            machine.PowerCycle();
+            AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
+            machine.GetRefs().diskController->SetExternalDisk (0, machine.GetDiskStore().GetImage (6, 0));
 
-            MachineIdle::RunUntilIdle (core, 60'000'000);                       // boot DOS 3.3 to ]
+            MachineIdle::RunUntilIdle (machine, 60'000'000);                       // boot DOS 3.3 to ]
             auto dump = [&] (const char * tag)
             {
                 Logger::WriteMessage (tag);
-                for (const std::string & row : TextScreenScraper::Scrape (core))
+                for (const std::string & row : TextScreenScraper::Scrape (machine))
                 {
                     Logger::WriteMessage (row.c_str());
                 }
             };
 
-            KeystrokeInjector::InjectLine (core, "10 D$=CHR$(4)");
-            KeystrokeInjector::InjectLine (core, "20 PRINT D$;\"PR#7\":PRINT CHR$(1):PRINT D$;\"PR#0\"");
-            KeystrokeInjector::InjectLine (core, "30 PRINT D$;\"IN#7\"");
-            KeystrokeInjector::InjectLine (core, "40 INPUT \"\";X,Y,B");
-            KeystrokeInjector::InjectLine (core, "50 PRINT X;\" \";Y;\" \";B");
-            KeystrokeInjector::InjectLine (core, "60 GOTO 40");
-            KeystrokeInjector::InjectLine (core, "RUN", 2'000'000);
+            KeystrokeInjector::InjectLine (machine, "10 D$=CHR$(4)");
+            KeystrokeInjector::InjectLine (machine, "20 PRINT D$;\"PR#7\":PRINT CHR$(1):PRINT D$;\"PR#0\"");
+            KeystrokeInjector::InjectLine (machine, "30 PRINT D$;\"IN#7\"");
+            KeystrokeInjector::InjectLine (machine, "40 INPUT \"\";X,Y,B");
+            KeystrokeInjector::InjectLine (machine, "50 PRINT X;\" \";Y;\" \";B");
+            KeystrokeInjector::InjectLine (machine, "60 GOTO 40");
+            KeystrokeInjector::InjectLine (machine, "RUN", 2'000'000);
 
-            core.mouse->MoveBy (+7, +4);                       // host motion
-            core.RunCycles (4'000'000);
-            core.mouse->SetButton (true);
-            core.RunCycles (2'000'000);
+            machine.GetMouse()->MoveBy (+7, +4);                       // host motion
+            machine.RunCycles (4'000'000);
+            machine.GetMouse()->SetButton (true);
+            machine.RunCycles (2'000'000);
             dump ("---- screen after RUN + motion ----");
             sprintf_s (st, "xyEn=%d mode07FF=%02X PC=%04X",
-                       core.mouse->AreXyInterruptsEnabled() ? 1 : 0,
-                       core.cpu->ReadByte (0x07FF), core.cpu->GetPC());
+                       machine.GetMouse()->AreXyInterruptsEnabled() ? 1 : 0,
+                       machine.GetCpu()->ReadByte (0x07FF), machine.GetCpu()->GetPC());
             Logger::WriteMessage (st);
         }
     }

@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Disk2DebugDialogState.h"
+#include "Ui/Debug/Disk2DebugDialogState.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

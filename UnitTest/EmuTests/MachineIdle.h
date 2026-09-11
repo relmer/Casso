@@ -2,7 +2,7 @@
 
 #include "../../CassoEmuCore/Pch.h"
 
-#include "HeadlessHost.h"
+#include "Shell/MachineHost.h"
 
 
 
@@ -56,13 +56,13 @@ public:
 
     // Runs until the machine is idle or `cycleCap` cycles have been spent,
     // whichever comes first. Returns the cycles actually spent.
-    static uint64_t   RunUntilIdle (EmulatorCore & core, uint64_t cycleCap);
+    static uint64_t   RunUntilIdle (MachineHost & host, uint64_t cycleCap);
 
     // True when the machine looks finished: drive stopped, screen quiet
     // versus `previous`, and a bare prompt showing. `previous` empty means
     // there is no earlier sample to compare against, which is never idle.
     static bool       IsIdle (
-        EmulatorCore                    &  core,
+        MachineHost                    &  host,
         const std::vector<std::string>  &  previous,
         const std::vector<std::string>  &  current);
 };

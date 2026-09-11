@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Core/MachineConfig.h"
+#include "Machines/MachineDefinitions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -270,7 +271,7 @@ public:
         AssertSucceeded (hr);
         Assert::AreEqual (size_t (3), config.internalDevices.size(),
             L"Should have 3 internal devices");
-        Assert::AreEqual (std::string ("apple2-keyboard"), config.internalDevices[0].type,
+        Assert::AreEqual (std::string ("apple2-family-keyboard"), config.internalDevices[0].type,
             L"First internal device should be apple2-keyboard");
     }
 
@@ -355,7 +356,7 @@ public:
                                                 config, error);
 
         AssertSucceeded (hr);
-        Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
+        Assert::AreEqual (std::string ("apple2-family-layout"), config.keyboardType,
             L"Keyboard type should be 'apple2-uppercase'");
     }
 
@@ -370,8 +371,11 @@ public:
                                                 config, error);
 
         AssertSucceeded (hr);
-        Assert::AreEqual (size_t (3), config.videoConfig.modes.size(),
-            L"Should have 3 video modes");
+        //  Video modes left MachineConfig with the rest of a machine's
+        //  invariant hardware; a document does not get to declare them.
+        Assert::AreEqual (size_t (3),
+            MachineDefinitions::FindMachine ("Apple2")->GetVideoModes().size(),
+            L"an Apple ][ offers 3 video modes");
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -481,7 +485,7 @@ public:
             "ram": [],
             "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
             "internalDevices": [
-                { "type": "apple2-keyboard" }
+                { "type": "apple2-family-keyboard" }
             ],
             "slots": [
                 { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
@@ -564,7 +568,7 @@ public:
             "ram": [],
             "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
             "internalDevices": [
-                { "type": "apple2-keyboard", "capabilityFlag": "bogus" }
+                { "type": "apple2-family-keyboard", "capabilityFlag": "bogus" }
             ],
             "slots": [],
             "video": { "modes": [] },
@@ -947,7 +951,9 @@ private:
         {
             expectedSize = 2048;
         }
-        else if (filename == "Apple2e_Video.rom" || filename == "Apple2c_Video.rom")
+        else if (filename == "Apple2e_Video.rom" ||
+                 filename == "Apple2eEnhanced_Video.rom" ||
+                 filename == "Apple2c_Video.rom")
         {
             expectedSize = 4096;
         }
@@ -1011,12 +1017,12 @@ private:
             ],
             "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
             "internalDevices": [
-                { "type": "apple2-keyboard" },
-                { "type": "apple2-speaker" },
-                { "type": "apple2-softswitches" }
+                { "type": "apple2-family-keyboard" },
+                { "type": "apple2-family-speaker" },
+                { "type": "apple2-family-softswitches" }
             ],
             "video": { "modes": ["apple2-text40", "apple2-lores", "apple2-hires"] },
-            "keyboard": { "type": "apple2-uppercase" }
+            "keyboard": { "type": "apple2-family-layout" }
         })";
     }
 
@@ -1037,7 +1043,7 @@ private:
             "systemRom": { "address": "0xC000", "file": "Apple2e.rom" },
             "internalDevices": [],
             "video": { "modes": [] },
-            "keyboard": { "type": "apple2e-full" }
+            "keyboard": { "type": "apple2e-family-layout" }
         })";
     }
 
@@ -1056,7 +1062,7 @@ private:
             "characterRom": {                      "file": "Apple2_Video.rom" },
             "internalDevices": [],
             "video": { "modes": [] },
-            "keyboard": { "type": "apple2-uppercase" }
+            "keyboard": { "type": "apple2-family-layout" }
         })";
     }
 
@@ -1078,7 +1084,7 @@ private:
                 { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
             ],
             "video": { "modes": [] },
-            "keyboard": { "type": "apple2e-full" }
+            "keyboard": { "type": "apple2e-family-layout" }
         })";
     }
 };

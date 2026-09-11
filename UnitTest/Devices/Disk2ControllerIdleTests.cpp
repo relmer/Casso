@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 // Disk2Controller carries two DiskImage instances; per-test heap
 // allocation would otherwise blow the C6262 stack-frame budget.

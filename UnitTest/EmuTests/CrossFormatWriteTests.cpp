@@ -1,16 +1,16 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/ProDosSkeleton.h"
-#include "Devices/Disk/TrackWritability.h"
-#include "Devices/Disk/VolumeImage.h"
-#include "Devices/Disk/WozLoader.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/TrackWritability.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -796,34 +796,32 @@ public:
                                const std::string  & until,
                                uint64_t           & outCycles)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         DiskImage    * img    = nullptr;
         std::string    joined;
         uint64_t       spent  = 0;
 
-        AssertSucceeded (host.BuildApple2eWithDisk2 (core), L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        AssertSucceeded (core.diskStore->MountFromBytes (6, 0, name, format, bytes),
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, name, format, bytes),
             L"MountFromBytes must succeed");
 
-        img = core.diskStore->GetImage (6, 0);
+        img = machine.GetDiskStore().GetImage (6, 0);
         Assert::IsNotNull (img, L"the mounted image must be present");
-        core.diskController->SetExternalDisk (0, img);
+        machine.GetRefs().diskController->SetExternalDisk (0, img);
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
         while (spent < kBootCycles && joined.find (until) == std::string::npos)
         {
             std::vector<std::string>  rows;
 
-            core.RunCycles (kBootSlice);
+            machine.RunCycles (kBootSlice);
             spent += kBootSlice;
 
-            rows   = TextScreenScraper::Scrape (core);
+            rows   = TextScreenScraper::Scrape (machine);
             joined = "";
 
             for (const std::string & row : rows)

@@ -1,9 +1,9 @@
 #include "Pch.h"
 
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "FixtureProvider.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -130,23 +130,23 @@ public:
     ////////////////////////////////////////////////////////////////////////
 
     void RunAndSampleTracks (
-        EmulatorCore        &  core,
+        MachineHost        &  machine,
         uint64_t               totalBudget,
         std::set<int>       &  outTracksVisited,
         int                    earlyExitThreshold)
     {
         uint64_t   spent = 0;
 
-        outTracksVisited.insert (core.diskController->GetCurrentTrack());
+        outTracksVisited.insert (machine.GetRefs().diskController->GetCurrentTrack());
 
         while (spent < totalBudget)
         {
             uint64_t   chunk = std::min<uint64_t> (kChunkCycles, totalBudget - spent);
 
-            core.RunCycles (chunk);
+            machine.RunCycles (chunk);
             spent += chunk;
 
-            outTracksVisited.insert (core.diskController->GetCurrentTrack());
+            outTracksVisited.insert (machine.GetRefs().diskController->GetCurrentTrack());
 
             if (outTracksVisited.size() >= static_cast<size_t> (earlyExitThreshold))
             {
@@ -167,12 +167,12 @@ public:
     void AssertGameBoots (
         const std::string  &  relPath,
         const wchar_t      *  label,
-        int                   minTracks)
+        int                   minTracks,
+        const char         *  machineId = "Apple2c")
     {
         fs::path             wozPath       = FindRepoFile (relPath);
         std::vector<Byte>    bytes;
-        HeadlessHost         host;
-        EmulatorCore         core;
+        TestMachine         machine (machineId);
         HRESULT              hr            = S_OK;
         DiskImage          * external      = nullptr;
         std::set<int>        tracksVisited;
@@ -191,31 +191,30 @@ public:
 
         Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
 
-        hr = host.BuildApple2eWithDisk2 (core);
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
             wozPath.string(), DiskFormat::Woz, bytes);
         AssertSucceeded (hr, L"MountFromBytes must succeed for real WOZ");
 
-        external = core.diskStore->GetImage (kSlot6, kDrive1);
+        external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        core.diskController->SetExternalDisk (kDrive1, external);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
 
         GuestSession::AssertTheDriveHoldsWrittenTracks (*external, minTracks, label);
 
-        core.bus->WriteByte (kIntCxRomOff, 0);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
 
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetCpu()->SetPC (kBootRomEntry);
 
-        RunAndSampleTracks (core, kBootCycleBudget, tracksVisited, minTracks);
+        RunAndSampleTracks (machine, kBootCycleBudget, tracksVisited, minTracks);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
             L"Boot ROM must turn the motor on");
 
         // Either the bit cursor advanced OR the head walked off track 0.
@@ -267,8 +266,7 @@ public:
         if (runnable)
         {
             std::vector<Byte>   bytes         = ReadFileBytes (wozPath);
-            HeadlessHost        host;
-            EmulatorCore        core;
+            TestMachine        machine ("Apple2c");
             HRESULT             hr            = S_OK;
             DiskImage        *  internal      = nullptr;
             std::set<int>       tracksVisited;
@@ -276,29 +274,28 @@ public:
 
             Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
 
-            hr = host.BuildApple2c (core);
             AssertSucceeded (hr, L"BuildApple2c must succeed");
 
             // PowerCycle first (re-seeds DRAM + rebinds the drive to its empty
             // internal disk), THEN mount -- matching the production ordering.
-            core.PowerCycle();
+            machine.PowerCycle();
 
-            hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
                 wozPath.string(), DiskFormat::Woz, bytes);
             AssertSucceeded (hr, L"MountFromBytes must succeed for real WOZ");
 
-            internal = core.diskStore->GetImage (kSlot6, kDrive1);
+            internal = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
             Assert::IsNotNull (internal, L"Store must yield a DiskImage after mount");
 
-            core.diskController->SetExternalDisk (kDrive1, internal);   // drive 1 = internal
+            machine.GetRefs().diskController->SetExternalDisk (kDrive1, internal);   // drive 1 = internal
 
             GuestSession::AssertTheDriveHoldsWrittenTracks (*internal, minTracks, label);
 
             // Cold-boot: firmware runs the RAM test then autoboots the slot-6
             // IWM. No forced $C600 entry -- this is the real //c boot path.
-            RunAndSampleTracks (core, kApple2cBootBudget, tracksVisited, minTracks);
+            RunAndSampleTracks (machine, kApple2cBootBudget, tracksVisited, minTracks);
 
-            Assert::IsTrue (core.diskController->IsMotorOn(),
+            Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
                 L"Boot ROM must turn the motor on");
 
             swprintf_s (failMsg,
@@ -322,7 +319,13 @@ public:
 
     TEST_METHOD (Choplifter_WozBoot_HeadVisitsContentTracks)
     {
-        AssertGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter", 20);
+        //  On a //e. The //c's own firmware walks 12 of these 20 tracks and
+        //  stops -- the ROM 4 boot path reaches a protection check the //e's
+        //  Disk ][ firmware does not, and whether that is faithful is a
+        //  question about the //c rather than about this disk. Karateka and
+        //  Lode Runner keep the //c covered, and both are the more
+        //  aggressively protected titles.
+        AssertGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter", 20, "Apple2e");
     }
 
 

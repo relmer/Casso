@@ -6,6 +6,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+
+- Apple //e now uses the correct character ROM. Previously, it used the Apple
+  //e Enhanced ROM.
+- `disk get --basic` now lists an Applesoft file whose recorded length runs
+  past the end-of-program link. Previously, it refused the file.
+- `disk get --basic` and `disk put --basic` now pass a control character
+  inside a string, a REM or a DATA statement through as the byte Applesoft
+  stores. Previously, they refused the line.
+- Window resize now accommodates docked message bars like the disk-change
+  notice.
+- Single-stepping a paused machine now advances the video timing and the //c
+  mouse along with the other devices.
+- The Input debug panel now follows a machine switch whether or not the Disk II
+  panel is open.
+- The //c switch strip now repaints when a switch is clicked or hovered over a
+  static screen, such as the "Check disk drive" message.
+- Switching machines no longer crashes when a frame is presented during the
+  rebuild.
+- Starting, power-cycling or rebooting a //c no longer pauses for a second
+  before the drive starts.
+- Ctrl-Open-Apple-Reset from the toolbar, the Machine menu or the //c strip now
+  cold starts with normal key timing. Previously, the keys had to stay down for
+  several seconds after the click.
+
+### Changed
+
+- Casso.exe and CassoCli.exe are link targets only. Every line is in
+  CassoEmuCore, where the unit suite reaches it.
+- Each machine's built-in hardware is declared in code. The machine JSON keeps
+  only what a user can change: cards in slots, attached devices, and the
+  monitor.
+
 ## [1.23.2]: The one where Rescue Raiders speaks
 
 ### Fixed

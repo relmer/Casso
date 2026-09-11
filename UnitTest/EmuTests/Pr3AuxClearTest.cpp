@@ -1,9 +1,9 @@
 #include "Pch.h"
 
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "KeystrokeInjector.h"
-#include "Devices/Apple2eMmu.h"
-#include "Video/CharacterRomData.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Machines/Apple2/Common/CharacterRomData.h"
 #include "FixtureProvider.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -98,22 +98,21 @@ public:
     // companion Pr3_StaticCursor_Lands_At_Main0480 test).
     TEST_METHOD (Pr3_Clears_AuxTextPage1_AllRows)
     {
-        HeadlessHost    host;
-        EmulatorCore    core;
+        TestMachine    machine ("Apple2e", TestMachine::Slots::Empty);
         Byte          * auxBuf    = nullptr;
         int             totalBad  = 0;
         wchar_t         msg[1024] = {};
 
-        HRESULT  hr = host.BuildApple2e (core);
+        HRESULT  hr = S_OK;
         AssertSucceeded (hr);
 
-        core.PowerCycle();
-        core.RunCycles (kColdBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles (kColdBootCycles);
 
-        size_t  consumed = KeystrokeInjector::InjectLine (core, "PR#3", kAfterCommand);
+        size_t  consumed = KeystrokeInjector::InjectLine (machine, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);
 
-        auxBuf = core.mmu->GetAuxBuffer();
+        auxBuf = machine.GetMmu()->GetAuxBuffer();
         Assert::IsNotNull (auxBuf);
 
         for (int row = 0; row < 24; row++)
@@ -162,30 +161,29 @@ public:
     // can't silently regress.
     TEST_METHOD (Pr3_StaticCursor_Lands_At_Main0480)
     {
-        HeadlessHost    host;
-        EmulatorCore    core;
+        TestMachine    machine ("Apple2e", TestMachine::Slots::Empty);
         Byte          * auxBuf = nullptr;
         Byte            prompt = 0;
         Byte            cursor = 0;
         Byte            ourch  = 0;
         Byte            cv     = 0;
 
-        HRESULT  hr = host.BuildApple2e (core);
+        HRESULT  hr = S_OK;
         AssertSucceeded (hr);
 
-        core.PowerCycle();
-        core.RunCycles (kColdBootCycles);
+        machine.PowerCycle();
+        machine.RunCycles (kColdBootCycles);
 
-        size_t  consumed = KeystrokeInjector::InjectLine (core, "PR#3", kAfterCommand);
+        size_t  consumed = KeystrokeInjector::InjectLine (machine, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);
 
-        auxBuf = core.mmu->GetAuxBuffer();
+        auxBuf = machine.GetMmu()->GetAuxBuffer();
         Assert::IsNotNull (auxBuf);
 
         prompt = auxBuf[0x0480];
-        cursor = core.bus->ReadByte (0x0480);
-        ourch = core.bus->ReadByte (0x057B);
-        cv = core.bus->ReadByte (0x0025);
+        cursor = machine.GetMemoryBus().ReadByte (0x0480);
+        ourch = machine.GetMemoryBus().ReadByte (0x057B);
+        cv = machine.GetMemoryBus().ReadByte (0x0025);
 
         Assert::AreEqual (Byte (0xDD), prompt, L"aux $0480 must be the ']' prompt ($DD)");
         Assert::AreEqual (Byte (0x20), cursor, L"main $0480 must be inverse-space ($20) cursor");

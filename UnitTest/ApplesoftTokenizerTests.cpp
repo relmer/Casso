@@ -568,6 +568,33 @@ public:
     //  ------------------------------------------------------------------
     //
 
+    TEST_METHOD (AControlCharacterInsideAString_RoundTrips)
+    {
+        // Applesoft stores a control character typed inside quotes (a Ctrl-D
+        // ahead of a DOS command, a Ctrl-K in TS on the ADTPro disks), and
+        // LIST writes it out as the byte it is. So does this listing.
+        std::string            source = "10  PRINT \"\x04" "CATALOG\"\n"
+                                        "20  REM \x07" "BELL\n"
+                                        "30  DATA \x0B" "X,Y\n";
+        std::vector<Byte>      program = Tokenized (source);
+        std::string            listing;
+        ApplesoftListingError  error;
+
+        AssertSucceeded (ApplesoftTokenizer::Detokenize (program, listing, error));
+        Assert::AreEqual (source, listing);
+    }
+
+
+    TEST_METHOD (AControlCharacterOutsideAString_IsStillRefused)
+    {
+        std::vector<Byte>      bytes;
+        ApplesoftListingError  error;
+
+        AssertFailed (ApplesoftTokenizer::Tokenize ("10 PRINT \x04" "A\n", bytes, error),
+            L"outside quotes, REM and DATA a control character is not something Applesoft stores");
+    }
+
+
     TEST_METHOD (Detokenize_AByteThatIsNoToken_IsRefused)
     {
         std::vector<Byte>      program = Tokenized ("10 END\n");
@@ -609,16 +636,21 @@ public:
     }
 
 
-    TEST_METHOD (Detokenize_BytesPastTheNullLink_AreRefused)
+    TEST_METHOD (Detokenize_BytesPastTheNullLink_AreIgnored)
     {
+        // A DOS 3.3 file's recorded length routinely runs a few bytes past
+        // the zero link (HI-RES HELLO on the ADTPro disks ends 00 00 00 01).
+        // Applesoft's RUN stops at the link, so the listing does too.
         std::vector<Byte>      program = Tokenized ("10 END\n");
         std::string            listing;
         ApplesoftListingError  error;
 
-        program.push_back (0x42);
+        program.push_back (0x00);
+        program.push_back (0x01);
 
-        AssertFailed (ApplesoftTokenizer::Detokenize (program, listing, error),
-            L"a file longer than the program it holds is not the program it holds");
+        AssertSucceeded (ApplesoftTokenizer::Detokenize (program, listing, error),
+            L"bytes after the zero link are not part of the program");
+        Assert::AreEqual (std::string ("10  END\n"), listing);
     }
 
 

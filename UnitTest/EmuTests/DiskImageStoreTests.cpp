@@ -4,10 +4,10 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/MountDiagnosis.h"
-#include "Devices/Disk/NibbleImageCodec.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/WozLoader.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

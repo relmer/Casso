@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "../Casso/Shell/DiskMru.h"
+#include "Shell/DiskMru.h"
 
 
 
@@ -64,6 +64,48 @@ namespace DiskMruTests
             {
                 Assert::IsTrue (mruEntry.path.wstring().find (L"\\0.dsk") == std::wstring::npos);
             }
+        }
+
+
+        TEST_METHOD (Remount_AtCapacity_MovesToFrontWithoutEvictingAnyone)
+        {
+            DiskMru                      m;
+            size_t                       i        = 0;
+            size_t                       found    = 0;
+            std::vector<DiskMru::Entry>  snap;
+            std::wstring                 middle   = L"C:\\Disks\\7.dsk";
+            std::wstring                 oldest   = L"C:\\Disks\\0.dsk";
+
+            //  Full to the brim. A remount of something already in the list
+            //  is a reorder, not an insertion: the list must not grow, so
+            //  nothing else can be pushed out of it.
+            for (i = 0; i < DiskMru::k_capacity; i++)
+            {
+                std::wstring  p = L"C:\\Disks\\";
+                p += std::to_wstring (i);
+                p += L".dsk";
+                m.RecordMount (p);
+            }
+
+            m.RecordMount (middle);
+
+            snap = m.GetSnapshot();
+            Assert::AreEqual (DiskMru::k_capacity, snap.size(), L"a remount does not grow the list");
+            Assert::IsTrue (snap[0].path == std::filesystem::path (middle), L"the remounted entry leads");
+
+            for (const auto & mruEntry : snap)
+            {
+                if (mruEntry.path == std::filesystem::path (middle))
+                {
+                    found++;
+                }
+            }
+
+            Assert::AreEqual ((size_t) 1, found, L"and appears once");
+
+            //  The oldest entry is the one an eviction would have taken.
+            Assert::IsTrue (snap.back().path == std::filesystem::path (oldest),
+                            L"the oldest entry, unrelated to the remount, is still here");
         }
 
 

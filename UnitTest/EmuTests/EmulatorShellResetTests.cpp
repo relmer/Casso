@@ -2,7 +2,7 @@
 #include "Core/MemoryBus.h"
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
-#include "Devices/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

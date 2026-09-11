@@ -1,10 +1,13 @@
 #include "Pch.h"
+
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "../EhmTestHelper.h"
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
-#include "Devices/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -389,9 +392,9 @@ void GuestSession::AssertTheDriveHoldsWrittenTracks (const DiskImage  & image,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GuestSession::IsAtBarePrompt (EmulatorCore & core)
+bool GuestSession::IsAtBarePrompt (MachineHost & host)
 {
-    std::vector<std::string>  rows  = TextScreenScraper::Scrape (core);
+    std::vector<std::string>  rows  = TextScreenScraper::Scrape (host);
     std::string               row;
     size_t                    index = 0;
 
@@ -420,9 +423,9 @@ bool GuestSession::IsAtBarePrompt (EmulatorCore & core)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GuestSession::CollectRows (EmulatorCore & core, std::vector<std::string> & outRows)
+void GuestSession::CollectRows (MachineHost & host, std::vector<std::string> & outRows)
 {
-    std::vector<std::string>  rows = TextScreenScraper::Scrape (core);
+    std::vector<std::string>  rows = TextScreenScraper::Scrape (host);
 
 
 
@@ -447,7 +450,7 @@ void GuestSession::CollectRows (EmulatorCore & core, std::vector<std::string> & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GuestSession::TryPageToPrompt (EmulatorCore & core, std::vector<std::string> & outRows)
+bool GuestSession::TryPageToPrompt (MachineHost & host, std::vector<std::string> & outRows)
 {
     bool  atPrompt = false;
     int   page     = 0;
@@ -456,13 +459,13 @@ bool GuestSession::TryPageToPrompt (EmulatorCore & core, std::vector<std::string
 
     for (page = 0; page < kMaxPages && !atPrompt; page++)
     {
-        CollectRows (core, outRows);
+        CollectRows (host, outRows);
 
-        atPrompt = IsAtBarePrompt (core);
+        atPrompt = IsAtBarePrompt (host);
 
         if (!atPrompt)
         {
-            KeystrokeInjector::InjectLine (core, "", kLineCycles);
+            KeystrokeInjector::InjectLine (host, "", kLineCycles);
         }
     }
 
@@ -479,16 +482,16 @@ bool GuestSession::TryPageToPrompt (EmulatorCore & core, std::vector<std::string
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> GuestSession::TypeAndCollect (EmulatorCore & core, const std::string & line)
+std::vector<std::string> GuestSession::TypeAndCollect (MachineHost & host, const std::string & line)
 {
     std::vector<std::string>  rows;
     bool                      atPrompt = false;
 
 
 
-    KeystrokeInjector::InjectLine (core, line, kLineCycles);
+    KeystrokeInjector::InjectLine (host, line, kLineCycles);
 
-    atPrompt = TryPageToPrompt (core, rows);
+    atPrompt = TryPageToPrompt (host, rows);
 
     Assert::IsTrue (atPrompt,
         L"the guest must come back to its prompt after the typed line");
@@ -584,25 +587,22 @@ void GuestSession::AssertTheOnlyRowsMentioning (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GuestSession::Mount (HeadlessHost             & host,
-                          EmulatorCore             & core,
+void GuestSession::Mount (MachineHost              & host,
                           const std::vector<Byte>  & bytes)
 {
     DiskImage *  image = nullptr;
 
 
 
-    AssertSucceeded (host.BuildApple2eWithDisk2 (core), L"BuildApple2eWithDisk2 must succeed");
+    host.PowerCycle();
 
-    core.PowerCycle();
-
-    AssertSucceeded (core.diskStore->MountFromBytes (kSlot6, kDrive1, "gate.dsk",
+    AssertSucceeded (host.GetDiskStore().MountFromBytes (kSlot6, kDrive1, "gate.dsk",
                                                      DiskFormat::Dsk, bytes),
         L"MountFromBytes must succeed");
 
-    image = core.diskStore->GetImage (kSlot6, kDrive1);
+    image = host.GetDiskStore().GetImage (kSlot6, kDrive1);
     Assert::IsNotNull (image, L"the mounted image must be present");
-    core.diskController->SetExternalDisk (kDrive1, image);
+    host.GetRefs().diskController->SetExternalDisk (kDrive1, image);
 
     //  Between mounting and starting the processor, and nowhere else: this is
     //  the last moment at which a hopeless image costs milliseconds instead of
@@ -611,8 +611,8 @@ void GuestSession::Mount (HeadlessHost             & host,
     AssertTheDrivePresentsWhatWasMounted (*image, bytes, L"the image this gate mounts");
     AssertTheDriveCanReadTheBootSector   (*image,        L"the image this gate mounts");
 
-    core.bus->WriteByte (kIntCxRomOff, 0);
-    core.cpu->SetPC (kBootRomEntry);
+    host.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+    host.GetCpu()->SetPC (kBootRomEntry);
 }
 
 
@@ -625,13 +625,12 @@ void GuestSession::Mount (HeadlessHost             & host,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GuestSession::MountAndBoot (HeadlessHost             & host,
-                                 EmulatorCore             & core,
+void GuestSession::MountAndBoot (MachineHost              & host,
                                  const std::vector<Byte>  & bytes)
 {
-    Mount (host, core, bytes);
+    Mount (host, bytes);
 
-    MachineIdle::RunUntilIdle (core, kBootCycles);
+    MachineIdle::RunUntilIdle (host, kBootCycles);
 }
 
 
@@ -644,8 +643,7 @@ void GuestSession::MountAndBoot (HeadlessHost             & host,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GuestSession::BootToPrompt (HeadlessHost             & host,
-                                 EmulatorCore             & core,
+void GuestSession::BootToPrompt (MachineHost              & host,
                                  const std::vector<Byte>  & bytes)
 {
     std::vector<std::string>  rows;
@@ -653,9 +651,9 @@ void GuestSession::BootToPrompt (HeadlessHost             & host,
 
 
 
-    MountAndBoot (host, core, bytes);
+    MountAndBoot (host, bytes);
 
-    atPrompt = TryPageToPrompt (core, rows);
+    atPrompt = TryPageToPrompt (host, rows);
 
     Assert::IsTrue (atPrompt,
         L"the image must boot its operating system through to a BASIC prompt");
@@ -674,7 +672,7 @@ void GuestSession::BootToPrompt (HeadlessHost             & host,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Byte> GuestSession::GuestBytesAt (EmulatorCore & core, Word address, size_t count)
+std::vector<Byte> GuestSession::GuestBytesAt (MachineHost & host, Word address, size_t count)
 {
     std::vector<Byte>  bytes (count, 0);
     size_t             i = 0;
@@ -683,7 +681,7 @@ std::vector<Byte> GuestSession::GuestBytesAt (EmulatorCore & core, Word address,
 
     for (i = 0; i < count; i++)
     {
-        bytes[i] = core.bus->ReadByte ((Word) (address + i));
+        bytes[i] = host.GetMemoryBus().ReadByte ((Word) (address + i));
     }
 
     return bytes;

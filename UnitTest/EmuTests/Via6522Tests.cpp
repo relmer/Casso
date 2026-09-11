@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Devices/Mockingboard/Via6522.h"
+#include "Devices/Via6522.h"
 #include "Core/InterruptController.h"
 #include "ICpu.h"
 

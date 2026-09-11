@@ -1,11 +1,11 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/MountDiagnosis.h"
-#include "Devices/Disk/NibbleImageCodec.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/SectorDecodeReport.h"
-#include "Devices/Disk/VolumeImage.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

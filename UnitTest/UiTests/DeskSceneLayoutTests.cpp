@@ -113,6 +113,20 @@ public:
 
     // Projects every world-space corner of a device's remapped model box and
     // asserts it lands inside the viewport.
+    static void AssertRectInside (const RECT & inner, const RECT & outer, const wchar_t * what)
+    {
+        Assert::IsTrue (inner.right > inner.left && inner.bottom > inner.top,
+                        (std::wstring (what) + L" -- the rect is empty").c_str());
+        Assert::IsTrue (inner.left   >= outer.left  &&
+                        inner.top    >= outer.top   &&
+                        inner.right  <= outer.right &&
+                        inner.bottom <= outer.bottom,
+                        std::format (L"{} -- ({},{})-({},{}) is not inside ({},{})-({},{})", what,
+                                     inner.left, inner.top, inner.right, inner.bottom,
+                                     outer.left, outer.top, outer.right, outer.bottom).c_str());
+    }
+
+
     static void AssertDeviceContained (const DeskSceneComposition & comp,
                                        const float                  world[16],
                                        const float                  modelMin[3],
@@ -380,6 +394,49 @@ public:
             AssertDeviceContained (comp, comp.driveWorld[1], metrics.driveMin, metrics.driveMax);
         }
     }
+
+    TEST_METHOD (Every_Element_Rect_Lies_Inside_The_Scene_At_Every_Dpi)
+    {
+        DeskSceneMetrics  metrics  = MakeMetrics();
+        RECT              viewport = { 0, 0, 1280, 800 };
+        UINT              dpis[]   = { 96, 120, 144, 168, 192, 240, 288 };
+
+
+
+        //  The pixel rects are what the chrome lays out against, hangs
+        //  tooltips from, and offers as drop targets. Each one has to sit
+        //  inside the scene it belongs to, and the scene inside the viewport,
+        //  at every DPI a monitor reports -- a rect that escapes at 240 puts
+        //  a drop target where nothing is drawn.
+        for (UINT dpi : dpis)
+        {
+            for (int driveCount = 0; driveCount <= 2; driveCount++)
+            {
+                DeskSceneComposition  comp;
+                std::wstring          where = std::format (L"dpi {} with {} drive(s)", dpi, driveCount);
+
+                AssertSucceeded (DeskSceneLayout::Compute (viewport, dpi, driveCount, metrics, comp));
+
+                //  The glass is checked against the scene, not the housing:
+                //  the sheet bulges toward the viewer and stands proud of the
+                //  housing's front face, so its projection can reach a few
+                //  pixels past the housing's own box and still be right.
+                AssertRectInside (comp.sceneRectPx,   viewport,         (where + L": scene in viewport").c_str());
+                AssertRectInside (comp.monitorRectPx, comp.sceneRectPx, (where + L": monitor in scene").c_str());
+                AssertRectInside (comp.glassRectPx,   comp.sceneRectPx, (where + L": glass in scene").c_str());
+
+                for (int i = 0; i < driveCount; i++)
+                {
+                    AssertRectInside (comp.driveRectPx[i], comp.sceneRectPx,
+                                      (where + std::format (L": drive {} in scene", i)).c_str());
+                    Assert::IsTrue (comp.driveLabelPx[i].x >= comp.sceneRectPx.left &&
+                                    comp.driveLabelPx[i].x <= comp.sceneRectPx.right,
+                                    (where + std::format (L": drive {} label anchor in scene", i)).c_str());
+                }
+            }
+        }
+    }
+
 
     TEST_METHOD (Strip_Row_Is_Contained_At_Every_Gaze)
     {

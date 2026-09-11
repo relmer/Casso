@@ -1,15 +1,15 @@
 #include "Pch.h"
 #include "Assembler.h"
 #include "AssemblerTypes.h"
-#include "HeadlessHost.h"
-#include "Devices/Disk/BlankDiskBuilder.h"
+#include "TestMachine.h"
+#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Devices/Disk2Controller.h"
-#include "Devices/Disk/Disk2NibbleEngine.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/NibbleImageCodec.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/WozLoader.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -250,33 +250,32 @@ public:
 
     TEST_METHOD (LssWrite_KnownNibbles_RoundTripThroughBitstream)
     {
-        HeadlessHost         host;
-        EmulatorCore         core;
+        TestMachine         machine ("Apple2e");
         DiskImage          * img       = nullptr;
         Cpu                  asmCpu;
         std::vector<Byte>    nibbles;
         size_t               payloadAt = 0;
         AssemblyResult       r;
 
-        HRESULT  hr = host.BuildApple2eWithDisk2 (core);
+        HRESULT  hr = S_OK;
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
         // Mount a synthetic blank .dsk (nibblizes to a formatted track 0).
         std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, "blank.dsk",
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1, "blank.dsk",
                                              DiskFormat::Dsk, blank);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        img = core.diskStore->GetImage (kSlot6, kDrive1);
+        img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img);
-        core.diskController->SetExternalDisk (kDrive1, img);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         // Poke the payload nibble table into RAM at $7000.
         for (size_t i = 0; i < s_kPayload.size(); i++)
         {
-            core.bus->WriteByte (static_cast<Word> (kPayloadAddr + i), s_kPayload[i]);
+            machine.GetMemoryBus().WriteByte (static_cast<Word> (kPayloadAddr + i), s_kPayload[i]);
         }
 
         // Assemble + load the write routine. PLEN in kWriteSource is
@@ -300,11 +299,11 @@ public:
 
         for (size_t i = 0; i < r.bytes.size(); i++)
         {
-            core.bus->WriteByte (static_cast<Word> (kCodeOrg + i), r.bytes[i]);
+            machine.GetMemoryBus().WriteByte (static_cast<Word> (kCodeOrg + i), r.bytes[i]);
         }
 
-        core.cpu->SetPC (kCodeOrg);
-        core.RunCycles (200'000ULL);
+        machine.GetCpu()->SetPC (kCodeOrg);
+        machine.RunCycles (200'000ULL);
 
         // Frame track 0 back into nibbles and search for the payload.
         nibbles = FrameTrack (*img, 0);

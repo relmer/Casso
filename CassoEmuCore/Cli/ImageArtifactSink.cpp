@@ -1,13 +1,13 @@
 #include "Pch.h"
 
 #include "ImageArtifactSink.h"
-#include "IIntentChannel.h"
+#include "Seams/IIntentChannel.h"
 
-#include "Devices/Disk/AssembledFilePlacement.h"
-#include "Devices/Disk/Dos33Volume.h"
+#include "Machines/Apple2/Common/AssembledFilePlacement.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Devices/Disk/FilePath.h"
-#include "Devices/Disk/ProDosVolume.h"
-#include "Devices/Disk/VolumeImage.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 

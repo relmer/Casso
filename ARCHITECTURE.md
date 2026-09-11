@@ -366,13 +366,14 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
 |---|---|
 | CPU core, microcode, fast-path `ReadByte` | `CassoCore/Cpu.{h,cpp}`, `Cpu6502.*`, `Cpu65C02.*`, `Microcode.*`, `CpuOperations.cpp` |
 | Bus routing, page table, device map | `CassoEmuCore/Core/MemoryBus.{h,cpp}`, `MemoryBusCpu.*` |
-| Banking / MMU / ROM routing | `CassoEmuCore/Devices/Apple2eMmu.*`, `LanguageCard.*`, `CxxxRomRouter.*`, `Apple2cRomBank.*` |
-| Devices | `CassoEmuCore/Devices/` (keyboard, speaker, soft switches, Disk2, Mockingboard, game port, ACIA, mouse) |
-| Video modes + timing | `CassoEmuCore/Video/`, `VideoTiming.*` |
-| Threading, frame pump, commands | `Casso/Shell/CpuManager.*`, `Casso/EmulatorShell.cpp`, `Casso/Shell/MachineManager.cpp` |
-| Render / present / CRT | `Casso/D3DRenderer.cpp`, `Casso/CrtPostProcess.cpp`, `Casso/DxuiHwndSource*` |
-| Audio | `Casso/WasapiAudio.cpp`, `CassoEmuCore/Audio/`, `CassoEmuCore/Devices/Mockingboard/` |
-| Machine definitions | `Resources/Machines/*/*.json` |
+| Banking / MMU / ROM routing | `CassoEmuCore/Machines/Apple2/Apple2e/Apple2eMmu.*`, `Machines/Apple2/Common/LanguageCard.*`, `.../CxxxRomRouter.*`, `Machines/Apple2/Apple2c/Apple2cRomBank.*` |
+| Devices | `CassoEmuCore/Devices/` holds what belongs to no machine (RAM, ROM, the 6502/6522/6551/AY-3-8910/SSI-263 chips, the device interfaces); `CassoEmuCore/Machines/<Family>/<Model>/` holds what does (keyboard, speaker, soft switches, Disk II, Mockingboard card, game port) |
+| Video modes + timing | `CassoEmuCore/Machines/Apple2/Common/` (the five Apple II modes, character ROM, palette, `VideoTiming.*`); `CassoEmuCore/Video/` keeps only what assumes no machine |
+| Threading, frame pump, commands | `CassoEmuCore/Shell/CpuManager.*`, `CassoEmuCore/EmulatorShell.cpp`, `CassoEmuCore/Shell/MachineManager.cpp` |
+| Render / present / CRT | `CassoEmuCore/D3DRenderer.cpp`, `CassoEmuCore/CrtPostProcess.cpp`, `Dxui/Window/DxuiHwndSource*` |
+| Audio | `CassoEmuCore/WasapiAudio.cpp`, `CassoEmuCore/Audio/`, `CassoEmuCore/Machines/Apple2/Common/` (Mockingboard, Disk II audio) |
+| Machine definitions | `CassoEmuCore/Machines/<Family>/<Model>/*Definition.cpp` for invariant hardware; `Resources/Machines/*/*.json` for what an owner configures |
+| Entry points | `CassoEmuCore/Gui/GuiMain.cpp` (`wWinMain`), `CassoEmuCore/Cli/CliEntry.cpp` (`main`). `Casso/` and `CassoCli/` have no code: each is a resource script plus one comment-only translation unit, and its project file specifies the CRT startup symbol so the linker recovers the entry point from the library |
 
 ---
 

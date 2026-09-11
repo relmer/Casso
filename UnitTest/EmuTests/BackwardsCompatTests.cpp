@@ -1,6 +1,7 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Core/MachineConfig.h"
+#include "Machines/MachineDefinitions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -28,9 +29,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //       is single-bank ($0000-$BFFF) with no `aux` bank. Their video-mode
 //       list contains exactly text40/lores/hires (no text80/dhgr).
 //
-//    2. Composition pin — HeadlessHost::BuildAppleII /
+//    2. Composition pin — the ][ and ][+ build from
 //       BuildAppleIIPlus continue to compose only the deterministic
-//       harness primitives (Prng, MockHostShell, FixtureProvider) and
+//       harness primitives (Prng, FixtureProvider) and
 //       MUST NOT pull in the //e wiring (no Apple2eMmu, no EmuCpu,
 //       no aux RAM, no LanguageCardBank). This is the architectural
 //       proof that the //e build path is a *separate* composition, not
@@ -186,7 +187,7 @@ public:
         {
             expectedSize = kCharRomSize;
         }
-        else if (filename == "Apple2e_Video.rom")
+        else if (filename == "Apple2e_Video.rom" || filename == "Apple2eEnhanced_Video.rom")
         {
             expectedSize = kEnhancedCharRomSize;
         }
@@ -275,11 +276,12 @@ public:
 
     TEST_METHOD (AppleII_Json_ParsesAsValidMachineConfig)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2.json");
         Assert::IsFalse (json.empty(),
@@ -287,7 +289,7 @@ public:
 
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2", searchPaths, MockResolveAll,
                                         config, error);
 
         AssertSucceeded (hr,
@@ -307,11 +309,12 @@ public:
 
     TEST_METHOD (AppleIIPlus_Json_ParsesAsValidMachineConfig)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
         Assert::IsFalse (json.empty(),
@@ -319,7 +322,7 @@ public:
 
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2Plus", searchPaths, MockResolveAll,
                                         config, error);
 
         AssertSucceeded (hr,
@@ -341,24 +344,25 @@ public:
 
     TEST_METHOD (AppleII_NoMmuPresent)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-mmu"),
             L"Apple2.json must NOT include apple2e-mmu (composition pin)");
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-keyboard"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-keyboard"),
             L"Apple2.json must NOT include apple2e-keyboard");
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-softswitches"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-softswitches"),
             L"Apple2.json must NOT include apple2e-softswitches");
         Assert::IsFalse (HasInternalDeviceType (config, "language-card"),
             L"Apple2.json must NOT include language-card (//e-only here)");
@@ -373,24 +377,25 @@ public:
 
     TEST_METHOD (AppleIIPlus_NoMmuPresent)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2Plus", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-mmu"),
             L"Apple2Plus.json must NOT include apple2e-mmu");
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-keyboard"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-keyboard"),
             L"Apple2Plus.json must NOT include apple2e-keyboard");
-        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-softswitches"),
+        Assert::IsFalse (HasInternalDeviceType (config, "apple2e-family-softswitches"),
             L"Apple2Plus.json must NOT include apple2e-softswitches");
         Assert::IsFalse (HasInternalDeviceType (config, "language-card"),
             L"Apple2Plus.json must NOT include language-card");
@@ -408,16 +413,17 @@ public:
 
     TEST_METHOD (AppleII_NoAuxRam_NoExtendedVideoModes)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
@@ -430,10 +436,15 @@ public:
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
             L"Apple2.json system ROM must remain at $D000");
 
-        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
-            L"Apple2.json must list exactly 3 video modes (text40/lores/hires)");
+        //  The mode list is the MACHINE's, not the document's: which video
+        //  modes exist follows from whether the machine has an auxiliary bank
+        //  to interleave from, so it is answered in code.
+        modes = MachineDefinitions::FindMachine ("Apple2")->GetVideoModes();
 
-        for (auto & mode : config.videoConfig.modes)
+        Assert::AreEqual (kAppleIIVideoModes, modes.size(),
+            L"an Apple ][ offers exactly 3 video modes (text40/lores/hires)");
+
+        for (auto & mode : modes)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
                 mode,
@@ -465,16 +476,17 @@ public:
 
     TEST_METHOD (AppleIIPlus_NoAuxRam_NoExtendedVideoModes)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2Plus", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
@@ -484,10 +496,15 @@ public:
             L"Apple2Plus.json RAM region must be $C000 bytes");
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
             L"Apple2Plus.json system ROM must remain at $D000");
-        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
-            L"Apple2Plus.json must list exactly 3 video modes");
+        //  The mode list is the MACHINE's, not the document's: which video
+        //  modes exist follows from whether the machine has an auxiliary bank
+        //  to interleave from, so it is answered in code.
+        modes = MachineDefinitions::FindMachine ("Apple2Plus")->GetVideoModes();
 
-        for (auto & mode : config.videoConfig.modes)
+        Assert::AreEqual (kAppleIIVideoModes, modes.size(),
+            L"an Apple ][+ offers exactly 3 video modes");
+
+        for (auto & mode : modes)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
                 mode,
@@ -509,29 +526,30 @@ public:
 
     TEST_METHOD (AppleII_KeyboardAndDevices_Unchanged)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
+        Assert::AreEqual (std::string ("apple2-family-layout"), config.keyboardType,
             L"Apple2.json keyboard type must remain apple2-uppercase");
 
-        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-keyboard"),
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-keyboard"),
             L"Apple2.json must keep apple2-keyboard");
-        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-speaker"),
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-speaker"),
             L"Apple2.json must keep apple2-speaker");
-        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-softswitches"),
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-softswitches"),
             L"Apple2.json must keep apple2-softswitches");
-        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-gameport"),
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-gameport"),
             L"Apple2.json must include apple2-gameport");
 
         Assert::AreEqual (size_t (4), config.internalDevices.size(),
@@ -561,29 +579,30 @@ public:
 
     TEST_METHOD (AppleIIPlus_KeyboardAndDevices_Unchanged)
     {
-        std::string             json;
-        MachineConfig           config;
-        std::string             error;
-        std::vector<fs::path>   searchPaths;
-        HRESULT                 hr;
+        std::string               json;
+        MachineConfig             config;
+        std::string               error;
+        std::vector<fs::path>     searchPaths;
+        std::vector<std::string>  modes;
+        HRESULT                   hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
         searchPaths.push_back (fs::path ("/mock"));
 
-        hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
+        hr = MachineConfigLoader::Load (json, "Apple2Plus", searchPaths, MockResolveAll,
                                         config, error);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
+        Assert::AreEqual (std::string ("apple2-family-layout"), config.keyboardType,
             L"Apple2Plus.json keyboard type must remain apple2-uppercase");
 
-        Assert::IsTrue (HasInternalDeviceType (config, "apple2-keyboard"),
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-keyboard"),
             L"Apple2Plus.json must keep apple2-keyboard");
-        Assert::IsTrue (HasInternalDeviceType (config, "apple2-speaker"),
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-speaker"),
             L"Apple2Plus.json must keep apple2-speaker");
-        Assert::IsTrue (HasInternalDeviceType (config, "apple2-softswitches"),
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-softswitches"),
             L"Apple2Plus.json must keep apple2-softswitches");
-        Assert::IsTrue (HasInternalDeviceType (config, "apple2-gameport"),
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-gameport"),
             L"Apple2Plus.json must include apple2-gameport");
 
         Assert::AreEqual (size_t (4), config.internalDevices.size(),
@@ -601,200 +620,79 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  AppleII_HeadlessHost_Composes — BuildAppleII succeeds and produces
-    //  a deterministic harness with NO //e wiring attached. The whole
-    //  point of the FR-040 composition pin: the //e build path lives in
-    //  a separate function (BuildApple2e) that adds CPU + MMU + bus on
-    //  top; the ][ build path is intentionally minimal.
+    //  What the ][ and ][+ ARE, now that a test can build one.
+    //
+    //  These replace three tests that asserted the old harness had composed
+    //  itself -- that it had wired a mock host, a fixture provider and a
+    //  pinned Prng, and that its per-machine enum still held three distinct
+    //  values. None of that was the machine. The harness built no ][ or ][+
+    //  at all, so the strongest thing those tests could say about either
+    //  model was that asking for one did not fail.
     //
     ////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (AppleII_HeadlessHost_Composes)
+    TEST_METHOD (TheAppleIIAndIIPlusAreDifferentMachines)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        HRESULT        hr;
+        TestMachine  machineII     ("Apple2");
+        TestMachine  machineIIPlus ("Apple2Plus");
 
-        hr = host.BuildAppleII (core);
+        //  Integer BASIC and Applesoft: same size image, different ROM.
+        std::vector<Byte>  romII     = GuestBytesAt (machineII,     0xE000, 64);
+        std::vector<Byte>  romIIPlus = GuestBytesAt (machineIIPlus, 0xE000, 64);
 
-        AssertSucceeded (hr,
-            L"HeadlessHost::BuildAppleII must succeed");
-        Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleII,
-            L"machineKind must remain AppleII");
-
-        Assert::IsNotNull (core.prng.get(),     L"][ harness must wire a Prng");
-        Assert::IsNotNull (core.host.get(),     L"][ harness must wire MockHostShell");
-        Assert::IsNotNull (core.fixtures.get(), L"][ harness must wire FixtureProvider");
-
-        Assert::IsNull (core.mmu.get(),
-            L"][ harness must NOT pull in Apple2eMmu (composition pin)");
-        Assert::IsNull (core.cpu.get(),
-            L"][ harness must NOT pull in EmuCpu (][ build path stays minimal)");
-        Assert::IsNull (core.bus.get(),
-            L"][ harness must NOT pull in MemoryBus");
-        Assert::IsNull (core.mainRam.get(),
-            L"][ harness must NOT pull in RamDevice");
-        Assert::IsNull (core.languageCard.get(),
-            L"][ harness must NOT pull in LanguageCard by default");
-        Assert::IsNull (core.diskController.get(),
-            L"][ harness must NOT pull in Disk2Controller by default");
-
-        Assert::IsFalse (core.HasApple2e(),
-            L"][ harness must NOT report HasApple2e");
+        Assert::IsFalse (romII == romIIPlus,
+            L"the ][ boots Integer BASIC and the ][+ Applesoft; their ROMs differ");
     }
 
 
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  AppleIIPlus_HeadlessHost_Composes
-    //
-    //  A ][+ machine must build and run with no window, no device, and no
-    //  renderer.
-    //
-    //  Composability is what the emulation core promises, and this is where it
-    //  is checked for the earlier machine. A machine that can only be built by
-    //  the GUI shell cannot be tested, batch-run, or reasoned about
-    //  independently -- and the coupling that breaks it is usually introduced
-    //  while working on the //e.
-    //
-    //  It builds the whole graph rather than a device or two, so a dependency
-    //  added anywhere in the wiring is caught here rather than at the point it
-    //  was written.
-    //
-    ////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (AppleIIPlus_HeadlessHost_Composes)
+    TEST_METHOD (NeitherHasTheIIeMemoryManager)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
-        HRESULT        hr;
-
-        hr = host.BuildAppleIIPlus (core);
-
-        AssertSucceeded (hr,
-            L"HeadlessHost::BuildAppleIIPlus must succeed");
-        Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleIIPlus,
-            L"machineKind must remain AppleIIPlus");
-
-        Assert::IsNotNull (core.prng.get());
-        Assert::IsNotNull (core.host.get());
-        Assert::IsNotNull (core.fixtures.get());
-
-        Assert::IsNull (core.mmu.get(),
-            L"][+ harness must NOT pull in Apple2eMmu");
-        Assert::IsNull (core.cpu.get(),
-            L"][+ harness must NOT pull in EmuCpu");
-        Assert::IsNull (core.bus.get());
-        Assert::IsNull (core.mainRam.get());
-        Assert::IsNull (core.languageCard.get());
-        Assert::IsNull (core.diskController.get());
-
-        Assert::IsFalse (core.HasApple2e());
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  AppleII_DeterministicAcrossTwoBuilds — the ][ harness's pinned
-    //  Prng seed produces byte-identical output across two independent
-    //  builds. Same gate that HeadlessHostTests applies for //e — the
-    //  point here is that the deterministic guarantee extends to the
-    //  ][/][+ build path too (no machine-kind-specific seed drift).
-    //
-    ////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (AppleII_DeterministicAcrossTwoBuilds)
-    {
-        HeadlessHost   hostA;
-        HeadlessHost   hostB;
-        EmulatorCore   coreA;
-        EmulatorCore   coreB;
-        size_t         i;
-        HRESULT        hr;
-
-        hr = hostA.BuildAppleII (coreA);
-        AssertSucceeded (hr);
-
-        hr = hostB.BuildAppleII (coreB);
-        AssertSucceeded (hr);
-
-        for (i = 0; i < kPrngSampleCount; i++)
+        //  The composition pin, said about the machine rather than about
+        //  which builder function ran: an MMU is //e-and-later hardware, and
+        //  the earlier models must not acquire one.
+        for (const char * id : { "Apple2", "Apple2Plus" })
         {
-            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
-                L"][ harness with the pinned seed must be deterministic");
+            TestMachine  machine (id);
+
+            Assert::IsNull (machine.GetMmu(),
+                L"a ][ or ][+ has no memory management unit");
+            Assert::IsNull (machine.GetRefs().iieSoftSwitches,
+                L"nor the //e soft-switch bank");
+            Assert::IsNull (machine.GetRefs().iieKeyboard,
+                L"nor the //e keyboard");
         }
     }
 
 
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  AppleIIPlus_DeterministicAcrossTwoBuilds — same gate for ][+.
-    //
-    ////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (AppleIIPlus_DeterministicAcrossTwoBuilds)
+    TEST_METHOD (TwoBuildsOfOneMachineAgree)
     {
-        HeadlessHost   hostA;
-        HeadlessHost   hostB;
-        EmulatorCore   coreA;
-        EmulatorCore   coreB;
-        size_t         i;
-        HRESULT        hr;
+        TestMachine  a ("Apple2Plus");
+        TestMachine  b ("Apple2Plus");
 
-        hr = hostA.BuildAppleIIPlus (coreA);
-        AssertSucceeded (hr);
+        a.PowerCycle();
+        b.PowerCycle();
 
-        hr = hostB.BuildAppleIIPlus (coreB);
-        AssertSucceeded (hr);
-
-        for (i = 0; i < kPrngSampleCount; i++)
-        {
-            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
-                L"][+ harness with the pinned seed must be deterministic");
-        }
+        //  The Prng is pinned, so the arbitrary contents a real machine
+        //  powers on with are the same arbitrary contents twice running --
+        //  which is what lets any test downstream assert on memory at all.
+        Assert::IsTrue (GuestBytesAt (a, 0x2000, 256) == GuestBytesAt (b, 0x2000, 256),
+            L"two builds of one machine power on identically");
     }
 
 
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  MachineKinds_RemainDistinct — the three HeadlessMachineKind enum
-    //  values exist as separate identities so the build paths stay
-    //  composable. If anyone ever collapses ][ into //e via
-    //  branching, this test breaks immediately.
-    //
-    ////////////////////////////////////////////////////////////////////////
+private:
 
-    TEST_METHOD (MachineKinds_RemainDistinct)
+    //  Straight off the bus, without running the guest.
+    static std::vector<Byte> GuestBytesAt (MachineHost & machine, Word address, size_t count)
     {
-        HeadlessHost   host;
-        EmulatorCore   coreII;
-        EmulatorCore   coreIIPlus;
-        EmulatorCore   coreIIe;
-        HRESULT        hr;
+        std::vector<Byte>  bytes;
 
-        hr = host.BuildAppleII (coreII);
-        AssertSucceeded (hr);
+        for (size_t i = 0; i < count; i++)
+        {
+            bytes.push_back (machine.GetMemoryBus().ReadByte (static_cast<Word> (address + i)));
+        }
 
-        hr = host.BuildAppleIIPlus (coreIIPlus);
-        AssertSucceeded (hr);
-
-        hr = host.BuildApple2e (coreIIe);
-        AssertSucceeded (hr);
-
-        Assert::IsTrue (coreII.machineKind     == HeadlessMachineKind::AppleII);
-        Assert::IsTrue (coreIIPlus.machineKind == HeadlessMachineKind::AppleIIPlus);
-        Assert::IsTrue (coreIIe.machineKind    == HeadlessMachineKind::Apple2e);
-
-        Assert::IsTrue (coreII.machineKind     != coreIIPlus.machineKind);
-        Assert::IsTrue (coreIIPlus.machineKind != coreIIe.machineKind);
-        Assert::IsTrue (coreII.machineKind     != coreIIe.machineKind);
-
-        Assert::IsTrue  (coreIIe.HasApple2e(),
-            L"//e build path must produce a fully wired //e core");
-        Assert::IsFalse (coreII.HasApple2e(),
-            L"][ build path must NOT produce a //e core");
-        Assert::IsFalse (coreIIPlus.HasApple2e(),
-            L"][+ build path must NOT produce a //e core");
+        return (bytes);
     }
 };
 

@@ -5,8 +5,8 @@
 #include "Core/PathResolver.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
-#include "Devices/AppleKeyboard.h"
-#include "Video/AppleTextMode.h"
+#include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Machines/Apple2/Common/AppleTextMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

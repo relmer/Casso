@@ -1,8 +1,8 @@
 #include "Pch.h"
 
 #include "MountDiagnosis.h"
-#include "NibblizationLayer.h"
-#include "NibbleImageCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "DiskCommandRunner.h"
 
 

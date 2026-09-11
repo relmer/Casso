@@ -3,12 +3,12 @@
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
-#include "HeadlessHost.h"
+#include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Devices/Disk/Dos33Skeleton.h"
-#include "Devices/Disk/Dos33Volume.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/ProDosVolume.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
 #include "MachineIdle.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -434,14 +434,13 @@ public:
     static bool DidThePlacedProgramRun (const std::vector<Byte>   & image,
                                         std::vector<std::string>  & outRows)
     {
-        HeadlessHost       host;
-        EmulatorCore       core;
+        TestMachine       machine ("Apple2e");
         std::vector<Byte>  signature;
 
-        GuestSession::MountAndBoot (host, core, image);
-        GuestSession::CollectRows (core, outRows);
+        GuestSession::MountAndBoot (machine, image);
+        GuestSession::CollectRows (machine, outRows);
 
-        signature = GuestSession::GuestBytesAt (core, kSignatureAddress, 2);
+        signature = GuestSession::GuestBytesAt (machine, kSignatureAddress, 2);
 
         return signature[0] == kSignatureFirst && signature[1] == kSignatureSecond;
     }

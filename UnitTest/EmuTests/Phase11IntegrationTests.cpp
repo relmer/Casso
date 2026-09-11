@@ -1,7 +1,7 @@
 #include "Pch.h"
-#include "HeadlessHost.h"
-#include "Devices/Disk/NibblizationLayer.h"
-#include "Devices/Disk/WozLoader.h"
+#include "TestMachine.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -96,57 +96,55 @@ public:
     ////////////////////////////////////////////////////////////////////////////
 
     DiskImage * MountAndJumpToSlot6Boot (
-        HeadlessHost   &  host,
-        EmulatorCore   &  core,
+        MachineHost   &  machine,
         const string   &  virtualPath,
         DiskFormat        fmt,
         const vector<Byte> & bytes)
     {
-        HRESULT       hr        = host.BuildApple2eWithDisk2 (core);
+        HRESULT       hr        = S_OK;
         DiskImage  *  external  = nullptr;
 
         AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle();
+        machine.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, virtualPath, fmt, bytes);
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1, virtualPath, fmt, bytes);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
 
-        external = core.diskStore->GetImage (kSlot6, kDrive1);
+        external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        core.diskController->SetExternalDisk (kDrive1, external);
+        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
 
         // Ensure INTCXROM=0 so $C600 surfaces the Disk2.rom boot ROM
         // (CxxxRomRouter unshadowed per audit C1).
-        core.bus->WriteByte (kIntCxRomOff, 0);
+        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
 
-        core.cpu->SetPC (kBootRomEntry);
+        machine.GetCpu()->SetPC (kBootRomEntry);
         return external;
     }
 
     TEST_METHOD (Phase11_DOS33_Boots_And_Catalog_Works)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         vector<Byte>   raw        = BuildSyntheticDsk();
         DiskImage   *  external   = nullptr;
         size_t         bitsBefore = 0;
         size_t         bitsAfter  = 0;
 
-        external = MountAndJumpToSlot6Boot (host, core,
+        external = MountAndJumpToSlot6Boot (machine,
             "synthetic.dsk", DiskFormat::Dsk, raw);
 
         Assert::IsTrue (external->GetTrackBitCount (0) > 0,
             L"DOS 3.3 .dsk mount must produce a nibblized track 0");
 
-        bitsBefore = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsBefore = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
-        core.RunCycles (kBootCycleBudget);
+        machine.RunCycles (kBootCycleBudget);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
             L"Boot ROM must turn the motor on (FR-021, audit §7)");
         Assert::IsTrue (bitsAfter != bitsBefore,
             L"Boot ROM must read at least one bit from track 0 of the .dsk");
@@ -155,23 +153,22 @@ public:
 
     TEST_METHOD (Phase11_ProDOS_Boots_And_CAT_Works)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         vector<Byte>   raw       = BuildSyntheticPo();
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (host, core,
+        external = MountAndJumpToSlot6Boot (machine,
             "synthetic.po", DiskFormat::Po, raw);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
             L"ProDOS .po mount must record source format");
 
-        core.RunCycles (kBootCycleBudget);
+        machine.RunCycles (kBootCycleBudget);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
             L"Boot ROM must spin up the drive on a .po mount");
         Assert::IsTrue (bitsAfter > 0,
             L"Boot ROM must read at least one bit from a ProDOS-interleave disk");
@@ -180,8 +177,7 @@ public:
 
     TEST_METHOD (Phase11_WOZ_Boots_And_FirstTrack_Executes)
     {
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         vector<Byte>   woz;
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
@@ -190,7 +186,7 @@ public:
         hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
         AssertSucceeded (hr, L"BuildSyntheticV2 must succeed");
 
-        external = MountAndJumpToSlot6Boot (host, core,
+        external = MountAndJumpToSlot6Boot (machine,
             "synthetic.woz", DiskFormat::Woz, woz);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Woz,
@@ -198,9 +194,9 @@ public:
         Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
             L"WOZ track 0 must preserve the synthetic 51200-bit length");
 
-        core.RunCycles (kShortRunCycles);
+        machine.RunCycles (kShortRunCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"Nibble engine must advance through the WOZ bit stream (FR-022)");
@@ -219,8 +215,7 @@ public:
         // mountable and readable end-to-end via the headless harness.
         // TODO (Phase 12+): swap in a real CP fixture once the public-
         // domain demo set is ratified.
-        HeadlessHost   host;
-        EmulatorCore   core;
+        TestMachine   machine ("Apple2e");
         vector<Byte>   woz;
         DiskImage   *  external = nullptr;
         HRESULT        hr       = S_OK;
@@ -228,15 +223,15 @@ public:
         hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
         AssertSucceeded (hr, L"CP-style synthetic WOZ build must succeed");
 
-        external = MountAndJumpToSlot6Boot (host, core,
+        external = MountAndJumpToSlot6Boot (machine,
             "copyprotected.woz", DiskFormat::Woz, woz);
 
         Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),
             L"CP-style WOZ must preserve the non-standard 50000-bit track length");
 
-        core.RunCycles (kShortRunCycles);
+        machine.RunCycles (kShortRunCycles);
 
-        Assert::IsTrue (core.diskController->GetEngine (kDrive1).GetBitPosition() > 0,
+        Assert::IsTrue (machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition() > 0,
             L"Engine must advance through the variable-length CP track (FR-024)");
     }
 

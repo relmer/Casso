@@ -2,7 +2,7 @@
 
 #include "../TestHelpers.h"
 #include "Assembler.h"
-#include "Devices/Printer/ParallelFirmware.h"
+#include "Machines/Apple2/Common/ParallelFirmware.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

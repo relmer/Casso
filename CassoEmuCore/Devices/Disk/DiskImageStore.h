@@ -9,7 +9,7 @@
 #include "IImageWatcher.h"
 #include "IDiskFileIo.h"
 #include "MountDiagnosis.h"
-#include "NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "BayChange.h"
 
 

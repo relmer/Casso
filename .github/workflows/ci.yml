@@ -61,6 +61,14 @@ jobs:
       - name: Build
         run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
+      # The ROMs are Apple's and are not in the repository. The suite reads
+      # them from UnitTest/Fixtures, so they are fetched from their pinned
+      # upstream homes here and verified by name before anything runs --
+      # a missing one fails this step rather than skipping the tests that
+      # need it.
+      - name: Fetch fixture ROMs
+        run: scripts/FetchRoms.ps1 -Fixtures
+
       - name: Run Tests
         run: vstest.console.exe ${{ matrix.platform }}/${{ matrix.configuration }}/UnitTest.dll
 

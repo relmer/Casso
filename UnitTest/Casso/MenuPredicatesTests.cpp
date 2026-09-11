@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "UiCommandTypes.h"
+#include "Ui/UiCommandTypes.h"
 #include "Core/MachineConfig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

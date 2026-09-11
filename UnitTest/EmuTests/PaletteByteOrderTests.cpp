@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Video/NtscColorTable.h"
+#include "Machines/Apple2/Common/NtscColorTable.h"
 #include "Video/PixelFormat.h"
 #include "Video/MonochromeTint.h"
 

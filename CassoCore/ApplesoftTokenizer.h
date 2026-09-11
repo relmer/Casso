@@ -206,6 +206,7 @@ private:
                                      uint32_t           & outNumber);
 
     static bool  IsPrintable        (char c);
+    static bool  IsStorableVerbatim (char c);
     static bool  IsLowerNumbered    (const ParsedLine & left, const ParsedLine & right);
     static char  ToUpper            (char c);
     static size_t  SkipSpaces       (const std::string & text, size_t at);
