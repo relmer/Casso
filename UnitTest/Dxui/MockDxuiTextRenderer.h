@@ -30,6 +30,7 @@ enum class RecordedTextKind
     FillRect,
     PushClipRect,
     PopClipRect,
+    DrawFramebuffer,      // text carries nothing; width and height are the destination
 };
 
 
@@ -109,8 +110,23 @@ public:
                              float            destWidthDip,
                              float            destHeightDip) override;
 
+    //  Recorded, with the source size kept so a test can tell which buffer
+    //  was drawn.
+    HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
+                              int              srcWidthPx,
+                              int              srcHeightPx,
+                              float            destXDip,
+                              float            destYDip,
+                              float            destWidthDip,
+                              float            destHeightDip) override;
+
+    int  GetLastFramebufferWidth  () const { return m_lastFramebufferW; }
+    int  GetLastFramebufferHeight () const { return m_lastFramebufferH; }
+
 private:
     std::vector<RecordedTextCall>          m_calls;
     std::map<std::wstring, SIZE>           m_cannedMetrics;
     bool                                   m_measureReturnsZero = false;
+    int                                    m_lastFramebufferW   = 0;
+    int                                    m_lastFramebufferH   = 0;
 };

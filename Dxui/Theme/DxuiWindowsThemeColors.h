@@ -43,9 +43,8 @@ public:
     uint32_t  CloseButtonGlyphHoverArgb      () const;
     uint32_t  CloseButtonGlyphPressedArgb    () const;
 
-private:
-    DxuiWindowsThemeColors();
-
+    // The Fluent tokens, public so a palette can be built from the same
+    // values the caption buttons use.
     static constexpr uint32_t   kSubtleFillColorSecondaryDark  = 0x0FFFFFFFu;
     static constexpr uint32_t   kSubtleFillColorTertiaryDark   = 0x0AFFFFFFu;
     static constexpr uint32_t   kSubtleFillColorSecondaryLight = 0x09000000u;
@@ -66,6 +65,9 @@ private:
     static constexpr uint32_t   kCloseButtonGlyphPressedColor  = 0xCCFFFFFFu;
     static constexpr uint32_t   kCaptionForegroundDark         = 0xFFFFFFFFu;
     static constexpr uint32_t   kCaptionForegroundLight        = 0xFF1A1A1Au;
+
+private:
+    DxuiWindowsThemeColors();
 
     static constexpr LPCWSTR    kpszPersonalizeSubkey =
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";

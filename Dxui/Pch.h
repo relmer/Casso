@@ -28,6 +28,7 @@
 #include <ole2.h>
 #include <oleidl.h>
 #include <shellapi.h>
+#include <shlobj.h>
 
 #include <wrl/client.h>
 

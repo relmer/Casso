@@ -291,7 +291,7 @@ bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
 
     UNREFERENCED_PARAMETER (y);
 
-    if (flatRow >= 0 && flatRow < (int) m_flatRows.size())
+    if (m_showCheckboxes && flatRow >= 0 && flatRow < (int) m_flatRows.size())
     {
         rowDepth  = m_flatRows[(size_t) flatRow].depth;
         checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx;
@@ -385,12 +385,11 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
     {
         if (HitTestTwisty (x, y, row))
         {
-            DxuiTreeNode * n = GetNodeAtMutable (row);
+            const DxuiTreeNode * n = GetNodeAt (row);
 
-            if (n != nullptr && !n->children.empty())
+            if (n != nullptr && CanExpand (*n))
             {
-                n->expanded = !n->expanded;
-                RebuildFlatRows();
+                SetRowExpanded (row, !n->expanded);
                 consumed = true;
             }
         }
@@ -401,11 +400,233 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
         }
         else
         {
-            consumed = true;   // row selection
+            SelectRow (row);
+            consumed = true;
         }
     }
 
     return consumed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetRowExpanded
+//
+//  A row whose children were never fetched asks the provider once, keeps what
+//  comes back, and marks itself loaded -- so an empty answer leaves a row with
+//  no twisty rather than one that asks again on every click.
+//
+//  The node is looked up again by id after the rebuild, since fetching and
+//  flattening move rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTreeView::SetRowExpanded (int flatRow, bool expanded)
+{
+    DxuiTreeNode *  n  = GetNodeAtMutable (flatRow);
+    std::wstring    id;
+
+
+
+    if (n == nullptr || !CanExpand (*n) || n->expanded == expanded)
+    {
+        return false;
+    }
+
+    id = n->id;
+
+    if (expanded && !n->childrenLoaded)
+    {
+        if (m_childProvider)
+        {
+            n->children = m_childProvider (n->id);
+        }
+
+        n->childrenLoaded = true;
+    }
+
+    n->expanded = expanded && !n->children.empty();
+
+    RebuildFlatRows();
+
+    if (m_onExpand)
+    {
+        m_onExpand (id, n->expanded);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTreeView::SelectRow (int flatRow)
+{
+    const DxuiTreeNode *  n = GetNodeAt (flatRow);
+
+
+
+    if (n == nullptr)
+    {
+        return;
+    }
+
+    m_highlight = flatRow;
+
+    if (m_onSelect)
+    {
+        m_onSelect (n->id);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindNodeRecursive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiTreeNode * DxuiTreeView::FindNodeRecursive (const std::vector<DxuiTreeNode> & nodes, const std::wstring & id)
+{
+    const DxuiTreeNode *  found = nullptr;
+
+
+
+    for (const DxuiTreeNode & node : nodes)
+    {
+        if (node.id == id)
+        {
+            return &node;
+        }
+
+        found = FindNodeRecursive (node.children, id);
+
+        if (found != nullptr)
+        {
+            return found;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindNodeById
+//
+//  Searches every loaded node, visible or not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiTreeNode * DxuiTreeView::FindNodeById (const std::wstring & id) const
+{
+    return id.empty() ? nullptr : FindNodeRecursive (m_nodes, id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindRowById
+//
+//  The visible row showing a node, or -1 when it is not on screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTreeView::FindRowById (const std::wstring & id) const
+{
+    int  i = 0;
+
+
+
+    for (i = 0; i < (int) m_flatRows.size() && !id.empty(); ++i)
+    {
+        const DxuiTreeNode *  n = GetNodeAt (i);
+
+        if (n != nullptr && n->id == id)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHighlightedId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiTreeView::GetHighlightedId() const
+{
+    const DxuiTreeNode *  n = GetNodeAt (m_highlight);
+
+
+
+    return (n != nullptr) ? n->id : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetParentRow
+//
+//  The nearest row above with a shallower depth, which in a flattened tree is
+//  the parent; -1 for a root.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTreeView::GetParentRow (int flatRow) const
+{
+    int  depth = 0;
+    int  i     = 0;
+
+
+
+    if (flatRow <= 0 || flatRow >= (int) m_flatRows.size())
+    {
+        return -1;
+    }
+
+    depth = m_flatRows[(size_t) flatRow].depth;
+
+    for (i = flatRow - 1; i >= 0; --i)
+    {
+        if (m_flatRows[(size_t) i].depth < depth)
+        {
+            return i;
+        }
+    }
+
+    return -1;
 }
 
 
@@ -471,9 +692,10 @@ void DxuiTreeView::ToggleRow (int flatRow)
 
 bool DxuiTreeView::OnKey (WPARAM vk)
 {
-    DxuiTreeNode *  n        = nullptr;
-    bool            isActive = false;
-    bool            handled  = false;
+    const DxuiTreeNode *  n        = nullptr;
+    bool                  isActive = false;
+    bool                  handled  = false;
+    int                   parent   = -1;
 
 
 
@@ -491,36 +713,48 @@ bool DxuiTreeView::OnKey (WPARAM vk)
         switch (vk)
         {
             case VK_UP:
-                if (m_highlight > 0) { m_highlight--; }
+                if (m_highlight > 0) { SelectRow (m_highlight - 1); }
                 break;
 
             case VK_DOWN:
-                if (m_highlight < (int) m_flatRows.size() - 1) { m_highlight++; }
+                if (m_highlight < (int) m_flatRows.size() - 1) { SelectRow (m_highlight + 1); }
                 break;
 
             case VK_RIGHT:
-                n = GetNodeAtMutable (m_highlight);
-                if (n != nullptr && !n->children.empty() && !n->expanded)
+                n = GetNodeAt (m_highlight);
+                if (n != nullptr && CanExpand (*n) && !n->expanded)
                 {
-                    n->expanded = true;
-                    RebuildFlatRows();
+                    SetRowExpanded (m_highlight, true);
                 }
 
                 break;
 
             case VK_LEFT:
-                n = GetNodeAtMutable (m_highlight);
-                if (n != nullptr && !n->children.empty() && n->expanded)
+                n      = GetNodeAt (m_highlight);
+                parent = GetParentRow (m_highlight);
+
+                if (n != nullptr && CanExpand (*n) && n->expanded)
                 {
-                    n->expanded = false;
-                    RebuildFlatRows();
+                    SetRowExpanded (m_highlight, false);
+                }
+                else if (parent >= 0)
+                {
+                    SelectRow (parent);
                 }
 
                 break;
 
             case VK_SPACE:
             case VK_RETURN:
-                ToggleRow (m_highlight);
+                if (m_showCheckboxes)
+                {
+                    ToggleRow (m_highlight);
+                }
+                else if (vk == VK_RETURN)
+                {
+                    SelectRow (m_highlight);
+                }
+
                 break;
 
             default:
@@ -605,20 +839,25 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         float                 rowHeight   = (float) m_rowHeightPx;
         float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx);
         float                 checkboxX   = twistyX + (float) m_twistyPx;
-        float                 textX       = checkboxX + (float) m_checkboxPx + textGap;
+        float                 textX       = checkboxX + (float) GetCheckboxWidthPx() + textGap;
         bool                  hasChildren = false;
         uint32_t              boxColor    = 0;
         uint32_t              glyphCol    = 0;
         uint32_t              textCol     = 0;
         uint32_t          rowFill   = (i == m_highlight) ? s_kRowHighlight
                                        : (i == m_hoverRow ? s_kRowHover : s_kRowIdle);
-        hasChildren = (node != nullptr) && !node->children.empty();
+        hasChildren = (node != nullptr) && CanExpand (*node);
         bool              interactive = (node != nullptr)
                                           && node->capabilityFlag == DxuiTreeCapabilityFlag::Optional
                                           && m_enabled;
         boxColor = interactive ? s_kBoxIdle : s_kBoxLocked;
         glyphCol = interactive ? s_kCheckGlyph : s_kCheckLocked;
         textCol = interactive ? s_kTextIdle : s_kTextDisabled;
+
+        if (node != nullptr && node->dimmed && interactive)
+        {
+            textCol = s_kTwistyArgb;
+        }
 
         if (rowFill != 0)
         {
@@ -674,11 +913,14 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             }
         }
 
-        painter.FillRect (checkboxX,
-                          rowY + (rowHeight - (float) m_checkboxPx) * 0.5f,
-                          (float) m_checkboxPx, (float) m_checkboxPx, boxColor);
+        if (m_showCheckboxes)
+        {
+            painter.FillRect (checkboxX,
+                              rowY + (rowHeight - (float) m_checkboxPx) * 0.5f,
+                              (float) m_checkboxPx, (float) m_checkboxPx, boxColor);
+        }
 
-        if (node != nullptr && node->checked)
+        if (m_showCheckboxes && node != nullptr && node->checked)
         {
             // Real check-mark glyph, matching the standalone DxuiCheckbox
             // widget. Earlier impl drew a filled inner square which

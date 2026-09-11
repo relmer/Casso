@@ -189,3 +189,197 @@ public:
     }
 };
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeViewNavigationTests
+//
+//  The navigation-tree additions: ids, children fetched on first expand,
+//  hidden checkboxes, selection reports and arrow keys that walk to a parent.
+//  The checklist tests above run unchanged against the same control.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (TreeViewNavigationTests)
+{
+public:
+
+    static DxuiTreeNode MakeLazy (const wchar_t * id, const wchar_t * label)
+    {
+        DxuiTreeNode  n;
+
+        n.id             = id;
+        n.label          = label;
+        n.expanded       = false;
+        n.childrenLoaded = false;
+
+        return n;
+    }
+
+    static DxuiTreeView MakeNavigationTree (int & outFetches)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        RECT                       rect = { 0, 0, 300, 400 };
+
+        roots.push_back (MakeLazy (L"casso:", L"Casso"));
+        roots.push_back (MakeLazy (L"pc:",    L"This PC"));
+
+        tv.SetRect           (rect);
+        tv.SetRowHeight      (20);
+        tv.SetShowCheckboxes (false);
+        tv.SetNodes          (std::move (roots));
+        tv.SetFocused        (true);
+
+        outFetches = 0;
+
+        return tv;
+    }
+
+    TEST_METHOD (LazyChildren_AreFetchedOnceOnFirstExpand)
+    {
+        int           fetches = 0;
+        DxuiTreeView  tv      = MakeNavigationTree (fetches);
+        std::wstring  askedFor;
+
+        tv.SetChildProvider ([&fetches, &askedFor] (const std::wstring & id)
+        {
+            std::vector<DxuiTreeNode>  children;
+            DxuiTreeNode               folder;
+
+            fetches++;
+            askedFor = id;
+
+            folder.id       = id + L"C:\\Disks";
+            folder.label    = L"Disks";
+            folder.expanded = false;
+            children.push_back (folder);
+
+            return children;
+        });
+
+        Assert::AreEqual (2, tv.GetVisibleCount());
+        Assert::IsTrue   (DxuiTreeView::CanExpand (*tv.GetNodeAt (0)), L"an unasked row shows a twisty");
+
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));
+        Assert::AreEqual (1, fetches);
+        Assert::AreEqual (std::wstring (L"casso:"), askedFor);
+        Assert::AreEqual (3, tv.GetVisibleCount());
+
+        Assert::IsTrue   (tv.OnKey (VK_LEFT));
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));
+        Assert::AreEqual (1, fetches, L"a second expand uses the children already fetched");
+        Assert::AreEqual (std::wstring (L"casso:C:\\Disks"), tv.GetNodeAt (1)->id);
+    }
+
+    TEST_METHOD (LazyChildren_AnEmptyAnswerLeavesNoTwisty)
+    {
+        int           fetches = 0;
+        DxuiTreeView  tv      = MakeNavigationTree (fetches);
+
+        tv.SetChildProvider ([&fetches] (const std::wstring &) { fetches++; return std::vector<DxuiTreeNode>(); });
+
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));
+        Assert::AreEqual (2, tv.GetVisibleCount());
+        Assert::IsFalse  (DxuiTreeView::CanExpand (*tv.GetNodeAt (0)));
+
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));
+        Assert::AreEqual (1, fetches, L"a row known to be empty is not asked again");
+    }
+
+    TEST_METHOD (Selection_IsReportedByIdOnArrowsAndClicks)
+    {
+        int                        fetches = 0;
+        DxuiTreeView               tv      = MakeNavigationTree (fetches);
+        std::vector<std::wstring>  selected;
+
+        tv.SetOnSelect ([&selected] (const std::wstring & id) { selected.push_back (id); });
+
+        Assert::IsTrue   (tv.OnKey (VK_DOWN));
+        Assert::AreEqual (std::wstring (L"pc:"), selected.back());
+        Assert::AreEqual (std::wstring (L"pc:"), tv.GetHighlightedId());
+
+        //  A click on the label of the first row.
+        Assert::IsTrue   (tv.OnLButtonDown (100, 5));
+        Assert::IsTrue   (tv.OnLButtonUp   (100, 5));
+        Assert::AreEqual (std::wstring (L"casso:"), selected.back());
+        Assert::AreEqual (0, tv.FindRowById (L"casso:"));
+        Assert::AreEqual (-1, tv.FindRowById (L"nowhere"));
+    }
+
+    TEST_METHOD (HiddenCheckboxes_AreNotHitAndNeverToggle)
+    {
+        int           fetches = 0;
+        DxuiTreeView  tv      = MakeNavigationTree (fetches);
+        int           toggles = 0;
+
+        tv.SetOnToggle ([&toggles] (const std::wstring &, bool) { toggles++; });
+
+        //  Where the checkbox would be on a checklist tree.
+        Assert::IsFalse (tv.HitTestCheckbox (20, 5, 0));
+
+        Assert::IsTrue  (tv.OnLButtonDown (20, 5));
+        Assert::IsTrue  (tv.OnLButtonUp   (20, 5));
+        Assert::IsTrue  (tv.OnKey (VK_SPACE));
+        Assert::AreEqual (0, toggles);
+        Assert::IsFalse (tv.GetNodeAt (0)->checked);
+    }
+
+    TEST_METHOD (LeftArrow_OnACollapsedChildMovesToItsParent)
+    {
+        int                        fetches = 0;
+        DxuiTreeView               tv      = MakeNavigationTree (fetches);
+        std::vector<std::wstring>  expanded;
+
+        tv.SetChildProvider ([] (const std::wstring & id)
+        {
+            DxuiTreeNode  leaf;
+
+            leaf.id    = id + L"leaf";
+            leaf.label = L"leaf";
+
+            return std::vector<DxuiTreeNode> { leaf };
+        });
+
+        tv.SetOnExpand ([&expanded] (const std::wstring & id, bool isOpen) { if (isOpen) { expanded.push_back (id); } });
+
+        Assert::IsTrue   (tv.OnKey (VK_DOWN));     // This PC
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));    // expand
+        Assert::AreEqual (std::wstring (L"pc:"), expanded.back());
+        Assert::IsTrue   (tv.OnKey (VK_DOWN));     // the leaf
+        Assert::AreEqual (std::wstring (L"pc:leaf"), tv.GetHighlightedId());
+
+        Assert::IsTrue   (tv.OnKey (VK_LEFT));
+        Assert::AreEqual (std::wstring (L"pc:"), tv.GetHighlightedId(), L"Left on a leaf walks to its parent");
+        Assert::AreEqual (3, tv.GetVisibleCount(), L"and collapses nothing");
+
+        Assert::IsTrue   (tv.OnKey (VK_LEFT));
+        Assert::AreEqual (2, tv.GetVisibleCount(), L"Left on an open parent collapses it");
+    }
+
+    TEST_METHOD (Ids_FindNodesThatAreNotVisible)
+    {
+        int           fetches = 0;
+        DxuiTreeView  tv      = MakeNavigationTree (fetches);
+
+        tv.SetChildProvider ([] (const std::wstring & id)
+        {
+            DxuiTreeNode  child;
+
+            child.id    = id + L"child";
+            child.label = L"child";
+
+            return std::vector<DxuiTreeNode> { child };
+        });
+
+        Assert::IsTrue  (tv.SetRowExpanded (0, true));
+        Assert::IsTrue  (tv.SetRowExpanded (0, false));
+        Assert::IsFalse (tv.SetRowExpanded (0, false), L"already closed");
+
+        Assert::IsNotNull (tv.FindNodeById (L"casso:child"), L"a collapsed child is still in the tree");
+        Assert::AreEqual  (-1, tv.FindRowById (L"casso:child"));
+    }
+};

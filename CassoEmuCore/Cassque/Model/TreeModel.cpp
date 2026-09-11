@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Cassque/Model/TreeModel.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -203,8 +204,15 @@ bool TreeModel::TryParseImageOrDirectoryId (
     {
         std::wstring  inner = id.substr (secondBar + 1);
 
-        outPath  = id.substr (firstBar + 1, secondBar - firstBar - 1);
-        outInner = std::string (inner.begin(), inner.end());
+        outPath = id.substr (firstBar + 1, secondBar - firstBar - 1);
+        outInner.clear();
+
+        //  The inner path was widened one byte to one character when the id
+        //  was made, so narrowing each character back is exact.
+        for (wchar_t ch : inner)
+        {
+            outInner.push_back (static_cast<char> (ch));
+        }
     }
 
     return !outPath.empty();
@@ -371,15 +379,15 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
 
 HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, TreeNode & inOutNode)
 {
-    HRESULT                hr        = S_OK;
+    HRESULT                hr         = S_OK;
     std::string            content;
     std::vector<Byte>      fileBytes;
     std::vector<Byte>      sectors;
     SectorDecodeReport     report;
-    VolumeKind             kind      = VolumeKind::Unknown;
+    VolumeKind             kind       = VolumeKind::Unknown;
     VolumeListing          listing;
     std::vector<TreeNode>  children;
-    std::string            narrowPath (path.begin(), path.end());
+    std::string            narrowPath = TextEncoding::WideToNarrow (path);
 
 
 

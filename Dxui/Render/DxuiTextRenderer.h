@@ -143,7 +143,7 @@ public:
                                float            destXDip,
                                float            destYDip,
                                float            destWidthDip,
-                               float            destHeightDip);
+                               float            destHeightDip) override;
 
     // Same shape as DrawFramebuffer but uses a SEPARATE cached
     // ID2D1Bitmap so the emulator framebuffer cache (which gets

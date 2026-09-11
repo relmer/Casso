@@ -128,6 +128,8 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
     }
 
     m_stickyTail = (m_topRow >= maxTop);
+
+    PruneSelection();
 }
 
 
@@ -736,11 +738,258 @@ void DxuiListView::SetSelectedRow (int r)
     if (r < 0)
     {
         m_selectedRow = -1;
+        m_anchorRow   = -1;
+        m_selectedRows.clear();
         return;
     }
 
     EnsureVisible (r);
     m_selectedRow = r;
+    m_anchorRow   = r;
+    m_selectedRows.assign (1, r);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMultiSelect
+//
+//  Turning it off collapses the set to the row the keyboard is on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetMultiSelect (bool enabled)
+{
+    m_multiSelect = enabled;
+
+    if (!enabled)
+    {
+        SetSelectedRow (m_selectedRow);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSelectedRows
+//
+//  Rows outside the list are dropped and the rest sorted and made unique.
+//  The last row in the set becomes the keyboard's row unless the anchor is
+//  among them, in which case the anchor is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetSelectedRows (std::vector<int> rows, int anchor)
+{
+    int  count = GetRowCount();
+
+
+
+    std::erase_if (rows, [count] (int r) { return r < 0 || r >= count; });
+    std::sort (rows.begin(), rows.end());
+    rows.erase (std::unique (rows.begin(), rows.end()), rows.end());
+
+    if (!m_multiSelect && rows.size() > 1)
+    {
+        rows.assign (1, std::find (rows.begin(), rows.end(), anchor) != rows.end() ? anchor : rows.back());
+    }
+
+    m_selectedRows = std::move (rows);
+
+    if (m_selectedRows.empty())
+    {
+        m_selectedRow = -1;
+        m_anchorRow   = -1;
+        return;
+    }
+
+    m_anchorRow   = IsRowSelected (anchor) ? anchor : m_selectedRows.back();
+    m_selectedRow = m_anchorRow;
+
+    EnsureVisible (m_selectedRow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsRowSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsRowSelected (int row) const
+{
+    return std::binary_search (m_selectedRows.begin(), m_selectedRows.end(), row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectRangeFromAnchor
+//
+//  The anchor stays where it was, so a second Shift+click from the same
+//  anchor replaces the range rather than adding to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SelectRangeFromAnchor (int row)
+{
+    int  anchor = (m_anchorRow >= 0) ? m_anchorRow : row;
+    int  first  = (std::min) (anchor, row);
+    int  last   = (std::max) (anchor, row);
+    int  r      = 0;
+
+
+
+    m_selectedRows.clear();
+
+    for (r = first; r <= last; r++)
+    {
+        m_selectedRows.push_back (r);
+    }
+
+    m_anchorRow   = anchor;
+    m_selectedRow = row;
+
+    EnsureVisible (row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClickRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ClickRow (int row, bool ctrl, bool shift)
+{
+    auto  at = std::lower_bound (m_selectedRows.begin(), m_selectedRows.end(), row);
+
+
+
+    if (row < 0 || row >= GetRowCount())
+    {
+        return;
+    }
+
+    if (m_multiSelect && shift)
+    {
+        SelectRangeFromAnchor (row);
+    }
+    else if (m_multiSelect && ctrl)
+    {
+        if (at != m_selectedRows.end() && *at == row)
+        {
+            m_selectedRows.erase (at);
+        }
+        else
+        {
+            m_selectedRows.insert (at, row);
+        }
+
+        m_anchorRow   = row;
+        m_selectedRow = row;
+        EnsureVisible (row);
+    }
+    else
+    {
+        SetSelectedRow (row);
+    }
+
+    if (m_onSelectionChanged)
+    {
+        m_onSelectionChanged (row);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectAllRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SelectAllRows()
+{
+    int  count = GetRowCount();
+    int  r     = 0;
+
+
+
+    if (!m_multiSelect || count <= 0)
+    {
+        return;
+    }
+
+    m_selectedRows.clear();
+
+    for (r = 0; r < count; r++)
+    {
+        m_selectedRows.push_back (r);
+    }
+
+    if (m_selectedRow < 0)
+    {
+        m_selectedRow = 0;
+    }
+
+    if (m_anchorRow < 0)
+    {
+        m_anchorRow = m_selectedRow;
+    }
+
+    if (m_onSelectionChanged)
+    {
+        m_onSelectionChanged (m_selectedRow);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PruneSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PruneSelection()
+{
+    int  count = GetRowCount();
+
+
+
+    std::erase_if (m_selectedRows, [count] (int r) { return r >= count; });
+
+    //  The keyboard's row is left alone with multiple selection off, which is
+    //  how the list has always treated it across a row change.
+    if (m_multiSelect && m_selectedRow >= count)
+    {
+        m_selectedRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
+    }
+
+    if (m_anchorRow >= count)
+    {
+        m_anchorRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
+    }
 }
 
 
@@ -2397,7 +2646,7 @@ void DxuiListView::PaintDataRows (
         float                      ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
         bool                       isHov = (r == m_hovered);
         bool                       isSel = ((m_listFocused || m_alwaysShowSelection) &&
-                                            r == m_selectedRow);
+                                            (m_multiSelect ? IsRowSelected (r) : r == m_selectedRow));
 
         if (isSel)
         {
@@ -2756,12 +3005,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
 
     if (row >= 0)
     {
-        SetSelectedRow (row);
-
-        if (m_onSelectionChanged)
-        {
-            m_onSelectionChanged (row);
-        }
+        ClickRow (row, ev.ctrl, ev.shift);
     }
 
     handled = true;
@@ -3274,7 +3518,7 @@ bool DxuiListView::HandleKeyboardColumnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk)
+bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift)
 {
     int   rows  = GetRowCount();
     int   cap   = GetVisibleRowCapacity();
@@ -3310,7 +3554,22 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk)
             next = rows - 1;
         }
 
-        SetSelectedRow (next);
+        if (m_multiSelect && shift)
+        {
+            SelectRangeFromAnchor (next);
+        }
+        else
+        {
+            SetSelectedRow (next);
+        }
+
+        //  Reported only with multiple selection on, where a keyboard move is
+        //  a selection change like any click; a single-select list has always
+        //  left keyboard moves unreported.
+        if (m_multiSelect && m_onSelectionChanged)
+        {
+            m_onSelectionChanged (next);
+        }
     }
 
     return moved;
@@ -3396,7 +3655,7 @@ bool DxuiListView::OnKeyColumnResizeNav (const DxuiKeyEvent & ev)
     }
     else if (m_kbColFocus == body)
     {
-        handled = HandleKeyboardBodyRowNav (ev.vk);
+        handled = HandleKeyboardBodyRowNav (ev.vk, ev.shift);
     }
     else if (m_kbColFocus != -1)
     {
@@ -3462,9 +3721,14 @@ bool DxuiListView::OnKeyBodyHeaderNav (const DxuiKeyEvent & ev)
                 m_onActivateRow (GetSelectedRow());
             }
         }
+        else if (m_multiSelect && ev.ctrl && ev.vk == 'A')
+        {
+            SelectAllRows();
+            handled = true;
+        }
         else
         {
-            handled = HandleKeyboardBodyRowNav (ev.vk);
+            handled = HandleKeyboardBodyRowNav (ev.vk, ev.shift);
         }
     }
     else if (m_kbColFocus == kHeader)

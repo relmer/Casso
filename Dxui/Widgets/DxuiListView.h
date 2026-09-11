@@ -166,6 +166,27 @@ public:
     void  SetFocusedDividerColumn (int c)                  { m_focusedDividerCol = (c < 0) ? -1 : c; }
     void  SetSelectedRow          (int r);
 
+    // Multiple selection, off by default. With it on, a click selects one
+    // row, Ctrl+click toggles a row, Shift+click and Shift+arrow extend from
+    // the anchor, and Ctrl+A selects every row. The selected row reported by
+    // GetSelectedRow is the one the keyboard is on; GetSelectedRows is the
+    // whole set in ascending order, and holds that one row when multiple
+    // selection is off.
+    void                      SetMultiSelect  (bool enabled);
+    bool                      IsMultiSelect   () const   { return m_multiSelect; }
+    const std::vector<int> &  GetSelectedRows () const   { return m_selectedRows; }
+    void                      SetSelectedRows (std::vector<int> rows, int anchor);
+    bool                      IsRowSelected   (int row) const;
+    int                       GetAnchorRow    () const   { return m_anchorRow; }
+
+    // A click that selects, as the mouse delivers it: the modifiers decide
+    // whether it replaces, toggles or extends the selection. Raises the
+    // selection-changed callback with the row the click landed on.
+    void                      ClickRow        (int row, bool ctrl, bool shift);
+
+    // Selects every row, when multiple selection is on.
+    void                      SelectAllRows   ();
+
     // Opt-in keyboard column navigation. When enabled, OnKey walks the
     // header / divider sub-stops and the list body via Tab and acts on
     // them (sort on a header, resize on a divider, row moves in the body)
@@ -447,7 +468,13 @@ private:
     void    ClearColumnFocusMarkers  ();
     void    ReleaseKeyboardColumnFocus ();
     bool    HandleKeyboardColumnKey  (WPARAM vk);
-    bool    HandleKeyboardBodyRowNav (WPARAM vk);
+    bool    HandleKeyboardBodyRowNav (WPARAM vk, bool shift = false);
+
+    // Sets the selection to the rows from the anchor to `row`, inclusive.
+    void    SelectRangeFromAnchor    (int row);
+
+    // Drops selected rows past the end after the row count changes.
+    void    PruneSelection           ();
     bool    OnKeyColumnResizeNav     (const DxuiKeyEvent & ev);
     bool    OnKeyBodyHeaderNav       (const DxuiKeyEvent & ev);
     void    ApplyBodyHeaderFocus     ();
@@ -479,6 +506,9 @@ private:
     mutable std::vector<Cell>  m_providerScratch;
     int                        m_hovered           = -1;
     int                        m_selectedRow       = -1;
+    bool                       m_multiSelect       = false;
+    int                        m_anchorRow         = -1;
+    std::vector<int>           m_selectedRows;
     int                        m_sortColumn        = -1;
     bool                       m_sortDescending    = false;
     bool                       m_showHeader        = false;

@@ -507,6 +507,11 @@
     <ClCompile Include="Dxui\DxuiPanZoomTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />
+    <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />

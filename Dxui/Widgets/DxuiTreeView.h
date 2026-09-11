@@ -30,8 +30,15 @@
 //  Keyboard contract on the focused tree:
 //      Up   / Down  -> move highlight to prev / next visible row
 //      Right        -> expand current row (if collapsible)
-//      Left         -> collapse current row
+//      Left         -> collapse current row, or move to its parent when it
+//                      is already collapsed or has no children
 //      Space / Enter -> toggle current row's checkbox (if interactive)
+//
+//  A NAVIGATION TREE is the same control with the checkboxes hidden: rows are
+//  addressed by a stable id rather than a label, children can be supplied on
+//  first expand by a provider, and moving the highlight reports a selection.
+//  Every one of those is off by default, so a checklist tree built before them
+//  behaves exactly as it did.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,11 +52,14 @@ enum class DxuiTreeCapabilityFlag
 
 struct DxuiTreeNode
 {
+    std::wstring               id;                              // stable identity; unique per tree
     std::wstring               label;
     std::wstring               lockReason;
     DxuiTreeCapabilityFlag     capabilityFlag = DxuiTreeCapabilityFlag::Optional;
     bool                       checked        = false;
     bool                       expanded       = true;
+    bool                       childrenLoaded = true;           // false: ask the provider on first expand
+    bool                       dimmed         = false;          // drawn in the muted color
     std::vector<DxuiTreeNode>  children;
 };
 
@@ -57,7 +67,32 @@ struct DxuiTreeNode
 class DxuiTreeView : public IDxuiControl
 {
 public:
-    using ToggleFn = std::function<void (const std::wstring & label, bool checked)>;
+    using ToggleFn        = std::function<void (const std::wstring & label, bool checked)>;
+    using ChildProviderFn = std::function<std::vector<DxuiTreeNode> (const std::wstring & id)>;
+    using SelectFn        = std::function<void (const std::wstring & id)>;
+    using ExpandFn        = std::function<void (const std::wstring & id, bool expanded)>;
+
+    void  SetShowCheckboxes (bool show)          { m_showCheckboxes = show; }
+    void  SetChildProvider  (ChildProviderFn fn) { m_childProvider  = std::move (fn); }
+    void  SetOnSelect       (SelectFn fn)        { m_onSelect       = std::move (fn); }
+    void  SetOnExpand       (ExpandFn fn)        { m_onExpand       = std::move (fn); }
+
+    bool  IsShowingCheckboxes () const { return m_showCheckboxes; }
+
+    //  Whether a row can open: it has children, or has not been asked yet.
+    static bool  CanExpand (const DxuiTreeNode & node) { return !node.children.empty() || !node.childrenLoaded; }
+
+    //  Opens or closes the row, fetching its children first when they have
+    //  not been. Returns whether anything changed.
+    bool  SetRowExpanded (int flatRow, bool expanded);
+
+    //  Moves the highlight and reports the selection.
+    void  SelectRow (int flatRow);
+
+    int                   FindRowById      (const std::wstring & id) const;
+    std::wstring          GetHighlightedId () const;
+    const DxuiTreeNode *  FindNodeById     (const std::wstring & id) const;
+    int                   GetParentRow     (int flatRow) const;
 
     DxuiTreeView() { m_focusable = true; }
     ~DxuiTreeView() override = default;
@@ -127,15 +162,25 @@ private:
 
     void  FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
     void  ToggleRow        (int flatRow);
-    int                        m_rowHeightPx = 22;
-    int                        m_indentPx    = 18;
-    int                        m_checkboxPx  = 16;
-    int                        m_twistyPx    = 16;
-    int                        m_highlight   = -1;
-    int                        m_hoverRow    = -1;
-    int                        m_pressedRow  = -1;
-    bool                       m_enabled     = true;
-    bool                       m_focused     = false;
+
+    static const DxuiTreeNode *  FindNodeRecursive (const std::vector<DxuiTreeNode> & nodes, const std::wstring & id);
+
+    //  Where the label starts, which moves left when checkboxes are hidden.
+    int   GetCheckboxWidthPx () const { return m_showCheckboxes ? m_checkboxPx : 0; }
+
+    bool                       m_showCheckboxes = true;
+    ChildProviderFn            m_childProvider;
+    SelectFn                   m_onSelect;
+    ExpandFn                   m_onExpand;
+    int                        m_rowHeightPx    = 22;
+    int                        m_indentPx       = 18;
+    int                        m_checkboxPx     = 16;
+    int                        m_twistyPx       = 16;
+    int                        m_highlight      = -1;
+    int                        m_hoverRow       = -1;
+    int                        m_pressedRow     = -1;
+    bool                       m_enabled        = true;
+    bool                       m_focused        = false;
     std::vector<DxuiTreeNode>  m_nodes;
     std::vector<FlatRow>       m_flatRows;
     ToggleFn                   m_toggle;

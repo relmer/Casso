@@ -253,3 +253,40 @@ HRESULT MockDxuiTextRenderer::DrawIconBitmap (
 {
     return S_OK;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawFramebuffer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::DrawFramebuffer (
+    const uint32_t * srcBgraPixels,
+    int              srcWidthPx,
+    int              srcHeightPx,
+    float            destXDip,
+    float            destYDip,
+    float            destWidthDip,
+    float            destHeightDip)
+{
+    RecordedTextCall  call;
+
+
+
+    UNREFERENCED_PARAMETER (srcBgraPixels);
+
+    call.kind          = RecordedTextKind::DrawFramebuffer;
+    call.x             = destXDip;
+    call.y             = destYDip;
+    call.width         = destWidthDip;
+    call.height        = destHeightDip;
+    m_lastFramebufferW = srcWidthPx;
+    m_lastFramebufferH = srcHeightPx;
+    m_calls.push_back (call);
+
+    return S_OK;
+}

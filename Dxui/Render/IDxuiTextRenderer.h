@@ -189,6 +189,22 @@ public:
                                      float            destWidthDip,
                                      float            destHeightDip)            = 0;
 
+    // Blit an opaque BGRA8 framebuffer that changes from call to call (an
+    // emulator frame, a picture preview). Opaque pixels are already
+    // premultiplied, so the default draws through the icon path; the
+    // concrete renderer keeps a separate cache so the two do not thrash.
+    virtual HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
+                                      int              srcWidthPx,
+                                      int              srcHeightPx,
+                                      float            destXDip,
+                                      float            destYDip,
+                                      float            destWidthDip,
+                                      float            destHeightDip)
+    {
+        return DrawIconBitmap (srcBgraPixels, srcWidthPx, srcHeightPx,
+                               destXDip, destYDip, destWidthDip, destHeightDip);
+    }
+
     // Global alpha multiplier (matches IDxuiPainter::SetGlobalAlpha).
     // Defaulted to a no-op on the interface so test mocks don't have to
     // implement alpha tracking; the concrete DxuiTextRenderer overrides
