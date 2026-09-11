@@ -41,9 +41,14 @@ public:
     float  GetVolume   () const                       { return m_volume01; }
     bool   IsMuted     () const                       { return m_muted; }
 
-    void   Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void   Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool   OnMouse (const DxuiMouseEvent & ev) override;
+    void   Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void   Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool   OnMouse        (const DxuiMouseEvent & ev) override;
+
+    // Keyboard: the toolbar hands the panel focus when Enter opens it, and
+    // the arrows, Home, End and the page keys that follow move the level.
+    bool   OnKey          (const DxuiKeyEvent & ev) override     { return !m_muted && m_slider.OnKey (ev); }
+    void   OnFocusChanged (bool focused) override                { m_slider.SetFocused (focused); }
 
 private:
     DxuiSlider  m_slider;

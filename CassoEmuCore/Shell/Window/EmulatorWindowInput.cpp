@@ -105,6 +105,9 @@ void EmulatorShell::UpdateChromeFocusVisuals()
         m_mainMenu.ClearFocus();
     }
 
+    m_toolbar.SetFocusIndex ((index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast)
+                                 ? index - s_kChromeFocusToolbarFirst : -1);
+
     m_driveChrome[0].SetFocused (index == s_kChromeFocusDrive0);
     m_driveChrome[1].SetFocused (index == s_kChromeFocusDrive1);
 }
@@ -134,11 +137,19 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     bool  exitVk      = (vk == VK_ESCAPE || vk == VK_F10);
     bool  menuIsOpen  = m_mainMenu.IsOpen();
     bool  onMenuTitle = index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast;
+    bool  onToolbar   = index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast;
 
 
+
+    // A toolbar picker or a keyboard-opened flyout owns navigation; Escape
+    // closes it and leaves the entry focused.
+    if (m_toolbar.OwnsKeyboard())
+    {
+        (void) m_toolbar.HandleKey (vk);
+    }
 
     // An open dropdown owns navigation; delegate and reconcile the ring.
-    if (menuIsOpen)
+    else if (menuIsOpen)
     {
         bool  ringOwned = (m_chromeFocusIndex != s_kChromeFocusNone);
         int   openIdx   = (int) m_mainMenu.GetOpenMenu();
@@ -192,8 +203,16 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
         m_mainMenu.Open ((MainMenuId) index, true);
     }
 
-    // A drive widget is focused. Left/Right walk the whole ring so horizontal
-    // arrows feel natural along the bottom bar.
+    // A toolbar entry is focused: Enter, Space or Down activates it, which
+    // for a picker opens its list and for the volume entry opens its flyout
+    // with the slider taking the keys that follow.
+    else if (onToolbar && (vk == VK_DOWN || vk == VK_RETURN || vk == VK_SPACE))
+    {
+        m_toolbar.ActivateFocused();
+    }
+
+    // A toolbar entry or a drive widget is focused. Left/Right walk the whole
+    // ring so horizontal arrows feel natural along the strips.
     else if (vk == VK_LEFT)
     {
         SetChromeFocusIndex ((index - 1 + s_kChromeFocusCount) % s_kChromeFocusCount);
@@ -1902,7 +1921,8 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     // An open toolbar picker is modal in practice: it owns arrows, Enter and
     //    Escape so browsing the rows previews rather than typing into the //e.
-    if (m_toolbar.IsMenuOpen())
+    //    A flyout opened by keyboard owns them the same way.
+    if (m_toolbar.OwnsKeyboard())
     {
         (void) m_toolbar.HandleKey (vk);
         BAIL_OUT_IF (true, S_OK);
@@ -3192,7 +3212,8 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // chrome keyboard-focus ring. Without this, a letter typed while a menu
     // title / button / drive is focused would also drop into the //e latch.
     bool  overlayOwnsIt = m_uiShell.IsCapturingInput() ||
-                          m_chromeFocusIndex != s_kChromeFocusNone;
+                          m_chromeFocusIndex != s_kChromeFocusNone ||
+                          m_toolbar.OwnsKeyboard();
 
     // In joystick mode the X / Z keys are fire buttons (handled in OnKeyDown
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also

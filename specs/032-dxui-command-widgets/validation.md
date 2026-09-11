@@ -72,7 +72,15 @@ Taken so far, all against the master baseline built at 8e58f86b:
   idle strip and every closed-state frame are byte-identical to master's
   in the top 300 rows; the open-picker frames differ only inside the popup,
   which is the sanctioned 14 dp font.
-- Volume flyout: not provable by posted input. A posted WM_MOUSEMOVE with
+- Keyboard walk on the Debug build (`scratchpad/WalkKeys.ps1`, frames under
+  `scripts/out/screenshots/branch7-keys`): F10 enters the ring on File,
+  seven Tabs reach Settings, four more reach Volume with its focus ring
+  drawn, Enter opens the flyout at 100 percent, thirty Downs read 70
+  percent, a letter typed while the flyout is open does not reach the //e,
+  Escape closes the flyout with Volume still focused, and Escape again
+  leaves the ring. This is the keyboard access added after the merge, not
+  a parity check against master, which had none.
+- Volume flyout by pointer: not provable by posted input. A posted WM_MOUSEMOVE with
   the real pointer elsewhere is followed by the WM_MOUSELEAVE that
   TrackMouseEvent fires, which closes the flyout before a capture; master
   behaves the same in the same frames. Covered by `DxuiToolbarTests`.
