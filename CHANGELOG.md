@@ -35,8 +35,8 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
-- Casso.exe and CassoCli.exe contain no code. Every line is in CassoEmuCore,
-  where the unit suite reaches it.
+- Casso.exe and CassoCli.exe are link targets only. Every line is in
+  CassoEmuCore, where the unit suite reaches it.
 - Each machine's built-in hardware is declared in code. The machine JSON keeps
   only what a user can change: cards in slots, attached devices, and the
   monitor.

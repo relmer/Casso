@@ -373,7 +373,7 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
 | Render / present / CRT | `CassoEmuCore/D3DRenderer.cpp`, `CassoEmuCore/CrtPostProcess.cpp`, `Dxui/Window/DxuiHwndSource*` |
 | Audio | `CassoEmuCore/WasapiAudio.cpp`, `CassoEmuCore/Audio/`, `CassoEmuCore/Machines/Apple2/Common/` (Mockingboard, Disk II audio) |
 | Machine definitions | `CassoEmuCore/Machines/<Family>/<Model>/*Definition.cpp` for invariant hardware; `Resources/Machines/*/*.json` for what an owner configures |
-| Entry points | `CassoEmuCore/Gui/GuiMain.cpp` (`wWinMain`), `CassoEmuCore/Cli/CliEntry.cpp` (`main`). `Casso/` and `CassoCli/` hold no code: each is a resource script plus one comment-only translation unit, and names its CRT startup symbol so the linker recovers the entry point from the library |
+| Entry points | `CassoEmuCore/Gui/GuiMain.cpp` (`wWinMain`), `CassoEmuCore/Cli/CliEntry.cpp` (`main`). `Casso/` and `CassoCli/` have no code: each is a resource script plus one comment-only translation unit, and its project file specifies the CRT startup symbol so the linker recovers the entry point from the library |
 
 ---
 

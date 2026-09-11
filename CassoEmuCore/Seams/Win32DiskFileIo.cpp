@@ -390,7 +390,7 @@ Error:
 //
 //  IT CANNOT EXIST UNLESS SOMEBODY ASKED FOR IT. The declarations, these
 //  definitions and both call sites are gated on a define no project
-//  configuration sets, so a stock build holds no code to reach and not even the
+//  configuration sets, so a stock build has no code to reach and not even the
 //  strings that name the stages -- the switch is a compile-time absence, not a
 //  runtime flag that happens to be off. Setting the environment variable
 //  against such a binary does nothing, because there is nothing there to read
