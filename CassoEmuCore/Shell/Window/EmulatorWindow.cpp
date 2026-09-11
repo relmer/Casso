@@ -1584,6 +1584,9 @@ void EmulatorShell::OnDestroy()
     // RevokeDragDrop requires a valid window handle.
     m_dragDropTarget.Shutdown();
 
+    // Hand the host its own Caps Lock back. A no-op when focus already left.
+    m_capsLockLatch.OnLostFocus();
+
     // Join the printer drain thread before teardown frees the card.
     m_printerWorker.Stop();
 
@@ -1646,6 +1649,28 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnSetFocus
+//
+//  Keyboard focus is the boundary for the Caps Lock latch: while this window
+//  has it, the host toggle reads as the emulated key. The Win32 dialogs the
+//  shell puts up (file pickers, print) take focus and so fall outside it,
+//  which keeps file names from being typed in capitals; the Dxui popups do
+//  not take focus and so stay inside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnSetFocus()
+{
+    m_capsLockLatch.OnGainedFocus();
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnKillFocus
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1660,6 +1685,9 @@ DxuiMessageResult EmulatorShell::OnKillFocus()
     // across a focus change (Enter while a window pops up, Alt-Tab mid-key)
     // can never leave the emulated key repeating forever.
     ReleaseGuestKeys();
+
+    // The host gets its own Caps Lock back for whoever took focus.
+    m_capsLockLatch.OnLostFocus();
     return DxuiMessageResult::NotHandled;
 }
 

@@ -2665,6 +2665,7 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_MOUSEMOVE:     isHandled = IsClaimed (m_client->OnMouseMove   (wp, lp), RepaintOnClaim::No); break;
         case WM_MOUSELEAVE:    isHandled = IsClaimed (m_client->OnMouseLeave(),   RepaintOnClaim::No); break;
         case WM_ACTIVATEAPP:   isHandled = IsClaimed (m_client->OnActivateApp (wp != 0), RepaintOnClaim::No); break;
+        case WM_SETFOCUS:      isHandled = IsClaimed (m_client->OnSetFocus(),     RepaintOnClaim::No); break;
         case WM_KILLFOCUS:     isHandled = IsClaimed (m_client->OnKillFocus(),    RepaintOnClaim::No); break;
         case WM_CANCELMODE:    isHandled = IsClaimed (m_client->OnCancelMode(),   RepaintOnClaim::No); break;
         case WM_COPYDATA:      isHandled = IsClaimed (m_client->OnCopyData (wp, lp), RepaintOnClaim::No); break;
