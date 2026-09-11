@@ -44,7 +44,7 @@ Two findings shape delivery:
 | I. Code Quality | Pass | EHM on every failable path, including the backend's per-device read retry. Decoders and evaluators are short pure functions. Helpers are class statics. |
 | II. Testing Discipline, Test Isolation | Pass | Only `Win32ControllerBackend` touches devices and it holds no rule worth asserting: POV decoding, range normalization and XInput bit mapping are pure decoders tested with synthetic `DIJOYSTATE2`/`XINPUT_STATE`. Everything else runs against `FakeControllerBackend`. Degraded operation is observable: a failed read reports disconnected, never a healthy rest sample (FR-015). |
 | III. UX Consistency | Pass | Settings page follows the sheet's Apply/Cancel; notices reuse the existing overlay; no CLI change. |
-| IV. Performance | Pass | Change-only sink writes; empty-slot backoff; no allocation in the sample loop (fixed-size sample). |
+| IV. Performance | Pass | Change-only sink writes; no polling of empty XInput slots, and no timed polling at all while no controller is selected; no allocation in the sample loop (fixed-size sample). |
 | V. Simplicity | Pass with note | The mixer adds a class, justified by FR-014 (research R9). The dedicated thread is needed because the UI frame hook stops while the machine is idle and in modal loops (R3). |
 | VI. Thin Executable, Testable Core | Pass | All code in `CassoEmuCore`; nothing new in Dxui. `Casso.exe` unchanged. The Win32 backend lives in core like `Win32HostCapsLock`. |
 | Dependencies | Pass | Windows SDK only; no allowlist change. |
@@ -76,7 +76,10 @@ specs/034-game-controllers/
 CassoEmuCore/
 ├── Controllers/                       # new: pure logic
 │   ├── ControllerTypes.h              # keys, ControlId, ControllerSample, ControllerDeviceInfo
+│   ├── ControllerTokens.h/.cpp        # token text for keys and ControlId
 │   ├── ControlLabels.h/.cpp           # display labels per control and model kind
+│   ├── InputModeRules.h/.cpp          # mutual exclusion of arrows, paddle and controller selection
+│   ├── TransientNoticeState.h/.cpp    # notice text and expiry, shared by captures and controllers
 │   ├── DirectInputSampleDecoder.h/.cpp
 │   ├── XInputSampleDecoder.h/.cpp
 │   ├── ControllerCalibration.h/.cpp   # automatic learning + user calibration
@@ -96,7 +99,8 @@ CassoEmuCore/
 │   └── MachineInputPrefs.h/.cpp       # + controller, controllerProfile
 ├── Shell/
 │   ├── MachineGamePortSink.h/.cpp     # new: IGamePortSink over MachineRefs
-│   ├── ControllerInputThread.h/.cpp   # new: owns the thread and message-only window
+│   ├── ControllerInputThread.h/.cpp   # new: owns the thread and wait loop (the backend owns the window)
+│   ├── MachineManager.cpp             # attach/detach the sink around machine build and teardown
 │   ├── EmulatorShell.h                # own service, mixer, thread
 │   ├── EmulatorShellPrefs.cpp         # adopt/persist controller keys
 │   ├── EmulatorShellPresent.cpp       # generalized transient notice
@@ -111,13 +115,19 @@ CassoEmuCore/
     └── Chrome/
         ├── ControllerCommands.h/.cpp  # new: owned controller + profile rows, submenu builders
         ├── EmulatorCommands.h/.cpp    # submenu marker in the menu table; Controller Settings item
-        ├── MainMenu.cpp               # rebuild on row changes, deferred while a menu is open
+        ├── MainMenu.h/.cpp            # rebuild on row changes, deferred while a menu is open (DeferredMenuRebuild)
         └── InputClusterEntry.h/.cpp   # controller segment, status LED/tooltip, picker submenus
 
 UnitTest/
 └── ControllerTests/                   # new
     ├── FakeControllerBackend.h
     ├── RecordingGamePortSink.h
+    ├── ControllerTokensTests.cpp
+    ├── MachineGamePortSinkTests.cpp
+    ├── InputModeRulesTests.cpp
+    ├── TransientNoticeStateTests.cpp
+    ├── DeferredMenuRebuildTests.cpp
+    ├── ControllerCommandsTests.cpp
     ├── DirectInputSampleDecoderTests.cpp
     ├── XInputSampleDecoderTests.cpp
     ├── CalibrationTests.cpp
@@ -131,23 +141,23 @@ UnitTest/
     └── ControllersPageStateTests.cpp
 ```
 
-**Structure Decision**: a new `CassoEmuCore/Controllers/` folder for the pure logic, the device seam beside the existing seams, shell wiring in `Shell/`, the page beside the other Settings pages, and menu and toolbar rows in the chrome files 032 created. `UnitTest/ControllerTests/` gains `ControllerCommandsTests.cpp` (rows, checks, stale-pointer safety across rebuilds).
+**Structure Decision**: a new `CassoEmuCore/Controllers/` folder for the pure logic, the device seam beside the existing seams, shell wiring in `Shell/`, the page beside the other Settings pages, and menu and toolbar rows in the chrome files 032 created. Shell and chrome decisions that would otherwise be untestable (input-mode exclusion, notice expiry, deferred menu rebuild) are factored into small pure classes with their own tests.
 
 ## Delivery Slices
 
-Each slice leaves the build green and is committed on its own (constitution: commit per phase).
+Each slice matches a phase in [tasks.md](tasks.md), leaves the build green, and is committed on its own (constitution: commit per phase).
 
-| # | Slice | Depends on | Stories | Notes |
-|---|---|---|---|---|
-| 0 | **Hardware check**: throwaway probe (not committed) reading XInput and DirectInput from a worker thread; measures the XInput packet rate, confirms DirectInput change events, confirms wireless Xbox power on/off raises HID notifications, and checks whether XInput delivers while a second top-level window of the process is active | none | gate | Records R2, R4 and R13 outcomes |
-| 1 | **Mixer**: `GamePortInputMixer`, `MachineGamePortSink`, migrate every existing writer | none | FR-014 | Pure refactor for existing behavior; existing input tests unchanged |
-| 2 | **Backend + decoders**: seam, Win32 backend, decoders, controller thread, hot-plug | 0 | FR-001, FR-002, FR-015 | |
-| 3 | **Play (MVP)**: default mapping, deadzone, evaluator, service, automatic selection, disconnect fallback, notice, per-machine persistence | 1, 2 | US1, US2 (auto), US3, FR-032, FR-033 | Usable end to end with no UI |
-| 4 | **Calibration** | 3 | US4 | |
-| 5 | **Controllers page**: selection, live readings, mapping edit, capture, deadzone, calibrate, Apply/Cancel, open-to-page | 3, 4 | US2 (manual), US5 | |
-| 6 | **Profiles**: store, create/rename/delete/reset, active profile per machine, rate response, Paddles template, PB2 target | 5 | US6, FR-020, FR-021a | |
-| 7 | **Menu + toolbar**: `ControllerCommands`, Machine menu submenus, input cluster segment and picker submenus | 3 (controller rows), 6 (profile rows) | FR-008, FR-013, FR-028, FR-031, SC-010 | Controller rows can land with slice 3; profile rows after slice 6 |
-| 8 | **Polish**: CHANGELOG, README, full gates | 7 | | |
+| Phase | Slice | Depends on | Covers |
+|---|---|---|---|
+| 1 | **Hardware check**: throwaway probe, not committed; XInput packet rate, DirectInput change events, wireless power on/off notifications, XInput with a second top-level window active | none | Records R2, R4, R13 |
+| 2 | **Foundation**: types and tokens; mixer and `MachineGamePortSink` with every existing writer migrated; seam, decoders, Win32 backend, controller thread | 1 | FR-001, FR-002, FR-014, FR-015, FR-017 |
+| 3 | **US1 play (MVP)**: deadzone, default mapping, evaluator, service, activation gate, temporary first-controller selection | 2 | US1, FR-003-006, FR-009, FR-033 |
+| 4 | **US2 selection**: selection policy (automatic, adoption), per-machine persistence, input-mode exclusion, notice, Controller submenu in the Machine menu and input cluster | 3 | US2, FR-008, FR-011, FR-031, FR-032 |
+| 5 | **US3 hot-plug**: disconnect release, arrow-key fallback, reconnect, status LED and tooltip | 4 | US3, FR-008a, FR-010, FR-013 |
+| 6 | **US4 calibration**: automatic and user calibration per unit, calibration persistence | 3 | US4, FR-007, FR-007a, FR-018, FR-018a |
+| 7 | **US5 remapping**: Controllers page, capture, rate response, PB2, Default-profile mapping and deadzone persistence, Controller Settings command | 4, 6 | US5, FR-012, FR-019-025, FR-021a |
+| 8 | **US6 profiles**: named profiles, Paddles template, active profile per machine, Controller Profile submenus | 7 | US6, FR-026-030, SC-010 |
+| 9 | **Polish**: measurements, CHANGELOG, README, gates | 8 | SC-002, SC-005, SC-007 |
 
 ## Complexity Tracking
 

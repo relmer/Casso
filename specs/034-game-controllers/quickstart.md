@@ -54,8 +54,8 @@ Boot DOS 3.3 or any Applesoft prompt and enter:
 | 4 | Hold the stick right and A, then unplug. | Within 100 ms both paddles center and both buttons release; arrow keys now drive the joystick; status shows the fallback. | FR-010, FR-008a, SC-005 |
 | 5 | Plug back in while holding an arrow key. | Controller takes over within 2 s; the arrow no longer moves the paddles. | FR-010, SC-005 |
 | 6 | Hold the stick right and A; activate another application; release; reactivate Casso. | On deactivation both paddles center and both buttons release; nothing moves while inactive; input resumes on reactivation. With the Settings sheet active, input still applies. | FR-033 |
-| 7 | Settings > Controllers: create profile "D-pad", assign the D-pad to both axes and LT to PB0, Apply. | D-pad drives the paddles to 0/255; LT past its threshold reads PB0 = 1. | FR-019-022, SC-008 |
-| 8 | Make "D-pad" active, restart Casso, switch machines and back. | "D-pad" still active on that machine; Default active on the other. | FR-029, SC-006 |
+| 7 | Settings > Controllers: edit the Default profile, assign the D-pad to both axes and LT to PB0, Apply; restart Casso. | D-pad drives the paddles to 0/255; LT past its threshold reads PB0 = 1; the mapping survives the restart. | FR-012, FR-019-022, SC-008 |
+| 8 | Create profile "D-pad" as a copy of Default, reset Default, make "D-pad" active, restart Casso, switch machines and back. | "D-pad" still active on that machine with the D-pad mapping; Default active on the other with the default mapping. | FR-026-029, SC-006 |
 | 9 | Connect the DirectInput joystick with the stick held off center; open Controllers; run Calibrate; Apply; restart. | User calibration persists; rest reads center; limits reach 0/255. | FR-007, FR-007a, US4 |
 | 10 | Switch the ][+ and the //e with the controller selected. | PB0/PB1 reach `$C061`/`$C062` on both; Open/Solid-Apple on the //e. | US1 #5 |
 | 10a | Create a profile from the Paddles starting point on the Xbox controller; push the left stick right briefly and release. | PDL0 climbs while deflected and holds its value after release; the right stick moves PDL1 the same way. | FR-021a |
