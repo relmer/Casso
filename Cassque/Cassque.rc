@@ -4,11 +4,11 @@
 
 // Application icon. The lowest icon id in this module is the one Explorer
 // shows for Cassque.exe, and it is the only one.
-IDI_CASSQUE                  ICON "..\\Resources\\Icons\\Casso-4-silhouette-accent.ico"
+IDI_CASSQUE                  ICON "..\\Resources\\Icons\\Cassque.ico"
 
-// The cassowary the About box shows, from a photo by Mr. Smiley / BunyipCo,
-// CC BY-NC-SA 3.0 -- see Assets/ATTRIBUTION.txt.
-IDR_CASSQUE_CASSOWARY_PNG    RCDATA "Assets\\Cassowary.png"
+// The cask and casque the About box shows; the casque is from a photo by
+// Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0 -- see Assets/ATTRIBUTION.txt.
+IDR_CASSQUE_PICTURE_PNG      RCDATA "Assets\\Cassque.png"
 
 // The same built-in themes Casso embeds. AssetBootstrap::EnsureThemes compares
 // the files on disk against the running module's embedded copies, so both

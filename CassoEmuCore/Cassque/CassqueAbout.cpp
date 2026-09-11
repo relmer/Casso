@@ -34,7 +34,7 @@ std::vector<DialogTextRun> CassqueAbout::GetBody()
     runs.push_back ({ L"  = Cassque, the browser, and the cassowary Casso is named for" });
     runs.push_back ({ L"" });
 
-    credit.text         = L"Cassowary photo by Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0";
+    credit.text         = L"Casque from a cassowary photo by Mr. Smiley / BunyipCo, CC BY-NC-SA 3.0";
     credit.isHyperlink  = true;
     credit.hyperlinkUrl = kPhotoCreditUrl;
     runs.push_back (credit);
@@ -55,7 +55,7 @@ std::vector<DialogTextRun> CassqueAbout::GetBody()
 HRESULT CassqueAbout::LoadPicture (HINSTANCE instance, DialogImage & outImage)
 {
     HRESULT            hr       = S_OK;
-    HRSRC              resource = FindResourceW (instance, MAKEINTRESOURCEW (IDR_CASSQUE_CASSOWARY_PNG), RT_RCDATA);
+    HRSRC              resource = FindResourceW (instance, MAKEINTRESOURCEW (IDR_CASSQUE_PICTURE_PNG), RT_RCDATA);
     HGLOBAL            loaded   = nullptr;
     const Byte       * data     = nullptr;
     DWORD              size     = 0;

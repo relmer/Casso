@@ -14,8 +14,8 @@ class IDxuiTheme;
 //
 //  CassqueAbout
 //
-//  The About dialog: what the name means, the version, and a picture of the
-//  bird that both programs are named for, credited as Casso credits it.
+//  The About dialog: what the name means, the version, and the cask and casque
+//  the icon shows, the casque credited as Casso credits its cassowary.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +25,7 @@ public:
     //  The dialog's text, the credit line's link included.
     static std::vector<DialogTextRun>  GetBody();
 
-    //  Decodes the embedded cassowary picture for the dialog.
+    //  Decodes the embedded cask and casque picture for the dialog.
     static HRESULT  LoadPicture (HINSTANCE instance, DialogImage & outImage);
 
     static void  Show (HWND owner, const IDxuiTheme * theme, HINSTANCE instance);
