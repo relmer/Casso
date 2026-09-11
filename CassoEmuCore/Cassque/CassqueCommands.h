@@ -44,6 +44,11 @@ public:
         kCloseTab,
         kNextTab,
         kPreviousTab,
+        kThemeSkeuomorphic,
+        kThemeDarkModern,
+        kThemeRetroTerminal,
+        kNamingDescriptive,
+        kNamingCiderPress,
     };
 
     enum class Menu { File, View, Go, Help, Count };
@@ -104,6 +109,12 @@ private:
         { kThemeLight,        Menu::View, L"&Light theme",        nullptr,     true  },
         { kThemeDark,         Menu::View, L"Dar&k theme",         nullptr,     true  },
         { kThemeSystem,       Menu::View, L"Follow &system",      nullptr,     true  },
+        { kThemeSkeuomorphic, Menu::View, L"Casso &Skeuomorphic (colors only)", nullptr, true },
+        { kThemeDarkModern,   Menu::View, L"Casso Dark &Modern",  nullptr,     true  },
+        { kThemeRetroTerminal, Menu::View, L"Casso &Retro Terminal", nullptr,  true  },
+        { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kNamingDescriptive, Menu::View, L"Descriptive host file &names", nullptr, true },
+        { kNamingCiderPress,  Menu::View, L"&CiderPress host file names", nullptr, true },
         { kBack,              Menu::Go,   L"&Back",               L"Alt+Left", false },
         { kForward,           Menu::Go,   L"&Forward",            L"Alt+Right", false },
         { kUp,                Menu::Go,   L"&Up one level",       L"Alt+Up",   false },

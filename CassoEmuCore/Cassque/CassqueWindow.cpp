@@ -295,6 +295,14 @@ void CassqueWindow::ApplyTheme()
 {
     m_theme = &CassqueShell::ChooseTheme (m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
 
+    //  Casso's own themes lend their chrome colors; the skeuomorphic one has
+    //  no scene to draw here, so it is colors only.
+    if (IsCassoThemeName (m_prefs.theme))
+    {
+        m_cassoTheme = CassoTheme::MakeByName (m_prefs.theme);
+        m_theme      = &m_cassoTheme;
+    }
+
     SetTheme (m_theme);
 
     if (m_menuBar != nullptr)
@@ -306,7 +314,10 @@ void CassqueWindow::ApplyTheme()
 
     if (GetHwnd() != nullptr)
     {
-        DxuiDwm::ApplyImmersiveDarkMode (GetHwnd(), m_theme == &m_darkTheme);
+        uint32_t  background = m_theme->Background();
+        int       luminance  = (int) (((background >> 16) & 0xFF) * 299 + ((background >> 8) & 0xFF) * 587 + (background & 0xFF) * 114) / 1000;
+
+        DxuiDwm::ApplyImmersiveDarkMode (GetHwnd(), luminance < 128);
     }
 
     Invalidate();
@@ -944,7 +955,13 @@ bool CassqueWindow::IsChecked (int id) const
         case CassqueCommands::kToggleDisassembly: return model.HasTabs() && model.GetActiveTab().disassemble;
         case CassqueCommands::kThemeLight:        return m_prefs.theme == CassquePrefs::kThemeLight;
         case CassqueCommands::kThemeDark:         return m_prefs.theme == CassquePrefs::kThemeDark;
-        case CassqueCommands::kThemeSystem:       return m_prefs.theme != CassquePrefs::kThemeLight && m_prefs.theme != CassquePrefs::kThemeDark;
+        case CassqueCommands::kThemeSystem:       return m_prefs.theme != CassquePrefs::kThemeLight && m_prefs.theme != CassquePrefs::kThemeDark
+                                                             && !IsCassoThemeName (m_prefs.theme);
+        case CassqueCommands::kThemeSkeuomorphic: return m_prefs.theme == CassquePrefs::kThemeSkeuomorphic;
+        case CassqueCommands::kThemeDarkModern:   return m_prefs.theme == CassquePrefs::kThemeDarkModern;
+        case CassqueCommands::kThemeRetroTerminal: return m_prefs.theme == CassquePrefs::kThemeRetroTerminal;
+        case CassqueCommands::kNamingDescriptive: return m_prefs.hostNaming != CassquePrefs::kNamingCiderPress;
+        case CassqueCommands::kNamingCiderPress:  return m_prefs.hostNaming == CassquePrefs::kNamingCiderPress;
         default:                                  return false;
     }
 }
@@ -993,9 +1010,15 @@ void CassqueWindow::Dispatch (int id)
 
             break;
 
-        case CassqueCommands::kThemeLight:  m_prefs.theme = CassquePrefs::kThemeLight;        ApplyTheme(); break;
-        case CassqueCommands::kThemeDark:   m_prefs.theme = CassquePrefs::kThemeDark;         ApplyTheme(); break;
-        case CassqueCommands::kThemeSystem: m_prefs.theme = CassquePrefs::kThemeFollowSystem; ApplyTheme(); break;
+        case CassqueCommands::kThemeLight:         SelectTheme (CassquePrefs::kThemeLight);         break;
+        case CassqueCommands::kThemeDark:          SelectTheme (CassquePrefs::kThemeDark);          break;
+        case CassqueCommands::kThemeSystem:        SelectTheme (CassquePrefs::kThemeFollowSystem);  break;
+        case CassqueCommands::kThemeSkeuomorphic:  SelectTheme (CassquePrefs::kThemeSkeuomorphic);  break;
+        case CassqueCommands::kThemeDarkModern:    SelectTheme (CassquePrefs::kThemeDarkModern);    break;
+        case CassqueCommands::kThemeRetroTerminal: SelectTheme (CassquePrefs::kThemeRetroTerminal); break;
+
+        case CassqueCommands::kNamingDescriptive: m_prefs.hostNaming = CassquePrefs::kNamingDescriptive; break;
+        case CassqueCommands::kNamingCiderPress:  m_prefs.hostNaming = CassquePrefs::kNamingCiderPress;  break;
 
         case CassqueCommands::kBack:    refill = m_browser.GoBack();    break;
         case CassqueCommands::kForward: refill = m_browser.GoForward(); break;
@@ -1775,4 +1798,37 @@ void CassqueWindow::OnDropFile (const std::wstring & path)
 {
     ReportOutcome (m_actions.PutFiles ({ path }), L"Put");
     FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SelectTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SelectTheme (const char * name)
+{
+    m_prefs.theme = name;
+    ApplyTheme();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::IsCassoThemeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::IsCassoThemeName (const std::string & name)
+{
+    return name == CassquePrefs::kThemeSkeuomorphic
+        || name == CassquePrefs::kThemeDarkModern
+        || name == CassquePrefs::kThemeRetroTerminal;
 }

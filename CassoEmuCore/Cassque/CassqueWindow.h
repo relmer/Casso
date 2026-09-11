@@ -11,6 +11,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32ProcessLauncher.h"
 #include "Theme/DxuiDarkTheme.h"
+#include "Ui/Chrome/CassoTheme.h"
 #include "Theme/DxuiLightTheme.h"
 #include "Widgets/DxuiFramebufferView.h"
 #include "Widgets/DxuiLabel.h"
@@ -94,6 +95,9 @@ private:
 
     void  ConfigureWidgets();
     void  ApplyTheme();
+    void  SelectTheme (const char * name);
+
+    static bool  IsCassoThemeName (const std::string & name);
     void  RecomputeLayout();
     void  FillList();
     void  FillTabs();
@@ -139,6 +143,7 @@ private:
     CassqueCommands                              m_commands;
     DxuiLightTheme                               m_lightTheme;
     DxuiDarkTheme                                m_darkTheme;
+    CassoTheme                                   m_cassoTheme;
     const DxuiTheme                            * m_theme          = nullptr;
     DxuiDpiScaler                                m_scaler;
     RECT                                         m_client         = {};

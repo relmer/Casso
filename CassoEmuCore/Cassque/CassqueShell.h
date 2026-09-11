@@ -73,8 +73,8 @@ public:
     //  Restores a minimized window and brings it forward.
     static void  FrontWindow (HWND hwnd);
 
-    //  The palette a preference selects. The emulator's own themes have no
-    //  palette here yet, so they follow the system as FollowSystem does.
+    //  The palette Light, Dark or Follow system selects. The window applies
+    //  Casso's own themes itself; for any other name this follows the system.
     static const DxuiTheme &  ChooseTheme (const std::string    & theme,
                                            bool                   systemDark,
                                            const DxuiLightTheme & light,
