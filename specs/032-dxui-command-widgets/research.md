@@ -18,8 +18,8 @@ The toolbar knows nothing about menus; it opens whatever flyout the button
 holds.
 
 **Decision**: three library types. `DxuiCommand` is the declaration.
-`DxuiDropdown` is the one dropdown, evolved from `DxuiPopupMenu`.
-`DxuiToolbar` is the strip. `DxuiMenuBar` becomes titles over `DxuiDropdown`.
+`DxuiMenuFlyout` is the one dropdown, evolved from `DxuiPopupMenu`.
+`DxuiToolbar` is the strip. `DxuiMenuBar` becomes titles over `DxuiMenuFlyout`.
 
 ## R2. What exists and where it diverges
 
@@ -46,7 +46,7 @@ holds.
 
 **Decision**: `DxuiMenuBarSubitem` is already most of a command. It becomes
 `DxuiCommand` plus a dropdown item wrapper. `DxuiPopupMenu` already has the
-hosting, the callbacks and the submenu chain; it becomes `DxuiDropdown` by
+hosting, the callbacks and the submenu chain; it becomes `DxuiMenuFlyout` by
 taking the richer item model and the menu bar's painting. The menu bar
 keeps only what is bar-specific.
 
@@ -65,7 +65,7 @@ command. Reset is one command whether it sits in a menu or a toolbar.
 
 ## R4. Dropdown item model
 
-**Decision**: `DxuiDropdownItem` is a variant of three kinds: a command
+**Decision**: `DxuiMenuFlyoutItem` is a variant of three kinds: a command
 reference, a separator, and a command reference with a child item list. The
 command is held by pointer to a `DxuiCommand` the application owns, so
 placement never copies a declaration. The dropdown evaluates the functors
@@ -87,7 +87,7 @@ copies are the defect being removed.
 | Separators | none | 10 dp tall, 10 dp inset |
 | Colors | elevated, hover, foreground | plus disabled, muted, divider, border |
 
-**Decision**: `DxuiDropdown` keeps the shared row height and text start,
+**Decision**: `DxuiMenuFlyout` keeps the shared row height and text start,
 takes the menu bar's font, separators and color set, and takes the popup
 menu's content-fitted width. The owner ruled a fixed width wrong in every
 case. Width is the widest label, plus the accelerator column only when
@@ -170,3 +170,46 @@ would keep the old types alive for the tests' sake.
   `git add -A` before the merge.
 - A vtable change needs `-Target Rebuild`; the dropdown and menu bar both
   gain and lose virtuals.
+
+## R11. What the three types are called
+
+**Finding**: the tree already had a `DxuiDropdown`, and it is a combo box: a
+box that sits in the panel layout and displays its selected value, remembers a
+selection across opens, takes part in the tab order, and holds plain strings
+with no behavior attached. Eleven files consume it, across the settings pages,
+the create-disk dialog and the input debug panel. The widget this feature adds
+shares none of that. It has no resting presence, holds no selection, and its
+rows are commands, separators and submenus. The two collided on one identifier
+and the plan did not catch it.
+
+**Decision**: three types, using the vocabulary WPF and WinUI already carry for
+this exact split.
+
+| This tree | WinUI | What it is |
+|---|---|---|
+| `DxuiComboBox` | `ComboBox` | the form field that displays its value |
+| A `DxuiToolbar` entry of kind `DropDown` | `DropDownButton` | a button that opens a menu and keeps its own label |
+| `DxuiMenuFlyout` | `MenuFlyout` | the menu itself, whatever opened it |
+
+The existing widget becomes `DxuiComboBox` in one mechanical pass. The
+identifier is the same length, so no column alignment moves and no include
+ordering changes. `DxuiDropdown` then exists nowhere, which is the point: it
+was the one word that could mean either thing.
+
+The relationship between the second and third rows is a property rather than
+inheritance, as it is upstream. A drop-down button holds a menu; it does not
+implement one. That is what lets the same menu type serve the menu bar, the
+toolbar's pickers and a right-click, which is this feature's third user story.
+
+**Why the toolbar pickers are drop-down buttons and not combo boxes**: the
+comment on the old toolbar's button struct already states the rule. A picker
+carries its purpose as its label, not the value it holds, because a label that
+changes with the value moves every button to its right. A combo box does the
+opposite. The current choice appears as a check on a row inside the menu, which
+upstream is a radio menu item and here is a picker row with an `isChecked`
+functor.
+
+**Alternatives considered**: leaving the combo box as `DxuiDropdown` and
+calling the new type `DxuiMenuPopup`. Rejected; it reads as a near-duplicate of
+the `DxuiPopupMenu` being deleted, and it leaves the ambiguous word in the tree
+next to the type it is ambiguous with.

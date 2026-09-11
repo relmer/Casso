@@ -1,30 +1,30 @@
-# Contract: DxuiDropdown and the menu bar over it
+# Contract: DxuiMenuFlyout and the menu bar over it
 
 **Feature**: 032-dxui-command-widgets | **Date**: 2026-09-10
 
-`Dxui/Widgets/DxuiDropdown.h`, evolved from `DxuiPopupMenu`. Signatures are
+`Dxui/Widgets/DxuiMenuFlyout.h`, evolved from `DxuiPopupMenu`. Signatures are
 intent; the header is authoritative once it exists.
 
 ## Items
 
 ```cpp
-struct DxuiDropdownItem
+struct DxuiMenuFlyoutItem
 {
     enum class Kind { Command, Separator, Submenu };
     Kind                            kind;
     const DxuiCommand *             command;    // Command and Submenu
-    std::vector<DxuiDropdownItem>   children;   // Submenu only
+    std::vector<DxuiMenuFlyoutItem>   children;   // Submenu only
 
-    static DxuiDropdownItem  ForCommand   (const DxuiCommand * cmd);
-    static DxuiDropdownItem  ForSeparator ();
-    static DxuiDropdownItem  ForSubmenu   (const DxuiCommand * cmd, std::vector<DxuiDropdownItem> children);
+    static DxuiMenuFlyoutItem  ForCommand   (const DxuiCommand * cmd);
+    static DxuiMenuFlyoutItem  ForSeparator ();
+    static DxuiMenuFlyoutItem  ForSubmenu   (const DxuiCommand * cmd, std::vector<DxuiMenuFlyoutItem> children);
 };
 ```
 
 ## Widget
 
 ```cpp
-class DxuiDropdown : public IDxuiControl
+class DxuiMenuFlyout : public IDxuiControl
 {
 public:
     using IndexFn  = std::function<void (int index)>;
@@ -37,8 +37,8 @@ public:
     void  SetOnClosed          (ClosedFn fn);
     void  SetOnSelect          (IndexFn fn);
 
-    void  ShowUnder   (const RECT & anchor, std::vector<DxuiDropdownItem> items, IDxuiTextRenderer &, const RECT & hostClient);
-    void  ShowAt      (int x, int y,       std::vector<DxuiDropdownItem> items, IDxuiTextRenderer &, const RECT & hostClient);
+    void  ShowUnder   (const RECT & anchor, std::vector<DxuiMenuFlyoutItem> items, IDxuiTextRenderer &, const RECT & hostClient);
+    void  ShowAt      (int x, int y,       std::vector<DxuiMenuFlyoutItem> items, IDxuiTextRenderer &, const RECT & hostClient);
     void  Hide        ();
 
     bool  IsVisible   () const;
@@ -88,7 +88,7 @@ Rules:
 class DxuiContextMenu
 {
 public:
-    static void  Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiDropdownItem> items);
+    static void  Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiMenuFlyoutItem> items);
 };
 ```
 
@@ -104,10 +104,10 @@ manual check, not by a test of its own.
 
 `DxuiMenuBar` keeps its public surface for titles, mnemonics, open and
 close, focus and keyboard, and retypes `DxuiMenuBarItem::submenu` to
-`std::vector<DxuiDropdownItem>`. `DxuiMenuBarSubitem` is deleted, and the
+`std::vector<DxuiMenuFlyoutItem>`. `DxuiMenuBarSubitem` is deleted, and the
 existing menu bar tests retype their item construction to match with no
 assertion changed. The bar
-owns one `DxuiDropdown`, shows it under the open title, swaps its items on
+owns one `DxuiMenuFlyout`, shows it under the open title, swaps its items on
 Left, Right and hover-swap, and forwards Up, Down, Enter and Escape to it.
 `SetStripColors` stays; `SetDropdownColors` becomes a setter on the
 dropdown that the bar forwards, so the emulator's chrome overrides land in
@@ -117,8 +117,8 @@ the one place.
 
 | Consumer | Before | After |
 |---|---|---|
-| `MainMenu` | `DxuiMenuBar` painting its own dropdown | titles over `DxuiDropdown` |
-| Toolbar pickers | three `DxuiPopupMenu` by value | one `DxuiDropdown` inside `DxuiToolbar` |
+| `MainMenu` | `DxuiMenuBar` painting its own dropdown | titles over `DxuiMenuFlyout` |
+| Toolbar pickers | three `DxuiPopupMenu` by value | one `DxuiMenuFlyout` inside `DxuiToolbar` |
 | `Disk2DebugPanel`, `InputDebugPanel` | `DxuiPopupMenu` by value | `DxuiContextMenu::Show` |
 
 `DxuiPopupMenu.h/.cpp` are removed once the three consumers have moved.

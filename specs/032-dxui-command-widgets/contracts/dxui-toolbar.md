@@ -4,7 +4,7 @@
 
 `Dxui/Widgets/DxuiToolbar.h`. Signatures are intent; the header is
 authoritative once it exists. Commands: [dxui-command.md](dxui-command.md).
-Pickers open the dropdown in [dxui-dropdown.md](dxui-dropdown.md).
+Pickers open the dropdown in [dxui-menu-flyout.md](dxui-menu-flyout.md).
 
 ## Entries
 
@@ -21,7 +21,7 @@ struct IDxuiToolbarCustomEntry
 class DxuiToolbar : public IDxuiControl
 {
 public:
-    enum class Kind { Command, Toggle, Picker, Flyout };
+    enum class Kind { Command, Toggle, DropDown, Flyout };
     using ChoiceFn     = std::function<void (int index)>;
     using DecorationFn = std::function<void (IDxuiPainter &, const IDxuiTheme &, const RECT & iconRc, bool collapsed)>;
 
@@ -80,8 +80,8 @@ a picker is open and consumed the key.
 ## Pickers and flyout
 
 ```cpp
-    void  SetPickerItems   (int commandId, std::vector<DxuiDropdownItem> items);
-    void  SetPickerSinks   (int commandId, ChoiceFn preview, ChoiceFn commit);
+    void  SetDropDownItems   (int commandId, std::vector<DxuiMenuFlyoutItem> items);
+    void  SetDropDownSinks   (int commandId, ChoiceFn preview, ChoiceFn commit);
     void  SetFlyoutControl (int commandId, IDxuiControl * control, SIZE panelDp);
     bool  IsFlyoutOpen     (int commandId) const;
 ```
@@ -114,9 +114,9 @@ entry.
 
 A custom entry's `OnClick` returns true when it consumed the click. When it
 returns false the widget treats the click as a click on the entry itself
-and acts on the entry's `kind`: a `Picker` opens its item list, a
+and acts on the entry's `kind`: a `DropDown` opens its item list, a
 `Command` dispatches its command. This is how the collapsed input cluster
-offers its three choices as a dropdown: the entry is a `Picker` with a
+offers its three choices as a dropdown: the entry is a `DropDown` with a
 custom entry, `OnClick` consumes segment clicks while expanded and returns
 false while collapsed.
 

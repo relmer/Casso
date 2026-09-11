@@ -8,7 +8,7 @@
 
 Install the command model WPF and WinUI use into Dxui, and move the
 emulator's chrome onto it with no visible change. Three library types:
-`DxuiCommand`, one declaration per action; `DxuiDropdown`, one dropdown
+`DxuiCommand`, one declaration per action; `DxuiMenuFlyout`, one dropdown
 evolved from `DxuiPopupMenu` with the menu bar's item model and painting;
 `DxuiToolbar`, the strip extracted from the emulator's `CommandToolbar`.
 `DxuiMenuBar` becomes titles over the dropdown. A one-call context menu
@@ -71,7 +71,7 @@ specs/032-dxui-command-widgets/
 ├── quickstart.md
 ├── contracts/
 │   ├── dxui-command.md
-│   ├── dxui-dropdown.md
+│   ├── dxui-menu-flyout.md
 │   └── dxui-toolbar.md
 ├── tasks.md              # /speckit-tasks output
 └── validation.md         # quickstart outcomes, written during Phase 7
@@ -84,10 +84,10 @@ Dxui/
 ├── Core/
 │   └── DxuiCommand.h                  # NEW
 ├── Widgets/
-│   ├── DxuiDropdown.h/.cpp            # NEW, from DxuiPopupMenu + menu bar painting
+│   ├── DxuiMenuFlyout.h/.cpp            # NEW, from DxuiPopupMenu + menu bar painting
 │   ├── DxuiContextMenu.h/.cpp         # NEW, one static Show
 │   ├── DxuiToolbar.h/.cpp             # NEW, from CommandToolbar
-│   ├── DxuiMenuBar.h/.cpp             # REBUILT over DxuiDropdown; subitem type removed
+│   ├── DxuiMenuBar.h/.cpp             # REBUILT over DxuiMenuFlyout; subitem type removed
 │   └── DxuiPopupMenu.h/.cpp           # REMOVED
 └── Dxui.vcxproj
 
@@ -111,11 +111,11 @@ CassoEmuCore/
 UnitTest/
 ├── Dxui/
 │   ├── DxuiCommandTests.cpp           # NEW
-│   ├── DxuiDropdownTests.cpp          # NEW
+│   ├── DxuiMenuFlyoutTests.cpp          # NEW
 │   ├── DxuiToolbarTests.cpp           # NEW
 │   ├── DxuiCommandSurfacesTests.cpp   # NEW: one command, three surfaces
 │   ├── DxuiMenuBarTests.cpp           # item construction retyped, assertions unchanged
-│   └── DxuiWidgetIDxuiControlTests.cpp # DxuiPopupMenu rows become DxuiDropdown + DxuiToolbar rows
+│   └── DxuiWidgetIDxuiControlTests.cpp # DxuiPopupMenu rows become DxuiMenuFlyout + DxuiToolbar rows
 ├── UiTests/
 │   ├── ChromeCommandRoutingTests.cpp  # parity walk re-pointed at EmulatorCommands
 │   ├── MainMenuDropdownTests.cpp      # drives the preserved MainMenu surface, unchanged
@@ -138,10 +138,10 @@ Each step leaves the tree building and the emulator identical, so the
 branch can merge after any of them if it has to.
 
 1. **DxuiCommand** with tests. No consumer yet.
-2. **DxuiDropdown** built from `DxuiPopupMenu` plus the menu bar's item
+2. **DxuiMenuFlyout** built from `DxuiPopupMenu` plus the menu bar's item
    painting, with tests. `DxuiPopupMenu` still exists.
-3. **DxuiMenuBar over DxuiDropdown.** `DxuiMenuBarSubitem` becomes
-   `DxuiDropdownItem` over `DxuiCommand`. `MainMenu` adapts its `s_kEntries`
+3. **DxuiMenuBar over DxuiMenuFlyout.** `DxuiMenuBarSubitem` becomes
+   `DxuiMenuFlyoutItem` over `DxuiCommand`. `MainMenu` adapts its `s_kEntries`
    into commands at this step so the menu bar has a consumer. Row check
    of every open dropdown. `DxuiMenuBarTests.cpp` retypes its item
    construction and must pass with no assertion changed.
@@ -149,7 +149,7 @@ branch can merge after any of them if it has to.
    `DxuiPopupMenu` survives until step 6 because the toolbar still holds
    three.
 5. **DxuiToolbar** extracted from `CommandToolbar`, pickers on
-   `DxuiDropdown`, with tests. `CommandToolbar` becomes a temporary thin
+   `DxuiMenuFlyout`, with tests. `CommandToolbar` becomes a temporary thin
    wrapper for one commit so the shell compiles.
 6. **Emulator command table.** `EmulatorCommands` replaces `MainMenu`'s
    table and `CommandToolbar`'s entries. `PrinterStatusLed` and
@@ -158,7 +158,7 @@ branch can merge after any of them if it has to.
 7. **Cross-surface test**, CHANGELOG line, style sweep, four-configuration
    rebuild with analysis.
 
-### DxuiDropdown
+### DxuiMenuFlyout
 
 Takes `DxuiPopupMenu`'s hosting, callbacks, submenu chain and
 content-fitted width, and the menu bar's font, check glyph, separators,
@@ -169,7 +169,7 @@ guard moves here from the toolbar so titles and pickers share it.
 ### DxuiMenuBar
 
 Keeps titles, mnemonics, Alt+letter, hover-swap, Left and Right, focus
-return. Owns one `DxuiDropdown`. `Open` shows it under the title with that
+return. Owns one `DxuiMenuFlyout`. `Open` shows it under the title with that
 title's items; `Close` hides it. Up, Down, Enter and Escape forward to it.
 `SetDropdownColors` forwards to the dropdown.
 

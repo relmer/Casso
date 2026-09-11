@@ -24,15 +24,15 @@ from every surface.
 
 Validation: ids unique within an application; `dispatch` required.
 
-## DxuiDropdownItem
+## DxuiMenuFlyoutItem
 
 | Kind | Fields |
 |---|---|
 | Command | `const DxuiCommand *` |
 | Separator | none |
-| Submenu | `const DxuiCommand *` for the row, `std::vector<DxuiDropdownItem>` children |
+| Submenu | `const DxuiCommand *` for the row, `std::vector<DxuiMenuFlyoutItem>` children |
 
-## DxuiDropdown
+## DxuiMenuFlyout
 
 | Field | Meaning |
 |---|---|
@@ -57,21 +57,21 @@ closes only the child. Escape on the root closes it uncommitted.
 | items | The dropdown item list for that title |
 
 The bar keeps: open index, opened-by-keyboard flag, focused title, hover
-title. It owns one `DxuiDropdown` and reuses it for whichever title is open.
+title. It owns one `DxuiMenuFlyout` and reuses it for whichever title is open.
 
 ## Toolbar entry
 
 | Field | Type | Meaning |
 |---|---|---|
 | command | `const DxuiCommand *` | Label, glyph, tip, enabled and checked come from here |
-| kind | `enum { Command, Toggle, Picker, Flyout }` | What a click does |
+| kind | `enum { Command, Toggle, DropDown, Flyout }` | What a click does |
 | group | `int` | Equal groups sit together with a narrower gap |
 | decoration | `DecorationFn` (optional) | Painted over the icon |
 | custom | `IDxuiToolbarCustomEntry *` (optional) | Owns width, layout, paint, tooltip, click |
 
 Runtime per entry: `rc`, `hovered`, `pressed`, `labeled`.
 
-Validation: `custom` and `decoration` are mutually exclusive; a `Picker`
+Validation: `custom` and `decoration` are mutually exclusive; a `DropDown`
 must have items set before it opens; a `Flyout` must have a control set.
 A custom entry may carry any kind; when its `OnClick` returns false the
 widget acts on the kind, which is how a collapsed cluster opens a picker.
@@ -84,7 +84,7 @@ widget acts on the kind, which is how a collapsed cluster opens a picker.
 | labeledCount | Result of planning: entries from the left that keep labels |
 | bandDp | Band height for the plan |
 | pickers | One item list, `openedOn`, preview and commit sinks per picker entry, keyed by command id |
-| dropdown | One `DxuiDropdown` reused for whichever picker is open |
+| dropdown | One `DxuiMenuFlyout` reused for whichever picker is open |
 | flyout | Hosted control, panel rect, keep-alive rect, open flag |
 
 Plan rule: from all labeled, drop the rightmost label until the strip fits
@@ -93,7 +93,7 @@ or none is labeled.
 ## Context menu
 
 Not a type: a static call that takes a host, a point and an item list, and
-drives one `DxuiDropdown` owned by the host window. A picked row runs its
+drives one `DxuiMenuFlyout` owned by the host window. A picked row runs its
 command; there is no completion callback. `Disk2DebugPanel` and
 `InputDebugPanel` use it.
 
