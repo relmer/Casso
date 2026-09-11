@@ -16,6 +16,26 @@ struct IDxuiToolbarCustomEntry
     virtual void             Paint        (IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &, bool hovered, bool pressed, bool labeled) = 0;
     virtual const wchar_t *  GetTooltipAt (int x, int y, RECT & anchor) const = 0;
     virtual bool             OnClick      (int x, int y) = 0;
+
+    // Optional. OnMouseMove reports the pointer over one of the entry's
+    // parts; OnLButtonDown reports a part taking the press, which arms the
+    // entry for the OnClick that follows. An expanded custom entry is armed
+    // only that way, so a click on its label is nobody's; collapsed, the
+    // entry is a button like any other.
+    virtual bool             OnMouseMove   (int x, int y) { return false; }
+    virtual void             OnMouseLeave  () {}
+    virtual bool             OnLButtonDown (int x, int y) { return false; }
+};
+
+// Where an entry's icon was drawn, in the fractional pixels the glyph uses:
+// a collapsed entry centers its icon in an integer rect, so anything drawn
+// against the icon's edge must use the same fraction or sit a half pixel off.
+struct DxuiToolbarIconBox
+{
+    float  x;      // icon left edge
+    float  top;    // entry top; the icon is centered in rowH
+    float  size;   // icon em, px
+    float  rowH;   // entry height, px
 };
 
 class DxuiToolbar : public IDxuiControl
@@ -23,7 +43,7 @@ class DxuiToolbar : public IDxuiControl
 public:
     enum class Kind { Command, Toggle, DropDown, Flyout };
     using ChoiceFn     = std::function<void (int index)>;
-    using DecorationFn = std::function<void (IDxuiPainter &, const IDxuiTheme &, const RECT & iconRc, bool collapsed)>;
+    using DecorationFn = std::function<void (IDxuiPainter &, const IDxuiTheme &, const DxuiToolbarIconBox & icon, bool collapsed)>;
 
     struct Entry
     {
@@ -98,6 +118,7 @@ of entry and panel, unless a drag on the hosted control is in progress.
 ```cpp
     void  SetPopupHost      (DxuiHwndSource * host);
     void  SetHostClientRect (const RECT & clientRect);
+    void  SetClock          (DxuiPopupMenu::ClockFn fn);   // the dropdown's reopen guard, for tests
 ```
 
 Rules: the picker dropdown is hosted through the popup pool and kept inside

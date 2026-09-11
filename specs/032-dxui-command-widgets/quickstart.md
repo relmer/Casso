@@ -198,6 +198,20 @@ Test-Path CassoEmuCore\Ui\Chrome\CommandToolbar.cpp; Test-Path Dxui\Widgets\Dxui
 Expected: both false. And a grep of `CassoEmuCore/` for `CommandToolbar`,
 `MainMenuCommandEntry` and `DxuiPopupMenu` returns nothing.
 
+**The matrix script takes the foreground.** `CaptureScreenshotMatrix.ps1`
+launches Casso as an ordinary window, which pops it over whatever the
+operator is typing into; the chrome capture script posts input and prints
+without focus and is the only one to run while someone is at the machine.
+The matrix baselines are also machine-dependent: the master sets were taken
+on an Apple //c at the non-DPI-aware 560 px scale, and a later run on an
+Apple //e at 700 px compares nothing. Record the machine and the scale with
+any new baseline, and compare only like against like.
+
+**A menu-open capture cannot judge the toolbar.** The open dropdown lies
+over the toolbar band, and its sanctioned width change makes every band
+differ from row 30 of the strip down. Compare the toolbar in the rows the
+popup does not cover, or in a closed-state capture.
+
 **RetroTerminal is excluded from the strip oracle.** Its scanline overlay
 differs between two runs of the same binary by several hundred pixels in
 the strip rows, measured master against master. Compare that theme's menus by

@@ -12,15 +12,10 @@
 
 
 
-// Layout metrics (DIP).
+// Layout metrics (DIP) the input cluster and the printer light still need
+// on this side; the strip's own live in DxuiToolbar.
 static constexpr int      s_kBaseDpi        = 96;
-static constexpr int      s_kBarPadXDp      = 10;   // strip left/right padding
 static constexpr int      s_kBtnPadXDp      = 10;   // inside a button, around content
-static constexpr int      s_kBtnMarginYDp   = 5;    // button top/bottom inset in the strip
-static constexpr int      s_kBtnGapDp       = 4;    // between buttons in a group
-static constexpr int      s_kGroupGapDp     = 18;   // between button groups
-static constexpr int      s_kIconGapDp      = 7;    // icon-to-label gap
-static constexpr int      s_kBandDp         = 42;   // strip thickness
 static constexpr float    s_kIconDip        = 15.0f;
 static constexpr float    s_kFontDip        = 13.0f;
 static constexpr float    s_kFallbackCharPx = 7.5f;
@@ -29,24 +24,22 @@ static constexpr const wchar_t * s_kFontFamily = DxuiTheme::kBodyFace;
 static constexpr const wchar_t * s_kIconFamily = L"Segoe MDL2 Assets";
 
 // Segoe MDL2 Assets codepoints.
-static constexpr wchar_t  s_kGlyphSettings   = L'\uE713';   // gear
-static constexpr wchar_t  s_kGlyphTheme      = L'\uE746';   // half-filled square: light / dark
-static constexpr wchar_t  s_kGlyphScreenshot = L'\uE722';   // camera
-static constexpr wchar_t  s_kGlyphReset      = L'\uE72C';   // refresh arrow
-static constexpr wchar_t  s_kGlyphPower      = L'\uE7E8';   // power symbol
-static constexpr wchar_t  s_kGlyphVolume     = L'\uE767';   // speaker
-static constexpr wchar_t  s_kGlyphMuted      = L'\uE74F';   // muted speaker
-static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline, matches the set)
-static constexpr wchar_t  s_kGlyphColor      = L'\uE790';   // artist's palette
-static constexpr wchar_t  s_kGlyphFullscreen = L'\uE740';   // diagonal arrows, outward
-static constexpr wchar_t  s_kGlyphRestore    = L'\uE73F';   // diagonal arrows, inward
-static constexpr wchar_t  s_kGlyphMouse      = L'\uE962';   // mouse (the input cluster's one font glyph)
+static constexpr const wchar_t * s_kGlyphSettings   = L"\uE713";   // gear
+static constexpr const wchar_t * s_kGlyphTheme      = L"\uE746";   // half-filled square: light / dark
+static constexpr const wchar_t * s_kGlyphScreenshot = L"\uE722";   // camera
+static constexpr const wchar_t * s_kGlyphReset      = L"\uE72C";   // refresh arrow
+static constexpr const wchar_t * s_kGlyphPower      = L"\uE7E8";   // power symbol
+static constexpr const wchar_t * s_kGlyphVolume     = L"\uE767";   // speaker
+static constexpr const wchar_t * s_kGlyphMuted      = L"\uE74F";   // muted speaker
+static constexpr const wchar_t * s_kGlyphPrint      = L"\uE749";   // printer (monoline, matches the set)
+static constexpr const wchar_t * s_kGlyphColor      = L"\uE790";   // artist's palette
+static constexpr const wchar_t * s_kGlyphFullscreen = L"\uE740";   // diagonal arrows, outward
+static constexpr const wchar_t * s_kGlyphRestore    = L"\uE73F";   // diagonal arrows, inward
+static constexpr const wchar_t * s_kGlyphMouse      = L"\uE962";   // mouse (the input cluster's one font glyph)
 
 // Volume flyout (vertical slider + readout under the track).
 static constexpr int      s_kFlyoutWidthDp    = 56;
 static constexpr int      s_kFlyoutHeightDp   = 154;
-static constexpr int      s_kFlyoutPadDp      = 8;
-static constexpr int      s_kFlyoutDropDp     = 2;    // gap under the bar
 
 // Input cluster: LED + glyph segments under one shared label. The glyph box
 // is sized so its INK matches the MDL2 icons' (their 15 dip em draws about
@@ -121,24 +114,16 @@ static constexpr const wchar_t * s_kTipMouseSeg =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandToolbar::CommandToolbar()
+CommandToolbar::CommandToolbar() :
+    m_inputCluster (*this),
+    m_volumePanel  (*this)
 {
     m_focusable = false;
 
-    m_buttons.resize ((size_t) Entry::Count);
-
-    GetEntry (Entry::Settings)   = Button { Entry::Settings,   IDM_VIEW_SETTINGS,        s_kGlyphSettings,   L"Settings"   };
-    GetEntry (Entry::Theme)      = Button { Entry::Theme,      0,                        s_kGlyphTheme,      L"Theme"      };
-    GetEntry (Entry::Color)      = Button { Entry::Color,      0,                        s_kGlyphColor,      L"Color"      };
-    GetEntry (Entry::Printer)    = Button { Entry::Printer,    IDM_PRINTER_PREVIEW,      s_kGlyphPrint,      L"Printer"    };
-    GetEntry (Entry::Volume)     = Button { Entry::Volume,     0,                        s_kGlyphVolume,     L"Volume"     };
-    GetEntry (Entry::Input)      = Button { Entry::Input,      0,                        0,                  s_kInputLabel };
-    GetEntry (Entry::Fullscreen) = Button { Entry::Fullscreen, IDM_VIEW_FULLSCREEN,      s_kGlyphFullscreen, L"Full screen" };
-    GetEntry (Entry::Screenshot) = Button { Entry::Screenshot, IDM_EDIT_COPY_SCREENSHOT, s_kGlyphScreenshot, L"Screenshot" };
-    GetEntry (Entry::Reset)      = Button { Entry::Reset,      IDM_MACHINE_RESET,        s_kGlyphReset,      L"Reset"      };
-    GetEntry (Entry::Power)      = Button { Entry::Power,      IDM_MACHINE_POWERCYCLE,   s_kGlyphPower,      L"Power"      };
-
-    GetEntry (Entry::Printer).statusLed = true;
+    BuildCommands();
+    BuildEntries();
+    RebuildColorRows();
+    RebuildInputRows();
 
     m_volumeSlider.SetVertical      (true);
     m_volumeSlider.SetRange         (0.0f, 100.0f);
@@ -169,7 +154,18 @@ CommandToolbar::CommandToolbar()
         return buf;
     });
 
-    WireMenus();
+    m_toolbar.SetFlyoutControl (s_kIdVolume, &m_volumePanel, SIZE { s_kFlyoutWidthDp, s_kFlyoutHeightDp });
+
+    // The input menu has no preview -- its rows are toggles, not a value --
+    // so it only needs the commit.
+    m_toolbar.SetDropDownSinks (s_kIdInput, nullptr, [this] (int index)
+    {
+        if (m_inputSink && index >= 0 && index < InputSegCount())
+        {
+            m_inputSink (s_kInputModes[index]);
+        }
+    });
+
     RebuildActionTips();
 }
 
@@ -179,102 +175,235 @@ CommandToolbar::CommandToolbar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::WireMenus
+//  CommandToolbar::BuildCommands
 //
-//  The two pickers run the same three-callback contract, which is what gives
-//  them the Settings behavior: a highlight PREVIEWS (pointer or arrow key,
-//  applied but not persisted), a pick COMMITS, and the close edge SETTLES.
+//  One command per entry. The pickers label themselves with their PURPOSE,
+//  not with the value they hold: the value is one click away in the menu,
+//  and a label that changes with it moves every button to its right
+//  whenever the setting changes.
 //
-//  DxuiPopupMenu hides BEFORE it reports a pick, and says on the way out
-//  whether a pick is what closed it. That is the whole reason the settle can
-//  be unconditional here: on a dismissal it puts the old value back, and on a
-//  pick it stands aside for the commit that is about to arrive.
-//
-//  The input menu has no preview -- its rows are toggles, not a value -- so it
-//  only needs the select callback.
+//  The volume entry's full label is the ACTION its click takes, since that
+//  is what its collapsed form shows as a tip; its short label is the name
+//  the strip shows beside the icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandToolbar::WireMenus()
+void CommandToolbar::BuildCommands()
 {
-    m_themeMenu.SetOnHighlightChange ([this] (int index)
+    struct Row
     {
-        m_themePreviewed = true;
+        Entry            entry;
+        int              id;
+        const wchar_t *  glyph;
+        const wchar_t *  label;
+    };
 
-        if (m_themePreview)
+    static constexpr Row  s_kRows[] =
+    {
+        { Entry::Settings,   IDM_VIEW_SETTINGS,        s_kGlyphSettings,   L"Settings"      },
+        { Entry::Theme,      s_kIdTheme,               s_kGlyphTheme,      L"Theme"         },
+        { Entry::Color,      s_kIdColor,               s_kGlyphColor,      L"Color"         },
+        { Entry::Printer,    IDM_PRINTER_PREVIEW,      s_kGlyphPrint,      L"Printer"       },
+        { Entry::Volume,     s_kIdVolume,              s_kGlyphVolume,     L"Mute"          },
+        { Entry::Input,      s_kIdInput,               nullptr,            s_kTipInput      },
+        { Entry::Fullscreen, IDM_VIEW_FULLSCREEN,      s_kGlyphFullscreen, L"Full screen"   },
+        { Entry::Screenshot, IDM_EDIT_COPY_SCREENSHOT, s_kGlyphScreenshot, L"Screenshot"    },
+        { Entry::Reset,      IDM_MACHINE_RESET,        s_kGlyphReset,      L"Reset"         },
+        { Entry::Power,      IDM_MACHINE_POWERCYCLE,   s_kGlyphPower,      L"Power"         },
+    };
+
+
+
+    m_commands.resize ((size_t) Entry::Count);
+
+    for (const Row & row : s_kRows)
+    {
+        DxuiCommand &  cmd = GetCommand (row.entry);
+
+        cmd.id    = row.id;
+        cmd.glyph = row.glyph;
+        cmd.label = row.label;
+
+        if (row.id > s_kIdInput)
         {
-            m_themePreview (index);
+            cmd.dispatch = [this, id = row.id] ()
+            {
+                if (m_dispatch) { m_dispatch ((WORD) id); }
+            };
         }
-    });
+    }
 
-    m_themeMenu.SetOnSelect ([this] (int index)
+    GetCommand (Entry::Volume).shortLabel = L"Volume";
+    GetCommand (Entry::Volume).dispatch   = [this] () { ToggleMute(); };
+    GetCommand (Entry::Input).shortLabel  = s_kInputLabel;
+
+    // The printer button follows card presence: no card, no printer button.
+    GetCommand (Entry::Printer).isEnabled = [this] () { return m_printerPresent; };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::BuildEntries
+//
+//  Groups: Settings through Printer, then Volume, then Input, then the four
+//  machine actions; a change of group is a wider gap on the strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::BuildEntries()
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    for (size_t i = 0; i < (size_t) Entry::Count; i++)
     {
-        m_themeIndex     = index;
-        m_themePreviewed = false;
+        DxuiToolbar::Entry  e;
+        Entry               entry = (Entry) i;
 
-        if (m_themeCommit)
+        e.command = &m_commands[i];
+        e.kind    = DxuiToolbar::Kind::Command;
+        e.group   = (entry <= Entry::Printer) ? 0
+                  : (entry == Entry::Volume)  ? 1
+                  : (entry == Entry::Input)   ? 2
+                                              : 3;
+
+        switch (entry)
         {
-            m_themeCommit (index);
-        }
-    });
+        case Entry::Theme:
+        case Entry::Color:
+            e.kind = DxuiToolbar::Kind::DropDown;
+            break;
 
-    m_themeMenu.SetOnClosed ([this] (bool committed)
-    {
-        if (!committed && m_themePreviewed && m_themeIndex >= 0 && m_themePreview)
-        {
-            m_themePreview (m_themeIndex);
-        }
+        case Entry::Volume:
+            e.kind = DxuiToolbar::Kind::Flyout;
+            break;
 
-        m_themePreviewed = false;
-        m_menuClosedMs   = GetTickCount64();
-    });
+        case Entry::Input:
+            e.kind   = DxuiToolbar::Kind::DropDown;
+            e.custom = &m_inputCluster;
+            break;
 
-    m_colorMenu.SetOnHighlightChange ([this] (int index)
-    {
-        m_colorPreviewed = true;
+        case Entry::Printer:
+            e.decoration = [this] (IDxuiPainter & painter, const IDxuiTheme & theme,
+                                   const DxuiToolbarIconBox & icon, bool collapsed)
+            {
+                UNREFERENCED_PARAMETER (theme);
+                UNREFERENCED_PARAMETER (collapsed);
 
-        if (m_monitorPreview)
-        {
-            m_monitorPreview (index);
-        }
-    });
+                PaintPrinterLed (painter, icon);
+            };
+            break;
 
-    m_colorMenu.SetOnSelect ([this] (int index)
-    {
-        m_colorIndex     = index;
-        m_colorPreviewed = false;
-
-        if (m_monitorCommit)
-        {
-            m_monitorCommit (index);
-        }
-    });
-
-    m_colorMenu.SetOnClosed ([this] (bool committed)
-    {
-        if (!committed && m_colorPreviewed && m_monitorPreview)
-        {
-            m_monitorPreview (m_colorIndex);
+        default:
+            break;
         }
 
-        m_colorPreviewed = false;
-        m_menuClosedMs   = GetTickCount64();
-    });
+        entries.push_back (std::move (e));
+    }
 
-    m_inputMenu.SetOnSelect ([this] (int index)
+    m_toolbar.SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::RebuildThemeRows / RebuildColorRows / RebuildInputRows
+//
+//  Every picker row carries its checked state, which is how a collapsed
+//  picker still says what it is set to. The rows are handed to the widget
+//  again whenever they are rebuilt, since it holds them by pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::RebuildThemeRows()
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    m_themeRows.clear();
+    m_themeRows.resize (m_themeNames.size());
+
+    for (size_t i = 0; i < m_themeNames.size(); i++)
     {
-        if (m_inputSink && index >= 0 && index < InputSegCount())
-        {
-            m_inputSink (s_kInputModes[index]);
-        }
-    });
+        m_themeRows[i].id        = (int) i;
+        m_themeRows[i].label     = m_themeNames[i];
+        m_themeRows[i].isChecked = [this, i] () { return (int) i == m_themeIndex; };
 
-    m_inputMenu.SetOnClosed ([this] (bool committed)
+        items.push_back (DxuiPopupMenuItem::ForCommand (&m_themeRows[i]));
+    }
+
+    m_toolbar.SetDropDownItems (s_kIdTheme, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::RebuildColorRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::RebuildColorRows()
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    m_colorRows.clear();
+    m_colorRows.resize (_countof (s_kMonitorColorRows));
+
+    for (size_t i = 0; i < m_colorRows.size(); i++)
     {
-        UNREFERENCED_PARAMETER (committed);
+        m_colorRows[i].id        = (int) i;
+        m_colorRows[i].label     = s_kMonitorColorRows[i];
+        m_colorRows[i].isChecked = [this, i] () { return (int) i == m_colorIndex; };
 
-        m_menuClosedMs = GetTickCount64();
-    });
+        items.push_back (DxuiPopupMenuItem::ForCommand (&m_colorRows[i]));
+    }
+
+    m_toolbar.SetDropDownItems (s_kIdColor, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::RebuildInputRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::RebuildInputRows()
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    m_inputRows.clear();
+    m_inputRows.resize ((size_t) InputSegCount());
+
+    for (size_t i = 0; i < m_inputRows.size(); i++)
+    {
+        m_inputRows[i].id        = (int) i;
+        m_inputRows[i].label     = s_kInputRows[i];
+        m_inputRows[i].isChecked = [this, i] () { return InputSegSelected ((int) i); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (&m_inputRows[i]));
+    }
+
+    m_toolbar.SetDropDownItems (s_kIdInput, std::move (items));
 }
 
 
@@ -302,9 +431,9 @@ void CommandToolbar::RebuildActionTips()
 
 
 
-    GetEntry (Entry::Reset).tip = L"Reset the " + machine + L".\n" +
-                                  apple + L" + Reset to reboot.";
-    GetEntry (Entry::Power).tip = L"Power-cycle the " + machine;
+    GetCommand (Entry::Reset).tip = L"Reset the " + machine + L".\n" +
+                                    apple + L" + Reset to reboot.";
+    GetCommand (Entry::Power).tip = L"Power-cycle the " + machine;
 }
 
 
@@ -341,13 +470,13 @@ void CommandToolbar::SetMachineDisplayName (const std::wstring & displayName)
 
 void CommandToolbar::SetFullscreen (bool fullscreen)
 {
-    Button &  btn = GetEntry (Entry::Fullscreen);
+    DxuiCommand &  cmd = GetCommand (Entry::Fullscreen);
 
 
 
     m_fullscreen = fullscreen;
-    btn.glyph    = m_fullscreen ? s_kGlyphRestore    : s_kGlyphFullscreen;
-    btn.label    = m_fullscreen ? L"Exit full screen" : L"Full screen";
+    cmd.glyph    = m_fullscreen ? s_kGlyphRestore    : s_kGlyphFullscreen;
+    cmd.label    = m_fullscreen ? L"Exit full screen" : L"Full screen";
 }
 
 
@@ -364,6 +493,8 @@ void CommandToolbar::SetThemes (const std::vector<std::wstring> & displayNames, 
 {
     m_themeNames = displayNames;
     m_themeIndex = activeIndex;
+
+    RebuildThemeRows();
 }
 
 
@@ -382,7 +513,7 @@ void CommandToolbar::SetThemes (const std::vector<std::wstring> & displayNames, 
 
 void CommandToolbar::SetThemeIndex (int index)
 {
-    if (!m_themeMenu.IsVisible())
+    if (!m_toolbar.IsMenuOpen())
     {
         m_themeIndex = index;
     }
@@ -391,7 +522,7 @@ void CommandToolbar::SetThemeIndex (int index)
 
 void CommandToolbar::SetMonitorColorIndex (int index)
 {
-    if (!m_colorMenu.IsVisible())
+    if (!m_toolbar.IsMenuOpen())
     {
         m_colorIndex = index;
     }
@@ -405,116 +536,31 @@ void CommandToolbar::SetMonitorColorIndex (int index)
 //
 //  CommandToolbar::SetThemeSinks / SetMonitorSinks
 //
+//  A pick lands in the toolbar's own copy of the index before the shell hears
+//  of it, so the row the NEXT open starts on is the one just chosen even if
+//  the shell's sync is late.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandToolbar::SetThemeSinks (ChoiceFn preview, ChoiceFn commit)
 {
-    m_themePreview = std::move (preview);
-    m_themeCommit  = std::move (commit);
+    m_toolbar.SetDropDownSinks (s_kIdTheme, std::move (preview), [this, commit] (int index)
+    {
+        m_themeIndex = index;
+
+        if (commit) { commit (index); }
+    });
 }
 
 
 void CommandToolbar::SetMonitorSinks (ChoiceFn preview, ChoiceFn commit)
 {
-    m_monitorPreview = std::move (preview);
-    m_monitorCommit  = std::move (commit);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::SetPopupHost
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::SetPopupHost (DxuiHwndSource * host)
-{
-    m_themeMenu.SetPopupHost (host);
-    m_colorMenu.SetPopupHost (host);
-    m_inputMenu.SetPopupHost (host);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::HideMenus / IsReopenSuppressed
-//
-//  A CLICK ON A PICKER BUTTON WHOSE MENU IS ALREADY UP MUST CLOSE IT, and
-//  that is harder than it looks: the popup dismisses itself on a click
-//  outside its own window, and whether that runs before or after the strip
-//  sees the same click is not ours to decide. Either order leaves the menu
-//  shut by the time the release arrives, so the release would cheerfully
-//  open it again and the button would never appear to toggle.
-//
-//  So the release refuses to open a menu that closed a moment ago. The
-//  window is short enough that a deliberate second click always lands
-//  outside it, and it covers both orderings without either side having to
-//  know about the other.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::HideMenus()
-{
-    m_themeMenu.Hide();
-    m_colorMenu.Hide();
-    m_inputMenu.Hide();
-}
-
-
-bool CommandToolbar::IsReopenSuppressed() const
-{
-    constexpr uint64_t  kGuardMs = 250;
-
-
-
-    return GetTickCount64() - m_menuClosedMs < kGuardMs;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::IsMenuOpen / HandleKey
-//
-//  An open menu is modal in practice, so the shell hands it every keydown --
-//  otherwise arrowing through the rows would also type into the guest.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CommandToolbar::IsMenuOpen() const
-{
-    return m_themeMenu.IsVisible() || m_colorMenu.IsVisible() || m_inputMenu.IsVisible();
-}
-
-
-bool CommandToolbar::HandleKey (WPARAM vk)
-{
-    bool  handled = false;
-
-
-
-    if (m_themeMenu.IsVisible())
+    m_toolbar.SetDropDownSinks (s_kIdColor, std::move (preview), [this, commit] (int index)
     {
-        handled = m_themeMenu.OnKey (vk);
-    }
-    else if (m_colorMenu.IsVisible())
-    {
-        handled = m_colorMenu.OnKey (vk);
-    }
-    else if (m_inputMenu.IsVisible())
-    {
-        handled = m_inputMenu.OnKey (vk);
-    }
+        m_colorIndex = index;
 
-    return handled;
+        if (commit) { commit (index); }
+    });
 }
 
 
@@ -523,81 +569,20 @@ bool CommandToolbar::HandleKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::OpenMenuFor
+//  CommandToolbar::SetVolume / ToggleMute
 //
-//  Builds the rows for one picker and hangs its menu under that button. Every
-//  row carries its checked state, which is how a collapsed picker still says
-//  what it is set to.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::OpenMenuFor (Entry entry)
-{
-    std::vector<DxuiPopupMenu::Item>  items;
-    const Button &                    btn   = GetEntry (entry);
-    DxuiPopupMenu *                   menu  = nullptr;
-    int                               i     = 0;
-
-
-
-    if (m_textRenderer == nullptr)
-    {
-        return;
-    }
-
-    switch (entry)
-    {
-    case Entry::Theme:
-        menu = &m_themeMenu;
-        for (const std::wstring & name : m_themeNames)
-        {
-            items.push_back (DxuiPopupMenu::Item { name, i == m_themeIndex });
-            i++;
-        }
-
-        break;
-
-    case Entry::Color:
-        menu = &m_colorMenu;
-        for (const wchar_t * row : s_kMonitorColorRows)
-        {
-            items.push_back (DxuiPopupMenu::Item { row, i == m_colorIndex });
-            i++;
-        }
-
-        break;
-
-    case Entry::Input:
-        menu = &m_inputMenu;
-        for (i = 0; i < InputSegCount(); i++)
-        {
-            items.push_back (DxuiPopupMenu::Item { s_kInputRows[i], InputSegSelected (i) });
-        }
-
-        break;
-
-    default:
-        break;
-    }
-
-    if (menu != nullptr && !items.empty())
-    {
-        menu->Show (btn.rc.left, m_barRect.bottom, std::move (items), *m_textRenderer, m_hostClient);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::SetVolume
+//  Mute is handled locally rather than dispatched, because it owns state the
+//  slider reads back -- routing it through the command path would put the
+//  toolbar's own model a round trip behind its own control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandToolbar::SetVolume (float volume01, bool muted)
 {
+    DxuiCommand &  cmd = GetCommand (Entry::Volume);
+
+
+
     m_volume01 = std::clamp (volume01, 0.0f, 1.0f);
     m_muted    = muted;
 
@@ -607,7 +592,10 @@ void CommandToolbar::SetVolume (float volume01, bool muted)
     // display can never be dragged into becoming the stored value.
     m_volumeSlider.SetValue   (m_muted ? 0.0f : m_volume01 * 100.0f);
     m_volumeSlider.SetEnabled (!m_muted);
-    GetEntry (Entry::Volume).glyph = m_muted ? s_kGlyphMuted : s_kGlyphVolume;
+
+    // The button's tip names the action it would take, not its state.
+    cmd.glyph = m_muted ? s_kGlyphMuted : s_kGlyphVolume;
+    cmd.label = m_muted ? L"Unmute"     : L"Mute";
 }
 
 
@@ -616,7 +604,24 @@ void CommandToolbar::SetVolume (float volume01, bool muted)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::IsPointInRect / HitTest
+//  CommandToolbar::ToggleMute
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::ToggleMute()
+{
+    SetVolume (m_volume01, !m_muted);
+
+    if (m_volumeSink) { m_volumeSink (m_volume01, m_muted); }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::IsPointInRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -626,10 +631,24 @@ bool CommandToolbar::IsPointInRect (const RECT & rc, int x, int y)
 }
 
 
-bool CommandToolbar::HitTest (int x, int y) const
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::PlanForWidth / GetBandDp / GetTooltipAt / OnToolbarMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 {
-    return IsPointInRect (m_barRect, x, y) ||
-           (m_flyoutOpen && IsPointInRect (m_flyoutRc, x, y));
+    return m_toolbar.PlanForWidth (clientWidthPx, scaler);
+}
+
+
+int CommandToolbar::GetBandDp() const
+{
+    return m_toolbar.GetBandDp();
 }
 
 
@@ -638,13 +657,30 @@ bool CommandToolbar::HitTest (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::GetBandDp
+//  CommandToolbar::GetTooltipAt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CommandToolbar::GetBandDp() const
+const wchar_t * CommandToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
 {
-    return s_kBandDp;
+    return m_toolbar.GetTooltipAt (x, y, anchor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::OnToolbarMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
+{
+    UNREFERENCED_PARAMETER (leftDown);
+
+    return m_toolbar.OnToolbarMouseMove (x, y);
 }
 
 
@@ -687,14 +723,14 @@ uint32_t CommandToolbar::GetStatusCoreColor (PrinterStatus status)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaintStatusLed
+//  CommandToolbar::PaintStatusLed
 //
 //  A small status-light dot riding a glyph's corner (halo + core). core == 0
 //  means unlit: paint nothing at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi, uint32_t core)
+void CommandToolbar::PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi, uint32_t core)
 {
     float     r    = 2.0f * (float) dpi / (float) s_kBaseDpi;
     uint32_t  halo = (core & 0x00FFFFFFu) | 0x80000000u;
@@ -716,6 +752,26 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandToolbar::PaintPrinterLed
+//
+//  The light rides the glyph's top-right corner, pinned to the ICON rather
+//  than the button so it stays put whether or not the entry has its label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::PaintPrinterLed (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)
+{
+    PaintStatusLed (painter, icon.x + icon.size + 1.0f,
+                    icon.top + icon.rowH * 0.5f - icon.size * 0.48f, m_dpi,
+                    GetStatusCoreColor (m_printerStatus));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandToolbar::SetInputState
 //
 //  The mouse segment exists only when the machine has a mouse.
@@ -725,6 +781,7 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
 void CommandToolbar::SetInputState (bool arrowsJoystick, InputMappingMode pointer, bool mouseAvailable)
 {
     bool  countChanged = (mouseAvailable != m_mouseAvailable);
+    RECT  bounds       = m_toolbar.GetBounds();
 
 
 
@@ -740,12 +797,17 @@ void CommandToolbar::SetInputState (bool arrowsJoystick, InputMappingMode pointe
     // switched to at runtime showed the joystick and paddle but no mouse.
     // Re-laying here rather than fixing that one order keeps every caller --
     // the switch, the Hardware tab's mouse toggle -- from having to know.
-    if (countChanged && m_barRect.right > m_barRect.left)
+    if (countChanged)
     {
-        DxuiDpiScaler  scaler;
+        RebuildInputRows();
 
-        scaler.SetDpi (m_dpi);
-        Layout (m_barRect, scaler);
+        if (bounds.right > bounds.left)
+        {
+            DxuiDpiScaler  scaler;
+
+            scaler.SetDpi (m_dpi);
+            Layout (bounds, scaler);
+        }
     }
 }
 
@@ -771,47 +833,6 @@ bool CommandToolbar::InputSegSelected (int index) const
         case 2:  return m_pointerMode == InputMappingMode::Mouse;
         default: return false;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::IsInputExpanded
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CommandToolbar::IsInputExpanded() const
-{
-    return GetEntry (Entry::Input).labeled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::FlyoutKeepAliveRc
-//
-//  The union of the volume button and its flyout, so the pointer can travel
-//  between them across the bar's margin without the flyout closing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT CommandToolbar::FlyoutKeepAliveRc() const
-{
-    RECT  rc = GetEntry (Entry::Volume).rc;
-
-
-
-    rc.left   = (std::min) (rc.left,   m_flyoutRc.left);
-    rc.right  = (std::max) (rc.right,  m_flyoutRc.right);
-    rc.bottom = (std::max) (rc.bottom, m_flyoutRc.bottom);
-
-    return rc;
 }
 
 
@@ -856,26 +877,22 @@ int CommandToolbar::MeasureLabelPx (const wchar_t * text, float fontPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::GetEntryWidthPx
+//  CommandToolbar::GetInputWidthPx
 //
-//  One entry costs its icon plus padding, and its label when it can still
-//  afford one. The input devices are the exception in both directions: their
-//  full form is a shared label over a row of LED segments, and their
-//  collapsed form is a single icon like everything else.
+//  The input devices' full form is a shared label over a row of LED
+//  segments; their collapsed form is a single icon like everything else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CommandToolbar::GetEntryWidthPx (const Button & btn, bool labeled, UINT dpi) const
+int CommandToolbar::GetInputWidthPx (bool labeled, UINT dpi) const
 {
-    int    padX    = MulDiv (s_kBtnPadXDp, (int) dpi, s_kBaseDpi);
-    int    iconGap = MulDiv (s_kIconGapDp, (int) dpi, s_kBaseDpi);
-    float  fontPx  = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
-    int    iconW   = (int) (s_kIconDip * (float) dpi / (float) s_kBaseDpi + 0.5f);
-    int    width   = 0;
+    int    padX   = MulDiv (s_kBtnPadXDp, (int) dpi, s_kBaseDpi);
+    float  fontPx = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
+    int    iconW  = (int) (s_kIconDip * (float) dpi / (float) s_kBaseDpi + 0.5f);
 
 
 
-    if (btn.entry == Entry::Input && labeled)
+    if (labeled)
     {
         int  segW     = MulDiv (s_kSegPadXDp * 2 + s_kSegLedDp + s_kSegLedGapDp + s_kSegIconDp,
                                 (int) dpi, s_kBaseDpi);
@@ -888,90 +905,57 @@ int CommandToolbar::GetEntryWidthPx (const Button & btn, bool labeled, UINT dpi)
                InputSegCount() * segW + (InputSegCount() - 1) * segGap;
     }
 
-    width = padX * 2 + iconW;
+    return padX * 2 + iconW;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::LayoutInput
+//
+//  The input segments live inside the input entry's own rect, so the cluster
+//  travels with it instead of being placed a second time. A collapsed entry
+//  has no segments, and their empty rects are what keeps their tips and
+//  clicks silent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::LayoutInput (const RECT & rc, bool labeled, UINT dpi)
+{
+    int    segW     = MulDiv (s_kSegPadXDp * 2 + s_kSegLedDp + s_kSegLedGapDp + s_kSegIconDp,
+                              (int) dpi, s_kBaseDpi);
+    int    segGap   = MulDiv (s_kSegGapDp,        (int) dpi, s_kBaseDpi);
+    int    labelGap = MulDiv (s_kInputLabelGapDp, (int) dpi, s_kBaseDpi);
+    int    ix       = rc.left;
+    float  fontPx   = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
+    int    i        = 0;
+
+
+
+    m_inputRc      = rc;
+    m_inputLabelRc = {};
+
+    for (i = 0; i < 3; i++)
+    {
+        m_inputSegs[i].rc = {};
+    }
 
     if (labeled)
     {
-        width += iconGap + MeasureLabelPx (btn.label, fontPx);
-    }
+        int  labelW = MeasureLabelPx (s_kInputLabel, fontPx) + 3;
 
-    return width;
-}
+        m_inputLabelRc = RECT { ix, rc.top, ix + labelW, rc.bottom };
+        ix += labelW + labelGap;
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::GetTotalWidthPx
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int CommandToolbar::GetTotalWidthPx (int labeledCount, UINT dpi) const
-{
-    int  barPad   = MulDiv (s_kBarPadXDp,  (int) dpi, s_kBaseDpi);
-    int  btnGap   = MulDiv (s_kBtnGapDp,   (int) dpi, s_kBaseDpi);
-    int  groupGap = MulDiv (s_kGroupGapDp, (int) dpi, s_kBaseDpi);
-    int  width    = barPad * 2;
-    int  index    = 0;
-
-
-
-    for (const Button & btn : m_buttons)
-    {
-        width += GetEntryWidthPx (btn, index < labeledCount, dpi);
-
-        if (index + 1 < (int) m_buttons.size())
+        for (i = 0; i < InputSegCount(); i++)
         {
-            width += btnGap;
+            m_inputSegs[i].rc = RECT { ix, rc.top, ix + segW, rc.bottom };
+            ix += segW + ((i + 1 < InputSegCount()) ? segGap : 0);
         }
-
-        if (btn.entry == Entry::Printer || btn.entry == Entry::Volume || btn.entry == Entry::Input)
-        {
-            width += groupGap - btnGap;
-        }
-
-        index++;
     }
-
-    return width;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::PlanForWidth
-//
-//  Drops one label at a time FROM THE RIGHT until the strip fits, so the
-//  leftmost entries keep their names longest and nothing is ever pushed off
-//  the end. The band thickness is fixed: everything stays on one row, which
-//  is what makes a per-entry collapse legible in the first place.
-//
-//  Once every entry is down to its icon there are no moves left. That bar is
-//  around 450 dp, so it takes a window narrower than anything the emulator
-//  itself is usable in before the strip runs out of room again.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
-{
-    UINT  dpi     = (scaler.GetDpi() == 0) ? (UINT) s_kBaseDpi : scaler.GetDpi();
-    int   labeled = (int) m_buttons.size();
-
-
-
-    while (labeled > 0 && GetTotalWidthPx (labeled, dpi) > clientWidthPx)
-    {
-        labeled--;
-    }
-
-    m_labeledCount = labeled;
-
-    return s_kBandDp;
 }
 
 
@@ -982,602 +966,14 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
 //
 //  CommandToolbar::Layout
 //
-//  Places the entries left-to-right: [Settings] [Theme] [Monitor color]
-//  [Printer] | [Volume] | [Input] | [Fullscreen] [Screenshot] [Reset] [Power].
-//  The collapse is re-planned against this exact strip width so the plan and
-//  the placement can never disagree.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    UINT  dpi      = 0;
-    int   marginY  = 0;
-    int   btnGap   = 0;
-    int   groupGap = 0;
-    int   barPad   = 0;
-    int   x        = 0;
-    int   top      = 0;
-    int   bottom   = 0;
-    int   index    = 0;
+    m_dpi = (scaler.GetDpi() == 0) ? (UINT) s_kBaseDpi : scaler.GetDpi();
 
-
-
-    PlanForWidth (boundsDip.right - boundsDip.left, scaler);
-
-    dpi      = (scaler.GetDpi() == 0) ? (UINT) s_kBaseDpi : scaler.GetDpi();
-    marginY  = MulDiv (s_kBtnMarginYDp, (int) dpi, s_kBaseDpi);
-    btnGap   = MulDiv (s_kBtnGapDp,     (int) dpi, s_kBaseDpi);
-    groupGap = MulDiv (s_kGroupGapDp,   (int) dpi, s_kBaseDpi);
-    barPad   = MulDiv (s_kBarPadXDp,    (int) dpi, s_kBaseDpi);
-    x        = boundsDip.left + barPad;
-    top      = boundsDip.top + marginY;
-    bottom   = boundsDip.bottom - marginY;
-
-    m_dpi     = dpi;
-    m_barRect = boundsDip;
-
-    for (Button & btn : m_buttons)
-    {
-        int  width = 0;
-
-        btn.labeled = index < m_labeledCount;
-        width       = GetEntryWidthPx (btn, btn.labeled, dpi);
-        btn.rc      = RECT { x, top, x + width, bottom };
-        x          += width;
-
-        if (index + 1 < (int) m_buttons.size())
-        {
-            x += btnGap;
-        }
-
-        if (btn.entry == Entry::Printer || btn.entry == Entry::Volume || btn.entry == Entry::Input)
-        {
-            x += groupGap - btnGap;
-        }
-
-        index++;
-    }
-
-    // The input segments live inside the input entry's own rect, so the
-    // cluster travels with it instead of being placed a second time.
-    {
-        const Button &  input    = GetEntry (Entry::Input);
-        int             segW     = MulDiv (s_kSegPadXDp * 2 + s_kSegLedDp + s_kSegLedGapDp + s_kSegIconDp,
-                                           (int) dpi, s_kBaseDpi);
-        int             segGap   = MulDiv (s_kSegGapDp,        (int) dpi, s_kBaseDpi);
-        int             labelGap = MulDiv (s_kInputLabelGapDp, (int) dpi, s_kBaseDpi);
-        int             ix       = input.rc.left;
-        float           fontPx   = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
-        int             i        = 0;
-
-        m_inputLabelRc = {};
-
-        for (i = 0; i < 3; i++)
-        {
-            m_inputSegs[i].rc = {};
-        }
-
-        if (input.labeled)
-        {
-            int  labelW = MeasureLabelPx (s_kInputLabel, fontPx) + 3;
-
-            m_inputLabelRc = RECT { ix, top, ix + labelW, bottom };
-            ix += labelW + labelGap;
-
-            for (i = 0; i < InputSegCount(); i++)
-            {
-                m_inputSegs[i].rc = RECT { ix, top, ix + segW, bottom };
-                ix += segW + ((i + 1 < InputSegCount()) ? segGap : 0);
-            }
-        }
-    }
-
-    // The flyout hangs under the volume button, centered on it; the slider
-    // fills it inside the padding, readout under the track.
-    {
-        const Button &  volume = GetEntry (Entry::Volume);
-        int             flyW   = MulDiv (s_kFlyoutWidthDp,  (int) dpi, s_kBaseDpi);
-        int             flyH   = MulDiv (s_kFlyoutHeightDp, (int) dpi, s_kBaseDpi);
-        int             flyPad = MulDiv (s_kFlyoutPadDp,    (int) dpi, s_kBaseDpi);
-        int             drop   = MulDiv (s_kFlyoutDropDp,   (int) dpi, s_kBaseDpi);
-        int             fx     = volume.rc.left + ((volume.rc.right - volume.rc.left) - flyW) / 2;
-
-        fx         = (std::max) (fx, (int) m_barRect.left);
-        m_flyoutRc = RECT { fx, m_barRect.bottom + drop,
-                            fx + flyW, m_barRect.bottom + drop + flyH };
-
-        m_volumeSlider.SetRect (RECT { m_flyoutRc.left + flyPad,  m_flyoutRc.top + flyPad,
-                                       m_flyoutRc.right - flyPad, m_flyoutRc.bottom - flyPad });
-        m_volumeSlider.SetDpi  (dpi);
-    }
-
-    SetBounds (m_barRect);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::GetTooltipAt
-//
-//  A collapsed entry has no label on the strip, so its name surfaces as a
-//  tooltip (the shell owns the DxuiTooltip and its dwell timing).
-//
-//  A button carrying an EXPLICIT tip shows it in every form, collapsed or
-//  not. Those tips say something the label cannot -- which machine Reset acts
-//  on, the open-apple chord, what the theme name is a theme OF -- so
-//  suppressing them wherever a label happens to be visible would hide the
-//  only place that information appears.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * CommandToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
-{
-    const wchar_t *  tip = nullptr;
-
-
-
-    // The input segments carry no labels in ANY form -- the shared label only
-    // names the group -- so their tooltips always show and lead with the mode.
-    if (IsInputExpanded())
-    {
-        static constexpr const wchar_t * s_kSegTips[3] =
-            { s_kTipJoystickSeg, s_kTipPaddleSeg, s_kTipMouseSeg };
-
-        for (int i = 0; i < InputSegCount(); i++)
-        {
-            if (tip == nullptr && IsPointInRect (m_inputSegs[i].rc, x, y))
-            {
-                anchor = m_inputSegs[i].rc;
-                tip    = s_kSegTips[i];
-            }
-        }
-    }
-
-    for (const Button & btn : m_buttons)
-    {
-        bool  over = tip == nullptr && btn.enabled && IsPointInRect (btn.rc, x, y);
-
-        if (!over)
-        {
-            continue;
-        }
-
-        // The volume button's tip names the action it would take, not its
-        // state; the collapsed input entry names the group it stands for.
-        if (btn.entry == Entry::Volume && !btn.labeled)
-        {
-            anchor = btn.rc;
-            tip    = m_muted ? L"Unmute" : L"Mute";
-        }
-        else if (btn.entry == Entry::Input && !btn.labeled)
-        {
-            anchor = btn.rc;
-            tip    = s_kTipInput;
-        }
-        else if (!btn.tip.empty())
-        {
-            anchor = btn.rc;
-            tip    = btn.tip.c_str();
-        }
-        else if (!btn.labeled)
-        {
-            anchor = btn.rc;
-            tip    = btn.label;
-        }
-    }
-
-    return tip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::OnToolbarMouseMove
-//
-//  Shell-forwarded pointer motion. The slider gets first claim while it is
-//  tracking a drag; otherwise hover states update per entry.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
-{
-    bool  over = false;
-
-
-
-    UNREFERENCED_PARAMETER (leftDown);
-
-
-    if (m_flyoutOpen && m_volumeSlider.OnMouseMove (x, y))
-    {
-        over = true;
-    }
-
-    if (m_flyoutOpen)
-    {
-        m_volumeSlider.SetMouseHover (x, y);
-    }
-
-    for (Button & btn : m_buttons)
-    {
-        btn.hovered = btn.enabled && IsPointInRect (btn.rc, x, y);
-        if (!btn.hovered) { btn.pressed = false; }
-        over = over || btn.hovered;
-    }
-
-    // An expanded input entry is its segments, so the entry itself never
-    // draws hover chrome around them.
-    if (IsInputExpanded())
-    {
-        GetEntry (Entry::Input).hovered = false;
-
-        for (int i = 0; i < InputSegCount(); i++)
-        {
-            m_inputSegs[i].hovered = IsPointInRect (m_inputSegs[i].rc, x, y);
-            if (!m_inputSegs[i].hovered) { m_inputSegs[i].pressed = false; }
-            over = over || m_inputSegs[i].hovered;
-        }
-    }
-
-    // The flyout opens on hover over the volume button and stays while the
-    // pointer remains in the button-flyout corridor -- the union rect, so
-    // the travel across the bar's bottom margin cannot close it. A drag in
-    // progress pins it open regardless (the pointer may leave the track).
-    if (GetEntry (Entry::Volume).hovered)
-    {
-        m_flyoutOpen = true;
-    }
-    else if (m_flyoutOpen && !m_volumeSlider.IsDragging() &&
-             !IsPointInRect (FlyoutKeepAliveRc(), x, y))
-    {
-        m_flyoutOpen = false;
-    }
-
-    return over || (m_flyoutOpen && IsPointInRect (m_flyoutRc, x, y)) ||
-           IsPointInRect (m_barRect, x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::OnToolbarMouseLeave
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::OnToolbarMouseLeave()
-{
-    for (Button & btn : m_buttons)
-    {
-        btn.hovered = false;
-        btn.pressed = false;
-    }
-
-    for (InputSeg & seg : m_inputSegs)
-    {
-        seg.hovered = false;
-        seg.pressed = false;
-    }
-
-    // The pointer left the window entirely; a drag can survive that (the
-    // shell keeps forwarding while captured), so only close when idle. An
-    // open menu is a separate window the pointer has just moved into, so
-    // leaving the strip must not close that either.
-    if (!m_volumeSlider.IsDragging())
-    {
-        m_flyoutOpen = false;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::OnToolbarLButtonDown
-//
-//  Press handling: arm an entry, start a slider drag, or eat the click.
-//
-//  AN OPEN MENU TAKES THE PRESS AND NOTHING ELSE DOES. Clicking anywhere on
-//  the strip while a menu is up dismisses it, which is what makes the picker
-//  buttons toggle instead of reopening the menu the same click just closed.
-//
-//  The volume slider gets first claim after that, but only while UNMUTED. A
-//  muted slider is inert, so a press there should fall through to the bar
-//  rather than starting a drag that changes a value nobody can hear.
-//
-//  A press only ARMS an entry; the command fires on release. That is what
-//  makes press-then-drag-off cancel, the behavior every Windows button has.
-//
-//  A press on the bar's DEAD SPACE is still consumed. The toolbar sits over
-//  the emulator viewport, so an unclaimed click would otherwise reach the
-//  guest -- clicking the empty part of a toolbar must not type into the //e or
-//  move the guest mouse.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
-{
-    bool  handled = false;
-
-
-
-    if (IsMenuOpen())
-    {
-        HideMenus();
-
-        return true;
-    }
-
-    handled = m_flyoutOpen && !m_muted && m_volumeSlider.OnLButtonDown (x, y);
-
-    for (Button & btn : m_buttons)
-    {
-        bool  expandedInput = btn.entry == Entry::Input && btn.labeled;
-
-        if (!handled && !expandedInput && btn.enabled && IsPointInRect (btn.rc, x, y))
-        {
-            btn.pressed = true;
-            handled     = true;
-        }
-    }
-
-    if (IsInputExpanded())
-    {
-        for (int i = 0; !handled && i < InputSegCount(); i++)
-        {
-            if (IsPointInRect (m_inputSegs[i].rc, x, y))
-            {
-                m_inputSegs[i].pressed = true;
-                handled                = true;
-            }
-        }
-    }
-
-    // Clicks on the bar's dead space -- and the open flyout's -- are eaten
-    // so they do not fall through to whatever is behind.
-    return handled || IsPointInRect (m_barRect, x, y) ||
-           (m_flyoutOpen && IsPointInRect (m_flyoutRc, x, y));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::OnToolbarLButtonUp
-//
-//  Release handling: act on a completed click, and clear every pressed visual.
-//
-//  The loop clears EVERY entry's pressed state regardless of where the release
-//  landed, because a press that ends elsewhere is a cancel and must leave
-//  nothing stuck down. Only a press and release on the SAME entry acts.
-//
-//  What "act" means depends on the entry: a command dispatches, a picker opens
-//  its menu, and mute is handled locally rather than dispatched, because it
-//  owns state the slider reads back -- routing it through the command path
-//  would put the toolbar's own model a round trip behind its own control.
-//
-//  Like the press, a release on dead space is consumed so it cannot reach the
-//  emulator viewport underneath.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
-{
-    bool   handled = m_volumeSlider.OnLButtonUp (x, y);
-    Entry  opening = Entry::Count;
-
-
-
-    for (Button & btn : m_buttons)
-    {
-        bool  wasPressed = btn.pressed;
-
-        btn.pressed = false;
-
-        if (handled || !wasPressed || !btn.enabled || !IsPointInRect (btn.rc, x, y))
-        {
-            continue;
-        }
-
-        if (btn.entry == Entry::Volume)
-        {
-            SetVolume (m_volume01, !m_muted);
-
-            if (m_volumeSink) { m_volumeSink (m_volume01, m_muted); }
-        }
-        else if (btn.entry == Entry::Theme || btn.entry == Entry::Color || btn.entry == Entry::Input)
-        {
-            // Deferred: Show() runs after the loop, so opening a menu cannot
-            // disturb the pressed-state sweep that is still in progress.
-            opening = btn.entry;
-        }
-        else if (m_dispatch)
-        {
-            m_dispatch (btn.id);
-        }
-
-        handled = true;
-    }
-
-    // Input segments: press-and-release on the same segment toggles its mode.
-    for (int i = 0; i < 3; i++)
-    {
-        bool  segWasPressed = m_inputSegs[i].pressed;
-
-        m_inputSegs[i].pressed = false;
-
-        if (!handled && segWasPressed && i < InputSegCount() &&
-            IsPointInRect (m_inputSegs[i].rc, x, y))
-        {
-            if (m_inputSink) { m_inputSink (s_kInputModes[i]); }
-            handled = true;
-        }
-    }
-
-    if (opening != Entry::Count && !IsReopenSuppressed())
-    {
-        OpenMenuFor (opening);
-    }
-
-    return handled || IsPointInRect (m_barRect, x, y) ||
-           (m_flyoutOpen && IsPointInRect (m_flyoutRc, x, y));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::PaintEntryIcon
-//
-//  Most icons are one Segoe MDL2 cell. The two that are not are drawn in the
-//  same monoline pen as the input peripherals, because the set has no glyph
-//  for what they mean: the monitor button lights its screen in the phosphor it
-//  would switch to, which is the only way a one-cell button can state a color.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::PaintEntryIcon (const Button & btn, IDxuiPainter & painter, IDxuiTextRenderer & text,
-                                     float iconX, float iconTop, float iconDip, float rowH, uint32_t ink)
-{
-    HRESULT  hr       = S_OK;
-    wchar_t  glyph[2] = { btn.glyph, 0 };
-    RECT     box      = {};
-
-
-
-    if (btn.glyph != 0)
-    {
-        hr = text.DrawString (glyph, iconX, iconTop, iconDip + 2.0f, rowH,
-                              ink, iconDip, s_kIconFamily,
-                              DxuiTextRenderer::HAlign::Left,
-                              DxuiTextRenderer::VAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-    else
-    {
-        box.left   = (int) iconX;
-        box.top    = (int) (iconTop + (rowH - iconDip) * 0.5f);
-        box.right  = box.left + (int) iconDip;
-        box.bottom = box.top  + (int) iconDip;
-
-        // The input devices are the only drawn icon: MDL2 has no joystick, and
-        // one hand-drawn glyph beside two from the font would mismatch stroke
-        // weight, so the whole device set is drawn with the same pen.
-        if (btn.entry == Entry::Input)
-        {
-            PaintJoystickMono (painter, box, ink);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandToolbar::PaintButton
-//
-//  Draws one entry: an icon, and its label beside it when it still has one.
-//
-//  Background chrome is drawn ONLY when hovered or pressed. An idle toolbar
-//  shows bare icons on the bar, which is what keeps a row of ten buttons from
-//  reading as ten boxes.
-//
-//  Disabled buttons dim the ink by rewriting its ALPHA rather than
-//  substituting a theme color, so the disabled look follows whatever the
-//  theme's foreground is instead of needing a matching swatch per theme.
-//
-//  The status LED is positioned relative to the ICON, not the button, so it
-//  stays pinned to the glyph's corner regardless of how much label space the
-//  entry's current form leaves around it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
-                                  IDxuiTextRenderer & text, const CassoTheme & theme)
-{
-    HRESULT           hr        = S_OK;
-    bool              active    = btn.hovered || btn.pressed;
-    float             bl        = (float) btn.rc.left;
-    float             bt        = (float) btn.rc.top;
-    float             bw        = (float) (btn.rc.right  - btn.rc.left);
-    float             bh        = (float) (btn.rc.bottom - btn.rc.top);
-    float             fontDip   = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;
-    float             iconDip   = s_kIconDip * (float) m_dpi / (float) s_kBaseDpi;
-    int               padX      = MulDiv (s_kBtnPadXDp, (int) m_dpi, s_kBaseDpi);
-    int               iconGap   = MulDiv (s_kIconGapDp, (int) m_dpi, s_kBaseDpi);
-    uint32_t          ink       = theme.navItemText;
-    float             iconX     = 0.0f;
-    float             textX     = 0.0f;
-    const wchar_t *   labelText = btn.label;
-
-
-
-    if (!btn.enabled)
-    {
-        ink = (ink & 0x00FFFFFFu) | 0x60000000u;   // dimmed
-    }
-
-    if (active)
-    {
-        uint32_t  fill = btn.pressed ? theme.buttonPressed
-                                     : (btn.hovered ? theme.buttonHover : theme.buttonIdle);
-
-        painter.FillRect    (bl, bt, bw, bh, fill);
-        painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.buttonBorder);
-    }
-
-    // A labeled entry keeps its icon left-padded with the label beside it; a
-    // collapsed one centers the icon in what is left.
-    iconX = btn.labeled ? bl + (float) padX : bl + (bw - iconDip) * 0.5f;
-
-    PaintEntryIcon (btn, painter, text, iconX, bt, iconDip, bh, ink);
-
-    if (btn.statusLed)
-    {
-        PaintStatusLed (painter, iconX + iconDip + 1.0f,
-                        bt + bh * 0.5f - iconDip * 0.48f, m_dpi,
-                        GetStatusCoreColor (m_printerStatus));
-    }
-
-    // The collapsed input entry borrows the same light to say that SOMETHING
-    // is mapped; which device it is lives in the menu behind it.
-    if (btn.entry == Entry::Input && !btn.labeled)
-    {
-        bool  anyMapped = m_arrowsJoystick || m_pointerMode != InputMappingMode::Off;
-
-        PaintStatusLed (painter, iconX + iconDip + 1.0f,
-                        bt + bh * 0.5f - iconDip * 0.48f, m_dpi,
-                        anyMapped ? theme.ledActive : 0);
-    }
-
-    if (btn.labeled && labelText != nullptr && labelText[0] != 0)
-    {
-        textX = bl + (float) padX + iconDip + (float) iconGap;
-
-        hr = text.DrawString (labelText, textX, bt,
-                              (float) btn.rc.right - textX, bh,
-                              ink, fontDip, s_kFontFamily,
-                              DxuiTextRenderer::HAlign::Left,
-                              DxuiTextRenderer::VAlign::CenterOnCapHeight);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    m_toolbar.Layout (boundsDip, scaler);
+    SetBounds (m_toolbar.GetBounds());
 }
 
 
@@ -1588,69 +984,66 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
 //
 //  CommandToolbar::Paint
 //
-//  A bottom hairline separates the strip from the emulator viewport; entries
-//  paint over the window's existing chrome backdrop (frameless until hovered,
-//  like the rest of the chrome).
+//  The strip continues the menu bar's themed surface (navStrip), so the two
+//  chrome rows above the emulator read as one block, and its labels take the
+//  bar's ink; neither is a color the generic theme mapping carries, so both
+//  are pushed to the widget here, per paint, from the palette in hand.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
     const CassoTheme &  theme = static_cast<const CassoTheme &> (dxuiTheme);
-    float               bl    = 0.0f;
-    float               btTop = 0.0f;
-    float               bw    = 0.0f;
-    float               bhAll = 0.0f;
 
 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
 
-    // The picker menus paint into their own popup windows, outside this call,
-    // so they have to be handed the palette here -- without it PaintBody bails
-    // and the menu comes up as an empty box.
-    m_themeMenu.SetTheme (&dxuiTheme);
-    m_colorMenu.SetTheme (&dxuiTheme);
-    m_inputMenu.SetTheme (&dxuiTheme);
+    m_toolbar.SetStripColors (theme.navStrip, theme.navItemText);
+    m_toolbar.Paint (painter, text, dxuiTheme);
+}
 
-    bl = (float) m_barRect.left;
-    btTop = (float) m_barRect.top;
-    bw = (float) (m_barRect.right - m_barRect.left);
-    bhAll = (float) (m_barRect.bottom - m_barRect.top);
 
-    if (bw <= 0.0f)
-    {
-        return;
-    }
 
-    // The strip continues the menu bar's themed surface (navStrip), so the
-    // two chrome rows above the emulator read as one block; a hairline
-    // separates the toolbar from the viewport below.
-    painter.FillRect (bl, btTop, bw, bhAll, theme.navStrip);
-    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.buttonBorder);
 
-    // The printer button follows card presence: no card, no printer button.
-    GetEntry (Entry::Printer).enabled = m_printerPresent;
 
-    for (Button & btn : m_buttons)
-    {
-        if (btn.entry == Entry::Input && btn.labeled)
-        {
-            PaintInputCluster (painter, text, theme);
-        }
-        else
-        {
-            PaintButton (btn, painter, text, theme);
-        }
-    }
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::PaintInputCollapsed
+//
+//  The collapsed input entry: the joystick drawn in the same monoline pen as
+//  the segments, centered where a font glyph would sit, and the same light
+//  the printer carries to say that SOMETHING is mapped; which device it is
+//  lives in the menu behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    // The flyout paints LAST: it hangs below the bar over whatever chrome or
-    // scene is there, and everything on the bar must be under it. The picker
-    // menus are real popup windows and paint themselves.
-    if (m_flyoutOpen)
-    {
-        PaintVolumeFlyout (painter, text, theme);
-    }
+void CommandToolbar::PaintInputCollapsed (IDxuiPainter & painter, const CassoTheme & theme, const RECT & rc)
+{
+    float  bl        = (float) rc.left;
+    float  bt        = (float) rc.top;
+    float  bw        = (float) (rc.right  - rc.left);
+    float  bh        = (float) (rc.bottom - rc.top);
+    float  iconDip   = s_kIconDip * (float) m_dpi / (float) s_kBaseDpi;
+    float  iconX     = bl + (bw - iconDip) * 0.5f;
+    bool   anyMapped = m_arrowsJoystick || m_pointerMode != InputMappingMode::Off;
+    RECT   box       = {};
+
+
+
+    box.left   = (int) iconX;
+    box.top    = (int) (bt + (bh - iconDip) * 0.5f);
+    box.right  = box.left + (int) iconDip;
+    box.bottom = box.top  + (int) iconDip;
+
+    // The input devices are the only drawn icon: MDL2 has no joystick, and
+    // one hand-drawn glyph beside two from the font would mismatch stroke
+    // weight, so the whole device set is drawn with the same pen.
+    PaintJoystickMono (painter, box, theme.navItemText);
+
+    PaintStatusLed (painter, iconX + iconDip + 1.0f,
+                    bt + bh * 0.5f - iconDip * 0.48f, m_dpi,
+                    anyMapped ? theme.ledActive : 0);
 }
 
 
@@ -1671,7 +1064,7 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRenderer & text,
-                                        const CassoTheme & theme)
+                                        const CassoTheme & theme, const RECT & rc)
 {
     HRESULT   hr       = S_OK;
     float     fontDip  = s_kFontDip * (float) m_dpi / (float) s_kBaseDpi;
@@ -1683,6 +1076,8 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
     uint32_t  labelInk = theme.navItemText;   // same ink as the button labels
 
 
+
+    UNREFERENCED_PARAMETER (rc);
 
     if (m_inputLabelRc.right > m_inputLabelRc.left)
     {
@@ -1744,10 +1139,9 @@ void CommandToolbar::PaintInputCluster (IDxuiPainter & painter, IDxuiTextRendere
                     // the same em as every other icon on the bar.
                     case 2:
                     {
-                        wchar_t  glyph[2] = { s_kGlyphMouse, 0 };
-                        float    emDip    = s_kIconDip * (float) m_dpi / (float) s_kBaseDpi;
+                        float  emDip = s_kIconDip * (float) m_dpi / (float) s_kBaseDpi;
 
-                        hr = text.DrawString (glyph, (float) box.left, (float) box.top,
+                        hr = text.DrawString (s_kGlyphMouse, (float) box.left, (float) box.top,
                                               (float) iconD, (float) iconD,
                                               theme.navItemText, emDip, s_kIconFamily,
                                               DxuiTextHAlign::Center, DxuiTextVAlign::Center);
@@ -1926,33 +1320,257 @@ void CommandToolbar::PaintPaddleMono (IDxuiPainter & painter, const RECT & box, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::PaintVolumeFlyout
-//
-//  A small panel hanging under the volume button: themed surface, hairline
-//  border, and the vertical slider with its % readout under the track. The
-//  panel background must be OPAQUE -- it floats over the live scene, and a
-//  translucent flyout would read as a rendering artifact.
+//  CommandToolbar::InputCluster::GetWidthPx / Layout / Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandToolbar::PaintVolumeFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
-                                        const CassoTheme & theme)
+int CommandToolbar::InputCluster::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const
 {
-    float  fl = (float) m_flyoutRc.left;
-    float  ft = (float) m_flyoutRc.top;
-    float  fw = (float) (m_flyoutRc.right  - m_flyoutRc.left);
-    float  fh = (float) (m_flyoutRc.bottom - m_flyoutRc.top);
+    UNREFERENCED_PARAMETER (text);
+
+    return m_owner.GetInputWidthPx (labeled, scaler.GetDpi());
+}
 
 
-
-    painter.FillRect (fl - 1.0f, ft - 1.0f, fw + 2.0f, fh + 2.0f, theme.buttonBorder);
-    painter.FillRect (fl, ft, fw, fh, theme.navStrip);
-
-    m_volumeSlider.SetEnabled (!m_muted);
-    m_volumeSlider.Paint (painter, text, theme);
+void CommandToolbar::InputCluster::Layout (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler)
+{
+    m_owner.LayoutInput (rc, labeled, scaler.GetDpi());
 }
 
 
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::InputCluster::Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::InputCluster::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme,
+                                          bool hovered, bool pressed, bool labeled)
+{
+    const CassoTheme &  casso = static_cast<const CassoTheme &> (theme);
+
+
+
+    UNREFERENCED_PARAMETER (hovered);
+    UNREFERENCED_PARAMETER (pressed);
+
+    if (labeled)
+    {
+        m_owner.PaintInputCluster (painter, text, casso, m_owner.m_inputRc);
+    }
+    else
+    {
+        m_owner.PaintInputCollapsed (painter, casso, m_owner.m_inputRc);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::InputCluster::GetTooltipAt
+//
+//  The input segments carry no labels in ANY form -- the shared label only
+//  names the group -- so their tooltips always show and lead with the mode.
+//  Collapsed, the segments have no rects, and the entry's own name serves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CommandToolbar::InputCluster::GetTooltipAt (int x, int y, RECT & anchor) const
+{
+    static constexpr const wchar_t * s_kSegTips[3] =
+        { s_kTipJoystickSeg, s_kTipPaddleSeg, s_kTipMouseSeg };
+
+
+
+    for (int i = 0; i < m_owner.InputSegCount(); i++)
+    {
+        if (IsPointInRect (m_owner.m_inputSegs[i].rc, x, y))
+        {
+            anchor = m_owner.m_inputSegs[i].rc;
+            return s_kSegTips[i];
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::InputCluster::OnMouseMove / OnMouseLeave / OnLButtonDown / OnClick
+//
+//  Press-and-release on the same segment toggles its mode; a click that
+//  lands on no segment is the entry's, which collapsed means its menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandToolbar::InputCluster::OnMouseMove (int x, int y)
+{
+    bool  over = false;
+
+
+
+    for (int i = 0; i < m_owner.InputSegCount(); i++)
+    {
+        InputSeg &  seg = m_owner.m_inputSegs[i];
+
+        seg.hovered = IsPointInRect (seg.rc, x, y);
+        if (!seg.hovered) { seg.pressed = false; }
+        over = over || seg.hovered;
+    }
+
+    return over;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::InputCluster::OnMouseLeave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::InputCluster::OnMouseLeave()
+{
+    for (InputSeg & seg : m_owner.m_inputSegs)
+    {
+        seg.hovered = false;
+        seg.pressed = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::InputCluster::OnLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandToolbar::InputCluster::OnLButtonDown (int x, int y)
+{
+    for (int i = 0; i < m_owner.InputSegCount(); i++)
+    {
+        if (IsPointInRect (m_owner.m_inputSegs[i].rc, x, y))
+        {
+            m_owner.m_inputSegs[i].pressed = true;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::InputCluster::OnClick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandToolbar::InputCluster::OnClick (int x, int y)
+{
+    bool  consumed = false;
+
+
+
+    for (int i = 0; i < 3; i++)
+    {
+        InputSeg &  seg        = m_owner.m_inputSegs[i];
+        bool        wasPressed = seg.pressed;
+
+        seg.pressed = false;
+
+        if (!consumed && wasPressed && i < m_owner.InputSegCount() && IsPointInRect (seg.rc, x, y))
+        {
+            if (m_owner.m_inputSink) { m_owner.m_inputSink (s_kInputModes[i]); }
+            consumed = true;
+        }
+    }
+
+    return consumed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::VolumePanel::Layout / Paint / OnMouse
+//
+//  The slider gets first claim on motion while it is tracking a drag, and
+//  only starts one while UNMUTED: a muted slider is inert, so a press there
+//  falls through to the bar rather than starting a drag that changes a value
+//  nobody can hear.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::VolumePanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    m_owner.m_volumeSlider.SetRect (boundsDip);
+    m_owner.m_volumeSlider.SetDpi  (scaler.GetDpi());
+    SetBounds (boundsDip);
+}
+
+
+void CommandToolbar::VolumePanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    m_owner.m_volumeSlider.SetEnabled (!m_owner.m_muted);
+    m_owner.m_volumeSlider.Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::VolumePanel::OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandToolbar::VolumePanel::OnMouse (const DxuiMouseEvent & ev)
+{
+    DxuiSlider &  slider  = m_owner.m_volumeSlider;
+    bool          handled = false;
+
+
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        handled = slider.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+        slider.SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        break;
+
+    case DxuiMouseEventKind::Down:
+        handled = !m_owner.m_muted && slider.OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        break;
+
+    case DxuiMouseEventKind::Up:
+        handled = slider.OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        break;
+
+    default:
+        break;
+    }
+
+    return handled;
+}

@@ -2,11 +2,12 @@
 
 #include "Pch.h"
 
+#include "Core/DxuiCommand.h"
 #include "Core/IDxuiControl.h"
 #include "Devices/Printer/PrinterStatusModel.h"   // PrinterStatus
 #include "Ui/UiCommandTypes.h"                       // InputMappingMode
-#include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiSlider.h"
+#include "Widgets/DxuiToolbar.h"
 
 
 class DxuiHwndSource;
@@ -19,37 +20,22 @@ class DxuiHwndSource;
 //
 //  CommandToolbar
 //
-//  The main window's command toolbar (spec 015 DCR-2): a chrome strip below
-//  the menu bar carrying the most-used commands as icon + label buttons --
-//  Settings, the theme and monitor-color pickers, Printer (with its status
-//  LED, replacing the retired standalone printer indicator), the master
-//  Volume slider + Mute, the input devices, Fullscreen, Screenshot, Reset,
-//  and Power. Buttons are frameless until hovered / pressed (matching
-//  the drive widgets) and dispatch their existing IDM_* command through
-//  the same HandleCommand path as the menu, so the toolbar adds no new
-//  command semantics.
+//  The main window's command toolbar: a chrome strip below the menu bar
+//  carrying the most-used commands as icon + label buttons -- Settings, the
+//  theme and monitor-color pickers, Printer (with its status LED), the
+//  master Volume slider + Mute, the input devices, Fullscreen, Screenshot,
+//  Reset, and Power.
 //
-//  RESPONSIVE BEHAVIOR: every entry has a full form (icon + label, and for
-//  the input devices a row of LED segments) and a collapsed form that is a
-//  single icon. When the strip runs out of room entries collapse ONE AT A
-//  TIME FROM THE RIGHT, so the leftmost keep their names longest and no
-//  entry ever falls off the end. The three entries that are pickers rather
-//  than commands -- theme, monitor color, input -- open a checkable popup
-//  menu, which is what lets them collapse to one icon without losing
-//  anything.
+//  The strip itself is a DxuiToolbar. This class is what is left of the
+//  emulator's side of it: the command table, the picker rows, the printer
+//  light, the volume flyout's slider and the input cluster, wired into the
+//  widget and presented to the shell through the surface the shell already
+//  calls. It is a wrapper on its way out; the parts it still carries move
+//  into their own files next.
 //
-//  Icons are Segoe MDL2 Assets glyphs (the repo's established icon face)
-//  except for the input devices, which the set has no joystick for and which
-//  are drawn in a monoline pen matching it. The Printer button carries a
-//  status-LED dot on its glyph's corner. That light is EVENT-ONLY
-//  -- unlit while idle (no light = no problem): bright green = receiving a
-//  print, bright amber = a finished page is waiting, bright red = delivery
-//  error.
-//
-//  Input is hand-routed by EmulatorShell (like the joystick button): the
-//  shell forwards mouse events to OnMouseMove / OnLButtonDown / OnLButtonUp,
-//  which also drive the embedded DxuiSlider. Volume changes surface through
-//  the VolumeFn sink as (volume01, muted).
+//  Input is hand-routed by EmulatorShell: the shell forwards mouse events to
+//  OnToolbarMouseMove / OnToolbarLButtonDown / OnToolbarLButtonUp. Volume
+//  changes surface through the VolumeFn sink as (volume01, muted).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +62,7 @@ public:
 
     // The DWrite renderer used to measure labels during Layout (the shell's
     // chrome text renderer; must outlive this control).
-    void  SetTextRenderer   (IDxuiTextRenderer * text)   { m_textRenderer = text; }
+    void  SetTextRenderer   (IDxuiTextRenderer * text)   { m_textRenderer = text; m_toolbar.SetTextRenderer (text); }
 
     void  SetDispatch       (DispatchFn fn)              { m_dispatch = std::move (fn); }
     void  SetVolumeSink     (VolumeFn fn)                { m_volumeSink = std::move (fn); }
@@ -103,13 +89,13 @@ public:
     // Routes the picker menus through the host's popup-window pool so they
     // escape the strip and hang over the emulator viewport, and supplies the
     // client rect they are kept inside.
-    void  SetPopupHost         (DxuiHwndSource * host);
-    void  SetHostClientRect    (const RECT & clientRect) { m_hostClient = clientRect; }
+    void  SetPopupHost         (DxuiHwndSource * host)   { m_toolbar.SetPopupHost (host); }
+    void  SetHostClientRect    (const RECT & clientRect) { m_toolbar.SetHostClientRect (clientRect); }
 
     // An open menu owns the keyboard: the shell hands it every keydown so
     // arrowing through the rows previews instead of typing into the guest.
-    bool  IsMenuOpen           () const;
-    bool  HandleKey            (WPARAM vk);
+    bool  IsMenuOpen           () const                  { return m_toolbar.IsMenuOpen(); }
+    bool  HandleKey            (WPARAM vk)               { return m_toolbar.HandleKey (vk); }
 
     // Input-mode entry: one "Input" label over three LED + glyph segments
     // (joystick / paddle / mouse) while it has room, and a single icon with
@@ -128,7 +114,7 @@ public:
     // The volume flyout (vertical slider + readout) opens on hover over the
     // volume button and closes when the pointer leaves button + flyout.
     // Exposed so the shell can keep presenting frames while it is up.
-    bool  IsVolumeFlyoutOpen () const                    { return m_flyoutOpen; }
+    bool  IsVolumeFlyoutOpen () const                    { return m_toolbar.IsFlyoutOpen (s_kIdVolume); }
 
     // Seed the volume controls from persisted prefs (no sink callback).
     void  SetVolume         (float volume01, bool muted);
@@ -141,11 +127,11 @@ public:
     // Shell-forwarded mouse input. Return true when the event was consumed
     // (over a button, or the slider is tracking a drag).
     bool  OnToolbarMouseMove   (int x, int y, bool leftDown);
-    void  OnToolbarMouseLeave  ();
-    bool  OnToolbarLButtonDown (int x, int y);
-    bool  OnToolbarLButtonUp   (int x, int y);
+    void  OnToolbarMouseLeave  ()                        { m_toolbar.OnToolbarMouseLeave(); }
+    bool  OnToolbarLButtonDown (int x, int y)            { return m_toolbar.OnToolbarLButtonDown (x, y); }
+    bool  OnToolbarLButtonUp   (int x, int y)            { return m_toolbar.OnToolbarLButtonUp (x, y); }
 
-    bool  HitTest           (int x, int y) const;
+    bool  HitTest           (int x, int y) const         { return m_toolbar.HitTest (x, y); }
 
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
@@ -168,25 +154,12 @@ private:
         Count,
     };
 
-    // One entry on the strip. `glyph` is a Segoe MDL2 codepoint, or 0 when
-    // the icon is drawn instead (the input devices). The pickers label
-    // themselves with their PURPOSE, not with the value they hold: the value
-    // is one click away in the menu, and a label that changes with it moves
-    // every button to its right whenever the setting changes.
-    struct Button
-    {
-        Entry            entry     = Entry::Settings;
-        WORD             id        = 0;         // 0 => not a dispatch
-        wchar_t          glyph     = 0;         // 0 => drawn, see PaintEntryIcon
-        const wchar_t *  label     = nullptr;
-        std::wstring     tip;                   // shown in EVERY form; see GetTooltipAt
-        bool             statusLed = false;
-        RECT             rc        = {};
-        bool             hovered   = false;
-        bool             pressed   = false;
-        bool             enabled   = true;
-        bool             labeled   = true;      // set by the collapse pass
-    };
+    // Ids for the entries that are not commands of the menu's: the pickers
+    // and the flyout. Menu command ids start at 40001, so nothing collides.
+    static constexpr int  s_kIdTheme  = 1;
+    static constexpr int  s_kIdColor  = 2;
+    static constexpr int  s_kIdVolume = 3;
+    static constexpr int  s_kIdInput  = 4;
 
     // One input segment: LED + peripheral glyph, no label of its own (the
     // entry's shared label + per-segment tooltips carry the names).
@@ -197,28 +170,84 @@ private:
         bool  pressed = false;
     };
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  CommandToolbar::InputCluster
+    //
+    //  The input entry as the widget sees it: a shared "Input" label over LED
+    //  + glyph segments while expanded, one drawn icon with a light while
+    //  collapsed. Everything it does is the toolbar's own state, so it is a
+    //  view onto its owner rather than a thing of its own.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    class InputCluster : public IDxuiToolbarCustomEntry
+    {
+    public:
+        explicit InputCluster (CommandToolbar & owner) : m_owner (owner) {}
+
+        int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
+        void             Layout        (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler) override;
+        void             Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme,
+                                        bool hovered, bool pressed, bool labeled) override;
+        const wchar_t *  GetTooltipAt  (int x, int y, RECT & anchor) const override;
+        bool             OnClick       (int x, int y) override;
+        bool             OnMouseMove   (int x, int y) override;
+        void             OnMouseLeave  () override;
+        bool             OnLButtonDown (int x, int y) override;
+
+    private:
+        CommandToolbar &  m_owner;
+    };
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  CommandToolbar::VolumePanel
+    //
+    //  The slider as the flyout hosts it. A muted slider is inert, so a press
+    //  on it falls through to the bar rather than starting a drag that changes
+    //  a value nobody can hear.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    class VolumePanel : public IDxuiControl
+    {
+    public:
+        explicit VolumePanel (CommandToolbar & owner) : m_owner (owner) {}
+
+        void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+        void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+        bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    private:
+        CommandToolbar &  m_owner;
+    };
+
+
     static bool      IsPointInRect      (const RECT & rc, int x, int y);
     static uint32_t  GetStatusCoreColor (PrinterStatus status);
+    static void      PaintStatusLed     (IDxuiPainter & painter, float cx, float cy, UINT dpi, uint32_t core);
 
-    Button       &  GetEntry           (Entry entry)       { return m_buttons[(size_t) entry]; }
-    const Button &  GetEntry           (Entry entry) const { return m_buttons[(size_t) entry]; }
+    DxuiCommand       &  GetCommand  (Entry entry)       { return m_commands[(size_t) entry]; }
+    const DxuiCommand &  GetCommand  (Entry entry) const { return m_commands[(size_t) entry]; }
 
-    int   MeasureLabelPx  (const wchar_t * text, float fontPx) const;
-    int   GetEntryWidthPx (const Button & btn, bool labeled, UINT dpi) const;
-    int   GetTotalWidthPx (int labeledCount, UINT dpi) const;
-
-    void  WireMenus           ();
+    void  BuildCommands       ();
+    void  BuildEntries        ();
     void  RebuildActionTips   ();
-    void  OpenMenuFor         (Entry entry);
-    void  HideMenus           ();
-    bool  IsReopenSuppressed  () const;
+    void  RebuildInputRows    ();
+    void  RebuildThemeRows    ();
+    void  RebuildColorRows    ();
+    void  ToggleMute          ();
 
-    void  PaintButton      (Button & btn, IDxuiPainter & painter,
-                            IDxuiTextRenderer & text, const struct CassoTheme & theme);
-    void  PaintEntryIcon   (const Button & btn, IDxuiPainter & painter, IDxuiTextRenderer & text,
-                            float iconX, float iconTop, float iconDip, float rowH, uint32_t ink);
-    void  PaintInputCluster (IDxuiPainter & painter, IDxuiTextRenderer & text,
-                             const struct CassoTheme & theme);
+    int   MeasureLabelPx      (const wchar_t * text, float fontPx) const;
+    int   GetInputWidthPx     (bool labeled, UINT dpi) const;
+    void  LayoutInput         (const RECT & rc, bool labeled, UINT dpi);
+    void  PaintInputCluster   (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                               const struct CassoTheme & theme, const RECT & rc);
+    void  PaintInputCollapsed (IDxuiPainter & painter, const struct CassoTheme & theme, const RECT & rc);
+    void  PaintPrinterLed     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon);
 
     // A circle outline as line segments -- the painter has filled circles
     // and lines, but no arcs or outlined circles.
@@ -232,18 +261,22 @@ private:
     // Joystick and paddle only: the mouse segment draws MDL2's own glyph.
     static void      PaintJoystickMono (IDxuiPainter & painter, const RECT & box, uint32_t ink);
     static void      PaintPaddleMono   (IDxuiPainter & painter, const RECT & box, uint32_t ink);
-    void             PaintVolumeFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
-                                        const struct CassoTheme & theme);
 
     int              InputSegCount     () const { return m_mouseAvailable ? 3 : 2; }
     bool             InputSegSelected  (int index) const;
-    bool             IsInputExpanded   () const;
-    RECT             FlyoutKeepAliveRc () const;
+    bool             IsInputExpanded   () const { return m_toolbar.IsLabeled (s_kIdInput); }
 
-    std::vector<Button>   m_buttons;        // indexed by Entry, in visual order
-    DxuiSlider            m_volumeSlider;   // vertical, lives in the flyout
+    DxuiToolbar                  m_toolbar;
+    std::vector<DxuiCommand>     m_commands;       // indexed by Entry, in visual order
+    std::vector<DxuiCommand>     m_themeRows;
+    std::vector<DxuiCommand>     m_colorRows;
+    std::vector<DxuiCommand>     m_inputRows;
+    InputCluster                 m_inputCluster;
+    VolumePanel                  m_volumePanel;
+    DxuiSlider                   m_volumeSlider;   // vertical, lives in the flyout
 
     InputSeg              m_inputSegs[3];   // joystick, paddle, mouse
+    RECT                  m_inputRc        = {};
     RECT                  m_inputLabelRc   = {};
     InputFn               m_inputSink;
     bool                  m_arrowsJoystick = false;
@@ -252,35 +285,18 @@ private:
     bool                  m_inputSkeuo     = true;
     bool                  m_inputMonoline  = true;
 
-    DxuiPopupMenu         m_themeMenu;
-    DxuiPopupMenu         m_colorMenu;
-    DxuiPopupMenu         m_inputMenu;
-    ChoiceFn              m_themePreview;
-    ChoiceFn              m_themeCommit;
-    ChoiceFn              m_monitorPreview;
-    ChoiceFn              m_monitorCommit;
-    bool                  m_themePreviewed   = false;   // a highlight moved off the open row
-    bool                  m_colorPreviewed   = false;
-    uint64_t              m_menuClosedMs     = 0;       // see IsReopenSuppressed
-
     std::vector<std::wstring>  m_themeNames;
     int                        m_themeIndex = -1;
     int                        m_colorIndex = 0;
 
     std::wstring          m_machineName;
     bool                  m_fullscreen     = false;
-    RECT                  m_hostClient     = {};
-
-    bool                  m_flyoutOpen     = false;
-    RECT                  m_flyoutRc       = {};
 
     IDxuiTextRenderer *   m_textRenderer   = nullptr;
     DispatchFn            m_dispatch;
     VolumeFn              m_volumeSink;
 
-    RECT                  m_barRect        = {};
     UINT                  m_dpi            = 96;
-    int                   m_labeledCount   = (int) Entry::Count;
     float                 m_volume01       = 1.0f;
     bool                  m_muted          = false;
     PrinterStatus         m_printerStatus  = PrinterStatus::Idle;

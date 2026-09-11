@@ -171,6 +171,10 @@ public:
     TEST_METHOD (DxuiPopupMenu_LayoutSetsBounds)       { VerifyLayoutSetsBounds    <DxuiPopupMenu>(); }
     TEST_METHOD (DxuiPopupMenu_PaintIsCallable)        { VerifyPaintIsCallable     <DxuiPopupMenu>(); }
 
+    TEST_METHOD (DxuiToolbar_AddsIntoPanel)            { VerifyAddsIntoPanel       <DxuiToolbar>(); }
+    TEST_METHOD (DxuiToolbar_LayoutSetsBounds)         { VerifyLayoutSetsBounds    <DxuiToolbar>(); }
+    TEST_METHOD (DxuiToolbar_PaintIsCallable)          { VerifyPaintIsCallable     <DxuiToolbar>(); }
+
     TEST_METHOD (DxuiTooltip_AddsIntoPanel)            { VerifyAddsIntoPanel       <DxuiTooltip>(); }
     TEST_METHOD (DxuiTooltip_LayoutSetsBounds)         { VerifyLayoutSetsBounds    <DxuiTooltip>(); }
     TEST_METHOD (DxuiTooltip_PaintIsCallable)          { VerifyPaintIsCallable     <DxuiTooltip>(); }

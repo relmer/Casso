@@ -159,6 +159,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Widgets/DxuiToggle.h"
+#include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiTooltip.h"
 #include "Widgets/DxuiTreeView.h"
 #include "Window/DxuiDragDropTarget.h"

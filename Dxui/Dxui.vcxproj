@@ -171,6 +171,7 @@
     <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
     <ClCompile Include="Widgets\DxuiComboBox.cpp" />
     <ClCompile Include="Widgets\DxuiContextMenu.cpp" />
+    <ClCompile Include="Widgets\DxuiToolbar.cpp" />
     <ClCompile Include="Widgets\DxuiShadowedText.cpp" />
     <ClCompile Include="Widgets\DxuiOrbitControl.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
@@ -243,6 +244,7 @@
     <ClInclude Include="Widgets\DxuiCheckbox.h" />
     <ClInclude Include="Widgets\DxuiComboBox.h" />
     <ClInclude Include="Widgets\DxuiContextMenu.h" />
+    <ClInclude Include="Widgets\DxuiToolbar.h" />
     <ClInclude Include="Widgets\DxuiLabel.h" />
     <ClInclude Include="Widgets\DxuiHudNotice.h" />
     <ClInclude Include="Widgets\DxuiShadowedText.h" />
