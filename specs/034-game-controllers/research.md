@@ -70,11 +70,20 @@ Each entry gives the decision, why, and what was rejected. Items marked **UNVERI
   - Per machine (`MachineInputPrefs`, `$cassoUiPrefs`): `controller` (the selection key) and `controllerProfile` (the active profile name). The existing `arrowsToJoystick` and `pointerMapping` keys are unchanged, so older builds keep reading their own keys.
 - **Rationale**: matches the spec's persistence assumption and reuses the round-trip and in-memory file-system test infrastructure (`UnitTest/UiTests/InMemoryFileSystem.h`).
 
-## R11. The 032 dependency reaches the Machine menu too
+## R11. Menu and toolbar entries on 032's command widgets (as shipped)
 
-- **Finding**: 032 replaces `MainMenu`'s `s_kEntries` table and `CommandToolbar`'s entry table with one `DxuiCommand` table in `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp`, and today's menu has no dynamic items or submenus at all (`CassoEmuCore/Ui/Chrome/MainMenu.cpp:392`). Controller and profile menu entries built now would be written twice.
-- **Decision**: the Machine menu entries and the toolbar pickers are both deferred until 032 is on master (FR-031's spirit extends to the menu). Before that, the feature is fully usable through automatic selection (FR-032) and the Controllers page, which gains a per-machine "use this controller" choice and an active-profile choice. After 032: controller and profile rows become `DxuiCommand`s held in a member vector rebuilt on hot-plug or profile edits (items point at commands, so the storage must stay alive while a dropdown is open), exposed through `DxuiDropdownItem::ForSubmenu` in the Machine menu and through the input cluster's picker (`InputClusterEntry`).
-- **Spec impact**: FR-008 and FR-028 say "input selector (Machine menu and toolbar input control)". This plan delivers the menu half with the toolbar half, after 032. Flagged for the owner in the plan summary.
+032 merged to master (`9adb949e`, `6296ded7`) and is merged into this branch. It diverged from its own contracts, so this plan follows the shipped code, not `specs/032-dxui-command-widgets/contracts/`:
+
+- **Dropdown**: `DxuiPopupMenu` (`Dxui/Widgets/DxuiPopupMenu.h`) is the single dropdown for the menu bar, toolbar pickers and context menus; there is no `DxuiDropdown`. Items are `DxuiPopupMenuItem::ForCommand`, `ForSeparator` and `ForSubmenu (cmd, children)`, holding `const DxuiCommand *`; nested submenus and check marks (from `isChecked`) work.
+- **Menu bar**: `EmulatorCommands` (`CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp`) owns the commands as `std::unique_ptr<DxuiCommand>` and builds the menu bar from the flat `s_kMenuEntries` table, which cannot declare a submenu; `MainMenu` calls `SetItems (BuildMenuItems())` once. `DxuiMenuBar::SetItems` may be called again and closes an open menu first. The Machine id range (40010-40019) is full, and `WindowCommandManager::OnCommand` drops ids outside its ranges.
+- **Toolbar**: the Input entry is `Kind::DropDown` with `InputClusterEntry` as its custom entry. Its collapsed picker is `GetPickerItems()` (mode rows that dispatch themselves), resent with `SetDropDownItems (kIdInput, ...)` by `SyncSelectorState` when its row set changes.
+
+**Decision**:
+
+- A new `ControllerCommands` class (`CassoEmuCore/Ui/Chrome/`) owns controller and profile rows as `std::vector<std::unique_ptr<DxuiCommand>>`, so pointers stay valid while a dropdown is open. Rows dispatch through lambdas into the shell's controller functions rather than through `WM_COMMAND` ids, which avoids a new id range for a list whose length changes. Rows: one per attached controller plus the selected-but-disconnected controller if any (checked = selected), and one per profile of the selected controller's model (checked = active). A fixed `Controller Settings...` command gets a static id in a new range with its own `OnCommand` branch, since it belongs in the static table.
+- `EmulatorMenuEntry` gains a submenu marker: a row with a `submenu` provider value, which `BuildMenuItems` expands to `ForSubmenu (cmd, provider rows)`. The Machine menu gains `Controller` and `Controller Profile` submenus and the `Controller Settings...` item. On hot-plug or profile change the shell rebuilds the rows and calls `SetItems` again, deferred until no menu is open so a device arriving never closes a menu under the user.
+- `InputClusterEntry::GetPickerItems` appends a separator and the same two submenus. The expanded cluster gains a controller segment (gamepad glyph with the existing LED pattern) that selects the controller when clicked; its LED and tooltip show connected, disconnected, or arrow keys standing in (FR-008a, FR-013), driven by a new `SetControllerState` setter called from `SyncSelectorState`.
+- Found during the survey, pre-existing and out of scope: `WM_CHAR` still reaches the guest while a toolbar picker is open (`specs/032-dxui-command-widgets/validation.md`).
 
 ## R13. Sample rate
 

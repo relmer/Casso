@@ -60,7 +60,7 @@ Boot DOS 3.3 or any Applesoft prompt and enter:
 | 10 | Switch the ][+ and the //e with the controller selected. | PB0/PB1 reach `$C061`/`$C062` on both; Open/Solid-Apple on the //e. | US1 #5 |
 | 10a | Create a profile from the Paddles starting point on the Xbox controller; push the left stick right briefly and release. | PDL0 climbs while deflected and holds its value after release; the right stick moves PDL1 the same way. | FR-021a |
 | 10b | Bind LB to PB2; press it on the ][+, the //e and the //c. | Last column reads 1 on the ][+ and //e (and the //e treats it as Shift); on the //c the page shows PB2 unavailable and the mouse button column does not change. | FR-020 |
-| 11 | After 032 is on master: choose a controller and a profile from the Machine menu and the toolbar input control. | Selection and profile change without opening Settings, without a reset. | FR-008, FR-028, FR-031, SC-010 |
+| 11 | Choose a controller and a profile from the Machine menu submenus and from the toolbar input control (expanded segment and collapsed picker); plug a controller in while the Machine menu is open. | Selection and profile change without opening Settings, without a reset. | FR-008, FR-028, FR-031, SC-010 |
 
 ## 5. Pre-merge gates
 

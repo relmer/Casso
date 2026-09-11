@@ -10,16 +10,16 @@ Xbox-class controllers are read through XInput and every other controller throug
 
 A new `GamePortInputMixer` becomes the single writer of PDL0/PDL1/PB0/PB1. Today the keyboard, Alt and mouse sources overwrite each other, and a controller on another thread could not satisfy FR-014 against that; the existing writers are migrated onto the mixer first.
 
-Two findings change delivery order and need the owner's attention:
+Two findings shape delivery:
 
-1. **Focus and sample rate need a hardware check** (research R2, R13). Background input was dropped in favor of XInput, so the check now answers two narrower questions: whether XInput keeps delivering while the Settings sheet is the active Casso window, and what report rate each controller actually delivers.
-2. **032 also replaces the Machine menu's command table**, not only the toolbar (R11). The controller and profile menu entries therefore move behind 032 along with the toolbar pickers. Until then the feature is complete through automatic selection (FR-032) and the Controllers page, which gains a per-machine controller and active-profile choice. This narrows FR-008/FR-028's "Machine menu" for the pre-032 slices; the spec says the menu is part of the input selector.
+1. **A hardware check comes first** (research R2, R4, R13): the XInput packet rate, DirectInput change events, whether wireless Xbox power on and off raises HID notifications, and whether XInput keeps delivering while the Settings sheet is the active Casso window.
+2. **032 is on master and merged into this branch** (R11). The Machine menu and the toolbar input control are built on its shipped widgets (`DxuiCommand`, `DxuiPopupMenu` submenus, `DxuiToolbar`, `InputClusterEntry`), which differ from 032's contracts.
 
 ## Technical Context
 
 **Language/Version**: C++ stdcpplatest, MSVC v145
 
-**Primary Dependencies**: Windows SDK only: XInput 1.4 (`xinput.lib`), DirectInput 8 (`dinput8.lib`, `dxguid.lib`), HID (`hid.lib`) for serial numbers, `RegisterDeviceNotification`. Dxui for the Controllers page; after 032, `DxuiCommand` / `DxuiDropdownItem` / `DxuiToolbar`.
+**Primary Dependencies**: Windows SDK only: XInput 1.4 (`xinput.lib`), DirectInput 8 (`dinput8.lib`, `dxguid.lib`), HID (`hid.lib`) for serial numbers, `RegisterDeviceNotification`. Dxui for the Controllers page, and 032's `DxuiCommand`, `DxuiPopupMenuItem` and `DxuiToolbar` for the menu and toolbar.
 
 **Storage**: `GlobalUserPrefs` JSON (new `controllers` section) and the per-machine `$cassoUiPrefs` block ([contracts/prefs-schema.md](contracts/prefs-schema.md))
 
@@ -46,7 +46,7 @@ Two findings change delivery order and need the owner's attention:
 | III. UX Consistency | Pass | Settings page follows the sheet's Apply/Cancel; notices reuse the existing overlay; no CLI change. |
 | IV. Performance | Pass | Change-only sink writes; empty-slot backoff; no allocation in the sample loop (fixed-size sample). |
 | V. Simplicity | Pass with note | The mixer adds a class, justified by FR-014 (research R9). The dedicated thread is needed because the UI frame hook stops while the machine is idle and in modal loops (R3). |
-| VI. Thin Executable, Testable Core | Pass | All code in `CassoEmuCore` (and Dxui for nothing new before 032). `Casso.exe` unchanged. The Win32 backend lives in core like `Win32HostCapsLock`. |
+| VI. Thin Executable, Testable Core | Pass | All code in `CassoEmuCore`; nothing new in Dxui. `Casso.exe` unchanged. The Win32 backend lives in core like `Win32HostCapsLock`. |
 | Dependencies | Pass | Windows SDK only; no allowlist change. |
 
 **Post-design re-check**: Pass. The contracts keep the device boundary to one seam with a fake, the mixer is pure with a recording sink, and prefs use the existing in-memory file system. No violations to track.
@@ -108,9 +108,11 @@ CassoEmuCore/
     │   ├── ControllersPageState.h/.cpp# new: pure page model (edits, capture, pending apply)
     │   ├── SettingsSheet.h/.cpp       # + page
     │   └── SettingsApplyController.h/.cpp # + controllers baseline/dirty/commit/revert
-    └── Chrome/                        # after 032 only
-        ├── EmulatorCommands.h/.cpp    # controller + profile commands (032's table)
-        └── InputClusterEntry.h/.cpp   # controller rows in the picker, status decoration
+    └── Chrome/
+        ├── ControllerCommands.h/.cpp  # new: owned controller + profile rows, submenu builders
+        ├── EmulatorCommands.h/.cpp    # submenu marker in the menu table; Controller Settings item
+        ├── MainMenu.cpp               # rebuild on row changes, deferred while a menu is open
+        └── InputClusterEntry.h/.cpp   # controller segment, status LED/tooltip, picker submenus
 
 UnitTest/
 └── ControllerTests/                   # new
@@ -129,7 +131,7 @@ UnitTest/
     └── ControllersPageStateTests.cpp
 ```
 
-**Structure Decision**: a new `CassoEmuCore/Controllers/` folder for the pure logic, the device seam beside the existing seams, shell wiring in `Shell/`, and the page beside the other Settings pages. Chrome changes wait for 032 and land in the files 032 creates.
+**Structure Decision**: a new `CassoEmuCore/Controllers/` folder for the pure logic, the device seam beside the existing seams, shell wiring in `Shell/`, the page beside the other Settings pages, and menu and toolbar rows in the chrome files 032 created. `UnitTest/ControllerTests/` gains `ControllerCommandsTests.cpp` (rows, checks, stale-pointer safety across rebuilds).
 
 ## Delivery Slices
 
@@ -144,10 +146,8 @@ Each slice leaves the build green and is committed on its own (constitution: com
 | 4 | **Calibration** | 3 | US4 | |
 | 5 | **Controllers page**: selection, live readings, mapping edit, capture, deadzone, calibrate, Apply/Cancel, open-to-page | 3, 4 | US2 (manual), US5 | |
 | 6 | **Profiles**: store, create/rename/delete/reset, active profile per machine, rate response, Paddles template, PB2 target | 5 | US6, FR-020, FR-021a | |
-| 7 | **Menu + toolbar** on 032's command table, dropdown and input cluster | 6, 032 on master | FR-008, FR-028, FR-031, SC-010 | Merge master first |
+| 7 | **Menu + toolbar**: `ControllerCommands`, Machine menu submenus, input cluster segment and picker submenus | 3 (controller rows), 6 (profile rows) | FR-008, FR-013, FR-028, FR-031, SC-010 | Controller rows can land with slice 3; profile rows after slice 6 |
 | 8 | **Polish**: CHANGELOG, README, full gates | 7 | | |
-
-Slices 0-6 can merge to master before 032 if the owner wants the feature early; slice 7 then follows as a second merge.
 
 ## Complexity Tracking
 
