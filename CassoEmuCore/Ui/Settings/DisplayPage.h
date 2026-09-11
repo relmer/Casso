@@ -8,7 +8,7 @@
 
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiSlider.h"
 #include "Widgets/DxuiToggle.h"
@@ -159,8 +159,8 @@ public:
     RECT  GetFocusedControlRect (int controlId) const;
 
     // Test accessors.
-    const DxuiDropdown & GetMonitorDropdown     () const { return m_monitor;          }
-    const DxuiDropdown & GetTextColorDropdown   () const { return m_textColor;        }
+    const DxuiComboBox & GetMonitorDropdown     () const { return m_monitor;          }
+    const DxuiComboBox & GetTextColorDropdown   () const { return m_textColor;        }
     const DxuiSlider   & GetBrightnessSlider    () const { return m_brightness;       }
     const DxuiSlider   & GetContrastSlider      () const { return m_contrast;         }
     const DxuiSlider   & GetGammaSlider         () const { return m_gamma;            }
@@ -178,8 +178,8 @@ public:
     // lambdas that previously lived in the bespoke CollectFocusables
     // shim, and so it can query open-popup state without going through
     // a page-level AnyDropdownOpen() helper.
-    DxuiDropdown & GetMonitorDropdown     () { return m_monitor;          }
-    DxuiDropdown & GetTextColorDropdown   () { return m_textColor;        }
+    DxuiComboBox & GetMonitorDropdown     () { return m_monitor;          }
+    DxuiComboBox & GetTextColorDropdown   () { return m_textColor;        }
     DxuiSlider   & GetBrightnessSlider    () { return m_brightness;       }
     DxuiSlider   & GetContrastSlider      () { return m_contrast;         }
     DxuiSlider   & GetGammaSlider         () { return m_gamma;            }
@@ -235,8 +235,8 @@ private:
     DxuiLabel                 m_bloomStrengthLabel;
     DxuiLabel                 m_colorBleedWLabel;
 
-    DxuiDropdown              m_monitor;
-    DxuiDropdown              m_textColor;
+    DxuiComboBox              m_monitor;
+    DxuiComboBox              m_textColor;
     DxuiSlider                m_brightness;
     DxuiSlider                m_contrast;
     DxuiSlider                m_gamma;

@@ -20,7 +20,7 @@
 //  ID3D11Device (the device is non-owning).
 //
 //  Use cases (one popup host per active popup):
-//      DxuiDropdown's option list                — placement Below /
+//      DxuiComboBox's option list                — placement Below /
 //                                                  flip Above if
 //                                                  off-screen
 //      DxuiPopupMenu and its cascading submenus  — placement AtCursor;

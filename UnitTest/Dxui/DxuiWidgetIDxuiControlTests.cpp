@@ -147,9 +147,9 @@ public:
     TEST_METHOD (DxuiSlider_LayoutSetsBounds)          { VerifyLayoutSetsBounds    <DxuiSlider>(); }
     TEST_METHOD (DxuiSlider_PaintIsCallable)           { VerifyPaintIsCallable     <DxuiSlider>(); }
 
-    TEST_METHOD (DxuiDropdown_AddsIntoPanel)           { VerifyAddsIntoPanel       <DxuiDropdown>(); }
-    TEST_METHOD (DxuiDropdown_LayoutSetsBounds)        { VerifyLayoutSetsBounds    <DxuiDropdown>(); }
-    TEST_METHOD (DxuiDropdown_PaintIsCallable)         { VerifyPaintIsCallable     <DxuiDropdown>(); }
+    TEST_METHOD (DxuiComboBox_AddsIntoPanel)           { VerifyAddsIntoPanel       <DxuiComboBox>(); }
+    TEST_METHOD (DxuiComboBox_LayoutSetsBounds)        { VerifyLayoutSetsBounds    <DxuiComboBox>(); }
+    TEST_METHOD (DxuiComboBox_PaintIsCallable)         { VerifyPaintIsCallable     <DxuiComboBox>(); }
 
     TEST_METHOD (DxuiTabStrip_AddsIntoPanel)           { VerifyAddsIntoPanel       <DxuiTabStrip>(); }
     TEST_METHOD (DxuiTabStrip_LayoutSetsBounds)        { VerifyLayoutSetsBounds    <DxuiTabStrip>(); }
@@ -200,9 +200,9 @@ public:
     }
 
 
-    TEST_METHOD (DxuiDropdown_AccessibleRoleIsDropdown)
+    TEST_METHOD (DxuiComboBox_AccessibleRoleIsDropdown)
     {
-        DxuiDropdown  dd;
+        DxuiComboBox  dd;
 
 
         Assert::AreEqual ((int) DxuiAccessibleRole::Dropdown, (int) dd.GetAccessibleRole());

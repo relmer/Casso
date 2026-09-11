@@ -846,8 +846,8 @@ void InputDebugPanel::OnCreate()
     m_paddleCheck       = CreateChild<DxuiCheckbox> (s_kpszPaddleLabel);
     m_hostKeyboardCheck = CreateChild<DxuiCheckbox> (s_kpszKeyboardLabel);
 
-    m_pairView[0] = CreateChild<DxuiDropdown> ();
-    m_pairView[1] = CreateChild<DxuiDropdown> ();
+    m_pairView[0] = CreateChild<DxuiComboBox> ();
+    m_pairView[1] = CreateChild<DxuiComboBox> ();
     m_pauseButton = CreateChild<DxuiButton>   (s_kpszPauseLabel);
     m_clearButton = CreateChild<DxuiButton>   (s_kpszClearLabel);
     m_copyButton  = CreateChild<DxuiButton>   (s_kpszCopyLabel);

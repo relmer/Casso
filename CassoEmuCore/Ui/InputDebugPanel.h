@@ -6,7 +6,7 @@
 #include "Core/DxuiPanel.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
-#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiPopupMenu.h"
@@ -188,7 +188,7 @@ private:
     DxuiCheckbox                            * m_joystickCheck     = nullptr;
     DxuiCheckbox                            * m_paddleCheck       = nullptr;
     DxuiCheckbox                            * m_hostKeyboardCheck = nullptr;
-    std::array<DxuiDropdown*, 2>              m_pairView          = {};
+    std::array<DxuiComboBox*, 2>              m_pairView          = {};
     DxuiButton                              * m_pauseButton       = nullptr;
     DxuiButton                              * m_clearButton       = nullptr;
     DxuiButton                              * m_copyButton        = nullptr;
