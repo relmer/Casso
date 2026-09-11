@@ -48,7 +48,7 @@
 - [X] T004 [US2] Create `Dxui/Core/DxuiCommand.h` per `contracts/dxui-command.md`: fields id, label, shortLabel, glyph, tip, accelerator, dispatch, isChecked, isEnabled, labelText; accessors `IsChecked`, `IsEnabled`, `GetLabelText`, `GetShortText` with the absent-functor defaults
 - [X] T005 [US2] Add `Core\DxuiCommand.h` as a `ClInclude` to `Dxui/Dxui.vcxproj`
 - [X] T006 [P] [US2] Create `UnitTest/Dxui/DxuiCommandTests.cpp`: absent `isChecked` is false, absent `isEnabled` is true, `GetLabelText` prefers `labelText`, `GetShortText` prefers `shortLabel` then falls back to `GetLabelText`
-- [~] T007 [US2] Add `Dxui\DxuiCommandTests.cpp` to `UnitTest/UnitTest.vcxproj`; build Debug x64; run `scripts/RunTests.ps1 -Configuration Debug -Filter DxuiCommand`; confirm `UnitTest.dll` is newer than the build -- BLOCKED at the test run: no ROM fixtures in this worktree. Project file entry and Debug x64 build are done.
+- [X] T007 [US2] Add `Dxui\DxuiCommandTests.cpp` to `UnitTest/UnitTest.vcxproj`; build Debug x64; run `scripts/RunTests.ps1 -Configuration Debug -Filter DxuiCommand`; confirm `UnitTest.dll` is newer than the build
 - [X] T008 Commit: `refactor(dxui): DxuiCommand, one declaration per action`
 
 **Checkpoint**: A command exists with no consumer. Tree builds, all tests pass.
