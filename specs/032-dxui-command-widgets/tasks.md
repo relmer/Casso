@@ -4,7 +4,7 @@
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Tests**: Required. The spec's FR-017 and SC-003 through SC-006 are proved only by headless tests, and US1 is proved by captures plus the unmodified existing suite.
+**Tests**: Required. The spec's FR-017 and SC-003 through SC-006 are proved only by headless tests, and US1 is proved by captures plus the existing suite with every assertion unchanged.
 
 **Organization**: Phases follow the plan's build order, which is the dependency order: command, dropdown, menu bar, context menu, toolbar, emulator table. Each task carries the story it serves. US1 (emulator unchanged) is the bar every phase is held to, and gets its own validation phase at the end.
 
