@@ -10,7 +10,7 @@ R3). Everything else is in memory per window.
 ### KnownFolders.json
 
 ```json
-{ "folders": [ { "path": "C:\\Apple2\\Disks", "lastUsedUnix": 1780000000, "pinned": false } ] }
+{ "folders": [ { "path": "C:\\Apple2\\Disks", "lastUsedUnix": 1780000000 } ] }
 ```
 
 | Field | Meaning |

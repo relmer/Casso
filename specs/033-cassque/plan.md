@@ -178,7 +178,8 @@ this list; phases here through the executable need nothing from 032.
    against `DiskCommandRunner` on `FakeDiskFileIo` for every verb.
 3. **Casso side**: `KnownFolderStore` read in Casso's two picker call
    sites and seeded from the MRU; the two intents and the reply in
-   `Win32IntentChannel` and `EmulatorShell::OnCopyData`; `IProcessLauncher`
+   `Win32IntentChannel` and `OnCopyData` in `EmulatorWindow.cpp`, which
+   also appends every mount's folder to the known-folder store; `IProcessLauncher`
    and the Cassque menu item; `DialogDefinition` image. Casso ships this
    even if Cassque slips.
 4. **Dxui additions**: tree extensions, list extensions, splitter, status
