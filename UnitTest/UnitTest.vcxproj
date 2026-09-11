@@ -277,6 +277,8 @@
     <ClCompile Include="ControllerTests\ControllerTokensTests.cpp" />
     <ClCompile Include="ControllerTests\GamePortInputMixerTests.cpp" />
     <ClCompile Include="ControllerTests\MachineGamePortSinkTests.cpp" />
+    <ClCompile Include="ControllerTests\DirectInputSampleDecoderTests.cpp" />
+    <ClCompile Include="ControllerTests\XInputSampleDecoderTests.cpp" />
     <ClCompile Include="EmuTests\KeyboardTests.cpp" />
     <ClCompile Include="EmuTests\InputEventRingTests.cpp" />
     <ClCompile Include="EmuTests\InputEventCoalescingTests.cpp" />
@@ -556,6 +558,7 @@
     <ClInclude Include="EmuTests\MachineIdle.h" />
     <ClInclude Include="EmuTests\FakeHostCapsLock.h" />
     <ClInclude Include="ControllerTests\RecordingGamePortSink.h" />
+    <ClInclude Include="ControllerTests\FakeControllerBackend.h" />
     <ClInclude Include="EmuTests\FakeImageWatcher.h" />
     <ClInclude Include="EmuTests\FakeIntentChannel.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />

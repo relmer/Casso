@@ -279,6 +279,8 @@
     <ClCompile Include="Controllers\ControllerTokens.cpp" />
     <ClCompile Include="Controllers\GamePortInputMixer.cpp" />
     <ClCompile Include="Shell\MachineGamePortSink.cpp" />
+    <ClCompile Include="Controllers\DirectInputSampleDecoder.cpp" />
+    <ClCompile Include="Controllers\XInputSampleDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
@@ -532,6 +534,9 @@
     <ClInclude Include="Controllers\ControllerTypes.h" />
     <ClInclude Include="Controllers\GamePortInputMixer.h" />
     <ClInclude Include="Shell\MachineGamePortSink.h" />
+    <ClInclude Include="Seams\IControllerBackend.h" />
+    <ClInclude Include="Controllers\DirectInputSampleDecoder.h" />
+    <ClInclude Include="Controllers\XInputSampleDecoder.h" />
     <ClInclude Include="Devices\Disk\IImageWatcher.h" />
     <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
     <ClInclude Include="Devices\Disk\MountedImageState.h" />

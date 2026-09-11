@@ -20,8 +20,9 @@ public:
     virtual HRESULT EnumerateDevices   (std::vector<ControllerDeviceInfo> & outDevices) = 0;
     virtual HRESULT ReadSample         (const ControllerUnitKey & unit,
                                         ControllerSample        & outSample) = 0;
-    virtual void    GetWakeSources     (std::vector<HANDLE> & outEvents,
-                                        bool                & outNeedsTimedPoll) = 0;
+    virtual void    GetWakeSources     (const ControllerUnitKey & unit,
+                                        std::vector<HANDLE>     & outEvents,
+                                        bool                    & outNeedsTimedPoll) = 0;
 };
 
 class IControllerBackendEvents
