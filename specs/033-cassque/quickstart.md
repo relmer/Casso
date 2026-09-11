@@ -132,7 +132,7 @@ Check `UnitTest.dll` is newer than the build. Required coverage:
 - `PreviewDecoderTests`: the graphics rule for each address and length,
   hex rows, catalog rows, the error kind on a damaged program.
 - `KnownFolderStoreTests`: seed from MRU, append on hand-off, manual add
-  and remove, pinned survives, missing folder retained, atomic write
+  and remove, missing folder retained, atomic write
   through the file system mock.
 - `CassoTargetingTests`: owner alive, owner dead with a running instance,
   none running, drive count from the default machine.
