@@ -116,6 +116,20 @@ public:
     virtual uint32_t  Background          () const = 0;  // primary panel fill
     virtual uint32_t  BackgroundElevated  () const = 0;  // popup / dropdown / text-input surface
     virtual uint32_t  HoverBackground     () const = 0;  // row / menu-item hover fill
+
+    // The surface a list's rows and a tree's items are drawn on, and the
+    // strip along the bottom of a window. Windows fills each of these
+    // differently from the panel behind them -- a list in Explorer is
+    // darker than the window it sits in, and the status strip darker
+    // again -- so a theme that paints all three alike does not read as
+    // native. Both default to the panel for a theme that has not said.
+    virtual uint32_t  ContentBackground   () const { return Background(); }
+
+    // Lines drawn INSIDE a content surface: a list header's underline, the
+    // hairlines between its columns, the sash between two panes. Quieter
+    // than Border(), which outlines a panel against what is behind it.
+    virtual uint32_t  ContentEdge         () const { return Border(); }
+    virtual uint32_t  StatusBackground    () const { return Background(); }
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight
 

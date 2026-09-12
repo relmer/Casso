@@ -849,6 +849,16 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     first    = m_topRow;
     last     = (int) (std::min) (n, (size_t) (m_topRow + GetRowCap() + 1));
 
+    //  The pane is a content surface of its own, as Explorer's navigation
+    //  pane is, rather than whatever the window painted behind it. Through
+    //  the painter, like the rows that follow: the two renderers are separate
+    //  draw orders, and a fill issued through the text renderer would land
+    //  over everything the painter drew.
+    painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
+                      (float) (m_boundsDip.right - m_boundsDip.left),
+                      (float) (m_boundsDip.bottom - m_boundsDip.top),
+                      theme.ContentBackground());
+
     hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
                             (float) (m_boundsDip.right - m_boundsDip.left),
                             (float) (m_boundsDip.bottom - m_boundsDip.top));
@@ -889,48 +899,44 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         if (hasChildren)
         {
-            // Geometric chevron: triangle rendered with horizontal
-            // scanlines. Avoids Segoe UI Symbol's chevron glyph,
-            // whose visual center sits below the line-box center
-            // (no font metrics fix can correct that since the glyph
-            // is intentionally drawn there for "play button" style
-            // contexts). Triangle apex points right when collapsed,
-            // down when expanded.
+            // Geometric chevron: two strokes meeting at a point, drawn
+            // rather than set from a font. Segoe UI Symbol's chevron glyph
+            // sits below its line-box center on purpose, for "play button"
+            // contexts, and no metrics fix moves it back.
             //
-            // Base spans the full triSize; apex-to-base distance is
-            // a shorter triDepth so the triangle reads as a stubbier
-            // Fluent-style chevron rather than a tall play button.
-            float  triSize    = (float) m_checkboxPx * 0.55f;
-            float  triDepth   = triSize * 0.65f;
-            float  triCx      = twistyX + (float) m_twistyPx * 0.5f;
-            float  triCy      = rowY + rowHeight * 0.5f;
-            int    steps      = (int) triDepth;
-            int    s          = 0;
+            // Measured off Explorer's navigation pane at 120 dpi on
+            // 2026-09-12: an OUTLINE chevron about eleven pixels tall whose
+            // arms are three pixels thick, not the filled triangle this drew
+            // before. Pointing right when collapsed, down when expanded.
+            float  armHalf = (float) m_checkboxPx * 0.30f;
+            float  thick   = (std::max) (m_scaler.ToPxf (1.5f), 1.0f);
+            float  chevCx  = twistyX + (float) m_twistyPx * 0.5f;
+            float  chevCy  = rowY + rowHeight * 0.5f;
+            //  Stop where the two arms meet: run them the full half and they
+            //  cross, and the point thickens into a blob.
+            int    steps   = (int) (armHalf - thick * 0.5f);
+            int    s       = 0;
 
             if (node->expanded)
             {
-                // Down-pointing triangle: top edge full triSize wide,
-                // apex at bottom, total height triDepth.
-                float  topY = triCy - triDepth * 0.5f;
-                for (s = 0; s < steps; ++s)
+                //  Down: the two arms descend towards each other.
+                for (s = 0; s <= steps; ++s)
                 {
-                    float  t      = (float) s / (float) steps;
-                    float  width  = triSize * (1.0f - t);
-                    float  rowY2  = topY + (float) s;
-                    painter.FillRect (triCx - width * 0.5f, rowY2, width, 1.0f, s_kTwistyArgb);
+                    float  dy = chevCy - armHalf * 0.5f + (float) s;
+
+                    painter.FillRect (chevCx - armHalf + (float) s,         dy, thick, thick, s_kTwistyArgb);
+                    painter.FillRect (chevCx + armHalf - (float) s - thick, dy, thick, thick, s_kTwistyArgb);
                 }
             }
             else
             {
-                // Right-pointing triangle: left edge full triSize tall,
-                // apex at right, total width triDepth.
-                float  leftX = triCx - triDepth * 0.5f;
-                for (s = 0; s < steps; ++s)
+                //  Right: the two arms advance towards each other.
+                for (s = 0; s <= steps; ++s)
                 {
-                    float  t      = (float) s / (float) steps;
-                    float  height = triSize * (1.0f - t);
-                    float  colX   = leftX + (float) s;
-                    painter.FillRect (colX, triCy - height * 0.5f, 1.0f, height, s_kTwistyArgb);
+                    float  dx = chevCx - armHalf * 0.5f + (float) s;
+
+                    painter.FillRect (dx, chevCy - armHalf + (float) s,         thick, thick, s_kTwistyArgb);
+                    painter.FillRect (dx, chevCy + armHalf - (float) s - thick, thick, thick, s_kTwistyArgb);
                 }
             }
         }

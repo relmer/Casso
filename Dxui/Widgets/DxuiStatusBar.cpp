@@ -148,7 +148,7 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
                       (float) (m_boundsDip.right - m_boundsDip.left),
-                      (float) (m_boundsDip.bottom - m_boundsDip.top), theme.Background());
+                      (float) (m_boundsDip.bottom - m_boundsDip.top), theme.StatusBackground());
 
     painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
                       (float) (m_boundsDip.right - m_boundsDip.left), lineW, theme.Divider());

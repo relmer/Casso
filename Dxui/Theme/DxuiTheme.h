@@ -48,6 +48,20 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  linkHover                = 0;
     uint32_t  panelBg                  = 0;
     uint32_t  panelEdge                = 0;
+
+    //  The surface rows are drawn on -- a list's body, a tree's pane -- and
+    //  the strip along the bottom of a window. Windows gives each of these a
+    //  fill of its own: in Explorer they are not the panel's color and not
+    //  each other's. Left at zero they fall back to the panel.
+    uint32_t  contentBg                = 0;
+    uint32_t  statusBg                 = 0;
+
+    //  The column titles over a list, and the lines drawn inside a content
+    //  surface -- a header's underline, the hairlines between columns. Both
+    //  are far quieter than the panel's own edge: Explorer's are a few levels
+    //  off its list background, not a visible gray.
+    uint32_t  headingText              = 0;
+    uint32_t  contentEdge              = 0;
     uint32_t  buttonIdle               = 0;
     uint32_t  buttonHover              = 0;
     uint32_t  buttonPressed            = 0;
@@ -61,6 +75,9 @@ struct DxuiTheme : public IDxuiTheme
     // so any Dxui widget paints against this theme through the interface.
     uint32_t  Background          () const override { return panelBg;            }
     uint32_t  BackgroundElevated  () const override { return dropdownBg;         }
+    uint32_t  ContentBackground   () const override { return (contentBg != 0) ? contentBg : panelBg; }
+    uint32_t  ContentEdge         () const override { return (contentEdge != 0) ? contentEdge : panelEdge; }
+    uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
     uint32_t  HoverBackground     () const override { return navHover;           }
     uint32_t  PressedBackground   () const override { return buttonPressed;      }
     uint32_t  SelectionBackground () const override { return navHover;           }
@@ -74,7 +91,7 @@ struct DxuiTheme : public IDxuiTheme
         return (bodyText & 0x00FFFFFFu) | 0x80000000u;
     }
 
-    uint32_t  HeadingForeground   () const override { return titleText;          }
+    uint32_t  HeadingForeground   () const override { return (headingText != 0) ? headingText : titleText; }
     uint32_t  ErrorForeground     () const override { return errorText;          }
 
     uint32_t  Accent              () const override { return link;               }

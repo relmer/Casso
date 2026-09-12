@@ -14,6 +14,11 @@
 //  text #C5C5C5, stroke #3A3A3A, and the dark accent #60CDFF. Selection is
 //  the muted accent Explorer draws behind a selected row.
 //
+//  The content and status fills are measured from Explorer rather than taken
+//  from a token sheet: its list body, its navigation pane and its command bar
+//  are all #191919, and the strip along the bottom is #1C1C1C. Captured at
+//  120 dpi on 2026-09-12 and compared pixel for pixel.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiDarkTheme::DxuiDarkTheme()
@@ -38,6 +43,10 @@ DxuiDarkTheme::DxuiDarkTheme()
     link                     = 0xFF60CDFF;
     linkHover                = 0xFF99EBFF;
     panelBg                  = 0xFF272727;
+    contentBg                = 0xFF191919;
+    statusBg                 = 0xFF1C1C1C;
+    headingText              = 0xFFDEDEDE;
+    contentEdge              = 0xFF1D1D1D;
     panelEdge                = 0xFF3A3A3A;
     buttonIdle               = 0xFF2D2D2D;
     buttonHover              = 0xFF323232;

@@ -346,7 +346,7 @@ public:
 
 private:
     static constexpr int    s_kRowHeightDip      = 30;
-    static constexpr int    s_kHeaderHeightDip   = 26;
+    static constexpr int    s_kHeaderHeightDip   = 32;
     static constexpr int    s_kHeaderGapDip      = 2;
     static constexpr int    s_kCellPadLeftDip    = 12;
     static constexpr int    s_kCellPadRightDip   = 16;

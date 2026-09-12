@@ -2381,10 +2381,10 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.fg       = m_theme->Foreground();
     pal.fgDim    = (pal.fg & 0x00FFFFFFu) | 0xA0000000u;
     pal.hdrFg    = m_theme->HeadingForeground();
-    pal.bgRow    = m_theme->BackgroundElevated();
+    pal.bgRow    = m_theme->ContentBackground();
     pal.bgHover  = m_theme->HoverBackground();
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
-    pal.border   = (pal.fg    & 0x00FFFFFFu) | 0x30000000u;
+    pal.border   = m_theme->ContentEdge();
     pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
 
     return pal;
@@ -2449,7 +2449,7 @@ void DxuiListView::PaintHeader (
                               pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
                               m_columns[c].align,
                               DxuiTextVAlign::Center,
-                              DxuiFontWeight::Bold,
+                              DxuiFontWeight::Normal,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
