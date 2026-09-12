@@ -560,6 +560,9 @@ private:
     // Hands PDL0/PDL1 to whichever host input mode currently drives them.
     void    SyncGamePortAxisOwner ();
     void    ApplyAutomaticControllerSelection (const std::wstring & description, bool isAdoption);
+    void    PickPaddleSource       (const InputModeRules::PaddleSource & source);
+    void    SetControllerSelection (const std::optional<ControllerUnitKey> & selection);
+    void    SyncPaddleSourceList   ();
 
     // Set the host input mapping mode (Off / Joystick / Paddle): persists
     // it, re-syncs the game port (resolving joystick axes / buttons from

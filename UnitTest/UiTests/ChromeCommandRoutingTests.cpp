@@ -49,7 +49,13 @@ public:
 
         IDM_MACHINE_RESET,
         IDM_MACHINE_POWERCYCLE,
-        IDM_MACHINE_ARROWS_JOYSTICK,
+
+        // The paddle-source submenu, not the two toggles it replaced. Those
+        // are rows of its list now, built from what is attached, and they
+        // keep their accelerators in Casso.rc -- an accelerator does not need
+        // a menu entry to fire.
+        IDM_MACHINE_PADDLE_SOURCE,
+
         IDM_MACHINE_PAUSE,
         IDM_MACHINE_STEP,
 

@@ -2596,6 +2596,116 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PickPaddleSource
+//
+//  UI thread. The user chose what drives the paddle axes. Exactly one of the
+//  three can, so each branch hands the axes over and the setters take them
+//  from whatever had them (FR-008).
+//
+//  A DISCONNECTED CONTROLLER'S ROW IS NOT PICKABLE -- the command reports it
+//  as disabled -- so there is no branch here for choosing one that is gone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PickPaddleSource (const InputModeRules::PaddleSource & source)
+{
+    if (source.isArrowKeys)
+    {
+        SetControllerSelection (std::nullopt);
+        SetPointerMapping (InputMappingMode::Off);
+        SetArrowsJoystick (true);
+    }
+    else if (source.isMousePaddle)
+    {
+        SetControllerSelection (std::nullopt);
+        SetArrowsJoystick (false);
+        SetPointerMapping (InputMappingMode::Paddle);
+    }
+    else if (source.controller.has_value())
+    {
+        SetArrowsJoystick (false);
+        SetPointerMapping (InputMappingMode::Off);
+        SetControllerSelection (source.controller);
+    }
+
+    SyncGamePortAxisOwner();
+    SyncInputModeUi();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetControllerSelection
+//
+//  Hands a chosen controller to the service and wakes its thread, so the
+//  choice takes effect on the next read rather than at the end of whatever
+//  wait the thread is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetControllerSelection (const std::optional<ControllerUnitKey> & selection)
+{
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    m_controllerService->SetSelection (selection);
+
+    if (m_controllerThread != nullptr)
+    {
+        m_controllerThread->Wake();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncPaddleSourceList
+//
+//  Rebuilds the picker's rows from what is attached and what is chosen. The
+//  menu holds the rows by pointer, so the menu bar is handed the new list
+//  whenever they are rebuilt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncPaddleSourceList()
+{
+    InputModeRules::State             state;
+    ControllerInputService::Snapshot  snapshot;
+
+
+
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    snapshot = m_controllerService->GetSnapshot();
+
+    state.arrowsJoystick       = m_arrowsJoystick;
+    state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
+    state.hasController        = snapshot.selection.has_value();
+    state.isControllerAttached = snapshot.isSelectedConnected;
+
+    m_mainMenu.GetCommands().SetPaddleSources (
+        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection));
+
+    m_mainMenu.SetItems (m_mainMenu.GetCommands().BuildMenuItems());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplyAutomaticControllerSelection
 //
 //  UI thread. A controller the policy chose on its own still has to reach the
@@ -2695,6 +2805,7 @@ void EmulatorShell::SyncGamePortAxisOwner()
 void EmulatorShell::SyncInputModeUi()
 {
     SyncSelectorState();
+    SyncPaddleSourceList();
     PersistInputModeForMachine();
 }
 

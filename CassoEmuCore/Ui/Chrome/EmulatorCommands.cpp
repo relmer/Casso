@@ -29,8 +29,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_EDIT_PASTE,               MainMenuId::Edit,    L"&Paste",                 L"Ctrl+V"        },
     { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+Shift+R"  },
     { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
-    { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
-    { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
+    { IDM_MACHINE_PADDLE_SOURCE,    MainMenuId::Machine, L"&Joystick and paddles", nullptr,           false, true },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
     { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
     { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
@@ -556,6 +555,11 @@ std::vector<DxuiMenuBarItem> EmulatorCommands::BuildMenuItems() const
             {
                 topItem.submenu.push_back (DxuiPopupMenuItem::ForSeparator());
             }
+            else if (e.paddleSources)
+            {
+                topItem.submenu.push_back (DxuiPopupMenuItem::ForSubmenu (Find (e.commandId),
+                                                                          GetPaddleSourceItems()));
+            }
             else
             {
                 topItem.submenu.push_back (DxuiPopupMenuItem::ForCommand (Find (e.commandId)));
@@ -609,6 +613,75 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetMonitorItems() const
 
 
     for (const std::unique_ptr<DxuiCommand> & cmd : m_colorRows)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::SetPaddleSources
+//
+//  One row per entry of the paddle-source list, checked while it is the one
+//  driving. The rows carry no ids of their own: a controller comes and goes,
+//  so a row is identified by the entry it was built from, which the dispatch
+//  captures.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::PaddleSource> & sources)
+{
+    size_t  i = 0;
+
+
+
+    m_paddleSources = sources;
+    m_paddleSourceRows.clear();
+
+    for (i = 0; i < m_paddleSources.size(); i++)
+    {
+        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+
+        cmd->id        = (int) i;
+        cmd->label     = m_paddleSources[i].label;
+        cmd->isChecked = [this, i] () { return i < m_paddleSources.size() && m_paddleSources[i].isChecked; };
+        cmd->isEnabled = [this, i] () { return i < m_paddleSources.size() && m_paddleSources[i].isConnected; };
+
+        cmd->dispatch  = [this, i] ()
+        {
+            if (i < m_paddleSources.size() && m_onPaddleSourcePicked)
+            {
+                m_onPaddleSourcePicked (m_paddleSources[i]);
+            }
+        };
+
+        m_paddleSourceRows.push_back (std::move (cmd));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetPaddleSourceItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    for (const std::unique_ptr<DxuiCommand> & cmd : m_paddleSourceRows)
     {
         items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
     }

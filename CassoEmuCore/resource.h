@@ -22,6 +22,11 @@
 #define IDM_MACHINE_ARROWS_JOYSTICK 40018
 #define IDM_MACHINE_ARROWS_PADDLE   40019
 
+// Title of the paddle-source submenu. It opens a list and runs nothing
+// itself, so it has no dispatch; the two ids above stay as the accelerator
+// targets for the keys and the mouse.
+#define IDM_MACHINE_PADDLE_SOURCE   40074
+
 #define IDM_DISK_INSERT1            40020
 #define IDM_DISK_INSERT2            40021
 #define IDM_DISK_EJECT1             40022

@@ -6,6 +6,7 @@
 #include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiToolbar.h"
+#include "Controllers/InputModeRules.h"
 
 
 
@@ -38,6 +39,11 @@ struct EmulatorMenuEntry
     const wchar_t * label;
     const wchar_t * accelerator;
     bool            checkable = false;
+
+    // Opens the paddle-source list rather than running anything. Its children
+    // are built at open time, because what is attached changes while Casso
+    // runs and a static table cannot say what is plugged in.
+    bool            paddleSources = false;
 };
 
 
@@ -70,6 +76,9 @@ public:
     using DispatchFn = std::function<void (WORD commandId)>;
     using CheckFn    = std::function<bool (WORD commandId)>;
     using LabelFn    = std::function<std::wstring (WORD commandId)>;
+
+    // Raised when the user picks a row of the paddle-source list.
+    using PaddleSourcePickedFn = std::function<void (const InputModeRules::PaddleSource &)>;
 
     // Ids for the toolbar entries that are not menu commands. Menu command
     // ids start at 40001, so nothing collides.
@@ -124,6 +133,15 @@ public:
     std::vector<DxuiPopupMenuItem>  GetThemeItems   () const;
     std::vector<DxuiPopupMenuItem>  GetMonitorItems () const;
 
+    // What drives the paddle axes: every attached controller, then the keys
+    // and the mouse, exactly one checked (FR-008). The rows are rebuilt only
+    // by the setter, so a surface holding the previous list must be handed
+    // GetPaddleSourceItems() again.
+    void  SetPaddleSources        (const std::vector<InputModeRules::PaddleSource> & sources);
+    void  SetPaddleSourcePickedFn (PaddleSourcePickedFn fn) { m_onPaddleSourcePicked = std::move (fn); }
+
+    std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems () const;
+
     // Fills the toolbar: ten entries in strip order, the LED as the printer
     // entry's decoration, the cluster as the input entry's custom entry and
     // the flyout as the volume entry's panel, with the two pickers' rows and
@@ -148,6 +166,9 @@ private:
     std::vector<std::unique_ptr<DxuiCommand>>  m_commands;
     std::vector<std::unique_ptr<DxuiCommand>>  m_themeRows;
     std::vector<std::unique_ptr<DxuiCommand>>  m_colorRows;
+    std::vector<std::unique_ptr<DxuiCommand>>  m_paddleSourceRows;
+    std::vector<InputModeRules::PaddleSource>  m_paddleSources;
+    PaddleSourcePickedFn                       m_onPaddleSourcePicked;
 
     std::wstring  m_machineName;
     int           m_themeIndex = -1;

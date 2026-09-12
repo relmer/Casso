@@ -749,6 +749,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     });
 
+    m_mainMenu.GetCommands().SetPaddleSourcePickedFn (
+        [this] (const InputModeRules::PaddleSource & source)
+        {
+            PickPaddleSource (source);
+        });
+
     m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -2467,7 +2473,10 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
             m_controllerPickHasNotice = false;
         }
 
+        // A device arriving or leaving changes the rows even when it changes
+        // nothing else, so the list is rebuilt on every one of these.
         ApplyAutomaticControllerSelection (description, isAdoption || !hasNotice);
+        SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;
     }
