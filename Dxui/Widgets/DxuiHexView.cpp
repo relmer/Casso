@@ -1135,11 +1135,53 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
         CopySelection();
         return true;
 
+    case VK_TAB:
+        //  Tab moves between the columns while there is one left to move to,
+        //  and declines once there is not, which is what lets the walk carry
+        //  on out of the view rather than being trapped in it.
+        if (ev.ctrl)
+        {
+            return false;
+        }
+
+        if (!ev.shift && (m_activeColumn == Column::Hex))
+        {
+            SetActiveColumn (Column::Text);
+            return true;
+        }
+
+        if (ev.shift && (m_activeColumn == Column::Text))
+        {
+            SetActiveColumn (Column::Hex);
+            return true;
+        }
+
+        return false;
+
     default:
         break;
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::OnFocusEntered  (IDxuiControl override)
+//
+//  A walk that arrived forward starts at the first column, one that arrived
+//  backward at the last, so Shift+Tab out of the next control lands on the
+//  characters and one more Shift+Tab reaches the digits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::OnFocusEntered (bool forward)
+{
+    m_activeColumn = forward ? Column::Hex : Column::Text;
 }
 
 

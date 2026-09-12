@@ -104,6 +104,13 @@ public:
     virtual LPCWSTR  GetCursorForPoint  (POINT clientPx) const                       { (void) clientPx; return nullptr; }
 
     virtual void  OnFocusChanged  (bool focused)                                { (void) focused; }
+
+    // Focus arrived by a Tab walk, forward or backward. A control with stops
+    // INSIDE it (a hex view's two columns, say) starts at the first when Tab
+    // brought focus in and at the last when Shift+Tab did, so walking the
+    // window in reverse runs its insides in reverse too. Controls with no
+    // internal stops ignore it; OnFocusChanged still fires either way.
+    virtual void  OnFocusEntered  (bool forward)                                { (void) forward; }
     virtual void  OnThemeChanged  ()                                            {}
     virtual void  Tick            (int64_t nowMs)                               { (void) nowMs; }
 

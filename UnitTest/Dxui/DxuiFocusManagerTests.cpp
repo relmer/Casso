@@ -93,6 +93,32 @@ public:
     }
 
 
+    TEST_METHOD (FocusEntered_TellsAControlWhichWayTheWalkCame)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl &  a = panel.Add<MockDxuiControl>();
+        MockDxuiControl &  b = panel.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+        a.SetBounds (MakeRect (0, 0, 50, 20));
+        b.SetBounds (MakeRect (60, 0, 110, 20));
+        focus.SetRowEpsilonDip (32.0f);
+        focus.Attach (&panel);
+
+        focus.HandleKey (DxuiFocusKey::Tab);
+
+        Assert::AreEqual (1, a.focusEnteredCount, L"Arriving is told once");
+        Assert::IsTrue   (a.lastEnteredForward,   L"and Tab arrives forward");
+
+        focus.HandleKey (DxuiFocusKey::ShiftTab);
+
+        Assert::AreEqual (1, b.focusEnteredCount,  L"Shift+Tab wrapped round to the last control");
+        Assert::IsFalse  (b.lastEnteredForward,
+            L"which is told it was entered backward, so a control with stops inside it starts at its last one");
+    }
+
+
     TEST_METHOD (ExplicitTabIndex_BeatsGeometry)
     {
         DxuiPanel          panel;

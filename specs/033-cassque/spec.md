@@ -452,6 +452,12 @@ bytes, change the grouping, and copy the selection both ways.
 - **FR-012d**: The selection MUST be made by dragging in either column,
   extended with Shift and a click or the arrow keys, and moved with the
   keyboard alone.
+- **FR-012j**: The hex view's two columns MUST each be a tab stop inside
+  the one widget: Tab into the view reaches the hex column, Tab again the
+  characters, and a third Tab leaves for the next control, with Shift+Tab
+  running the same stops backwards and entering at the last of them. A
+  user MUST be able to change which column they are working in without
+  the mouse.
 - **FR-012e**: The hex preview MUST group its bytes one, two, four or
   eight at a time at the user's choice, keep the selection across a
   change of grouping, and persist the choice.

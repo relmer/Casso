@@ -56,6 +56,12 @@ public:
 //  middle grouped one, two, four or eight at a time, and their characters on
 //  the right.
 //
+//  THE TWO COLUMNS ARE TAB STOPS INSIDE THE ONE WIDGET. Tab into the view
+//  lands in the hex column, Tab again moves to the characters, and a third Tab
+//  leaves for the next control; Shift+Tab runs the same three steps backwards.
+//  So a hex view costs two stops on a walk of the window, not one, and the
+//  user never has to reach for the mouse to change which form they are in.
+//
 //  ONE SELECTION COVERS A RUN OF BYTES, NOT A RUN OF CHARACTERS. Selecting in
 //  either column selects bytes, so the same run lights in both columns at once.
 //  What differs between the columns is the form the user is working in: the
@@ -183,6 +189,7 @@ public:
     bool  IsDragging () const { return m_dragging; }
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  OnFocusEntered (bool forward) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
     bool  OnKey   (const DxuiKeyEvent   & ev) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;

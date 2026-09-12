@@ -796,6 +796,74 @@ public:
     }
 
 
+    TEST_METHOD (Tab_MovesBetweenTheColumnsThenLetsTheWalkGoOn)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+        view.OnFocusEntered (true);
+
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Hex,
+            L"A forward walk into the view lands on the digits");
+
+        Assert::IsTrue (view.OnKey (MakeKey (VK_TAB)),
+            L"Tab is the view's while it has a column left to move to");
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Text,
+            L"and it moves to the characters");
+
+        Assert::IsFalse (view.OnKey (MakeKey (VK_TAB)),
+            L"A second Tab is declined, so the walk carries on out of the view");
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Text,
+            L"leaving the column where the user left it");
+    }
+
+
+    TEST_METHOD (ShiftTab_RunsTheSameTwoStopsBackwards)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+        view.OnFocusEntered (false);
+
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Text,
+            L"A backward walk into the view lands on the characters");
+
+        Assert::IsTrue (view.OnKey (MakeKey (VK_TAB, true)),
+            L"Shift+Tab moves back to the digits");
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Hex,
+            L"which is the first stop");
+
+        Assert::IsFalse (view.OnKey (MakeKey (VK_TAB, true)),
+            L"and a second Shift+Tab leaves the view for the control before it");
+    }
+
+
+    TEST_METHOD (Tab_LeavesCtrlTabToTheWindow)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+        DxuiKeyEvent       ev    = MakeKey (VK_TAB);
+
+
+        view.SetSource (&source);
+        LayOut (view);
+        view.OnFocusEntered (true);
+
+        ev.ctrl = true;
+
+        Assert::IsFalse (view.OnKey (ev),
+            L"Ctrl+Tab cycles a window's pages and is never the view's");
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Hex,
+            L"so the column is untouched by it");
+    }
+
+
     TEST_METHOD (Selection_ReportsEveryChange)
     {
         CountingHexSource  source (256);

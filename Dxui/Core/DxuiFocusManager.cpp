@@ -325,6 +325,11 @@ bool DxuiFocusManager::MoveFocus (int direction)
         }
 
         SetFocused (m_tabOrder[next]);
+
+        if (m_tabOrder[next] != nullptr)
+        {
+            m_tabOrder[next]->OnFocusEntered (direction > 0);
+        }
     }
 
     return moved;

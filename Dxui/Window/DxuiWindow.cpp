@@ -1017,7 +1017,13 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
                 break;
             }
 
-            isHandled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+            // The focused control sees Tab FIRST, the way it already sees
+            // Enter. A control with stops inside it -- a hex view's hex and
+            // character columns -- claims Tab while it has one left to move
+            // to and declines once it has run out, so the walk carries on
+            // out of it without the control having to know what comes next.
+            isHandled = RouteKeyToFocused (vk, shift)
+                     || m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             break;
 
         case VK_ESCAPE:
