@@ -275,25 +275,4 @@ bool UiShell::HandleKey (WPARAM vk)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsCapturingInput
-//
-//  True when an open top-level menu is consuming keystrokes.
-//  EmulatorShell::OnChar uses this to suppress the WM_CHAR that Windows
-//  generates from a WM_KEYDOWN the menu already handled -- e.g. Enter
-//  pressed on a highlighted row should not also reach the //e keyboard as
-//  a carriage return. The toolbar's pickers and the chrome focus ring are
-//  separate state and are tested alongside this one, not through it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool UiShell::IsCapturingInput() const
-{
-    return (m_mainMenu != nullptr) && m_mainMenu->IsOpen();
-}
-
-
-
-
 
