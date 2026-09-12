@@ -56,7 +56,6 @@ public:
         bool                        version   = false;
         bool                        built     = false;
         bool                        described = false;
-        bool                        asked     = false;
         bool                        homophone = false;
 
         for (const DialogTextRun & run : runs)
@@ -65,7 +64,6 @@ public:
             version   = version   || run.text.find (L"Version ") == 0;
             built     = built     || run.text.find (L"Built ")   == 0;
             described = described || run.text == L"An Apple II disk image explorer.";
-            asked     = asked     || run.text == L"What's with the name?";
             homophone = homophone || run.text.find (L"homophone of casque") != std::wstring::npos;
         }
 
@@ -73,7 +71,6 @@ public:
         Assert::IsTrue (version);
         Assert::IsTrue (built);
         Assert::IsTrue (described);
-        Assert::IsTrue (asked);
         Assert::IsTrue (homophone);
     }
 

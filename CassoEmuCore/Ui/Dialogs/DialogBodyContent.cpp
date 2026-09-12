@@ -39,8 +39,9 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs)
     m_items.clear();
     m_items.reserve (runs.size());
 
-    m_leftColDip  = 0;
-    m_rightColDip = 0;
+    m_leftColDip    = 0;
+    m_rightColDip   = 0;
+    m_leadingRowDip = 0;
 
     for (const DialogTextRun & run : runs)
     {
@@ -108,6 +109,16 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs)
         }
 
         m_items.push_back (item);
+    }
+
+    //  Rows led by a picture take one height between them, so their pictures
+    //  are evenly spaced whether their text runs to one line or three.
+    for (const Item & item : m_items)
+    {
+        if (item.leadingDip > 0)
+        {
+            m_leadingRowDip = (std::max) (m_leadingRowDip, RawItemHeightDip (item));
+        }
     }
 }
 
@@ -421,14 +432,13 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         }
         else if (item.leadingDip > 0 && item.widget != nullptr)
         {
-            // The picture and the text block are each centered on the run's
-            // height, so a one-line caption sits level with its picture.
+            // Both take the whole row: the picture centered in it, the label
+            // centered in it by its own vertical alignment, so the text reads
+            // level with the picture whatever it wraps to.
             int   picturePx  = scaler.ToPx (item.leadingDip);
-            int   textPx     = item.lines * linePx;
             int   pictureTop = y + (std::max) (0, (hPx - picturePx) / 2);
-            int   textTop    = y + (std::max) (0, (hPx - textPx) / 2);
             int   textLeft   = runsLeft + picturePx + scaler.ToPx (s_kLeadGapDip);
-            RECT  textBox    = { textLeft, textTop, rightPx, textTop + textPx };
+            RECT  textBox    = { textLeft, y, rightPx, y + hPx };
 
             item.pictures[0].rectPx = { runsLeft, pictureTop, runsLeft + picturePx, pictureTop + picturePx };
             item.widget->Layout (textBox, scaler);
@@ -592,7 +602,7 @@ bool DialogBodyContent::BuildLeadingRow (const DialogTextRun & run, Item & item)
 
     label->SetText      (run.text);
     label->SetTextRole  (DxuiTextRole::Body);
-    label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     item.widget     = label;
     item.lines      = EstimateLineCount (run.text, columns);
@@ -677,14 +687,12 @@ int DialogBodyContent::EstimateLineCount (const std::wstring & text, size_t wrap
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DialogBodyContent::GetItemHeightDip (const Item & item)
+int DialogBodyContent::RawItemHeightDip (const Item & item)
 {
     int  height = item.lines * s_kLineHeightDip;
 
 
 
-    //  The padding goes on whichever is taller, text or picture, so rows of
-    //  pictures keep one margin between them however long their text runs.
     for (const Picture & picture : item.pictures)
     {
         height = (std::max) (height, picture.sizeDip);
@@ -696,6 +704,26 @@ int DialogBodyContent::GetItemHeightDip (const Item & item)
     }
 
     return height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogBodyContent::GetItemHeightDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DialogBodyContent::GetItemHeightDip (const Item & item) const
+{
+    if (item.leadingDip > 0 && m_leadingRowDip > 0)
+    {
+        return m_leadingRowDip;
+    }
+
+    return RawItemHeightDip (item);
 }
 
 

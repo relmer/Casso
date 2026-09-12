@@ -201,9 +201,12 @@ public:
         withPicture.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
         label = withPicture.GetChild (0)->GetBounds();
 
+        //  The label takes the whole row and centers its text in it, so the
+        //  text reads level with the picture.
         Assert::AreEqual (32 + 2 * 5,      withPicture.GetPreferredHeightDip());
         Assert::AreEqual ((LONG) (32 + 8), label.left);
-        Assert::AreEqual ((LONG) ((42 - 18) / 2), label.top);
+        Assert::AreEqual ((LONG) 0,        label.top);
+        Assert::AreEqual ((LONG) 42,       label.bottom);
 
         run.leadingImage->rgba.clear();
 
@@ -212,6 +215,34 @@ public:
 
         Assert::AreEqual (18, withoutPixels.GetPreferredHeightDip());
         Assert::AreEqual ((LONG) 0, withoutPixels.GetChild (0)->GetBounds().left);
+    }
+
+
+
+    TEST_METHOD (DialogLeadingPictures_ShareOneRowHeight)
+    {
+        DialogBodyContent  content;
+        DialogTextRun      wrapping;
+        DialogTextRun      short_;
+        RECT               first  = {};
+        RECT               second = {};
+
+        //  Long enough to wrap, which would otherwise make its row taller
+        //  than the next one and space the pictures unevenly.
+        wrapping.text         = L"Cask, a container that stores things, and a homophone of casque, the crest atop a cassowary's head";
+        wrapping.leadingImage = MakePicture (32.0f);
+        short_.text           = L"Casso, a spiffy Apple II emulator";
+        short_.leadingImage   = MakePicture (32.0f);
+
+        content.SetRuns ({ wrapping, short_ });
+        content.Layout  ({ 0, 0, 400, 1000 }, MakeScaler96());
+        first  = content.GetChild (0)->GetBounds();
+        second = content.GetChild (1)->GetBounds();
+
+        //  Three lines at 18, the picture's padding around them, twice.
+        Assert::AreEqual (2 * (3 * 18 + 2 * 5), content.GetPreferredHeightDip());
+        Assert::AreEqual (first.bottom - first.top, second.bottom - second.top);
+        Assert::AreEqual ((LONG) 64, second.top);
     }
 
 

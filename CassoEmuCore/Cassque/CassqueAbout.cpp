@@ -18,9 +18,10 @@
 //
 //  The heading lines sit beside the photograph, so they come first and end
 //  with a blank line that clears it. Then the name as an equation of the
-//  three icons, a row for each, and the links, grouped in pairs by blank
-//  lines the way Casso's About box groups them. An icon left empty gives its
-//  place in the equation to its word and leaves its row as text alone.
+//  three icons, which needs no sentence to introduce it, a row for each, and
+//  the links, grouped in pairs by blank lines the way Casso's About box
+//  groups them. An icon left empty gives its place in the equation to its
+//  word and leaves its row as text alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +41,6 @@ std::vector<DialogTextRun> CassqueAbout::GetBody (const Pictures & pictures)
     runs.push_back ({ L"" });
     runs.push_back ({ L"An Apple II disk image explorer." });
     runs.push_back ({ L"" });
-
-    runs.push_back ({ L"What's with the name?" });
 
     equation.strip = { { MakeSized (pictures.cask,    kEquationPictureDp), L"Cask"    },
                        { {},                                               L"+"       },

@@ -128,9 +128,14 @@ private:
     // same way for every run.
     static int   EstimateLineCount (const std::wstring & text, size_t wrapColumns);
 
-    // The height a run takes: its lines, or its tallest picture with room
-    // around it.
-    static int   GetItemHeightDip  (const Item & item);
+    // The height a run takes on its own: its lines, or its picture, with room
+    // around it when it carries one.
+    static int   RawItemHeightDip  (const Item & item);
+
+    // The height a run takes in this body. Every run led by a picture takes
+    // the tallest of their heights, so their pictures are evenly spaced
+    // however long one row's text runs.
+    int          GetItemHeightDip  (const Item & item) const;
 
     // Centers a strip run's pieces across the line, each picture and label
     // centered on the line's height.
@@ -145,12 +150,13 @@ private:
 
 
     std::vector<Item>      m_items;
-    ImagePlacement         m_placement    = ImagePlacement::CenteredAbove;
+    ImagePlacement         m_placement     = ImagePlacement::CenteredAbove;
+    int                    m_leadingRowDip = 0;   // shared by every run led by a picture
     std::vector<uint32_t>  m_iconPixels;
-    int                    m_iconSrcW     = 0;
-    int                    m_iconSrcH     = 0;
-    int                    m_iconSizeDip  = 0;
-    RECT                   m_iconRectPx   = {};
+    int                    m_iconSrcW      = 0;
+    int                    m_iconSrcH      = 0;
+    int                    m_iconSizeDip   = 0;
+    RECT                   m_iconRectPx    = {};
     // Shared column geometry for every column row in this body, so their
     // arrows form one vertical line. Zero when the body has no column rows.
     int                    m_leftColDip   = 0;
