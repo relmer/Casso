@@ -32,11 +32,15 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
 
 
 
-    arrows.label       = L"Joystick keys";
+    // The two built-in entries say what they DO to hardware the user already
+    // has, because neither "keys" nor "mouse" says on its own that it turns
+    // into a joystick or a paddle. A controller needs no such sentence: its
+    // own description is the whole answer.
+    arrows.label       = L"Use keys as joystick";
     arrows.isArrowKeys = true;
     arrows.isChecked   = state.arrowsJoystick && !state.hasController;
 
-    paddle.label         = L"Paddle mouse";
+    paddle.label         = L"Use mouse as paddle";
     paddle.isMousePaddle = true;
     paddle.isChecked     = state.mousePaddle && !state.hasController;
 

@@ -144,7 +144,12 @@ namespace ControllerTests
             Assert::IsTrue   (sources[0].isArrowKeys,          L"the always-present sources come first");
             Assert::IsTrue   (sources[1].isMousePaddle);
             Assert::IsTrue   (sources[0].isChecked,            L"and the one in use is checked");
-            Assert::AreEqual (std::wstring (L"Gladiator"), sources[2].label);
+
+            // The built-ins say what they do to hardware the user already has;
+            // a controller's own description is the whole answer.
+            Assert::AreEqual (std::wstring (L"Use keys as joystick"), sources[0].label);
+            Assert::AreEqual (std::wstring (L"Use mouse as paddle"),  sources[1].label);
+            Assert::AreEqual (std::wstring (L"Gladiator"),            sources[2].label);
         }
 
 
