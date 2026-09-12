@@ -78,6 +78,12 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
 
     m_theme = &CassqueShell::ChooseTheme (m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
 
+    //  Before the first layout, which the window's creation can bring on.
+    m_dock.SetDock (m_menuBand,    DxuiDock::Top);
+    m_dock.SetDock (m_toolbarBand, DxuiDock::Top);
+    m_dock.SetDock (m_statusBand,  DxuiDock::Bottom);
+    m_dock.SetDock (m_bodyBand,    DxuiDock::Fill);
+
     params.title                    = title;
     params.hInstance                = instance;
     params.initialSizeDip           = { CassqueShell::kDefaultWidthDip, CassqueShell::kDefaultHeightDip };
@@ -389,42 +395,56 @@ void CassqueWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 //
 //  CassqueWindow::RecomputeLayout
 //
-//  Menu strip across the top, status band across the bottom, and the three
-//  panes between them. The tree splitter spans the whole body so its limits
-//  are measured against it; the preview splitter spans everything right of
-//  the tree, with its position the list's width.
+//  Menu strip and toolbar across the top, status band across the bottom, and
+//  the three panes in what the dock leaves between them. The tree splitter
+//  spans the whole body so its limits are measured against it; the preview
+//  splitter spans everything right of the tree, with its position the list's
+//  width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassqueWindow::RecomputeLayout()
 {
-    int   menuH     = DxuiMenuBar::GetStripHeightPx (m_scaler.GetDpi());
-    int   statusH   = m_scaler.ToPx (DxuiStatusBar::GetBandDp());
-    RECT  menu      = { m_client.left, m_client.top, m_client.right, m_client.top + menuH };
-    RECT  status    = { m_client.left, m_client.bottom - statusH, m_client.right, m_client.bottom };
-    RECT  body      = { m_client.left, menu.bottom, m_client.right, status.top };
-    RECT  right     = {};
-    RECT  sashRect  = {};
-    int   rightDip  = 0;
-    bool  preview   = m_prefs.previewVisible;
+    IDxuiControl *  bands[]  = { &m_menuBand, &m_toolbarBand, &m_statusBand, &m_bodyBand };
+    RECT            body     = {};
+    RECT            right    = {};
+    RECT            sashRect = {};
+    int             rightDip = 0;
+    bool            preview  = m_prefs.previewVisible;
 
 
 
-    if (m_menuBar == nullptr || body.bottom <= body.top)
+    if (m_menuBar == nullptr || m_client.bottom <= m_client.top)
+    {
+        return;
+    }
+
+    //  The toolbar's band thickness follows the responsive mode it plans for
+    //  the width, so plan it before the bands are docked.
+    m_toolbar->PlanForWidth (m_client.right - m_client.left, m_scaler);
+
+    m_menuBand.SetThickness    (DxuiMenuBar::GetStripHeightPx (m_scaler.GetDpi()));
+    m_toolbarBand.SetThickness (m_scaler.ToPx (m_toolbar->GetBandDp()));
+    m_statusBand.SetThickness  (m_scaler.ToPx (DxuiStatusBar::GetBandDp()));
+
+    m_dock.Arrange (m_client, m_scaler, bands);
+
+    body = m_bodyBand.GetBounds();
+
+    if (body.bottom <= body.top)
     {
         return;
     }
 
     m_menuBar->SetHostClientRect (m_client);
-    m_menuBar->Layout (menu, m_scaler);
+    m_menuBar->Layout (m_menuBand.GetBounds(), m_scaler);
 
-    m_toolbar->PlanForWidth (m_client.right - m_client.left, m_scaler);
     m_toolbar->SetHostClientRect (m_client);
-    m_toolbar->Layout (RECT { m_client.left, menu.bottom, m_client.right, menu.bottom + m_scaler.ToPx (m_toolbar->GetBandDp()) }, m_scaler);
-    body.top = m_toolbar->GetBounds().bottom;
+    m_toolbar->Layout (m_toolbarBand.GetBounds(), m_scaler);
+
     m_tooltip.SetDpi (m_scaler.GetDpi());
     m_tooltip.SetViewportSize (m_client.right - m_client.left, m_client.bottom - m_client.top);
-    m_status->Layout (status, m_scaler);
+    m_status->Layout (m_statusBand.GetBounds(), m_scaler);
 
     m_treeSplitter->Layout (body, m_scaler);
     m_treeSplitter->SetLimitsDip (kMinTreeWidthDip, kMinListWidthDip + (preview ? kMinPreviewWidthDip : 0));

@@ -226,6 +226,7 @@
     <ClInclude Include="Core\DxuiFormLayout.h" />
     <ClInclude Include="Core\DxuiGridLayout.h" />
     <ClInclude Include="Core\DxuiHitTester.h" />
+    <ClInclude Include="Core\DxuiLayoutBand.h" />
     <ClInclude Include="Core\DxuiInput.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
     <ClInclude Include="Core\DxuiPanZoom.h" />

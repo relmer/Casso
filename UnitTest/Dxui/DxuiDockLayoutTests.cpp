@@ -411,5 +411,38 @@ public:
         Assert::AreEqual ((LONG) 100,        result.cx);
         Assert::AreEqual ((LONG) 100 + 10,   result.cy);
     }
+
+
+    TEST_METHOD (LayoutBands_CarryTheEdgesAndTheResidue)
+    {
+        DxuiDockLayout  layout;
+        DxuiDpiScaler   scaler;
+        DxuiLayoutBand  menu;
+        DxuiLayoutBand  toolbar;
+        DxuiLayoutBand  status;
+        DxuiLayoutBand  body;
+        IDxuiControl *  bands[4] = { &menu, &toolbar, &status, &body };
+
+        //  The arrangement Cassque's window docks: two strips on top, one on
+        //  the bottom, and the panes in what is left.
+        menu.SetThickness    (24);
+        toolbar.SetThickness (38);
+        status.SetThickness  (22);
+
+        layout.SetDock (menu,    DxuiDock::Top);
+        layout.SetDock (toolbar, DxuiDock::Top);
+        layout.SetDock (status,  DxuiDock::Bottom);
+        layout.SetDock (body,    DxuiDock::Fill);
+
+        layout.Arrange (MakeRect (0, 0, 800, 600), scaler, std::span<IDxuiControl * const> (bands, 4));
+
+        Assert::AreEqual ((LONG) 24,  menu.GetBounds().bottom);
+        Assert::AreEqual ((LONG) 24,  toolbar.GetBounds().top);
+        Assert::AreEqual ((LONG) 62,  toolbar.GetBounds().bottom);
+        Assert::AreEqual ((LONG) 578, status.GetBounds().top);
+        Assert::AreEqual ((LONG) 62,  body.GetBounds().top);
+        Assert::AreEqual ((LONG) 578, body.GetBounds().bottom);
+        Assert::AreEqual ((LONG) 800, Width (body.GetBounds()));
+    }
 };
 

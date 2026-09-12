@@ -119,6 +119,7 @@ struct IDCompositionVisual;
 #include "Core/IDxuiViewportInputSink.h"
 #include "Core/DxuiAbsoluteLayout.h"
 #include "Core/DxuiDockLayout.h"
+#include "Core/DxuiLayoutBand.h"
 #include "Core/DxuiFormLayout.h"
 #include "Core/DxuiGridLayout.h"
 #include "Core/DxuiStackLayout.h"

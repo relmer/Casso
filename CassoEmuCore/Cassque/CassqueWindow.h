@@ -24,7 +24,9 @@
 #include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiTooltip.h"
 #include "Widgets/DxuiTreeView.h"
+#include "Core/DxuiDockLayout.h"
 #include "Core/DxuiHitTester.h"
+#include "Core/DxuiLayoutBand.h"
 #include "Window/DxuiDragDropTarget.h"
 #include "Window/DxuiWindow.h"
 
@@ -176,4 +178,14 @@ private:
     DxuiTabStrip         * m_tabs            = nullptr;
     DxuiToolbar          * m_toolbar         = nullptr;
     DxuiTooltip            m_tooltip;
+
+    //  The window's edges, docked. Each band is stamped with the thickness
+    //  its widget needs and comes back with the rect that widget is laid
+    //  into; the body band takes what the edges leave, and the panes and
+    //  their splitters divide it.
+    DxuiDockLayout         m_dock;
+    DxuiLayoutBand         m_menuBand;
+    DxuiLayoutBand         m_toolbarBand;
+    DxuiLayoutBand         m_statusBand;
+    DxuiLayoutBand         m_bodyBand;
 };
