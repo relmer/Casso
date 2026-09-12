@@ -162,10 +162,6 @@ void DxuiTooltip::Tick (int64_t nowMs)
 
         ShowPopup();
 
-        if (m_activePopup != nullptr && DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
-        {
-            m_activePopup->BeginReveal (kFadeMs, /*fade*/ true);
-        }
     }
 
     // Time up: start the fade rather than vanish on the frame. The tip stays
@@ -367,6 +363,12 @@ void DxuiTooltip::ShowPopup()
         showParams.sizeDip.cx       = (int) std::ceil (boxWPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
         showParams.sizeDip.cy       = (int) std::ceil (boxHPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
         showParams.backgroundArgb   = m_bgArgb;
+
+        // A tip fades in rather than appearing. Same switch the menus read,
+        // so turning menu animation off turns this off with it.
+        showParams.revealMs         = DxuiSystemSettings::Instance().AreMenuAnimationsEnabled()
+                                          ? kFadeMs : 0;
+        showParams.revealFade       = true;
         showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
         showParams.onClosed         = [this] () { m_activePopup = nullptr; };
 

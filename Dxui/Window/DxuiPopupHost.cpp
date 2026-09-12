@@ -365,6 +365,11 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
         DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, (int) s_kShadowInsetPx);
     }
 
+    // Windows 11 rounds every menu and flyout, and a square-cornered popup
+    // over rounded chrome is the one detail that reads as wrong however right
+    // the rest is. No-op before Windows 11.
+    DxuiDwm::ApplyRoundedCorners (m_hwnd, true);
+
     // PAINT BEFORE SHOWING. These popups come from a pool and are handed
     // back most-recently-used first, so the window about to be shown is
     // usually the one the PREVIOUS menu was drawn into, and its swap chain
@@ -374,6 +379,16 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // next. The HWND and swap chain are live from CreateHwndAndComposition;
     // visibility was never what they needed.
     RenderNow();
+
+    // Arm the open animation and put the window into its FIRST frame before
+    // it is ever shown. Starting the reveal after ShowWindow let the popup
+    // appear full size for one frame and then jump back to the start of the
+    // animation, which is exactly the blink the animation exists to avoid.
+    if (m_params.revealMs > 0)
+    {
+        BeginReveal (m_params.revealMs, m_params.revealFade);
+        ApplyReveal (0.0f);
+    }
 
     // Show without activating (WS_EX_NOACTIVATE) so the owner keeps
     // keyboard focus / caption activation state.
@@ -462,6 +477,16 @@ void DxuiPopupHost::Close (int resultCode)
     m_revealing   = false;
     m_revealOut   = false;
     m_revealAlpha = 1.0f;
+
+    if (m_compVisual)
+    {
+        m_compVisual->SetOffsetY (0.0f);
+
+        if (m_compDevice)
+        {
+            m_compDevice->Commit();
+        }
+    }
 
     // Detach from chain bookkeeping.
     if (m_parent != nullptr && m_parent->m_activeChild == this)
@@ -972,7 +997,17 @@ HRESULT DxuiPopupHost::EnsureWindowClass()
     m_className = classNameBuf;
 
     wc.cbSize        = sizeof (wc);
-    wc.style         = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+    // CS_DROPSHADOW IS WHAT GIVES A POPUP ITS SHADOW. `ShowParams::shadow`
+    // reached only DwmExtendFrameIntoClientArea, which asks for a glass frame
+    // and draws no shadow at all on a frameless WS_POPUP whose client is
+    // painted by DirectComposition -- so menus had no shadow however the flag
+    // was set. This is the flag a classic menu uses, and on Windows 11 it is
+    // what DWM turns into the modern rounded shadow beside the corner
+    // preference applied at Show.
+    //
+    // It is a CLASS style, so it cannot vary per show. That is not a loss:
+    // Windows gives menus and tooltips alike a shadow.
+    wc.style         = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS | CS_DROPSHADOW;
     wc.lpfnWndProc   = &DxuiPopupHost::s_WndProcThunk;
     wc.hInstance     = m_hInstance;
     wc.hCursor       = LoadCursor (nullptr, IDC_ARROW);
@@ -997,8 +1032,8 @@ Error:
 //
 //  CreateHwndAndComposition
 //
-//  Creates the WS_POPUP HWND (adds WS_EX_TRANSPARENT|WS_EX_LAYERED
-//  for pass-through input popups) and a composition swap chain
+//  Creates the WS_POPUP HWND (adds WS_EX_TRANSPARENT for pass-through
+//  input popups) and a composition swap chain
 //  bound to a DirectComposition visual rooted on the HWND. WS_POPUP
 //  HWNDs need DComp for proper z-order, transparency, and shadow
 //  (CreateSwapChainForHwnd would paint at the wrong z-layer and
@@ -1020,9 +1055,17 @@ HRESULT DxuiPopupHost::CreateHwndAndComposition (const RECT & placedRectScreenPx
 
 
 
+    // WS_EX_TRANSPARENT alone is what makes the pointer pass through: it
+    // takes the window out of hit testing, which is the whole requirement
+    // for a tooltip. WS_EX_LAYERED used to ride along with it and bought
+    // nothing -- the content is composited by DirectComposition over an
+    // opaque clear, so there is no per-pixel alpha for layering to carry --
+    // while costing the drop shadow, because a layered window does not get
+    // CS_DROPSHADOW. Tooltips were the only popups that took it, and the
+    // only ones without a shadow.
     if (m_params.input == DxuiPopupInput::PassThrough)
     {
-        exStyle |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
+        exStyle |= WS_EX_TRANSPARENT;
     }
 
     if (m_hwnd == nullptr)
@@ -1435,6 +1478,97 @@ void DxuiPopupHost::BeginFadeOut (int durationMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplyReveal
+//
+//  One frame of the reveal at progress `t`, 0 to 1.
+//
+//  The slide is the WinUI one: the LAST row is on screen from the first
+//  frame and the list slides DOWN out of the anchor, uncovering earlier rows
+//  above it until the whole menu stands. Growing the window downward over
+//  top-anchored content does the opposite -- first row first -- which is what
+//  this replaces.
+//
+//  Two things move together to get it. The window grows downward from the
+//  anchor, and the composition visual is offset UP by exactly the part not
+//  yet uncovered, so the bottom of the fully-rendered menu is what shows
+//  through the short window. A popup that flipped ABOVE its anchor mirrors
+//  it: bottom edge pinned, no offset, so the list slides up instead.
+//
+//  Eased rather than linear. 150 ms of linear travel over ~9 frames reads as
+//  stepping; easing out puts most of the motion in the first frames, where
+//  the eye reads it as one movement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::ApplyReveal (float t)
+{
+    float  eased  = 0.0f;
+    int    fullW  = 0;
+    int    fullH  = 0;
+    int    shownH = 0;
+    int    top    = 0;
+    float  offset = 0.0f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    t     = (t < 0.0f) ? 0.0f : (t > 1.0f) ? 1.0f : t;
+    eased = 1.0f - ((1.0f - t) * (1.0f - t));
+
+    if (m_revealFade)
+    {
+        m_revealAlpha = m_revealOut ? (1.0f - eased) : eased;
+        RenderNow();
+        return;
+    }
+
+    fullW  = m_placedRectScreenPx.right  - m_placedRectScreenPx.left;
+    fullH  = m_placedRectScreenPx.bottom - m_placedRectScreenPx.top;
+    shownH = (int) ((float) fullH * eased);
+
+    if (shownH < 1)
+    {
+        shownH = 1;
+    }
+
+    if (m_revealUpward)
+    {
+        top    = m_placedRectScreenPx.bottom - shownH;
+        offset = 0.0f;
+    }
+    else
+    {
+        top    = m_placedRectScreenPx.top;
+        offset = -(float) (fullH - shownH);
+    }
+
+    SetWindowPos (m_hwnd, nullptr,
+                  m_placedRectScreenPx.left, top, fullW, shownH,
+                  SWP_NOZORDER | SWP_NOACTIVATE);
+
+    if (m_compVisual)
+    {
+        m_compVisual->SetOffsetY (offset);
+
+        if (m_compDevice)
+        {
+            m_compDevice->Commit();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AdvanceReveal
 //
 //  One frame of the open animation, returning true while more are wanted.
@@ -1445,11 +1579,7 @@ void DxuiPopupHost::BeginFadeOut (int durationMs)
 
 bool DxuiPopupHost::AdvanceReveal (int64_t nowMs)
 {
-    int    fullW  = 0;
-    int    fullH  = 0;
-    int    shownH = 0;
-    int    top    = 0;
-    float  t      = 0.0f;
+    float  t = 0.0f;
 
 
 
@@ -1467,35 +1597,8 @@ bool DxuiPopupHost::AdvanceReveal (int64_t nowMs)
         t           = 1.0f;
         m_revealing = false;
     }
-    else if (t < 0.0f)
-    {
-        t = 0.0f;
-    }
 
-    fullW = m_placedRectScreenPx.right  - m_placedRectScreenPx.left;
-    fullH = m_placedRectScreenPx.bottom - m_placedRectScreenPx.top;
-
-    if (m_revealFade)
-    {
-        m_revealAlpha = m_revealOut ? (1.0f - t) : t;
-        RenderNow();
-    }
-    else
-    {
-        shownH = (int) ((float) fullH * t);
-
-        if (shownH < 1)
-        {
-            shownH = 1;
-        }
-
-        top = m_revealUpward ? (m_placedRectScreenPx.bottom - shownH)
-                             : m_placedRectScreenPx.top;
-
-        SetWindowPos (m_hwnd, nullptr,
-                      m_placedRectScreenPx.left, top, fullW, shownH,
-                      SWP_NOZORDER | SWP_NOACTIVATE);
-    }
+    ApplyReveal (t);
 
     return m_revealing;
 }

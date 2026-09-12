@@ -402,6 +402,13 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     params.sizeDip.cx       = MulDiv (width,  DxuiDpiScaler::kBaseDpi, (int) dpi);
     params.sizeDip.cy       = MulDiv (height, DxuiDpiScaler::kBaseDpi, (int) dpi);
     params.backgroundArgb   = bgArgb;
+
+    // The open animation. Menus and submenus unfold; the system's animation
+    // switch, and the accessibility master switch behind it, turn it off.
+    params.revealMs         = (!m_revealSuppressed &&
+                               DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
+                                  ? kRevealMs : 0;
+    params.revealFade       = false;
     params.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
     params.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
     params.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
@@ -427,12 +434,6 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
         m_activePopup->SetParentPopup (m_parent->m_activePopup);
     }
 
-    // The open animation. Menus and submenus unfold; the system's animation
-    // switch, and the accessibility master switch behind it, turn it off.
-    if (!m_revealSuppressed && DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
-    {
-        m_activePopup->BeginReveal (kRevealMs, /*fade*/ false);
-    }
 }
 
 

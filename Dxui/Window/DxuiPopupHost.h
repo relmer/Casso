@@ -130,6 +130,13 @@ public:
         // directly over it, and the owner drives dismiss/switch.
         bool                            grabsCapture       = true;
         SIZE                            sizeDip            = { 160, 120 };
+
+        // The open animation, in ms; 0 shows the popup outright. Set HERE
+        // rather than started after Show, because a reveal begun afterwards
+        // has already let one full-size frame reach the screen -- which is
+        // the blink it was supposed to replace.
+        int                             revealMs           = 0;
+        bool                            revealFade         = false;
         std::unique_ptr<DxuiPanel>      content;
 
         // Opaque background the popup back buffer is cleared to before
@@ -225,6 +232,8 @@ public:
     //  opened it.
     //
     //  `AdvanceReveal` returns true while more frames are wanted.
+    //  Reveal control. Show() starts one itself from `ShowParams`; these are
+    //  for a caller driving one on an already-open popup.
     void     BeginReveal   (int durationMs, bool fade);
 
     //  The closing counterpart: content ramps to transparent and the caller
@@ -233,6 +242,7 @@ public:
     //  glitch rather than a dismissal.
     void     BeginFadeOut  (int durationMs);
     bool     AdvanceReveal (int64_t nowMs);
+    void     ApplyReveal    (float t);
     bool     IsRevealing   () const { return m_revealing; }
 
     //

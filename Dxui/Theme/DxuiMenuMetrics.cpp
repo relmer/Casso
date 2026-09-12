@@ -20,10 +20,18 @@
 //  taken as a fixed fraction above the em; measuring it would need a device
 //  context this struct deliberately does not have.
 //
-//  The pads are the one part with no system metric behind them. They are DIPs
-//  scaled here and never again, chosen against a real menu captured on a
-//  120 DPI display: at 96 DPI they put the label column 35 px in from the
-//  left edge, which is where Windows puts it.
+//  The pads are the one part with no system metric behind them, and they are
+//  DELIBERATELY LOOSER THAN WINDOWS. A classic menu is built for applications
+//  with dozens of items per list; Casso's longest menu is nine rows, so it
+//  can afford the airier spacing a modern menu uses, and beside a slide-open
+//  animation the tight classic rows read as dated. At 96 DPI this puts a row
+//  at 32 px against Windows' 22, which is WinUI's item height.
+//
+//  What does NOT change is where the sizes COME FROM. A row is still the
+//  taller of the system item height and a line of the system menu font plus
+//  padding, so an enlarged menu font still moves every row, and every pad is
+//  still a DIP scaled once for this display. The density is ours; the
+//  tracking is the system's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,9 +42,10 @@ DxuiMenuMetrics DxuiMenuMetrics::FromSystem (UINT dpi)
     constexpr int      kDefaultFontEmDip      = 12;   // Segoe UI, lfHeight -12
     constexpr int      kDefaultCheckGutterDip = 15;   // SM_CXMENUCHECK default
     constexpr int      kLinePercentOfEm       = 133;   // Segoe UI cell over em
-    constexpr int      kRowPadDip             = 3;   // above and below the text
-    constexpr int      kSeparatorPercentOfRow = 45;
-    constexpr int      kLeftPadDip            = 4;
+    constexpr int      kMinFontDip            = 14;   // WinUI ControlContentThemeFontSize
+    constexpr int      kRowPadDip             = 7;   // above and below the text
+    constexpr int      kSeparatorPercentOfRow = 30;
+    constexpr int      kLeftPadDip            = 6;
     constexpr int      kGutterGapDip          = 16;
     constexpr int      kAccelGapDip           = 20;
     constexpr int      kMinWidthDip           = 140;
@@ -46,6 +55,7 @@ DxuiMenuMetrics DxuiMenuMetrics::FromSystem (UINT dpi)
     int                emPx                   = 0;
     int                menuH                  = 0;
     int                textRowH               = 0;
+    int                fontFloorPx            = 0;
 
 
 
@@ -72,8 +82,19 @@ DxuiMenuMetrics DxuiMenuMetrics::FromSystem (UINT dpi)
         m.checkGutterPx = MulDiv (kDefaultCheckGutterDip, (int) effective, (int) kBaseDpi);
     }
 
-    m.fontPx       = (float) emPx;
-    m.lineHeightPx = MulDiv (emPx, kLinePercentOfEm, 100);
+    // WinUI's body size as a FLOOR, not a multiple of the system em. WinUI
+    // does not derive its type size from `lfMenuFont` at all -- it fixes
+    // ControlContentThemeFontSize at 14 -- so there is no ratio here to
+    // copy, and inventing one that happens to turn 12 into 14 would be a
+    // coincidence pretending to be a rule.
+    //
+    // A floor takes WinUI's size at the Windows default and still yields to
+    // a user who has enlarged the menu font past it, which is the direction
+    // that matters: somebody who asked for bigger text gets bigger text.
+    // The same shape as the notification duration above.
+    fontFloorPx    = MulDiv (kMinFontDip, (int) effective, (int) kBaseDpi);
+    m.fontPx       = (float) ((emPx > fontFloorPx) ? emPx : fontFloorPx);
+    m.lineHeightPx = MulDiv ((int) m.fontPx, kLinePercentOfEm, 100);
 
     textRowH = m.lineHeightPx + 2 * MulDiv (kRowPadDip, (int) effective, (int) kBaseDpi);
 
