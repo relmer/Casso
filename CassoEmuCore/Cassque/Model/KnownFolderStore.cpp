@@ -45,7 +45,12 @@ std::vector<std::wstring> KnownFolderStore::ListRootFolders (
 
     for (const Entry & entry : entries)
     {
-        folders.push_back (entry.path);
+        //  A list written before the seeding dropped them can still hold a
+        //  relative path, and no listing of it would find anything.
+        if (IsUsableFolder (entry.path))
+        {
+            folders.push_back (entry.path);
+        }
     }
 
     if (!folders.empty())
@@ -80,6 +85,21 @@ std::vector<std::wstring> KnownFolderStore::ListRootFolders (
 std::wstring KnownFolderStore::GetFilePath (const std::wstring & baseDir)
 {
     return JoinBase (baseDir, kFileName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KnownFolderStore::JoinBase
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KnownFolderStore::IsUsableFolder (const std::wstring & folder)
+{
+    return !folder.empty() && std::filesystem::path (folder).is_absolute();
 }
 
 
@@ -546,7 +566,10 @@ HRESULT KnownFolderStore::SeedFromMru (const std::vector<DiskMru::Entry> & mru, 
 
     for (const std::filesystem::path & folder : folders)
     {
-        entries.push_back (Entry { folder.wstring(), nowUnix });
+        if (IsUsableFolder (folder.wstring()))
+        {
+            entries.push_back (Entry { folder.wstring(), nowUnix });
+        }
     }
 
     hr = WriteEntries (entries);

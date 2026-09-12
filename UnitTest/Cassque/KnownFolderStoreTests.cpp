@@ -165,6 +165,34 @@ public:
 
 
 
+    TEST_METHOD (RelativeFolders_AreNeitherSeededNorListed)
+    {
+        InMemoryFileSystem                    fs;
+        KnownFolderStore                      store (fs, kBase, false);
+        std::vector<DiskMru::Entry>           mru;
+        std::vector<KnownFolderStore::Entry>  entries;
+        std::vector<std::wstring>             folders;
+
+        //  A recent disk recorded by a relative path: the folder it yields
+        //  means nothing to whichever process reads the list back.
+        mru.push_back (DiskMru::Entry { L"Apple2\\Demos\\demo.dsk",    10 });
+        mru.push_back (DiskMru::Entry { L"C:\\Apple\\Disks\\one.dsk",  11 });
+
+        AssertSucceeded (store.SeedFromMru (mru, 100));
+        AssertSucceeded (store.Load (entries));
+
+        Assert::AreEqual ((size_t) 1, entries.size());
+        Assert::AreEqual (std::wstring (L"C:\\Apple\\Disks"), entries[0].path);
+
+        //  And a list already written with one is listed without it.
+        entries.push_back (KnownFolderStore::Entry { L"Apple2\\Demos", 12 });
+        folders = KnownFolderStore::ListRootFolders (fs, kBase, entries);
+
+        Assert::AreEqual ((size_t) 1, folders.size());
+        Assert::AreEqual (std::wstring (L"C:\\Apple\\Disks"), folders[0]);
+    }
+
+
     TEST_METHOD (RootFolders_AreEmptyWithNothingRecordedAndNoDisksFolder)
     {
         InMemoryFileSystem                    fs;

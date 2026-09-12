@@ -86,6 +86,11 @@ public:
     static constexpr const wchar_t *  kMutexName = L"Local\\CassoKnownFolders";
 
 private:
+    //  A folder the list can carry. A relative path means nothing to the
+    //  process that reads it back, which has its own working directory, so it
+    //  is dropped rather than listed as a folder that cannot be found.
+    static bool          IsUsableFolder (const std::wstring & folder);
+
     static std::wstring  JoinBase (const std::wstring & baseDir, const std::wstring & name);
 
     HRESULT  ReadEntries  (std::vector<Entry> & outEntries) const;
