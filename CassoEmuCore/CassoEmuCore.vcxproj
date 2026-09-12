@@ -279,6 +279,7 @@
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
+    <ClCompile Include="Devices\Disk\WriteProtectChange.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eKeyboard.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eMmu.cpp" />
     <ClCompile Include="Machines\Apple2\Common\CxxxRomRouter.cpp" />
@@ -528,6 +529,7 @@
     <ClInclude Include="Devices\Disk\IImageWatcher.h" />
     <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
     <ClInclude Include="Devices\Disk\MountedImageState.h" />
+    <ClInclude Include="Devices\Disk\WriteProtectChange.h" />
     <ClInclude Include="Machines\Apple2\Common\IVideoTiming.h" />
     <ClInclude Include="Machines\Apple2\Common\VideoTiming.h" />
     <ClInclude Include="Devices\RamDevice.h" />

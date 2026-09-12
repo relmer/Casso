@@ -359,6 +359,7 @@
     <ClCompile Include="EmuTests\BootDiskTests.cpp" />
     <ClCompile Include="EmuTests\GameBootTests.cpp" />
     <ClCompile Include="EmuTests\DiskWritePathTests.cpp" />
+    <ClCompile Include="EmuTests\WriteProtectChangeTests.cpp" />
     <ClCompile Include="EmuTests\Pr3AuxClearTest.cpp" />
     <ClCompile Include="EmuTests\DamagedDisk.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskDecodeTests.cpp" />
@@ -497,6 +498,7 @@
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
