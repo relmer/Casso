@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Controllers/ControlMapping.h"
+#include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/GamePortInputMixer.h"
 #include "Controllers/MappingEvaluator.h"
 #include "Seams/IControllerBackend.h"
@@ -46,13 +47,24 @@ public:
         bool                               isSelectedConnected = false;
     };
 
+    // Raised on the controller thread when the policy chooses or adopts a
+    // controller on its own, so the shell can persist the choice and say so.
+    using SelectionChangedFn = std::function<void (const ControllerSelectionPolicy::Decision &)>;
+
+    // Raised when the selected controller connects or disconnects. The axis
+    // owner depends on it, and the owner is decided on the UI thread.
+    using StateChangedFn = std::function<void ()>;
+
     ControllerInputService (IControllerBackend & backend, GamePortInputMixer & mixer);
 
     void  OnDevicesChanged () override;
 
-    void  SetActive        (bool isActive);
-    void  SetSelection     (const std::optional<ControllerUnitKey> & selection);
-    void  SetDeadzone      (float deadzone);
+    void  SetActive             (bool isActive);
+    void  SetSelection          (const std::optional<ControllerUnitKey> & selection);
+    void  SetDeadzone           (float deadzone);
+    void  SetHasGamePort        (bool hasGamePort);
+    void  SetSelectionChangedFn (SelectionChangedFn onSelectionChanged);
+    void  SetStateChangedFn     (StateChangedFn onStateChanged);
 
     // Reads the selected controller once and returns what the thread should
     // wait on before reading again.
@@ -78,8 +90,11 @@ private:
     std::vector<ControllerDeviceInfo>    m_devices;
     std::optional<ControllerUnitKey>     m_selection;
     ControllerSample                     m_lastSample;
+    SelectionChangedFn                   m_onSelectionChanged;
+    StateChangedFn                       m_onStateChanged;
     float                                m_deadzone            = 0.0f;
     bool                                 m_isActive            = true;
+    bool                                 m_hasGamePort         = true;
     bool                                 m_isSelectedConnected = false;
     bool                                 m_hasContribution     = false;
     std::atomic<bool>                    m_devicesDirty        {true};

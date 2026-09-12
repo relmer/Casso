@@ -2450,6 +2450,28 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // The controller thread's policy chose or adopted a controller. Saying so
+    // and writing it to the prefs both belong here, not on that thread.
+    if (msg == WM_APP_CONTROLLER_PICK)
+    {
+        std::wstring  description;
+        bool          isAdoption = false;
+        bool          hasNotice  = false;
+
+        {
+            std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+
+            description               = m_controllerPickDescription;
+            isAdoption                = m_controllerPickIsAdoption;
+            hasNotice                 = m_controllerPickHasNotice;
+            m_controllerPickHasNotice = false;
+        }
+
+        ApplyAutomaticControllerSelection (description, isAdoption || !hasNotice);
+
+        return DxuiMessageResult::Handled;
+    }
+
     // A mount that ran on the CPU thread wants its damage report raised here,
     // where a modal can be built.
     if (msg == WM_APP_REPORT_DAMAGE)

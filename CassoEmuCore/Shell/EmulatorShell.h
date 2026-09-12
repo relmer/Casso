@@ -558,6 +558,7 @@ private:
 
     // Hands PDL0/PDL1 to whichever host input mode currently drives them.
     void    SyncGamePortAxisOwner ();
+    void    ApplyAutomaticControllerSelection (const std::wstring & description, bool isAdoption);
 
     // Set the host input mapping mode (Off / Joystick / Paddle): persists
     // it, re-syncs the game port (resolving joystick axes / buttons from
@@ -1982,6 +1983,14 @@ private:
     std::unique_ptr<Win32ControllerBackend>  m_controllerBackend;
     std::unique_ptr<ControllerInputService>  m_controllerService;
     std::unique_ptr<ControllerInputThread>   m_controllerThread;
+
+    // Written by the controller thread when the policy chooses a controller,
+    // read on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting
+    // prefs and raising a notice are both UI-thread work.
+    std::mutex                               m_controllerPickMutex;
+    std::wstring                             m_controllerPickDescription;
+    bool                                     m_controllerPickIsAdoption = false;
+    bool                                     m_controllerPickHasNotice  = false;
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

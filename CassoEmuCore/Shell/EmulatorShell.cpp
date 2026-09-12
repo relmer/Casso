@@ -431,6 +431,32 @@ HRESULT EmulatorShell::Initialize (
     m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
     m_controllerThread  = std::make_unique<ControllerInputThread>();
 
+    m_controllerService->SetSelectionChangedFn (
+        [this] (const ControllerSelectionPolicy::Decision & decision)
+        {
+            {
+                std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+
+                m_controllerPickDescription = decision.description;
+                m_controllerPickIsAdoption  = (decision.reason == SelectionChangeReason::Adoption);
+            }
+
+            {
+                std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+
+                m_controllerPickHasNotice = true;
+            }
+
+            PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
+        });
+
+    // A connect or disconnect changes who owns the axes but tells the user
+    // nothing, so it takes the same trip to the UI thread without a notice.
+    m_controllerService->SetStateChangedFn ([this]
+    {
+        PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
+    });
+
     hr = m_controllerThread->Start (m_controllerBackend.get(), m_controllerService.get(),
                                     [this] { return m_controllerService->Tick(); });
     IGNORE_RETURN_VALUE (hr, S_OK);

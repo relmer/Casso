@@ -132,6 +132,79 @@ void ControllerInputService::SetDeadzone (float deadzone)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetHasGamePort
+//
+//  Whether the machine in front of the user has a game port at all. Without
+//  one the policy chooses nothing, and a selection carried in from another
+//  machine is kept untouched (FR-017).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetHasGamePort (bool hasGamePort)
+{
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        if (m_hasGamePort == hasGamePort)
+        {
+            return;
+        }
+
+        m_hasGamePort = hasGamePort;
+    }
+
+    m_devicesDirty = true;
+
+    if (!hasGamePort)
+    {
+        ReleaseContribution();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSelectionChangedFn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetSelectionChangedFn (SelectionChangedFn onSelectionChanged)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_onSelectionChanged = std::move (onSelectionChanged);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetStateChangedFn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_onStateChanged = std::move (onStateChanged);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Tick
 //
 //  Controller thread. Reads the selected controller once and submits what it
@@ -154,6 +227,7 @@ ControllerWaitSources ControllerInputService::Tick()
     bool                              wasConnected   = false;
     bool                              isConnected    = false;
     bool                              needsTimedPoll = false;
+    StateChangedFn                    onStateChanged;
 
 
 
@@ -174,28 +248,7 @@ ControllerWaitSources ControllerInputService::Tick()
 
     if (!selection.has_value())
     {
-        // Temporary for the first playable slice: with nothing chosen, the
-        // first controller found drives the game port, so a controller plays
-        // as soon as it is plugged in and before any UI exists to choose it.
-        // The selection policy replaces this, including remembering the
-        // choice per machine.
-        {
-            std::lock_guard<std::mutex>  lock (m_mutex);
-
-            if (!m_devices.empty())
-            {
-                m_selection = m_devices.front().unit;
-                selection   = m_selection;
-                EnsureMappingForSelectionLocked();
-                mapping     = m_mapping;
-                deadzone    = m_deadzone;
-            }
-        }
-
-        if (!selection.has_value())
-        {
-            return wait;
-        }
+        return wait;
     }
 
     hr          = m_backend.ReadSample (selection.value(), sample);
@@ -206,6 +259,15 @@ ControllerWaitSources ControllerInputService::Tick()
 
         m_isSelectedConnected = isConnected;
         m_lastSample          = isConnected ? sample : ControllerSample();
+        onStateChanged        = m_onStateChanged;
+    }
+
+    // Who owns the axes turns on whether the chosen controller is there, so
+    // the first successful read after it is chosen has to be announced: until
+    // then the axes rest at center however far the stick is pushed.
+    if (isConnected != wasConnected && onStateChanged)
+    {
+        onStateChanged();
     }
 
     if (!isConnected)
@@ -224,15 +286,9 @@ ControllerWaitSources ControllerInputService::Tick()
     }
     else
     {
-        // Temporary for the first playable slice: a live controller takes the
-        // axes while it is driving them, and hands them back when it stops.
-        // The selection policy replaces this with the arrow-key fallback.
-        m_mixer.SetAxisOwner (AxisOwner::Controller);
         m_mixer.Submit (GamePortSource::Controller, m_evaluator.Evaluate (sample, mapping, deadzone));
         m_hasContribution = true;
     }
-
-    UNREFERENCED_PARAMETER (wasConnected);
 
     // What the thread waits on until the next read: the controller's own
     // change events where it has them, and the measured poll period only for
@@ -290,8 +346,10 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
 
 void ControllerInputService::RefreshDevices()
 {
-    HRESULT                            hr = S_OK;
-    std::vector<ControllerDeviceInfo>  devices;
+    HRESULT                              hr = S_OK;
+    std::vector<ControllerDeviceInfo>    devices;
+    ControllerSelectionPolicy::Decision  decision;
+    SelectionChangedFn                   onSelectionChanged;
 
 
 
@@ -302,7 +360,26 @@ void ControllerInputService::RefreshDevices()
         std::lock_guard<std::mutex>  lock (m_mutex);
 
         m_devices = devices;
+        decision  = ControllerSelectionPolicy::Evaluate (m_selection, m_devices, m_hasGamePort);
+
+        if (decision.hasChanged)
+        {
+            // A controller the policy chose brings its own mapping with it,
+            // so the mapping the previous selection had is dropped first.
+            m_selection  = decision.selection;
+            m_mapping    = ControlMapping();
+            m_lastSample = ControllerSample();
+        }
+
         EnsureMappingForSelectionLocked();
+        onSelectionChanged = m_onSelectionChanged;
+    }
+
+    // Outside the lock: the sink persists the choice and raises a notice, and
+    // neither belongs under a lock the controller thread holds every tick.
+    if (decision.hasChanged && onSelectionChanged)
+    {
+        onSelectionChanged (decision);
     }
 }
 

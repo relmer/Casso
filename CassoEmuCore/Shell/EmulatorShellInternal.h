@@ -27,6 +27,7 @@
 #define WM_APP_CHANGE_REPORT   (WM_APP + 0x26)
 #define WM_APP_CHANGE_ASK      (WM_APP + 0x27)
 #define WM_APP_GAMEPORT_FLUSH  (WM_APP + 0x28)
+#define WM_APP_CONTROLLER_PICK (WM_APP + 0x29)
 
 
 

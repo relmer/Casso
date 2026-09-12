@@ -5,6 +5,7 @@
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
+#include "Controllers/InputModeRules.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -2595,30 +2596,80 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplyAutomaticControllerSelection
+//
+//  UI thread. A controller the policy chose on its own still has to reach the
+//  rest of the shell: the arrow keys and the paddle give up the axes, the
+//  choice is written to the machine's prefs, and the user is told which
+//  controller it was (FR-032).
+//
+//  An adoption says nothing. The user did not choose anything -- the same
+//  controller came back on another port -- so announcing it would report a
+//  change the user did not make.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyAutomaticControllerSelection (const std::wstring & description, bool isAdoption)
+{
+    InputModeRules::State  state;
+
+
+
+    state.arrowsJoystick = m_arrowsJoystick;
+    state.mousePaddle    = (m_pointerMode == InputMappingMode::Paddle);
+    state               = InputModeRules::AfterSelectingController (state);
+
+    if (m_arrowsJoystick && !state.arrowsJoystick)
+    {
+        SetArrowsJoystick (false);
+    }
+
+    if (!state.mousePaddle && m_pointerMode == InputMappingMode::Paddle)
+    {
+        SetPointerMapping (InputMappingMode::Off);
+    }
+
+    SyncGamePortAxisOwner();
+    SyncInputModeUi();
+
+    if (!isAdoption && !description.empty())
+    {
+        ShowNotification (L"Controller selected: " + description);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SyncGamePortAxisOwner
 //
-//  Paddle mode owns PDL0/PDL1 while it is on, then arrows-to-joystick, and
-//  otherwise nothing, which rests the axes at center. The setters keep the
-//  two mutually exclusive, so the order matters only mid-switch.
+//  Who owns PDL0/PDL1: a connected chosen controller, else paddle mode, else
+//  arrows-to-joystick, else nothing, which rests the axes at center. The rule
+//  itself is in InputModeRules so it can be asserted without a machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SyncGamePortAxisOwner()
 {
-    AxisOwner  owner = AxisOwner::None;
+    InputModeRules::State  state;
 
 
 
-    if (m_pointerMode == InputMappingMode::Paddle)
+    state.arrowsJoystick = m_arrowsJoystick;
+    state.mousePaddle    = (m_pointerMode == InputMappingMode::Paddle);
+
+    if (m_controllerService != nullptr)
     {
-        owner = AxisOwner::MousePaddle;
-    }
-    else if (m_arrowsJoystick)
-    {
-        owner = AxisOwner::ArrowKeys;
+        ControllerInputService::Snapshot  snapshot = m_controllerService->GetSnapshot();
+
+        state.hasController        = snapshot.selection.has_value();
+        state.isControllerAttached = snapshot.isSelectedConnected;
     }
 
-    m_gamePortMixer.SetAxisOwner (owner);
+    m_gamePortMixer.SetAxisOwner (InputModeRules::GetAxisOwner (state));
 }
 
 
