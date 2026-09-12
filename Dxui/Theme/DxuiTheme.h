@@ -116,6 +116,12 @@ struct DxuiTheme : public IDxuiTheme
     //  kBodyFace is read.
     static constexpr float         kCornerRadiusDip = 4.0f;
 
+    //  The corner radius for surfaces that float over the window: menus,
+    //  flyouts and tooltips. Twice the control radius, as WinUI's
+    //  OverlayCornerRadius is, which makes a control-radius card inset by the
+    //  difference sit exactly concentric inside one.
+    static constexpr float         kOverlayCornerRadiusDip = 8.0f;
+
     DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
     DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::SemiBold }; }
     DxuiFontHandle  CaptionFont   () const override { return { kBodyFace, kCaptionSizeDip, DxuiFontWeight::Normal   }; }

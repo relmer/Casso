@@ -424,13 +424,17 @@ void DxuiPainter::PushQuad (
     Vertex  tr = topRight;
     Vertex  bl = bottomLeft;
     Vertex  br = bottomRight;
+    float   x0 = xPx + m_originXPx;
+    float   y0 = yPx + m_originYPx;
 
 
 
-    NdcFromPixel (xPx,           yPx,            tl.x, tl.y);
-    NdcFromPixel (xPx + widthPx, yPx,            tr.x, tr.y);
-    NdcFromPixel (xPx,           yPx + heightPx, bl.x, bl.y);
-    NdcFromPixel (xPx + widthPx, yPx + heightPx, br.x, br.y);
+    // The origin is applied HERE and only here: every primitive, spans and
+    // arcs included, reaches the vertex buffer through this function.
+    NdcFromPixel (x0,            y0,            tl.x, tl.y);
+    NdcFromPixel (x0 + widthPx,  y0,            tr.x, tr.y);
+    NdcFromPixel (x0,            y0 + heightPx, bl.x, bl.y);
+    NdcFromPixel (x0 + widthPx,  y0 + heightPx, br.x, br.y);
 
     // Two triangles per quad: (tl, tr, bl) and (bl, tr, br). Append all six in
     // one insert so the vector grows/size-checks once rather than six times

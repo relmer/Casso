@@ -1636,8 +1636,11 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     pal = ResolvePalette();
 
-    painter.FillRect    (left, top, width, height, pal.bg);
-    painter.OutlineRect (left, top, width, height, (float) kBorderDip, pal.border);
+    // Rounded at the overlay radius. A hosted menu's card is also drawn by
+    // its popup host at this same radius and rect; a square fill here would
+    // paint the host's rounded corners back to square.
+    painter.FillRoundedRect    (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), pal.bg);
+    painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), (float) kBorderDip, pal.border);
 
     for (int i = 0; i < (int) m_rows.size(); i++)
     {

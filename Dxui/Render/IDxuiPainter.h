@@ -105,5 +105,11 @@ public:
     // implement alpha tracking; the concrete DxuiPainter overrides
     // these to drive the live-preview fade pipeline.
     virtual void   SetGlobalAlpha (float alpha)                               { (void) alpha; }
+
+    // Offset added to every coordinate drawn after it, in pixels. A popup
+    // host sets it so a content hook that paints from (0,0) lands inside a
+    // shadow margin the hook knows nothing about. Defaulted to a no-op so a
+    // mock or a simple painter compiles unchanged.
+    virtual void   SetOrigin (float xPx, float yPx)                           { (void) xPx; (void) yPx; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
 };

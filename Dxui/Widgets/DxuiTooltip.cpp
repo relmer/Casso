@@ -356,7 +356,7 @@ void DxuiTooltip::ShowPopup()
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
-        showParams.shadow           = false;
+        showParams.shadow           = true;
         // Show scales these back up by the owner DPI, so the trip into DIPs
         // rounds UP -- rounding down here would hand back the pixel the
         // measurement above exists to keep.
@@ -582,7 +582,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 
-    painter.OutlineRect (0.0f, 0.0f, width, height, borderPx, m_borderArgb);
+    painter.OutlineRoundedRect (0.0f, 0.0f, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), borderPx, m_borderArgb);
 
     hr = text.DrawString (m_text.c_str(),
                           padX,

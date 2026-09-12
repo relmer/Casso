@@ -2,6 +2,7 @@
 
 #include "DxuiPopupHost.h"
 #include "Theme/DxuiDwm.h"
+#include "Theme/DxuiTheme.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -11,7 +12,6 @@
 
 
 static constexpr UINT     s_kDefaultDpi          = 96;
-static constexpr LONG     s_kShadowInsetPx       = 1;
 
 std::atomic<uint32_t>  s_classSerial { 0 };
 
@@ -304,11 +304,13 @@ void DxuiPopupHost::Shutdown()
 
 HRESULT DxuiPopupHost::Show (ShowParams params)
 {
-    HRESULT  hr             = S_OK;
-    RECT     workArea       = {};
-    RECT     placedRect     = {};
-    SIZE     sizePx         = {};
-    UINT     dpi            = s_kDefaultDpi;
+    constexpr int  kShadowMarginDip = 14;
+    HRESULT        hr               = S_OK;
+    RECT           workArea         = {};
+    RECT           placedRect       = {};
+    RECT           windowRect       = {};
+    SIZE           sizePx           = {};
+    UINT           dpi              = s_kDefaultDpi;
 
 
 
@@ -343,6 +345,17 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
                                           m_params.flipIfOffscreen);
     m_placedRectScreenPx = placedRect;
 
+    // The window is the card plus a margin that holds the drawn shadow. The
+    // placed rect stays the card, so a consumer measuring itself against it
+    // and every placement decision above are unchanged.
+    m_dpi                = dpi;
+    m_shadowMarginPx     = m_params.shadow ? MulDiv (kShadowMarginDip, (int) dpi, (int) s_kDefaultDpi) : 0;
+    windowRect.left      = placedRect.left   - m_shadowMarginPx;
+    windowRect.top       = placedRect.top    - m_shadowMarginPx;
+    windowRect.right     = placedRect.right  + m_shadowMarginPx;
+    windowRect.bottom    = placedRect.bottom + m_shadowMarginPx;
+    m_windowRectScreenPx = windowRect;
+
     // Reset the completion promise for this Show cycle.
     m_completionPromise  = std::promise<int>();
     m_completionPending  = true;
@@ -357,18 +370,17 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     hr = EnsureWindowClass();
     CHRA (hr);
 
-    hr = CreateHwndAndComposition (placedRect);
+    hr = CreateHwndAndComposition (windowRect);
     CHRA (hr);
 
-    if (m_params.shadow)
-    {
-        DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, (int) s_kShadowInsetPx);
-    }
-
-    // Windows 11 rounds every menu and flyout, and a square-cornered popup
-    // over rounded chrome is the one detail that reads as wrong however right
-    // the rest is. No-op before Windows 11.
-    DxuiDwm::ApplyRoundedCorners (m_hwnd, true);
+    // No DwmExtendFrameIntoClientArea. A glass frame on a surface composited
+    // with premultiplied alpha paints DWM's frame fill into the transparent
+    // margin, which is exactly where the drawn shadow has to show through.
+    //
+    // DWM rounds the window only when the host is NOT drawing the rounded
+    // card itself. With a shadow margin the window's corners are transparent
+    // surround, and DWM's corner clip would cut the shadow off there.
+    DxuiDwm::ApplyRoundedCorners (m_hwnd, m_shadowMarginPx == 0);
 
     // PAINT BEFORE SHOWING. These popups come from a pool and are handed
     // back most-recently-used first, so the window about to be shown is
@@ -825,6 +837,31 @@ LRESULT CALLBACK DxuiPopupHost::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetContentClientRect
+//
+//  The client rect less the shadow margin -- the card, in window-client
+//  pixels. With no margin it is the whole client rect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiPopupHost::GetContentClientRect() const
+{
+    RECT  rc = {};
+
+
+
+    GetClientRect (m_hwnd, &rc);
+    InflateRect   (&rc, -m_shadowMarginPx, -m_shadowMarginPx);
+
+    return rc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WndProc
 //
 //  The popup window's message handler: dismissal policy, hover routing, and
@@ -885,11 +922,11 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             // so this stays cheap despite firing on every move.
             if (m_open && m_params.onMoveInside)
             {
-                GetClientRect (m_hwnd, &rc);
+                rc = GetContentClientRect();
 
                 if (PtInRect (&rc, pt))
                 {
-                    m_params.onMoveInside (pt);
+                    m_params.onMoveInside (POINT { pt.x - m_shadowMarginPx, pt.y - m_shadowMarginPx });
                 }
             }
 
@@ -906,12 +943,12 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             {
                 haveCapture = (GetCapture() == m_hwnd);
 
-                GetClientRect (m_hwnd, &rc);
+                rc     = GetContentClientRect();
                 inside = (PtInRect (&rc, pt) != FALSE);
 
                 if (inside && msg == WM_LBUTTONDOWN && m_params.onClickInside)
                 {
-                    m_params.onClickInside (pt);
+                    m_params.onClickInside (POINT { pt.x - m_shadowMarginPx, pt.y - m_shadowMarginPx });
                     claimed = true;
                 }
                 else if (!inside && haveCapture &&
@@ -931,6 +968,26 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             // activation while the popup is interacted with.
             result  = MA_NOACTIVATE;
             claimed = true;
+            break;
+
+        case WM_NCHITTEST:
+            // The shadow margin is drawn, not hit: a press there belongs to
+            // whatever is underneath, the same as a press anywhere else
+            // outside the card. `pt` is in SCREEN coordinates for this message.
+            if (m_shadowMarginPx > 0)
+            {
+                POINT  client = pt;
+
+                ScreenToClient (m_hwnd, &client);
+                rc = GetContentClientRect();
+
+                if (!PtInRect (&rc, client))
+                {
+                    result  = HTTRANSPARENT;
+                    claimed = true;
+                }
+            }
+
             break;
 
         case WM_MOUSELEAVE:
@@ -997,17 +1054,12 @@ HRESULT DxuiPopupHost::EnsureWindowClass()
     m_className = classNameBuf;
 
     wc.cbSize        = sizeof (wc);
-    // CS_DROPSHADOW IS WHAT GIVES A POPUP ITS SHADOW. `ShowParams::shadow`
-    // reached only DwmExtendFrameIntoClientArea, which asks for a glass frame
-    // and draws no shadow at all on a frameless WS_POPUP whose client is
-    // painted by DirectComposition -- so menus had no shadow however the flag
-    // was set. This is the flag a classic menu uses, and on Windows 11 it is
-    // what DWM turns into the modern rounded shadow beside the corner
-    // preference applied at Show.
-    //
-    // It is a CLASS style, so it cannot vary per show. That is not a loss:
-    // Windows gives menus and tooltips alike a shadow.
-    wc.style         = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS | CS_DROPSHADOW;
+    // No CS_DROPSHADOW. DWM does not decorate a window whose content comes
+    // from a DirectComposition target -- a plain popup with these same styles
+    // gets the class shadow and this one does not -- so RenderNow draws the
+    // shadow into the popup's own surface instead, the way a WinUI flyout
+    // composites its ThemeShadow rather than asking the window manager.
+    wc.style         = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
     wc.lpfnWndProc   = &DxuiPopupHost::s_WndProcThunk;
     wc.hInstance     = m_hInstance;
     wc.hCursor       = LoadCursor (nullptr, IDC_ARROW);
@@ -1331,6 +1383,64 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PaintShadowAndCard
+//
+//  A soft shadow under a rounded card, drawn into the popup's own surface.
+//
+//  There is no blur primitive, so the shadow is a stack of rounded rects,
+//  largest and faintest outermost, each inset toward the card. Every layer
+//  carries the same small alpha; where they overlap near the card the
+//  premultiplied source-over blend accumulates them to the full opacity,
+//  and past the innermost layer only the outer ones contribute, which is the
+//  falloff. The per-layer alpha is solved from the total so the densest
+//  region lands on it regardless of how many layers there are.
+//
+//  The stack is offset downward, as a Windows 11 shadow is: light from
+//  above. The card is drawn last and opaque, covering the part of the shadow
+//  that sits under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::PaintShadowAndCard()
+{
+    constexpr float  kShadowBlurDip    = 10.0f;
+    constexpr float  kShadowOffsetYDip = 3.0f;
+    constexpr float  kShadowOpacity    = 0.20f;
+    constexpr int    kShadowLayers     = 8;
+    float            scale             = (float) m_dpi / (float) s_kDefaultDpi;
+    float            margin            = (float) m_shadowMarginPx;
+    float            cardW             = (float) m_backBufferSizePx.cx - margin * 2.0f;
+    float            cardH             = (float) m_backBufferSizePx.cy - margin * 2.0f;
+    float            radius            = DxuiTheme::kOverlayCornerRadiusDip * scale;
+    float            blur              = kShadowBlurDip    * scale;
+    float            offsetY           = kShadowOffsetYDip * scale;
+    float            layerA            = 1.0f - powf (1.0f - kShadowOpacity, 1.0f / (float) kShadowLayers);
+    uint32_t         layerArgb         = ((uint32_t) (layerA * 255.0f + 0.5f)) << 24;
+    int              i                 = 0;
+
+
+
+    for (i = 0; i < kShadowLayers; i++)
+    {
+        float  spread = blur * (float) (kShadowLayers - i) / (float) kShadowLayers;
+
+        m_painter.FillRoundedRect (margin - spread,
+                                   margin - spread + offsetY,
+                                   cardW  + spread * 2.0f,
+                                   cardH  + spread * 2.0f,
+                                   radius + spread,
+                                   layerArgb);
+    }
+
+    m_painter.FillRoundedRect (margin, margin, cardW, cardH, radius, m_params.backgroundArgb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RenderNow
 //
 //  Clears the back buffer to the opaque background, invokes the
@@ -1358,7 +1468,7 @@ void DxuiPopupHost::RenderNow()
     // are still false here, so the Error: cleanup is a no-op.
     BAIL_OUT_IF (m_testMode || !m_open || !m_renderReady || !m_swapChain || m_rtv == nullptr, S_OK);
 
-    argb     = m_params.backgroundArgb;
+    argb     = (m_shadowMarginPx > 0) ? 0u : m_params.backgroundArgb;
     clear[0] = (float) ((argb >> 16) & 0xFFu) / 255.0f;
     clear[1] = (float) ((argb >>  8) & 0xFFu) / 255.0f;
     clear[2] = (float) ((argb      ) & 0xFFu) / 255.0f;
@@ -1379,7 +1489,21 @@ void DxuiPopupHost::RenderNow()
         textBegun = true;
         m_textRenderer.SetGlobalAlpha (m_revealAlpha);
 
+        // Shadow and card first, at the window origin, then the content hook
+        // shifted onto the card. Both go through the same global alpha, so a
+        // fade takes the card and its shadow with it rather than leaving an
+        // opaque rectangle behind the fading text.
+        if (m_shadowMarginPx > 0)
+        {
+            PaintShadowAndCard();
+            m_painter.SetOrigin      ((float) m_shadowMarginPx, (float) m_shadowMarginPx);
+            m_textRenderer.SetOrigin ((float) m_shadowMarginPx, (float) m_shadowMarginPx);
+        }
+
         m_params.renderContent (m_painter, m_textRenderer);
+
+        m_painter.SetOrigin      (0.0f, 0.0f);
+        m_textRenderer.SetOrigin (0.0f, 0.0f);
 
         hr = m_painter.End (m_rtv.Get());
         painterBegun = false;
@@ -1528,8 +1652,8 @@ void DxuiPopupHost::ApplyReveal (float t)
         return;
     }
 
-    fullW  = m_placedRectScreenPx.right  - m_placedRectScreenPx.left;
-    fullH  = m_placedRectScreenPx.bottom - m_placedRectScreenPx.top;
+    fullW  = m_windowRectScreenPx.right  - m_windowRectScreenPx.left;
+    fullH  = m_windowRectScreenPx.bottom - m_windowRectScreenPx.top;
     shownH = (int) ((float) fullH * eased);
 
     if (shownH < 1)
@@ -1539,17 +1663,17 @@ void DxuiPopupHost::ApplyReveal (float t)
 
     if (m_revealUpward)
     {
-        top    = m_placedRectScreenPx.bottom - shownH;
+        top    = m_windowRectScreenPx.bottom - shownH;
         offset = 0.0f;
     }
     else
     {
-        top    = m_placedRectScreenPx.top;
+        top    = m_windowRectScreenPx.top;
         offset = -(float) (fullH - shownH);
     }
 
     SetWindowPos (m_hwnd, nullptr,
-                  m_placedRectScreenPx.left, top, fullW, shownH,
+                  m_windowRectScreenPx.left, top, fullW, shownH,
                   SWP_NOZORDER | SWP_NOACTIVATE);
 
     if (m_compVisual)

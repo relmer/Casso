@@ -194,6 +194,10 @@ public:
     // implement alpha tracking; the concrete DxuiTextRenderer overrides
     // these to fade brushes and bitmap opacity uniformly.
     virtual void   SetGlobalAlpha (float alpha)                               { (void) alpha; }
+
+    // Offset added to every position drawn after it, in pixels (matches
+    // IDxuiPainter::SetOrigin). Defaulted to a no-op.
+    virtual void   SetOrigin (float xPx, float yPx)                           { (void) xPx; (void) yPx; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
 };
 
