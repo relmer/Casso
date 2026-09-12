@@ -198,6 +198,7 @@
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
     <ClCompile Include="Core\DxuiClipboard.cpp" />
     <ClCompile Include="Core\DxuiStandardCommand.cpp" />
+    <ClCompile Include="Core\DxuiIconImage.cpp" />
     <ClCompile Include="Window\DxuiDragDropSource.cpp" />
     <ClCompile Include="Theme\DxuiLightTheme.cpp" />
     <ClCompile Include="Theme\DxuiDarkTheme.cpp" />

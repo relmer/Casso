@@ -25,4 +25,10 @@ struct DxuiIconImage
     int                    width  = 0;
     int                    height = 0;
     std::vector<uint32_t>  bgraPremul;
+
+    //  Rasterizes an icon at sizePx square. The handle stays the caller's.
+    static HRESULT  FromHicon (HICON icon, int sizePx, DxuiIconImage & outImage);
+
+private:
+    static HRESULT  ApplyMask (HDC dc, HICON icon, int sizePx, uint32_t * bits, DxuiIconImage & image);
 };

@@ -99,6 +99,27 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
     hr = DxuiWindow::Create (params);
     CHR (hr);
 
+    //  The caption draws the app's own icon, as Casso's does; the taskbar
+    //  already has it from the create parameters. A failure leaves the caption
+    //  without one rather than failing the window.
+    {
+        HICON          captionIcon = (HICON) LoadImageW (instance, MAKEINTRESOURCEW (IDI_CASSQUE), IMAGE_ICON,
+                                                         kCaptionIconPx, kCaptionIconPx, LR_DEFAULTCOLOR);
+        DxuiIconImage  image;
+        HRESULT        hrIcon      = E_FAIL;
+
+        if (captionIcon != nullptr)
+        {
+            hrIcon = DxuiIconImage::FromHicon (captionIcon, kCaptionIconPx, image);
+            DestroyIcon (captionIcon);
+        }
+
+        if (SUCCEEDED (hrIcon))
+        {
+            GetPopupHost()->SetCaptionIcon (std::move (image.bgraPremul), image.width, image.height);
+        }
+    }
+
     ApplyTheme();
 
     //  The tooltip's dwell runs on a timer: nothing else ticks this window.

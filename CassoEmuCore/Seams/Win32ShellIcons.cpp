@@ -97,17 +97,17 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
 std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Remember (const std::wstring & key, HICON icon)
 {
     std::shared_ptr<DxuiIconImage>  image;
-    bool                            drawn = false;
+    HRESULT                         hr    = S_OK;
 
 
 
     if (icon != nullptr)
     {
         image = std::make_shared<DxuiIconImage>();
-        drawn = Rasterize (icon, m_sizePx, *image);
+        hr    = DxuiIconImage::FromHicon (icon, m_sizePx, *image);
         DestroyIcon (icon);
 
-        if (!drawn)
+        if (FAILED (hr))
         {
             image.reset();
         }
@@ -260,115 +260,4 @@ HICON Win32ShellIcons::LoadForKind (Kind kind, UINT sizeFlag)
     }
 
     return (result != 0) ? info.hIcon : nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Win32ShellIcons::Rasterize
-//
-//  Into a top-down 32-bit DIB. An icon with an alpha channel draws there
-//  premultiplied, which is what the renderer wants; one without leaves every
-//  alpha at zero, and its mask then says which pixels are really there.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Win32ShellIcons::Rasterize (HICON icon, int sizePx, DxuiIconImage & outImage)
-{
-    BITMAPINFO   bmi      = {};
-    HDC          dc       = CreateCompatibleDC (nullptr);
-    void       * raw      = nullptr;
-    HBITMAP      dib      = nullptr;
-    HGDIOBJ      previous = nullptr;
-    bool         drawn    = false;
-    bool         anyAlpha = false;
-    size_t       count    = (size_t) sizePx * (size_t) sizePx;
-
-
-
-    if (dc == nullptr)
-    {
-        return false;
-    }
-
-    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth       = sizePx;
-    bmi.bmiHeader.biHeight      = -sizePx;
-    bmi.bmiHeader.biPlanes      = 1;
-    bmi.bmiHeader.biBitCount    = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
-
-    dib = CreateDIBSection (dc, &bmi, DIB_RGB_COLORS, &raw, nullptr, 0);
-
-    if (dib != nullptr && raw != nullptr)
-    {
-        uint32_t *  bits = (uint32_t *) raw;
-
-        previous = SelectObject (dc, dib);
-        drawn    = DrawIconEx (dc, 0, 0, icon, sizePx, sizePx, 0, nullptr, DI_NORMAL) != FALSE;
-
-        if (drawn)
-        {
-            outImage.width  = sizePx;
-            outImage.height = sizePx;
-            outImage.bgraPremul.assign (bits, bits + count);
-
-            for (uint32_t pixel : outImage.bgraPremul)
-            {
-                if ((pixel >> 24) != 0)
-                {
-                    anyAlpha = true;
-                    break;
-                }
-            }
-
-            if (!anyAlpha)
-            {
-                ApplyMask (dc, icon, sizePx, bits, outImage);
-            }
-        }
-
-        SelectObject (dc, previous);
-        DeleteObject (dib);
-    }
-
-    DeleteDC (dc);
-
-    return drawn;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Win32ShellIcons::ApplyMask
-//
-//  The mask draws black where the icon is and white where it is not.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Win32ShellIcons::ApplyMask (HDC dc, HICON icon, int sizePx, uint32_t * bits, DxuiIconImage & image)
-{
-    size_t  count = (size_t) sizePx * (size_t) sizePx;
-
-
-
-    std::fill (bits, bits + count, 0u);
-
-    if (DrawIconEx (dc, 0, 0, icon, sizePx, sizePx, 0, nullptr, DI_MASK) == FALSE)
-    {
-        return;
-    }
-
-    for (size_t i = 0; i < count; i++)
-    {
-        bool  opaque = (bits[i] & 0x00FFFFFFu) == 0;
-
-        image.bgraPremul[i] = opaque ? (image.bgraPremul[i] | 0xFF000000u) : 0u;
-    }
 }

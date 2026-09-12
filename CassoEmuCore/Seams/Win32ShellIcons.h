@@ -41,8 +41,6 @@ private:
     static std::wstring  GetCacheKey  (const std::wstring & path);
     static HICON         LoadForPath  (const std::wstring & path, UINT sizeFlag);
     static HICON         LoadForKind  (Kind kind, UINT sizeFlag);
-    static bool          Rasterize    (HICON icon, int sizePx, DxuiIconImage & outImage);
-    static void          ApplyMask    (HDC dc, HICON icon, int sizePx, uint32_t * bits, DxuiIconImage & image);
 
     int                                                                      m_sizePx = kDefaultSizePx;
     std::unordered_map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_cache;

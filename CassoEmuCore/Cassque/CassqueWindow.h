@@ -84,6 +84,9 @@ public:
     static constexpr UINT      kTooltipTickMs      = 50;
     static constexpr int       kTabHeightDip       = 32;
 
+    //  Loaded at this size and scaled down by the caption, as Casso's is.
+    static constexpr int       kCaptionIconPx      = 32;
+
     //  The preview's rows carry one line of fixed-width text each, so they
     //  are the line's height rather than a file listing's roomier row.
     static constexpr int  kPreviewRowHeightDip = 18;

@@ -460,6 +460,7 @@
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />
+    <ClCompile Include="Dxui\DxuiIconImageTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
     <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />
     <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
