@@ -3,6 +3,7 @@
 #include "DxuiPopupHost.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiTheme.h"
+#include "Render/DxuiShadow.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -304,7 +305,6 @@ void DxuiPopupHost::Shutdown()
 
 HRESULT DxuiPopupHost::Show (ShowParams params)
 {
-    constexpr int  kShadowMarginDip = 14;
     HRESULT        hr               = S_OK;
     RECT           workArea         = {};
     RECT           placedRect       = {};
@@ -349,7 +349,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // placed rect stays the card, so a consumer measuring itself against it
     // and every placement decision above are unchanged.
     m_dpi                = dpi;
-    m_shadowMarginPx     = m_params.shadow ? MulDiv (kShadowMarginDip, (int) dpi, (int) s_kDefaultDpi) : 0;
+    m_shadowMarginPx     = m_params.shadow ? MulDiv ((int) DxuiShadow::kMarginDip, (int) dpi, (int) s_kDefaultDpi) : 0;
     windowRect.left      = placedRect.left   - m_shadowMarginPx;
     windowRect.top       = placedRect.top    - m_shadowMarginPx;
     windowRect.right     = placedRect.right  + m_shadowMarginPx;
@@ -1385,53 +1385,23 @@ Error:
 //
 //  PaintShadowAndCard
 //
-//  A soft shadow under a rounded card, drawn into the popup's own surface.
-//
-//  There is no blur primitive, so the shadow is a stack of rounded rects,
-//  largest and faintest outermost, each inset toward the card. Every layer
-//  carries the same small alpha; where they overlap near the card the
-//  premultiplied source-over blend accumulates them to the full opacity,
-//  and past the innermost layer only the outer ones contribute, which is the
-//  falloff. The per-layer alpha is solved from the total so the densest
-//  region lands on it regardless of how many layers there are.
-//
-//  The stack is offset downward, as a Windows 11 shadow is: light from
-//  above. The card is drawn last and opaque, covering the part of the shadow
-//  that sits under it.
+//  The shadow, then the rounded card over it, drawn into the popup's own
+//  surface. The shadow itself is DxuiShadow's; the flyouts that draw inside
+//  the window share it, so every floating surface falls off the same way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPopupHost::PaintShadowAndCard()
 {
-    constexpr float  kShadowBlurDip    = 10.0f;
-    constexpr float  kShadowOffsetYDip = 3.0f;
-    constexpr float  kShadowOpacity    = 0.20f;
-    constexpr int    kShadowLayers     = 8;
-    float            scale             = (float) m_dpi / (float) s_kDefaultDpi;
-    float            margin            = (float) m_shadowMarginPx;
-    float            cardW             = (float) m_backBufferSizePx.cx - margin * 2.0f;
-    float            cardH             = (float) m_backBufferSizePx.cy - margin * 2.0f;
-    float            radius            = DxuiTheme::kOverlayCornerRadiusDip * scale;
-    float            blur              = kShadowBlurDip    * scale;
-    float            offsetY           = kShadowOffsetYDip * scale;
-    float            layerA            = 1.0f - powf (1.0f - kShadowOpacity, 1.0f / (float) kShadowLayers);
-    uint32_t         layerArgb         = ((uint32_t) (layerA * 255.0f + 0.5f)) << 24;
-    int              i                 = 0;
+    float  scale  = (float) m_dpi / (float) s_kDefaultDpi;
+    float  margin = (float) m_shadowMarginPx;
+    float  cardW  = (float) m_backBufferSizePx.cx - margin * 2.0f;
+    float  cardH  = (float) m_backBufferSizePx.cy - margin * 2.0f;
+    float  radius = DxuiTheme::kOverlayCornerRadiusDip * scale;
 
 
 
-    for (i = 0; i < kShadowLayers; i++)
-    {
-        float  spread = blur * (float) (kShadowLayers - i) / (float) kShadowLayers;
-
-        m_painter.FillRoundedRect (margin - spread,
-                                   margin - spread + offsetY,
-                                   cardW  + spread * 2.0f,
-                                   cardH  + spread * 2.0f,
-                                   radius + spread,
-                                   layerArgb);
-    }
-
+    DxuiShadow::Paint (m_painter, margin, margin, cardW, cardH, radius, scale);
     m_painter.FillRoundedRect (margin, margin, cardW, cardH, radius, m_params.backgroundArgb);
 }
 

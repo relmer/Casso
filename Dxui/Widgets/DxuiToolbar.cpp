@@ -3,6 +3,7 @@
 
 #include "DxuiToolbar.h"
 #include "Window/DxuiHwndSource.h"
+#include "Render/DxuiShadow.h"
 
 
 
@@ -1477,8 +1478,18 @@ void DxuiToolbar::PaintFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
         return;
     }
 
-    painter.FillRect (fl - 1.0f, ft - 1.0f, fw + 2.0f, fh + 2.0f, theme.ButtonBorder());
-    painter.FillRect (fl, ft, fw, fh, strip);
+    // The flyout floats over the window like a popup, so it wears the same
+    // shadow and overlay radius a popup's card does -- drawn here in the
+    // window, since the flyout is not a separate surface.
+    DxuiShadow::Paint (painter, fl, ft, fw, fh,
+                       m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip),
+                       m_scaler.ToPxf (1.0f));
+    painter.FillRoundedRect (fl - 1.0f, ft - 1.0f, fw + 2.0f, fh + 2.0f,
+                             m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip) + 1.0f,
+                             theme.ButtonBorder());
+    painter.FillRoundedRect (fl, ft, fw, fh,
+                             m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip),
+                             strip);
 
     m_flyoutControl->Paint (painter, text, theme);
 }
