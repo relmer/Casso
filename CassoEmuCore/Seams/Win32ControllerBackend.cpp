@@ -313,12 +313,43 @@ HRESULT Win32ControllerBackend::EnumerateDevices (std::vector<ControllerDeviceIn
     {
         ControllerDeviceInfo  info;
 
-        info.unit     = device.unit;
-        info.controls = DirectInputSampleDecoder::ListControls (device.layout);
+        info.unit        = device.unit;
+        info.description = device.description;
+        info.formFactor  = device.formFactor;
+        info.controls    = DirectInputSampleDecoder::ListControls (device.layout);
         outDevices.push_back (info);
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFormFactor
+//
+//  What the device looks like in the hand, from DirectInput's own device
+//  type. A flight stick and a plain joystick draw the same, so they answer
+//  the same; anything DirectInput will not name is drawn as a joystick,
+//  because a game controller that is not a gamepad has a stick on it far
+//  more often than not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerFormFactor Win32ControllerBackend::GetFormFactor (const DIDEVICEINSTANCEW & instance)
+{
+    switch (GET_DIDEVICE_TYPE (instance.dwDevType))
+    {
+        case DI8DEVTYPE_GAMEPAD:  return ControllerFormFactor::Gamepad;
+        case DI8DEVTYPE_DRIVING:  return ControllerFormFactor::Wheel;
+
+        case DI8DEVTYPE_JOYSTICK:
+        case DI8DEVTYPE_FLIGHT:
+        default:                  return ControllerFormFactor::Joystick;
+    }
 }
 
 
@@ -383,7 +414,9 @@ HRESULT Win32ControllerBackend::AddDirectInputDevice (const DIDEVICEINSTANCEW & 
     // through XInput instead, so skipping it is success, not failure.
     BAIL_OUT_IF (isXInput, S_OK);
 
-    opened.unit = MakeUnitKey (*opened.device, instance);
+    opened.unit        = MakeUnitKey (*opened.device, instance);
+    opened.description = instance.tszInstanceName;
+    opened.formFactor  = GetFormFactor (instance);
 
     caps.dwSize = sizeof (caps);
     hr          = opened.device->GetCapabilities (&caps);

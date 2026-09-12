@@ -47,6 +47,7 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
 
         entry.label      = device.description;
         entry.shortLabel = Shorten (device.description);
+        entry.formFactor = device.formFactor;
         entry.controller = device.unit;
         entry.isChecked  = selection.has_value() && selection.value() == device.unit;
 

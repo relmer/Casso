@@ -119,10 +119,35 @@ bool InputClusterEntry::SetInputState (bool arrowsJoystick, InputMappingMode poi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InputClusterEntry::GetSlotAt
+//
+//  Display position to mode slot. Only the mouse is drawn here now, so every
+//  position is the mouse; the slots keep their old numbering because the
+//  modes, their labels, their tips and IsSegmentOn are all indexed by them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InputClusterEntry::GetSlotAt (int index) const
+{
+    constexpr int  kSlotMouse = 2;
+
+
+
+    UNREFERENCED_PARAMETER (index);
+
+    return kSlotMouse;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InputClusterEntry::IsSegmentOn
 //
-//  The joystick segment lights from the arrows mapping, paddle and mouse from
-//  the pointer mode.
+//  Takes a SLOT, not a display position. The joystick slot lights from the
+//  arrows mapping, paddle and mouse from the pointer mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,7 +180,7 @@ std::vector<DxuiPopupMenuItem> InputClusterEntry::GetPickerItems() const
 
     for (int i = 0; i < GetSegmentCount(); i++)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (&m_modes[i]));
+        items.push_back (DxuiPopupMenuItem::ForCommand (&m_modes[GetSlotAt (i)]));
     }
 
     return items;
@@ -447,7 +472,7 @@ bool InputClusterEntry::OnClick (int x, int y)
 
         if (!consumed && wasPressed && i < GetSegmentCount() && IsPointInRect (seg.rc, x, y))
         {
-            if (m_sink) { m_sink (s_kModes[i]); }
+            if (m_sink) { m_sink (s_kModes[GetSlotAt (i)]); }
             consumed = true;
         }
     }
@@ -562,7 +587,7 @@ void InputClusterEntry::PaintExpanded (IDxuiPainter & painter, IDxuiTextRenderer
         {
             float  ledCx = sl + (float) segPad + (float) ledD * 0.5f;
             float  ledCy = st + sh * 0.5f;
-            bool   on    = IsSegmentOn (i);
+            bool   on    = IsSegmentOn (GetSlotAt (i));
 
             // Unlit is an option not taken, not a dead bulb, so it carries
             // the tint a disabled checkbox fills with -- the same rule Dxui

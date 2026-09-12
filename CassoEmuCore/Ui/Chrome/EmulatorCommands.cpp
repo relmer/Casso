@@ -90,7 +90,6 @@ static constexpr const wchar_t * s_kGlyphPrint      = L"\uE749";   // printer (m
 static constexpr const wchar_t * s_kGlyphColor      = L"\uE790";   // artist's palette
 static constexpr const wchar_t * s_kGlyphFullscreen = L"\uE740";   // diagonal arrows, outward
 static constexpr const wchar_t * s_kGlyphRestore    = L"\uE73F";   // diagonal arrows, inward
-static constexpr const wchar_t * s_kGlyphGamepad    = L"\uE7FC";   // game controller
 
 static constexpr ToolbarRow  s_kToolbarRows[] =
 {
@@ -99,7 +98,7 @@ static constexpr ToolbarRow  s_kToolbarRows[] =
     { EmulatorCommands::kIdColor,  DxuiToolbar::Kind::DropDown, 0, s_kGlyphColor,      L"Color",       L"Color"         },
     { IDM_PRINTER_PREVIEW,         DxuiToolbar::Kind::Command,  0, s_kGlyphPrint,      L"Printer",     nullptr          },
     { EmulatorCommands::kIdVolume, DxuiToolbar::Kind::Flyout,   1, s_kGlyphVolume,     L"Volume",      L"Mute"          },
-    { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, s_kGlyphGamepad,    L"Controller",  L"What drives the paddles" },
+    { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Controller",  L"What drives the paddles" },
     { EmulatorCommands::kIdInput,  DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Input",       L"Input devices" },
     { IDM_VIEW_FULLSCREEN,         DxuiToolbar::Kind::Command,  3, s_kGlyphFullscreen, L"Full screen", nullptr          },
     { IDM_EDIT_COPY_SCREENSHOT,    DxuiToolbar::Kind::Command,  3, s_kGlyphScreenshot, L"Screenshot",  nullptr          },
@@ -715,6 +714,45 @@ std::wstring EmulatorCommands::GetCheckedPaddleSourceLabel() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorCommands::GetCheckedPaddleSourceGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InputMonoGlyphKind EmulatorCommands::GetCheckedPaddleSourceGlyph() const
+{
+    for (const InputModeRules::PaddleSource & source : m_paddleSources)
+    {
+        if (!source.isChecked)
+        {
+            continue;
+        }
+
+        if (source.isArrowKeys)
+        {
+            return InputMonoGlyphKind::Keys;
+        }
+
+        if (source.isMousePaddle)
+        {
+            return InputMonoGlyphKind::Paddle;
+        }
+
+        // A wheel draws as a joystick: an icon for a device almost nobody
+        // will plug into an Apple II is not worth a drawing of its own.
+        return (source.formFactor == ControllerFormFactor::Gamepad)
+                   ? InputMonoGlyphKind::Gamepad
+                   : InputMonoGlyphKind::Joystick;
+    }
+
+    return InputMonoGlyphKind::Gamepad;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorCommands::GetPaddleSourceItems
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -780,6 +818,28 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
         e.group   = row.group;
 
         if (row.id == IDM_PRINTER_PREVIEW) { e.decoration = led.MakeDecoration(); }
+
+        // The picker draws its own icon, because the icon tracks the DEVICE:
+        // a gamepad, a stick, the paddle or the arrow keys (FR-008b). A font
+        // glyph cannot follow that, and MDL2 has no Apple paddle anyway.
+        if (row.id == kIdPaddle)
+        {
+            e.decoration = [this] (IDxuiPainter             & painter,
+                                   const IDxuiTheme         & theme,
+                                   const DxuiToolbarIconBox & icon,
+                                   bool                       collapsed)
+            {
+                RECT  box = { (LONG) icon.x,
+                              (LONG) (icon.top + (icon.rowH - icon.size) * 0.5f),
+                              (LONG) (icon.x + icon.size),
+                              (LONG) (icon.top + (icon.rowH + icon.size) * 0.5f) };
+
+                UNREFERENCED_PARAMETER (collapsed);
+
+                InputMonoGlyphs::Paint (painter, GetCheckedPaddleSourceGlyph(), box, theme.ButtonText());
+            };
+        }
+
         if (row.id == kIdInput)            { e.custom     = &cluster; }
 
         entries.push_back (std::move (e));

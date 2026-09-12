@@ -45,6 +45,8 @@ private:
     struct DirectInputDevice
     {
         ControllerUnitKey          unit;
+        std::wstring               description;
+        ControllerFormFactor       formFactor = ControllerFormFactor::Joystick;
         IDirectInputDevice8W     * device     = nullptr;
         HANDLE                     event      = nullptr;
         DirectInputObjectLayout    layout;
@@ -70,6 +72,7 @@ private:
 
     static LRESULT CALLBACK NotifyWindowProc (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
     static BOOL    CALLBACK EnumDeviceCallback (const DIDEVICEINSTANCEW * pInstance, void * pContext);
+    static ControllerFormFactor  GetFormFactor (const DIDEVICEINSTANCEW & instance);
     static BOOL    CALLBACK EnumObjectCallback (const DIDEVICEOBJECTINSTANCEW * pObject, void * pContext);
 
     HRESULT  CreateNotifyWindow  ();

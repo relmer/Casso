@@ -44,6 +44,10 @@ public:
         // the picker wears it on its face, and a label that grows moves every
         // button to its right.
         std::wstring                      shortLabel;
+
+        // What the picker draws while this one is driving. Follows the
+        // DEVICE, not the API that reads it (FR-008b).
+        ControllerFormFactor              formFactor    = ControllerFormFactor::Gamepad;
         std::optional<ControllerUnitKey>  controller;   // absent for the two keyboard and mouse entries
         bool                              isArrowKeys   = false;
         bool                              isMousePaddle = false;

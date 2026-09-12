@@ -28,6 +28,31 @@ enum class ControllerKind
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerFormFactor
+//
+//  What the device looks like in the hand, which is what the picker draws.
+//  Separate from ControllerKind, which says which API reads it: an Xbox pad
+//  and a USB gamepad are one shape read two ways, and a flight stick and a
+//  gamepad are two shapes read the same way.
+//
+//  DirectInput reports this in DIDEVICEINSTANCE::dwDevType; XInput needs no
+//  detection, being a gamepad by definition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ControllerFormFactor
+{
+    Gamepad,
+    Joystick,   // flight sticks included: one stick with a base
+    Wheel
+};
+
+
+
+
+
 enum class ControllerUnitSource
 {
     None,
@@ -174,6 +199,7 @@ struct ControllerDeviceInfo
     ControllerUnitKey       unit;
     std::wstring            description;
     int                     xinputSlot  = kNoXInputSlot;
+    ControllerFormFactor    formFactor  = ControllerFormFactor::Gamepad;
     std::vector<ControlId>  controls;
 };
 

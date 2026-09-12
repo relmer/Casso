@@ -57,33 +57,27 @@ public:
 
 
         cluster.SetSink ([&] (InputMappingMode mode) { reported = mode; reports++; });
-        cluster.SetInputState (false, InputMappingMode::Off, true);      // three segments
+        cluster.SetInputState (false, InputMappingMode::Off, true);      // the mouse segment
         cluster.Layout (RECT { 0, 0, 400, 42 }, true, scaler);
 
         Assert::IsTrue (cluster.IsExpanded());
-        Assert::AreEqual (3, cluster.GetSegmentCount());
+
+        // The joystick and paddle segments moved onto the command bar's
+        // paddle-source picker, which wears whichever of them is driving on
+        // its face; only the mouse is still this entry's to show.
+        Assert::AreEqual (1, cluster.GetSegmentCount());
 
         p = SegmentCenter (0);
         Assert::IsTrue (cluster.OnLButtonDown (p.x, p.y));
         Assert::IsTrue (cluster.OnClick (p.x, p.y));
-        Assert::IsTrue (reported == InputMappingMode::Joystick);
-
-        p = SegmentCenter (1);
-        Assert::IsTrue (cluster.OnLButtonDown (p.x, p.y));
-        Assert::IsTrue (cluster.OnClick (p.x, p.y));
-        Assert::IsTrue (reported == InputMappingMode::Paddle);
-
-        p = SegmentCenter (2);
-        Assert::IsTrue (cluster.OnLButtonDown (p.x, p.y));
-        Assert::IsTrue (cluster.OnClick (p.x, p.y));
         Assert::IsTrue (reported == InputMappingMode::Mouse);
 
-        Assert::AreEqual (3, reports);
+        Assert::AreEqual (1, reports);
 
         // A click on the label lands on no segment: not taken, not consumed.
         Assert::IsFalse (cluster.OnLButtonDown (5, 21));
         Assert::IsFalse (cluster.OnClick (5, 21));
-        Assert::AreEqual (3, reports);
+        Assert::AreEqual (1, reports);
     }
 
 
@@ -113,18 +107,25 @@ public:
         POINT              p      = {};
 
 
-        cluster.SetInputState (false, InputMappingMode::Off, false);     // two segments
+        // No mouse on this machine, so the entry has nothing left to show at
+        // all: the other two segments now live on the paddle-source picker.
+        cluster.SetInputState (false, InputMappingMode::Off, false);
         cluster.Layout (RECT { 0, 0, 400, 42 }, true, scaler);
 
-        Assert::AreEqual (2, cluster.GetSegmentCount());
+        Assert::AreEqual (0, cluster.GetSegmentCount());
 
-        p = SegmentCenter (1);
-        Assert::IsNotNull (cluster.GetTooltipAt (p.x, p.y, anchor));
-        Assert::AreEqual  ((LONG) s_kLabelPx + s_kSegPx + s_kSegGap, anchor.left);
-
-        p = SegmentCenter (2);                                            // no third segment
+        p = SegmentCenter (0);
         Assert::IsNull (cluster.GetTooltipAt (p.x, p.y, anchor));
         Assert::IsNull (cluster.GetTooltipAt (5, 21, anchor));           // the label
+
+        cluster.SetInputState (false, InputMappingMode::Off, true);
+        cluster.Layout (RECT { 0, 0, 400, 42 }, true, scaler);
+
+        Assert::AreEqual (1, cluster.GetSegmentCount());
+
+        p = SegmentCenter (0);
+        Assert::IsNotNull (cluster.GetTooltipAt (p.x, p.y, anchor));
+        Assert::AreEqual  ((LONG) s_kLabelPx, anchor.left);
     }
 
 
@@ -133,14 +134,16 @@ public:
         InputClusterEntry  cluster;
 
 
+        // Arrows and paddle no longer appear here whatever they are set to:
+        // the paddle-source picker on the command bar owns that answer.
         Assert::IsFalse  (cluster.SetInputState (true, InputMappingMode::Paddle, false));
-        Assert::AreEqual ((size_t) 2, cluster.GetPickerItems().size());
-        Assert::IsTrue   (cluster.GetPickerItems()[0].command->IsChecked());     // joystick
-        Assert::IsTrue   (cluster.GetPickerItems()[1].command->IsChecked());     // paddle
+        Assert::AreEqual ((size_t) 0, cluster.GetPickerItems().size());
 
         Assert::IsTrue   (cluster.SetInputState (false, InputMappingMode::Mouse, true));
-        Assert::AreEqual ((size_t) 3, cluster.GetPickerItems().size());
-        Assert::IsFalse  (cluster.GetPickerItems()[0].command->IsChecked());
-        Assert::IsTrue   (cluster.GetPickerItems()[2].command->IsChecked());
+        Assert::AreEqual ((size_t) 1, cluster.GetPickerItems().size());
+        Assert::IsTrue   (cluster.GetPickerItems()[0].command->IsChecked(), L"the mouse is on");
+
+        Assert::IsFalse  (cluster.SetInputState (false, InputMappingMode::Off, true));
+        Assert::IsFalse  (cluster.GetPickerItems()[0].command->IsChecked(), L"and off when it is not");
     }
 };

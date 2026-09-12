@@ -7,6 +7,7 @@
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Controllers/InputModeRules.h"
+#include "InputMonoGlyphs.h"
 
 
 
@@ -136,8 +137,13 @@ public:
     void  SetPaddleSources        (const std::vector<InputModeRules::PaddleSource> & sources);
     void  SetPaddleSourcePickedFn (PaddleSourcePickedFn fn) { m_onPaddleSourcePicked = std::move (fn); }
 
-    std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems     () const;
+    std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems        () const;
     std::wstring                    GetCheckedPaddleSourceLabel () const;
+
+    // Which drawing the picker wears: the checked source's own, and a gamepad
+    // while nothing is driving -- what COULD go there is the useful answer,
+    // and the disabled ink already says it is not there (FR-008b).
+    InputMonoGlyphKind              GetCheckedPaddleSourceGlyph () const;
 
     // Fills the toolbar: ten entries in strip order, the LED as the printer
     // entry's decoration, the cluster as the input entry's custom entry and

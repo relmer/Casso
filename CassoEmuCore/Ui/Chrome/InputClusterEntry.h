@@ -51,7 +51,17 @@ public:
     bool  SetInputState   (bool arrowsJoystick, InputMappingMode pointer, bool mouseAvailable);
 
     bool  IsExpanded      () const                     { return m_labeled; }
-    int   GetSegmentCount () const                     { return m_mouseAvailable ? 3 : 2; }
+
+    // Only the mouse is shown here now. The joystick and the paddle moved
+    // onto the command bar's paddle-source picker, which wears whichever of
+    // them is driving on its face, so a pair of icons saying the same thing
+    // two entries away was the same answer twice.
+    int   GetSegmentCount () const                     { return m_mouseAvailable ? 1 : 0; }
+
+    // Display position -> the mode slot it draws and dispatches. The slots
+    // stay as they were (0 joystick, 1 paddle, 2 mouse) because the modes,
+    // their labels and IsSegmentOn are all indexed by them.
+    int   GetSlotAt       (int index) const;
     bool  IsSegmentOn     (int index) const;
 
     // The three modes as commands with `isChecked` reading the current
