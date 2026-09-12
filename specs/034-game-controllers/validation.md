@@ -26,9 +26,9 @@ Results are recorded as they are produced. A scenario that could not run says so
 | Task | Scenarios | Build | Result |
 |---|---|---|---|
 | T017 (mixer migration) | //e: arrows-to-joystick with X/Z, X held across an Alt press and release, left/right Alt and Shift as PB0-PB2, mouse paddle capture and release, focus loss while X held | Debug x64 `7bd2b4ee` + `4db29524`, 2026-09-11 | Pass (checked by the owner). ][+ check skipped. |
-| T037 (US1) | 2, 3, 6, 10 | | |
-| T053 (US2) | 1, 8 (selection), 11 (controller rows) | | |
-| T060 (US3) | 4, 5, 11 (plug in while menu open) | | |
+| T037 (US1) | 2, 3, 6, 10 | Debug x64 `399b6106`, 2026-09-12 | 2, 3, 6 pass on the Xbox controller (full range, proportional at half deflection, rest holds center, release on deactivate). 10 not yet run. |
+| T053 (US2) | 1, 8 (selection), 11 (controller rows) | Debug x64 `399b6106`, 2026-09-12 | 1 passes (plugging in the Xbox controller selected it and turned arrows off). 11 passes: rows correct, and a click on a menu title while the picker is open now opens that menu (`c4de190a`). 8 not yet run. |
+| T060 (US3) | 4, 5, 11 (plug in while menu open), stand-in | Debug x64 `399b6106`, 2026-09-12 | 4, 5 pass. Stand-in passes: with the Xbox controller dropped by airplane mode the Gladiator took the axes and buttons; the trace showed every stage correct, and input waited only on Casso being reactivated after the Windows flyout took focus (FR-033). 11: hot-plugging closes an open Machine menu -- seen and accepted, since nothing is lost and the pass condition is the selection changing without a reset. |
 | T080 (US5) | 7, 9, 10a (hand-built rate binding), 10b | | |
 | T089 (US6) | 8, 10a (Paddles template), 11 (profile rows) | | |
 
