@@ -155,7 +155,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T058 [US3] In `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`, run the arrow-key joystick update while the fallback is active regardless of `m_arrowsJoystick` (spec edge case)
 - [X] T059 [US3] Show the stand-in on the PICKER, which is the only thing still carrying this answer once T051 folds the cluster's icons out (FR-008a, FR-013). Its label already wears the source that is driving, so a stand-in reads as the stand-in's own name; the tooltip on `kIdPaddle` says which controller is chosen and that it is not connected, and the chosen-but-absent row keeps its "(not connected)" text. DECIDED: the label and tooltip carry it, and the glyph gets no disconnected state -- it follows the device, and a stand-in is a real device, so a third state would describe a different controller than the one the label names. Recorded in the spec's Clarifications.
 - [ ] T060 [US3] Build; run `-Filter Controller` and `-Filter Chrome`; run quickstart scenarios 4 and 5 and scenario 11's plug-in-while-menu-open on hardware
-- [ ] T061 [US3] Commit: `feat(input): controller hot-plug with arrow-key fallback`
+- [X] T061 [US3] Commit: `feat(input): controller hot-plug with arrow-key fallback` (landed as `13d55b2a`, subject reworded)
 
 **Checkpoint**: Disconnects never leave the port stuck.
 
