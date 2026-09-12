@@ -388,8 +388,11 @@ public:
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
 
+        //  A new tab opens at home, not on a copy of the tab it came from.
         Assert::AreEqual ((size_t) 1, host.browser.NewTab());
-        Assert::IsTrue   (host.browser.GoUp());
+        Assert::AreEqual (std::wstring (L"Home"), host.browser.GetTabLabel (1));
+
+        AssertSucceeded  (host.browser.SelectTreeNode (folder));
         Assert::AreEqual (std::wstring (L"Disks"), host.browser.GetTabLabel (1));
 
         Assert::IsTrue   (host.browser.SwitchTab (0));

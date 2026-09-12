@@ -28,11 +28,71 @@ KnownFolderStore::KnownFolderStore (IFileSystem & fs, const std::wstring & baseD
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  KnownFolderStore::ListRootFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> KnownFolderStore::ListRootFolders (
+    IFileSystem              & fs,
+    const std::wstring       & baseDir,
+    const std::vector<Entry> & entries)
+{
+    std::vector<std::wstring>  folders;
+    std::vector<std::wstring>  directories;
+    HRESULT                    hr = S_OK;
+
+
+
+    for (const Entry & entry : entries)
+    {
+        folders.push_back (entry.path);
+    }
+
+    if (!folders.empty())
+    {
+        return folders;
+    }
+
+    hr = fs.EnumerateDirectories (baseDir, directories);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const std::wstring & directory : directories)
+    {
+        if (ArePathsEqual (directory, kDisksFolder))
+        {
+            folders.push_back (JoinBase (baseDir, kDisksFolder));
+        }
+    }
+
+    return folders;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  KnownFolderStore::GetFilePath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring KnownFolderStore::GetFilePath (const std::wstring & baseDir)
+{
+    return JoinBase (baseDir, kFileName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KnownFolderStore::JoinBase
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring KnownFolderStore::JoinBase (const std::wstring & baseDir, const std::wstring & name)
 {
     std::wstring  path = baseDir;
 
@@ -43,7 +103,7 @@ std::wstring KnownFolderStore::GetFilePath (const std::wstring & baseDir)
         path += L'\\';
     }
 
-    return path + kFileName;
+    return path + name;
 }
 
 

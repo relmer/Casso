@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Widgets/DxuiScrollbar.h"
 
 
 
@@ -138,6 +139,16 @@ public:
     bool  OnLButtonUp     (int x, int y);
     bool  OnKey           (WPARAM vk);
 
+    //  Scrolling. The tree scrolls by whole rows, so the first row drawn is
+    //  the unit the scrollbar and the wheel both move.
+    int   GetTopRow        () const  { return m_topRow; }
+    void  SetTopRow        (int row);
+    void  ScrollRows       (int delta)  { SetTopRow (m_topRow + delta); }
+    void  EnsureRowVisible (int flatRow);
+    int   GetRowCap        () const;
+    int   GetMaxTopRow     () const;
+    bool  IsScrollbarVisible () const;
+
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
     //
@@ -168,6 +179,16 @@ private:
     //  Where the label starts, which moves left when checkboxes are hidden.
     int   GetCheckboxWidthPx () const { return m_showCheckboxes ? m_checkboxPx : 0; }
 
+    //  The rows' own width: the widget's, less the scrollbar when it shows.
+    int   GetContentWidthPx   () const;
+    int   GetScrollbarWidthPx () const { return m_scaler.ToPx (s_kScrollbarWidthDip); }
+
+    //  Hands the scrollbar the range, page and position it draws from.
+    void  SyncVertScroll () const;
+
+    static constexpr int  s_kScrollbarWidthDip = 10;
+    static constexpr int  s_kWheelRows         = 3;
+
     bool                       m_showCheckboxes = true;
     ChildProviderFn            m_childProvider;
     SelectFn                   m_onSelect;
@@ -185,4 +206,6 @@ private:
     std::vector<FlatRow>       m_flatRows;
     ToggleFn                   m_toggle;
     DxuiDpiScaler              m_scaler;
+    int                        m_topRow         = 0;
+    mutable DxuiScrollbar      m_vertScroll;
 };

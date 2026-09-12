@@ -374,10 +374,7 @@ HRESULT CassqueShell::Initialize (HINSTANCE instance, const CassqueLaunchOptions
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
 
-    for (const KnownFolderStore::Entry & entry : entries)
-    {
-        folders.push_back (entry.path);
-    }
+    folders = KnownFolderStore::ListRootFolders (m_fs, m_baseDir, entries);
 
     m_browser.GetTreeModel().SetKnownFolders (folders);
     m_browser.GetTreeModel().SetDrives (GetDriveRoots());

@@ -2302,7 +2302,9 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     float            hBarH      = layout.hBar ? (float) GetScrollbarWidthPx() : 0.0f;
     float            layoutW    = fullW - barW;
     float            contentH   = fullH - hBarH;
-    bool             clip       = m_hScrollEnabled;
+    //  Always: a header or a row wider than the list used to paint over
+    //  whatever sat beside it, since nothing else clips a Dxui widget.
+    bool             clip       = true;
     Palette          pal        = {};
     std::vector<int> colXPx;
     std::vector<int> colWPx;

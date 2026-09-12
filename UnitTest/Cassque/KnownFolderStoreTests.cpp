@@ -137,4 +137,39 @@ public:
         Assert::AreEqual (std::wstring (L"C:\\Base\\KnownFolders.json"), KnownFolderStore::GetFilePath (L"C:\\Base"));
         Assert::AreEqual (std::wstring (L"C:\\Base\\KnownFolders.json"), KnownFolderStore::GetFilePath (L"C:\\Base\\"));
     }
+
+
+
+    TEST_METHOD (RootFolders_FallBackToTheEmulatorsDisksFolder)
+    {
+        InMemoryFileSystem                    fs;
+        std::vector<KnownFolderStore::Entry>  entries;
+        std::vector<std::wstring>             folders;
+
+        //  A machine where the emulator has never opened a disk: nothing is
+        //  recorded, but its own disk folder is there to start from.
+        AssertSucceeded (fs.WriteAllText (std::wstring (kBase) + L"\\Disks\\blank.dsk", "x"));
+
+        folders = KnownFolderStore::ListRootFolders (fs, kBase, entries);
+
+        Assert::AreEqual ((size_t) 1, folders.size());
+        Assert::AreEqual (std::wstring (kBase) + L"\\Disks", folders[0]);
+
+        //  Once a folder is recorded, only what was recorded is listed.
+        entries.push_back (KnownFolderStore::Entry { L"C:\\Apple\\Disks", 10 });
+        folders = KnownFolderStore::ListRootFolders (fs, kBase, entries);
+
+        Assert::AreEqual ((size_t) 1, folders.size());
+        Assert::AreEqual (std::wstring (L"C:\\Apple\\Disks"), folders[0]);
+    }
+
+
+
+    TEST_METHOD (RootFolders_AreEmptyWithNothingRecordedAndNoDisksFolder)
+    {
+        InMemoryFileSystem                    fs;
+        std::vector<KnownFolderStore::Entry>  entries;
+
+        Assert::IsTrue (KnownFolderStore::ListRootFolders (fs, kBase, entries).empty());
+    }
 };

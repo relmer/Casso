@@ -1362,7 +1362,9 @@ std::wstring CassqueBrowser::GetTabLabel (size_t index) const
 
 size_t CassqueBrowser::NewTab()
 {
-    size_t  index = m_model.OpenTab (GetLocation());
+    //  Home, the way a browser and Explorer open one, rather than a second
+    //  copy of the folder the tab it was opened from is showing.
+    size_t  index = m_model.OpenTab (Location());
 
 
 

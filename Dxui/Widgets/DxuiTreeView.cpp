@@ -32,6 +32,9 @@ void DxuiTreeView::RebuildFlatRows()
         FlattenRecursive (m_nodes[i], path, 0);
     }
 
+    //  Rows can go as well as come, so what was scrolled to may be gone.
+    SetTopRow (m_topRow);
+
     if (m_highlight >= (int) m_flatRows.size())
     {
         m_highlight = m_flatRows.empty() ? -1 : (int) m_flatRows.size() - 1;
@@ -222,10 +225,13 @@ int DxuiTreeView::HitTestRow (int x, int y) const
               && y >= m_boundsDip.top  && y < m_boundsDip.bottom
               && m_rowHeightPx > 0;
 
+    //  The scrollbar strip belongs to the bar, not to the row under it.
+    inRange = inRange && x < m_boundsDip.left + GetContentWidthPx();
+
     if (inRange)
     {
         relY = y - m_boundsDip.top;
-        row  = relY / m_rowHeightPx;
+        row  = m_topRow + relY / m_rowHeightPx;
 
         // Past the last populated row is a miss, not the last row.
         if (row >= (int) m_flatRows.size())
@@ -483,6 +489,7 @@ void DxuiTreeView::SelectRow (int flatRow)
     }
 
     m_highlight = flatRow;
+    EnsureRowVisible (flatRow);
 
     if (m_onSelect)
     {
@@ -822,6 +829,9 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     HRESULT  hr         = S_OK;
     int      i          = 0;
+    int      first      = 0;
+    int      last       = 0;
+    float    contentW   = 0.0f;
     size_t   n          = m_flatRows.size();
     float    checkInset = m_scaler.ToPxf (s_kCheckInset);
     float    fontDip    = m_scaler.ToPxf (s_kFontDip);
@@ -831,11 +841,24 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 
 
-    for (i = 0; i < (int) n; ++i)
+    //  Rows are clipped to the widget: a tree taller than its pane used to
+    //  paint its lower rows over whatever sat below it.
+    SyncVertScroll();
+
+    contentW = (float) GetContentWidthPx();
+    first    = m_topRow;
+    last     = (int) (std::min) (n, (size_t) (m_topRow + GetRowCap() + 1));
+
+    hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
+                            (float) (m_boundsDip.right - m_boundsDip.left),
+                            (float) (m_boundsDip.bottom - m_boundsDip.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (i = first; i < last; ++i)
     {
         const FlatRow       & fr          = m_flatRows[(size_t) i];
         const DxuiTreeNode  * node        = GetNodeAt (i);
-        float                 rowY        = (float) (m_boundsDip.top + i * m_rowHeightPx);
+        float                 rowY        = (float) (m_boundsDip.top + (i - m_topRow) * m_rowHeightPx);
         float                 rowHeight   = (float) m_rowHeightPx;
         float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx);
         float                 checkboxX   = twistyX + (float) m_twistyPx;
@@ -861,8 +884,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         if (rowFill != 0)
         {
-            painter.FillRect ((float) m_boundsDip.left, rowY,
-                              (float) (m_boundsDip.right - m_boundsDip.left), rowHeight, rowFill);
+            painter.FillRect ((float) m_boundsDip.left, rowY, contentW, rowHeight, rowFill);
         }
 
         if (hasChildren)
@@ -944,7 +966,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             hr = text.DrawString (node->label.c_str(),
                                   textX,
                                   rowY,
-                                  (float) m_boundsDip.right - textX,
+                                  (float) m_boundsDip.left + contentW - textX,
                                   rowHeight,
                                   textCol,
                                   fontDip,
@@ -953,6 +975,14 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                                   DxuiTextVAlign::CenterOnCapHeight);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
+    }
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (IsScrollbarVisible())
+    {
+        m_vertScroll.Paint (painter, theme.ForegroundMuted());
     }
 }
 
@@ -970,6 +1000,158 @@ void DxuiTreeView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
     SetDpi (scaler.GetDpi());
+
+    //  A shorter tree can leave the view scrolled past its own last row.
+    SetTopRow (m_topRow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::GetRowCap
+//
+//  How many rows the tree can show at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTreeView::GetRowCap() const
+{
+    int  height = m_boundsDip.bottom - m_boundsDip.top;
+
+
+
+    return (m_rowHeightPx > 0) ? (std::max) (0, height / m_rowHeightPx) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::GetMaxTopRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTreeView::GetMaxTopRow() const
+{
+    return (std::max) (0, (int) m_flatRows.size() - GetRowCap());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::IsScrollbarVisible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTreeView::IsScrollbarVisible() const
+{
+    return GetMaxTopRow() > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::GetContentWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTreeView::GetContentWidthPx() const
+{
+    int  width = m_boundsDip.right - m_boundsDip.left;
+
+
+
+    return (std::max) (0, width - (IsScrollbarVisible() ? GetScrollbarWidthPx() : 0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::SetTopRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTreeView::SetTopRow (int row)
+{
+    m_topRow = std::clamp (row, 0, GetMaxTopRow());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::EnsureRowVisible
+//
+//  Scrolls the least that brings the row into view, so a selection made by
+//  keyboard or by the host does not disappear below the fold.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTreeView::EnsureRowVisible (int flatRow)
+{
+    int  cap = GetRowCap();
+
+
+
+    if (flatRow < 0 || cap <= 0)
+    {
+        return;
+    }
+
+    if (flatRow < m_topRow)
+    {
+        SetTopRow (flatRow);
+    }
+    else if (flatRow >= m_topRow + cap)
+    {
+        SetTopRow (flatRow - cap + 1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::SyncVertScroll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTreeView::SyncVertScroll() const
+{
+    int             barW = GetScrollbarWidthPx();
+    DxuiScrollInfo  info;
+
+
+
+    //  The track is in the same coordinates the widget is laid out in, so the
+    //  bar hit-tests the events the tree is handed without translating them.
+    m_vertScroll.Configure (DxuiScrollbar::Orientation::Vertical, barW, barW, 1);
+    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom });
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+    info.nMax  = (int) m_flatRows.size();
+    info.nPage = GetRowCap();
+    info.nPos  = m_topRow;
+    m_vertScroll.SetScrollInfo (info);
 }
 
 
@@ -1001,19 +1183,46 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        if (m_vertScroll.IsDragging())
+        {
+            handled = m_vertScroll.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+            SetTopRow (m_vertScroll.GetScrollPos());
+        }
+        else
+        {
+            SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        }
+
         break;
     case DxuiMouseEventKind::Down:
-        if (ev.button == DxuiMouseButton::Left)
+        if (ev.button == DxuiMouseButton::Left && IsScrollbarVisible()
+                                               && m_vertScroll.HitTest (ev.positionDip.x, ev.positionDip.y))
+        {
+            handled = m_vertScroll.OnMouseDown (ev.positionDip.x, ev.positionDip.y);
+            SetTopRow (m_vertScroll.GetScrollPos());
+        }
+        else if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
 
         break;
     case DxuiMouseEventKind::Up:
-        if (ev.button == DxuiMouseButton::Left)
+        if (m_vertScroll.IsDragging())
+        {
+            handled = m_vertScroll.OnMouseUp();
+        }
+        else if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        }
+
+        break;
+    case DxuiMouseEventKind::Wheel:
+        if (!ev.wheelHorizontal && IsScrollbarVisible())
+        {
+            ScrollRows (-(int) (ev.wheelDelta * (float) s_kWheelRows));
+            handled = true;
         }
 
         break;

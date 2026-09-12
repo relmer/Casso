@@ -69,13 +69,25 @@ public:
                                                                   const std::vector<DiskMru::Entry> & mru,
                                                                   int64_t                             nowUnix);
 
+    //  The folders the browser's Casso root lists: the ones recorded, or the
+    //  emulator's own disk folder when nothing has been recorded yet. The
+    //  emulator records a folder the first time it opens a disk from one, so
+    //  a machine where that has not happened would otherwise show a root with
+    //  nothing under it and no way in.
+    static std::vector<std::wstring>  ListRootFolders (IFileSystem        & fs,
+                                                       const std::wstring & baseDir,
+                                                       const std::vector<Entry> & entries);
+
     static std::wstring  GetFilePath (const std::wstring & baseDir);
     static bool          ArePathsEqual (const std::wstring & a, const std::wstring & b);
 
-    static constexpr const wchar_t *  kFileName  = L"KnownFolders.json";
+    static constexpr const wchar_t *  kFileName    = L"KnownFolders.json";
+    static constexpr const wchar_t *  kDisksFolder = L"Disks";
     static constexpr const wchar_t *  kMutexName = L"Local\\CassoKnownFolders";
 
 private:
+    static std::wstring  JoinBase (const std::wstring & baseDir, const std::wstring & name);
+
     HRESULT  ReadEntries  (std::vector<Entry> & outEntries) const;
     HRESULT  WriteEntries (const std::vector<Entry> & entries) const;
 

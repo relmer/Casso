@@ -263,6 +263,11 @@ void CassqueWindow::ConfigureWidgets()
 
     m_list->SetShowHeader (true);
     m_list->SetColumns (CassqueBrowser::GetColumns());
+
+    //  Columns keep the widths they are given, and a pane too narrow for them
+    //  scrolls, the way Explorer's details view does, rather than squeezing
+    //  every column to fit.
+    m_list->SetHorizontalScrollEnabled (true);
     m_list->SetMultiSelect (true);
     m_list->SetKeyboardColumnNav (true);
     m_list->SetActivateOnDoubleClick (true);
@@ -1757,10 +1762,7 @@ void CassqueWindow::ChangeKnownFolder (const std::wstring & folder, bool add)
     hr = store.Load (entries);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    for (const KnownFolderStore::Entry & entry : entries)
-    {
-        folders.push_back (entry.path);
-    }
+    folders = KnownFolderStore::ListRootFolders (*m_context.fs, m_context.baseDir, entries);
 
     m_browser.GetTreeModel().SetKnownFolders (folders);
     RebuildTree();

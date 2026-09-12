@@ -80,6 +80,76 @@ public:
         Assert::AreEqual (-1, tv.HitTestRow ( 10, 250));
     }
 
+    DxuiTreeView  MakeTallTree (int rows, int heightPx)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  nodes;
+        int                        i = 0;
+
+        for (i = 0; i < rows; i++)
+        {
+            nodes.push_back (MakeNode (L"folder", DxuiTreeCapabilityFlag::Optional, false));
+        }
+
+        tv.SetRect (RECT { 0, 0, 200, heightPx });
+        tv.SetRowHeight (20);
+        tv.SetNodes (std::move (nodes));
+        return tv;
+    }
+
+
+    TEST_METHOD (Scroll_TakesTheRowsPastTheFoldWithinReach)
+    {
+        //  Ten rows of 20 in a 100-high tree: five show, five are below it.
+        DxuiTreeView  tv = MakeTallTree (10, 100);
+
+        Assert::AreEqual (5, tv.GetRowCap());
+        Assert::AreEqual (5, tv.GetMaxTopRow());
+        Assert::IsTrue   (tv.IsScrollbarVisible());
+
+        tv.ScrollRows (3);
+        Assert::AreEqual (3, tv.GetTopRow());
+
+        //  The rows move under the pointer with the view.
+        Assert::AreEqual (3, tv.HitTestRow (10, 5));
+        Assert::AreEqual (7, tv.HitTestRow (10, 85));
+
+        //  Neither end runs past its rows.
+        tv.ScrollRows (99);
+        Assert::AreEqual (5, tv.GetTopRow());
+        tv.ScrollRows (-99);
+        Assert::AreEqual (0, tv.GetTopRow());
+    }
+
+
+    TEST_METHOD (Scroll_IsNotOfferedWhenEveryRowFits)
+    {
+        DxuiTreeView  tv = MakeTallTree (3, 100);
+
+        Assert::IsFalse (tv.IsScrollbarVisible());
+        Assert::AreEqual (0, tv.GetMaxTopRow());
+
+        tv.ScrollRows (2);
+        Assert::AreEqual (0, tv.GetTopRow());
+    }
+
+
+    TEST_METHOD (EnsureRowVisible_ScrollsTheLeastThatShowsTheRow)
+    {
+        DxuiTreeView  tv = MakeTallTree (10, 100);
+
+        tv.EnsureRowVisible (7);
+        Assert::AreEqual (3, tv.GetTopRow());   // 7 becomes the last row shown
+
+        tv.EnsureRowVisible (2);
+        Assert::AreEqual (2, tv.GetTopRow());   // and now the first
+
+        //  A row already in view moves nothing.
+        tv.EnsureRowVisible (4);
+        Assert::AreEqual (2, tv.GetTopRow());
+    }
+
+
     TEST_METHOD (Click_OnOptionalCheckbox_Toggles)
     {
         DxuiTreeView  tv           = MakeFlatTree();
