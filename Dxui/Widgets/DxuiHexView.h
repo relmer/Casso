@@ -136,7 +136,14 @@ public:
     uint64_t  GetCaret           () const { return m_caret; }
     Column    GetSelectionColumn () const { return m_column; }
 
+    //  Told after any change to the selection, including its loss.
+    void  SetOnSelectionChanged (std::function<void ()> fn) { m_onSelectionChanged = std::move (fn); }
+
+    bool  IsDragging () const { return m_dragging; }
+
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    bool  OnKey   (const DxuiKeyEvent   & ev) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
@@ -147,6 +154,8 @@ public:
 
     //  Character cells between the three columns.
     static constexpr int  kGutterCells = 2;
+
+    static constexpr int  kWheelRows = 3;
 
 private:
     //  Hex digits the offset column spends, which is eight once the last
@@ -161,6 +170,13 @@ private:
     RECT  GetCellRect (int cellX, uint64_t row, int cellCount) const;
     bool  IsRowVisible (uint64_t row) const;
     void  ClampTopRow ();
+
+    //  Moves the caret to `offset`, extending the run when `extend` is set and
+    //  starting a new one otherwise, then brings it into view.
+    void  MoveCaretTo (uint64_t offset, bool extend);
+    void  NotifySelectionChanged ();
+    uint64_t  GetLastOffset () const;
+
     int   GetHeightDip () const { return m_boundsDip.bottom - m_boundsDip.top; }
 
     const IDxuiHexSource *  m_source        = nullptr;
@@ -174,5 +190,7 @@ private:
     uint64_t                m_anchor        = 0;
     uint64_t                m_caret         = 0;
     Column                  m_column        = Column::None;
+    bool                    m_dragging      = false;
     DxuiDpiScaler           m_scaler;
+    std::function<void ()>  m_onSelectionChanged;
 };

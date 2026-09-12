@@ -604,6 +604,8 @@ void DxuiHexView::SelectByte (uint64_t offset, Column column)
     m_caret        = offset;
     m_column       = (column == Column::None) ? Column::Hex : column;
     m_hasSelection = true;
+
+    NotifySelectionChanged();
 }
 
 
@@ -638,6 +640,8 @@ void DxuiHexView::ExtendSelectionTo (uint64_t offset)
     }
 
     m_caret = offset;
+
+    NotifySelectionChanged();
 }
 
 
@@ -666,6 +670,8 @@ void DxuiHexView::SelectAll()
     m_caret        = bytes - 1;
     m_column       = (m_column == Column::None) ? Column::Hex : m_column;
     m_hasSelection = true;
+
+    NotifySelectionChanged();
 }
 
 
@@ -680,10 +686,19 @@ void DxuiHexView::SelectAll()
 
 void DxuiHexView::ClearSelection()
 {
+    bool  had = m_hasSelection;
+
+
+
     m_hasSelection = false;
     m_anchor       = 0;
     m_caret        = 0;
     m_column       = Column::None;
+
+    if (had)
+    {
+        NotifySelectionChanged();
+    }
 }
 
 
@@ -751,6 +766,252 @@ bool DxuiHexView::IsByteSelected (uint64_t offset) const
     return m_hasSelection
         && (offset >= GetSelectionFirst())
         && (offset <= GetSelectionLast());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::NotifySelectionChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::NotifySelectionChanged()
+{
+    if (m_onSelectionChanged)
+    {
+        m_onSelectionChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetLastOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::GetLastOffset() const
+{
+    uint64_t  bytes = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+
+
+
+    return (bytes > 0) ? (bytes - 1) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::MoveCaretTo
+//
+//  Keyboard movement keeps the column the selection was made in, so walking
+//  the caret out of a run made in the text column does not silently turn it
+//  into a hex one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::MoveCaretTo (uint64_t offset, bool extend)
+{
+    uint64_t  bytes = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+    uint64_t  last  = GetLastOffset();
+
+
+
+    if (bytes == 0)
+    {
+        return;
+    }
+
+    offset = (std::min) (offset, last);
+
+    if (extend)
+    {
+        ExtendSelectionTo (offset);
+    }
+    else
+    {
+        SelectByte (offset, m_column);
+    }
+
+    EnsureByteVisible (offset);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::OnMouse  (IDxuiControl override)
+//
+//  A press selects the byte under it, or extends the run when Shift is held,
+//  and holding the button drags the moving end across either column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
+{
+    HitResult  hit;
+
+
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Down:
+        if (ev.button != DxuiMouseButton::Left)
+        {
+            return false;
+        }
+
+        hit = HitTestPoint (ev.positionDip);
+
+        if (!hit.hit)
+        {
+            return false;
+        }
+
+        if (ev.shift)
+        {
+            ExtendSelectionTo (hit.offset);
+        }
+        else
+        {
+            SelectByte (hit.offset, hit.column);
+        }
+
+        m_dragging = true;
+
+        return true;
+
+    case DxuiMouseEventKind::Move:
+        if (!m_dragging)
+        {
+            return false;
+        }
+
+        hit = HitTestPoint (ev.positionDip);
+
+        if (hit.hit)
+        {
+            ExtendSelectionTo (hit.offset);
+            EnsureByteVisible (hit.offset);
+        }
+
+        return true;
+
+    case DxuiMouseEventKind::Up:
+        if (!m_dragging)
+        {
+            return false;
+        }
+
+        m_dragging = false;
+
+        return true;
+
+    case DxuiMouseEventKind::Wheel:
+        if (ev.wheelHorizontal)
+        {
+            return false;
+        }
+
+        ScrollRows (-(int64_t) (ev.wheelDelta * (float) kWheelRows));
+
+        return true;
+
+    default:
+        break;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::OnKey  (IDxuiControl override)
+//
+//  The arrows walk a byte or a row, Home and End take the row's ends and take
+//  the whole view's ends with Ctrl, the page keys move by what the view shows,
+//  and Shift with any of them extends the run instead of starting a new one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
+{
+    uint64_t  caret  = m_caret;
+    uint64_t  perRow = (uint64_t) m_bytesPerRow;
+    uint64_t  page   = (uint64_t) (std::max) (GetRowCap(), 1) * perRow;
+    uint64_t  last   = GetLastOffset();
+    bool      extend = ev.shift;
+
+
+
+    if ((ev.kind != DxuiKeyEventKind::Down) || (GetRowCount() == 0))
+    {
+        return false;
+    }
+
+    switch (ev.vk)
+    {
+    case VK_LEFT:
+        MoveCaretTo ((caret > 0) ? (caret - 1) : 0, extend);
+        return true;
+
+    case VK_RIGHT:
+        MoveCaretTo (caret + 1, extend);
+        return true;
+
+    case VK_UP:
+        MoveCaretTo ((caret >= perRow) ? (caret - perRow) : caret, extend);
+        return true;
+
+    case VK_DOWN:
+        MoveCaretTo (((caret + perRow) <= last) ? (caret + perRow) : caret, extend);
+        return true;
+
+    case VK_PRIOR:
+        MoveCaretTo ((caret >= page) ? (caret - page) : (caret % perRow), extend);
+        return true;
+
+    case VK_NEXT:
+        MoveCaretTo (caret + page, extend);
+        return true;
+
+    case VK_HOME:
+        MoveCaretTo (ev.ctrl ? 0 : (caret - (caret % perRow)), extend);
+        return true;
+
+    case VK_END:
+        MoveCaretTo (ev.ctrl ? last : (caret - (caret % perRow) + perRow - 1), extend);
+        return true;
+
+    case 'A':
+        if (!ev.ctrl)
+        {
+            return false;
+        }
+
+        SelectAll();
+        return true;
+
+    default:
+        break;
+    }
+
+    return false;
 }
 
 

@@ -187,7 +187,7 @@
 **Purpose**: a hex view a user can select in, as a widget the library gains. An Apple II face was built from the character generator table and dropped: that table is substantially Apple's ROM, and every free reproduction is either personal-use or not the machine's shapes. Text, listing, hex and disassembly all draw in a fixed-width face instead.
 
 - [x] T088 [P] [US6] `Dxui/Widgets/DxuiHexView.h/.cpp`: the offset, hex and text columns, grouping at 1, 2, 4 and 8 bytes, the point-to-byte hit test, the byte-range selection, scrolling and `EnsureByteVisible` -- geometry and selection only, no painting. The bytes arrive through a source the host supplies, addressed from an origin, with a per-byte mark for anything the host draws differently; the widget holds no copy and reads only the rows it draws, so a machine's whole memory costs what a screenful does
-- [ ] T089 [US6] `DxuiHexView` input: drag in either column, Shift with a click or an arrow key to extend, arrows, Home, End, Page keys and Ctrl+A, and the wheel
+- [x] T089 [US6] `DxuiHexView` input: drag in either column, Shift with a click or an arrow key to extend, arrows, Home, End, Page keys and Ctrl+A, and the wheel
 - [ ] T090 [US6] `DxuiHexView` painting: both columns from the theme, the selection lit in both at once, the offsets down the left, both columns in the fixed-width face
 - [ ] T091 [US6] Copy the selection as hex digits or as characters, go to offset, and the grouping choice in the View menu persisted through `CassquePrefs`
 - [ ] T092 [US6] Cassque's hex preview becomes a `DxuiHexView` instead of a list of strings, with the per-tab preview scroll kept
