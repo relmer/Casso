@@ -353,14 +353,30 @@ void EmulatorShell::SyncStandInBanner()
         rc.bottom = top + (LONG) m_standInBar.GetPreferredHeightPx (width, m_scaler);
     }
 
-    //  Nothing is painted into a band too short to hold the text. One frame
-    //  of no bar reads as the bar arriving; one frame of a clipped bar reads
-    //  as a rendering fault.
-    if (rc.bottom - rc.top < (LONG) m_standInBar.GetPreferredHeightPx (
-                                        (float) (rc.right - rc.left), m_scaler))
+    //  NOTHING IS PAINTED INTO A BAND THAT CANNOT HOLD THE TEXT, in either
+    //  direction. A band carries its thickness on the docked axis alone and
+    //  is given its width by the dock pass, so between a resize and that pass
+    //  its rect is a full-height slab of NO WIDTH -- and a text box no wider
+    //  than a glyph wraps every character onto a line of its own, which is
+    //  the bar's sentence running down the left edge of the window, one
+    //  letter at a time. Too short does the matching thing: border and badge
+    //  with the words clipped away.
+    //
+    //  One frame of no bar reads as the bar arriving. One frame of either of
+    //  those reads as a rendering fault.
+    if (rc.right - rc.left < (LONG) m_scaler.ToPxf (s_kStandInBarMinWidthDip)
+        || rc.bottom - rc.top < (LONG) m_standInBar.GetPreferredHeightPx (
+                                           (float) (rc.right - rc.left), m_scaler))
     {
         m_standInBar.SetVisible        (false);
         m_standInBarSurface.SetVisible (false);
+
+        //  Ask for the dock the rect is waiting on, the same way the band's
+        //  own absence is asked for above.
+        if (m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen())
+        {
+            m_standInBandStale = true;
+        }
 
         return;
     }

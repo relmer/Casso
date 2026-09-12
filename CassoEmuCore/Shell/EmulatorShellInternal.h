@@ -148,6 +148,13 @@ static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 // that keeps changing size while it moves reads as chrome coming unglued.
 static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 
+// Narrower than this and the stand-in bar is not painted at all: a band that
+// has not been given its width yet is a slab of zero, and a text box that
+// narrow wraps one character per line. Wide enough for the badge, the gap and
+// a word; the bar is a full-width strip in every real layout, so this only
+// ever rejects a rect that is not ready.
+static constexpr int     s_kStandInBarMinWidthDip   = 120;
+
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //
