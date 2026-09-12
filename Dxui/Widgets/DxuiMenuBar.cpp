@@ -13,7 +13,6 @@ static constexpr int      s_kBaseDpi                = 96;
 static constexpr int      s_kNavHeightDip           = 32;
 static constexpr int      s_kItemInternalPaddingDip = 8;
 static constexpr int      s_kInterItemPaddingDip    = 4;
-static constexpr float    s_kFontDip                = 14.0f;
 static constexpr float    s_kUnderlineThicknessDip  = 1.0f;
 static constexpr const wchar_t * s_kFontFamily           = DxuiTheme::kBodyFace;
 
@@ -245,6 +244,32 @@ int DxuiMenuBar::GetStripHeightPx (UINT dpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiMenuBar::GetMenuFontPx
+//
+//  The em size of the system menu font at a DPI, re-read only when the DPI
+//  changes. Layout and PaintStrip both ask on every call, and the metrics
+//  come from a system-parameters query that has no business running per
+//  frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiMenuBar::GetMenuFontPx (UINT eDpi)
+{
+    if (m_metricsDpi != eDpi)
+    {
+        m_metrics    = DxuiMenuMetrics::FromSystem (eDpi);
+        m_metricsDpi = eDpi;
+    }
+
+    return m_metrics.fontPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiMenuBar::Layout
 //
 //  Lays out the title strip starting at (x, y) spanning `width` pixels
@@ -262,7 +287,7 @@ void DxuiMenuBar::Layout (int x, int y, int width, UINT dpi, IDxuiTextRenderer *
     int    gap      = ScaleDpi (s_kInterItemPaddingDip,    dpi);
     int    height   = ScaleDpi (s_kNavHeightDip, dpi);
     UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
-    float  fontDip  = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
+    float  fontDip  = GetMenuFontPx (eDpi);
 
 
 
@@ -938,7 +963,7 @@ void DxuiMenuBar::PaintStrip (
 {
     HRESULT   hr        = S_OK;
     UINT      eDpi      = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
-    float     fontDip   = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
+    float     fontDip   = GetMenuFontPx (eDpi);
     bool      showCues  = ShouldShowMnemonicCues (IsOpenByKeyboard());
     uint32_t  stripBg   = m_stripColorsSet ? m_stripBgOverride    : theme.Background();
     uint32_t  stripHov  = m_stripColorsSet ? m_stripHoverOverride : theme.HoverBackground();

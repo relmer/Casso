@@ -183,8 +183,16 @@ private:
 
     static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
 
+    //  The em size of the system menu font at a DPI, cached because the
+    //  strip asks for it on every layout and every paint. The titles wear
+    //  the same font the dropdowns under them do, which is the font Windows
+    //  gives a menu.
+    float  GetMenuFontPx (UINT eDpi);
+
 
     std::vector<DxuiMenuBarItem>  m_items;
+    DxuiMenuMetrics               m_metrics;
+    UINT                          m_metricsDpi       = 0;
     DxuiHwndSource              * m_popupHost        = nullptr;
     DxuiPopupMenu                 m_dropdown;
     DxuiNullTextRenderer          m_nullText;
