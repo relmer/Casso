@@ -46,6 +46,9 @@ Entries before versioning was introduced use dates only.
   same way typing does, with a notice when it raised any letters.
   Previously, switching to a window running as administrator or locking the
   workstation could leave the host's Caps Lock on.
+- Escape to leave paddle mode no longer also sends an Escape to the //e.
+- A key that operates an open toolbar picker no longer also reaches the //e.
+  Previously, dismissing a picker with Escape sent that Escape to the machine.
 
 ## [1.24.2]: The one with the redist dist
 
