@@ -88,6 +88,8 @@ Each entry gives the decision, why, and what was rejected. Items marked **UNVERI
 - `InputClusterEntry::GetPickerItems` appends a separator and the same two submenus. The expanded cluster gains a controller segment (gamepad glyph with the existing LED pattern) that selects the controller when clicked; its LED and tooltip show connected, disconnected, or arrow keys standing in (FR-008a, FR-013), driven by a new `SetControllerState` setter called from `SyncSelectorState`.
 - Found during the survey, pre-existing and out of scope: `WM_CHAR` still reaches the guest while a toolbar picker is open (`specs/032-dxui-command-widgets/validation.md`).
 
+**Update (built differently)**: the three bullets above are superseded; the survey findings they rest on still hold. No `ControllerCommands` class and no submenu marker were built. The rows live in `EmulatorCommands` beside the theme and color rows, and there is no cascade at all: one paddle-source picker sits on the command bar as `kIdPaddle`, wearing the source that drives (FR-008, FR-008b), with the Machine menu keeping the per-source toggles it already had. `DeferredMenuRebuild` was dropped with the submenu, the Machine menu having no dynamic rows to rebuild. `InputClusterEntry` is deleted rather than extended: two of its three segments were the picker's answer repeated, which left it toggling one thing, so mouse mode became a plain `kIdMouse` toggle and its monoline painters moved to `InputMonoGlyphs`.
+
 ## R13. Sample rate
 
 - **No API recommends a rate, and neither reports a device's report interval.** The interval lives in the USB endpoint descriptor, which neither API exposes and which Bluetooth devices do not have.

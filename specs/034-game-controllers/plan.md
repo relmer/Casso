@@ -117,7 +117,8 @@ CassoEmuCore/
         │                              # (paddle-source and profile rows live in EmulatorCommands)
         ├── EmulatorCommands.h/.cpp    # submenu marker in the menu table; Controller Settings item
         ├── MainMenu.h/.cpp            # unchanged: the Machine menu carries no dynamic rows
-        └── InputClusterEntry.h/.cpp   # controller segment, status LED/tooltip, picker submenus
+        ├── InputMonoGlyphs.h/.cpp     # monoline gamepad, joystick, paddle, keys
+        └── EmulatorCommands.h/.cpp    # + paddle-source picker rows and the mouse toggle
 
 UnitTest/
 └── ControllerTests/                   # new
