@@ -81,7 +81,6 @@ CassoEmuCore/
 │   ├── ControllerTokens.h/.cpp        # token text for keys and ControlId
 │   ├── ControlLabels.h/.cpp           # display labels per control and model kind
 │   ├── InputModeRules.h/.cpp          # mutual exclusion of arrows, paddle and controller selection
-│   ├── TransientNoticeState.h/.cpp    # notice text and expiry, shared by captures and controllers
 │   ├── DirectInputSampleDecoder.h/.cpp
 │   ├── XInputSampleDecoder.h/.cpp
 │   ├── ControllerCalibration.h/.cpp   # automatic learning + user calibration
@@ -115,9 +114,9 @@ CassoEmuCore/
     │   ├── SettingsSheet.h/.cpp       # + page
     │   └── SettingsApplyController.h/.cpp # + controllers baseline/dirty/commit/revert
     └── Chrome/
-        ├── ControllerCommands.h/.cpp  # new: owned controller + profile rows, submenu builders
+        │                              # (paddle-source and profile rows live in EmulatorCommands)
         ├── EmulatorCommands.h/.cpp    # submenu marker in the menu table; Controller Settings item
-        ├── MainMenu.h/.cpp            # rebuild on row changes, deferred while a menu is open (DeferredMenuRebuild)
+        ├── MainMenu.h/.cpp            # unchanged: the Machine menu carries no dynamic rows
         └── InputClusterEntry.h/.cpp   # controller segment, status LED/tooltip, picker submenus
 
 UnitTest/
@@ -127,9 +126,7 @@ UnitTest/
     ├── ControllerTokensTests.cpp
     ├── MachineGamePortSinkTests.cpp
     ├── InputModeRulesTests.cpp
-    ├── TransientNoticeStateTests.cpp
-    ├── DeferredMenuRebuildTests.cpp
-    ├── ControllerCommandsTests.cpp
+    ├── PaddleSourceRowsTests.cpp
     ├── DirectInputSampleDecoderTests.cpp
     ├── XInputSampleDecoderTests.cpp
     ├── CalibrationTests.cpp
@@ -154,7 +151,7 @@ Each slice matches a phase in [tasks.md](tasks.md), leaves the build green, and 
 | 1 | **Hardware check**: throwaway probe, not committed; XInput packet rate, DirectInput change events, wireless power on/off notifications, XInput with a second top-level window active | none | Records R2, R4, R13 |
 | 2 | **Foundation**: types and tokens; mixer and `MachineGamePortSink` with every existing writer migrated; seam, decoders, Win32 backend, controller thread | 1 | FR-001, FR-002, FR-014, FR-015, FR-017 |
 | 3 | **US1 play (MVP)**: deadzone, default mapping, evaluator, service, activation gate, temporary first-controller selection | 2 | US1, FR-003-006, FR-009, FR-033 |
-| 4 | **US2 selection**: selection policy (automatic, adoption), per-machine persistence, input-mode exclusion, notice, Controller submenu in the Machine menu and input cluster | 3 | US2, FR-008, FR-011, FR-031, FR-032 |
+| 4 | **US2 selection**: selection policy (automatic, adoption), per-machine persistence, input-mode exclusion, notice, and ONE paddle-source picker on the command bar wearing the source that drives (no cascade; the Machine menu keeps its existing toggles) | 3 | US2, FR-008, FR-008b, FR-011, FR-031, FR-032 |
 | 5 | **US3 hot-plug**: disconnect release, stand-in by another attached controller then the arrow keys, reconnect, status LED and tooltip | 4 | US3, FR-008a, FR-010, FR-013 |
 | 6 | **US4 calibration**: automatic and user calibration per unit, calibration persistence | 3 | US4, FR-007, FR-007a, FR-018, FR-018a |
 | 7 | **US5 remapping**: Controllers page, capture, rate response, PB2, Default-profile mapping and deadzone persistence, Controller Settings command | 4, 6 | US5, FR-012, FR-019-025, FR-021a |
