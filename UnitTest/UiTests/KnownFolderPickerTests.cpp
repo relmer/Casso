@@ -177,12 +177,12 @@ public:
         label = content.GetChild (0)->GetBounds();
 
         Assert::AreEqual ((size_t) 1, content.GetChildCount());
-        Assert::AreEqual (48 + 2 * 5, content.GetPreferredHeightDip());
+        Assert::AreEqual (48 + 2 * 3, content.GetPreferredHeightDip());
 
         //  The strip is 48 + 8 + 18 wide, centered in 400; the label follows the
-        //  picture and sits centered on the 58-high line.
+        //  picture and sits centered on the 54-high line.
         Assert::AreEqual ((LONG) ((400 - 74) / 2 + 48 + 8), label.left);
-        Assert::AreEqual ((LONG) ((58 - 18) / 2),           label.top);
+        Assert::AreEqual ((LONG) ((54 - 18) / 2),           label.top);
     }
 
 
@@ -203,10 +203,10 @@ public:
 
         //  The label takes the whole row and centers its text in it, so the
         //  text reads level with the picture.
-        Assert::AreEqual (32 + 2 * 5,      withPicture.GetPreferredHeightDip());
+        Assert::AreEqual (32 + 2 * 3,      withPicture.GetPreferredHeightDip());
         Assert::AreEqual ((LONG) (32 + 8), label.left);
         Assert::AreEqual ((LONG) 0,        label.top);
-        Assert::AreEqual ((LONG) 42,       label.bottom);
+        Assert::AreEqual ((LONG) 38,       label.bottom);
 
         run.leadingImage->rgba.clear();
 
@@ -240,9 +240,9 @@ public:
         second = content.GetChild (1)->GetBounds();
 
         //  Three lines at 18, the picture's padding around them, twice.
-        Assert::AreEqual (2 * (3 * 18 + 2 * 5), content.GetPreferredHeightDip());
+        Assert::AreEqual (2 * (3 * 18 + 2 * 3), content.GetPreferredHeightDip());
         Assert::AreEqual (first.bottom - first.top, second.bottom - second.top);
-        Assert::AreEqual ((LONG) 64, second.top);
+        Assert::AreEqual ((LONG) 60, second.top);
     }
 
 

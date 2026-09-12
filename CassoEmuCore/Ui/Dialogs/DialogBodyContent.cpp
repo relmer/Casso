@@ -18,7 +18,7 @@ static constexpr int      s_kColGapDip     = 10;   // each side of the arrow col
 static constexpr int      s_kArrowColDip   = 16;   // the arrow glyph's own column
 static constexpr int      s_kStripGapDip   = 8;    // between the pieces of a strip run
 static constexpr int      s_kLeadGapDip    = 8;    // between a leading picture and its text
-static constexpr int      s_kPicturePadDip = 5;    // above and below a run that carries a picture
+static constexpr int      s_kPicturePadDip = 3;    // above and below a run that carries a picture
 
 
 
