@@ -29,6 +29,7 @@ DxuiToolbar::DxuiToolbar()
     m_hostClient.right  =  s_kUnboundedClientPx;
     m_hostClient.bottom =  s_kUnboundedClientPx;
 
+    RefreshMetrics();
     WireDropDown();
 }
 
@@ -575,7 +576,7 @@ int DxuiToolbar::MeasureLabelPx (const wchar_t * text, float fontPx) const
         return (int) (w + 0.5f);
     }
 
-    return (int) ((float) wcslen (text) * kFallbackCharPx * fontPx / kFontDip);
+    return (int) ((float) wcslen (text) * kFallbackCharPx * fontPx / kFallbackFontDip);
 }
 
 
@@ -595,7 +596,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 {
     int           padX    = m_scaler.ToPx (kBtnPadXDp);
     int           iconGap = m_scaler.ToPx (kIconGapDp);
-    float         fontPx  = m_scaler.ToPxf (kFontDip);
+    float         fontPx  = GetChromeFontPx();
     int           iconW   = (int) (m_scaler.ToPxf (kIconDip) + 0.5f);
     int           width   = 0;
     std::wstring  label;
@@ -662,6 +663,25 @@ int DxuiToolbar::GetTotalWidthPx (int labeledCount) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::RefreshMetrics
+//
+//  Re-reads the chrome font for the scaler's DPI. The strip asks for the
+//  size on every width plan and every paint, and the metrics come from a
+//  system-parameters query that has no business running per frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::RefreshMetrics()
+{
+    m_metrics = DxuiMenuMetrics::FromSystem (m_scaler.GetDpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::PlanForWidth
 //
 //  Drops one label at a time FROM THE RIGHT until the strip fits, so the
@@ -680,6 +700,7 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
 
     m_scaler.SetDpi (scaler.GetDpi());
+    RefreshMetrics();
 
     while (labeled > 0 && GetTotalWidthPx (labeled) > clientWidthPx)
     {
@@ -1299,7 +1320,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     float                bt      = (float) slot.rc.top;
     float                bw      = (float) (slot.rc.right  - slot.rc.left);
     float                bh      = (float) (slot.rc.bottom - slot.rc.top);
-    float                fontDip = m_scaler.ToPxf (kFontDip);
+    float                fontDip = GetChromeFontPx();
     float                iconDip = m_scaler.ToPxf (kIconDip);
     int                  padX    = m_scaler.ToPx (kBtnPadXDp);
     int                  iconGap = m_scaler.ToPx (kIconGapDp);

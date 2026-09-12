@@ -211,9 +211,16 @@ private:
     static constexpr int       kFlyoutPadDp      = 8;
     static constexpr int       kFlyoutDropDp     = 2;    // gap under the bar
     static constexpr float     kIconDip          = 15.0f;
-    static constexpr float     kFontDip          = 13.0f;
+    static constexpr float     kFallbackFontDip  = 13.0f;  // size the char estimate was taken at
     static constexpr float     kFallbackCharPx   = 7.5f;
     static constexpr uint32_t  kDisabledInkAlpha = 0x60000000u;
+
+    //  The chrome font: one size for the strip's labels, the menu bar's
+    //  titles and every dropdown, read from the Windows menu settings. A
+    //  toolbar label in a font its OWN picker did not use is the mismatch
+    //  this avoids -- the pickers are popup menus and paint in that font.
+    float  GetChromeFontPx () const { return m_metrics.fontPx; }
+    void   RefreshMetrics  ();
 
     //  Runtime state the strip keeps per entry.
     struct Slot
@@ -273,6 +280,7 @@ private:
     RECT                     m_barRect        = {};
     RECT                     m_hostClient     = {};
     DxuiDpiScaler            m_scaler;
+    DxuiMenuMetrics          m_metrics;
     int                      m_labeledCount   = 0;
 
     bool                     m_stripColorsSet = false;
