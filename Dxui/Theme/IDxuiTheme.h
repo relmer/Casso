@@ -129,6 +129,20 @@ public:
     // hairlines between its columns, the sash between two panes. Quieter
     // than Border(), which outlines a panel against what is behind it.
     virtual uint32_t  ContentEdge         () const { return Border(); }
+
+    // A row under the pointer and a row that is selected, inside a content
+    // surface. Both are NEUTRAL in Windows -- Explorer lights a row a few
+    // levels off its list background, not in the accent -- while a menu
+    // item's hover is the accent-tinted one. Separate tokens because the
+    // two surfaces genuinely differ; a theme that has not said falls back
+    // to the menu's.
+    // The lighter of the two lines a splitter draws, which is what gives
+    // the sash its relief. Defaults to the panel's edge for a theme that
+    // wants one flat line instead.
+    virtual uint32_t  SplitterHighlight   () const { return Border(); }
+
+    virtual uint32_t  ContentHover        () const { return HoverBackground(); }
+    virtual uint32_t  ContentSelection    () const { return SelectionBackground(); }
     virtual uint32_t  StatusBackground    () const { return Background(); }
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight

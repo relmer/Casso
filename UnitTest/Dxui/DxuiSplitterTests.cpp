@@ -168,24 +168,65 @@ public:
     }
 
 
-    TEST_METHOD (Paint_UsesDividerThenHoverColor)
+    //  A hairline over a wide grab band, and no hover fill: Explorer says a
+    //  sash can be dragged by changing the cursor and in no other way.
+    TEST_METHOD (Paint_IsAHairlinePairOverTheContentSurface)
     {
         DxuiSplitter          splitter;
         MockDxuiPainter       painter;
         MockDxuiTextRenderer  text;
         MockDxuiTheme         theme;
+        bool                  sawBand = false;
+        bool                  sawDark = false;
+        bool                  sawLite = false;
+
 
         LayOut (splitter);
         splitter.SetPositionDip (100);
-
         splitter.Paint (painter, text, theme);
-        Assert::AreEqual (theme.Divider(), painter.Calls().back().argb);
-        Assert::AreEqual (100.0f, painter.Calls().back().x);
-        Assert::AreEqual ((float) DxuiSplitter::kSashDip, painter.Calls().back().width);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.argb == theme.ContentBackground() && call.width == (float) DxuiSplitter::kSashDip)
+            {
+                sawBand = true;
+            }
+
+            if (call.argb == theme.ContentEdge()       && call.width == 1.0f) { sawDark = true; }
+            if (call.argb == theme.SplitterHighlight() && call.width == 1.0f) { sawLite = true; }
+        }
+
+        Assert::IsTrue (sawBand, L"The grab band is filled with the panes' own surface");
+        Assert::IsTrue (sawDark, L"a one-pixel dark line runs down it");
+        Assert::IsTrue (sawLite, L"and a one-pixel lighter line beside it gives the relief");
+    }
+
+
+    TEST_METHOD (Paint_HoverChangesNothing)
+    {
+        DxuiSplitter          splitter;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        size_t                idle = 0;
+
+
+        LayOut (splitter);
+        splitter.SetPositionDip (100);
+        splitter.Paint (painter, text, theme);
+        idle = painter.Calls().size();
 
         splitter.OnMouse (MakeMouse (DxuiMouseEventKind::Move, 101, 10));
+
+        Assert::IsTrue (splitter.IsHovered(), L"The pointer is over the sash");
+
         splitter.Paint (painter, text, theme);
-        Assert::AreEqual (theme.HoverBackground(), painter.Calls().back().argb);
+
+        for (size_t i = 0; i < idle; i++)
+        {
+            Assert::AreEqual (painter.Calls()[i].argb, painter.Calls()[idle + i].argb,
+                L"and the sash paints exactly as it did before");
+        }
     }
 
 

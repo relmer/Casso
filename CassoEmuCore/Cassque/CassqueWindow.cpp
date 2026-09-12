@@ -799,9 +799,19 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A widget mid-drag keeps the mouse until the button comes up, wherever
+    //  the pointer has wandered to. Without this a scrollbar puck dragged out
+    //  of its own pane is taken over by whatever the pointer crossed into.
     if (m_list->IsInteracting())
     {
         m_list->OnMouse (ToLocal (ev, m_list->GetBounds()));
+        Invalidate();
+        return true;
+    }
+
+    if (m_tree->IsInteracting())
+    {
+        m_tree->OnMouse (ToLocal (ev, m_tree->GetBounds()));
         Invalidate();
         return true;
     }

@@ -47,6 +47,9 @@ DxuiDarkTheme::DxuiDarkTheme()
     statusBg                 = 0xFF1C1C1C;
     headingText              = 0xFFDEDEDE;
     contentEdge              = 0xFF1D1D1D;
+    splitterHighlight        = 0xFF2B2B2B;
+    contentHover             = 0xFF232323;
+    contentSelection         = 0xFF2D2D2D;
     panelEdge                = 0xFF3A3A3A;
     buttonIdle               = 0xFF2D2D2D;
     buttonHover              = 0xFF323232;

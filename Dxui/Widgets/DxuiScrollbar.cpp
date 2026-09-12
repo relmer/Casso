@@ -19,6 +19,14 @@ static constexpr int       s_kArrowCount        = 2;
 static constexpr int       s_kArrowFitSlackPx   = 2;
 static constexpr float     s_kThumbCrossInsetPx = 1.0f;
 
+//  Windows 11 leaves a scrollbar at rest as a thin rounded puck with no
+//  track behind it, and widens it into the familiar bar with arrows only
+//  while the pointer is on it. Measured in Explorer's navigation pane at
+//  120 dpi: three pixels of #959595, no track. The GRAB BAND is the whole
+//  strip either way -- what narrows is only what is drawn.
+static constexpr int       s_kRestThumbDip      = 3;
+static constexpr uint32_t  s_kRestThumbAlpha    = 0x99000000u;
+
 
 
 
@@ -35,6 +43,10 @@ void DxuiScrollbar::Configure (Orientation orientation, int thicknessPx, int min
     m_thicknessPx = thicknessPx;
     m_minThumbPx  = minThumbPx;
     m_arrowStepPx = arrowStepPx;
+
+    //  The resting puck is a quarter of the strip, and never thinner than
+    //  the three pixels Explorer draws at 120 dpi.
+    m_restThumbPx = (std::max) (s_kRestThumbDip, (int) std::lround ((double) thicknessPx * 0.25));
 }
 
 
@@ -559,32 +571,42 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
 {
     HRESULT   hr        = S_OK;
     Metrics   m         = GetMetrics();
+    bool      wide      = m_expanded || m_dragging;
     uint32_t  trackArgb = (foregroundArgb & s_kRgbMask) | s_kTrackAlpha;
-    uint32_t  thumbArgb = (foregroundArgb & s_kRgbMask) | s_kThumbAlpha;
+    uint32_t  thumbArgb = (foregroundArgb & s_kRgbMask) | (wide ? s_kThumbAlpha : s_kRestThumbAlpha);
     uint32_t  arrowArgb = (foregroundArgb & s_kRgbMask) | s_kArrowAlpha;
-    float     thickness = 0.0f;
+    bool      vertical  = (m_orientation == Orientation::Vertical);
+    float     strip     = 0.0f;
+    float     thumbW    = 0.0f;
+    float     inset     = 0.0f;
 
 
 
     BAIL_OUT_IF (!m.visible, S_OK);
 
-    painter.FillRect ((float) m.bar.left, (float) m.bar.top,
-                      (float) (m.bar.right - m.bar.left), (float) (m.bar.bottom - m.bar.top), trackArgb);
+    strip  = vertical ? (float) (m.bar.right - m.bar.left) : (float) (m.bar.bottom - m.bar.top);
+    thumbW = wide ? (strip - s_kThumbCrossInsetPx * 2.0f) : (float) m_restThumbPx;
+    thumbW = (std::min) (thumbW, strip);
+    inset  = (strip - thumbW) * 0.5f;
 
-    if (m_orientation == Orientation::Vertical)
+    //  At rest there is no track: the puck floats on whatever the view drew.
+    if (wide)
     {
-        thickness = (float) (m.bar.right - m.bar.left);
-        painter.FillRect ((float) m.bar.left + s_kThumbCrossInsetPx, m.thumbStart,
-                          thickness - s_kThumbCrossInsetPx * 2.0f, m.thumbLength, thumbArgb);
+        painter.FillRect ((float) m.bar.left, (float) m.bar.top,
+                          (float) (m.bar.right - m.bar.left), (float) (m.bar.bottom - m.bar.top), trackArgb);
+    }
+
+    if (vertical)
+    {
+        PaintThumb (painter, (float) m.bar.left + inset, m.thumbStart, thumbW, m.thumbLength, thumbArgb);
     }
     else
     {
-        thickness = (float) (m.bar.bottom - m.bar.top);
-        painter.FillRect (m.thumbStart, (float) m.bar.top + s_kThumbCrossInsetPx,
-                          m.thumbLength, thickness - s_kThumbCrossInsetPx * 2.0f, thumbArgb);
+        PaintThumb (painter, m.thumbStart, (float) m.bar.top + inset, m.thumbLength, thumbW, thumbArgb);
     }
 
-    if (m.arrowLess.right > m.arrowLess.left && m.arrowLess.bottom > m.arrowLess.top)
+    //  Arrows belong to the widened bar only; at rest Windows shows none.
+    if (wide && m.arrowLess.right > m.arrowLess.left && m.arrowLess.bottom > m.arrowLess.top)
     {
         PaintArrow (painter, m.arrowLess, true,  arrowArgb);
         PaintArrow (painter, m.arrowMore, false, arrowArgb);
@@ -600,11 +622,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiScrollbar::PaintArrow
+//  DxuiScrollbar::PaintThumb
 //
-//  Draws a triangle centered in an arrow-button rect as a stack of 1px
-//  slices along the scroll axis: the apex sits at the track-start end when
-//  `less` is true (up / left), otherwise at the track-end (down / right).
+//  A rounded puck: the middle as a rectangle, the two ends as half circles of
+//  the puck's own half-width. Windows has drawn these round since 11, and a
+//  square-ended bar is one of the tells that a window is not native.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiScrollbar::PaintThumb (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const
+{
+    bool   vertical = (m_orientation == Orientation::Vertical);
+    float  radius   = (vertical ? w : h) * 0.5f;
+
+
+
+    if (w <= 0.0f || h <= 0.0f)
+    {
+        return;
+    }
+
+    if (vertical)
+    {
+        painter.FillRect (x, y + radius, w, (std::max) (h - radius * 2.0f, 0.0f), argb);
+        painter.FillCircleApprox (x + radius, y + radius,         radius, argb);
+        painter.FillCircleApprox (x + radius, y + h - radius,     radius, argb);
+    }
+    else
+    {
+        painter.FillRect (x + radius, y, (std::max) (w - radius * 2.0f, 0.0f), h, argb);
+        painter.FillCircleApprox (x + radius,     y + radius, radius, argb);
+        painter.FillCircleApprox (x + w - radius, y + radius, radius, argb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::PaintArrow
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -209,19 +209,49 @@ void DxuiSplitter::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  DxuiSplitter::Paint
 //
+//  A HAIRLINE OVER A WIDE GRAB BAND. The sash rect is what the pointer can
+//  take hold of; what gets drawn is two one-pixel lines down the middle of
+//  it, a dark one and a lighter one beside it. That pair is what gives
+//  Explorer's sash its slight relief -- measured at 120 dpi, #202020 against
+//  #2B2B2B -- and it is why a splitter that fills its whole grab band with
+//  one flat gray reads as a bar rather than a seam.
+//
+//  There is NO hover fill. Explorer says "you can drag this" by changing the
+//  cursor and in no other way, and a sash that lights up under the pointer
+//  is the first thing that gives a window away as not native.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiSplitter::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    RECT      sash  = GetSashRect();
-    uint32_t  color = (m_hovered || m_dragging) ? theme.HoverBackground() : theme.Divider();
+    RECT   sash     = GetSashRect();
+    float  line     = (std::max) (m_scaler.ToPxf (1.0f), 1.0f);
+    bool   vertical = (m_orientation == Orientation::Vertical);
+    float  midX     = (float) sash.left + (float) (sash.right - sash.left) * 0.5f - line;
+    float  midY     = (float) sash.top  + (float) (sash.bottom - sash.top)  * 0.5f - line;
 
 
 
     UNREFERENCED_PARAMETER (text);
 
+    //  The band either side of the lines belongs to the panes, not to the
+    //  window behind them: in Explorer the two content surfaces run right up
+    //  to the seam, and a strip of panel color showing through is what makes
+    //  a hairline read as a bar after all.
     painter.FillRect ((float) sash.left, (float) sash.top,
-                      (float) (sash.right - sash.left), (float) (sash.bottom - sash.top), color);
+                      (float) (sash.right - sash.left), (float) (sash.bottom - sash.top),
+                      theme.ContentBackground());
+
+    if (vertical)
+    {
+        painter.FillRect (midX,        (float) sash.top, line, (float) (sash.bottom - sash.top), theme.ContentEdge());
+        painter.FillRect (midX + line, (float) sash.top, line, (float) (sash.bottom - sash.top), theme.SplitterHighlight());
+    }
+    else
+    {
+        painter.FillRect ((float) sash.left, midY,        (float) (sash.right - sash.left), line, theme.ContentEdge());
+        painter.FillRect ((float) sash.left, midY + line, (float) (sash.right - sash.left), line, theme.SplitterHighlight());
+    }
 }
 
 

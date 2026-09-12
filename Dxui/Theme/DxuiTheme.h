@@ -62,6 +62,9 @@ struct DxuiTheme : public IDxuiTheme
     //  off its list background, not a visible gray.
     uint32_t  headingText              = 0;
     uint32_t  contentEdge              = 0;
+    uint32_t  splitterHighlight        = 0;
+    uint32_t  contentHover             = 0;
+    uint32_t  contentSelection         = 0;
     uint32_t  buttonIdle               = 0;
     uint32_t  buttonHover              = 0;
     uint32_t  buttonPressed            = 0;
@@ -77,6 +80,9 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  BackgroundElevated  () const override { return dropdownBg;         }
     uint32_t  ContentBackground   () const override { return (contentBg != 0) ? contentBg : panelBg; }
     uint32_t  ContentEdge         () const override { return (contentEdge != 0) ? contentEdge : panelEdge; }
+    uint32_t  SplitterHighlight   () const override { return (splitterHighlight != 0) ? splitterHighlight : panelEdge; }
+    uint32_t  ContentHover        () const override { return (contentHover != 0) ? contentHover : navHover; }
+    uint32_t  ContentSelection    () const override { return (contentSelection != 0) ? contentSelection : navHover; }
     uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
     uint32_t  HoverBackground     () const override { return navHover;           }
     uint32_t  PressedBackground   () const override { return buttonPressed;      }

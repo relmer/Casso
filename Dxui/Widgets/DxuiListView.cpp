@@ -2382,7 +2382,8 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.fgDim    = (pal.fg & 0x00FFFFFFu) | 0xA0000000u;
     pal.hdrFg    = m_theme->HeadingForeground();
     pal.bgRow    = m_theme->ContentBackground();
-    pal.bgHover  = m_theme->HoverBackground();
+    pal.bgHover  = m_theme->ContentHover();
+    pal.bgSel    = m_theme->ContentSelection();
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
     pal.border   = m_theme->ContentEdge();
     pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
@@ -2652,9 +2653,7 @@ void DxuiListView::PaintDataRows (
 
         if (isSel)
         {
-            uint32_t  selArgb = (pal.bgHover & 0x00FFFFFFu) | 0xFF000000u;
-
-            painter.FillRect (x, ry, layoutW, rowH, selArgb);
+            painter.FillRect (x, ry, layoutW, rowH, pal.bgSel);
         }
 
         if (isHov)

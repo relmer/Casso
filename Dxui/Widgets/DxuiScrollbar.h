@@ -97,6 +97,12 @@ public:
 
     void     Paint (IDxuiPainter & painter, uint32_t foregroundArgb) const;
 
+    //  Widened, as Windows widens a scrollbar the pointer is over: the track
+    //  appears, the puck thickens and the arrows come back. The grab band is
+    //  the same either way.
+    void     SetExpanded (bool expanded)      { m_expanded = expanded; }
+    bool     IsExpanded  () const             { return m_expanded; }
+
     void     SetOnScroll (std::function<void (int sbCode, int pos)> cb)  { m_onScroll = std::move (cb); }
 
 private:
@@ -108,6 +114,7 @@ private:
     float  GetThumbLength() const;
     RECT   GetMainRect (int mainStart, int mainExtent) const;
     void   NotifyPos (int sbCode, int newPos);
+    void   PaintThumb (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const;
     void   PaintArrow (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
 
     Orientation                            m_orientation = Orientation::Vertical;
@@ -120,6 +127,8 @@ private:
     int                                    m_page        = 0;
     int                                    m_pos         = 0;
     bool                                   m_dragging    = false;
+    bool                                   m_expanded    = false;
+    int                                    m_restThumbPx = 3;
     float                                  m_dragGrab    = 0.0f;
     std::function<void (int sbCode, int pos)>  m_onScroll;
 };

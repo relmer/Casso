@@ -812,8 +812,8 @@ bool DxuiTreeView::OnKey (WPARAM vk)
 void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     uint32_t         s_kRowIdle      = 0x00000000;
-    uint32_t         s_kRowHover     = (theme.HoverBackground()    & 0x00FFFFFFu) | 0x33000000u;
-    uint32_t         s_kRowHighlight = (theme.SelectionBackground() & 0x00FFFFFFu) | 0x44000000u;
+    uint32_t         s_kRowHover     = theme.ContentHover();
+    uint32_t         s_kRowHighlight = theme.ContentSelection();
     uint32_t         s_kBoxIdle      = theme.ButtonIdle();
     uint32_t         s_kBoxLocked    = DxuiColor::ComputeTintForContrast (theme.Background(), 1.6f);
     uint32_t         s_kCheckGlyph   = theme.ButtonText();

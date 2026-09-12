@@ -392,6 +392,7 @@ private:
         uint32_t  hdrFg    = 0;
         uint32_t  bgRow    = 0;
         uint32_t  bgHover  = 0;
+        uint32_t  bgSel    = 0;
         uint32_t  bgHeader = 0;
         uint32_t  border   = 0;
         uint32_t  matchBg  = 0;

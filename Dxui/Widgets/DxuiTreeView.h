@@ -100,6 +100,16 @@ public:
 
     void  SetRect      (const RECT & rect) { SetBounds (rect); }
     void  SetRowHeight (int px) { m_rowHeightPx = px; }
+
+    //  True while the pointer still owns this tree even if it has wandered
+    //  off it -- a scrollbar puck held down. The host keeps routing to the
+    //  widget that started the drag until the button comes up, the way Win32
+    //  capture does, so a drag that strays into the pane beside it goes on
+    //  scrolling this one rather than being taken over by the neighbour.
+    bool  IsInteracting () const { return m_vertScroll.IsDragging(); }
+
+    //  Explorer's navigation pane, measured at 120 dpi: forty pixels a row.
+    static constexpr int  s_kRowHeightDip = 32;
     void  SetNodes     (std::vector<DxuiTreeNode> nodes) { m_nodes = std::move (nodes); RebuildFlatRows(); }
     void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }
@@ -107,7 +117,7 @@ public:
     void  SetDpi       (UINT dpi)
     {
         m_scaler.SetDpi (dpi);
-        m_rowHeightPx = m_scaler.ToPx (22);
+        m_rowHeightPx = m_scaler.ToPx (s_kRowHeightDip);
         m_indentPx    = m_scaler.ToPx (18);
         m_checkboxPx  = m_scaler.ToPx (16);
         m_twistyPx    = m_scaler.ToPx (16);

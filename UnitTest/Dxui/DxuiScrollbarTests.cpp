@@ -267,13 +267,54 @@ public:
     }
 
 
-    TEST_METHOD (Paint_EmitsTrackAndThumbFills)
+    //  At rest Windows draws a thin rounded puck and no track at all; the
+    //  track, the wider puck and the arrows appear only while the pointer is
+    //  on the bar. The grab band does not change with either.
+    TEST_METHOD (Paint_AtRestIsAThinPuckAndNoTrack)
     {
         DxuiScrollbar    bar      = MakeVertical();
         MockDxuiPainter  painter;
         bool             sawTrack = false;
-        bool             sawThumb = false;
+        bool             sawRound = false;
+        float            widest   = 0.0f;
 
+
+        bar.Paint (painter, 0xFFFFFFFFu);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::FillRect && call.argb == 0x18FFFFFFu)
+            {
+                sawTrack = true;
+            }
+
+            if (call.kind == RecordedPaintKind::FillRect && call.width > widest)
+            {
+                widest = call.width;
+            }
+
+            if (call.kind == RecordedPaintKind::FillCircleApprox)
+            {
+                sawRound = true;
+            }
+        }
+
+        Assert::IsFalse (sawTrack, L"A bar at rest paints no track");
+        Assert::IsTrue  (sawRound, L"and its puck has rounded ends");
+        Assert::IsTrue  (widest <= 4.0f,
+            L"and is a few pixels wide rather than the whole strip");
+    }
+
+
+    TEST_METHOD (Paint_ExpandedBringsBackTheTrackAndAWiderPuck)
+    {
+        DxuiScrollbar    bar      = MakeVertical();
+        MockDxuiPainter  painter;
+        bool             sawTrack = false;
+        float            widest   = 0.0f;
+
+
+        bar.SetExpanded (true);
         bar.Paint (painter, 0xFFFFFFFFu);
 
         for (const RecordedPaintCall & call : painter.Calls())
@@ -284,14 +325,13 @@ public:
                 sawTrack = true;
             }
 
-            if (call.kind == RecordedPaintKind::FillRect && call.argb == 0x80FFFFFFu &&
-                call.x == 101.0f && call.width == 8.0f)
+            if (call.kind == RecordedPaintKind::FillRect && call.argb == 0x80FFFFFFu && call.width > widest)
             {
-                sawThumb = true;
+                widest = call.width;
             }
         }
 
-        Assert::IsTrue (sawTrack);
-        Assert::IsTrue (sawThumb);
+        Assert::IsTrue   (sawTrack, L"The track comes back under the pointer");
+        Assert::AreEqual (8.0f, widest, L"and the puck fills the strip but for its inset");
     }
 };
