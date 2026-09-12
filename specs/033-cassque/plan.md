@@ -103,8 +103,10 @@ Dxui/
 │   ├── DxuiSplitter.h/.cpp            # NEW
 │   ├── DxuiStatusBar.h/.cpp           # NEW
 │   ├── DxuiFramebufferView.h/.cpp     # NEW
-│   └── DxuiHexView.h/.cpp             # NEW: offset, hex and text columns over one byte selection,
-│                                      #      bytes from a host source at a host origin (debugger too)
+│   ├── DxuiHexView.h/.cpp             # NEW: offset, hex and text columns over one byte selection,
+│   │                                  #      bytes from a host source at a host origin (debugger too)
+│   ├── DxuiAddressBar.h/.cpp          # NEW: segments, typed path, host folders and image directories
+│   └── DxuiTabStrip.h/.cpp            # overflow, drag to reorder, new-tab affordance
 ├── Window/
 │   └── DxuiDragDropSource.h/.cpp      # NEW: IDropSource + IDataObject with delayed rendering
 └── Theme/
@@ -211,7 +213,14 @@ this list; phases here through the executable need nothing from 032.
    source at a host-supplied origin and holds no copy, because the
    debugger's caller is live machine memory addressed from $0000, not a
    file the widget could own.
-8. **Validation and gates**: quickstart §1 through §9, `validation.md`,
+8. **Native chrome, tabs and the address bar**: the parity pass over
+   Dxui's Windows themes and metrics against File Explorer, a splitter
+   whose grab is wider than its line, Explorer's navigation icons, a
+   toolbar with a trailing group, names cut off rather than wrapped,
+   a tab strip that survives more tabs than fit and reorders by drag,
+   `DxuiAddressBar`, and a chrome arrangement that lets the tab strip sit
+   outside the toolbars. Every piece lands in Dxui, so Casso inherits it.
+9. **Validation and gates**: quickstart §1 through §9, `validation.md`,
    CHANGELOG, README headline, style sweep, four-configuration analysis
    rebuild, master merge.
 

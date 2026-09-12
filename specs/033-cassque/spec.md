@@ -50,6 +50,19 @@ the browser layout needs and the browser itself.
   BASIC detokenizer; the tree detokenizes Applesoft only today. No
   Integer BASIC tokenizer.
 
+### Session 2026-09-11 (walking the built window)
+
+- Q: How close to native should the chrome sit? → A: Indistinguishable
+  from File Explorer at the same scale, palette aside. The three Casso
+  themes carry their own colors and nothing else of their own. Fixes
+  belong to the UI library, so the emulator inherits them.
+- Q: What does a splitter look like? → A: Explorer's: a hairline to the
+  eye, a wide band to the pointer. The two are not the same measurement.
+- Q: Where do tabs sit? → A: Outermost, as a browser puts them, with the
+  menu bar, toolbar and address bar inside the tab. The library must
+  support both arrangements, since a window with one toolbar wants the
+  other.
+
 ### Session 2026-09-11
 
 - Q: What face shows an Apple II file's text? → A: The machine's own. The
@@ -552,6 +565,41 @@ bytes, change the grouping, and copy the selection both ways.
   Announcement to assistive technology is out of scope; the UI library's
   automation provider is a follow-on feature.
 
+**Native chrome**
+
+- **FR-031**: The Windows light and dark themes MUST read as native at a
+  glance beside File Explorer at the same scale: the text faces and
+  sizes, the list's background and its edge grays, the column headers,
+  the hover the pointer leaves on a row, and the tree's expand and
+  collapse chevrons. Casso's three themes MAY depart in palette, and in
+  nothing else.
+- **FR-032**: A splitter MUST draw as a hairline and take the pointer
+  over a band far wider than that line, as Explorer's do. The grab MUST
+  NOT shrink to the drawn width.
+- **FR-033**: Back, Forward, Up and Refresh MUST carry the iconography
+  Explorer uses for them.
+- **FR-034**: The preview toggle MUST sit at the toolbar's trailing end,
+  where Explorer keeps the control that shows and hides its pane.
+- **FR-035**: A long name MUST be cut off, never wrapped, in a tree row,
+  a list cell or a tab.
+
+**Tabs and the address bar**
+
+- **FR-036**: The tab strip MUST stay usable past the point where the
+  tabs no longer fit: every open tab MUST remain reachable without
+  resizing the window.
+- **FR-037**: Tabs MUST be reorderable by dragging, and a new tab MUST be
+  openable from the strip itself, the way a browser and Explorer open
+  one, rather than from a toolbar button alone.
+- **FR-038**: The window MUST carry an address bar: the current location
+  as navigable segments, editable into a typed path, and reaching a
+  location inside a disk image as readily as one on the host.
+- **FR-039**: The chrome arrangement MUST be the library's choice, not
+  the window's: a window MUST be able to put its tab strip outside the
+  menu bar, toolbar and address bar, as a browser does, or inside them,
+  as a window with one toolbar does. Cassque MUST take the browser's
+  arrangement.
+
 **Testability**
 
 - **FR-030**: Browsing, cataloging, preview decoding, conversion, the
@@ -605,6 +653,14 @@ bytes, change the grouping, and copy the selection both ways.
 - **SC-007**: A range selected in either column of a hex preview covers
   exactly the same bytes in the other column, at every grouping width,
   including a range that starts and ends mid-row.
+- **SC-009**: Captures of Cassque and File Explorer at the same scale,
+  set side by side, differ in no element of the chrome a reviewer can
+  name -- text, row metrics, headers, hover, chevrons, splitters, edges
+  -- outside the palette of Casso's three themes.
+- **SC-010**: With twenty tabs open in a window 900 pixels wide, every
+  tab can be reached and every tab can be reordered.
+- **SC-011**: A user can reach any folder on the host, and any directory
+  inside an image, by typing its path into the address bar.
 - **SC-008a**: The hex view shows a 64 KB run, addressed from an origin
   of the host's choosing, with no copy of those bytes held by the widget
   and no pause a user can see when scrolling through it.
