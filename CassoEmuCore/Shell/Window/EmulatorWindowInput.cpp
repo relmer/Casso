@@ -2129,7 +2129,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // fire buttons when "Map Arrows to Joystick" is on AND a game-port
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
-    bool  driveJoystick = m_arrowsJoystick &&
+    bool  driveJoystick = IsArrowJoystickActive() &&
                           (m_machine.GetRefs().iieSoftSwitches != nullptr ||
                            m_machine.GetRefs().gamePort != nullptr);
     // The guest owns every key that reaches here either way; with no keyboard
@@ -2247,12 +2247,12 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // releases the physical keys.
         ApplyAppleModifierKeys (vk, false);
 
-        if (m_arrowsJoystick && AppleKeyMapping::IsArrowVk (vk))
+        if (IsArrowJoystickActive() && AppleKeyMapping::IsArrowVk (vk))
         {
             UpdateJoystickAxesFromKeys();
         }
 
-        if (m_arrowsJoystick)
+        if (IsArrowJoystickActive())
         {
             UpdateJoystickButtonsFromKeys();
         }
@@ -2725,9 +2725,11 @@ void EmulatorShell::SyncPaddleSourceList()
     state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
     state.hasController        = snapshot.selection.has_value();
     state.isControllerAttached = snapshot.isSelectedConnected;
+    state.hasStandIn           = snapshot.standIn.has_value();
 
     m_mainMenu.GetCommands().SetPaddleSources (
-        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection));
+        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection,
+                                            snapshot.standIn, snapshot.selectionDescription));
 
     // Straight onto the command bar's Input drop-down rather than a submenu
     // off the Machine menu: this is a list the user picks from while playing,
@@ -2828,7 +2830,13 @@ void EmulatorShell::SyncGamePortAxisOwner()
 
         state.hasController        = snapshot.selection.has_value();
         state.isControllerAttached = snapshot.isSelectedConnected;
+        state.hasStandIn           = snapshot.standIn.has_value();
     }
+
+    // The arrow keys standing in for a controller that is gone is not the
+    // same thing as the user having turned them on, and the key handlers have
+    // to honor it without it reaching the setting the user owns.
+    m_arrowKeyFallback = state.hasController && !state.isControllerAttached && !state.hasStandIn;
 
     m_gamePortMixer.SetAxisOwner (InputModeRules::GetAxisOwner (state));
 }
@@ -3401,7 +3409,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
-    bool  isFireKey = m_arrowsJoystick &&
+    bool  isFireKey = IsArrowJoystickActive() &&
                       (m_machine.GetRefs().iieSoftSwitches != nullptr ||
                        m_machine.GetRefs().gamePort != nullptr) &&
                       (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z');

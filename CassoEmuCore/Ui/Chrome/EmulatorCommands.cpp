@@ -652,6 +652,11 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetMonitorItems() const
 //  so a row is identified by the entry it was built from, which the dispatch
 //  captures.
 //
+//  The picker's tooltip is rewritten from the same rows. Its face wears the
+//  source that is driving, so the tooltip is the only place that can say the
+//  chosen controller is not connected, or that something is standing in for
+//  it (FR-008a, FR-013).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::PaddleSource> & sources)
@@ -681,6 +686,15 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
         };
 
         m_paddleSourceRows.push_back (std::move (cmd));
+    }
+
+    {
+        DxuiCommand *  paddle = FindMutable (kIdPaddle);
+
+        if (paddle != nullptr)
+        {
+            paddle->tip = InputModeRules::BuildPaddleTip (m_paddleSources);
+        }
     }
 }
 

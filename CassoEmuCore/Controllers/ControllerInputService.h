@@ -43,6 +43,18 @@ public:
     {
         std::vector<ControllerDeviceInfo>  devices;
         std::optional<ControllerUnitKey>   selection;
+
+        // The controller reading the axes while the chosen one is absent
+        // (FR-008a). Absent whenever the chosen controller is doing it
+        // itself, which is the ordinary case.
+        std::optional<ControllerUnitKey>   standIn;
+
+        // What to call each of them. The chosen controller's description is
+        // remembered from the last enumeration that carried it, so a picker
+        // row for a controller that has gone can still name it.
+        std::wstring                       selectionDescription;
+        std::wstring                       standInDescription;
+
         ControllerSample                   lastSample;
         bool                               isSelectedConnected = false;
     };
@@ -74,14 +86,22 @@ public:
 
 private:
 
-    void  RefreshDevices           ();
-    void  ReleaseContribution      ();
-    void  EnsureMappingForSelection ();
-    bool  IsSelectedDevicePresent  () const;
+    void  RefreshDevices          ();
+    void  ReleaseContribution     ();
+    void  EnsureMappingForActive  ();
+    bool  IsSelectedDevicePresent () const;
 
-    // Both assume m_mutex is already held.
-    const ControllerDeviceInfo *  FindSelectedDeviceLocked      () const;
-    void                          EnsureMappingForSelectionLocked ();
+    // All of these assume m_mutex is already held.
+    const ControllerDeviceInfo *  FindDeviceLocked          (const ControllerUnitKey & unit) const;
+    const ControllerDeviceInfo *  FindActiveDeviceLocked    () const;
+    void                          EnsureMappingForActiveLocked ();
+    void                          UpdateAttachOrderLocked   ();
+
+    // Recomputes which controller is actually read, and returns whether that
+    // changed. The chosen one while it is there, its stand-in while it is
+    // not, and the chosen one either way when nothing can stand in, so that
+    // the read fails and the disconnect path runs.
+    bool                          UpdateActiveUnitLocked    ();
 
     IControllerBackend                 & m_backend;
     GamePortInputMixer                 & m_mixer;
@@ -89,6 +109,16 @@ private:
     ControlMapping                       m_mapping;
     std::vector<ControllerDeviceInfo>    m_devices;
     std::optional<ControllerUnitKey>     m_selection;
+    std::optional<ControllerUnitKey>     m_standIn;
+    std::optional<ControllerUnitKey>     m_activeUnit;
+    std::wstring                         m_selectionDescription;
+
+    // When each attached controller was first seen, so the stand-in is the
+    // one that has been there longest and does not move as unrelated
+    // controllers come and go (FR-008a).
+    std::vector<std::pair<ControllerUnitKey, uint64_t>>  m_attachOrder;
+    uint64_t                                             m_nextAttachOrder = 0;
+
     ControllerSample                     m_lastSample;
     SelectionChangedFn                   m_onSelectionChanged;
     StateChangedFn                       m_onStateChanged;

@@ -153,5 +153,138 @@ namespace ControllerTests
 
             Assert::AreEqual (1, pickCount);
         }
+
+        static ControllerDeviceInfo MakeDevice (const char * unitId, const wchar_t * description)
+        {
+            ControllerDeviceInfo  info;
+
+            info.unit.model  = { ControllerKind::DirectInput, 0x0079, 0x0006 };
+            info.unit.unitId = unitId;
+            info.unit.source = ControllerUnitSource::InstanceGuid;
+            info.description = description;
+            return info;
+        }
+
+
+        TEST_METHOD (StandIn_WearsTheCheckAndTheChosenRowSaysItIsGone)
+        {
+            InputModeRules::State                      state;
+            std::vector<ControllerDeviceInfo>          devices;
+            std::vector<InputModeRules::PaddleSource>  sources;
+            ControllerDeviceInfo                       gone  = MakeDevice ("{AAAA}", L"VKBsim Gladiator");
+            ControllerDeviceInfo                       here  = MakeDevice ("{BBBB}", L"Xbox Controller");
+
+            devices.push_back (here);
+            state.hasController = true;
+
+            sources = InputModeRules::BuildPaddleSources (state, devices, gone.unit, here.unit, gone.description);
+
+            Assert::AreEqual (static_cast<size_t> (4), sources.size(),
+                L"the attached controller, the chosen one that is gone, and the two fallbacks");
+            Assert::IsTrue  (sources[0].isStandIn, L"the attached controller is standing in");
+            Assert::IsTrue  (sources[0].isChecked, L"and the check is on it, because it is what is driving");
+            Assert::IsFalse (sources[1].isChecked, L"the chosen controller is not driving anything");
+            Assert::IsFalse (sources[1].isConnected);
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator (not connected)"), sources[1].label,
+                L"and its row names it, rather than only saying something is missing");
+        }
+
+
+        TEST_METHOD (ChosenRow_NamesTheControllerOnlyWhenItHasBeenSeen)
+        {
+            InputModeRules::State                      state;
+            std::vector<InputModeRules::PaddleSource>  sources;
+            ControllerDeviceInfo                       gone = MakeDevice ("{AAAA}", L"VKBsim Gladiator");
+
+            state.hasController = true;
+
+            // A selection restored at launch is a token and nothing more
+            // until the controller turns up, so there is no name to print.
+            sources = InputModeRules::BuildPaddleSources (state, {}, gone.unit);
+
+            Assert::AreEqual (std::wstring (L"Controller (not connected)"), sources[0].label);
+            Assert::IsTrue   (sources[0].isChecked,
+                L"with nothing standing in, the chosen controller is still what the picker points at");
+        }
+
+
+        TEST_METHOD (Tip_SaysWhatIsStandingInAndForWhat)
+        {
+            InputModeRules::State                      state;
+            std::vector<ControllerDeviceInfo>          devices;
+            ControllerDeviceInfo                       gone = MakeDevice ("{AAAA}", L"VKBsim Gladiator");
+            ControllerDeviceInfo                       here = MakeDevice ("{BBBB}", L"Xbox Controller");
+
+            devices.push_back (here);
+            state.hasController = true;
+
+            Assert::AreEqual (std::wstring (L"Xbox Controller is standing in for VKBsim Gladiator, which is not connected"),
+                InputModeRules::BuildPaddleTip (
+                    InputModeRules::BuildPaddleSources (state, devices, gone.unit, here.unit, gone.description)),
+                L"the face wears the stand-in's name, so the tooltip is the only place the chosen one can be said");
+
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator is not connected"),
+                InputModeRules::BuildPaddleTip (
+                    InputModeRules::BuildPaddleSources (state, {}, gone.unit, std::nullopt, gone.description)),
+                L"with nothing standing in, it says only that");
+        }
+
+
+        TEST_METHOD (Tip_NamesThePickersPurposeWhileEverythingIsWell)
+        {
+            InputModeRules::State             state;
+            std::vector<ControllerDeviceInfo> devices;
+            ControllerDeviceInfo              here = MakeDevice ("{BBBB}", L"Xbox Controller");
+
+            devices.push_back (here);
+            state.hasController        = true;
+            state.isControllerAttached = true;
+
+            Assert::AreEqual (std::wstring (L"What drives the paddles"),
+                InputModeRules::BuildPaddleTip (
+                    InputModeRules::BuildPaddleSources (state, devices, here.unit)),
+                L"the face already carries the answer, so the tooltip has nothing to add");
+        }
+
+
+        TEST_METHOD (Tip_ReachesThePickerWhenTheRowsAreSet)
+        {
+            EmulatorCommands                           commands;
+            InputModeRules::State                      state;
+            std::vector<ControllerDeviceInfo>          devices;
+            ControllerDeviceInfo                       gone = MakeDevice ("{AAAA}", L"VKBsim Gladiator");
+            ControllerDeviceInfo                       here = MakeDevice ("{BBBB}", L"Xbox Controller");
+
+            devices.push_back (here);
+            state.hasController = true;
+
+            commands.SetPaddleSources (
+                InputModeRules::BuildPaddleSources (state, devices, gone.unit, here.unit, gone.description));
+
+            Assert::IsTrue (commands.Find (EmulatorCommands::kIdPaddle) != nullptr);
+            Assert::AreEqual (std::wstring (L"Xbox Controller is standing in for VKBsim Gladiator, which is not connected"),
+                commands.Find (EmulatorCommands::kIdPaddle)->tip);
+        }
+
+
+        TEST_METHOD (StandInLabel_IsTheStandInsOwnName)
+        {
+            InputModeRules::State                      state;
+            std::vector<ControllerDeviceInfo>          devices;
+            EmulatorCommands                           commands;
+            ControllerDeviceInfo                       gone = MakeDevice ("{AAAA}", L"VKBsim Gladiator");
+            ControllerDeviceInfo                       here = MakeDevice ("{BBBB}", L"Xbox Controller");
+
+            devices.push_back (here);
+            state.hasController = true;
+
+            commands.SetPaddleSources (
+                InputModeRules::BuildPaddleSources (state, devices, gone.unit, here.unit, gone.description));
+
+            // The glyph follows the device, and a stand-in is a real device of
+            // some kind, so the strip says what is actually driving rather
+            // than carrying a third state for the chosen one's absence.
+            Assert::AreEqual (std::wstring (L"Xbox Controller"), commands.GetCheckedPaddleSourceLabel());
+        }
     };
 }

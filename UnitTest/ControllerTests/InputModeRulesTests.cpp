@@ -48,14 +48,33 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Controller_DetachedWithNothingElseRestsAtCenter)
+        TEST_METHOD (Controller_DetachedWithNothingElseFallsBackToTheArrows)
         {
             InputModeRules::State  state;
 
             state.hasController        = true;
             state.isControllerAttached = false;
 
-            Assert::AreEqual ((int) AxisOwner::None, (int) InputModeRules::GetAxisOwner (state));
+            // The arrows are OFF here: choosing the controller is what turned
+            // them off. Resting the axes at center would answer a disconnect
+            // by taking the game away entirely (FR-008a).
+            Assert::AreEqual ((int) AxisOwner::ArrowKeys, (int) InputModeRules::GetAxisOwner (state),
+                L"the arrow keys stand in whether or not the user has them on");
+        }
+
+
+        TEST_METHOD (Controller_StandingInKeepsTheAxesWithTheControllers)
+        {
+            InputModeRules::State  state;
+
+            state.hasController        = true;
+            state.isControllerAttached = false;
+            state.hasStandIn           = true;
+
+            // Which controller is read is the service's question. Either way
+            // a controller drives the axes, so the arrows do not take them.
+            Assert::AreEqual ((int) AxisOwner::Controller, (int) InputModeRules::GetAxisOwner (state),
+                L"a stand-in is still a controller");
         }
 
 

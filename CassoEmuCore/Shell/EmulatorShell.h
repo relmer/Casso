@@ -560,6 +560,13 @@ private:
 
     // Hands PDL0/PDL1 to whichever host input mode currently drives them.
     void    SyncGamePortAxisOwner ();
+
+    // Whether the arrow keys are driving the joystick: because the user
+    // turned them on, or because they are standing in for a chosen
+    // controller that is gone with nothing else to take its place
+    // (FR-008a). The fallback is not the user's setting and must not be
+    // written to it, so the key handlers ask this rather than m_arrowsJoystick.
+    bool    IsArrowJoystickActive () const { return m_arrowsJoystick || m_arrowKeyFallback; }
     void    ApplyAutomaticControllerSelection (const std::wstring & description, bool isAdoption);
     void    PickPaddleSource       (const InputModeRules::PaddleSource & source);
     void    SetControllerSelection (const std::optional<ControllerUnitKey> & selection);
@@ -1977,6 +1984,12 @@ private:
     // menu's "Cycle Input Mode" item, Ctrl+Shift+J, and the drive-bar widget.
     InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
     bool              m_arrowsJoystick = false;                    // Keys axis
+
+    // The chosen controller is gone and nothing is standing in, so the arrow
+    // keys have the axes whether or not the user asked for them (FR-008a).
+    // Written only by SyncGamePortAxisOwner, which decides the same question
+    // for the mixer.
+    bool              m_arrowKeyFallback = false;
 
     // The single writer of the paddles and pushbuttons. Every host input
     // source submits to the mixer; only the sink touches the machine.

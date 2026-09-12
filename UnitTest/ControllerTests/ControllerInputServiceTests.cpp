@@ -63,6 +63,21 @@ namespace ControllerTests
         }
 
 
+
+        static ControllerDeviceInfo MakePadDevice (const char * unitId, const wchar_t * description)
+        {
+            ControllerDeviceInfo  info;
+
+            info.unit.model  = { ControllerKind::DirectInput, 0x0079, 0x0006 };
+            info.unit.unitId = unitId;
+            info.unit.source = ControllerUnitSource::InstanceGuid;
+            info.description = description;
+            info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
+                                 { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
+            return info;
+        }
+
+
         static ControllerSample MakePushedSample()
         {
             ControllerSample  sample;
@@ -284,6 +299,194 @@ namespace ControllerTests
             service.Tick();
 
             Assert::AreEqual (static_cast<size_t> (1), service.GetSnapshot().devices.size(), L"the arrival is picked up on the next tick");
+        }
+
+        TEST_METHOD (Disconnect_HandsTheAxesToTheLongestAttachedController)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            ControllerDeviceInfo    first = MakePadDevice ("{AAAA}", L"First Pad");
+            ControllerDeviceInfo    later = MakePadDevice ("{BBBB}", L"Later Pad");
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (stick);
+            backend.AddDevice (first);
+            service.SetSelection (stick.unit);
+            service.Tick();
+
+            // The later arrival must not take the port from the one that was
+            // already there: a stand-in that changes as unrelated controllers
+            // come and go would move the stick out from under the player.
+            backend.AddDevice (later);
+            backend.SetSample (first.unit, MakePushedSample());
+            backend.SetSample (later.unit, MakePushedSample());
+            service.OnDevicesChanged();
+            service.Tick();
+
+            backend.RemoveDevice (stick.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            Assert::IsTrue (service.GetSnapshot().standIn.has_value(), L"something stands in for the controller that left");
+            Assert::IsTrue (service.GetSnapshot().standIn.value() == first.unit,
+                L"and it is the one that has been attached longest");
+            Assert::IsTrue (service.GetSnapshot().selection.value() == stick.unit,
+                L"standing in must not change what the user chose");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0],
+                L"the stand-in drives the axes, under its own default mapping");
+        }
+
+
+        TEST_METHOD (Disconnect_ReleasesWithinOneTickWhenNothingStandsIn)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, MakePushedSample());
+            service.SetSelection (stick.unit);
+            service.Tick();
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"the stick is driving");
+
+            backend.RemoveDevice (stick.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            Assert::IsFalse  (service.GetSnapshot().standIn.has_value(), L"nothing is attached to stand in");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],
+                L"the axes return to center within the tick that saw the disconnect");
+            Assert::IsFalse (sink.writes.back().state.buttons.test (0), L"and its buttons are released");
+        }
+
+
+        TEST_METHOD (Disconnect_ReleaseRefusedBySinkStillArrivesThroughFlushPending)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, MakePushedSample());
+            service.SetSelection (stick.unit);
+            service.Tick();
+
+            // A machine rebuild holds the sink off. The release must not be
+            // dropped on the floor: the paddles would stay where the last
+            // read left them, with the buttons held down.
+            sink.refuseNext = 1;
+            backend.RemoveDevice (stick.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            Assert::AreEqual (1, sink.refusedCount,    L"the release was refused");
+            Assert::IsTrue   (mixer.HasPendingWrite(), L"and is still pending");
+            Assert::IsTrue   (mixer.FlushPending(),    L"the flush writes it");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"and the axes reach center after all");
+        }
+
+
+        TEST_METHOD (Reconnect_TakesTheAxesBackFromTheStandIn)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            ControllerDeviceInfo    pad   = MakePadDevice ("{AAAA}", L"First Pad");
+            ControllerSample        left  = MakePushedSample();
+
+            left.axes[0] = -1.0f;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (stick);
+            backend.AddDevice (pad);
+            backend.SetSample (stick.unit, left);
+            backend.SetSample (pad.unit,   MakePushedSample());
+            service.SetSelection (stick.unit);
+            service.Tick();
+
+            backend.RemoveDevice (stick.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"the pad stands in");
+
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, left);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            Assert::IsFalse  (service.GetSnapshot().standIn.has_value(), L"the stand-in gives the axes back");
+            Assert::IsTrue   (service.GetSnapshot().isSelectedConnected, L"the chosen controller is driving again");
+            Assert::AreEqual (static_cast<Byte> (0), sink.writes.back().state.paddle[0],
+                L"and it is the chosen controller's own stick that is read");
+        }
+
+
+        TEST_METHOD (Rescan_WhileStandingInIsIdempotent)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            ControllerDeviceInfo    pad   = MakePadDevice ("{AAAA}", L"First Pad");
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (stick);
+            backend.AddDevice (pad);
+            backend.SetSample (pad.unit, MakePushedSample());
+            service.SetSelection (stick.unit);
+            service.Tick();
+
+            backend.RemoveDevice (stick.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            // The shell rescans after a device notification at +300 ms and
+            // +2 s, because arrival and readiness are not the same moment.
+            // Neither rescan may move the stand-in or the selection.
+            for (int scan = 0; scan < 2; scan++)
+            {
+                service.OnDevicesChanged();
+                service.Tick();
+            }
+
+            Assert::IsTrue (service.GetSnapshot().standIn.value() == pad.unit,     L"the stand-in survives a rescan");
+            Assert::IsTrue (service.GetSnapshot().selection.value() == stick.unit, L"and so does the selection");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"and it is still driving");
+        }
+
+
+        TEST_METHOD (StandIn_IsOnlyForAnAbsentSelection)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            ControllerDeviceInfo    pad   = MakePadDevice ("{AAAA}", L"First Pad");
+
+            backend.AddDevice (stick);
+            backend.AddDevice (pad);
+            service.SetSelection (stick.unit);
+            service.Tick();
+
+            Assert::IsFalse (service.GetSnapshot().standIn.has_value(),
+                L"a second controller does not stand in for one that is right there");
         }
     };
 }

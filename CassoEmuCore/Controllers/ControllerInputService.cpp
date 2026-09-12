@@ -93,15 +93,18 @@ void ControllerInputService::SetSelection (const std::optional<ControllerUnitKey
         return;
     }
 
-    m_selection           = selection;
-    m_lastSample          = ControllerSample();
-    m_isSelectedConnected = false;
+    m_selection            = selection;
+    m_lastSample           = ControllerSample();
+    m_isSelectedConnected  = false;
+    m_standIn              = std::nullopt;
+    m_selectionDescription = std::wstring();
 
     // The mapping belongs to the controller that was chosen, so a different
     // controller starts from its own defaults rather than inheriting the last
     // one's bindings.
-    m_mapping             = ControlMapping();
-    EnsureMappingForSelectionLocked();
+    m_mapping              = ControlMapping();
+    UpdateActiveUnitLocked();
+    EnsureMappingForActiveLocked();
     lock.unlock();
 
     ReleaseContribution();
@@ -217,16 +220,17 @@ void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
 
 ControllerWaitSources ControllerInputService::Tick()
 {
-    HRESULT                           hr             = S_OK;
-    std::optional<ControllerUnitKey>  selection;
+    HRESULT                           hr                = S_OK;
+    std::optional<ControllerUnitKey>  active;
+    bool                              isSelectionActive = false;
     ControllerSample                  sample;
     ControlMapping                    mapping;
     ControllerWaitSources             wait;
-    float                             deadzone       = 0.0f;
-    bool                              isActive       = false;
-    bool                              wasConnected   = false;
-    bool                              isConnected    = false;
-    bool                              needsTimedPoll = false;
+    float                             deadzone          = 0.0f;
+    bool                              isActive          = false;
+    bool                              wasConnected      = false;
+    bool                              isConnected       = false;
+    bool                              needsTimedPoll    = false;
     StateChangedFn                    onStateChanged;
 
 
@@ -239,25 +243,29 @@ ControllerWaitSources ControllerInputService::Tick()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
 
-        selection    = m_selection;
-        mapping      = m_mapping;
-        deadzone     = m_deadzone;
-        isActive     = m_isActive;
-        wasConnected = m_isSelectedConnected;
+        active            = m_activeUnit;
+        isSelectionActive = m_activeUnit.has_value() && m_activeUnit == m_selection;
+        mapping           = m_mapping;
+        deadzone          = m_deadzone;
+        isActive          = m_isActive;
+        wasConnected      = m_isSelectedConnected;
     }
 
-    if (!selection.has_value())
+    if (!active.has_value())
     {
         return wait;
     }
 
-    hr          = m_backend.ReadSample (selection.value(), sample);
+    hr          = m_backend.ReadSample (active.value(), sample);
     isConnected = SUCCEEDED (hr) && sample.connected;
 
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
 
-        m_isSelectedConnected = isConnected;
+        // A stand-in reading fine does not make the CHOSEN controller
+        // connected: the picker and the prefs both still point at the one
+        // the user asked for, and it is not there.
+        m_isSelectedConnected = isConnected && isSelectionActive;
         m_lastSample          = isConnected ? sample : ControllerSample();
         onStateChanged        = m_onStateChanged;
     }
@@ -265,7 +273,7 @@ ControllerWaitSources ControllerInputService::Tick()
     // Who owns the axes turns on whether the chosen controller is there, so
     // the first successful read after it is chosen has to be announced: until
     // then the axes rest at center however far the stick is pushed.
-    if (isConnected != wasConnected && onStateChanged)
+    if ((isConnected && isSelectionActive) != wasConnected && onStateChanged)
     {
         onStateChanged();
     }
@@ -293,7 +301,7 @@ ControllerWaitSources ControllerInputService::Tick()
     // What the thread waits on until the next read: the controller's own
     // change events where it has them, and the measured poll period only for
     // the ones that have none.
-    m_backend.GetWakeSources (selection.value(), wait.events, needsTimedPoll);
+    m_backend.GetWakeSources (active.value(), wait.events, needsTimedPoll);
 
     if (needsTimedPoll)
     {
@@ -322,10 +330,22 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
 
 
 
-    snapshot.devices             = m_devices;
-    snapshot.selection           = m_selection;
-    snapshot.lastSample          = m_lastSample;
-    snapshot.isSelectedConnected = m_isSelectedConnected;
+    snapshot.devices              = m_devices;
+    snapshot.selection            = m_selection;
+    snapshot.standIn              = m_standIn;
+    snapshot.selectionDescription = m_selectionDescription;
+    snapshot.lastSample           = m_lastSample;
+    snapshot.isSelectedConnected  = m_isSelectedConnected;
+
+    if (m_standIn.has_value())
+    {
+        const ControllerDeviceInfo *  device = FindDeviceLocked (m_standIn.value());
+
+        if (device != nullptr)
+        {
+            snapshot.standInDescription = device->description;
+        }
+    }
 
     return snapshot;
 }
@@ -346,10 +366,12 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
 
 void ControllerInputService::RefreshDevices()
 {
-    HRESULT                              hr = S_OK;
+    HRESULT                              hr                 = S_OK;
     std::vector<ControllerDeviceInfo>    devices;
     ControllerSelectionPolicy::Decision  decision;
     SelectionChangedFn                   onSelectionChanged;
+    StateChangedFn                       onStateChanged;
+    bool                                 hasActiveChanged   = false;
 
 
 
@@ -366,13 +388,26 @@ void ControllerInputService::RefreshDevices()
         {
             // A controller the policy chose brings its own mapping with it,
             // so the mapping the previous selection had is dropped first.
-            m_selection  = decision.selection;
+            m_selection            = decision.selection;
+            m_mapping              = ControlMapping();
+            m_lastSample           = ControllerSample();
+            m_selectionDescription = std::wstring();
+        }
+
+        UpdateAttachOrderLocked();
+        hasActiveChanged = UpdateActiveUnitLocked();
+
+        if (hasActiveChanged)
+        {
+            // The controller being read changed, so the mapping the last one
+            // played with goes with it: a stand-in has its own controls.
             m_mapping    = ControlMapping();
             m_lastSample = ControllerSample();
         }
 
-        EnsureMappingForSelectionLocked();
+        EnsureMappingForActiveLocked();
         onSelectionChanged = m_onSelectionChanged;
+        onStateChanged     = m_onStateChanged;
     }
 
     // Outside the lock: the sink persists the choice and raises a notice, and
@@ -380,6 +415,13 @@ void ControllerInputService::RefreshDevices()
     if (decision.hasChanged && onSelectionChanged)
     {
         onSelectionChanged (decision);
+    }
+
+    // A stand-in taking over or handing back changes what the picker says and
+    // who owns the axes, and both of those are decided on the UI thread.
+    if (hasActiveChanged && onStateChanged)
+    {
+        onStateChanged();
     }
 }
 
@@ -413,39 +455,143 @@ void ControllerInputService::ReleaseContribution()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EnsureMappingForSelection / EnsureMappingForSelectionLocked
+//  UpdateAttachOrderLocked
 //
-//  Gives the selected controller the mapping it plays with. An empty mapping
-//  reads every control as unbound, so a controller without one sits at center
-//  with its buttons up no matter what the user does with it -- which is why
-//  this runs from both the refresh and the tick, rather than only from the
-//  refresh: the first refresh happens before any controller is selected.
+//  Stamps each newly attached controller with a rising number and forgets the
+//  ones that have gone. The numbers are what makes the stand-in the
+//  longest-attached controller rather than whichever one enumeration happens
+//  to list first (FR-008a).
+//
+//  A controller that leaves and comes back is a NEW arrival, and goes to the
+//  back: it was not there for the stretch it was unplugged, so calling it the
+//  longest-attached would be counting time it did not serve.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::EnsureMappingForSelection()
+void ControllerInputService::UpdateAttachOrderLocked()
+{
+    std::erase_if (m_attachOrder, [this] (const std::pair<ControllerUnitKey, uint64_t> & entry)
+    {
+        return FindDeviceLocked (entry.first) == nullptr;
+    });
+
+    for (const ControllerDeviceInfo & device : m_devices)
+    {
+        auto  found = std::find_if (m_attachOrder.begin(), m_attachOrder.end(),
+            [&device] (const std::pair<ControllerUnitKey, uint64_t> & entry) { return entry.first == device.unit; });
+
+        if (found == m_attachOrder.end())
+        {
+            m_attachOrder.push_back ({ device.unit, m_nextAttachOrder++ });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateActiveUnitLocked
+//
+//  Which controller is read. The chosen one whenever it is attached; while it
+//  is not, the longest-attached other controller stands in for it (FR-008a).
+//
+//  With nothing to stand in, the active unit stays the CHOSEN one even though
+//  it is not there. That read fails, and a failed read is the disconnect path
+//  -- which is what returns the axes to center and releases the buttons. An
+//  empty active unit would skip that and leave the paddles wherever the last
+//  read put them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerInputService::UpdateActiveUnitLocked()
+{
+    std::optional<ControllerUnitKey>  active  = m_selection;
+    std::optional<ControllerUnitKey>  standIn;
+    const ControllerDeviceInfo *      chosen  = nullptr;
+    uint64_t                          longest = 0;
+
+
+
+    if (m_selection.has_value())
+    {
+        chosen = FindDeviceLocked (m_selection.value());
+    }
+
+    if (chosen != nullptr)
+    {
+        m_selectionDescription = chosen->description;
+    }
+    else if (m_selection.has_value())
+    {
+        for (const std::pair<ControllerUnitKey, uint64_t> & entry : m_attachOrder)
+        {
+            if (!standIn.has_value() || entry.second < longest)
+            {
+                standIn = entry.first;
+                longest = entry.second;
+            }
+        }
+
+        if (standIn.has_value())
+        {
+            active = standIn;
+        }
+    }
+
+    if (m_standIn == standIn && m_activeUnit == active)
+    {
+        return false;
+    }
+
+    m_standIn    = standIn;
+    m_activeUnit = active;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureMappingForActive / EnsureMappingForActiveLocked
+//
+//  Gives the controller being read the mapping it plays with. An empty
+//  mapping reads every control as unbound, so a controller without one sits
+//  at center with its buttons up no matter what the user does with it --
+//  which is why this runs from both the refresh and the tick, rather than
+//  only from the refresh: the first refresh happens before any controller is
+//  selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::EnsureMappingForActive()
 {
     std::lock_guard<std::mutex>  lock (m_mutex);
 
 
 
-    EnsureMappingForSelectionLocked();
+    EnsureMappingForActiveLocked();
 }
 
 
-void ControllerInputService::EnsureMappingForSelectionLocked()
+void ControllerInputService::EnsureMappingForActiveLocked()
 {
-    const ControllerDeviceInfo *  selected = FindSelectedDeviceLocked();
+    const ControllerDeviceInfo *  active = FindActiveDeviceLocked();
 
 
 
-    if (selected == nullptr || m_mapping != ControlMapping())
+    if (active == nullptr || m_mapping != ControlMapping())
     {
         return;
     }
 
-    m_mapping  = DefaultMapping::For (selected->unit.model, selected->controls);
-    m_deadzone = DeadzoneShaper::GetDefaultDeadzone (selected->unit.model.kind);
+    m_mapping  = DefaultMapping::For (active->unit.model, active->controls);
+    m_deadzone = DeadzoneShaper::GetDefaultDeadzone (active->unit.model.kind);
 }
 
 
@@ -454,26 +600,41 @@ void ControllerInputService::EnsureMappingForSelectionLocked()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindSelectedDeviceLocked
+//  FindDeviceLocked
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const ControllerDeviceInfo * ControllerInputService::FindSelectedDeviceLocked() const
+const ControllerDeviceInfo * ControllerInputService::FindDeviceLocked (const ControllerUnitKey & unit) const
 {
-    if (!m_selection.has_value())
-    {
-        return nullptr;
-    }
-
     for (const ControllerDeviceInfo & device : m_devices)
     {
-        if (device.unit == m_selection.value())
+        if (device.unit == unit)
         {
             return &device;
         }
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindActiveDeviceLocked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ControllerDeviceInfo * ControllerInputService::FindActiveDeviceLocked() const
+{
+    if (!m_activeUnit.has_value())
+    {
+        return nullptr;
+    }
+
+    return FindDeviceLocked (m_activeUnit.value());
 }
 
 
@@ -492,5 +653,5 @@ bool ControllerInputService::IsSelectedDevicePresent() const
 
 
 
-    return FindSelectedDeviceLocked() != nullptr;
+    return FindActiveDeviceLocked() != nullptr;
 }
