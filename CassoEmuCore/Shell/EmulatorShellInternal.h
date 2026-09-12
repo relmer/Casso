@@ -22,11 +22,11 @@
 // Private window messages, posted between threads and handled by the window.
 #define WM_APP_NOTIFY_USER     (WM_APP + 0x22)
 #define WM_APP_REPORT_DAMAGE   (WM_APP + 0x23)
-#define WM_APP_RUN_SALVAGE     (WM_APP + 0x24)
 #define WM_APP_MOUNT_COMPLETED (WM_APP + 0x25)
 #define WM_APP_CHANGE_REPORT   (WM_APP + 0x26)
 #define WM_APP_CHANGE_ASK      (WM_APP + 0x27)
-#define WM_APP_INTENT_REPLY    (WM_APP + 0x28)
+#define WM_APP_SHOW_NOTICE     (WM_APP + 0x28)
+#define WM_APP_INTENT_REPLY    (WM_APP + 0x29)
 
 
 
@@ -151,16 +151,6 @@ static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 // it is held. The bar sizes itself to this text; nothing here places it.
 static const wchar_t * const  s_kpszCaptureNotice =
     L"Press Esc to release the mouse and exit paddle mode";
-
-// How long the screenshot result stays up. Long enough to read a filename
-// without hunting for it, short enough that it is gone before the next thing
-// the user wants to look at.
-static constexpr int64_t s_kScreenshotNoticeMs      = 4000;
-
-// How much of the picture the notice's scrim lets through. Enough dimming
-// that a filename stays legible over a bright screen, little enough that what
-// was just captured is still visible behind the words describing it.
-static constexpr float   s_kScreenshotNoticeScrimAlpha = 0.82f;
 
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.

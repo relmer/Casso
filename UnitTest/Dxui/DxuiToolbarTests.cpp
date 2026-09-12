@@ -600,6 +600,44 @@ public:
     }
 
 
+    TEST_METHOD (Keyboard_MouseOpenedDropDownOwnsIt_DwellOpenedFlyoutDoesNot)
+    {
+        Fixture     f;
+        DxuiSlider  slider;
+        POINT       b = {};
+        POINT       e = {};
+
+
+
+        f.Build();
+        f.bar.SetFlyoutControl (5, &slider, SIZE { 56, 154 });
+        f.LayoutAt (f.FullWidth());
+        b = f.Center (1, 5);
+        e = f.Center (4, 5);
+
+        // A picker opened by clicking owns the keyboard exactly as one opened
+        // by Enter does. The host reads this to decide whether a keystroke
+        // belongs to the strip, and it must give the same answer for both
+        // halves of a press, so a letter typed over an open picker reaches
+        // neither the guest's key route nor its character route.
+        Assert::IsFalse (f.bar.OwnsKeyboard());
+
+        f.Click (b);
+        Assert::IsTrue (f.bar.IsMenuOpen());
+        Assert::IsTrue (f.bar.OwnsKeyboard());
+
+        Assert::IsTrue  (f.bar.HandleKey (VK_ESCAPE));
+        Assert::IsFalse (f.bar.OwnsKeyboard());
+
+        // A flyout the pointer opened on dwell does NOT own it: nothing about
+        // hovering an entry takes the keyboard away from where it was, so the
+        // guest keeps typing while the volume panel is up.
+        f.bar.OnToolbarMouseMove (e.x, e.y);
+        Assert::IsTrue  (f.bar.IsFlyoutOpen (5));
+        Assert::IsFalse (f.bar.OwnsKeyboard());
+    }
+
+
     TEST_METHOD (Keyboard_EnterOnFlyoutOpensPanel_KeysReachIt_EscapeCloses)
     {
         Fixture    f;

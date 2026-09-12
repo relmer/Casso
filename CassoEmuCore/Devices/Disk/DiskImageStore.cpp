@@ -1400,6 +1400,19 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         // The live image follows the file, and only once the file has
         // actually changed -- so a failed write leaves the two agreeing.
         entry.image->SetImageWriteProtected (writeProtected);
+
+        //  THIS STORE JUST WROTE THE FILE, so the identity it watches has to
+        //  move with it, exactly as FlushEntry does after its own commit.
+        //  Without this the next poll finds bytes that do not match the
+        //  mount-time identity and reports the disk as changed outside Casso,
+        //  over a change the user made from the Disk menu.
+        //
+        //  Only for a bay that recorded one, so a mount from bytes does not
+        //  acquire an identity by being write-protected.
+        if (entry.sharedState.GetIdentity().recorded)
+        {
+            entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+        }
     }
 
 Error:

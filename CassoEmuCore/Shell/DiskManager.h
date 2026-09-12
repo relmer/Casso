@@ -145,16 +145,23 @@ public:
     // host filesystem). The image's own embedded flag is left untouched.
     void     ApplyExternalWriteProtect (int drive, DiskImage * image, const std::string & path);
 
-    // Flips the mounted image's own write-protection: the WOZ INFO flag
-    // (flushed so it travels with the file) or, for sector-image formats
-    // with no in-image flag, the backing file's read-only attribute.
-    // Pending guest writes are persisted BEFORE protecting -- a protected
-    // image drops dirty content at flush. Ends by re-probing the file and
+    // Write-protects the mounted image (the WOZ flag, or the read-only
+    // attribute for formats with no flag), or write-enables it by clearing
+    // whichever of the two are set. Ends by re-probing the file and
     // re-applying the external state, so every indicator reflects reality
     // whether the change stuck or failed.
     HRESULT  ToggleImageWriteProtect (int drive);
 
+    //  Called on the CPU thread with the notice text once a write-protect
+    //  change has been carried out in full. DiskManager owns no UI, so the
+    //  shell supplies the reaction.
+    void     SetWriteProtectChangedCallback (std::function<void (const std::wstring &)> cb)
+    {
+        m_onWriteProtectChanged = std::move (cb);
+    }
+
     std::function<void (int, const std::string &, HRESULT, const MountDiagnosis &)>  m_onMountCompleted;
+    std::function<void (const std::wstring &)>                                        m_onWriteProtectChanged;
 
     // Probes whether the host file at `path` can be written back. Sets
     // outReadOnly when the file carries the read-only attribute and

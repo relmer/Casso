@@ -289,6 +289,9 @@ private:
     static bool  IsRunnableAsDos33Greeting (const VolumeListing  & listing,
                                             const std::string    & name);
 
+    //  Whether a ProDOS volume carries the PRODOS file its boot block loads.
+    static bool  HasProDosSystemFile       (const VolumeListing  & listing);
+
     //  Which type byte a placement uses: what the caller named, or the sensible
     //  one for the conversion they asked for.
     //  What a file's own bytes say it is, or 0 when they say nothing.

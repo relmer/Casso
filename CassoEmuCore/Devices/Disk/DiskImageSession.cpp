@@ -203,8 +203,8 @@ Error:
 //
 //  "BOOTABLE, NO FILESYSTEM" IS THE TRUE ANSWER FOR A GREAT MANY DISKS and is
 //  the one worth saying out loud. Track 0 sector 0 is what the drive's ROM
-//  reads and jumps into; a disk whose first sector carries code boots and runs,
-//  whatever it does about files afterwards. This project's own demo disk is
+//  reads and jumps into; a disk whose first sector holds a program boots and
+//  runs, whatever it does about files afterwards. This project's own demo disk is
 //  exactly that, and reporting only "no filesystem" describes it as though it
 //  were broken.
 //
@@ -300,10 +300,10 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 
         text += FormatDetailLine ("boot sector",
                             bootCode
-                                ? "track 0 sector 0 carries code. The drive's ROM reads\n"
-                                  "                that sector and jumps into it, so this image"
-                                  " boots something.\n                It simply keeps its files"
-                                  " somewhere this tool does not read"
+                                ? "track 0 sector 0 holds a boot program. The drive's ROM\n"
+                                  "                loads that sector and runs it, so this image"
+                                  " boots.\n                Its files are in a layout this tool"
+                                  " does not read"
                                 : "track 0 sector 0 is blank, so nothing here would boot");
     }
 

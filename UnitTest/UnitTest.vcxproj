@@ -308,7 +308,7 @@
     <ClCompile Include="EmuTests\MmuTests.cpp" />
     <ClCompile Include="EmuTests\ResetSemanticsTests.cpp" />
     <ClCompile Include="EmuTests\EmulatorShellResetTests.cpp" />
-    <ClCompile Include="EmuTests\CapsLockLatchTests.cpp" />
+    <ClCompile Include="EmuTests\CapsLockTrackerTests.cpp" />
     <ClCompile Include="EmuTests\VideoTimingTests.cpp" />
     <ClCompile Include="EmuTests\TextScreenScraper.cpp" />
     <ClCompile Include="EmuTests\KeystrokeInjector.cpp" />
@@ -321,6 +321,7 @@
     <ClCompile Include="EmuTests\BootDiskTests.cpp" />
     <ClCompile Include="EmuTests\GameBootTests.cpp" />
     <ClCompile Include="EmuTests\DiskWritePathTests.cpp" />
+    <ClCompile Include="EmuTests\WriteProtectChangeTests.cpp" />
     <ClCompile Include="EmuTests\Pr3AuxClearTest.cpp" />
     <ClCompile Include="EmuTests\DamagedDisk.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskDecodeTests.cpp" />
@@ -466,6 +467,7 @@
     <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
@@ -495,6 +497,8 @@
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />
     <ClCompile Include="EmuTests\AppleKeyMappingTests.cpp" />
+    <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
+    <ClCompile Include="EmuTests\ShellKeyWiringTests.cpp" />
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -520,7 +524,6 @@
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
     <ClInclude Include="EmuTests\MachineIdle.h" />
-    <ClInclude Include="EmuTests\FakeHostCapsLock.h" />
     <ClInclude Include="EmuTests\FakeImageWatcher.h" />
     <ClInclude Include="EmuTests\FakeIntentChannel.h" />
     <ClInclude Include="Cassque\FakeProcessLauncher.h" />

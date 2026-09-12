@@ -513,6 +513,22 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
                   (unsigned) listing.totalUnits);
 
         result.output += summary;
+
+        // A listing is where someone finds out what a boot would do, so a
+        // disk with no operating system says so here, in the words `create`
+        // uses for the same state. A DOS 3.3 disk boots from DOS on tracks 0
+        // to 2; a ProDOS disk from the PRODOS file its block 0 loader loads.
+        if (opened.kind == VolumeKind::Dos33)
+        {
+            if (!dos.HasDosImage())
+            {
+                result.output += "\nNot bootable: no DOS on tracks 0 to 2\n";
+            }
+        }
+        else if (!HasProDosSystemFile (listing))
+        {
+            result.output += "\nNot bootable: no PRODOS file on the volume\n";
+        }
     }
 
     // Damage from the catalog walk, and from the track layer beneath it.
@@ -1372,6 +1388,33 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::HasProDosSystemFile
+//
+//  Whether the volume carries PRODOS, the file its boot block loads. Without
+//  it the loader has nothing to start, so the disk is not bootable whatever
+//  else it holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::HasProDosSystemFile (const VolumeListing & listing)
+{
+    for (const FileEntry & entry : listing.entries)
+    {
+        if (entry.name == "PRODOS")
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -2357,9 +2400,9 @@ Error:
 //
 //  THE OTHER HALF OF sectorwrite, and the reason it is worth having: get goes
 //  through a catalog, so on a disk with no filesystem there was no way at all
-//  to read back what had just been written. The listing said as much -- "it
-//  simply keeps its files somewhere this tool does not read" -- which was true
-//  and is no longer.
+//  to read back what had just been written. The listing said as much -- "its
+//  files are in a layout this tool does not read" -- which was true and is no
+//  longer.
 //
 //  A count is a parameter here and not on the write because a write knows its
 //  own length and a read cannot: what usually records where a file ends is the

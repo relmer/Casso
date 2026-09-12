@@ -397,18 +397,65 @@ void WindowCommandManager::HandleCommand (WORD commandId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnCommand
+//  GetCommandRoute
 //
-//  Routes a WM_COMMAND id to the handler for its menu.
+//  The handler a WM_COMMAND id goes to, or None for an id OnCommand drops.
 //
-//  Dispatch is by RANGE, not by a per-id table, which is why the IDM_ values
+//  Routing is by RANGE, not by a per-id table, which is why the IDM_ values
 //  in the resource header are grouped and contiguous per menu: adding a
 //  command to an existing menu needs only an id inside that menu's span and a
 //  case in its handler, with nothing to update here.
 //
-//  The ids handled individually are the ones that belong to no menu -- printer
-//  toolbar actions and the two async print-result notifications the worker
-//  posts back -- so they have no range to fall into.
+//  The ids listed individually are outside their menu's span -- the Disk and
+//  View commands added after the span filled, the printer toolbar actions and
+//  the two async print-result notifications the worker posts back. A new id
+//  outside every branch is dropped in SILENCE -- the menu item paints, the
+//  accelerator fires, and nothing happens -- so ChromeCommandRoutingTests fail
+//  on any command table id that routes to None.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
+{
+    WindowCommandRoute  route = WindowCommandRoute::None;
+
+
+
+    if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)              { route = WindowCommandRoute::Edit; }
+    else if (id >= IDM_FILE_OPEN      && id <= IDM_FILE_EXIT)               { route = WindowCommandRoute::File; }
+    else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { route = WindowCommandRoute::Machine; }
+    else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_OPEN_CASSQUE)                                  { route = WindowCommandRoute::Disk; }
+    else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
+    else if (id == IDM_PRINTER_DISCARD)                                    { route = WindowCommandRoute::Printer; }
+    else if (id == IDM_PRINTER_COPY)                                       { route = WindowCommandRoute::Printer; }
+    else if (id == IDM_PRINTER_PRINT)                                      { route = WindowCommandRoute::Printer; }
+    else if (id == IDM_PRINTER_SAVEAS)                                     { route = WindowCommandRoute::Printer; }
+    else if (id == IDM_PRINTER_MODERN_SENT)                                { route = WindowCommandRoute::PrinterModernSent; }
+    else if (id == IDM_PRINTER_MODERN_FAILED)                              { route = WindowCommandRoute::PrinterModernFailed; }
+    else if (id == IDM_PRINTER_PREVIEW)                                    { route = WindowCommandRoute::PrinterPreview; }
+    else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { route = WindowCommandRoute::Help; }
+    else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
+             id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { route = WindowCommandRoute::ExternalDrive; }
+    else if (id == IDM_MOUSE_CONNECT ||
+             id == IDM_MOUSE_DISCONNECT)                                   { route = WindowCommandRoute::MouseConnect; }
+
+    return route;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCommand
+//
+//  Routes a WM_COMMAND id to the handler GetCommandRoute picks.
 //
 //  Always returns false: the shell reports every command as not fully handled
 //  so default processing still runs. The return is not a "was it recognized"
@@ -421,31 +468,22 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
 {
     UNREFERENCED_PARAMETER (hwnd);
 
-    if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)              { OnEditCommand (id); }
-    else if (id >= IDM_FILE_OPEN      && id <= IDM_FILE_EXIT)               { OnFileCommand (id); }
-    else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { OnMachineCommand (id); }
-    else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { OnDiskCommand (id); }
-    else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
-    // The View range above stops at IDM_VIEW_SETTINGS, so every View command
-    // added since needs naming here. A new id that falls outside every branch
-    // is dropped in SILENCE -- the menu item paints, the accelerator fires,
-    // and nothing happens -- so these one-offs are load-bearing, not clutter.
-    else if (id == IDM_VIEW_DRIVE_STRIP)                                   { OnViewCommand (id); }
-    else if (id == IDM_VIEW_FRAME_RATE)                                    { OnViewCommand (id); }
-    else if (id == IDM_VIEW_SCENE_VIEW)                                    { OnViewCommand (id); }
-    else if (id == IDM_DISK_OPEN_CASSQUE)                                  { OnDiskCommand (id); }
-    else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
-    else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
-    else if (id == IDM_PRINTER_PRINT)                                      { OnPrinterCommand (id); }
-    else if (id == IDM_PRINTER_SAVEAS)                                     { OnPrinterCommand (id); }
-    else if (id == IDM_PRINTER_MODERN_SENT)                                { OnModernPrintResult (true); }
-    else if (id == IDM_PRINTER_MODERN_FAILED)                              { OnModernPrintResult (false); }
-    else if (id == IDM_PRINTER_PREVIEW)                                    { m_shell.ShowPrinterPanel(); }
-    else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
-    else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
-             id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { OnExternalDriveCommand (id); }
-    else if (id == IDM_MOUSE_CONNECT ||
-             id == IDM_MOUSE_DISCONNECT)                                   { OnMouseConnectCommand (id); }
+    switch (GetCommandRoute (id))
+    {
+        case WindowCommandRoute::File:                OnFileCommand (id);          break;
+        case WindowCommandRoute::Edit:                OnEditCommand (id);          break;
+        case WindowCommandRoute::Machine:             OnMachineCommand (id);       break;
+        case WindowCommandRoute::Disk:                OnDiskCommand (id);          break;
+        case WindowCommandRoute::View:                OnViewCommand (id);          break;
+        case WindowCommandRoute::Printer:             OnPrinterCommand (id);       break;
+        case WindowCommandRoute::PrinterPreview:      m_shell.ShowPrinterPanel();  break;
+        case WindowCommandRoute::PrinterModernSent:   OnModernPrintResult (true);  break;
+        case WindowCommandRoute::PrinterModernFailed: OnModernPrintResult (false); break;
+        case WindowCommandRoute::Help:                OnHelpCommand (id);          break;
+        case WindowCommandRoute::ExternalDrive:       OnExternalDriveCommand (id); break;
+        case WindowCommandRoute::MouseConnect:        OnMouseConnectCommand (id);  break;
+        case WindowCommandRoute::None:                                             break;
+    }
 
     return false;
 }
@@ -606,7 +644,7 @@ void WindowCommandManager::OnEditCommand (int id)
 
         case IDM_EDIT_PASTE:
         {
-            m_shell.m_clipboardManager->PasteFromClipboard (m_shell.m_hwnd);
+            m_shell.PasteClipboardText();
             break;
         }
     }
@@ -1385,6 +1423,14 @@ void WindowCommandManager::OnDiskCommand (int id)
             // The toggle runs on the CPU thread (like mount / eject) so its
             // flush never races the drive engine.
             m_shell.PostCommand (static_cast<WORD> (id));
+            break;
+        }
+
+        case IDM_DISK_SALVAGE1:
+        case IDM_DISK_SALVAGE2:
+        {
+            // Stays on the UI thread: the flow opens Dxui modals.
+            m_shell.RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
             break;
         }
 

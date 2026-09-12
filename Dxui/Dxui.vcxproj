@@ -177,6 +177,7 @@
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
     <ClCompile Include="Widgets\DxuiInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiActionBanner.cpp" />
+    <ClCompile Include="Widgets\DxuiTimedInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiWarningBadge.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
@@ -262,6 +263,7 @@
     <ClInclude Include="Widgets\DxuiIconButton.h" />
     <ClInclude Include="Widgets\DxuiInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiActionBanner.h" />
+    <ClInclude Include="Widgets\DxuiTimedInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiWarningBadge.h" />
     <ClInclude Include="Widgets\DxuiListView.h" />
     <ClInclude Include="Widgets\DxuiMenuBar.h" />

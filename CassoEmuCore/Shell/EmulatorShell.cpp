@@ -503,6 +503,14 @@ HRESULT EmulatorShell::Initialize (
             OnMountCompleted (drive, path, mountResult, diagnosis);
         });
 
+    // The toggle runs on the CPU thread and the notice is Dxui, so the text
+    // is posted to the window rather than shown here.
+    m_diskManager->SetWriteProtectChangedCallback (
+        [this] (const std::wstring & text)
+        {
+            PostNotice (text);
+        });
+
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
     ApplyPersistedAudioPrefs();

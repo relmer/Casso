@@ -99,6 +99,13 @@ Taken so far, all against the master baseline built at 8e58f86b:
   not the toolbar picker. Pre-existing; not a regression of this branch. A
   follow-up should add `m_toolbar.IsMenuOpen()` to `OnChar`'s overlay test.
 
+  Closed later in this branch: `8a6d096a` put `m_toolbar.OwnsKeyboard()`
+  into that test while landing the strip in the chrome focus ring, which
+  covers a picker opened by pointer as well as one opened by Enter. Posted
+  input over a `1.24.2` build confirms it: with the Theme picker open two
+  letters type nothing, and the same two letters after the picker closes
+  type as before.
+
 NOT taken:
 
 - The matrix oracle needs a fresh master baseline on the same machine and

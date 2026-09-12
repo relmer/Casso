@@ -19,8 +19,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //    IDM_MACHINE_RESET       -> EmulatorShell::SoftReset()
 //    IDM_MACHINE_POWERCYCLE  -> EmulatorShell::PowerCycle()
 //
-//  EmulatorShell itself is Win32-bound (HINSTANCE, HWND, message pump,
-//  D3DRenderer, WasapiAudio) and cannot be built inside a unit test. The
+//  EmulatorShell CAN be built inside a unit test -- D3DRenderer and
+//  WasapiAudio construct empty, so a shell costs an allocation, and
+//  ShellKeyWiringTests drives one. What it cannot do without Initialize is
+//  RUN an IDM handler, which needs the HWND and the message pump. The
 //  IDM cases in EmulatorShell.cpp are now one-line forwarders, so the
 //  contract these tests verify is the *visible side effect* — namely the
 //  audit §10 [CRITICAL] property that 80COL no longer persists across

@@ -154,6 +154,36 @@ public:
             L"the listing states free space against the volume's capacity");
     }
 
+    TEST_METHOD (List_SaysNotBootable_OnlyWhenTheBootTracksAreEmpty)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       stripped;
+
+
+        SeedRealDisk (io);
+
+        // The real disk carries DOS and says nothing about booting.
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
+        Assert::IsTrue (result.output.find ("Not bootable") == std::string::npos,
+            L"a disk with DOS on its boot tracks is not called unbootable");
+
+        // The same disk with tracks 0 to 2 zeroed is a data disk: its catalog
+        // is intact, and the boot ROM would find a BRK at $0801.
+        stripped = io.files[kImage];
+        std::fill (stripped.begin(), stripped.begin() + 3 * 16 * 256, (Byte) 0);
+        io.files[kImage] = stripped;
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (result.output.find ("sectors free of 560") != std::string::npos,
+            L"the listing itself is unchanged");
+        Assert::IsTrue (result.output.find ("Not bootable: no DOS on tracks 0 to 2") != std::string::npos,
+            L"and it says the disk cannot boot");
+    }
+
+
     TEST_METHOD (List_ProDosVolume_UsesItsOwnShape)
     {
         FakeDiskFileIo     io;
@@ -170,6 +200,8 @@ public:
             L"a ProDOS volume has a name, not a number");
         Assert::IsTrue (result.output.find ("blocks free of 280") != std::string::npos,
             L"and counts in blocks rather than sectors");
+        Assert::IsTrue (result.output.find ("Not bootable") == std::string::npos,
+            L"a volume carrying PRODOS is not called unbootable");
     }
 
     //  The independently extracted copy, minus the four-byte DOS 3.3 header the
@@ -3852,7 +3884,7 @@ public:
                             != std::string::npos,
             L"the geometry is still knowable and is still worth stating");
 
-        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 carries code")
+        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 holds a boot program")
                             != std::string::npos,
             L"and so is the fact that it boots");
 

@@ -116,7 +116,7 @@ public:
         clipboard.hasText     = true;
         clipboard.textToPaste = L"10 PRINT \"HI\"\r\n20 GOTO 10\n\tR\x00C9SUM\x7F";
 
-        manager.PasteFromClipboard (nullptr);
+        Assert::IsFalse (manager.PasteFromClipboard (nullptr, false));
 
         Assert::AreEqual (std::string ("10 PRINT \"HI\"\r20 GOTO 10RSUM"), m_pasteBuffer);
     }
@@ -130,9 +130,49 @@ public:
         m_pasteBuffer = "KEEP";
         clipboard.hasText = false;
 
-        manager.PasteFromClipboard (nullptr);
+        Assert::IsFalse (manager.PasteFromClipboard (nullptr, true), L"nothing pasted, nothing raised");
 
         Assert::AreEqual (std::string ("KEEP"), m_pasteBuffer);
+    }
+
+
+    TEST_METHOD (CapsLockOnRaisesPastedLettersAndSaysSo)
+    {
+        FakeHostClipboard  clipboard;
+        ClipboardManager   manager = MakeManager (clipboard);
+
+        clipboard.hasText     = true;
+        clipboard.textToPaste = L"catalog, s6\r\n";
+
+        Assert::IsTrue   (manager.PasteFromClipboard (nullptr, true));
+        Assert::AreEqual (std::string ("CATALOG, S6\r"), m_pasteBuffer, L"only letters rise");
+    }
+
+
+    TEST_METHOD (CapsLockOffKeepsThePastedCase)
+    {
+        FakeHostClipboard  clipboard;
+        ClipboardManager   manager = MakeManager (clipboard);
+
+        clipboard.hasText     = true;
+        clipboard.textToPaste = L"Hello, World";
+
+        Assert::IsFalse  (manager.PasteFromClipboard (nullptr, false));
+        Assert::AreEqual (std::string ("Hello, World"), m_pasteBuffer);
+    }
+
+
+    TEST_METHOD (TextAlreadyInUpperCaseIsNotReportedAsRaised)
+    {
+        FakeHostClipboard  clipboard;
+        ClipboardManager   manager = MakeManager (clipboard);
+
+        clipboard.hasText     = true;
+        clipboard.textToPaste = L"10 PRINT \"HI\"";
+
+        Assert::IsFalse  (manager.PasteFromClipboard (nullptr, true),
+                          L"with nothing changed, the notice would explain nothing");
+        Assert::AreEqual (std::string ("10 PRINT \"HI\""), m_pasteBuffer);
     }
 
 
