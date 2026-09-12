@@ -1341,18 +1341,22 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         uint32_t  fill = (slot.pressed || checked) ? theme.ButtonPressed()
                                                    : (slot.hovered ? theme.ButtonHover() : theme.ButtonIdle());
 
-        painter.FillRect    (bl, bt, bw, bh, fill);
-        painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.ButtonBorder());
+        painter.FillRoundedRect    (bl, bt, bw, bh, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), fill);
+        painter.OutlineRoundedRect (bl, bt, bw, bh, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, theme.ButtonBorder());
     }
 
     // The keyboard focus ring sits just outside the entry, as the drive
-    // widgets draw theirs, so it never covers the hover chrome.
+    // widgets draw theirs, so it never covers the hover chrome. Its radius is
+    // the entry's plus the gap between them, which keeps the ring parallel to
+    // the rounded entry; the entry's own radius would pinch in at the corners.
     if (&slot == &m_slots[(size_t) (std::max) (m_focusIndex, 0)] && m_focusIndex >= 0)
     {
         float  ring = (float) m_scaler.ToPx (2);
         float  pen  = (float) (std::max) (1, m_scaler.ToPx (1));
 
-        painter.OutlineRect (bl - ring, bt - ring, bw + ring * 2.0f, bh + ring * 2.0f, pen, theme.FocusRing());
+        painter.OutlineRoundedRect (bl - ring, bt - ring, bw + ring * 2.0f, bh + ring * 2.0f,
+                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip) + ring,
+                                    pen, theme.FocusRing());
     }
 
     if (slot.entry.custom != nullptr)

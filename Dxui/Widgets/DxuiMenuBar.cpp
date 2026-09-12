@@ -1005,11 +1005,12 @@ void DxuiMenuBar::PaintStrip (
             (m_isOpen && m_openIndex == (int) i) ||
             (m_hasFocus && !m_isOpen && m_focusedIndex == (int) i))
         {
-            painter.FillRect ((float) m_titleRects[i].left,
-                              (float) m_titleRects[i].top,
-                              rectW,
-                              rectH,
-                              stripHov);
+            painter.FillRoundedRect ((float) m_titleRects[i].left,
+                                     (float) m_titleRects[i].top,
+                                     rectW,
+                                     rectH,
+                                     DxuiTheme::kCornerRadiusDip * (float) eDpi / (float) s_kBaseDpi,
+                                     stripHov);
         }
 
         hr = text.DrawString (stripped.c_str(),

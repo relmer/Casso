@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiSearchBox.h"
 #include "Core/DxuiSystemSettings.h"
@@ -281,8 +282,8 @@ void DxuiSearchBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
 
 
-    painter.FillRect    (x, y, w, h, frameBg);
-    painter.OutlineRect (x, y, w, h, 1.0f, m_focused ? focusRing : border);
+    painter.FillRoundedRect    (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), frameBg);
+    painter.OutlineRoundedRect (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, m_focused ? focusRing : border);
 
     m_input.Paint (painter, text);
 

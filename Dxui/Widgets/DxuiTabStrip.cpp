@@ -293,11 +293,12 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
         if (!isSel && (isHover || isArmed))
         {
-            painter.FillRect ((float) t.rect.left,
-                              (float) t.rect.top,
-                              (float) (t.rect.right  - t.rect.left),
-                              (float) (t.rect.bottom - t.rect.top),
-                              isArmed ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
+            painter.FillRoundedRect ((float) t.rect.left,
+                                     (float) t.rect.top,
+                                     (float) (t.rect.right  - t.rect.left),
+                                     (float) (t.rect.bottom - t.rect.top),
+                                     m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                     isArmed ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
         }
 
         if (isSel)
@@ -311,11 +312,11 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
         if (m_focused && isSel)
         {
-            painter.OutlineRect ((float) t.rect.left + focusInset,
-                                 (float) t.rect.top  + focusInset,
-                                 (float) (t.rect.right  - t.rect.left) - focusInset * 2.0f,
-                                 (float) (t.rect.bottom - t.rect.top)  - focusInset * 2.0f,
-                                 focusThick, focusArgb);
+            painter.OutlineRoundedRect ((float) t.rect.left + focusInset,
+                                        (float) t.rect.top  + focusInset,
+                                        (float) (t.rect.right  - t.rect.left) - focusInset * 2.0f,
+                                        (float) (t.rect.bottom - t.rect.top)  - focusInset * 2.0f,
+                                        m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), focusThick, focusArgb);
         }
 
         hr = text.DrawString (t.label.c_str(),

@@ -428,8 +428,8 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (!m_chromeless)
     {
-        painter.FillRect    (x, y, w, h, bgArgb);
-        painter.OutlineRect (x, y, w, h, 1.0f, m_focused ? focusArgb : edgeArgb);
+        painter.FillRoundedRect    (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), bgArgb);
+        painter.OutlineRoundedRect (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, m_focused ? focusArgb : edgeArgb);
     }
 
     caretPrefix.assign (m_text, 0, m_caret);

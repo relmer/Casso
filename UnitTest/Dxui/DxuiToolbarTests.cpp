@@ -380,7 +380,7 @@ public:
 
             for (const RecordedPaintCall & c : f.painter.Calls())
             {
-                if (c.kind == RecordedPaintKind::FillRect && c.argb == MockDxuiTheme::s_kButtonPressed)
+                if (c.kind == RecordedPaintKind::FillRoundedRect && c.argb == MockDxuiTheme::s_kButtonPressed)
                 {
                     sawPressed = true;
                 }
@@ -565,7 +565,7 @@ public:
 
         for (const RecordedPaintCall & c : f.painter.Calls())
         {
-            if (c.kind == RecordedPaintKind::OutlineRect && c.argb == MockDxuiTheme::s_kFocusRing) { rings++; }
+            if (c.kind == RecordedPaintKind::OutlineRoundedRect && c.argb == MockDxuiTheme::s_kFocusRing) { rings++; }
         }
 
         Assert::AreEqual (1, rings);
@@ -576,7 +576,7 @@ public:
 
         for (const RecordedPaintCall & c : f.painter.Calls())
         {
-            Assert::IsFalse (c.kind == RecordedPaintKind::OutlineRect && c.argb == MockDxuiTheme::s_kFocusRing);
+            Assert::IsFalse (c.kind == RecordedPaintKind::OutlineRoundedRect && c.argb == MockDxuiTheme::s_kFocusRing);
         }
     }
 

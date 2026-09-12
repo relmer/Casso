@@ -2404,12 +2404,12 @@ void DxuiListView::PaintDataRows (
         {
             uint32_t  selArgb = (pal.bgHover & 0x00FFFFFFu) | 0xFF000000u;
 
-            painter.FillRect (x, ry, layoutW, rowH, selArgb);
+            painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), selArgb);
         }
 
         if (isHov)
         {
-            painter.FillRect (x, ry, layoutW, rowH, pal.bgHover);
+            painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
         }
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)

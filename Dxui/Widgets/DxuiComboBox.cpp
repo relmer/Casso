@@ -780,17 +780,19 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         textWidth = 0;
     }
 
-    painter.FillRect    ((float) m_boundsDip.left,
-                         (float) m_boundsDip.top,
-                         (float) (m_boundsDip.right - m_boundsDip.left),
-                         (float) (m_boundsDip.bottom - m_boundsDip.top),
-                         boxColor);
-    painter.OutlineRect ((float) m_boundsDip.left,
-                         (float) m_boundsDip.top,
-                         (float) (m_boundsDip.right - m_boundsDip.left),
-                         (float) (m_boundsDip.bottom - m_boundsDip.top),
-                         edgePx,
-                         edgeColor);
+    painter.FillRoundedRect ((float) m_boundsDip.left,
+                             (float) m_boundsDip.top,
+                             (float) (m_boundsDip.right - m_boundsDip.left),
+                             (float) (m_boundsDip.bottom - m_boundsDip.top),
+                             m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                             boxColor);
+    painter.OutlineRoundedRect ((float) m_boundsDip.left,
+                                (float) m_boundsDip.top,
+                                (float) (m_boundsDip.right - m_boundsDip.left),
+                                (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                edgePx,
+                                edgeColor);
     hr = text.DrawString (label.c_str(),
                           (float) (m_boundsDip.left + textInset),
                           (float) m_boundsDip.top,
@@ -823,12 +825,13 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);
 
-        painter.OutlineRect ((float) m_boundsDip.left + focusInset,
-                             (float) m_boundsDip.top  + focusInset,
-                             (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
-                             (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
-                             focusThick,
-                             c.focus);
+        painter.OutlineRoundedRect ((float) m_boundsDip.left + focusInset,
+                                    (float) m_boundsDip.top  + focusInset,
+                                    (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
+                                    (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
+                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                    focusThick,
+                                    c.focus);
     }
 }
 

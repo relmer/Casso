@@ -110,6 +110,12 @@ struct DxuiTheme : public IDxuiTheme
     static constexpr float         kCaptionSizeDip = 12.0f;
     static constexpr float         kHeadingSizeDip = 14.0f;
 
+    //  The corner radius for controls and interaction states: buttons, fields,
+    //  hover and selection cards, focus rings. A static so a widget with no
+    //  theme in reach reads the same number as one that has one, the way
+    //  kBodyFace is read.
+    static constexpr float         kCornerRadiusDip = 4.0f;
+
     DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
     DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::SemiBold }; }
     DxuiFontHandle  CaptionFont   () const override { return { kBodyFace, kCaptionSizeDip, DxuiFontWeight::Normal   }; }
@@ -117,7 +123,7 @@ struct DxuiTheme : public IDxuiTheme
     DxuiFontHandle  MonospaceFont () const override { return { kMonoFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
 
     float  BodyLineHeightDip () const override { return 18.0f; }
-    float  CornerRadiusDip   () const override { return 4.0f;  }
+    float  CornerRadiusDip   () const override { return kCornerRadiusDip; }
     float  FocusRingWidthDip () const override { return 2.0f;  }
 
     static DxuiTheme Dark()
