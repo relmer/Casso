@@ -309,6 +309,23 @@ void EmulatorShell::SyncStandInBanner()
         ClipPaddleCursorToClient();
     }
 
+    //  A BAND THAT HAS NOT BEEN CLAIMED YET, ASKED FOR. The mirror of the
+    //  release above, and the case that only exists now that the bar is not
+    //  the capture's alone: entering a capture re-docked on its way in, so
+    //  the band was always there by the time this ran. The arrow keys turn
+    //  the bar on without any such moment -- restoring the saved input mode
+    //  at startup is the ordinary one -- and a bar laid into a band of no
+    //  height paints its border and its badge with the text clipped away,
+    //  which is a line across the chrome with a lone glyph sitting on it.
+    //
+    //  FLAGGED, NOT DONE HERE, for the same reason the release is: this runs
+    //  inside the frame a re-dock would repaint.
+    if (!m_d3dRenderer.IsFullscreen()
+        && m_standInBand.GetBounds().bottom <= m_standInBand.GetBounds().top)
+    {
+        m_standInBandStale = true;
+    }
+
     //  A DOCKED BAND WHEN THERE ARE BANDS: the dock gives it the client width
     //  under the command strip and the picture gives up the height, the same
     //  bargain the external-change notice makes. Taking the band's rect rather
@@ -334,6 +351,18 @@ void EmulatorShell::SyncStandInBanner()
         rc.right  = client.right;
         rc.top    = top;
         rc.bottom = top + (LONG) m_standInBar.GetPreferredHeightPx (width, m_scaler);
+    }
+
+    //  Nothing is painted into a band too short to hold the text. One frame
+    //  of no bar reads as the bar arriving; one frame of a clipped bar reads
+    //  as a rendering fault.
+    if (rc.bottom - rc.top < (LONG) m_standInBar.GetPreferredHeightPx (
+                                        (float) (rc.right - rc.left), m_scaler))
+    {
+        m_standInBar.SetVisible        (false);
+        m_standInBarSurface.SetVisible (false);
+
+        return;
     }
 
     m_standInBarSurface.Layout     (rc, m_scaler);

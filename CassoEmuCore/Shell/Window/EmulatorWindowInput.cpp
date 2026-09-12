@@ -1410,6 +1410,24 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
+    //  THE CLICK-CAPTURE GOES BACK FIRST, whatever this release turns out to
+    //  mean. OnLButtonDown takes it unconditionally, so every path out of
+    //  here owes it back -- and the paths that returned early did not give
+    //  it, leaving the pointer held by a window that had stopped expecting
+    //  to hold it. The change banner's release was one: clicking Reload or
+    //  Keep left every later click going to this window wherever it landed.
+    //
+    //  Released here rather than in each branch because the branches are the
+    //  part that keeps growing, and a new early return should not have to
+    //  know this.
+    //
+    //  PADDLE MODE IS THE EXCEPTION and holds the pointer on purpose, so it
+    //  keeps it across the click; the button release below is its own.
+    if (!m_paddleCaptured)
+    {
+        ReleaseCapture();
+    }
+
     //  The release is what makes a button fire, so the bar has to see both
     //  halves of the click.
     if (OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y))
@@ -1423,7 +1441,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_scenePanning)
     {
         m_scenePanning = false;
-        ReleaseCapture();
         return DxuiMessageResult::Handled;
     }
 
@@ -1432,7 +1449,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // of it.
     if (m_sceneCompass.OnPointerUp (x, y))
     {
-        ReleaseCapture();
         return DxuiMessageResult::Handled;
     }
 
@@ -1449,7 +1465,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
         if (turned)
         {
-            ReleaseCapture();
             return DxuiMessageResult::Handled;
         }
     }
@@ -1461,7 +1476,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_bezelTilting)
     {
         m_bezelTilting = false;
-        ReleaseCapture();
         PersistBezelTilt();
         return DxuiMessageResult::Handled;
     }
@@ -1475,8 +1489,6 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     }
 
     BAIL_OUT_IF (m_paddleCaptured, S_OK);
-
-    ReleaseCapture();
 
     // Command toolbar release: click dispatch / mute toggle / slider drop.
     toolbarTook = m_toolbar.OnToolbarLButtonUp (x, y);
