@@ -4,6 +4,7 @@
 #include "DxuiTooltip.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -160,16 +161,61 @@ void DxuiTooltip::Tick (int64_t nowMs)
         m_hideAtMs = nowMs + kMaxVisibleMs;
 
         ShowPopup();
+
+        if (m_activePopup != nullptr && DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
+        {
+            m_activePopup->BeginReveal (kFadeMs, /*fade*/ true);
+        }
     }
 
-    if (m_visible && m_hideAtMs != 0 && nowMs >= m_hideAtMs)
+    // Time up: start the fade rather than vanish on the frame. The tip stays
+    // `m_visible` until the fade finishes, which is what keeps it rendered
+    // and what keeps this loop asking for frames.
+    if (m_visible && m_hideAtMs != 0 && nowMs >= m_hideAtMs && !m_fadingOut)
     {
-        m_visible  = false;
-        m_text.clear();
-        m_hideAtMs = 0;
-
-        ReleaseActivePopup();
+        if (m_activePopup != nullptr && DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
+        {
+            m_fadingOut = true;
+            m_activePopup->BeginFadeOut (kFadeMs);
+        }
+        else
+        {
+            FinishHide();
+        }
     }
+
+    // Drive whatever animation is running. AdvanceReveal reports false when
+    // nothing is, which is the ordinary case, so the fade-out completion is
+    // read only while one was actually started.
+    if (m_activePopup != nullptr)
+    {
+        bool  more = m_activePopup->AdvanceReveal (nowMs);
+
+        if (!more && m_fadingOut)
+        {
+            FinishHide();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FinishHide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::FinishHide()
+{
+    m_visible   = false;
+    m_fadingOut = false;
+    m_hideAtMs  = 0;
+    m_text.clear();
+
+    ReleaseActivePopup();
 }
 
 

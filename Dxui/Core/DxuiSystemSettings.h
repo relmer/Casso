@@ -44,6 +44,16 @@ public:
     //  False means play no animation: jump to the finished state.
     bool  AreAnimationsEnabled    () const { return m_animations; }
 
+    //  Menu reveal, from Performance Options > "Fade or slide menus into
+    //  view". Animations are off entirely when the accessibility master
+    //  switch is off, so that is folded in here rather than left for every
+    //  caller to remember.
+    bool  AreMenuAnimationsEnabled () const { return m_animations && m_menuAnimation; }
+
+    //  Which reveal Windows would use. Casso slides regardless; this is kept
+    //  so the choice can follow the system instead if that is wanted.
+    bool  PrefersMenuFade         () const { return m_menuFade; }
+
     //  "Underline access keys" -- when true the mnemonic cues show without
     //  waiting for Alt.
     bool  AlwaysShowKeyboardCues  () const { return m_keyboardCues; }
@@ -58,6 +68,8 @@ public:
 private:
     DxuiSystemSettings();
 
+    static constexpr bool  kDefaultMenuAnimation   = true;
+    static constexpr bool  kDefaultMenuFade        = true;
     static constexpr bool  kDefaultAnimations      = true;
     static constexpr bool  kDefaultKeyboardCues    = false;
     static constexpr int   kDefaultMenuShowDelayMs = 400;
@@ -70,6 +82,8 @@ private:
     static int   ReadUint (UINT action, int fallback);
 
     bool  m_animations        = kDefaultAnimations;
+    bool  m_menuAnimation     = kDefaultMenuAnimation;
+    bool  m_menuFade          = kDefaultMenuFade;
     bool  m_keyboardCues      = kDefaultKeyboardCues;
     int   m_menuShowDelayMs   = kDefaultMenuShowDelayMs;
     int   m_messageDurationMs = kDefaultMessageSeconds * kMsPerSecond;

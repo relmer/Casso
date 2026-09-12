@@ -22,10 +22,9 @@ class DxuiPopupHost;
 //  owns it, so placing one command in several menus never copies the
 //  declaration.
 //
-//  A row is CHECKABLE when its command supplies an `isChecked` functor. Every
-//  list reserves the check gutter whether or not any row can check, which is
-//  what a Windows menu does and what keeps a label column from shifting when
-//  a command gains a checked state.
+//  A row is CHECKABLE when its command supplies an `isChecked` functor, and
+//  a list containing any checkable row reserves a check gutter for every row.
+//  A list where nothing can check reserves none and its labels sit flush.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,6 +158,12 @@ public:
     void  SetSubmenuDelayMs (int ms)            { m_submenuDelayMs = ms; }
     int   GetSubmenuDelayMs () const            { return m_submenuDelayMs; }
 
+    //  Skip the open animation for the NEXT show. The menu bar sets this
+    //  while walking from one title to the next: the animation marks entering
+    //  menu mode, and replaying it per title would put a stutter on a sweep
+    //  along the bar.
+    void  SetRevealSuppressed (bool on)         { m_revealSuppressed = on; }
+
     //  True while a submenu is waiting out its delay. The pointer is not
     //  moving while it waits, so the host's idle loop has nothing to wake it
     //  and must keep ticking on its own until this goes false.
@@ -243,6 +248,7 @@ private:
     static constexpr int       kFallbackGlyphWidthDip  = 8;
     static constexpr float     kUnderlineThicknessDip  = 1.0f;
     static constexpr uint64_t  kReopenGuardMs          = 250;
+    static constexpr int       kRevealMs               = 150;
 
     struct Palette
     {
@@ -319,31 +325,33 @@ private:
     SelectFn             m_onHighlight;
     ClosedFn             m_onClosed;
     ClockFn              m_clock;
-    bool                 m_committing     = false;
-    const IDxuiTheme   * m_theme          = nullptr;
-    IDxuiTextRenderer  * m_text           = nullptr;
-    int                  m_hover          = -1;
-    int                  m_pressed        = -1;
-    bool                 m_visible        = false;
-    int                  m_labelLeftPx    = 0;
-    int                  m_accelLeftPx    = 0;
-    int                  m_accelWidthPx   = 0;
-    bool                 m_showCues       = false;
-    RECT                 m_hostClient     = {};
-    RECT                 m_anchor         = {};
-    RECT                 m_lastAnchor     = {};
-    int                  m_submenuDelayMs = 0;
-    int                  m_pendingChild   = -1;
-    uint64_t             m_pendingAtMs    = 0;
-    uint64_t             m_closedAtMs     = 0;
-    bool                 m_hasClosed      = false;
+    bool                 m_committing       = false;
+    const IDxuiTheme   * m_theme            = nullptr;
+    IDxuiTextRenderer  * m_text             = nullptr;
+    int                  m_hover            = -1;
+    int                  m_pressed          = -1;
+    bool                 m_visible          = false;
+    bool                 m_revealSuppressed = false;
+    bool                 m_hasGutter        = false;
+    int                  m_labelLeftPx      = 0;
+    int                  m_accelLeftPx      = 0;
+    int                  m_accelWidthPx     = 0;
+    bool                 m_showCues         = false;
+    RECT                 m_hostClient       = {};
+    RECT                 m_anchor           = {};
+    RECT                 m_lastAnchor       = {};
+    int                  m_submenuDelayMs   = 0;
+    int                  m_pendingChild     = -1;
+    uint64_t             m_pendingAtMs      = 0;
+    uint64_t             m_closedAtMs       = 0;
+    bool                 m_hasClosed        = false;
     DxuiDpiScaler        m_scaler;
     DxuiMenuMetrics      m_metrics;
-    bool                 m_metricsPin     = false;
-    DxuiHwndSource     * m_popupHost      = nullptr;
-    DxuiPopupHost      * m_activePopup    = nullptr;
-    bool                 m_grabsCapture   = true;
-    bool                 m_reopenGuard    = true;
+    bool                 m_metricsPin       = false;
+    DxuiHwndSource     * m_popupHost        = nullptr;
+    DxuiPopupHost      * m_activePopup      = nullptr;
+    bool                 m_grabsCapture     = true;
+    bool                 m_reopenGuard      = true;
 
     bool                 m_colorsSet   = false;
     Palette              m_colors;

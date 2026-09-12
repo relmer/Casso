@@ -427,7 +427,12 @@ void DxuiMenuBar::Open (int menuIndex, bool keyboardActivated)
     }
     else if (canOpen)
     {
+        // Walking from one title to another is a move WITHIN menu mode, not
+        // an entry into it, so the open animation plays only for the first.
+        bool  wasOpen = m_isOpen && m_dropdown.IsVisible();
+
         m_dropdown.Hide();
+        m_dropdown.SetRevealSuppressed (wasOpen);
 
         m_openIndex        = menuIndex;
         m_isOpen           = true;

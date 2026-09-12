@@ -34,6 +34,11 @@ public:
     // pointer does not leave a panel sitting over the control it describes.
     static constexpr int  kMaxVisibleMs = 5000;
 
+    // A tip fades in when it appears and out when it goes. Short enough that
+    // it never delays reading the tip, long enough that the tip does not
+    // appear to blink into place.
+    static constexpr int  kFadeMs       = 150;
+
     void  SetDwellOpenMs  (int ms) { m_dwellOpenMs = ms; }
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
@@ -74,7 +79,8 @@ public:
     // True while a dwell timer (deferred open or timed close) is still
     // pending, so a host that idle-blocks knows to keep calling Tick on a
     // timeout rather than sleeping until the next input/frame.
-    bool                 WantsTick () const { return m_pending || (m_visible && m_hideAtMs != 0); }
+    bool                 WantsTick () const { return m_pending || m_fadingOut
+                                                   || (m_visible && m_hideAtMs != 0); }
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 
@@ -104,6 +110,11 @@ private:
     //
     void  ReleaseActivePopup ();
 
+    //  Drop the tip for good: state cleared and the popup returned to the
+    //  pool. Reached when a fade-out finishes, or at once when animations
+    //  are off.
+    void  FinishHide         ();
+
     //
     //  Render hook invoked by the popup host (popup-local pixels,
     //  origin top-left). Draws the balloon border + text over the
@@ -128,6 +139,7 @@ private:
     int               m_viewportHPx   = 0;
     bool              m_visible       = false;
     bool              m_pending       = false;
+    bool              m_fadingOut     = false;
     DxuiHwndSource  * m_popupHost     = nullptr;
     DxuiPopupHost   * m_activePopup   = nullptr;
 };

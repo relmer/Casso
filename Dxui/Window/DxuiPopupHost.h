@@ -214,6 +214,27 @@ public:
     //
     void     MarkDirty ();
 
+    //  The open reveal: the menu is rendered once at full size and the WINDOW
+    //  then uncovers it, top to bottom, which is the unfold a Windows menu
+    //  plays. The swap chain is not resized with the window, so the content
+    //  stays put while the frame grows over it and nothing repaints per frame.
+    //
+    //  A popup placed ABOVE its anchor, because it would not fit below, keeps
+    //  its bottom edge pinned and grows upward instead; a menu that unfolded
+    //  downward from a flipped position would crawl away from the title that
+    //  opened it.
+    //
+    //  `AdvanceReveal` returns true while more frames are wanted.
+    void     BeginReveal   (int durationMs, bool fade);
+
+    //  The closing counterpart: content ramps to transparent and the caller
+    //  closes the popup once `AdvanceReveal` reports it is finished. A
+    //  tooltip that vanished on the frame its time ran out looked like a
+    //  glitch rather than a dismissal.
+    void     BeginFadeOut  (int durationMs);
+    bool     AdvanceReveal (int64_t nowMs);
+    bool     IsRevealing   () const { return m_revealing; }
+
     //
     //  Measure the natural extent of `text` (in DIPs) through the
     //  popup's own text renderer. Available any time after Initialize()
@@ -343,6 +364,13 @@ private:
     bool        m_open               = false;
     int         m_resultCode         = 0;
     RECT        m_placedRectScreenPx = {};
+    bool        m_revealing          = false;
+    bool        m_revealFade         = false;
+    bool        m_revealOut          = false;
+    bool        m_revealUpward       = false;
+    int         m_revealDurationMs   = 0;
+    int64_t     m_revealStartMs      = 0;
+    float       m_revealAlpha        = 1.0f;
 
     DxuiPopupHost                         * m_parent            = nullptr;
     DxuiPopupHost                         * m_activeChild       = nullptr;

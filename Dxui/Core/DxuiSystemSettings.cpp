@@ -118,6 +118,8 @@ void DxuiSystemSettings::Refresh()
 
     m_animations   = ReadFlag (SPI_GETCLIENTAREAANIMATION, kDefaultAnimations);
     m_keyboardCues = ReadFlag (SPI_GETKEYBOARDCUES,        kDefaultKeyboardCues);
+    m_menuAnimation = ReadFlag (SPI_GETMENUANIMATION, kDefaultMenuAnimation);
+    m_menuFade      = ReadFlag (SPI_GETMENUFADE,      kDefaultMenuFade);
 
     m_menuShowDelayMs   = ReadUint (SPI_GETMENUSHOWDELAY, kDefaultMenuShowDelayMs);
     m_messageDurationMs = ReadUint (SPI_GETMESSAGEDURATION, kDefaultMessageSeconds) * kMsPerSecond;

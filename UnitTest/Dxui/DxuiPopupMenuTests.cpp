@@ -54,10 +54,14 @@ public:
 
     //  The label column's left edge, and everything to the right of the
     //  accelerator column, which together are the menu's fixed width cost.
-    static int  LabelLeftPx (const DxuiPopupMenu & m)
+    //  The check gutter counts only for a list that HAS a checkable row.
+    static int  LabelLeftPx (const DxuiPopupMenu & m, bool hasGutter)
     {
-        return m.GetMetrics().leftPadPx + m.GetMetrics().checkGutterPx + m.GetMetrics().gutterGapPx;
+        return m.GetMetrics().leftPadPx + m.GetMetrics().gutterGapPx
+                   + (hasGutter ? m.GetMetrics().checkGutterPx : 0);
     }
+
+    static int  GutterPx (const DxuiPopupMenu & m) { return m.GetMetrics().checkGutterPx; }
 
     static int  RightPadPx  (const DxuiPopupMenu & m) { return m.GetMetrics().rightPadPx; }
 
@@ -200,7 +204,7 @@ public:
         menu.SetClock ([&] () { return now; });
 
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
-        fixedPx = LabelLeftPx (menu) + RightPadPx (menu);
+        fixedPx = LabelLeftPx (menu, false) + RightPadPx (menu);
         bare    = menu.GetRect().right - menu.GetRect().left;
         Assert::AreEqual (fixedPx + labelPx, bare);
         Assert::IsTrue (bare > MinWidthPx (menu));
@@ -214,14 +218,14 @@ public:
         withAcc = menu.GetRect().right - menu.GetRect().left;
         Assert::AreEqual (bare + AccelGapPx (menu) + 6 * s_kGlyphPx, withAcc);
 
-        // The check gutter is reserved whether or not a row can check, so a
-        // command that gains a checked state moves nothing.
+        // A checkable row ANYWHERE opens the check gutter for the list, and
+        // a list where nothing can check never pays for one.
         f.gamma.isChecked = [] () { return true; };
         menu.Hide();
         now += 1000;
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
         withChk = menu.GetRect().right - menu.GetRect().left;
-        Assert::AreEqual (withAcc, withChk);
+        Assert::AreEqual (withAcc + GutterPx (menu), withChk);
     }
 
 
@@ -255,7 +259,7 @@ public:
 
         // The long label sets the label column and the accelerator column
         // still sits entirely to its right.
-        Assert::AreEqual (LabelLeftPx (menu) + 50 * s_kGlyphPx
+        Assert::AreEqual (LabelLeftPx (menu, false) + 50 * s_kGlyphPx
                               + AccelGapPx (menu) + 12 * s_kGlyphPx + RightPadPx (menu),
                           width);
     }

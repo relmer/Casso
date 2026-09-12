@@ -426,6 +426,13 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     {
         m_activePopup->SetParentPopup (m_parent->m_activePopup);
     }
+
+    // The open animation. Menus and submenus unfold; the system's animation
+    // switch, and the accessibility master switch behind it, turn it off.
+    if (!m_revealSuppressed && DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
+    {
+        m_activePopup->BeginReveal (kRevealMs, /*fade*/ false);
+    }
 }
 
 
@@ -742,9 +749,9 @@ int DxuiPopupMenu::MeasureRunPx (const std::wstring & run, float fontDip, IDxuiT
 //  row ran under the right-aligned accelerators above it. Separate columns
 //  cannot produce that, whatever the mix of rows.
 //
-//  The check gutter is reserved whether or not any row can check, as a
-//  Windows menu reserves it, so a command that gains a checked state does not
-//  shift every label in the list.
+//  The check gutter is reserved only for a list that HAS a checkable row, so
+//  a menu where nothing can ever check sits flush against its left pad rather
+//  than carrying an empty column.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -757,7 +764,18 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
 
 
 
-    m_labelLeftPx = m_metrics.leftPadPx + m_metrics.checkGutterPx + m_metrics.gutterGapPx;
+    m_hasGutter = false;
+
+    for (const DxuiPopupMenuItem & row : m_rows)
+    {
+        if (row.command != nullptr && row.command->isChecked)
+        {
+            m_hasGutter = true;
+        }
+    }
+
+    m_labelLeftPx = m_metrics.leftPadPx + m_metrics.gutterGapPx
+                        + (m_hasGutter ? m_metrics.checkGutterPx : 0);
 
     for (const DxuiPopupMenuItem & row : m_rows)
     {
@@ -1042,6 +1060,11 @@ bool DxuiPopupMenu::WantsTick() const
         return true;
     }
 
+    if (m_activePopup != nullptr && m_activePopup->IsRevealing())
+    {
+        return true;
+    }
+
     return (m_child != nullptr) && m_child->WantsTick();
 }
 
@@ -1069,6 +1092,11 @@ void DxuiPopupMenu::Tick (int64_t nowMs)
     if (m_child != nullptr)
     {
         m_child->Tick (nowMs);
+    }
+
+    if (m_activePopup != nullptr)
+    {
+        m_activePopup->AdvanceReveal (nowMs);
     }
 
     if (m_pendingChild < 0)

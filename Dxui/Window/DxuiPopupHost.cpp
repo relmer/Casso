@@ -365,12 +365,19 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
         DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, (int) s_kShadowInsetPx);
     }
 
+    // PAINT BEFORE SHOWING. These popups come from a pool and are handed
+    // back most-recently-used first, so the window about to be shown is
+    // usually the one the PREVIOUS menu was drawn into, and its swap chain
+    // still holds that menu's pixels. Showing first and painting after put
+    // the old menu on screen for a frame, which read as the new menu
+    // flickering through the old one's rows on the way from one title to the
+    // next. The HWND and swap chain are live from CreateHwndAndComposition;
+    // visibility was never what they needed.
+    RenderNow();
+
     // Show without activating (WS_EX_NOACTIVATE) so the owner keeps
     // keyboard focus / caption activation state.
     ShowWindow (m_hwnd, SW_SHOWNOACTIVATE);
-
-    // Paint the first frame now that the HWND + swap chain are live.
-    RenderNow();
 
     // Click-outside dismiss: capture so off-popup clicks route to
     // our WndProc as WM_CAPTURECHANGED / WM_LBUTTONDOWN-with-NCHITTEST.
@@ -449,6 +456,12 @@ void DxuiPopupHost::Close (int resultCode)
 
     m_resultCode = resultCode;
     m_open       = false;
+
+    // These popups are pooled, so a reveal left running would be inherited by
+    // whatever opens next in this window.
+    m_revealing   = false;
+    m_revealOut   = false;
+    m_revealAlpha = 1.0f;
 
     // Detach from chain bookkeeping.
     if (m_parent != nullptr && m_parent->m_activeChild == this)
@@ -1316,12 +1329,12 @@ void DxuiPopupHost::RenderNow()
         hr = m_painter.Begin ((int) m_backBufferSizePx.cx, (int) m_backBufferSizePx.cy);
         CHRA (hr);
         painterBegun = true;
-        m_painter.SetGlobalAlpha (1.0f);
+        m_painter.SetGlobalAlpha (m_revealAlpha);
 
         hr = m_textRenderer.BeginDraw();
         CHRA (hr);
         textBegun = true;
-        m_textRenderer.SetGlobalAlpha (1.0f);
+        m_textRenderer.SetGlobalAlpha (m_revealAlpha);
 
         m_params.renderContent (m_painter, m_textRenderer);
 
@@ -1350,6 +1363,141 @@ Error:
     }
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginReveal
+//
+//  Starts the open animation. A slide leaves the content alone and shrinks
+//  the WINDOW to nothing, so the first advance uncovers the first sliver; a
+//  fade leaves the window alone and takes the content to transparent.
+//
+//  Whether the reveal grows down or up is decided here, once, by comparing
+//  the placed rect against the anchor it was placed from: a popup that had to
+//  flip above its anchor pins its BOTTOM edge, because one unfolding downward
+//  from a flipped position would crawl away from the title that opened it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::BeginReveal (int durationMs, bool fade)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_testMode || m_hwnd == nullptr || durationMs <= 0)
+    {
+        return;
+    }
+
+    m_revealing        = true;
+    m_revealFade       = fade;
+    m_revealDurationMs = durationMs;
+    m_revealStartMs    = (int64_t) GetTickCount64();
+    m_revealUpward     = m_placedRectScreenPx.top < m_params.anchorRectScreen.top;
+    m_revealOut        = false;
+    m_revealAlpha      = fade ? 0.0f : 1.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginFadeOut
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::BeginFadeOut (int durationMs)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_testMode || m_hwnd == nullptr || durationMs <= 0)
+    {
+        return;
+    }
+
+    m_revealing        = true;
+    m_revealFade       = true;
+    m_revealOut        = true;
+    m_revealDurationMs = durationMs;
+    m_revealStartMs    = (int64_t) GetTickCount64();
+    m_revealAlpha      = 1.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvanceReveal
+//
+//  One frame of the open animation, returning true while more are wanted.
+//  The caller drives this from its frame loop: the pointer is not moving
+//  during an open, so nothing else would wake that loop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupHost::AdvanceReveal (int64_t nowMs)
+{
+    int    fullW  = 0;
+    int    fullH  = 0;
+    int    shownH = 0;
+    int    top    = 0;
+    float  t      = 0.0f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_revealing)
+    {
+        return false;
+    }
+
+    t = (float) (nowMs - m_revealStartMs) / (float) m_revealDurationMs;
+
+    if (t >= 1.0f || m_hwnd == nullptr)
+    {
+        t           = 1.0f;
+        m_revealing = false;
+    }
+    else if (t < 0.0f)
+    {
+        t = 0.0f;
+    }
+
+    fullW = m_placedRectScreenPx.right  - m_placedRectScreenPx.left;
+    fullH = m_placedRectScreenPx.bottom - m_placedRectScreenPx.top;
+
+    if (m_revealFade)
+    {
+        m_revealAlpha = m_revealOut ? (1.0f - t) : t;
+        RenderNow();
+    }
+    else
+    {
+        shownH = (int) ((float) fullH * t);
+
+        if (shownH < 1)
+        {
+            shownH = 1;
+        }
+
+        top = m_revealUpward ? (m_placedRectScreenPx.bottom - shownH)
+                             : m_placedRectScreenPx.top;
+
+        SetWindowPos (m_hwnd, nullptr,
+                      m_placedRectScreenPx.left, top, fullW, shownH,
+                      SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
+    return m_revealing;
 }
 
 
