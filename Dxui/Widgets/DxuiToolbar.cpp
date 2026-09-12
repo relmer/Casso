@@ -1223,6 +1223,7 @@ void DxuiToolbar::OpenDropDown (int commandId)
     }
 
     m_openPicker = commandId;
+    m_dropdown.SetOnClickOutside (m_onDropDownClickOutside);
     m_dropdown.ShowAt (slot->rc.left, m_barRect.bottom, it->second.items, *m_textRenderer, m_hostClient);
 
     if (!m_dropdown.IsVisible())

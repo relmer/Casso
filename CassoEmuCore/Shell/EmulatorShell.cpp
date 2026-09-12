@@ -916,6 +916,36 @@ void EmulatorShell::WireToolbarPickers()
 {
     m_toolbar.SetPopupHost (m_host.get());
 
+    //  A CLICK ON A MENU TITLE SWITCHES TO THAT MENU, rather than being spent
+    //  closing the drop-down that was open. The drop-down holds capture, so
+    //  the title never sees the click on its own -- and every other
+    //  application on the desktop rolls from one menu to the next on it.
+    //
+    //  Only the titles. Anywhere else the click closes the picker and stops
+    //  there, which is what a menu does everywhere: dismissing is not a
+    //  reason to fire the button that happened to be underneath.
+    m_toolbar.SetDropDownClickOutsideFn (
+        [this] (POINT screenPx)
+        {
+            POINT  client = screenPx;
+
+            if (m_hwnd == nullptr || !ScreenToClient (m_hwnd, &client))
+            {
+                return;
+            }
+
+            for (int i = 0; i < m_mainMenu.GetMenuCount(); i++)
+            {
+                RECT  title = m_mainMenu.GetMenuRect (i);
+
+                if (PtInRect (&title, client))
+                {
+                    m_mainMenu.Open (i, false);
+                    return;
+                }
+            }
+        });
+
     m_toolbar.SetDropDownSinks (EmulatorCommands::kIdTheme,
         [this] (int index)
         {

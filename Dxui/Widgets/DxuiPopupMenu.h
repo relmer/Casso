@@ -122,6 +122,11 @@ public:
     void  SetOnHighlightChange (SelectFn fn)    { m_onHighlight = std::move (fn); }
     void  SetOnClosed          (ClosedFn fn)    { m_onClosed = std::move (fn); }
 
+    // Where a click that dismissed this menu landed, in screen pixels. See
+    // DxuiPopupHost::Params::onClickOutside.
+    void  SetOnClickOutside (std::function<void (POINT screenPx)> fn)
+              { m_onClickOutside = std::move (fn); }
+
     //  Colors an application supplies in place of the theme's, so a host
     //  whose chrome palette differs from the generic mapping lands its
     //  override in the one place every menu paints from. Disabled text always
@@ -296,6 +301,7 @@ private:
     SelectFn             m_onSelect;
     SelectFn             m_onHighlight;
     ClosedFn             m_onClosed;
+    std::function<void (POINT)>  m_onClickOutside;
     ClockFn              m_clock;
     bool                 m_committing   = false;
     const IDxuiTheme   * m_theme        = nullptr;

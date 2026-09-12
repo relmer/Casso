@@ -152,6 +152,17 @@ public:
         std::function<void (POINT localPx)>                        onMoveInside;
         std::function<void (POINT localPx)>                        onClickInside;
 
+        // Fired when a click OUTSIDE the popup dismisses it, after the
+        // dismissal, in SCREEN pixels.
+        //
+        // The click that closes a popup is spent closing it: the popup holds
+        // capture, so the window under the cursor never sees it. That is
+        // right for most of a window -- a menu should not fire the button
+        // behind it on the way out -- and wrong for a menu bar title, where
+        // every other application switches menus on that click. An owner
+        // that has somewhere to send it says so here.
+        std::function<void (POINT screenPx)>                       onClickOutside;
+
         // Fired from Close() (manual or auto-dismiss) so the owning
         // widget can clear its own open/active state and return the
         // popup to the host pool. Re-entrant-safe: Close() early-exits

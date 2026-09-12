@@ -880,8 +880,20 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                          (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
                           m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
                 {
+                    //  Both read BEFORE Close, which drops the content and
+                    //  may hand this host back to the pool.
+                    std::function<void (POINT)>  onOutside = m_params.onClickOutside;
+                    POINT                        screen    = pt;
+
+                    ClientToScreen (m_hwnd, &screen);
+
                     Close (0);
                     claimed = true;
+
+                    if (onOutside)
+                    {
+                        onOutside (screen);
+                    }
                 }
             }
 

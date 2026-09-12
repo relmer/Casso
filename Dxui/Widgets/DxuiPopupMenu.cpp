@@ -377,6 +377,7 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     params.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
     params.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
     params.onClosed         = [this] () { Hide(); };
+    params.onClickOutside   = m_onClickOutside;
 
     switch (anchoring)
     {
