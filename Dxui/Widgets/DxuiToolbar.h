@@ -152,6 +152,10 @@ public:
     int   GetBandDp        () const;
     bool  IsLabeled        (int commandId) const;
 
+    //  As the menu bar's: the open picker's submenu delay needs a heartbeat.
+    bool  WantsTick () const { return m_dropdown.WantsTick(); }
+    void  TickMenus (int64_t nowMs) { m_dropdown.Tick (nowMs); }
+
     void  Layout           (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint            (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 

@@ -4,6 +4,7 @@
 #include "DxuiListView.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -2943,6 +2944,41 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::GetWheelLinesPerNotch
+//
+//  How many rows one wheel notch moves, from the user's mouse settings.
+//
+//  "One screen at a time" does not report a line count -- it reports
+//  WHEEL_PAGESCROLL, which is UINT_MAX and would scroll four billion rows if
+//  it were taken at face value. It is resolved here against the list's own
+//  visible capacity, which is what a screen means for THIS list, and it can
+//  change with every resize, so it is asked for per notch rather than cached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetWheelLinesPerNotch() const
+{
+    int  lines = DxuiSystemSettings::Instance().GetWheelLinesPerNotch();
+    int  cap   = 0;
+
+
+
+    if (lines != DxuiSystemSettings::kWheelPageScroll)
+    {
+        return lines;
+    }
+
+    cap = GetVisibleRowCapacity();
+
+    return (cap > 0) ? cap : 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListView::DispatchMouseWheel
 //
 //  Scrolls the list when the pointer is inside: Shift+wheel scrolls
@@ -2975,7 +3011,7 @@ bool DxuiListView::DispatchMouseWheel (const DxuiMouseEvent & ev, bool inside)
     }
     else
     {
-        ScrollByWheelDelta (rawDelta);
+        ScrollByWheelDelta (rawDelta, GetWheelLinesPerNotch());
     }
 
     handled = true;

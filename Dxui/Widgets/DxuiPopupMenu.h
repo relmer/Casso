@@ -153,6 +153,17 @@ public:
 
     const DxuiMenuMetrics &  GetMetrics () const    { return m_metrics; }
 
+    //  How long the pointer must rest on a submenu row before its child
+    //  opens. Seeded from the system's menu show delay. Zero opens on
+    //  contact, which is what this widget used to do.
+    void  SetSubmenuDelayMs (int ms)            { m_submenuDelayMs = ms; }
+    int   GetSubmenuDelayMs () const            { return m_submenuDelayMs; }
+
+    //  True while a submenu is waiting out its delay. The pointer is not
+    //  moving while it waits, so the host's idle loop has nothing to wake it
+    //  and must keep ticking on its own until this goes false.
+    bool  WantsTick () const;
+
     //  The clock the reopen guard reads. Defaults to the tick count; a test
     //  installs its own so the guard window can be crossed without waiting.
     void  SetClock    (ClockFn fn)              { m_clock = std::move (fn); }
@@ -206,6 +217,7 @@ public:
     //  it would otherwise refuse a legitimate reopen right after a pick.
     void  SetReopenGuard (bool enabled)         { m_reopenGuard = enabled; }
 
+    void  Tick           (int64_t nowMs) override;
     void  OnMouseMove    (int x, int y);
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
@@ -278,6 +290,8 @@ private:
                               const RECT                     & hostClient);
     void  AcquirePopup       (const RECT & anchor, Anchoring anchoring);
     void  SetHover           (int index);
+    void  ArmChild           (int index);
+    void  DisarmChild        ();
     void  OpenChild          (int index, bool highlightFirst);
     void  CloseChild         ();
     void  Commit             (int index);
@@ -305,28 +319,31 @@ private:
     SelectFn             m_onHighlight;
     ClosedFn             m_onClosed;
     ClockFn              m_clock;
-    bool                 m_committing   = false;
-    const IDxuiTheme   * m_theme        = nullptr;
-    IDxuiTextRenderer  * m_text         = nullptr;
-    int                  m_hover        = -1;
-    int                  m_pressed      = -1;
-    bool                 m_visible      = false;
-    int                  m_labelLeftPx  = 0;
-    int                  m_accelLeftPx  = 0;
-    int                  m_accelWidthPx = 0;
-    bool                 m_showCues     = false;
-    RECT                 m_hostClient   = {};
-    RECT                 m_anchor       = {};
-    RECT                 m_lastAnchor   = {};
-    uint64_t             m_closedAtMs   = 0;
-    bool                 m_hasClosed    = false;
+    bool                 m_committing     = false;
+    const IDxuiTheme   * m_theme          = nullptr;
+    IDxuiTextRenderer  * m_text           = nullptr;
+    int                  m_hover          = -1;
+    int                  m_pressed        = -1;
+    bool                 m_visible        = false;
+    int                  m_labelLeftPx    = 0;
+    int                  m_accelLeftPx    = 0;
+    int                  m_accelWidthPx   = 0;
+    bool                 m_showCues       = false;
+    RECT                 m_hostClient     = {};
+    RECT                 m_anchor         = {};
+    RECT                 m_lastAnchor     = {};
+    int                  m_submenuDelayMs = 0;
+    int                  m_pendingChild   = -1;
+    uint64_t             m_pendingAtMs    = 0;
+    uint64_t             m_closedAtMs     = 0;
+    bool                 m_hasClosed      = false;
     DxuiDpiScaler        m_scaler;
     DxuiMenuMetrics      m_metrics;
-    bool                 m_metricsPin   = false;
-    DxuiHwndSource     * m_popupHost    = nullptr;
-    DxuiPopupHost      * m_activePopup  = nullptr;
-    bool                 m_grabsCapture = true;
-    bool                 m_reopenGuard  = true;
+    bool                 m_metricsPin     = false;
+    DxuiHwndSource     * m_popupHost      = nullptr;
+    DxuiPopupHost      * m_activePopup    = nullptr;
+    bool                 m_grabsCapture   = true;
+    bool                 m_reopenGuard    = true;
 
     bool                 m_colorsSet   = false;
     Palette              m_colors;

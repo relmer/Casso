@@ -7,6 +7,7 @@
 #include "Window/DxuiPopupHost.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -87,6 +88,7 @@ DxuiPopupMenuItem DxuiPopupMenuItem::ForSubmenu (const DxuiCommand * cmd, std::v
 DxuiPopupMenu::DxuiPopupMenu()
 {
     m_clock = [] () { return (uint64_t) GetTickCount64(); };
+    m_submenuDelayMs = DxuiSystemSettings::Instance().GetMenuShowDelayMs();
     RefreshMetrics();
 }
 
@@ -947,6 +949,10 @@ void DxuiPopupMenu::SetHover (int index)
         return;
     }
 
+    // The highlight leaving a row cancels the submenu that row had armed;
+    // the caller re-arms if the row moved to is itself a submenu row.
+    DisarmChild();
+
     m_hover = index;
 
     if (index >= 0 && m_onHighlight)
@@ -959,6 +965,123 @@ void DxuiPopupMenu::SetHover (int index)
     if (m_activePopup != nullptr)
     {
         m_activePopup->MarkDirty();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::ArmChild
+//
+//  A submenu opens after the pointer has RESTED on its row, not the instant
+//  the pointer crosses it, which is what lets a diagonal move to a row below
+//  pass over a submenu row without opening it. The delay is the system's own
+//  menu show delay.
+//
+//  Arming the row that is already open does nothing: the child stays up and
+//  no timer restarts, so sliding along an open submenu's parent row cannot
+//  make it flicker.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::ArmChild (int index)
+{
+    if (index == m_childRow && HasOpenChild())
+    {
+        return;
+    }
+
+    if (m_submenuDelayMs <= 0)
+    {
+        OpenChild (index, false);
+        return;
+    }
+
+    m_pendingChild = index;
+    m_pendingAtMs  = m_clock() + (uint64_t) m_submenuDelayMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::DisarmChild
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::DisarmChild()
+{
+    m_pendingChild = -1;
+    m_pendingAtMs  = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::WantsTick
+//
+//  Asked by a host whose idle loop parks when no input arrives. A submenu
+//  waiting out its delay is precisely the case where no input is coming --
+//  the pointer is resting -- so the host has to keep ticking until this goes
+//  false or the child will never open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupMenu::WantsTick() const
+{
+    if (m_pendingChild >= 0)
+    {
+        return true;
+    }
+
+    return (m_child != nullptr) && m_child->WantsTick();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::Tick
+//
+//  Opens an armed submenu once its delay has run out, deepest level first so
+//  one tick can advance a whole open chain.
+//
+//  The deadline is measured on the widget's own clock rather than on
+//  `nowMs`, which is only passed down the chain. The arm happens in
+//  OnMouseMove, which has no frame time to work from, and the reopen guard
+//  already reads that clock; one time source is what keeps a test able to
+//  inject a clock and step it past a delay without sleeping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::Tick (int64_t nowMs)
+{
+    if (m_child != nullptr)
+    {
+        m_child->Tick (nowMs);
+    }
+
+    if (m_pendingChild < 0)
+    {
+        return;
+    }
+
+    if (m_clock() >= m_pendingAtMs)
+    {
+        int  row = m_pendingChild;
+
+        DisarmChild();
+        OpenChild (row, false);
     }
 }
 
@@ -1067,6 +1190,7 @@ void DxuiPopupMenu::CloseChild()
         m_child->Hide();
     }
 
+    DisarmChild();
     m_childRow = -1;
 }
 
@@ -1187,7 +1311,7 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
 
         if (m_rows[(size_t) idx].kind == DxuiPopupMenuItem::Kind::Submenu)
         {
-            OpenChild (idx, false);
+            ArmChild (idx);
         }
         else
         {

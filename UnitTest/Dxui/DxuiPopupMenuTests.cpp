@@ -421,16 +421,97 @@ public:
         RECT                  r = {};
 
 
+        // Zero delay is the open-on-contact rule; the dwell is covered
+        // separately below.
+        menu.SetSubmenuDelayMs (0);
         menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
         r = menu.GetRect();
 
-        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);       // the submenu row
+        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);    // the submenu row
         Assert::IsTrue   (menu.HasOpenChild());
         Assert::AreEqual (-1, menu.GetChild()->GetHighlight());
 
-        menu.OnMouseMove (r.left + 5, r.top + 5);                  // back to alpha
+        menu.OnMouseMove (r.left + 5, r.top + 5);                   // back to alpha
         Assert::IsFalse  (menu.HasOpenChild());
         Assert::IsTrue   (menu.IsVisible());
+    }
+
+
+    //
+    //  A submenu opens after the pointer RESTS on its row, which is what
+    //  lets a diagonal move to a row below cross a submenu row without
+    //  opening it. The clock is injected, so the delay is crossed by
+    //  arithmetic rather than by sleeping.
+    //
+    TEST_METHOD (HoverOnSubmenuRow_WaitsOutTheDelay_AndLeavingCancelsIt)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        RECT                  r     = {};
+        uint64_t              now   = 1000;
+        const int             delay = 400;
+
+
+        menu.SetClock ([&] () { return now; });
+        menu.SetSubmenuDelayMs (delay);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+        r = menu.GetRect();
+
+        // Crossing the row arms the open; it does not perform it.
+        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);
+        Assert::IsFalse (menu.HasOpenChild());
+        Assert::IsTrue  (menu.WantsTick());
+
+        // Ticking before the delay is up changes nothing.
+        now += delay - 1;
+        menu.Tick ((int64_t) now);
+        Assert::IsFalse (menu.HasOpenChild());
+
+        now += 1;
+        menu.Tick ((int64_t) now);
+        Assert::IsTrue  (menu.HasOpenChild());
+        Assert::IsFalse (menu.WantsTick());
+
+        // Leaving the row closes the child, and the pointer passing back
+        // across it arms rather than reopens.
+        menu.OnMouseMove (r.left + 5, r.top + 5);
+        Assert::IsFalse (menu.HasOpenChild());
+
+        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);
+        Assert::IsFalse (menu.HasOpenChild());
+
+        // ... and moving away again before the delay cancels it outright:
+        // no amount of ticking opens a submenu the pointer has left.
+        menu.OnMouseMove (r.left + 5, r.top + 5);
+        now += delay * 2;
+        menu.Tick ((int64_t) now);
+        Assert::IsFalse (menu.HasOpenChild());
+        Assert::IsFalse (menu.WantsTick());
+    }
+
+
+    //
+    //  Keyboard and click open a submenu OUTRIGHT. The dwell exists for a
+    //  pointer crossing rows it did not mean to open; a deliberate Right or
+    //  a click is not that.
+    //
+    TEST_METHOD (RightArrow_OpensSubmenuWithoutWaitingOutTheDelay)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        uint64_t              now = 1000;
+
+
+        menu.SetClock ([&] () { return now; });
+        menu.SetSubmenuDelayMs (400);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+
+        menu.OnKey (VK_DOWN);
+        menu.OnKey (VK_DOWN);
+        Assert::IsTrue (menu.OnKey (VK_RIGHT));
+        Assert::IsTrue (menu.HasOpenChild());
     }
 
 

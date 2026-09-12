@@ -68,6 +68,13 @@ public:
     //  that it is gone before the next thing the user wants to look at.
     static constexpr int64_t  kDefaultDurationMs = 4000;
 
+    //  The duration a banner takes when nobody sets one: this default, or
+    //  the system's notification duration when the user has raised it above
+    //  this. Somebody who has never touched the setting keeps the tuned 4 s;
+    //  somebody who asked for thirty seconds because four is not enough time
+    //  to read a banner gets thirty.
+    static int64_t  ResolveDefaultDurationMs ();
+
     //  Enough dimming that the text stays legible over a bright picture,
     //  little enough that what is underneath is still visible.
     static constexpr float    kDefaultScrimOpacity = 0.82f;
@@ -76,6 +83,6 @@ private:
 
     DxuiInfoBanner  m_banner;
     DxuiSurface     m_scrim;
-    int64_t         m_durationMs = kDefaultDurationMs;
+    int64_t         m_durationMs = ResolveDefaultDurationMs();
     int64_t         m_untilMs    = 0;
 };

@@ -130,6 +130,11 @@ public:
                              UINT                dpi);
 
     // IDxuiControl overrides.
+    //  The open dropdown's submenu delay needs a heartbeat the resting
+    //  pointer does not provide; a host forwards both of these to it.
+    bool  WantsTick () const { return m_dropdown.WantsTick(); }
+    void  TickMenus (int64_t nowMs) { m_dropdown.Tick (nowMs); }
+
     void  Layout          (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnKey           (const DxuiKeyEvent   & ev) override;

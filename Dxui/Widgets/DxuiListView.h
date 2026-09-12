@@ -199,7 +199,8 @@ public:
     // Scroll so `row` sits as close to the middle of the visible window as
     // the ends of the list allow, without changing selection.
     void  CenterOnRow           (int row);
-    void  ScrollByWheelDelta    (int wheelDelta, int linesPerNotch = 3);
+    void  ScrollByWheelDelta    (int wheelDelta, int linesPerNotch);
+    int   GetWheelLinesPerNotch () const;
 
     // Scrollbar geometry & thumb-drag. xPx/yPx are relative to the
     // widget rect. The caller starts a drag with BeginThumbDrag and

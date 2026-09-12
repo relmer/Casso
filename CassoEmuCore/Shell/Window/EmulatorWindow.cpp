@@ -1441,7 +1441,9 @@ void EmulatorShell::WaitForFrameOrMessage()
 
     if (m_switchBarTooltip.WantsTick() ||
         m_driveTooltip.WantsTick()     ||
-        m_sceneCompass.WantsTick())
+        m_sceneCompass.WantsTick()     ||
+        m_mainMenu.WantsTick()         ||
+        m_toolbar.WantsTick())
     {
         timeout = s_kIdleAnimationTickMs;
     }

@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiMenuBar.h"
+#include "Core/DxuiSystemSettings.h"
 #include "Window/DxuiHwndSource.h"
 
 #include "Core/UnicodeSymbols.h"
@@ -1498,15 +1499,24 @@ void DxuiMenuBar::ParseMnemonic (
 //
 //  DxuiMenuBar::ShouldShowMnemonicCues
 //
-//  Menu mnemonic underlines appear when (a) the user is holding Alt
-//  (Windows convention for "show me the access keys") or (b) the menu
-//  was opened via keyboard (F10 or Alt+mnemonic) -- keyboard navigation
-//  implies the user wants to see the access keys. Mouse-opened menus
-//  stay clean unless Alt is also pressed.
+//  Menu mnemonic underlines appear when (a) the system says to underline
+//  access keys at all times, (b) the user is holding Alt (the convention
+//  for "show me the access keys") or (c) the menu was opened via keyboard
+//  (F10 or Alt+mnemonic) -- keyboard navigation implies the user wants to
+//  see the access keys. Mouse-opened menus stay clean unless Alt is also
+//  pressed.
+//
+//  (a) is the accessibility setting, and it is checked FIRST because it is
+//  the user saying the Alt-to-reveal convention does not work for them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiMenuBar::ShouldShowMnemonicCues (bool openedByKeyboard)
 {
+    if (DxuiSystemSettings::Instance().AlwaysShowKeyboardCues())
+    {
+        return true;
+    }
+
     return openedByKeyboard || (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
 }
