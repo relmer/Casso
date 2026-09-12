@@ -297,6 +297,12 @@ void CassqueWindow::ConfigureWidgets()
     m_previewList->SetShowHeader (false);
     m_previewList->SetColumns ({ DxuiListView::Column { L"", 0, true } });
 
+    //  A hex dump and a disassembly are columns of fixed-width text, and read
+    //  as such only in a monospace face on rows close to the line height.
+    m_previewList->SetMonospace (true);
+    m_previewList->SetRowHeightDip (kPreviewRowHeightDip);
+    m_previewList->SetHorizontalScrollEnabled (true);
+
     m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
     m_treeSplitter->SetOnMoved ([this] (int dip)
     {

@@ -538,7 +538,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
         {
             if (c < row.size() && !row[c].text.empty())
             {
-                hr = text.MeasureString (row[c].text.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+                hr = text.MeasureString (row[c].text.c_str(), fontDip, GetBodyFace(), w, h);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
                 wpx = std::max (wpx, (int) std::ceil (w));
@@ -1160,7 +1160,7 @@ DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout() const
     int           fullW = m_boundsDip.right  - m_boundsDip.left;
     int           fullH = m_boundsDip.bottom - m_boundsDip.top;
     int           barW  = GetScrollbarWidthPx();
-    int           rowH  = m_scaler.ToPx (s_kRowHeightDip);
+    int           rowH  = GetRowHeightPx();
     int           hgTop = m_showHeader ? (m_scaler.ToPx (s_kHeaderHeightDip) + m_scaler.ToPx (s_kHeaderGapDip)) : 0;
     int           rows  = GetRowCount();
     int           pass  = 0;
@@ -2043,7 +2043,7 @@ int DxuiListView::GetRequiredRowsForHeightPx (int heightPx) const
 {
     HRESULT  hr      = S_OK;
     int      result  = 0;
-    int      rowH    = m_scaler.ToPx (s_kRowHeightDip);
+    int      rowH    = GetRowHeightPx();
     int      headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
     int      hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int      body    = heightPx - headerH - hdrGap;
@@ -2074,7 +2074,7 @@ Error:
 int DxuiListView::GetRequiredHeightPx() const
 {
     int  rows    = GetRowCount();
-    int  rowH    = m_scaler.ToPx (s_kRowHeightDip);
+    int  rowH    = GetRowHeightPx();
     int  headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
     int  hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
 
@@ -2251,7 +2251,7 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
 {
     HRESULT  hr      = S_OK;
     int      result  = -1;
-    int      rowH    = m_scaler.ToPx (s_kRowHeightDip);
+    int      rowH    = GetRowHeightPx();
     int      headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
     int      hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int      body    = yPx - headerH - hdrGap;
@@ -2629,7 +2629,7 @@ void DxuiListView::PaintDataRows (
     const std::vector<int> & colWPx) const
 {
     HRESULT  hr       = S_OK;
-    float    rowH     = (float) m_scaler.ToPx (s_kRowHeightDip);
+    float    rowH     = (float) GetRowHeightPx();
     float    headerH  = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0);
     float    hdrGap   = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0);
     float    cellPadL = (float) m_scaler.ToPx (s_kCellPadLeftDip);
@@ -2695,12 +2695,12 @@ void DxuiListView::PaintDataRows (
                     if (s > 0)
                     {
                         hrM = text.MeasureString (cellText.substr (0, (size_t) s).c_str(),
-                                                  fontPx, DxuiTheme::kBodyFace, wS, hIgnore);
+                                                  fontPx, GetBodyFace(), wS, hIgnore);
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
 
                     hrM = text.MeasureString (cellText.substr (0, (size_t) e).c_str(),
-                                              fontPx, DxuiTheme::kBodyFace, wE, hIgnore);
+                                              fontPx, GetBodyFace(), wE, hIgnore);
                     IGNORE_RETURN_VALUE (hrM, S_OK);
 
                     hx = cellX + wS;
@@ -2721,9 +2721,9 @@ void DxuiListView::PaintDataRows (
                                   ry,
                                   (float) colWPx[c] - cellPadL - cellPadR,
                                   rowH,
-                                  argb, 
-                                  fontPx, 
-                                  DxuiTheme::kBodyFace,
+                                  argb,
+                                  fontPx,
+                                  GetBodyFace(),
                                   m_columns[c].align,
                                   DxuiTextVAlign::CenterOnCapHeight,
                                   DxuiFontWeight::Normal,
@@ -2841,7 +2841,11 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
             continue;
         }
 
-        if (m_columns[c].stretch && stretchIdx == -1)
+        //  A stretch column the user has dragged keeps the width they gave
+        //  it: absorbing the remainder is the DEFAULT, not a refusal to be
+        //  resized, and a column whose drags did nothing reads as stuck.
+        if (m_columns[c].stretch && stretchIdx == -1
+                                 && !(c < m_overrideWPx.size() && m_overrideWPx[c] >= 0))
         {
             stretchIdx = (int) c;
             continue;

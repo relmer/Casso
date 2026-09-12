@@ -81,10 +81,14 @@ public:
     static constexpr UINT_PTR  kTooltipTimerId     = 0x5153;
     static constexpr UINT      kTooltipTickMs      = 50;
     static constexpr int       kTabHeightDip       = 32;
-    static constexpr int       kTabWidthDip        = 180;
-    static constexpr int       kMinTreeWidthDip    = 140;
-    static constexpr int       kMinListWidthDip    = 220;
-    static constexpr int       kMinPreviewWidthDip = 160;
+
+    //  The preview's rows carry one line of fixed-width text each, so they
+    //  are the line's height rather than a file listing's roomier row.
+    static constexpr int  kPreviewRowHeightDip = 18;
+    static constexpr int  kTabWidthDip         = 180;
+    static constexpr int  kMinTreeWidthDip     = 140;
+    static constexpr int  kMinListWidthDip     = 220;
+    static constexpr int  kMinPreviewWidthDip  = 160;
 
     //  The private message that carries a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;

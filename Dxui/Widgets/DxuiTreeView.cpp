@@ -972,7 +972,9 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                                   fontDip,
                                   DxuiTheme::kBodyFace,
                                   DxuiTextHAlign::Left,
-                                  DxuiTextVAlign::CenterOnCapHeight);
+                                  DxuiTextVAlign::CenterOnCapHeight,
+                                  DxuiFontWeight::Normal,
+                                  false);   // a row is one line: a long name is cut off, never wrapped
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }

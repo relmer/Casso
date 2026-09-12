@@ -245,6 +245,14 @@ public:
     // is the natural total (no stretch fill); GetMaxLeftPx is the excess
     // of that over the viewport content width (which excludes the
     // vertical scrollbar). xPx/yPx for the hit-tests are widget-relative.
+    //  A list of fixed-width text -- a hex dump, a disassembly -- sets the
+    //  monospace face and a row height near the line height, instead of the
+    //  proportional face and the roomy rows a file listing wants.
+    void  SetMonospace                 (bool b)                { m_monospace = b; }
+    bool  IsMonospace                  () const                { return m_monospace; }
+    void  SetRowHeightDip              (int dip)               { m_rowHeightDip = (dip > 0) ? dip : s_kRowHeightDip; }
+    int   GetRowHeightDip              () const                { return m_rowHeightDip; }
+
     void  SetHorizontalScrollEnabled   (bool b)                { m_hScrollEnabled = b; }
     bool  IsHorizontalScrollEnabled    () const                { return m_hScrollEnabled; }
     int   GetContentWidthPx            () const;
@@ -486,8 +494,15 @@ private:
     // MeasureColumnsPx (DWrite). Monotonic and persists across SetRows so
     // filter/sort don't collapse content-fit columns; reset by SetColumns.
     // Preferred over m_autoMaxChars wherever a non-zero entry exists.
-    mutable std::vector<int>          m_measuredWPx;
-    std::vector<int>                  m_overrideWPx;
+    //  The cells' face and the height of a row, which a fixed-width list
+    //  (a hex dump, a disassembly) changes together.
+    const wchar_t *  GetBodyFace   () const  { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
+    int              GetRowHeightPx() const  { return m_scaler.ToPx (m_rowHeightDip); }
+
+    bool                      m_monospace    = false;
+    int                       m_rowHeightDip = s_kRowHeightDip;
+    mutable std::vector<int>  m_measuredWPx;
+    std::vector<int>          m_overrideWPx;
     // Monotonic max glyph count per auto column (header + widest cell);
     // the cheap fallback used when no DWrite measurement exists (e.g. the
     // debug panels). ComputeColumnLayout turns it into a pixel width at the
