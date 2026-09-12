@@ -28,8 +28,10 @@
 class MachineInputPrefs
 {
 public:
-    static constexpr const char *  kpszArrowsKey  = "arrowsToJoystick";
-    static constexpr const char *  kpszPointerKey = "pointerMapping";
+    static constexpr const char *  kpszArrowsKey     = "arrowsToJoystick";
+    static constexpr const char *  kpszPointerKey    = "pointerMapping";
+    static constexpr const char *  kpszControllerKey = "controller";
+    static constexpr const char *  kpszProfileKey    = "controllerProfile";
 
     static void  ReadFromUiPrefs (const JsonValue  * uiPrefs,
                                   bool               seedArrows,
@@ -40,6 +42,20 @@ public:
     static std::vector<std::pair<std::string, JsonValue>>  BuildUiPrefEntries (
         bool              arrows,
         InputMappingMode  pointer);
+
+    // The chosen controller and its active profile. Separate from the pair
+    // above because they are read and written on their own: a controller is
+    // chosen on the controller thread's schedule, not when the user touches
+    // the arrows or the pointer.
+    //
+    // An empty token means no controller is chosen, which is not the same as
+    // a controller that is merely unplugged -- that one keeps its token.
+    static std::string  ReadControllerToken (const JsonValue * uiPrefs);
+    static std::string  ReadProfileName     (const JsonValue * uiPrefs);
+
+    static std::vector<std::pair<std::string, JsonValue>>  BuildControllerEntries (
+        const std::string &  controllerToken,
+        const std::string &  profileName);
 
     static const char *      ModeToToken   (InputMappingMode    mode);
     static InputMappingMode  ModeFromToken (const std::string & token,

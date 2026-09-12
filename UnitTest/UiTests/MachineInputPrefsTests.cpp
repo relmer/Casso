@@ -251,4 +251,57 @@ public:
         Assert::IsTrue (MachineInputPrefs::ModeFromToken ("JOYSTICK", InputMappingMode::Mouse)
                             == InputMappingMode::Mouse);
     }
+
+
+    TEST_METHOD (ReadControllerToken_AbsentKey_ReadsAsNoChoice)
+    {
+        JsonValue  doc = ParseOrFail (R"({"$cassoUiPrefs":{"arrowsToJoystick":true}})");
+
+        Assert::IsTrue (MachineInputPrefs::ReadControllerToken (GetUiPrefsOrFail (doc)).empty(),
+            L"a machine that has never chosen a controller reads as no choice");
+        Assert::IsTrue (MachineInputPrefs::ReadControllerToken (nullptr).empty(),
+            L"and so does a machine with no block at all");
+    }
+
+
+    TEST_METHOD (ReadControllerToken_StoredToken_ComesBackWhole)
+    {
+        JsonValue  doc = ParseOrFail (R"({"$cassoUiPrefs":{"controller":"dinput:231d:0121/guid:{01661270}"}})");
+
+        Assert::AreEqual (std::string ("dinput:231d:0121/guid:{01661270}"),
+                          MachineInputPrefs::ReadControllerToken (GetUiPrefsOrFail (doc)));
+    }
+
+
+    TEST_METHOD (ControllerEntries_RoundTripThroughRead)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  entries =
+            MachineInputPrefs::BuildControllerEntries ("xinput", "Lode Runner");
+        JsonValue                                       uiPrefs (std::move (entries));
+
+        Assert::AreEqual (std::string ("xinput"),      MachineInputPrefs::ReadControllerToken (&uiPrefs));
+        Assert::AreEqual (std::string ("Lode Runner"), MachineInputPrefs::ReadProfileName (&uiPrefs));
+    }
+
+
+    TEST_METHOD (ControllerEntries_EmptyTokenIsStillWritten)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  entries =
+            MachineInputPrefs::BuildControllerEntries ("", "");
+
+        // An absent key means the machine never chose, and the policy may
+        // choose for it. An empty string means the user turned the controller
+        // off in favor of the arrows, and choosing again would undo that.
+        Assert::AreEqual (size_t (1), entries.size(), L"the controller key is written even when it is empty");
+        Assert::AreEqual (std::string (MachineInputPrefs::kpszControllerKey), entries[0].first);
+    }
+
+
+    TEST_METHOD (ReadProfileName_AbsentMeansDefault)
+    {
+        JsonValue  doc = ParseOrFail (R"({"$cassoUiPrefs":{"controller":"xinput"}})");
+
+        Assert::IsTrue (MachineInputPrefs::ReadProfileName (GetUiPrefsOrFail (doc)).empty(),
+            L"no stored profile means Default, which is spelled as nothing stored");
+    }
 };

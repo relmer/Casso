@@ -652,6 +652,7 @@ private:
     // through Dxui, which asserts the UI thread. Both callers sync the
     // chrome on the UI thread afterwards.
     void    AdoptInputModeForMachine   (const JsonValue * uiPrefs);
+    void    AdoptControllerForMachine (const JsonValue * uiPrefs);
     void    PersistInputModeForMachine ();
 public:
 

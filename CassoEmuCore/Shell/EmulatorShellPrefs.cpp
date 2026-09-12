@@ -5,6 +5,7 @@
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
+#include "Controllers/ControllerTokens.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -185,9 +186,57 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
                                         m_arrowsJoystick,
                                         m_pointerMode);
 
+    AdoptControllerForMachine (uiPrefs);
+
     // The mixer is thread-safe and writes on the UI thread, so handing the
     // axes over from here is safe on the CPU thread too.
     SyncGamePortAxisOwner();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdoptControllerForMachine
+//
+//  Hands the machine's remembered controller to the service, so the policy
+//  starts from the user's choice rather than choosing for them.
+//
+//  An UNREADABLE OR UNKNOWN TOKEN IS TREATED AS NO CHOICE, not as an error.
+//  The machine still runs, and the policy then picks up whatever is attached,
+//  which is what a user with a broken prefs file wants to happen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs)
+{
+    HRESULT                           hr    = S_OK;
+    std::string                       token;
+    std::optional<ControllerUnitKey>  selection;
+    ControllerUnitKey                 unit;
+
+
+
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    token = MachineInputPrefs::ReadControllerToken (uiPrefs);
+
+    if (!token.empty())
+    {
+        hr = ControllerTokens::UnitFromToken (token, unit);
+
+        if (SUCCEEDED (hr))
+        {
+            selection = unit;
+        }
+    }
+
+    m_controllerService->SetSelection (selection);
 }
 
 
@@ -209,7 +258,10 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
 
 void EmulatorShell::PersistInputModeForMachine()
 {
-    HRESULT  hr = S_OK;
+    HRESULT                                         hr = S_OK;
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+    std::vector<std::pair<std::string, JsonValue>>  controllerEntries;
+    std::string                                     token;
 
 
 
@@ -218,9 +270,26 @@ void EmulatorShell::PersistInputModeForMachine()
         return;
     }
 
+    entries = MachineInputPrefs::BuildUiPrefEntries (m_arrowsJoystick, m_pointerMode);
+
+    // The controller rides along in the same read-modify-write: choosing one
+    // turns the arrows and the paddle off, so every change that touches one
+    // of the three touches at least two of the keys.
+    if (m_controllerService != nullptr)
+    {
+        std::optional<ControllerUnitKey>  selection = m_controllerService->GetSnapshot().selection;
+
+        if (selection.has_value())
+        {
+            token = ControllerTokens::UnitToToken (selection.value());
+        }
+
+        controllerEntries = MachineInputPrefs::BuildControllerEntries (token, std::string());
+        entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
+    }
+
     hr = DiskSettings::WriteSavedUiPrefs (
-             *m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(),
-             MachineInputPrefs::BuildUiPrefEntries (m_arrowsJoystick, m_pointerMode));
+             *m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(), entries);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

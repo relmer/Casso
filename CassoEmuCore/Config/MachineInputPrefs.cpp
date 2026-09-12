@@ -169,3 +169,89 @@ std::vector<std::pair<std::string, JsonValue>> MachineInputPrefs::BuildUiPrefEnt
 
     return entries;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::ReadControllerToken
+//
+//  The chosen controller, or an empty string where none is chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MachineInputPrefs::ReadControllerToken (const JsonValue * uiPrefs)
+{
+    std::string  token;
+
+
+
+    if (uiPrefs != nullptr && !uiPrefs->HasString (kpszControllerKey, token))
+    {
+        token.clear();
+    }
+
+    return token;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::ReadProfileName
+//
+//  The active profile, or an empty string, which means Default (FR-029).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MachineInputPrefs::ReadProfileName (const JsonValue * uiPrefs)
+{
+    std::string  name;
+
+
+
+    if (uiPrefs != nullptr && !uiPrefs->HasString (kpszProfileKey, name))
+    {
+        name.clear();
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::BuildControllerEntries
+//
+//  An EMPTY TOKEN IS STILL WRITTEN, as an empty string. The absence of the
+//  key means this machine has never chosen a controller, and the policy is
+//  free to choose one for it; the empty string means the user turned the
+//  controller off in favor of the arrows or the paddle, and choosing one for
+//  them again on the next launch would undo that (FR-032).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::string, JsonValue>> MachineInputPrefs::BuildControllerEntries (
+    const std::string &  controllerToken,
+    const std::string &  profileName)
+{
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+
+
+
+    entries.emplace_back (kpszControllerKey, JsonValue (controllerToken));
+
+    if (!profileName.empty())
+    {
+        entries.emplace_back (kpszProfileKey, JsonValue (profileName));
+    }
+
+    return entries;
+}
