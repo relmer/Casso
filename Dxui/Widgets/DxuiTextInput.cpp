@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiTextInput.h"
+#include "Core/DxuiClipboard.h"
 
 
 static constexpr float     s_kFontDip             = 13.0f;
@@ -735,74 +736,28 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
 //
 //  CopyToClipboard
 //
-//  Copies the selection as CF_UNICODETEXT. An empty selection copies nothing
-//  and, importantly, leaves the clipboard ALONE -- Ctrl+C with no selection
-//  must not wipe whatever the user copied earlier.
-//
-//  ownsGlobal tracks who is responsible for the memory. The clipboard takes
-//  ownership only when SetClipboardData succeeds: freeing after a successful
-//  set corrupts the clipboard, and not freeing after a failed one leaks. The
-//  flag is raised at allocation and lowered exactly on success, so the single
-//  cleanup block does the right thing from every exit.
-//
-//  Failures are silent by design. Another application holding the clipboard
-//  open is routine, and an error dialog for a failed Ctrl+C would be worse
-//  than the failure.
+//  Copies the selection. An empty selection copies nothing and leaves the
+//  clipboard alone, so Ctrl+C with nothing selected does not wipe whatever
+//  the user copied earlier.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextInput::CopyToClipboard() const
 {
-    HRESULT       hr         = S_OK;
-    size_t        selStart   = std::min (m_caret, m_anchor);
-    size_t        selEnd     = std::max (m_caret, m_anchor);
+    size_t        selStart = std::min (m_caret, m_anchor);
+    size_t        selEnd   = std::max (m_caret, m_anchor);
     std::wstring  sel;
-    HGLOBAL       hGlobal    = nullptr;
-    void        * pBuf       = nullptr;
-    bool          isOpen     = false;
-    bool          wasEmptied = false;
-    // True while WE still have to free hGlobal; cleared once the clipboard
-    // takes ownership, which is the one path that must not free it.
-    bool          ownsGlobal = false;
 
 
 
-    BAIL_OUT_IF (selStart == selEnd, S_OK);   // nothing selected
+    if (selStart == selEnd)
+    {
+        return;
+    }
 
     sel.assign (m_text, selStart, selEnd - selStart);
 
-    isOpen = OpenClipboard (m_hwnd) != FALSE;
-
-    BAIL_OUT_IF (!isOpen, S_OK);
-
-    wasEmptied = EmptyClipboard() != FALSE;
-
-    BAIL_OUT_IF (!wasEmptied, S_OK);
-
-    hGlobal    = GlobalAlloc (GMEM_MOVEABLE, (sel.size() + 1) * sizeof (wchar_t));
-    ownsGlobal = (hGlobal != nullptr);
-
-    BAIL_OUT_IF (!ownsGlobal, S_OK);
-
-    pBuf = GlobalLock (hGlobal);
-
-    BAIL_OUT_IF (pBuf == nullptr, S_OK);
-
-    memcpy (pBuf, sel.c_str(), (sel.size() + 1) * sizeof (wchar_t));
-    GlobalUnlock (hGlobal);
-
-    ownsGlobal = (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr);
-
-Error:
-    if (ownsGlobal)
-    {
-        GlobalFree (hGlobal);
-    }
-
-    if (isOpen)
-    {
-        CloseClipboard();
-    }
+    DxuiClipboard::SetText (m_hwnd, sel);
 }
 
 
@@ -813,71 +768,33 @@ Error:
 //
 //  PasteFromClipboard
 //
-//  Pastes CF_UNICODETEXT at the caret, replacing any selection.
-//
-//  The clipboard text is copied into a local string and the clipboard is
-//  CLOSED before anything is inserted. Insertion fires the change callback,
-//  which runs arbitrary caller code -- and running that while holding the
-//  clipboard open would let a re-entrant copy deadlock against our own lock.
-//
-//  Only CF_UNICODETEXT is requested. Windows synthesizes it from ANSI text,
-//  so asking for the wide format costs no compatibility and avoids a codepage
-//  conversion here.
-//
-//  Length limiting is left to InsertText, so a paste that overflows is
-//  truncated by the same rule that governs typing rather than by a second one
-//  that could disagree.
+//  Pastes at the caret, replacing any selection. Length limiting is left to
+//  InsertText, so a paste that overflows is truncated by the same rule that
+//  governs typing rather than by a second one that could disagree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextInput::PasteFromClipboard()
 {
-    HRESULT       hr      = S_OK;
-    HANDLE        hData   = nullptr;
-    wchar_t     * pBuf    = nullptr;
     std::wstring  ins;
-    bool          isOpen  = false;
-    bool          hasText = false;
 
 
 
-    isOpen = OpenClipboard (m_hwnd) != FALSE;
-
-    BAIL_OUT_IF (!isOpen, S_OK);
-
-    hData = GetClipboardData (CF_UNICODETEXT);
-
-    BAIL_OUT_IF (hData == nullptr, S_OK);
-
-    pBuf = (wchar_t *) GlobalLock (hData);
-
-    BAIL_OUT_IF (pBuf == nullptr, S_OK);
-
-    ins.assign (pBuf);
-    hasText = true;
-    GlobalUnlock (hData);
-
-Error:
-    if (isOpen)
+    if (!DxuiClipboard::GetText (m_hwnd, ins))
     {
-        CloseClipboard();
+        return;
     }
 
-    // Insert AFTER releasing the clipboard: InsertText can raise callbacks,
-    // and holding the clipboard open across them is asking for a deadlock.
-    if (hasText)
+    // Strip newlines for single-line input, which has no place to put them.
+    for (auto & c : ins)
     {
-        // Strip newlines for single-line input.
-        for (auto & c : ins)
+        if (c == L'\r' || c == L'\n' || c == L'\t')
         {
-            if (c == L'\r' || c == L'\n' || c == L'\t')
-            {
-                c = L' ';
-            }
+            c = L' ';
         }
-
-        InsertText (ins);
     }
+
+    InsertText (ins);
 }
 
 

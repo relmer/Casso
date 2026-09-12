@@ -195,6 +195,7 @@
     <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
     <ClCompile Include="Widgets\DxuiFramebufferView.cpp" />
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
+    <ClCompile Include="Core\DxuiClipboard.cpp" />
     <ClCompile Include="Window\DxuiDragDropSource.cpp" />
     <ClCompile Include="Theme\DxuiLightTheme.cpp" />
     <ClCompile Include="Theme\DxuiDarkTheme.cpp" />
@@ -279,6 +280,7 @@
     <ClInclude Include="Widgets\DxuiStatusBar.h" />
     <ClInclude Include="Widgets\DxuiFramebufferView.h" />
     <ClInclude Include="Widgets\DxuiHexView.h" />
+    <ClInclude Include="Core\DxuiClipboard.h" />
     <ClInclude Include="Window\DxuiDragDropSource.h" />
     <ClInclude Include="Theme\DxuiLightTheme.h" />
     <ClInclude Include="Theme\DxuiDarkTheme.h" />

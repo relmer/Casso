@@ -352,8 +352,8 @@ public:
         Assert::AreEqual (uint64_t (0),  view.GetSelectionFirst(), L"The run starts where the press landed");
         Assert::AreEqual (uint64_t (21), view.GetSelectionLast(),
             L"and ends on the byte under the release, even in the other column");
-        Assert::IsTrue (view.GetSelectionColumn() == DxuiHexView::Column::Hex,
-            L"The column is the one the run was started in");
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Hex,
+            L"The active column is the one the press landed in, not the one the drag ended in");
     }
 
 
@@ -665,6 +665,134 @@ public:
 
         Assert::AreEqual (std::wstring (L"1011 1213"), view.GetHexFor (0x10, 4),
             L"and at two the digits pair up");
+    }
+
+
+    TEST_METHOD (ActiveColumn_FollowsTheColumnClickedIn)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+        int                textStart = kHexStart + (16 * 2) + 15 + DxuiHexView::kGutterCells;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Hex,
+            L"A view opens in the hex column");
+
+        view.OnMouse (MakeMouse (DxuiMouseEventKind::Down, (textStart + 2) * kCellW, 0));
+
+        Assert::IsTrue (view.GetActiveColumn() == DxuiHexView::Column::Text,
+            L"Clicking the characters moves the user into the text column");
+    }
+
+
+    TEST_METHOD (SelectAll_TakesEveryByteAndMeansTheActiveColumn)
+    {
+        CountingHexSource  source (4);
+        DxuiHexView        view;
+        int                textStart = kHexStart + (16 * 2) + 15 + DxuiHexView::kGutterCells;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        view.OnKey (MakeKey ('A', false, true));
+
+        Assert::AreEqual (uint64_t (4), view.GetSelectionCount(),
+            L"Ctrl+A is every byte whichever column it is pressed in");
+        Assert::AreEqual (std::wstring (L"00 01 02 03"), view.GetSelectionText(),
+            L"and in the hex column it means the digits");
+
+        view.OnMouse (MakeMouse (DxuiMouseEventKind::Down, textStart * kCellW, 0));
+        view.OnKey (MakeKey ('A', false, true));
+
+        Assert::AreEqual (std::wstring (L"....", 4), view.GetSelectionText(),
+            L"and in the text column the same run means the characters");
+    }
+
+
+    TEST_METHOD (Copy_YieldsWhicheverFormTheUserIsWorkingIn)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+        int                textStart = kHexStart + (16 * 2) + 15 + DxuiHexView::kGutterCells;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        view.SelectByte (0x41, DxuiHexView::Column::Hex);
+        view.ExtendSelectionTo (0x43);
+
+        Assert::AreEqual (std::wstring (L"41 42 43"), view.GetSelectionText(),
+            L"A run selected in the hex column copies as digits");
+
+        view.OnMouse (MakeMouse (DxuiMouseEventKind::Down, textStart * kCellW, 0));
+        view.SelectByte (0x41, DxuiHexView::Column::Text);
+        view.ExtendSelectionTo (0x43);
+
+        Assert::AreEqual (std::wstring (L"ABC"), view.GetSelectionText(),
+            L"and the same run selected in the text column copies as characters");
+
+        view.ClearSelection();
+
+        Assert::AreEqual (std::wstring(), view.GetSelectionText(),
+            L"Nothing selected copies nothing, so Ctrl+C cannot wipe the clipboard");
+    }
+
+
+    TEST_METHOD (RightClick_KeepsASelectionItLandsInsideAndAsksForTheMenu)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+        DxuiMouseEvent     click  = MakeMouse (DxuiMouseEventKind::Down, (kHexStart + 12) * kCellW, 0);
+        int                menus  = 0;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+        view.SetOnContextMenu ([&menus] (POINT) { menus++; });
+
+        view.SelectByte (2, DxuiHexView::Column::Hex);
+        view.ExtendSelectionTo (8);
+
+        click.button = DxuiMouseButton::Right;
+        view.OnMouse (click);
+
+        Assert::AreEqual (uint64_t (7), view.GetSelectionCount(),
+            L"A right-click inside the run leaves it alone");
+        Assert::AreEqual (1, menus, L"and asks the host for its menu");
+
+        click.positionDip = POINT { (kHexStart + 45) * kCellW, 0 };
+        view.OnMouse (click);
+
+        Assert::AreEqual (uint64_t (1), view.GetSelectionCount(),
+            L"A right-click outside it selects what it landed on instead");
+        Assert::AreEqual (2, menus, L"and asks again");
+    }
+
+
+    TEST_METHOD (GoToOffset_PutsTheCaretThereAndScrollsToIt)
+    {
+        CountingHexSource  source (16 * 100);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        view.GoToOffset (50 * 16);
+
+        Assert::AreEqual (uint64_t (50 * 16), view.GetCaret(), L"The caret lands on the offset");
+        Assert::AreEqual (uint64_t (1),       view.GetSelectionCount(), L"as a selection of one byte");
+        Assert::IsTrue (view.GetTopRow() > 0, L"and the view scrolls until that row is on screen");
+
+        view.GoToOffset (16 * 100);
+
+        Assert::AreEqual (uint64_t (50 * 16), view.GetCaret(),
+            L"An offset past the end is not a place to go");
     }
 
 

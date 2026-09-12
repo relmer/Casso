@@ -57,10 +57,12 @@ public:
 //  the right.
 //
 //  ONE SELECTION COVERS A RUN OF BYTES, NOT A RUN OF CHARACTERS. Selecting in
-//  either column selects bytes, so the same run lights in both columns at once
-//  and a selection made in the hex column can be copied as text and the other
-//  way around. The column a selection was made in is remembered only so a copy
-//  can default to that form.
+//  either column selects bytes, so the same run lights in both columns at once.
+//  What differs between the columns is the form the user is working in: the
+//  column last clicked is the active one, and it decides what Ctrl+A takes and
+//  whether a copy yields hex digits or characters. There is no copy-as-hex and
+//  copy-as-text pair of commands -- there is one Copy, and the column the user
+//  is in says what it means.
 //
 //  Offsets are the view's own, counted from the first byte the source holds;
 //  the address shown beside a row adds the origin the host set, so the same
@@ -94,6 +96,9 @@ public:
 
     //  A color for a marked byte, or false to leave it the ordinary one.
     using MarkColorFn = std::function<bool (uint8_t mark, uint32_t & outArgb)>;
+
+    //  Asked for a context menu at a point in the same DIPs as the bounds.
+    using ContextMenuFn = std::function<void (POINT atDip)>;
 
     DxuiHexView() { m_focusable = true; }
     ~DxuiHexView() override = default;
@@ -143,12 +148,28 @@ public:
     uint64_t  GetSelectionCount  () const;
     uint64_t  GetSelectionAnchor () const { return m_anchor; }
     uint64_t  GetCaret           () const { return m_caret; }
-    Column    GetSelectionColumn () const { return m_column; }
 
     void          SetTextEncoding (TextEncoding encoding) { m_encoding = encoding; }
     TextEncoding  GetTextEncoding () const                { return m_encoding; }
 
-    void  SetMarkColor (MarkColorFn fn) { m_markColor = std::move (fn); }
+    void  SetMarkColor     (MarkColorFn fn)   { m_markColor = std::move (fn); }
+    void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
+
+    //  The window a copy names as the clipboard's owner.
+    void  SetOwnerWindow (HWND hwnd) { m_hwnd = hwnd; }
+
+    //  Which column the user is working in. A click sets it, and it decides
+    //  what Ctrl+A takes and what a copy yields.
+    Column  GetActiveColumn () const { return m_activeColumn; }
+    void    SetActiveColumn (Column column);
+
+    //  Puts the caret on a byte and scrolls to it.
+    void  GoToOffset (uint64_t offset);
+
+    //  The selection in the form the active column shows it, on the
+    //  clipboard. Nothing selected copies nothing.
+    void          CopySelection () const;
+    std::wstring  GetSelectionText () const;
 
     //  The characters the text column shows for a run of bytes, and the hex
     //  digits the hex column shows for it. Painting and a copy of the
@@ -222,11 +243,13 @@ private:
     bool                    m_hasSelection  = false;
     uint64_t                m_anchor        = 0;
     uint64_t                m_caret         = 0;
-    Column                  m_column        = Column::None;
+    Column                  m_activeColumn  = Column::Hex;
+    HWND                    m_hwnd          = nullptr;
     bool                    m_dragging      = false;
     TextEncoding            m_encoding      = TextEncoding::Ascii;
     DxuiDpiScaler           m_scaler;
     MarkColorFn             m_markColor;
+    ContextMenuFn           m_onContextMenu;
     std::function<void ()>  m_onSelectionChanged;
     std::vector<uint8_t>    m_rowBytes;
     std::vector<uint8_t>    m_rowMarks;

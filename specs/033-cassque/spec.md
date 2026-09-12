@@ -455,8 +455,13 @@ bytes, change the grouping, and copy the selection both ways.
 - **FR-012e**: The hex preview MUST group its bytes one, two, four or
   eight at a time at the user's choice, keep the selection across a
   change of grouping, and persist the choice.
-- **FR-012f**: The selection MUST be copyable both as hex digits and as
-  the characters the text column shows.
+- **FR-012f**: The selection MUST be copyable, as hex digits when the user
+  is working in the hex column and as the characters the text column shows
+  when they are working in that one. There MUST be one Copy command --
+  reached through Edit, the context menu on the selection, and Ctrl+C --
+  and not a pair of copy-as-hex and copy-as-text commands: the column the
+  caret is in already says which form is meant. Select all MUST follow the
+  same rule, taking every byte and meaning the column the user is in.
 - **FR-012g**: The hex preview MUST offer go to offset, which scrolls to
   that offset and puts the caret there.
 - **FR-012h**: The text column MUST read a byte as Apple text, ignoring

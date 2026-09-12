@@ -4,6 +4,7 @@
 
 #include "Theme/IDxuiTheme.h"
 #include "Render/IDxuiTextRenderer.h"
+#include "Core/DxuiClipboard.h"
 
 
 
@@ -605,8 +606,12 @@ void DxuiHexView::SelectByte (uint64_t offset, Column column)
 
     m_anchor       = offset;
     m_caret        = offset;
-    m_column       = (column == Column::None) ? Column::Hex : column;
     m_hasSelection = true;
+
+    if (column != Column::None)
+    {
+        m_activeColumn = column;
+    }
 
     NotifySelectionChanged();
 }
@@ -638,7 +643,7 @@ void DxuiHexView::ExtendSelectionTo (uint64_t offset)
 
     if (!m_hasSelection)
     {
-        SelectByte (offset, m_column);
+        SelectByte (offset, m_activeColumn);
         return;
     }
 
@@ -654,6 +659,10 @@ void DxuiHexView::ExtendSelectionTo (uint64_t offset)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiHexView::SelectAll
+//
+//  Every byte, which is the same run whichever column the user is in. What
+//  differs is what it means: in the hex column Ctrl+A then Ctrl+C yields the
+//  digits, in the text column the characters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -671,7 +680,6 @@ void DxuiHexView::SelectAll()
 
     m_anchor       = 0;
     m_caret        = bytes - 1;
-    m_column       = (m_column == Column::None) ? Column::Hex : m_column;
     m_hasSelection = true;
 
     NotifySelectionChanged();
@@ -696,7 +704,6 @@ void DxuiHexView::ClearSelection()
     m_hasSelection = false;
     m_anchor       = 0;
     m_caret        = 0;
-    m_column       = Column::None;
 
     if (had)
     {
@@ -777,6 +784,94 @@ bool DxuiHexView::IsByteSelected (uint64_t offset) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHexView::SetActiveColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetActiveColumn (Column column)
+{
+    if (column != Column::None)
+    {
+        m_activeColumn = column;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GoToOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::GoToOffset (uint64_t offset)
+{
+    uint64_t  bytes = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+
+
+
+    if (offset >= bytes)
+    {
+        return;
+    }
+
+    SelectByte (offset, m_activeColumn);
+    EnsureByteVisible (offset);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetSelectionText
+//
+//  The selection as the column the user is working in shows it. One Copy, two
+//  answers, decided by where the caret is rather than by which command was
+//  picked off a menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiHexView::GetSelectionText() const
+{
+    uint64_t  first = GetSelectionFirst();
+    uint64_t  count = GetSelectionCount();
+
+
+
+    if (count == 0)
+    {
+        return std::wstring();
+    }
+
+    return (m_activeColumn == Column::Text) ? GetTextFor (first, count)
+                                            : GetHexFor  (first, count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::CopySelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::CopySelection() const
+{
+    DxuiClipboard::SetText (m_hwnd, GetSelectionText());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHexView::NotifySelectionChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -842,7 +937,7 @@ void DxuiHexView::MoveCaretTo (uint64_t offset, bool extend)
     }
     else
     {
-        SelectByte (offset, m_column);
+        SelectByte (offset, m_activeColumn);
     }
 
     EnsureByteVisible (offset);
@@ -870,17 +965,38 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Down:
-        if (ev.button != DxuiMouseButton::Left)
-        {
-            return false;
-        }
-
         hit = HitTestPoint (ev.positionDip);
 
         if (!hit.hit)
         {
             return false;
         }
+
+        //  A right-click keeps a selection it lands inside and starts one
+        //  where it does not, then asks the host for its menu.
+        if (ev.button == DxuiMouseButton::Right)
+        {
+            SetActiveColumn (hit.column);
+
+            if (!IsByteSelected (hit.offset))
+            {
+                SelectByte (hit.offset, hit.column);
+            }
+
+            if (m_onContextMenu)
+            {
+                m_onContextMenu (ev.positionDip);
+            }
+
+            return true;
+        }
+
+        if (ev.button != DxuiMouseButton::Left)
+        {
+            return false;
+        }
+
+        SetActiveColumn (hit.column);
 
         if (ev.shift)
         {
@@ -1008,6 +1124,15 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
         }
 
         SelectAll();
+        return true;
+
+    case 'C':
+        if (!ev.ctrl)
+        {
+            return false;
+        }
+
+        CopySelection();
         return true;
 
     default:

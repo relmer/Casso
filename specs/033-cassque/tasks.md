@@ -189,10 +189,12 @@
 - [x] T088 [P] [US6] `Dxui/Widgets/DxuiHexView.h/.cpp`: the offset, hex and text columns, grouping at 1, 2, 4 and 8 bytes, the point-to-byte hit test, the byte-range selection, scrolling and `EnsureByteVisible` -- geometry and selection only, no painting. The bytes arrive through a source the host supplies, addressed from an origin, with a per-byte mark for anything the host draws differently; the widget holds no copy and reads only the rows it draws, so a machine's whole memory costs what a screenful does
 - [x] T089 [US6] `DxuiHexView` input: drag in either column, Shift with a click or an arrow key to extend, arrows, Home, End, Page keys and Ctrl+A, and the wheel
 - [x] T090 [US6] `DxuiHexView` painting: both columns from the theme, the selection lit in both at once, the offsets down the left, both columns in the fixed-width face
-- [ ] T091 [US6] Copy the selection as hex digits or as characters, go to offset, and the grouping choice in the View menu persisted through `CassquePrefs`
+- [x] T091 [US6] `DxuiHexView` copy and go to offset: one Copy that yields digits or characters by the column the caret is in, on Ctrl+C and through a context menu the host raises, with `DxuiClipboard` extracted from `DxuiTextInput` so there is one clipboard path in the library; `GoToOffset` puts the caret on an offset and scrolls to it
 - [ ] T092 [US6] Cassque's hex preview becomes a `DxuiHexView` instead of a list of strings, with the per-tab preview scroll kept
 - [ ] T093 [P] [US6] `UnitTest/Dxui/DxuiHexViewTests.cpp`: which bytes a point selects, what a selection lights in each column, what a regrouping does to it, what each copy yields, the ends of the file, and a 64 KB source at a non-zero origin that counts the bytes it is asked for, proving only the drawn rows are read
 - [ ] T094 [US6] Extend `quickstart.md` with the story 6 walk-through
+
+- [ ] T091a [US6] Cassque wiring for the above: Edit > Copy and a context menu on the selection, Go to offset, and the grouping choice in the View menu persisted through `CassquePrefs`
 
 **Checkpoint**: a hex preview can be selected in, regrouped and copied from, in either column.
 
