@@ -87,6 +87,32 @@ DxuiPopupMenuItem DxuiPopupMenuItem::ForSubmenu (const DxuiCommand * cmd, std::v
 DxuiPopupMenu::DxuiPopupMenu()
 {
     m_clock = [] () { return (uint64_t) GetTickCount64(); };
+    RefreshMetrics();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::RefreshMetrics
+//
+//  Re-reads the Windows menu settings for the scaler's current DPI. A caller
+//  that pinned its own metrics keeps them; nothing else caches, so a menu
+//  dragged to a display at another scale is laid out for that display the
+//  next time it opens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::RefreshMetrics()
+{
+    if (m_metricsPin)
+    {
+        return;
+    }
+
+    m_metrics = DxuiMenuMetrics::FromSystem (m_scaler.GetDpi());
 }
 
 
@@ -301,6 +327,7 @@ void DxuiPopupMenu::ShowCore (
     if (m_popupHost != nullptr)
     {
         m_scaler.SetDpi (m_popupHost->GetScaler().GetDpi());
+        RefreshMetrics();
     }
 
     width  = MeasureWidthPx (text);
@@ -619,7 +646,7 @@ int DxuiPopupMenu::GetRowHeightPx (int index) const
 
 
 
-    return m_scaler.ToPx (isSeparator ? kSeparatorHeightDip : kRowHeightDip);
+    return isSeparator ? m_metrics.separatorHeightPx : m_metrics.rowHeightPx;
 }
 
 
@@ -702,40 +729,33 @@ int DxuiPopupMenu::MeasureRunPx (const std::wstring & run, float fontDip, IDxuiT
 //
 //  DxuiPopupMenu::MeasureWidthPx
 //
-//  Width fitted to content: the widest label, plus an accelerator column
-//  only when some row carries accelerator text, plus a check gutter only
-//  when some row is checkable, plus padding, never below the floor. The
-//  gutter and column decisions are recorded so the painter reads the SAME
-//  answer; a width that reserved space the painter never drew into is the
-//  disagreement this replaces.
+//  Width fitted to content as two independent columns: the label column is
+//  the widest label, the accelerator column the widest accelerator or submenu
+//  arrow, and a fixed gap separates them. Both column origins are recorded so
+//  the painter reads the SAME answer the measurement reached.
+//
+//  Measuring each row as label-plus-accelerator and taking the widest, which
+//  is what this replaces, sized the menu so that the LONGEST row cleared its
+//  own accelerator and no other row did: a long label on an accelerator-less
+//  row ran under the right-aligned accelerators above it. Separate columns
+//  cannot produce that, whatever the mix of rows.
+//
+//  The check gutter is reserved whether or not any row can check, as a
+//  Windows menu reserves it, so a command that gains a checked state does not
+//  shift every label in the list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
 {
-    float  fontDip  = m_scaler.ToPxf (kFontDip);
-    int    pad      = m_scaler.ToPx (kRowPadDip);
-    int    gutter   = m_scaler.ToPx (kCheckGutterDip);
-    int    gap      = m_scaler.ToPx (kAccelGapDip);
-    int    minWidth = m_scaler.ToPx (kMinWidthDip);
-    int    widest   = 0;
-    int    width    = 0;
+    float  fontPx      = m_metrics.fontPx;
+    int    widestLabel = 0;
+    int    widestAccel = 0;
+    int    width       = 0;
 
 
 
-    m_hasGutter = false;
-    m_hasAccel  = false;
-
-    for (const DxuiPopupMenuItem & row : m_rows)
-    {
-        if (row.command == nullptr)
-        {
-            continue;
-        }
-
-        if (row.command->isChecked)          { m_hasGutter = true; }
-        if (!row.command->accelerator.empty()) { m_hasAccel  = true; }
-    }
+    m_labelLeftPx = m_metrics.leftPadPx + m_metrics.checkGutterPx + m_metrics.gutterGapPx;
 
     for (const DxuiPopupMenuItem & row : m_rows)
     {
@@ -751,26 +771,46 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
 
         ParseMnemonic (row.command->GetLabelText(), stripped, mnIdx, mnCh);
 
-        px = MeasureRunPx (stripped, fontDip, text);
+        px = MeasureRunPx (stripped, fontPx, text);
+
+        if (px > widestLabel)
+        {
+            widestLabel = px;
+        }
 
         if (row.kind == DxuiPopupMenuItem::Kind::Submenu)
         {
-            px += gap + MeasureRunPx (s_kpszTriangleRight, fontDip, text);
+            px = MeasureRunPx (s_kpszTriangleRight, fontPx, text);
         }
         else if (!row.command->accelerator.empty())
         {
-            px += gap + MeasureRunPx (row.command->accelerator, fontDip, text);
+            px = MeasureRunPx (row.command->accelerator, fontPx, text);
+        }
+        else
+        {
+            px = 0;
         }
 
-        if (px > widest)
+        if (px > widestAccel)
         {
-            widest = px;
+            widestAccel = px;
         }
     }
 
-    width = pad + (m_hasGutter ? gutter : 0) + widest + pad;
+    m_accelWidthPx = widestAccel;
+    m_accelLeftPx  = m_labelLeftPx + widestLabel + ((widestAccel > 0) ? m_metrics.accelGapPx : 0);
 
-    return (width > minWidth) ? width : minWidth;
+    width = m_accelLeftPx + widestAccel + m_metrics.rightPadPx;
+
+    // Under the floor the slack goes between the columns, so the accelerators
+    // stay against the right edge rather than stranded mid-row.
+    if (width < m_metrics.minWidthPx)
+    {
+        m_accelLeftPx += m_metrics.minWidthPx - width;
+        width          = m_metrics.minWidthPx;
+    }
+
+    return width;
 }
 
 
@@ -1428,7 +1468,7 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const
 {
     Palette  pal;
-    float    fontDip = m_scaler.ToPxf (kFontDip);
+    float    fontDip = m_metrics.fontPx;
     float    left    = (float) originLeft;
     float    top     = (float) originTop;
     float    width   = (float) (m_boundsDip.right  - m_boundsDip.left);
@@ -1464,9 +1504,14 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
 //  checked, enabled, accelerator. A separator is a divider line inset from
 //  both edges at the row's vertical midpoint.
 //
-//  The label owns the full content width and the accelerator or submenu
-//  arrow is right aligned within that same width; the menu was sized so the
-//  two cannot meet.
+//  The label is clipped to the label column and the accelerator is drawn LEFT
+//  aligned at the accelerator column's origin, so accelerators of unequal
+//  length share a left edge and a label that outgrows its column is elided
+//  rather than painted over the column beside it. A submenu arrow is the one
+//  thing right aligned, against the right pad reserved for it.
+//
+//  Text sits at the row's vertical center, computed from the metrics' line
+//  height so a row that grows with the system menu font stays centered.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1484,13 +1529,14 @@ void DxuiPopupMenu::PaintRow (
     const DxuiPopupMenuItem &  row       = m_rows[(size_t) index];
     int                        rowTopPx  = GetRowTopPx (index);
     int                        rowH      = GetRowHeightPx (index);
-    int                        pad       = m_scaler.ToPx (kRowPadDip);
-    int                        padTop    = m_scaler.ToPx (kRowPadTopDip);
-    int                        gutter    = m_scaler.ToPx (kCheckGutterDip);
-    int                        inset     = m_scaler.ToPx (kSeparatorInsetDip);
-    int                        labelLeft = pad + (m_hasGutter ? gutter : 0);
+    int                        pad       = m_metrics.leftPadPx;
+    int                        gutter    = m_metrics.checkGutterPx;
+    int                        inset     = m_metrics.separatorInsetPx;
+    int                        labelLeft = m_labelLeftPx;
+    int                        padTop    = (rowH - m_metrics.lineHeightPx) / 2;
     float                      y         = top + (float) rowTopPx;
-    float                      contentW  = width - (float) labelLeft - (float) pad;
+    float                      labelW    = (float) (m_accelLeftPx - labelLeft);
+    float                      accelW    = width - (float) m_accelLeftPx - (float) m_metrics.rightPadPx;
     std::wstring               stripped;
     int                        mnIdx     = -1;
     wchar_t                    mnCh      = 0;
@@ -1529,7 +1575,7 @@ void DxuiPopupMenu::PaintRow (
     hr = text.DrawString (stripped.c_str(),
                           left + (float) labelLeft,
                           y + (float) padTop,
-                          contentW,
+                          labelW,
                           (float) rowH,
                           labelArgb,
                           fontDip,
@@ -1545,7 +1591,9 @@ void DxuiPopupMenu::PaintRow (
                               (float) rowH,
                               labelArgb,
                               fontDip,
-                              DxuiTheme::kBodyFace);
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Top);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -1558,9 +1606,9 @@ void DxuiPopupMenu::PaintRow (
     if (row.kind == DxuiPopupMenuItem::Kind::Submenu)
     {
         hr = text.DrawString (s_kpszTriangleRight,
-                              left + (float) labelLeft,
+                              left + (float) m_accelLeftPx,
                               y + (float) padTop,
-                              contentW,
+                              accelW + (float) m_metrics.rightPadPx - (float) pad,
                               (float) rowH,
                               accelArgb,
                               fontDip,
@@ -1572,14 +1620,14 @@ void DxuiPopupMenu::PaintRow (
     else if (!row.command->accelerator.empty())
     {
         hr = text.DrawString (row.command->accelerator.c_str(),
-                              left + (float) labelLeft,
+                              left + (float) m_accelLeftPx,
                               y + (float) padTop,
-                              contentW,
+                              accelW,
                               (float) rowH,
                               accelArgb,
                               fontDip,
                               DxuiTheme::kBodyFace,
-                              DxuiTextHAlign::Right,
+                              DxuiTextHAlign::Left,
                               DxuiTextVAlign::Top);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
