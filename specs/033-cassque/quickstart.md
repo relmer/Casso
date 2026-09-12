@@ -114,7 +114,40 @@ image or file.
 - Help, About. Expected: the cassowary picture and the explanation of the
   name.
 
-## 7. Headless tests
+## 7. Read a file's bytes (Story 6)
+
+Select a binary file on a disk image -- one the graphics rule does not
+claim, so the preview is its bytes.
+
+- Expected: offsets down the left from the file's load address, the hex
+  digits, then the characters, all in a fixed-width face with the columns
+  lined up down the pane.
+- Drag across the digits. Expected: the same run lights in the characters
+  at the same time, and keeps going across the row boundary.
+- Shift+click further down, then Shift+Down. Expected: the run extends;
+  the anchor stays where the drag began.
+- Ctrl+C, then paste into Notepad. Expected: hex digits, spaced by the
+  grouping in force.
+- Click in the characters and Ctrl+C again. Expected: the characters this
+  time, for the same bytes.
+- Tab from the file list. Expected: the digits, then the characters, then
+  out of the pane. Shift+Tab runs the three backwards.
+- Ctrl+A in each column, then Copy. Expected: the whole file, as digits or
+  as characters by the column.
+- View, bytes grouped by four. Expected: the digits regroup and the
+  selection is unchanged. Close and reopen Cassque. Expected: still four.
+- Ctrl+G, type an address in the file. Expected: the caret lands there and
+  the view scrolls to it. Type one outside the file. Expected: a message
+  naming the range, and the view does not move.
+- Right-click inside the selection. Expected: Copy, Select all, Go to
+  offset, and the selection is left alone. Right-click outside it.
+  Expected: the byte under the pointer is selected instead.
+- Select a text file, then a BASIC program. Expected: the preview is lines
+  of text, not bytes; the bytes come back with the next binary.
+- Toggle View, Disassemble binary. Expected: mnemonics from the same load
+  address, as lines rather than a hex view.
+
+## 8. Headless tests
 
 ```powershell
 scripts\RunTests.ps1 -Configuration Debug -Filter Cassque
@@ -147,7 +180,7 @@ Check `UnitTest.dll` is newer than the build. Required coverage:
 - `IntentChannelTests` extended for the new intents and the reply
   encoding.
 
-## 8. Structural checks
+## 9. Structural checks
 
 ```powershell
 (Select-String -Path Cassque\Main.cpp -Pattern '^\s*(\w.*\(.*\)\s*\{|return)' ).Count
@@ -157,7 +190,7 @@ Expected: 0. `Cassque.vcxproj` holds one comment-only source, one `.rc`,
 and `EntryPointSymbol=wWinMainCRTStartup` in every configuration. A grep
 of `Dxui/` for `Cassque` or `Casso` returns nothing new.
 
-## 9. Gates
+## 10. Gates
 
 ```powershell
 scripts\RunTests.ps1 -Configuration Debug

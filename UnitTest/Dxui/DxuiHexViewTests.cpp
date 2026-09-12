@@ -597,6 +597,42 @@ public:
     }
 
 
+    TEST_METHOD (Paint_AMachinesMemoryAtItsOwnOriginCostsAScreenful)
+    {
+        CountingHexSource     source (64 * 1024);
+        DxuiHexView           view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        RECT                  rect  = {};
+
+
+        //  What the emulator's debugger will hand it: a whole address space,
+        //  labeled from where the machine says it starts rather than zero.
+        view.SetSource (&source);
+        view.SetOriginAddress (0xC000);
+        LayOut (view);
+
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (uint64_t (20 * 16), source.GetBytesRead(),
+            L"64 KB costs one screenful to draw, whatever the origin");
+
+        rect = view.GetRowOffsetRect (0);
+
+        Assert::AreEqual ((LONG) (8 * kCellW), rect.right - rect.left,
+            L"$C000 plus 64 KB runs past sixteen bits, so the offsets are eight digits");
+
+        view.GoToOffset (0x8000);
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (uint64_t (2 * 20 * 16), source.GetBytesRead(),
+            L"and jumping into the middle of it costs another screenful, not a scan");
+        Assert::AreEqual (std::wstring (L"00 01"), view.GetHexFor (0x8000, 2),
+            L"The bytes read are the ones at that offset, counted from the source's own start");
+    }
+
+
     TEST_METHOD (Paint_LightsTheSelectionInBothColumns)
     {
         CountingHexSource     source (256);

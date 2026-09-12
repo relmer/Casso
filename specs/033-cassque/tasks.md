@@ -192,8 +192,8 @@
 - [x] T091 [US6] `DxuiHexView` copy and go to offset: one Copy that yields digits or characters by the column the caret is in, on Ctrl+C and through a context menu the host raises, with `DxuiClipboard` extracted from `DxuiTextInput` so there is one clipboard path in the library; `GoToOffset` puts the caret on an offset and scrolls to it
 - [x] T091a [US6] Cassque wiring for the above: Edit > Copy and a context menu on the selection, Go to offset, and the grouping choice in the View menu persisted through `CassquePrefs`
 - [x] T092 [US6] Cassque's hex preview becomes a `DxuiHexView` instead of a list of strings, with the per-tab preview scroll kept
-- [ ] T093 [P] [US6] `UnitTest/Dxui/DxuiHexViewTests.cpp`: which bytes a point selects, what a selection lights in each column, what a regrouping does to it, what each copy yields, the ends of the file, and a 64 KB source at a non-zero origin that counts the bytes it is asked for, proving only the drawn rows are read
-- [ ] T094 [US6] Extend `quickstart.md` with the story 6 walk-through
+- [x] T093 [P] [US6] `UnitTest/Dxui/DxuiHexViewTests.cpp`: which bytes a point selects, what a selection lights in each column, what a regrouping does to it, what each copy yields, the ends of the file, and a 64 KB source at a non-zero origin that counts the bytes it is asked for, proving only the drawn rows are read
+- [x] T094 [US6] Extend `quickstart.md` with the story 6 walk-through
 
 **Checkpoint**: a hex preview can be selected in, regrouped and copied from, in either column.
 
