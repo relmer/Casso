@@ -1722,7 +1722,15 @@ void DxuiPopupMenu::PaintRow (
 
     if (index == m_hover)
     {
-        painter.FillRect (left, y, width, (float) rowH, pal.hover);
+        float  insetX = m_scaler.ToPxf ((float) kHoverInsetXDip);
+        float  insetY = m_scaler.ToPxf ((float) kHoverInsetYDip);
+
+        painter.FillRoundedRect (left  + insetX,
+                                 y     + insetY,
+                                 width - insetX - insetX,
+                                 (float) rowH - insetY - insetY,
+                                 m_scaler.ToPxf (kHoverRadiusDip),
+                                 pal.hover);
     }
 
     hr = text.DrawString (stripped.c_str(),

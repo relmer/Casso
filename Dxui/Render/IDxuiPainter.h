@@ -69,6 +69,18 @@ public:
                                       uint32_t argbColor)
     { (void) radiusPx; OutlineRect (xPx, yPx, widthPx, heightPx, thicknessPx, argbColor); }
 
+    // A rounded fill, for hover, selection and pressed states and for any
+    // surface drawn as a card. Defaulted to the square fill on the same terms
+    // as the outline above: a painter that cannot round a corner still marks
+    // the state, which is what the fill is for.
+    virtual void  FillRoundedRect (float    xPx,
+                                   float    yPx,
+                                   float    widthPx,
+                                   float    heightPx,
+                                   float    radiusPx,
+                                   uint32_t argbColor)
+    { (void) radiusPx; FillRect (xPx, yPx, widthPx, heightPx, argbColor); }
+
     // Glyph-painting primitives (input-device selector). Defaulted
     // to no-ops on the interface so test mocks and simple painters compile
     // unchanged; the concrete DxuiPainter implements them with the same

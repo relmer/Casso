@@ -71,6 +71,13 @@ public:
                                 float thicknessPx,
                                 uint32_t argbColor) override;
 
+    void    FillRoundedRect  (float xPx,
+                              float yPx,
+                              float widthPx,
+                              float heightPx,
+                              float radiusPx,
+                              uint32_t argbColor) override;
+
     // Approximate filled circle using horizontal slices. Cheap and
     // looks good enough at typical UI sizes (radii 4-12px). Used for
     // round indicators (LEDs, radio dots, toggle thumbs).

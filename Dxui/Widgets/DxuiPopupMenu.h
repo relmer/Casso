@@ -250,6 +250,13 @@ private:
     static constexpr uint64_t  kReopenGuardMs          = 250;
     static constexpr int       kRevealMs               = 150;
 
+    //  The hover highlight is a rounded card inset from the menu's edges, not
+    //  a full-bleed band: a square band running into the menu's own rounded
+    //  corners reads as a stripe painted across the popup.
+    static constexpr int       kHoverInsetXDip         = 4;
+    static constexpr int       kHoverInsetYDip         = 2;
+    static constexpr float     kHoverRadiusDip         = 4.0f;
+
     struct Palette
     {
         uint32_t  bg       = 0;
