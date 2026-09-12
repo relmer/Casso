@@ -666,22 +666,40 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 
 
     m_paddleSources = sources;
+
+    //  THE PREVIOUS GENERATION IS KEPT, not freed. An open drop-down holds
+    //  these commands BY POINTER, and the list is rebuilt on the controller
+    //  thread's schedule -- a controller arriving or leaving while the picker
+    //  is open is a case the quickstart tests on purpose. One generation is
+    //  enough: the surface is handed the new list as soon as the rows are
+    //  rebuilt, so only a menu already on screen can still hold the old one.
+    m_retiredPaddleRows = std::move (m_paddleSourceRows);
     m_paddleSourceRows.clear();
 
     for (i = 0; i < m_paddleSources.size(); i++)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::unique_ptr<DxuiCommand>  cmd    = std::make_unique<DxuiCommand>();
+        InputModeRules::PaddleSource  source = m_paddleSources[i];
 
-        cmd->id        = (int) i;
-        cmd->label     = m_paddleSources[i].label;
-        cmd->isChecked = [this, i] () { return i < m_paddleSources.size() && m_paddleSources[i].isChecked; };
-        cmd->isEnabled = [this, i] () { return i < m_paddleSources.size() && m_paddleSources[i].isConnected; };
+        cmd->id    = (int) i;
+        cmd->label = source.label;
 
-        cmd->dispatch  = [this, i] ()
+        //  EACH ROW CARRIES ITS OWN SOURCE BY VALUE, rather than an index to
+        //  look up when it is clicked. The list is rebuilt whenever a
+        //  controller comes or goes, and that changes its LENGTH -- the
+        //  chosen-but-absent row appears, an attached one leaves -- so an
+        //  index captured when the row was built names a DIFFERENT source
+        //  afterwards. A user picking "Use keys as joystick" off a list built
+        //  a moment earlier landed on "Use mouse as paddle", which takes the
+        //  pointer. A row now does what it says, whatever the list did since.
+        cmd->isChecked = [source] () { return source.isChecked; };
+        cmd->isEnabled = [source] () { return source.isConnected; };
+
+        cmd->dispatch  = [this, source] ()
         {
-            if (i < m_paddleSources.size() && m_onPaddleSourcePicked)
+            if (m_onPaddleSourcePicked)
             {
-                m_onPaddleSourcePicked (m_paddleSources[i]);
+                m_onPaddleSourcePicked (source);
             }
         };
 

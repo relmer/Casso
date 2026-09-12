@@ -178,6 +178,12 @@ private:
     std::vector<std::unique_ptr<DxuiCommand>>  m_themeRows;
     std::vector<std::unique_ptr<DxuiCommand>>  m_colorRows;
     std::vector<std::unique_ptr<DxuiCommand>>  m_paddleSourceRows;
+
+    // The generation before it, kept alive because a drop-down already on
+    // screen holds its rows by pointer and the list is rebuilt whenever a
+    // controller comes or goes. Each row answers for the source it was
+    // built from, so a click on one of these still does what it says.
+    std::vector<std::unique_ptr<DxuiCommand>>  m_retiredPaddleRows;
     std::vector<InputModeRules::PaddleSource>  m_paddleSources;
     PaddleSourcePickedFn                       m_onPaddleSourcePicked;
 
