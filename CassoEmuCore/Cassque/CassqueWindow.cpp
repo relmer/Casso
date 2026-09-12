@@ -187,6 +187,7 @@ void CassqueWindow::OnCreate()
     CassqueNamedControl<DxuiListView>         * list            = CreateChild<CassqueNamedControl<DxuiListView>>();
     CassqueNamedControl<DxuiListView>         * previewList     = nullptr;
     CassqueNamedControl<DxuiFramebufferView>  * picture         = nullptr;
+    CassqueNamedControl<DxuiHexView>          * hexView         = nullptr;
     CassqueNamedControl<DxuiSplitter>         * treeSplitter    = nullptr;
     CassqueNamedControl<DxuiSplitter>         * previewSplitter = nullptr;
 
@@ -200,16 +201,19 @@ void CassqueWindow::OnCreate()
     m_listMessage     = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     previewList       = CreateChild<CassqueNamedControl<DxuiListView>>();
     picture           = CreateChild<CassqueNamedControl<DxuiFramebufferView>>();
+    hexView           = CreateChild<CassqueNamedControl<DxuiHexView>>();
     m_previewMessage  = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     treeSplitter      = CreateChild<CassqueNamedControl<DxuiSplitter>>();
     previewSplitter   = CreateChild<CassqueNamedControl<DxuiSplitter>>();
 
     previewList->SetAccessibleName     (L"Preview");
     picture->SetAccessibleName         (L"Picture preview");
+    hexView->SetAccessibleName         (L"Bytes");
     treeSplitter->SetAccessibleName    (L"Folder pane width");
     previewSplitter->SetAccessibleName (L"Preview pane width");
 
     m_previewList     = previewList;
+    m_hexView         = hexView;
     m_picture         = picture;
     m_treeSplitter    = treeSplitter;
     m_previewSplitter = previewSplitter;
@@ -242,6 +246,7 @@ void CassqueWindow::OnCreate()
 void CassqueWindow::ConfigureWidgets()
 {
     std::vector<DxuiTreeNode>  roots;
+    bool                       grouped = false;
 
 
 
@@ -302,6 +307,21 @@ void CassqueWindow::ConfigureWidgets()
     m_previewList->SetMonospace (true);
     m_previewList->SetRowHeightDip (kPreviewRowHeightDip);
     m_previewList->SetHorizontalScrollEnabled (true);
+
+    //  The bytes are Apple text in the column on the right, which is what
+    //  the files here hold; the grouping is the user's, kept between runs.
+    m_hexView->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
+    m_hexView->SetOwnerWindow  (GetHwnd());
+
+    grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
+    IGNORE_RETURN_VALUE (grouped, true);
+
+    m_hexView->SetOnSelectionChanged ([this] () { FillStatus(); });
+
+    m_hexView->SetOnContextMenu ([this] (POINT atDip)
+    {
+        ShowHexContextMenu (m_scaler.ToPx (atDip.x), m_scaler.ToPx (atDip.y));
+    });
 
     m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
     m_treeSplitter->SetOnMoved ([this] (int dip)
@@ -473,6 +493,7 @@ void CassqueWindow::RecomputeLayout()
 
     m_previewSplitter->SetVisible (preview);
     m_previewList->SetVisible (preview && m_previewList->IsVisible());
+    m_hexView->SetVisible (preview && m_hexView->IsVisible());
     m_picture->SetVisible (preview && m_picture->IsVisible());
     m_previewMessage->SetVisible (preview && m_previewMessage->IsVisible());
 
@@ -490,6 +511,7 @@ void CassqueWindow::RecomputeLayout()
         m_list->Layout           (listRect,    m_scaler);
         m_listMessage->Layout    (listRect,    m_scaler);
         m_previewList->Layout    (previewRect, m_scaler);
+        m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (previewRect, m_scaler);
         m_previewMessage->Layout (previewRect, m_scaler);
     }
@@ -594,6 +616,7 @@ void CassqueWindow::FillPreview()
     bool                                          picture = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
     bool                                          error   = preview.kind == PreviewContent::Kind::Error;
     bool                                          catalog = preview.kind == PreviewContent::Kind::Catalog;
+    bool                                          hex     = preview.kind == PreviewContent::Kind::Hex && !preview.bytes.empty();
 
 
 
@@ -629,10 +652,18 @@ void CassqueWindow::FillPreview()
 
     m_previewList->SetRows (std::move (rows));
 
+    //  The hex view reads the preview's own bytes where they lie. The source
+    //  is re-pointed rather than refilled, so a file of any size costs the
+    //  same here as a short one.
+    m_previewBytes.SetBytes (hex ? &preview.bytes : nullptr);
+    m_hexView->SetSource (hex ? &m_previewBytes : nullptr);
+    m_hexView->SetOriginAddress (preview.origin);
+
     m_previewMessage->SetText (error ? preview.message : std::wstring());
     m_previewMessage->SetVisible (visible && error);
     m_picture->SetVisible (visible && picture);
-    m_previewList->SetVisible (visible && !picture && !error);
+    m_previewList->SetVisible (visible && !picture && !error && !hex);
+    m_hexView->SetVisible (visible && hex);
 
     Invalidate();
 }
@@ -680,6 +711,7 @@ void CassqueWindow::SetFocusPane (Pane pane)
     m_tree->OnFocusChanged        (pane == Pane::Tree);
     m_list->OnFocusChanged        (pane == Pane::List);
     m_previewList->OnFocusChanged (pane == Pane::Preview);
+    m_hexView->OnFocusChanged     (pane == Pane::Preview);
 
     Invalidate();
 }
@@ -845,6 +877,21 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The hex view reads a point in the same space as its bounds, so it is
+    //  handed the event as it stands rather than moved to the widget's own
+    //  origin the way the older list views want.
+    if (m_hexView->IsVisible() && Contains (m_hexView->GetBounds(), point))
+    {
+        if (press)
+        {
+            SetFocusPane (Pane::Preview);
+        }
+
+        m_hexView->OnMouse (ev);
+        Invalidate();
+        return true;
+    }
+
     if (m_previewList->IsVisible() && Contains (m_previewList->GetBounds(), point))
     {
         if (press)
@@ -953,6 +1000,16 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  The hex view's two columns are stops of their own inside the preview
+    //  pane: Tab moves between them while it has one left, and only then does
+    //  the walk carry on to the next pane.
+    if (ev.vk == VK_TAB && !ev.ctrl && m_focus == Pane::Preview && IsHexPreviewShowing()
+        && m_hexView->OnKey (ev))
+    {
+        Invalidate();
+        return true;
+    }
+
     if (ev.vk == VK_TAB && !ev.ctrl)
     {
         static constexpr int  kPanes = 3;
@@ -965,6 +1022,14 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         }
 
         SetFocusPane ((Pane) next);
+
+        //  A pane with stops inside it starts at the one the walk's direction
+        //  calls for.
+        if ((Pane) next == Pane::Preview && IsHexPreviewShowing())
+        {
+            m_hexView->OnFocusEntered (!ev.shift);
+        }
+
         return true;
     }
 
@@ -972,7 +1037,9 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
     {
         case Pane::Tree:    handled = m_tree->OnKey (ev);        break;
         case Pane::List:    handled = m_list->OnKey (ev);        break;
-        case Pane::Preview: handled = m_previewList->OnKey (ev); break;
+        case Pane::Preview: handled = IsHexPreviewShowing() ? m_hexView->OnKey (ev)
+                                                            : m_previewList->OnKey (ev);
+                            break;
     }
 
     if (ev.vk == VK_BACK && !handled)
@@ -1008,6 +1075,13 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassqueCommands::kUp:                return m_browser.CanGoUp();
         case CassqueCommands::kToggleDisassembly: return model.HasTabs();
+        case CassqueCommands::kCopy:              return IsHexPreviewShowing() && m_hexView->HasSelection();
+        case CassqueCommands::kSelectAll:
+        case CassqueCommands::kGoToOffset:
+        case CassqueCommands::kGroup1:
+        case CassqueCommands::kGroup2:
+        case CassqueCommands::kGroup4:
+        case CassqueCommands::kGroup8:            return IsHexPreviewShowing();
         case CassqueCommands::kCloseTab:
         case CassqueCommands::kNextTab:
         case CassqueCommands::kPreviousTab:       return model.GetTabCount() > 1;
@@ -1042,10 +1116,140 @@ bool CassqueWindow::IsChecked (int id) const
         case CassqueCommands::kThemeSkeuomorphic: return m_prefs.theme == CassquePrefs::kThemeSkeuomorphic;
         case CassqueCommands::kThemeDarkModern:   return m_prefs.theme == CassquePrefs::kThemeDarkModern;
         case CassqueCommands::kThemeRetroTerminal: return m_prefs.theme == CassquePrefs::kThemeRetroTerminal;
+        case CassqueCommands::kGroup1:            return m_prefs.hexGrouping == 1;
+        case CassqueCommands::kGroup2:            return m_prefs.hexGrouping == 2;
+        case CassqueCommands::kGroup4:            return m_prefs.hexGrouping == 4;
+        case CassqueCommands::kGroup8:            return m_prefs.hexGrouping == 8;
         case CassqueCommands::kNamingDescriptive: return m_prefs.hostNaming != CassquePrefs::kNamingCiderPress;
         case CassqueCommands::kNamingCiderPress:  return m_prefs.hostNaming == CassquePrefs::kNamingCiderPress;
         default:                                  return false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::IsHexPreviewShowing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::IsHexPreviewShowing() const
+{
+    return m_prefs.previewVisible && m_hexView->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SetHexGrouping
+//
+//  A grouping the row cannot divide is refused by the view, and a refused
+//  one is not written to the preferences either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SetHexGrouping (int grouping)
+{
+    if (!m_hexView->SetGrouping (grouping))
+    {
+        return;
+    }
+
+    m_prefs.hexGrouping = grouping;
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::AskForOffset
+//
+//  Offsets are typed the way the column shows them, in hex, with or without
+//  the dollar sign. What is typed is an ADDRESS when the file records a load
+//  address, since that is what the user is reading down the left-hand column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::AskForOffset()
+{
+    uint64_t      origin = m_hexView->GetOriginAddress();
+    uint64_t      caret  = m_hexView->GetCaret();
+    std::wstring  text   = std::format (L"${:04X}", (unsigned) (origin + caret));
+    Word          typed  = 0;
+
+
+
+    if (!IsHexPreviewShowing())
+    {
+        return;
+    }
+
+    for (;;)
+    {
+        if (!CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Go to Offset",
+                                       L"Offset to go to:", text, 8, text))
+        {
+            return;
+        }
+
+        if (CassqueActions::TryParseAddress (text, typed) && ((uint64_t) typed >= origin))
+        {
+            m_hexView->GoToOffset ((uint64_t) typed - origin);
+            Invalidate();
+            return;
+        }
+
+        ShowMessage (std::format (L"Type an offset from ${:04X} to ${:04X}.",
+                                  (unsigned) origin,
+                                  (unsigned) (origin + m_hexView->GetSource()->GetByteCount() - 1)).c_str(),
+                     MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowHexContextMenu
+//
+//  Copy, select all and go to offset -- the three that mean anything over a
+//  run of bytes. Each is the same command the Edit menu carries, so what the
+//  right button offers and what the menu offers cannot drift apart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowHexContextMenu (int x, int y)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    static constexpr int  kIds[] = { (int) CassqueCommands::kCopy,
+                                     (int) CassqueCommands::kSelectAll,
+                                     kSeparatorId,
+                                     (int) CassqueCommands::kGoToOffset };
+
+    for (int id : kIds)
+    {
+        const DxuiCommand *  command = (id == kSeparatorId) ? nullptr : m_commands.Find (id);
+
+        items.push_back ((command != nullptr) ? DxuiPopupMenuItem::ForCommand (command)
+                                              : DxuiPopupMenuItem::ForSeparator());
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
 }
 
 
@@ -1098,6 +1302,23 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kThemeSkeuomorphic:  SelectTheme (CassquePrefs::kThemeSkeuomorphic);  break;
         case CassqueCommands::kThemeDarkModern:    SelectTheme (CassquePrefs::kThemeDarkModern);    break;
         case CassqueCommands::kThemeRetroTerminal: SelectTheme (CassquePrefs::kThemeRetroTerminal); break;
+
+        case CassqueCommands::kCopy:
+            m_hexView->CopySelection();
+            break;
+
+        case CassqueCommands::kSelectAll:
+            m_hexView->SelectAll();
+            break;
+
+        case CassqueCommands::kGoToOffset:
+            AskForOffset();
+            break;
+
+        case CassqueCommands::kGroup1: SetHexGrouping (1); break;
+        case CassqueCommands::kGroup2: SetHexGrouping (2); break;
+        case CassqueCommands::kGroup4: SetHexGrouping (4); break;
+        case CassqueCommands::kGroup8: SetHexGrouping (8); break;
 
         case CassqueCommands::kNamingDescriptive: m_prefs.hostNaming = CassquePrefs::kNamingDescriptive; break;
         case CassqueCommands::kNamingCiderPress:  m_prefs.hostNaming = CassquePrefs::kNamingCiderPress;  break;

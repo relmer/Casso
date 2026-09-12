@@ -186,17 +186,19 @@ public:
 
 
 
-    TEST_METHOD (Hex_RowsAreAddressedFromTheLoadAddress)
+    TEST_METHOD (Hex_CarriesTheBytesAndTheAddressTheyStartAt)
     {
         PreviewContent  content;
 
         RenderDos33 ("ODD", false, content);
 
-        //  777 bytes at $0803 is 49 rows, the last one short.
-        Assert::AreEqual ((size_t) 49, content.lines.size());
-        Assert::IsTrue   (content.lines[0].rfind (L"0803: ", 0) == 0);
-        Assert::IsTrue   (content.lines[1].rfind (L"0813: ", 0) == 0);
-        Assert::IsTrue   (content.lines[0].find (L" |") != std::wstring::npos);
+        //  The bytes are handed over as they are, for a view that draws the
+        //  rows it shows, rather than rendered into lines of text here.
+        Assert::AreEqual ((size_t) 777,  content.bytes.size());
+        Assert::AreEqual ((int) 0x0803, (int) content.origin,
+            L"addressed from the file's load address");
+        Assert::IsTrue   (content.lines.empty(),
+            L"and no lines are rendered for it");
     }
 
 

@@ -42,6 +42,9 @@ struct CassquePrefs
     Placement              placement;
     int                    treeWidthDip    = kDefaultTreeWidthDip;
     int                    previewWidthDip = kDefaultPreviewWidthDip;
+
+    //  Bytes between the spaces in a hex preview: 1, 2, 4 or 8.
+    int                    hexGrouping     = kDefaultHexGrouping;
     std::vector<Location>  tabs;
 
     //  Absent file: defaults, with the theme seeded from the emulator's
@@ -62,6 +65,10 @@ struct CassquePrefs
 
     static bool  IsKnownTheme (const std::string & theme);
 
+    //  1, 2, 4 and 8 are the groupings a hex view offers; anything else in
+    //  the file is a hand edit and falls back to the default.
+    static bool  IsKnownHexGrouping (int grouping);
+
     static constexpr const char *  kThemeLight         = "Light";
     static constexpr const char *  kThemeDark          = "Dark";
     static constexpr const char *  kThemeFollowSystem  = "FollowSystem";
@@ -74,6 +81,7 @@ struct CassquePrefs
 
     static constexpr const wchar_t *  kFileName = L"CassquePrefs.json";
 
+    static constexpr int  kDefaultHexGrouping     = 1;
     static constexpr int  kDefaultTreeWidthDip    = 240;
     static constexpr int  kDefaultPreviewWidthDip = 360;
 

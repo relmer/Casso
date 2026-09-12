@@ -51,9 +51,16 @@ public:
         kThemeRetroTerminal,
         kNamingDescriptive,
         kNamingCiderPress,
+        kCopy,
+        kSelectAll,
+        kGoToOffset,
+        kGroup1,
+        kGroup2,
+        kGroup4,
+        kGroup8,
     };
 
-    enum class Menu { File, View, Go, Help, Count };
+    enum class Menu { File, Edit, View, Go, Help, Count };
 
     struct Handlers
     {
@@ -117,6 +124,10 @@ private:
         { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },
+        { kCopy,              Menu::Edit, L"&Copy",                L"Ctrl+C",  false },
+        { kSelectAll,         Menu::Edit, L"Select &all",          L"Ctrl+A",  false },
+        { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
+        { kGoToOffset,        Menu::Edit, L"&Go to offset...",     L"Ctrl+G",  false },
         { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
@@ -128,6 +139,11 @@ private:
         { kThemeSkeuomorphic, Menu::View, L"Casso &Skeuomorphic (colors only)", nullptr, true },
         { kThemeDarkModern,   Menu::View, L"Casso Dark &Modern",  nullptr,     true  },
         { kThemeRetroTerminal, Menu::View, L"Casso &Retro Terminal", nullptr,  true  },
+        { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kGroup1,            Menu::View, L"Bytes grouped by &one",   nullptr,  true },
+        { kGroup2,            Menu::View, L"Bytes grouped by &two",   nullptr,  true },
+        { kGroup4,            Menu::View, L"Bytes grouped by &four",  nullptr,  true },
+        { kGroup8,            Menu::View, L"Bytes grouped by &eight", nullptr,  true },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kNamingDescriptive, Menu::View, L"Descriptive host file &names", nullptr, true },
         { kNamingCiderPress,  Menu::View, L"&CiderPress host file names", nullptr, true },
@@ -159,7 +175,13 @@ private:
         { 'W',      true,  false, false, kCloseTab      },
         { VK_TAB,   true,  false, false, kNextTab       },
         { VK_TAB,   true,  false, true,  kPreviousTab   },
+        { 'G',      true,  false, false, kGoToOffset    },
     };
+
+    //  Copy and select all are NOT in the key table. Both belong to whatever
+    //  has focus -- the hex view's two columns mean different things by them
+    //  -- so the menu rows show the keystrokes and the focused pane handles
+    //  them, rather than the window claiming them before the pane is asked.
 
     Handlers                                   m_handlers;
     std::vector<std::unique_ptr<DxuiCommand>>  m_commands;

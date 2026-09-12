@@ -188,58 +188,6 @@ void PreviewDecoder::SplitIntoLines (const std::string & text, std::vector<std::
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewDecoder::RenderHexRows
-//
-//  `2000: A9 00 8D 00 C0 ..  |....|`, sixteen bytes to a row, addressed from
-//  the origin so the offsets read as the addresses the file loads at.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PreviewDecoder::RenderHexRows (std::span<const Byte> bytes, Word origin, std::vector<std::wstring> & outLines)
-{
-    size_t  at    = 0;
-    size_t  count = bytes.size();
-
-
-
-    outLines.clear();
-
-    while (at < count)
-    {
-        size_t        inRow = std::min (kBytesPerHexRow, count - at);
-        size_t        i     = 0;
-        std::wstring  text  = std::format (L"{:04X}: ", (unsigned) (Word) (origin + at));
-        std::wstring  ascii;
-
-        for (i = 0; i < kBytesPerHexRow; i++)
-        {
-            if (i < inRow)
-            {
-                Byte  value = bytes[at + i];
-                Byte  shown = (Byte) (value & 0x7F);
-
-                text  += std::format (L"{:02X} ", (unsigned) value);
-                ascii += (shown >= 0x20 && shown < 0x7F) ? (wchar_t) shown : L'.';
-            }
-            else
-            {
-                text += L"   ";
-            }
-        }
-
-        text += L" |" + ascii + L"|";
-
-        outLines.push_back (text);
-        at += inRow;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  PreviewDecoder::RenderDisassembly
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,7 +321,8 @@ HRESULT PreviewDecoder::Render (
             }
             else
             {
-                RenderHexRows (payload.bytes, origin, outContent.lines);
+                outContent.bytes  = payload.bytes;
+                outContent.origin = origin;
             }
 
             break;

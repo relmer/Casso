@@ -89,6 +89,7 @@ const wchar_t * CassqueCommands::GetMenuTitle (Menu menu)
     switch (menu)
     {
         case Menu::File: return L"&File";
+        case Menu::Edit: return L"&Edit";
         case Menu::View: return L"&View";
         case Menu::Go:   return L"&Go";
         case Menu::Help: return L"&Help";

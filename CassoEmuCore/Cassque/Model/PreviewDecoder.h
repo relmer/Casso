@@ -36,6 +36,11 @@ struct PreviewContent
     std::vector<CatalogRow>    rows;
     std::wstring               message;
     size_t                     offset = 0;
+
+    //  A hex preview hands its bytes over as they are, for a view that reads
+    //  the rows it draws, rather than as rendered lines of text.
+    std::vector<Byte>          bytes;
+    Word                       origin = 0;
 };
 
 
@@ -53,9 +58,9 @@ struct PreviewContent
 //  and a type A file that will not detokenize is shown as the error it is
 //  rather than as the hex dump it also is.
 //
-//  Hex rows carry sixteen bytes each, addressed from the load address when the
-//  entry records one, and the disassembly toggle re-renders the same bytes
-//  through the NMOS table from the same address.
+//  A hex preview carries the payload's bytes and the address they start at,
+//  which the hex view reads from directly; the disassembly toggle renders the
+//  same bytes through the NMOS table from the same address into lines.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,10 +81,7 @@ public:
     //  A disk image's catalog, for an image selected in the file list.
     static void  RenderCatalog (const VolumeListing & listing, VolumeKind kind, PreviewContent & outContent);
 
-    static void  RenderHexRows (std::span<const Byte> bytes, Word origin, std::vector<std::wstring> & outLines);
     static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, const Microcode * table, std::vector<std::wstring> & outLines);
-
-    static constexpr size_t  kBytesPerHexRow = 16;
 
 private:
     static bool  IsApplesoftType (Byte type, VolumeKind kind);

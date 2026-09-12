@@ -20,18 +20,31 @@ TEST_CLASS (CassqueCommandsTests)
 {
 public:
 
-    TEST_METHOD (Menu_HasFourTitlesWithTheirRows)
+    TEST_METHOD (Menu_HasFiveTitlesWithTheirRows)
     {
         CassqueCommands               commands ({});
         std::vector<DxuiMenuBarItem>  items = commands.BuildMenuItems();
 
-        Assert::AreEqual ((size_t) 4, items.size());
+        Assert::AreEqual ((size_t) 5, items.size());
         Assert::AreEqual (std::wstring (L"&File"), items[0].label);
-        Assert::AreEqual (std::wstring (L"&Help"), items[3].label);
+        Assert::AreEqual (std::wstring (L"&Edit"), items[1].label);
+        Assert::AreEqual (std::wstring (L"&Help"), items[4].label);
 
-        Assert::IsTrue (items[1].submenu[1].kind == DxuiPopupMenuItem::Kind::Separator);
-        Assert::AreEqual ((int) CassqueCommands::kTogglePreview, items[1].submenu[2].command->id);
-        Assert::AreEqual (std::wstring (L"Alt+P"), items[1].submenu[2].command->accelerator);
+        Assert::IsTrue (items[2].submenu[1].kind == DxuiPopupMenuItem::Kind::Separator);
+        Assert::AreEqual ((int) CassqueCommands::kTogglePreview, items[2].submenu[2].command->id);
+        Assert::AreEqual (std::wstring (L"Alt+P"), items[2].submenu[2].command->accelerator);
+    }
+
+
+    //  Copy and select all show their keystrokes but claim none: both mean
+    //  different things in the hex view's two columns, so the pane with focus
+    //  handles them and the window never takes them first.
+    TEST_METHOD (Keys_CopyAndSelectAllAreLeftToTheFocusedPane)
+    {
+        Assert::AreEqual (0, CassqueCommands::TranslateKey (WPARAM ('C'), true, false, false));
+        Assert::AreEqual (0, CassqueCommands::TranslateKey (WPARAM ('A'), true, false, false));
+        Assert::AreEqual ((int) CassqueCommands::kGoToOffset,
+                          CassqueCommands::TranslateKey (WPARAM ('G'), true, false, false));
     }
 
 

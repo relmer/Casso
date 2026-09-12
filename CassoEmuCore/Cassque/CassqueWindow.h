@@ -15,6 +15,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Theme/DxuiLightTheme.h"
 #include "Widgets/DxuiFramebufferView.h"
+#include "Widgets/DxuiHexView.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiMenuBar.h"
@@ -105,6 +106,43 @@ protected:
 private:
     enum class Pane { Tree, List, Preview };
 
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  PreviewBytes
+    //
+    //  The bytes of the previewed file, as the hex view reads them. The
+    //  preview's content is owned by the browser and replaced whole on every
+    //  selection change, so this holds a pointer to it rather than a copy and
+    //  is pointed at the new content each time the preview is refilled.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    class PreviewBytes : public IDxuiHexSource
+    {
+    public:
+        void  SetBytes (const std::vector<Byte> * bytes) { m_bytes = bytes; }
+
+        uint64_t  GetByteCount() const override
+        {
+            return (m_bytes != nullptr) ? (uint64_t) m_bytes->size() : 0;
+        }
+
+        void  ReadBytes (uint64_t offset, std::span<uint8_t> out) const override
+        {
+            size_t  start = (size_t) offset;
+
+            for (size_t idx = 0; idx < out.size(); idx++)
+            {
+                out[idx] = (m_bytes != nullptr && (start + idx) < m_bytes->size())
+                         ? (uint8_t) (*m_bytes)[start + idx]
+                         : (uint8_t) 0;
+            }
+        }
+
+    private:
+        const std::vector<Byte> *  m_bytes = nullptr;
+    };
+
     void  ConfigureWidgets();
     void  ApplyTheme();
     void  SelectTheme (const char * name);
@@ -123,6 +161,17 @@ private:
     void  ShowAbout();
 
     void  ShowListContextMenu (int x, int y);
+    void  ShowHexContextMenu  (int x, int y);
+    void  AskForOffset();
+    void  SetHexGrouping (int grouping);
+
+    //  Stands for a separator in a list of command ids.
+    static constexpr int  kSeparatorId = 0;
+
+    //  Whether the preview pane is currently showing bytes rather than lines,
+    //  a picture or a message -- which is what decides where a key, a copy or
+    //  a Tab inside the pane goes.
+    bool  IsHexPreviewShowing() const;
     bool  RouteToolbarMouse   (const DxuiMouseEvent & ev);
 
     static int64_t  GetNowMs();
@@ -176,6 +225,8 @@ private:
     DxuiLabel            * m_listMessage     = nullptr;
     DxuiSplitter         * m_previewSplitter = nullptr;
     DxuiListView         * m_previewList     = nullptr;
+    DxuiHexView          * m_hexView         = nullptr;
+    PreviewBytes           m_previewBytes;
     DxuiFramebufferView  * m_picture         = nullptr;
     DxuiLabel            * m_previewMessage  = nullptr;
     DxuiStatusBar        * m_status          = nullptr;

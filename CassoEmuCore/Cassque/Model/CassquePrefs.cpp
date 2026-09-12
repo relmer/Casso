@@ -58,6 +58,21 @@ bool CassquePrefs::IsKnownTheme (const std::string & theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassquePrefs::IsKnownHexGrouping
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassquePrefs::IsKnownHexGrouping (int grouping)
+{
+    return (grouping == 1) || (grouping == 2) || (grouping == 4) || (grouping == 8);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassquePrefs::MapCassoTheme
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,6 +234,7 @@ JsonValue CassquePrefs::ToJson() const
     root.emplace_back ("theme",          JsonValue (theme));
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
+    root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
@@ -248,6 +264,7 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     const JsonValue *  tabArray  = nullptr;
     std::string        text;
     size_t             i         = 0;
+    int                grouping  = kDefaultHexGrouping;
 
 
 
@@ -263,6 +280,11 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     if (root.HasString ("hostNaming", text) && (text == kNamingDescriptive || text == kNamingCiderPress))
     {
         hostNaming = text;
+    }
+
+    if (root.HasInt ("hexGrouping", grouping) && IsKnownHexGrouping (grouping))
+    {
+        hexGrouping = grouping;
     }
 
     if (root.HasObject ("placement", placed))
