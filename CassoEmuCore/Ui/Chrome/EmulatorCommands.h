@@ -11,7 +11,6 @@
 
 
 
-class InputClusterEntry;
 class PrinterStatusLed;
 class VolumeFlyout;
 
@@ -53,7 +52,8 @@ struct EmulatorMenuEntry
 //  Every emulator action declared once. One DxuiCommand per IDM_* the menu
 //  bar or the toolbar shows, plus the four toolbar entries that are not
 //  commands of the menu's (the theme and monitor-color pickers, the volume
-//  flyout, the input cluster), with dispatch, checked, enabled and label
+//  flyout, the paddle picker and the mouse toggle), with dispatch, checked,
+//  enabled and label
 //  bound to the shell through sinks set at startup. Beside the commands sit
 //  two placement tables: menu title to item list, and the toolbar's entry
 //  list with kinds and groups.
@@ -81,8 +81,8 @@ public:
     static constexpr int  kIdTheme  = 1;
     static constexpr int  kIdColor  = 2;
     static constexpr int  kIdVolume = 3;
-    static constexpr int  kIdInput  = 4;
     static constexpr int  kIdPaddle = 5;
+    static constexpr int  kIdMouse  = 6;
 
     static constexpr int  kMenuCount = 7;
 
@@ -137,6 +137,15 @@ public:
     void  SetPaddleSources        (const std::vector<InputModeRules::PaddleSource> & sources);
     void  SetPaddleSourcePickedFn (PaddleSourcePickedFn fn) { m_onPaddleSourcePicked = std::move (fn); }
 
+    // Mouse mode: a plain toggle on the strip, because it toggles one thing.
+    // It is NOT in the paddle-source picker: it drives the //c's IOU mouse,
+    // not the game port, so it is not an answer to that question (FR-008).
+    // Machines without a mouse leave it disabled rather than absent, so the
+    // strip does not reflow on a machine switch.
+    void  SetMouseModeFns (std::function<bool()> isOn,
+                           std::function<bool()> isOffered,
+                           std::function<void()> toggle);
+
     std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems        () const;
     std::wstring                    GetCheckedPaddleSourceLabel () const;
 
@@ -146,12 +155,11 @@ public:
     InputMonoGlyphKind              GetCheckedPaddleSourceGlyph () const;
 
     // Fills the toolbar: ten entries in strip order, the LED as the printer
-    // entry's decoration, the cluster as the input entry's custom entry and
-    // the flyout as the volume entry's panel, with the two pickers' rows and
-    // the cluster's rows installed as drop-down lists.
+    // entry's decoration and
+    // the flyout as the volume entry's panel, with the pickers' rows
+    // installed as drop-down lists.
     void  BuildToolbar (DxuiToolbar       & toolbar,
                         PrinterStatusLed  & led,
-                        InputClusterEntry & cluster,
                         VolumeFlyout      & volume);
 
 private:

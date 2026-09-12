@@ -42,7 +42,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/InputClusterEntry.h"
 #include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Widgets/DxuiShadowedText.h"
@@ -1373,7 +1372,6 @@ private:
     // flyout -- are held by pointer from its entries, so they sit beside it.
     DxuiToolbar         m_toolbar;
     PrinterStatusLed    m_printerLed;
-    InputClusterEntry   m_inputCluster;
     VolumeFlyout        m_volumeFlyout;
 
     // Theme ids in the toolbar picker's row order, so a picked row resolves

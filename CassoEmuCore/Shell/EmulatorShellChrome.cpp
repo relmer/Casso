@@ -1197,7 +1197,6 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact
     // (DarkModern / retro) themes the top-down glyphs.
-    m_inputCluster.SetSkeuoStyle     (!theme.compactDrives);
 
     // The strip continues the menu bar's themed surface (navStrip) and its
     // labels take the bar's ink; neither is a color the generic theme

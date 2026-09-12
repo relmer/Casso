@@ -335,6 +335,10 @@ public:
         Assert::AreEqual  (L"Se&ttings...",   settings->GetLabelText().c_str());
         Assert::IsNotNull (settings->glyph);
         Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdTheme));
-        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdInput));
+
+        // The input cluster's custom entry is gone: what drives the paddle
+        // axes is the picker, and mouse mode is a toggle beside it.
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdPaddle));
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdMouse));
     }
 };

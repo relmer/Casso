@@ -4,7 +4,7 @@
 
 #include "resource.h"
 #include "Core/UnicodeSymbols.h"
-#include "InputClusterEntry.h"
+
 #include "PrinterStatusLed.h"
 #include "VolumeFlyout.h"
 
@@ -90,6 +90,7 @@ static constexpr const wchar_t * s_kGlyphPrint      = L"\uE749";   // printer (m
 static constexpr const wchar_t * s_kGlyphColor      = L"\uE790";   // artist's palette
 static constexpr const wchar_t * s_kGlyphFullscreen = L"\uE740";   // diagonal arrows, outward
 static constexpr const wchar_t * s_kGlyphRestore    = L"\uE73F";   // diagonal arrows, inward
+static constexpr const wchar_t * s_kGlyphMouse      = L"\uE962";   // mouse: the one input device MDL2 draws better than we can
 
 static constexpr ToolbarRow  s_kToolbarRows[] =
 {
@@ -99,7 +100,7 @@ static constexpr ToolbarRow  s_kToolbarRows[] =
     { IDM_PRINTER_PREVIEW,         DxuiToolbar::Kind::Command,  0, s_kGlyphPrint,      L"Printer",     nullptr          },
     { EmulatorCommands::kIdVolume, DxuiToolbar::Kind::Flyout,   1, s_kGlyphVolume,     L"Volume",      L"Mute"          },
     { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Controller",  L"What drives the paddles" },
-    { EmulatorCommands::kIdInput,  DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Input",       L"Input devices" },
+    { EmulatorCommands::kIdMouse,  DxuiToolbar::Kind::Toggle,   2, s_kGlyphMouse,      L"Mouse",       L"Mouse" },
     { IDM_VIEW_FULLSCREEN,         DxuiToolbar::Kind::Command,  3, s_kGlyphFullscreen, L"Full screen", nullptr          },
     { IDM_EDIT_COPY_SCREENSHOT,    DxuiToolbar::Kind::Command,  3, s_kGlyphScreenshot, L"Screenshot",  nullptr          },
     { IDM_MACHINE_RESET,           DxuiToolbar::Kind::Command,  3, s_kGlyphReset,      L"Reset",       nullptr          },
@@ -689,7 +690,35 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorCommands::GetPaddleSourceItems
+//  EmulatorCommands::SetMouseModeFns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::SetMouseModeFns (std::function<bool()> isOn,
+                                        std::function<bool()> isOffered,
+                                        std::function<void()> toggle)
+{
+    DxuiCommand *  mouse = FindMutable (kIdMouse);
+
+
+
+    if (mouse == nullptr)
+    {
+        return;
+    }
+
+    mouse->isChecked = std::move (isOn);
+    mouse->isEnabled = std::move (isOffered);
+    mouse->dispatch  = std::move (toggle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetCheckedPaddleSourceLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -790,7 +819,6 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 
 void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
                                      PrinterStatusLed  & led,
-                                     InputClusterEntry & cluster,
                                      VolumeFlyout      & volume)
 {
     std::vector<DxuiToolbar::Entry>  entries;
@@ -840,7 +868,6 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
             };
         }
 
-        if (row.id == kIdInput)            { e.custom     = &cluster; }
 
         entries.push_back (std::move (e));
     }
@@ -849,6 +876,5 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
     toolbar.SetFlyoutControl (kIdVolume, &volume, VolumeFlyout::kPanelDp);
     toolbar.SetDropDownItems (kIdTheme, GetThemeItems());
     toolbar.SetDropDownItems (kIdColor, GetMonitorItems());
-    toolbar.SetDropDownItems (kIdInput, cluster.GetPickerItems());
     toolbar.SetDropDownItems (kIdPaddle, GetPaddleSourceItems());
 }

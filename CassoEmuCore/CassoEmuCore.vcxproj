@@ -357,7 +357,6 @@
     <ClCompile Include="Ui\Chrome\CassoBranding.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
     <ClCompile Include="Ui\Chrome\EmulatorCommands.cpp" />
-    <ClCompile Include="Ui\Chrome\InputClusterEntry.cpp" />
     <ClCompile Include="Ui\Chrome\PrinterStatusLed.cpp" />
     <ClCompile Include="Ui\Chrome\VolumeFlyout.cpp" />
     <ClCompile Include="Ui\Chrome\InputDeviceGlyphs.cpp" />
@@ -684,7 +683,6 @@
     <ClInclude Include="Ui\Chrome\CassoBranding.h" />
     <ClInclude Include="Ui\Chrome\DriveWidget.h" />
     <ClInclude Include="Ui\Chrome\EmulatorCommands.h" />
-    <ClInclude Include="Ui\Chrome\InputClusterEntry.h" />
     <ClInclude Include="Ui\Chrome\PrinterStatusLed.h" />
     <ClInclude Include="Ui\Chrome\VolumeFlyout.h" />
     <ClInclude Include="Ui\Chrome\InputDeviceGlyphs.h" />

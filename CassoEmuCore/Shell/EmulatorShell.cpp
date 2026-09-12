@@ -877,7 +877,6 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     m_mainMenu.SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
     m_switchBar.SetTextRenderer          (&m_uiShell.GetTextRenderer());
     m_toolbar.SetTextRenderer            (&m_uiShell.GetTextRenderer());
-    m_inputCluster.SetTextRenderer       (&m_uiShell.GetTextRenderer());
 
     // Global prefs are already loaded by PrimeChromeThemeEarly, so there is
     // no second LoadAll here. Discover scans the themes directory (an empty

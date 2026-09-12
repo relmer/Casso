@@ -695,12 +695,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // reads, so a click dispatches through HandleCommand like a menu row;
     // the volume group drives the master output gain and persists in
     // GlobalUserPrefs through the coalescing save below.
-    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, m_printerLed, m_inputCluster, m_volumeFlyout);
+    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, m_printerLed, m_volumeFlyout);
 
-    // Input-mode segments route through the same toggle the band selector
-    // used, so the leave-time neutralization of held arrow / X / Z inputs
-    // runs identically.
-    m_inputCluster.SetSink ([this] (InputMappingMode mode) { ToggleInputMappingMode (mode); });
+    // Mouse mode routes through the same toggle the band selector used, so
+    // the leave-time release of a held guest button runs identically. It is
+    // offered only where there is a mouse to drive: the //c.
+    m_mainMenu.GetCommands().SetMouseModeFns (
+        [this] () { return m_pointerMode == InputMappingMode::Mouse; },
+        [this] () { return m_machine.GetMouse() != nullptr && m_mouseConnected; },
+        [this] () { ToggleInputMappingMode (InputMappingMode::Mouse); });
     m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {
         m_globalPrefs.masterVolume = volume01;
