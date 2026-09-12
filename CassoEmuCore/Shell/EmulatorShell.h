@@ -567,6 +567,11 @@ private:
     // whether the bar and its band exist at all.
     std::wstring  GetStandInBannerText () const;
 
+    // How tall the bar is at a given width, for the band that reserves the
+    // room and the paint that fills it. One answer, so the two cannot
+    // disagree about whether the band is big enough.
+    int           GetStandInBarHeightPx (float widthPx) const;
+
     // Whether the arrow keys are driving the joystick: because the user
     // turned them on, or because they are standing in for a chosen
     // controller that is gone with nothing else to take its place

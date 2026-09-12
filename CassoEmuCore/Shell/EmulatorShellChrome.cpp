@@ -353,20 +353,19 @@ void EmulatorShell::SyncStandInBanner()
         rc.bottom = top + (LONG) m_standInBar.GetPreferredHeightPx (width, m_scaler);
     }
 
-    //  NOTHING IS PAINTED INTO A BAND THAT CANNOT HOLD THE TEXT, in either
-    //  direction. A band carries its thickness on the docked axis alone and
-    //  is given its width by the dock pass, so between a resize and that pass
-    //  its rect is a full-height slab of NO WIDTH -- and a text box no wider
-    //  than a glyph wraps every character onto a line of its own, which is
-    //  the bar's sentence running down the left edge of the window, one
-    //  letter at a time. Too short does the matching thing: border and badge
-    //  with the words clipped away.
+    //  A RECT THAT HAS NOT BEEN LAID OUT YET IS SKIPPED, and nothing else is.
+    //  A band carries its thickness on the docked axis alone and is given its
+    //  width by the dock pass, so between a resize and that pass its rect is
+    //  a slab of NO WIDTH -- and a text box no wider than a glyph wraps every
+    //  character onto a line of its own, which is the bar's sentence running
+    //  down the edge of the window, one letter at a time.
     //
-    //  One frame of no bar reads as the bar arriving. One frame of either of
-    //  those reads as a rendering fault.
-    if (rc.right - rc.left < (LONG) m_scaler.ToPxf (s_kStandInBarMinWidthDip)
-        || rc.bottom - rc.top < (LONG) m_standInBar.GetPreferredHeightPx (
-                                           (float) (rc.right - rc.left), m_scaler))
+    //  NARROW IS NOT A REASON TO DISAPPEAR. A narrow bar is a taller bar: the
+    //  text wraps and the band grows to hold it, which is what the shared
+    //  measurement above is for. The only rect refused here is one with no
+    //  width at all, which is not a width the bar has to cope with -- it is
+    //  the dock not having run.
+    if (rc.right - rc.left <= 0 || rc.bottom - rc.top <= 0)
     {
         m_standInBar.SetVisible        (false);
         m_standInBarSurface.SetVisible (false);
@@ -379,6 +378,16 @@ void EmulatorShell::SyncStandInBanner()
         }
 
         return;
+    }
+
+    //  The band is short of what the text needs at this width: re-dock and
+    //  paint at the height there is, rather than showing nothing. A band
+    //  reserved from the same measurement cannot be short, so this is the
+    //  frame after a width change and no more than that.
+    if (rc.bottom - rc.top < GetStandInBarHeightPx ((float) (rc.right - rc.left))
+        && m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen())
+    {
+        m_standInBandStale = true;
     }
 
     m_standInBarSurface.Layout     (rc, m_scaler);
@@ -1557,13 +1566,48 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 
 int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
 {
-    IDxuiTextRenderer *  text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    std::wstring         line    = GetStandInBannerText();
+    if (m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
+    {
+        return 0;
+    }
+
+    return GetStandInBarHeightPx ((float) clientWidthPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetStandInBarHeightPx
+//
+//  How tall the stand-in bar is at a given width, and THE ONLY PLACE THAT
+//  ANSWERS IT. The band reserves the height and the paint checks it, and the
+//  two asking separately is how the bar came to vanish at particular widths:
+//  the reserve measured, the check estimated, and GetPreferredHeightPx is
+//  deliberately generous -- an average glyph width, rounded up so text never
+//  clips. Wherever the estimate wanted a line the measurement did not, the
+//  check called a perfectly good band too short.
+//
+//  MEASURED WHEN THERE IS A RENDERER TO ASK, because the bar centers its text
+//  and a centered banner picks its line width from that measurement. The
+//  estimate is the fallback for the moments before the renderer exists.
+//
+//  Zero only when there is no bar. A narrow bar is a TALLER bar -- the text
+//  wraps and the band grows -- never an absent one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetStandInBarHeightPx (float widthPx) const
+{
+    IDxuiTextRenderer *  text = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    std::wstring         line = GetStandInBannerText();
     DxuiInfoBanner       measure (line);
 
 
 
-    if (line.empty() || m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
+    if (line.empty() || widthPx <= 0.0f)
     {
         return 0;
     }
@@ -1571,16 +1615,10 @@ int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
     measure.SetCentered (true);
     measure.SetDpi      (m_scaler.GetDpi());
 
-    //  MEASURED WHEN THERE IS A RENDERER TO ASK, because the bar centers its
-    //  text and a centered banner picks its line width from that measurement.
-    //  The estimate behind GetPreferredHeightPx is an AVERAGE glyph width: a
-    //  wide face measures past it, and a height taken from it would reserve a
-    //  line fewer than the paint lays down. The estimate stays as the fallback
-    //  for the moments before the renderer exists.
     if (text != nullptr)
     {
-        return (int) measure.GetMeasuredHeightPx (*text, (float) clientWidthPx, m_scaler);
+        return (int) measure.GetMeasuredHeightPx (*text, widthPx, m_scaler);
     }
 
-    return (int) measure.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
+    return (int) measure.GetPreferredHeightPx (widthPx, m_scaler);
 }
