@@ -2829,7 +2829,8 @@ Error:
 //
 //  Assigns each column an x-offset and width for the given content
 //  width. Fixed/auto columns take their override / widthDip / measured
-//  width; the first stretch column absorbs whatever space remains.
+//  width; the first stretch column absorbs whatever space remains, down to
+//  its own declared width and no further.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2870,10 +2871,20 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
         fixedTotal += wpx;
     }
 
+    //  The stretch column takes what the others leave, but never less than the
+    //  width it was declared with. A narrow pane used to hand it nothing, and
+    //  since GetContentWidthPx does count that declared width, the scroll range
+    //  made room for a column that was never drawn -- the list opened with its
+    //  first column simply missing. A stretch column declared at zero still
+    //  shrinks to fit, as before.
     if (stretchIdx >= 0)
     {
-        int  rem = (int) fullW - fixedTotal;
-        ws[(size_t) stretchIdx] = (rem > 0) ? rem : 0;
+        int  rem     = (int) fullW - fixedTotal;
+        int  floorPx = (m_columns[(size_t) stretchIdx].widthDip > 0)
+                     ? m_scaler.ToPx (m_columns[(size_t) stretchIdx].widthDip)
+                     : 0;
+
+        ws[(size_t) stretchIdx] = (std::max) (rem, floorPx);
     }
 
     for (size_t c = 0; c < m_columns.size(); ++c)
