@@ -165,15 +165,25 @@ void DxuiTextInput::OnMouseMove (int x, int y)
 
 bool DxuiTextInput::OnKey (WPARAM vk)
 {
-    HRESULT  hr       = S_OK;
-    bool     consumed = false;
-    bool     shift    = IsShiftKeyDown    ();
-    bool     ctrl     = IsControlKeyDown  ();
-    bool     isActive = m_focused && m_enabled;
+    HRESULT              hr       = S_OK;
+    bool                 consumed = false;
+    bool                 shift    = IsShiftKeyDown    ();
+    bool                 ctrl     = IsControlKeyDown  ();
+    bool                 isActive = m_focused && m_enabled;
+    DxuiStandardCommand  standard = DxuiStandardCommand::None;
 
 
 
     BAIL_OUT_IF (!isActive, S_OK);
+
+    standard = DxuiCommandRouter::TranslateKey (vk, ctrl, IsAltKeyDown(), shift);
+
+    if (standard != DxuiStandardCommand::None)
+    {
+        consumed = InvokeCommand (standard);
+
+        BAIL_OUT_IF (consumed, S_OK);
+    }
 
     switch (vk)
     {
@@ -263,47 +273,8 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             consumed = true;
             break;
 
-        case 'A':
-            if (ctrl)
-            {
-                m_anchor = 0;
-                m_caret  = m_text.size();
-                consumed = true;
-            }
-
-            break;
-
-        case 'C':
-            if (ctrl)
-            {
-                CopyToClipboard();
-                consumed = true;
-            }
-
-            break;
-
-        case 'X':
-            if (ctrl)
-            {
-                CopyToClipboard();
-                if (m_caret != m_anchor)
-                {
-                    DeleteSelection();
-                }
-
-                consumed = true;
-            }
-
-            break;
-
-        case 'V':
-            if (ctrl)
-            {
-                PasteFromClipboard();
-                consumed = true;
-            }
-
-            break;
+        //  Cut, copy, paste and select all arrive through InvokeCommand,
+        //  which the menu bar reaches too.
 
         default:
             break;
@@ -726,6 +697,98 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
     m_caret += take;
     m_anchor = m_caret;
     FireChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::QueryCommand  (IDxuiControl override)
+//
+//  A read-only box can be copied from but not written to, and a copy or a cut
+//  needs something selected to act on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::QueryCommand (DxuiStandardCommand command, bool & outEnabled) const
+{
+    bool  hasSelection = (m_caret != m_anchor);
+
+
+
+    switch (command)
+    {
+    case DxuiStandardCommand::Copy:
+        outEnabled = hasSelection;
+        return true;
+
+    case DxuiStandardCommand::Cut:
+        outEnabled = hasSelection;
+        return true;
+
+    case DxuiStandardCommand::Paste:
+        outEnabled = true;
+        return true;
+
+    case DxuiStandardCommand::SelectAll:
+        outEnabled = !m_text.empty();
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::InvokeCommand  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
+{
+    bool  enabled = false;
+
+
+
+    if (!QueryCommand (command, enabled) || !enabled)
+    {
+        //  A command this control owns but cannot run right now is still its
+        //  own: claiming it keeps the keystroke from reaching past the caret.
+        return QueryCommand (command, enabled);
+    }
+
+    switch (command)
+    {
+    case DxuiStandardCommand::Copy:
+        CopyToClipboard();
+        break;
+
+    case DxuiStandardCommand::Cut:
+        CopyToClipboard();
+        DeleteSelection();
+        break;
+
+    case DxuiStandardCommand::Paste:
+        PasteFromClipboard();
+        break;
+
+    case DxuiStandardCommand::SelectAll:
+        m_anchor = 0;
+        m_caret  = m_text.size();
+        break;
+
+    default:
+        return false;
+    }
+
+    return true;
 }
 
 

@@ -1065,9 +1065,18 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
 
 bool CassqueWindow::IsEnabled (int id) const
 {
-    const BrowserModel &  model = m_browser.GetBrowserModel();
+    const BrowserModel &  model    = m_browser.GetBrowserModel();
+    DxuiStandardCommand   standard = CassqueCommands::GetStandardCommand (id);
+    bool                  enabled  = false;
 
 
+
+    //  A standard row is as enabled as the focused control says, and grayed
+    //  where nothing claims it at all.
+    if (standard != DxuiStandardCommand::None)
+    {
+        return DxuiCommandRouter::Query (GetFocusedControl(), standard, enabled) && enabled;
+    }
 
     switch (id)
     {
@@ -1075,8 +1084,6 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassqueCommands::kUp:                return m_browser.CanGoUp();
         case CassqueCommands::kToggleDisassembly: return model.HasTabs();
-        case CassqueCommands::kCopy:              return IsHexPreviewShowing() && m_hexView->HasSelection();
-        case CassqueCommands::kSelectAll:
         case CassqueCommands::kGoToOffset:
         case CassqueCommands::kGroup1:
         case CassqueCommands::kGroup2:
@@ -1123,6 +1130,28 @@ bool CassqueWindow::IsChecked (int id) const
         case CassqueCommands::kNamingDescriptive: return m_prefs.hostNaming != CassquePrefs::kNamingCiderPress;
         case CassqueCommands::kNamingCiderPress:  return m_prefs.hostNaming == CassquePrefs::kNamingCiderPress;
         default:                                  return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetFocusedControl
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * CassqueWindow::GetFocusedControl() const
+{
+    switch (m_focus)
+    {
+        case Pane::Tree:    return m_tree;
+        case Pane::List:    return m_list;
+        case Pane::Preview: return IsHexPreviewShowing() ? (IDxuiControl *) m_hexView
+                                                         : (IDxuiControl *) m_previewList;
+        default:            return nullptr;
     }
 }
 
@@ -1266,8 +1295,19 @@ void CassqueWindow::Dispatch (int id)
 {
     HRESULT  hr      = S_OK;
     bool     refill  = false;
+    bool     routed  = DxuiCommandRouter::Invoke (GetFocusedControl(),
+                                                  CassqueCommands::GetStandardCommand (id));
 
 
+
+    //  A standard command belongs to whatever has focus, so it is routed
+    //  rather than decided here.
+    if (CassqueCommands::GetStandardCommand (id) != DxuiStandardCommand::None)
+    {
+        IGNORE_RETURN_VALUE (routed, true);
+        Invalidate();
+        return;
+    }
 
     switch (id)
     {
@@ -1302,14 +1342,6 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kThemeSkeuomorphic:  SelectTheme (CassquePrefs::kThemeSkeuomorphic);  break;
         case CassqueCommands::kThemeDarkModern:    SelectTheme (CassquePrefs::kThemeDarkModern);    break;
         case CassqueCommands::kThemeRetroTerminal: SelectTheme (CassquePrefs::kThemeRetroTerminal); break;
-
-        case CassqueCommands::kCopy:
-            m_hexView->CopySelection();
-            break;
-
-        case CassqueCommands::kSelectAll:
-            m_hexView->SelectAll();
-            break;
 
         case CassqueCommands::kGoToOffset:
             AskForOffset();

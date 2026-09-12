@@ -92,6 +92,8 @@ public:
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
+    bool                InvokeCommand     (DxuiStandardCommand command) override;
     void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
@@ -111,6 +113,7 @@ private:
 
     static bool IsShiftKeyDown   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool IsControlKeyDown () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
+    static bool IsAltKeyDown     () { return (GetKeyState (VK_MENU)    & 0x8000) != 0; }
     std::wstring        m_text;
     std::wstring        m_placeholder;
     size_t              m_maxLen      = 64;

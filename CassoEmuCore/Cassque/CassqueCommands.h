@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/DxuiCommand.h"
+#include "Core/DxuiStandardCommand.h"
 #include "Core/UnicodeSymbols.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiMenuBar.h"
@@ -85,16 +86,25 @@ public:
     //  a caller asks before offering Alt to the menu bar's mnemonics.
     static int  TranslateKey (WPARAM vk, bool ctrl, bool alt, bool shift);
 
+    //  The standard command a row stands for, or None for a row the window
+    //  answers itself.
+    static DxuiStandardCommand  GetStandardCommand (int id);
+
     static const wchar_t *  GetMenuTitle (Menu menu);
 
 private:
     struct Row
     {
-        int              id;
-        Menu             menu;
-        const wchar_t  * label;
-        const wchar_t  * accelerator;
-        bool             checkable;
+        int                  id;
+        Menu                 menu;
+        const wchar_t      * label;
+        const wchar_t      * accelerator;
+        bool                 checkable;
+
+        //  Set for a row whose meaning belongs to the focused control rather
+        //  than to the window; the window routes it instead of switching on
+        //  its id.
+        DxuiStandardCommand  standard = DxuiStandardCommand::None;
     };
 
     struct ToolbarRow
@@ -124,8 +134,8 @@ private:
         { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },
-        { kCopy,              Menu::Edit, L"&Copy",                L"Ctrl+C",  false },
-        { kSelectAll,         Menu::Edit, L"Select &all",          L"Ctrl+A",  false },
+        { kCopy,              Menu::Edit, L"&Copy",                L"Ctrl+C",  false, DxuiStandardCommand::Copy },
+        { kSelectAll,         Menu::Edit, L"Select &all",          L"Ctrl+A",  false, DxuiStandardCommand::SelectAll },
         { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
         { kGoToOffset,        Menu::Edit, L"&Go to offset...",     L"Ctrl+G",  false },
         { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
@@ -178,10 +188,9 @@ private:
         { 'G',      true,  false, false, kGoToOffset    },
     };
 
-    //  Copy and select all are NOT in the key table. Both belong to whatever
-    //  has focus -- the hex view's two columns mean different things by them
-    //  -- so the menu rows show the keystrokes and the focused pane handles
-    //  them, rather than the window claiming them before the pane is asked.
+    //  The standard commands are NOT in the key table: DxuiCommandRouter owns
+    //  their keystrokes, and the control with focus answers them. The rows
+    //  carry the accelerator text so the menu still shows what to press.
 
     Handlers                                   m_handlers;
     std::vector<std::unique_ptr<DxuiCommand>>  m_commands;

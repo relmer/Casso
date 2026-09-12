@@ -1118,22 +1118,12 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
         return true;
 
     case 'A':
-        if (!ev.ctrl)
-        {
-            return false;
-        }
-
-        SelectAll();
-        return true;
-
     case 'C':
-        if (!ev.ctrl)
-        {
-            return false;
-        }
-
-        CopySelection();
-        return true;
+    case 'X':
+    case 'V':
+        //  Copy and select all are standard commands, so the same code
+        //  answers the keystroke and the menu row.
+        return InvokeCommand (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift));
 
     case VK_TAB:
         //  Tab moves between the columns while there is one left to move to,
@@ -1163,6 +1153,74 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::QueryCommand  (IDxuiControl override)
+//
+//  Copy and select all are the view's; what either one means -- digits or
+//  characters -- is the active column's. The bytes cannot be written here, so
+//  cut and paste are nobody's and travel on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::QueryCommand (DxuiStandardCommand command, bool & outEnabled) const
+{
+    uint64_t  bytes = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+
+
+
+    switch (command)
+    {
+    case DxuiStandardCommand::Copy:
+        outEnabled = m_hasSelection;
+        return true;
+
+    case DxuiStandardCommand::SelectAll:
+        outEnabled = (bytes > 0);
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::InvokeCommand  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::InvokeCommand (DxuiStandardCommand command)
+{
+    bool  enabled = false;
+
+
+
+    if (!QueryCommand (command, enabled))
+    {
+        return false;
+    }
+
+    if (enabled && (command == DxuiStandardCommand::Copy))
+    {
+        CopySelection();
+    }
+    else if (enabled)
+    {
+        SelectAll();
+    }
+
+    return true;
 }
 
 

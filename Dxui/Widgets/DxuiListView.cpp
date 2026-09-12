@@ -2876,6 +2876,62 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::QueryCommand  (IDxuiControl override)
+//
+//  Select all is the list's when it can hold more than one selection at a
+//  time. What Copy would mean over a set of rows is the host's business --
+//  file names, a path, a row of cells -- so the list does not claim it and
+//  the router carries it out to whatever does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::QueryCommand (DxuiStandardCommand command, bool & outEnabled) const
+{
+    if (command != DxuiStandardCommand::SelectAll || !m_multiSelect)
+    {
+        return false;
+    }
+
+    outEnabled = !m_rows.empty();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::InvokeCommand  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::InvokeCommand (DxuiStandardCommand command)
+{
+    bool  enabled = false;
+
+
+
+    if (!QueryCommand (command, enabled))
+    {
+        return false;
+    }
+
+    if (enabled)
+    {
+        SelectAllRows();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListView::Layout  (IDxuiControl override)
 //
 //  Delegates to the existing SetRect / SetDpi pair so column widths,
@@ -3727,10 +3783,9 @@ bool DxuiListView::OnKeyBodyHeaderNav (const DxuiKeyEvent & ev)
                 m_onActivateRow (GetSelectedRow());
             }
         }
-        else if (m_multiSelect && ev.ctrl && ev.vk == 'A')
+        else if (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift) != DxuiStandardCommand::None)
         {
-            SelectAllRows();
-            handled = true;
+            handled = InvokeCommand (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift));
         }
         else
         {

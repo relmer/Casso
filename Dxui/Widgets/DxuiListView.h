@@ -339,6 +339,8 @@ public:
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const       override;
     bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    bool                QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
+    bool                InvokeCommand  (DxuiStandardCommand command) override;
     void                OnFocusChanged (bool focused) override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::ListView; }
 

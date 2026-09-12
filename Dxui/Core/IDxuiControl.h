@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiStandardCommand.h"
 
 
 
@@ -111,6 +112,28 @@ public:
     // window in reverse runs its insides in reverse too. Controls with no
     // internal stops ignore it; OnFocusChanged still fires either way.
     virtual void  OnFocusEntered  (bool forward)                                { (void) forward; }
+
+    // The standard commands -- Copy, Select all and the rest -- whose meaning
+    // follows the focus rather than the window. A control that answers one
+    // implements both: QueryCommand says whether the command is its to answer
+    // and, if so, whether it can be run right now; InvokeCommand runs it and
+    // reports that it did. Both default to "not mine", and DxuiCommandRouter
+    // then carries the command out to the control containing this one. A menu
+    // row and the accelerator for it both come through here, so what the row
+    // says and what the keystroke does cannot disagree.
+    virtual bool  QueryCommand  (DxuiStandardCommand command, bool & outEnabled) const
+    {
+        (void) command;
+        (void) outEnabled;
+        return false;
+    }
+
+    virtual bool  InvokeCommand (DxuiStandardCommand command)
+    {
+        (void) command;
+        return false;
+    }
+
     virtual void  OnThemeChanged  ()                                            {}
     virtual void  Tick            (int64_t nowMs)                               { (void) nowMs; }
 

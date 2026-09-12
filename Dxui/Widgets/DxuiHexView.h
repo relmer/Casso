@@ -190,6 +190,8 @@ public:
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  OnFocusEntered (bool forward) override;
+    bool  QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
+    bool  InvokeCommand  (DxuiStandardCommand command) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
     bool  OnKey   (const DxuiKeyEvent   & ev) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;

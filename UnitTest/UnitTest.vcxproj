@@ -462,6 +462,7 @@
     <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiStandardCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />

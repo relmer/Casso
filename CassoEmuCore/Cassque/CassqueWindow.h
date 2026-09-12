@@ -168,6 +168,10 @@ private:
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;
 
+    //  The control the focused pane stands for, which is where a standard
+    //  command -- Copy, Select all -- is routed from.
+    IDxuiControl *  GetFocusedControl() const;
+
     //  Whether the preview pane is currently showing bytes rather than lines,
     //  a picture or a message -- which is what decides where a key, a copy or
     //  a Tab inside the pane goes.
