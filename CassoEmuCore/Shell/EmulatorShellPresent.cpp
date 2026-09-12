@@ -641,6 +641,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // strip was last frame -- visibly trailing it through the reveal.
     TickFullscreenTopChrome();
     SyncStandInBanner();
+    TraceControllerState();
     SyncNotice();
     SyncFrameRateReadout();
     SyncSceneViewReadout();

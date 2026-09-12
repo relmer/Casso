@@ -251,6 +251,21 @@ ControllerWaitSources ControllerInputService::Tick()
         wasConnected      = m_isSelectedConnected;
     }
 
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        m_lastTick                   = TickReport();
+        m_lastTick.hasSelection      = m_selection.has_value();
+        m_lastTick.hasStandIn        = m_standIn.has_value();
+        m_lastTick.hasActiveUnit     = active.has_value();
+        m_lastTick.isSelectionActive = isSelectionActive;
+        m_lastTick.isActiveXInput    = active.has_value()
+                                       && active.value().model.kind == ControllerKind::XInput;
+        m_lastTick.hasMapping        = (m_mapping != ControlMapping());
+        m_lastTick.isAppActive       = m_isActive;
+        m_lastTick.deadzone          = m_deadzone;
+    }
+
     if (!active.has_value())
     {
         return wait;
@@ -258,6 +273,13 @@ ControllerWaitSources ControllerInputService::Tick()
 
     hr          = m_backend.ReadSample (active.value(), sample);
     isConnected = SUCCEEDED (hr) && sample.connected;
+
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        m_lastTick.readResult  = hr;
+        m_lastTick.isConnected = isConnected;
+    }
 
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
@@ -294,8 +316,17 @@ ControllerWaitSources ControllerInputService::Tick()
     }
     else
     {
-        m_mixer.Submit (GamePortSource::Controller, m_evaluator.Evaluate (sample, mapping, deadzone));
+        GamePortContribution  contribution = m_evaluator.Evaluate (sample, mapping, deadzone);
+
+        m_mixer.Submit (GamePortSource::Controller, contribution);
         m_hasContribution = true;
+
+        {
+            std::lock_guard<std::mutex>  lock (m_mutex);
+
+            m_lastTick.didSubmit = true;
+            m_lastTick.submitted = contribution;
+        }
     }
 
     // What the thread waits on until the next read: the controller's own
@@ -348,6 +379,25 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     }
 
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLastTickReport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerInputService::TickReport ControllerInputService::GetLastTickReport() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_lastTick;
 }
 
 

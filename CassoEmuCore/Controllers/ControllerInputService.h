@@ -82,6 +82,27 @@ public:
     // wait on before reading again.
     ControllerWaitSources  Tick ();
 
+    // What the last tick decided, for the trace. Every step between a
+    // controller moving and the game port changing, so a failure says which
+    // step it failed at rather than only that nothing happened.
+    struct TickReport
+    {
+        bool                  hasSelection      = false;
+        bool                  hasStandIn        = false;
+        bool                  hasActiveUnit     = false;
+        bool                  isSelectionActive = false;   // the active unit IS the selection
+        bool                  isActiveXInput    = false;
+        HRESULT               readResult        = S_OK;
+        bool                  isConnected       = false;   // the read succeeded and reported connected
+        bool                  hasMapping        = false;   // the active unit has a non-empty mapping
+        bool                  isAppActive       = false;
+        bool                  didSubmit         = false;
+        float                 deadzone          = 0.0f;
+        GamePortContribution  submitted;
+    };
+
+    TickReport  GetLastTickReport () const;
+
     Snapshot  GetSnapshot () const;
 
 private:
@@ -120,6 +141,7 @@ private:
     uint64_t                                             m_nextAttachOrder = 0;
 
     ControllerSample                     m_lastSample;
+    TickReport                           m_lastTick;
     SelectionChangedFn                   m_onSelectionChanged;
     StateChangedFn                       m_onStateChanged;
     float                                m_deadzone            = 0.0f;

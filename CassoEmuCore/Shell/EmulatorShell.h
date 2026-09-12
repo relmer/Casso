@@ -567,6 +567,11 @@ private:
     // whether the bar and its band exist at all.
     std::wstring  GetStandInBannerText () const;
 
+    // Every step between a controller moving and the game port changing,
+    // once a second to the debugger, while CASSO_CONTROLLER_TRACE is set.
+    void    TraceControllerState ();
+    int64_t m_controllerTraceMs = 0;
+
     // How tall the bar is at a given width, for the band that reserves the
     // room and the paint that fills it. One answer, so the two cannot
     // disagree about whether the band is big enough.

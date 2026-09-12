@@ -2890,6 +2890,84 @@ void EmulatorShell::ApplyAutomaticControllerSelection (const std::wstring & desc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TraceControllerState
+//
+//  Every step between a controller moving and the game port changing, once a
+//  second, to the debugger, while CASSO_CONTROLLER_TRACE is set. Off and free
+//  otherwise: the variable is read once.
+//
+//  A controller that does nothing is the hardest fault to reason about,
+//  because every stage fails the same way -- nothing happens. Reading which
+//  stage stopped beats guessing at the one before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::TraceControllerState()
+{
+    static int                          s_enabled = -1;
+    ControllerInputService::TickReport  tick;
+    ControllerInputService::Snapshot    snapshot;
+    InputModeRules::State               state;
+    wchar_t                             line[512] = {};
+    int64_t                             nowMs     = 0;
+
+
+
+    if (s_enabled < 0)
+    {
+        wchar_t  value[8] = {};
+
+        s_enabled = (GetEnvironmentVariableW (L"CASSO_CONTROLLER_TRACE", value, ARRAYSIZE (value)) > 0) ? 1 : 0;
+    }
+
+    if (s_enabled == 0 || m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    if (nowMs - m_controllerTraceMs < 1000)
+    {
+        return;
+    }
+
+    m_controllerTraceMs = nowMs;
+
+    tick     = m_controllerService->GetLastTickReport();
+    snapshot = m_controllerService->GetSnapshot();
+
+    state.arrowsJoystick       = IsArrowJoystickActive();
+    state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
+    state.hasController        = snapshot.selection.has_value();
+    state.isControllerAttached = snapshot.isSelectedConnected;
+    state.hasStandIn           = snapshot.standIn.has_value();
+
+    swprintf_s (line,
+        L"[controller] devices=%zu sel=%d standIn=%d active=%d selIsActive=%d xinput=%d "
+        L"read=0x%08X connected=%d mapping=%d appActive=%d submit=%d "
+        L"paddle=%d,%d buttons=%d%d%d deadzone=%.2f owner=%d\n",
+        snapshot.devices.size(),
+        tick.hasSelection, tick.hasStandIn, tick.hasActiveUnit, tick.isSelectionActive,
+        tick.isActiveXInput, (unsigned int) tick.readResult, tick.isConnected,
+        tick.hasMapping, tick.isAppActive, tick.didSubmit,
+        tick.submitted.paddle.has_value() ? tick.submitted.paddle.value()[0] : -1,
+        tick.submitted.paddle.has_value() ? tick.submitted.paddle.value()[1] : -1,
+        tick.submitted.buttons.test (0), tick.submitted.buttons.test (1),
+        tick.submitted.buttons.test (2),
+        tick.deadzone,
+        (int) InputModeRules::GetAxisOwner (state));
+
+    OutputDebugStringW (line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetStandInBannerText
 //
 //  The line the stand-in bar carries, or empty when there is no bar. The
