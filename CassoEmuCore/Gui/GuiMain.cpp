@@ -754,6 +754,11 @@ extern "C" int WINAPI wCassoMain (
         // and the renderers are per window.
         hrFont = AssetBootstrap::RegisterSymbolFont (hInstance);
         IGNORE_RETURN_VALUE (hrFont, S_OK);
+
+        // And the Apple II's own character shapes, for chrome that shows what
+        // the machine would have shown.
+        hrFont = AssetBootstrap::RegisterApple2Font (hInstance);
+        IGNORE_RETURN_VALUE (hrFont, S_OK);
     }
 
     // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.

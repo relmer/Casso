@@ -59,6 +59,7 @@ public:
     // words when this failed, so a machine without the font still names the
     // key rather than showing a missing-glyph box that says nothing.
     static HRESULT  RegisterSymbolFont    (HINSTANCE hInstance);
+    static HRESULT  RegisterApple2Font    (HINSTANCE hInstance);
 
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The

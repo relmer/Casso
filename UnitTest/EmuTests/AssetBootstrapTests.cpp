@@ -4,6 +4,7 @@
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
 #include "resource.h"
+#include "Theme/DxuiTheme.h"
 #include "EmbeddedMachineConfigs.h"
 #include "EmbeddedMachineJson.h"
 
@@ -32,6 +33,35 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (AssetBootstrapTests)
 {
 public:
+
+    TEST_METHOD (Embedded_Apple2Font_CarriesTheFamilyTheThemeAsksFor)
+    {
+        std::string   font = EmbeddedMachineJson::Load (IDR_FONT_APPLE2);
+        std::wstring  face = DxuiTheme::kApple2Face;
+        std::string   utf16;
+
+        //  A TrueType file: version 1.0, the sfnt tag a scaler looks for.
+        Assert::IsTrue (font.size() > 4, L"the Apple II font is not in the executable");
+        Assert::AreEqual (0x00, (int) (unsigned char) font[0]);
+        Assert::AreEqual (0x01, (int) (unsigned char) font[1]);
+        Assert::AreEqual (0x00, (int) (unsigned char) font[2]);
+        Assert::AreEqual (0x00, (int) (unsigned char) font[3]);
+
+        //  A name table stores its strings UTF-16, big end first.
+        for (wchar_t ch : face)
+        {
+            utf16.push_back ((char) ((ch >> 8) & 0xFF));
+            utf16.push_back ((char) (ch & 0xFF));
+        }
+
+        //  The family the theme names must be the family the font carries.
+        //  They are set in two places -- DxuiTheme and GenApple2Font.py --
+        //  and a drift between them draws every Apple II file in the default
+        //  face, which looks like a styling choice rather than a bug.
+        Assert::IsTrue (font.find (utf16) != std::string::npos,
+                        L"the built font's family is not the one DxuiTheme asks for");
+    }
+
 
     TEST_METHOD (Embedded_AppleII_RequiresSystemCharacterAndDisk2Rom)
     {

@@ -1126,6 +1126,46 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssetBootstrap::RegisterApple2Font
+//
+//  The Apple II's own character shapes, built by scripts/GenApple2Font.py from
+//  the character generator table the emulator draws its text with. Registered
+//  by family, not as a fallback: it is chosen for a listing or a text file
+//  from a disk, where the point is to read what the machine showed, and it
+//  must never stand in for a missing glyph in the chrome's own text.
+//
+//  A build without the font leaves the family unregistered, and text drawn in
+//  it falls back to the default face: fewer shapes than the machine had, not
+//  an empty pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::RegisterApple2Font (HINSTANCE hInstance)
+{
+    HRESULT           hr       = S_OK;
+    span<const Byte>  bytes;
+    bool              embedded = false;
+    std::wstring      family;
+
+
+
+    bytes    = ExtractResource (hInstance, IDR_FONT_APPLE2);
+    embedded = !bytes.empty();
+    CBRA (embedded);
+
+    hr = DxuiTextRenderer::AddPrivateFont (bytes.data(), bytes.size(), family);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetAssetBaseDirectory
 //
 //  Returns %LOCALAPPDATA%\Casso\ -- the single, user-writable root for

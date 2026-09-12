@@ -1,4 +1,4 @@
-﻿#include "resource.h"
+#include "resource.h"
 #include "Shaders\\ShaderResourceIds.h"
 #include <windows.h>
 #include "Version.h"    // single source of truth for the app version
@@ -46,6 +46,11 @@ IDR_THEME_RETRO_FONT_TODO          RCDATA "..\\Resources\\Themes\\RetroTerminal\
 // Symbol font for the open and closed Apple glyphs, registered with DirectWrite
 // at startup rather than extracted (AssetBootstrap::RegisterSymbolFont).
 IDR_FONT_SYMBOLS                   RCDATA "..\\Resources\\Fonts\\CassoSymbols.ttf"
+
+// The Apple II's own character shapes, built from the character generator
+// table by scripts/GenApple2Font.py and registered by family at startup
+// (AssetBootstrap::RegisterApple2Font).
+IDR_FONT_APPLE2                    RCDATA "..\\Resources\\Fonts\\CassoApple2.ttf"
 
 // Embedded 3D reference model for the printer panel's skeuomorphic scene --
 // the user's Tinkercad CAD model of the ImageWriter II (OBJ+MTL).
