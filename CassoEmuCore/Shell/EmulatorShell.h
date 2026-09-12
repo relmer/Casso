@@ -1095,6 +1095,18 @@ private:
     ShellKeyRouting::State  GetKeyRoutingState () const;
     void                  DispatchShellKey (ShellKeyOwner owner, WPARAM vk);
 
+public:
+
+    //  How a keydown's owner is decided. Defaults to the real classifier; a
+    //  test substitutes its own to drive a verdict the chrome would be
+    //  laborious to arrange, and to see that OnKeyDown asks at all. Same
+    //  shape as DxuiToolbar::SetClock.
+    using KeyOwnerFn = std::function<ShellKeyOwner (const ShellKeyRouting::State &, WPARAM)>;
+
+    void  SetKeyOwnerFn (KeyOwnerFn fn)  { m_keyOwnerFn = std::move (fn); }
+
+private:
+
     // Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as
     // the WindowManager save callback so per-monitor window placement
     // edits land on disk immediately after the user moves/resizes the
@@ -1419,10 +1431,34 @@ private:
     ComPtr<ID3D11ShaderResourceView>  m_sceneCalibSrv;
     RECT                              m_sceneCalibRect = {};
 
-    // Set when a Ctrl+letter host-meta shortcut claims a keydown whose
-    // synthesized WM_CHAR must not reach the guest keyboard latch (the ^V
-    // of a paste would land in the input line ahead of the pasted text).
+protected:
+
+    //  Reachable by a test subclass, the way TestCpu reaches Cpu's. These two
+    //  are the whole observable surface of the keystroke path: whether a
+    //  claimed key armed the swallow, and whether a character reached the
+    //  guest. Everything else here stays private.
+
+    // Set when OnKeyDown claims a keydown whose synthesized WM_CHAR must not
+    // reach the guest keyboard latch -- an open picker, the focus ring, Esc
+    // leaving paddle mode, or a host-meta shortcut (the ^V of a paste would
+    // land in the input line ahead of the pasted text). One shot: OnChar
+    // consumes it, and OnKeyDown clears it on the way in.
     bool                       m_swallowMetaChar = false;
+
+    // The classifier OnKeyDown routes through. A member rather than a direct
+    // call so a test can substitute one; see SetKeyOwnerFn.
+    KeyOwnerFn                 m_keyOwnerFn      = &ShellKeyRouting::GetKeyOwner;
+
+    // Apple ][ framebuffer viewport inside the host's root panel. Sized by
+    // EmulatorShell whenever chrome layout changes; the bounds-changed
+    // callback forwards the new rectangle to m_d3dRenderer.SetTargetBounds so
+    // the renderer knows where to composite the framebuffer. Non-owning
+    // pointer; the panel tree owns the DxuiViewport instance. Every key and
+    // character the guest receives travels through it, which is why a test
+    // needs to see it.
+    DxuiViewport             * m_viewport        = nullptr;
+
+private:
 
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The
     // drive widgets and the (scaled part of the) drive band follow it so the
@@ -1445,14 +1481,6 @@ private:
     // OnXxx overrides above.
     std::unique_ptr<DxuiHwndSource>  m_host;
 
-    // Apple ][ framebuffer viewport inside the host's root panel.
-    // Sized by EmulatorShell whenever chrome layout changes; the
-    // bounds-changed callback forwards the new rectangle to
-    // m_d3dRenderer.SetTargetBounds so the renderer knows where to
-    // composite the framebuffer once the swap-chain restructure
-    // completes later in Phase 11d. Non-owning pointer; the panel
-    // tree owns the DxuiViewport instance.
-    DxuiViewport *                   m_viewport          = nullptr;
     RECT                             m_viewportBoundsPx  = {};
 
     // Per-frame framebuffer pointer staged by RunMessageLoop and read

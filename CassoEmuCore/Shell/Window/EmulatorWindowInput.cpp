@@ -1995,7 +1995,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // -- it carries a character, not a key -- and re-asking this question when
     // it arrives gives the wrong answer whenever the key CHANGED the state,
     // which Escape over an open picker does by closing the picker.
-    owner = ShellKeyRouting::GetKeyOwner (GetKeyRoutingState(), vk);
+    owner = m_keyOwnerFn (GetKeyRoutingState(), vk);
 
     if (owner != ShellKeyOwner::Guest)
     {
