@@ -126,15 +126,15 @@ public:
     }
 
 
-    TEST_METHOD (TheImageWriteProtectToggleAndSalvageNameTheirDrive)
+    TEST_METHOD (TheImageWriteProtectToggleNamesItsDrive)
     {
         Notebook  target;
 
-        Dispatch (IDM_DISK_WP2,      "", target);
-        Dispatch (IDM_DISK_SALVAGE1, "", target);
+        Dispatch (IDM_DISK_WP2, "", target);
+        Dispatch (IDM_DISK_WP1, "", target);
 
         Assert::AreEqual (std::string ("ToggleImageWriteProtect 1"), target.calls[0]);
-        Assert::AreEqual (std::string ("RunSalvageFlow 0"),          target.calls[1]);
+        Assert::AreEqual (std::string ("ToggleImageWriteProtect 0"), target.calls[1]);
     }
 
 
@@ -252,8 +252,6 @@ private:
             calls.push_back (std::format ("ToggleImageWriteProtect {}", drive));
             return S_OK;
         }
-
-        void     RunSalvageFlow (int drive) override { calls.push_back (std::format ("RunSalvageFlow {}", drive)); }
 
         void     ResolvePendingChange (int slot, int drive, int action, const std::string & savePath) override
         {

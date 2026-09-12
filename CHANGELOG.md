@@ -17,6 +17,10 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- `CassoCli disk list` ends with a "Not bootable" line when the image has no
+  operating system to boot: no DOS on tracks 0 to 2, or no PRODOS file on the
+  volume. Previously a data disk listed exactly like a bootable one, and the
+  first sign was the monitor prompt after a boot.
 - The menu bar, the toolbar and the debug panels' right-click menus now share
   one command model and one dropdown. Dropdowns fit their content instead of
   a fixed width, with the check column present only in a menu that has a
@@ -24,9 +28,24 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Fixed bug preventing write-enabling images that rely on +R attribute for
+  write protection.
+- The padlock on a drive appears and clears as soon as the disk is
+  write-protected or write-enabled, rather than at the next repaint.
+- Write-protecting a WOZ image no longer triggers the external disk
+  modification notification.
 - CassoCli now exits quietly when the program reading its output stops early,
   as `Select-Object -First` does. Previously, it aborted, and a Debug build
   raised a modal error dialog.
+- The Disk menu's "Salvage readable sectors..." items now open the salvage
+  dialog as expected.
+- Casso no longer changes the host's Caps Lock. Caps Lock starts on in Casso
+  even while the host's is off, and the first Caps Lock press in the Casso
+  window switches Casso to following the host key, with a notice when that
+  press turns Caps Lock on. Paste on the //e and //c follows Caps Lock the
+  same way typing does, with a notice when it raised any letters.
+  Previously, switching to a window running as administrator or locking the
+  workstation could leave the host's Caps Lock on.
 
 ## [1.24.2]: The one with the redist dist
 

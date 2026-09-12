@@ -90,7 +90,7 @@
 - [X] T024 [P] [US3] Create `Dxui/Widgets/DxuiContextMenu.h/.cpp` with `static void Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items)` driving a dropdown owned by the host window with the host's DPI, theme, text renderer and client rect; no completion callback, a picked row runs its command; keep it a short adapter with no logic of its own, since it is covered by the dropdown tests plus T027; add both files to `Dxui/Dxui.vcxproj`
 - [X] T025 [US3] In `CassoEmuCore/Ui/Disk2DebugPanel.h/.cpp`, replace the `DxuiPopupMenu` member and its `Show` with `DxuiCommand` objects for its rows and `DxuiContextMenu::Show` from the right-click handler
 - [X] T026 [US3] In `CassoEmuCore/Ui/InputDebugPanel.h/.cpp`, same replacement as T025
-- [ ] T027 [US1] Run the emulator; right-click each debug panel, confirm the same rows appear and each row runs its action. NOT VERIFIED BY HAND in this session: the panels compile and the popup path is the tested DxuiPopupMenu, but nobody has right-clicked them
+- [X] T027 [US1] Run the emulator; right-click each debug panel, confirm the same rows appear and each row runs its action. NOT VERIFIED BY HAND in this session: the panels compile and the popup path is the tested DxuiPopupMenu, but nobody has right-clicked them -- DONE by posted right-clicks on both panels (validation.md, `branch7-panels`)
 - [X] T028 Commit: `refactor(dxui): menu bar and context menus over DxuiPopupMenu`
 
 **Checkpoint**: `DxuiPopupMenu` has one consumer left, the toolbar.

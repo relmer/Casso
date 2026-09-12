@@ -39,11 +39,6 @@ struct EmulatorMenuEntry
     const wchar_t * label;
     const wchar_t * accelerator;
     bool            checkable = false;
-
-    // Opens the paddle-source list rather than running anything. Its children
-    // are built at open time, because what is attached changes while Casso
-    // runs and a static table cannot say what is plugged in.
-    bool            paddleSources = false;
 };
 
 

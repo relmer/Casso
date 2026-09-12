@@ -104,6 +104,13 @@ public:
     //
     static bool  IsRunnableAsGreeting (const VolumeListing & listing, const std::string & name);
 
+    //  Whether the tracks DOS occupies hold anything at all. A volume formatted
+    //  without an operating system reserves them and leaves them blank, and
+    //  patching a greeting name into blank space would report success for
+    //  something no boot could ever read. Public because a listing says the
+    //  same thing about the disk.
+    bool  HasDosImage() const;
+
     //  Set in the type byte when the file is locked. Placement over a locked
     //  file is refused, matching how the guest behaves.
     static constexpr Byte  kLockedBit       = 0x80;
@@ -226,12 +233,6 @@ private:
                                     const vector<Byte>  & nameBytes);
 
     Byte  ReadByte (int track, int sector, size_t offset) const;
-
-    //  Whether the tracks DOS occupies hold anything at all. A volume formatted
-    //  without an operating system reserves them and leaves them blank, and
-    //  patching a greeting name into blank space would report success for
-    //  something no boot could ever read.
-    bool  HasDosImage() const;
 
     //  Case-insensitive, because the catalog is upper case and the caller's
     //  shell is not.

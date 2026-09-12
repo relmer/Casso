@@ -114,26 +114,24 @@ inline bool ShouldEnableDisk2DebugMenuItem (const MachineConfig & config) noexce
 //  ShouldEnableWriteProtectMenuItem
 //
 //  Pure helper that returns true iff the Disk menu's write-protect item
-//  should be clickable for a bay: something has to be mounted, and it must
-//  not be an image whose stored checksum failed to match its contents.
+//  should be clickable for a bay: something has to be mounted, it must not be
+//  an image whose stored checksum failed to match its contents, and the file
+//  must not be closed to writes for a reason the command cannot change.
 //
-//  A damaged image is excluded because the toggle refuses it. Changing that
-//  flag means patching the file and recomputing its header checksum, and that
-//  checksum failing to match IS the evidence of damage -- so the one write
-//  that is otherwise harmless is the one that would destroy the proof. The
-//  refusal explains itself, but an item that always refuses should not be
-//  offered in the first place.
+//  Two of the five causes disable it:
 //
-//  Three of the five causes disable it, for the same reason in each case: the
-//  flag lives inside the file, so changing it means WRITING the file.
+//    checksumMismatch  changing the WOZ flag rewrites the header checksum,
+//                      and that checksum failing to match IS the evidence of
+//                      damage -- so the one write that is otherwise harmless
+//                      is the one that would destroy the proof.
+//    noPermission      an ACL denial or an exclusive lock; the command
+//                      changes neither, so every write it tries would fail.
 //
-//    checksumMismatch  rewriting recomputes the header checksum, and that
-//                      checksum failing to match IS the evidence of damage.
-//    readOnlyFile      the host file carries +R; the write would fail.
-//    noPermission      likewise, for want of access.
-//
-//  The other two do not. An image already flagged, or one the user protected
-//  through Settings, is exactly the case where someone reaches for this.
+//  The other three do not. The image flag and the read-only attribute are
+//  the two things the command toggles, so either one being set is exactly
+//  when a user reaches for it -- disabling on the attribute once left a disk
+//  the command had just write-protected with no way back. The drive
+//  preference in Settings is a separate control.
 //
 //  Takes the whole WriteProtectInfo rather than a lone bool so a later cause
 //  that also makes the toggle meaningless can join without changing callers,
@@ -148,5 +146,5 @@ inline bool ShouldEnableWriteProtectMenuItem (
     bool                      isMounted,
     const WriteProtectInfo &  wp) noexcept
 {
-    return isMounted && !wp.checksumMismatch && !wp.readOnlyFile && !wp.noPermission;
+    return isMounted && !wp.checksumMismatch && !wp.noPermission;
 }

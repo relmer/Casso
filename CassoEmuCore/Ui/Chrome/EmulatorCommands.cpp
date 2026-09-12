@@ -29,7 +29,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_EDIT_PASTE,               MainMenuId::Edit,    L"&Paste",                 L"Ctrl+V"        },
     { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+Shift+R"  },
     { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
-    { IDM_MACHINE_PADDLE_SOURCE,    MainMenuId::Machine, L"&Joystick and paddles", nullptr,           false, true },
+    { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
+    { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
     { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
     { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
@@ -554,11 +555,6 @@ std::vector<DxuiMenuBarItem> EmulatorCommands::BuildMenuItems() const
             if (IsSeparator (e))
             {
                 topItem.submenu.push_back (DxuiPopupMenuItem::ForSeparator());
-            }
-            else if (e.paddleSources)
-            {
-                topItem.submenu.push_back (DxuiPopupMenuItem::ForSubmenu (Find (e.commandId),
-                                                                          GetPaddleSourceItems()));
             }
             else
             {

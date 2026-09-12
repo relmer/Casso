@@ -10,7 +10,6 @@
 #include "Config/Win32FileSystem.h"
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
-#include "Controllers/TransientNoticeState.h"
 #include "Seams/Win32ControllerBackend.h"
 #include "Shell/ControllerInputThread.h"
 #include "Shell/MachineGamePortSink.h"
@@ -24,10 +23,9 @@
 #include "Devices/IAciaEndpoint.h"
 #include "Print/PrinterWorker.h"
 #include "Seams/Win32Clipboard.h"
-#include "Seams/Win32HostCapsLock.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Shell/AudioSampleBudget.h"
-#include "Shell/Input/CapsLockLatch.h"
+#include "Shell/Input/CapsLockTracker.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/FrameClock.h"
@@ -73,6 +71,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Widgets/DxuiActionBanner.h"
 #include "Widgets/DxuiInfoBanner.h"
+#include "Widgets/DxuiTimedInfoBanner.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
@@ -334,7 +333,6 @@ private:
     DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
-    DxuiMessageResult  OnSetFocus      () override;
     DxuiMessageResult  OnKillFocus     () override;
 
     // Release the guest keyboard latch + auto-repeat + modifiers. Called on
@@ -372,6 +370,10 @@ private:
     // Bound to the toolbar camera, Edit > Copy screenshot, and Ctrl+Alt+C.
     void TakeScreenshot();
 
+    // Paste the clipboard's text into the guest keyboard with Caps Lock
+    // applied, and say so when that changed the text. Ctrl+V and Edit > Paste.
+    void PasteClipboardText();
+
     // Hands the //e keyboard the real time that has passed since the previous
     // CPU-thread frame, which is what its auto-repeat cadence runs on. Not
     // driven off the guest clock: Double would then repeat twice as fast and
@@ -381,7 +383,7 @@ private:
 
     // ICpuCommandTarget: the outcomes a queued command can ask for, each one
     // call into the machine, the disk manager or a mixer. SwitchMachine,
-    // SoftReset, PowerCycle, SetDriveUserWriteProtect, RunSalvageFlow and the
+    // SoftReset, PowerCycle, SetDriveUserWriteProtect and the
     // three drive-audio setters are members of long standing that already
     // have the target's signature; these are the ones that were inline in
     // the dispatch switch before it became CpuCommandDispatcher.
@@ -1545,6 +1547,11 @@ private:
     // filesystem parsing or text measurement.
     std::array<std::string, 2>  m_sceneLabelPath;
 
+    // The padlock each drive last showed, 2D widget or 3D drive. Write
+    // protection moves no pixel the machine owns, so the frame that shows it
+    // has to be asked for; see the guard in the present path.
+    std::array<bool, 2>         m_driveWpShown = {};
+
     // "Press Esc to release the mouse and exit paddle mode", on screen for as
     // long as the capture holds. The joystick button carries the same words, but
     // it is chrome: fullscreen hides it, and a captured pointer with the
@@ -1601,10 +1608,10 @@ private:
 
     PendingCapture             m_pendingCapture;
 
-    // The screenshot result notice: the filename on success, the reason
-    // otherwise. Its own bar rather than the mouse-capture one's, because the
-    // two can be wanted at once and this one expires on a timer while that
-    // one tracks a state.
+    // The transient notice: a screenshot's filename or the reason it failed,
+    // or which write-protect mechanism a Disk menu command changed. Its own
+    // bar rather than the mouse-capture one's, because the two can be wanted
+    // at once and this one expires on a timer while that one tracks a state.
     //
     // A MESSAGE BAR ACROSS THE TOP, NOT A CAPTION ON THE PICTURE. It was
     // shadowed text over the bottom of the viewport, which put a filename --
@@ -1612,17 +1619,13 @@ private:
     // the photograph. It now reads as the same kind of thing the
     // pointer-capture bar is, and says so by looking like it.
     //
-    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. A docked band costs the
-    // picture its height, and a strip that comes and goes on a four-second
-    // timer would reflow the machine twice per screenshot. So this one hangs
-    // under whatever docked chrome is at the top and covers a little of the
-    // picture instead, with a scrim thin enough to read through.
-    DxuiInfoBanner             m_transientNotice;
-    DxuiSurface                m_transientNoticeScrim;
-    TransientNoticeState       m_noticeState;
+    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. It hangs under whatever docked
+    // chrome is at the top and covers a little of the picture instead.
+    DxuiTimedInfoBanner            m_notice;
 
-    void  ShowTransientNotice   (const std::wstring & text);
-    void  SyncTransientNotice   ();
+    void  ShowNotice   (const std::wstring & text);
+    void  PostNotice   (const std::wstring & text);
+    void  SyncNotice   ();
 
     // The lowest edge of whatever chrome is docked (or, in fullscreen,
     // revealed) at the top of the client, which is where an overlay that
@@ -2051,11 +2054,10 @@ private:
     Win32HostDialogs                          m_hostDialogs;
     ModernPrintDialog                         m_printDialog;
 
-    // The Caps Lock key an Apple ][ ships latched down, driven onto the host
-    // keyboard while this window has focus. Declared after the host toggle it
-    // holds a reference to.
-    Win32HostCapsLock                         m_hostCapsLock;
-    CapsLockLatch                             m_capsLockLatch { m_hostCapsLock };
+    // Whether the //e and //c Caps Lock key is down: down until the first
+    // Caps Lock press in this window, the host's from then on. Session-scoped,
+    // so a machine switch keeps it and every launch starts over.
+    CapsLockTracker                           m_capsLock;
 
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<DiskManager>              m_diskManager;

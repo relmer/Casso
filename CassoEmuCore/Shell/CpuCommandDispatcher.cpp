@@ -80,11 +80,6 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             IGNORE_RETURN_VALUE (hr, S_OK);
             break;
 
-        case IDM_DISK_SALVAGE1:
-        case IDM_DISK_SALVAGE2:
-            target.RunSalvageFlow ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
-            break;
-
         case IDM_DISK_RESOLVE_CHANGE:
             DispatchResolveChange (cmd.payload, target);
             break;

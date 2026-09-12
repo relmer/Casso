@@ -22,10 +22,6 @@
 #define IDM_MACHINE_ARROWS_JOYSTICK 40018
 #define IDM_MACHINE_ARROWS_PADDLE   40019
 
-// Title of the paddle-source submenu. It opens a list and runs nothing
-// itself, so it has no dispatch; the two ids above stay as the accelerator
-// targets for the keys and the mouse.
-#define IDM_MACHINE_PADDLE_SOURCE   40074
 
 #define IDM_DISK_INSERT1            40020
 #define IDM_DISK_INSERT2            40021
@@ -50,8 +46,9 @@
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that
 //  owns disk writes, so it travels as a command like every other mount-path
-//  action. The payload carries the bay and the chosen answer.
-#define IDM_DISK_RESOLVE_CHANGE     40072
+//  action. The payload carries the bay and the chosen answer. It is never
+//  sent as WM_COMMAND, so its value is outside the Disk range OnCommand checks.
+#define IDM_DISK_RESOLVE_CHANGE     40074
 
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031

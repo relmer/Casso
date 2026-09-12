@@ -555,6 +555,7 @@ bool EmulatorShell::TryPresentUiFrame()
     bool     didPresent                = false;
     bool     anyDriveLive              = false;
     bool     framebufferDirtyThisFrame = false;
+    bool     wpMoved                   = false;
     uint32_t driveSig                  = 0;
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
 
@@ -640,7 +641,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // strip was last frame -- visibly trailing it through the reveal.
     TickFullscreenTopChrome();
     SyncCaptureBanner();
-    SyncTransientNotice();
+    SyncNotice();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
 
@@ -712,6 +713,28 @@ bool EmulatorShell::TryPresentUiFrame()
         }
     }
 
+    // The padlock coming or going wants a frame, and it is the one drive cue
+    // that nothing else asks for one about: a mount rolls the label, activity
+    // fades, a door swings, but write-protecting a disk moves no pixel the
+    // machine owns. Left to the next unrelated redraw, the padlock appeared
+    // whenever something else happened to repaint -- a theme hover, a
+    // resize -- which read as the click not having worked.
+    //
+    // BOTH PRESENTATIONS, so it sits above the scene branch: the 2D widget
+    // paints its own badge, and in the scene the padlock is a glyph on the
+    // front of the disk's NAME, which is re-hung below.
+    for (int i = 0; i < (int) m_driveWpShown.size(); i++)
+    {
+        bool  wp = m_driveWidgetState[i].writeProtect.Any();
+
+        if (wp != m_driveWpShown[i])
+        {
+            m_driveWpShown[i] = wp;
+            m_d3dRenderer.MarkRedrawNeeded();
+            wpMoved = true;
+        }
+    }
+
     // 3D scene drive visuals: activity lamp, door swing, and the padlock,
     // pushed from the same per-drive state the 2D widgets mirror. The scene
     // only rebuilds geometry when a value actually moved.
@@ -740,11 +763,12 @@ bool EmulatorShell::TryPresentUiFrame()
             m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
         }
 
-        // A mount or eject changes the basename strip under the drive, and
-        // neither runs a layout pass -- so watch the source paths here and
-        // re-hang the labels (with their text measurement) only on a change.
+        // A mount or eject changes the basename strip under the drive, and so
+        // does write-protecting the disk, since the padlock is a glyph at the
+        // head of that name. Neither runs a layout pass, so watch both here
+        // and re-hang the labels (with their text measurement) on a change.
         {
-            bool  labelsMoved = false;
+            bool  labelsMoved = wpMoved;
 
             for (int i = 0; i < (int) m_sceneLabelPath.size(); i++)
             {
@@ -1233,27 +1257,27 @@ uint64_t EmulatorShell::ComputeColorSig()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShowTransientNotice
+//  ShowNotice
 //
-//  Post the screenshot result over the picture for a few seconds.
+//  Show a notice over the picture for a few seconds. UI thread only.
 //
-//  The text arrives already composed by CaptureOutcome::DescribeResult, which
-//  is deliberate: every branch of what to say about a capture is decided in
-//  core where a test can reach it, and this function chooses no wording.
+//  The text arrives already composed -- by CaptureOutcome::DescribeResult or
+//  WriteProtectChange::DescribeResult -- which is deliberate: every branch of
+//  what to say is decided in core where a test can reach it, and this
+//  function chooses no wording.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ShowTransientNotice (const std::wstring & text)
+void EmulatorShell::ShowNotice (const std::wstring & text)
 {
     int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                           std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
-    m_noticeState.Show (text, nowMs);
-    m_transientNotice.SetText (text);
+    m_notice.Show (text, nowMs);
 
-    SyncTransientNotice();
+    SyncNotice();
 
     m_d3dRenderer.MarkRedrawNeeded();
 }
@@ -1264,7 +1288,42 @@ void EmulatorShell::ShowTransientNotice (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SyncTransientNotice
+//  PostNotice
+//
+//  Hand a notice to the window from any thread. The notice is Dxui and Dxui
+//  asserts UI-thread affinity, so a caller on the CPU thread cannot show it
+//  directly. With no window there is nothing to show it over, and the notice
+//  is dropped: it only confirms a change the indicators already show.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PostNotice (const std::wstring & text)
+{
+    wstring *  carried = nullptr;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    carried = new (std::nothrow) wstring (text);
+
+    if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_SHOW_NOTICE, 0,
+                                             reinterpret_cast<LPARAM> (carried)))
+    {
+        delete carried;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncNotice
 //
 //  Lay the notice out while it is live, and drop it once it expires.
 //
@@ -1288,7 +1347,7 @@ void EmulatorShell::ShowTransientNotice (const std::wstring & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncTransientNotice()
+void EmulatorShell::SyncNotice()
 {
     RECT                 client = {};
     RECT                 rc     = {};
@@ -1299,10 +1358,9 @@ void EmulatorShell::SyncTransientNotice()
 
 
 
-    if (!m_noticeState.IsShowing (nowMs) || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    if (!m_notice.IsShowing (nowMs) || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        m_transientNotice.SetVisible      (false);
-        m_transientNoticeScrim.SetVisible (false);
+        m_notice.SetVisible (false);
         return;
     }
 
@@ -1312,23 +1370,16 @@ void EmulatorShell::SyncTransientNotice()
     rc.right = client.right;
     rc.top   = ComputeTopOverlayEdgePx (client);
 
-    //  MEASURED WHERE THERE IS A RENDERER TO ASK. The bar centers its text,
-    //  and a centered banner picks its line width from that measurement; the
-    //  estimate behind GetPreferredHeightPx works from an average glyph
-    //  width, so a wide face or a long path measures past it and the last
-    //  line lands outside the strip. The estimate stays as the fallback for
-    //  the frames before the renderer exists.
-    m_transientNotice.SetDpi (m_scaler.GetDpi());
+    //  Measured where there is a renderer to ask; the estimate is the
+    //  fallback for the frames before the renderer exists.
+    m_notice.SetDpi (m_scaler.GetDpi());
 
     rc.bottom = rc.top + (LONG) ((text != nullptr)
-                                 ? m_transientNotice.GetMeasuredHeightPx (*text, width, m_scaler)
-                                 : m_transientNotice.GetPreferredHeightPx (width, m_scaler));
+                                 ? m_notice.GetMeasuredHeightPx (*text, width, m_scaler)
+                                 : m_notice.GetPreferredHeightPx (width, m_scaler));
 
-    m_transientNoticeScrim.Layout     (rc, m_scaler);
-    m_transientNoticeScrim.SetVisible (true);
-
-    m_transientNotice.Layout     (rc, m_scaler);
-    m_transientNotice.SetVisible (true);
+    m_notice.Layout     (rc, m_scaler);
+    m_notice.SetVisible (true);
 }
 
 
@@ -1418,8 +1469,7 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
 
         //  Including this one. Two captures inside the notice's few seconds
         //  would otherwise photograph the first one's filename.
-        m_transientNotice.SetVisible      (false);
-        m_transientNoticeScrim.SetVisible (false);
+        m_notice.SetVisible (false);
     }
     else
     {
@@ -1432,7 +1482,7 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
         SyncFrameRateReadout();
         SyncSceneViewReadout();
         SyncCaptureBanner();
-        SyncTransientNotice();
+        SyncNotice();
     }
 }
 
@@ -1711,7 +1761,7 @@ void EmulatorShell::TakeScreenshot()
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    ShowTransientNotice (CaptureOutcome::DescribeResult (outcome));
+    ShowNotice (CaptureOutcome::DescribeResult (outcome));
 
     if (picturesRaw != nullptr)
     {
