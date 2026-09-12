@@ -1915,6 +1915,12 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     //    "Esc to exit" hint on the widget.
     if (m_pointerMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
     {
+        // TranslateMessage manufactures Escape's character from this keydown
+        // whether or not anything claimed the key, and the bail below keeps
+        // the key half from the guest. Without the swallow the character half
+        // arrives on its own and the //e is sent the Escape the user pressed
+        // to leave paddle mode.
+        m_swallowMetaChar = true;
         SetPointerMapping (InputMappingMode::Off);
         BAIL_OUT_IF (true, S_OK);
     }

@@ -33,6 +33,7 @@ Entries before versioning was introduced use dates only.
   raised a modal error dialog.
 - The Disk menu's "Salvage readable sectors..." items now open the salvage
   dialog as expected.
+- Escape to leave paddle mode no longer also sends an Escape to the //e.
 
 ## [1.24.2]: The one with the redist dist
 
