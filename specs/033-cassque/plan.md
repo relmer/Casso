@@ -102,12 +102,16 @@ Dxui/
 │   ├── DxuiListView.h/.cpp            # multi-select, sort and activate callbacks
 │   ├── DxuiSplitter.h/.cpp            # NEW
 │   ├── DxuiStatusBar.h/.cpp           # NEW
-│   └── DxuiFramebufferView.h/.cpp     # NEW
+│   ├── DxuiFramebufferView.h/.cpp     # NEW
+│   └── DxuiHexView.h/.cpp             # NEW: offset, hex and text columns over one byte selection
 ├── Window/
 │   └── DxuiDragDropSource.h/.cpp      # NEW: IDropSource + IDataObject with delayed rendering
 └── Theme/
     ├── DxuiLightTheme.h/.cpp          # NEW
     └── DxuiDarkTheme.h/.cpp           # NEW
+
+scripts/
+└── GenApple2Font.py                   # NEW: CharacterRom.h's glyphs to Resources/Fonts/CassoApple2.ttf
 
 CassoEmuCore/
 ├── Cassque/
@@ -193,7 +197,17 @@ this list; phases here through the executable need nothing from 032.
    menu bar, toolbar, context menus via `DxuiPopupMenu`; layout of tree,
    list, preview, tabs, status bar with splitters; routing to the models;
    drag and drop wiring; theme switching; About with the picture.
-7. **Validation and gates**: quickstart §1 through §9, `validation.md`,
+7. **The preview's text and bytes**: `scripts/GenApple2Font.py` builds
+   `Resources/Fonts/CassoApple2.ttf` from the character generator table
+   in `CharacterRom.h`, embedded and registered the way
+   `CassoSymbols.ttf` already is, so a text preview draws in the
+   machine's own shapes as selectable text; `DxuiHexView` replaces the
+   hex dump's list of strings with a byte-range selection drawn in both
+   the hex and the text column, grouping at 1, 2, 4 and 8 bytes, copy
+   either way, and go to offset. The font's glyphs come from the table
+   at build time rather than a second copy of the dots, so the two
+   cannot drift.
+8. **Validation and gates**: quickstart §1 through §9, `validation.md`,
    CHANGELOG, README headline, style sweep, four-configuration analysis
    rebuild, master merge.
 

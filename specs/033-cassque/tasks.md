@@ -182,6 +182,25 @@
 
 ---
 
+## Phase 7a: The preview's text and bytes (US6)
+
+**Purpose**: the machine's own character shapes for text, and a hex view a user can select in. The font is a build-time artifact of a table already in the tree; the hex view is a widget the library gains.
+
+- [ ] T085 [P] [US6] `scripts/GenApple2Font.py`: parse the glyph table out of `CassoEmuCore/Machines/Apple2/Common/CharacterRom.h` (never a second copy of the dots), emit `Resources/Fonts/CassoApple2.ttf` -- one contour per lit dot, a monospaced 7x8 cell, lowercase mapped to its uppercase glyph -- following `scripts/GenSymbolFont.py`'s form, docstring and run instructions
+- [ ] T086 [US6] Embed the font as `IDR_FONT_APPLE2` in `Cassque/Cassque.rc` and `Casso/Casso.rc`, register it at startup beside `IDR_FONT_SYMBOLS` through `AssetBootstrap` and `DxuiTextRenderer::AddSymbolFont`, and give the theme an Apple text face alongside its body and monospace faces; record the font's origin in `Resources/Fonts/ATTRIBUTION.txt`
+- [ ] T087 [US6] Draw text and listing previews in that face; cover the lowercase mapping and the font's presence in the running module with unit tests
+- [ ] T088 [P] [US6] `Dxui/Widgets/DxuiHexView.h/.cpp`: the offset, hex and text columns, grouping at 1, 2, 4 and 8 bytes, the point-to-byte hit test, the byte-range selection, scrolling and `EnsureByteVisible` -- geometry and selection only, no painting
+- [ ] T089 [US6] `DxuiHexView` input: drag in either column, Shift with a click or an arrow key to extend, arrows, Home, End, Page keys and Ctrl+A, and the wheel
+- [ ] T090 [US6] `DxuiHexView` painting: both columns from the theme, the selection lit in both at once, the offsets down the left, the Apple face for the text column
+- [ ] T091 [US6] Copy the selection as hex digits or as characters, go to offset, and the grouping choice in the View menu persisted through `CassquePrefs`
+- [ ] T092 [US6] Cassque's hex preview becomes a `DxuiHexView` instead of a list of strings, with the per-tab preview scroll kept
+- [ ] T093 [P] [US6] `UnitTest/Dxui/DxuiHexViewTests.cpp`: which bytes a point selects, what a selection lights in each column, what a regrouping does to it, what each copy yields, and the ends of the file
+- [ ] T094 [US6] Extend `quickstart.md` with the story 6 walk-through
+
+**Checkpoint**: a text preview reads as the machine drew it, and a hex preview can be selected in and copied from.
+
+---
+
 ## Phase 8: Validation and gates
 
 - [ ] T077 Walk `quickstart.md` §1 through §6 on a Release x64 build and record outcomes in `specs/033-cassque/validation.md`, including every `fc /b` result

@@ -49,6 +49,21 @@ the browser layout needs and the browser itself.
 - Q: Is Integer BASIC covered? → A: Preview and Get need a new Integer
   BASIC detokenizer; the tree detokenizes Applesoft only today. No
   Integer BASIC tokenizer.
+
+### Session 2026-09-11
+
+- Q: What face shows an Apple II file's text? → A: The machine's own. The
+  character generator's glyphs become a real font built from that table,
+  so the preview keeps selectable, scalable text rather than a picture of
+  text. The II and II+ set has no lowercase, so lowercase shows as the
+  machine showed it: as uppercase.
+- Q: How does a hex dump let a user select bytes? → A: One selection over
+  a range of bytes, drawn in both columns at once. A drag in either
+  column selects the same bytes, and the other column highlights them, so
+  the two readings of a byte are never selected apart.
+- Q: What does the text column of a hex dump decode? → A: Apple text: the
+  high bit is ignored, so $C1 reads as A. A byte that is not printable
+  either way shows as a period.
 - Q: How do type and address survive a trip through the host file
   system? → A: Descriptive suffixes Cassque writes, since catalog names
   carry no extension: converted files as `NAME.Applesoft BASIC.txt`,
@@ -281,6 +296,42 @@ window with a screen reader.
 
 ---
 
+### User Story 6 - Read a file's bytes (Priority: P3)
+
+A user looking at a binary wants to read it as bytes: to see a range of
+them, to know which characters they stand for, and to copy what they
+found into something else.
+
+**Why this priority**: The hex dump already shows the bytes; this makes
+them usable. It is the last of the preview work and nothing else waits
+on it.
+
+**Independent Test**: Open a binary in the preview, select a run of
+bytes, change the grouping, and copy the selection both ways.
+
+**Acceptance Scenarios**:
+
+1. **Given** a text file previewed from an Apple II disk, **When** the
+   preview shows it, **Then** the characters carry the machine's own
+   glyph shapes, and the text can be selected and copied as text.
+2. **Given** a binary previewed as a hex dump, **When** the user drags
+   across bytes in the hex column, **Then** those bytes highlight in the
+   hex column and the same bytes highlight in the text column.
+3. **Given** a selection made in the text column, **When** the user looks
+   at the hex column, **Then** the same bytes are highlighted there,
+   however many rows they span.
+4. **Given** a selection, **When** the user changes the grouping to one,
+   two, four or eight bytes, **Then** the same bytes stay selected and
+   the columns regroup around them.
+5. **Given** a selection, **When** the user copies it, **Then** they can
+   take it either as hex digits or as the characters the text column
+   shows.
+6. **Given** a file larger than the pane, **When** the user asks to go to
+   an offset, **Then** the view scrolls to that offset and puts the
+   caret there.
+
+---
+
 ### Edge Cases
 
 - **A disk image that fails to parse**: it appears in the tree with no
@@ -299,6 +350,13 @@ window with a screen reader.
   host-legal characters and tell the user the resulting name.
 - **A host file name that is illegal on the target file system**: put and
   drag-in offer the truncated or corrected name before proceeding.
+- **A hex selection dragged past the last byte**: it stops at the last
+  byte; a file shorter than one row still selects and copies.
+- **A copy with nothing selected**: the whole preview is copied, so the
+  command never does nothing without saying why.
+- **A byte the character generator has no shape for**: control codes and
+  MouseText show as the period the text column uses for anything it
+  cannot print.
 - **A put that does not fit**: refused with the free space and the file's
   size in the message; nothing is written.
 - **Both roots show the same folder**: the Casso root lists it as known;
@@ -368,6 +426,30 @@ window with a screen reader.
   graphics rule is: hi-res at $2000 or $4000 with 8192 or $1FF8 bytes;
   double hi-res at $2000 with 16384 bytes; lo-res at $400 or $800 with
   1024 bytes.
+- **FR-012a**: A text or listing preview MUST draw in the Apple II's own
+  character shapes, as selectable text that scales with the display, not
+  as a picture of text.
+- **FR-012b**: Those shapes MUST come from the character generator table
+  already in the tree, turned into a font by a checked-in generator whose
+  output is embedded in the executable and registered at startup. The
+  II and II+ set carries no lowercase, so lowercase MUST show as
+  uppercase.
+- **FR-012c**: A hex preview MUST carry one selection over a range of
+  bytes, drawn at the same time in both the hex column and the text
+  column, whatever rows the range spans.
+- **FR-012d**: The selection MUST be made by dragging in either column,
+  extended with Shift and a click or the arrow keys, and moved with the
+  keyboard alone.
+- **FR-012e**: The hex preview MUST group its bytes one, two, four or
+  eight at a time at the user's choice, keep the selection across a
+  change of grouping, and persist the choice.
+- **FR-012f**: The selection MUST be copyable both as hex digits and as
+  the characters the text column shows.
+- **FR-012g**: The hex preview MUST offer go to offset, which scrolls to
+  that offset and puts the caret there.
+- **FR-012h**: The text column MUST read a byte as Apple text, ignoring
+  the high bit, and show a period for a byte that is printable neither
+  way.
 
 **Operations**
 
@@ -469,6 +551,10 @@ window with a screen reader.
   drag data object's contents, and the Casso-targeting decision MUST be
   driven by unit tests with no window, no real file system and no running
   emulator.
+- **FR-030a**: The hex preview's own decisions -- which bytes a point
+  selects, which cells a selection lights in each column, what a
+  regrouping does to it, and what a copy yields -- MUST be driven by unit
+  tests with no window.
 
 ### Key Entities
 
@@ -480,6 +566,9 @@ window with a screen reader.
   aux type, locked, modified; plus the file system it came from.
 - **Preview**: a rendering of a catalog entry by kind: listing, text,
   picture, hex, catalog.
+- **Byte selection**: an offset into the previewed bytes and a count,
+  drawn in both columns of a hex preview and carried across a change of
+  grouping.
 - **Drag payload**: the dragged entries with their source image, and the
   conversions the host side would need.
 - **Casso target**: the instance an insert goes to: launcher, a running
@@ -506,6 +595,12 @@ window with a screen reader.
   targeting with no window and no real disk.
 - **SC-006**: The Windows theme switching to dark changes the window
   within one second with no restart.
+- **SC-007**: A range selected in either column of a hex preview covers
+  exactly the same bytes in the other column, at every grouping width,
+  including a range that starts and ends mid-row.
+- **SC-008**: Every character the Apple II character generator draws
+  appears in a text preview with the same dot pattern the emulator's
+  40-column display draws for it.
 
 ## Assumptions
 
@@ -516,7 +611,7 @@ window with a screen reader.
   and hidden checkboxes on the existing tree (which already recurses to
   any depth), multi-select on the list, a splitter, a status bar, a
   framebuffer view, drag-out support beside the existing drop-in
-  support, and light and dark palettes. Each is general, not
+  support, a hex view, and light and dark palettes. Each is general, not
   Cassque-only. The tab strip exists already.
 - Supported image formats are the ones the command-line tool supports
   today. No new container formats.
@@ -531,6 +626,12 @@ window with a screen reader.
   it is never emulated by copy and delete.
 - Executable detection is not attempted; hex dump is the default for
   binaries and the graphics rule is the only exception.
+- The Apple II face covers the character generator's printable set,
+  $20 through $7F. Inverse, flashing and MouseText are display modes and
+  a second character set, and neither is part of previewing a file's
+  text.
+- The hex preview is a widget the UI library gains, general rather than
+  Cassque-only: the emulator's debugger wants the same view of memory.
 - Sector and block operations live under an Advanced submenu and confirm
   before writing.
 - Known folders are seeded once from the recent-disks list and thereafter
