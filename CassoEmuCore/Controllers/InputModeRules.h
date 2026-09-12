@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Controllers/ControllerTypes.h"
 #include "Controllers/GamePortInputMixer.h"
 
 
@@ -28,6 +29,24 @@ class InputModeRules
 {
 public:
 
+    // One entry in the paddle-source picker: the arrow keys, the mouse as a
+    // paddle, or one attached controller (FR-008).
+    //
+    // The //c IOU mouse is deliberately absent. It drives a slot card rather
+    // than the game port, so it is not an answer to this question and keeps
+    // its own control.
+    struct PaddleSource
+    {
+        std::wstring                      label;
+        std::optional<ControllerUnitKey>  controller;   // absent for the two keyboard and mouse entries
+        bool                              isArrowKeys   = false;
+        bool                              isMousePaddle = false;
+        bool                              isChecked     = false;
+        bool                              isConnected   = true;
+
+        bool operator== (const PaddleSource &) const = default;
+    };
+
     // What the user has chosen, plus whether the chosen controller is there.
     struct State
     {
@@ -38,6 +57,11 @@ public:
 
         bool operator== (const State &) const = default;
     };
+
+    static std::vector<PaddleSource>  BuildPaddleSources (
+        const State &                             state,
+        const std::vector<ControllerDeviceInfo> & devices,
+        const std::optional<ControllerUnitKey> &  selection);
 
     static AxisOwner  GetAxisOwner            (const State & state);
     static State      AfterSelectingController (State state);

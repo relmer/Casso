@@ -8,6 +8,78 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BuildPaddleSources
+//
+//  The picker's entries, in the order they are shown: the two built-in
+//  sources first, because they are always there, then whatever is attached.
+//
+//  A CHOSEN CONTROLLER THAT IS NOT ATTACHED STILL GETS A ROW, marked as not
+//  connected. Dropping it would leave the picker showing the arrow keys
+//  checked while the user's actual choice is a controller whose battery died,
+//  and picking the controller again would look like the only way back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
+    const State &                             state,
+    const std::vector<ControllerDeviceInfo> & devices,
+    const std::optional<ControllerUnitKey> &  selection)
+{
+    std::vector<PaddleSource>  sources;
+    PaddleSource               arrows;
+    PaddleSource               paddle;
+    bool                       isSelectionAttached = false;
+
+
+
+    arrows.label       = L"Joystick keys";
+    arrows.isArrowKeys = true;
+    arrows.isChecked   = state.arrowsJoystick && !state.hasController;
+
+    paddle.label         = L"Paddle mouse";
+    paddle.isMousePaddle = true;
+    paddle.isChecked     = state.mousePaddle && !state.hasController;
+
+    sources.push_back (arrows);
+    sources.push_back (paddle);
+
+    for (const ControllerDeviceInfo & device : devices)
+    {
+        PaddleSource  entry;
+
+        entry.label      = device.description;
+        entry.controller = device.unit;
+        entry.isChecked  = selection.has_value() && selection.value() == device.unit;
+
+        if (entry.isChecked)
+        {
+            isSelectionAttached = true;
+        }
+
+        sources.push_back (entry);
+    }
+
+    if (selection.has_value() && !isSelectionAttached)
+    {
+        PaddleSource  missing;
+
+        missing.label       = L"(not connected)";
+        missing.controller  = selection;
+        missing.isChecked   = true;
+        missing.isConnected = false;
+
+        sources.push_back (missing);
+    }
+
+    return sources;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetAxisOwner
 //
 //  A chosen controller owns the axes while it is attached. While it is not,

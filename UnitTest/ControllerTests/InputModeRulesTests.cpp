@@ -118,6 +118,68 @@ namespace ControllerTests
         }
 
 
+        static ControllerDeviceInfo MakeStick (const std::string & unitId, const std::wstring & description)
+        {
+            ControllerDeviceInfo  info;
+
+            info.unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
+            info.unit.unitId = unitId;
+            info.unit.source = ControllerUnitSource::InstanceGuid;
+            info.description = description;
+            return info;
+        }
+
+
+        TEST_METHOD (PaddleSources_ListTheBuiltInsThenWhatIsAttached)
+        {
+            InputModeRules::State              state;
+            std::vector<ControllerDeviceInfo>  devices = { MakeStick ("{A}", L"Gladiator"),
+                                                           MakeStick ("{B}", L"Gamepad") };
+            std::vector<InputModeRules::PaddleSource>  sources;
+
+            state.arrowsJoystick = true;
+            sources              = InputModeRules::BuildPaddleSources (state, devices, std::nullopt);
+
+            Assert::AreEqual (size_t (4), sources.size(),      L"the two built-in sources plus each attached controller");
+            Assert::IsTrue   (sources[0].isArrowKeys,          L"the always-present sources come first");
+            Assert::IsTrue   (sources[1].isMousePaddle);
+            Assert::IsTrue   (sources[0].isChecked,            L"and the one in use is checked");
+            Assert::AreEqual (std::wstring (L"Gladiator"), sources[2].label);
+        }
+
+
+        TEST_METHOD (PaddleSources_AChosenControllerChecksItselfAndNotTheKeys)
+        {
+            InputModeRules::State              state;
+            std::vector<ControllerDeviceInfo>  devices = { MakeStick ("{A}", L"Gladiator") };
+            std::vector<InputModeRules::PaddleSource>  sources;
+
+            state.arrowsJoystick = true;   // stale: the setters clear this when a controller is chosen
+            state.hasController  = true;
+            sources              = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit);
+
+            Assert::IsFalse (sources[0].isChecked, L"one game port means one checked entry, never two");
+            Assert::IsTrue  (sources[2].isChecked, L"and it is the chosen controller");
+        }
+
+
+        TEST_METHOD (PaddleSources_AChosenControllerThatIsGoneKeepsItsRow)
+        {
+            InputModeRules::State                      state;
+            std::vector<ControllerDeviceInfo>          devices;
+            ControllerDeviceInfo                       gone    = MakeStick ("{GONE}", L"Gladiator");
+            std::vector<InputModeRules::PaddleSource>  sources;
+
+            state.hasController = true;
+            sources             = InputModeRules::BuildPaddleSources (state, devices, gone.unit);
+
+            Assert::AreEqual (size_t (3), sources.size(),
+                L"a chosen controller that is unplugged must still appear, or the picker would show the keys checked instead");
+            Assert::IsTrue  (sources[2].isChecked);
+            Assert::IsFalse (sources[2].isConnected);
+        }
+
+
         TEST_METHOD (NothingChosen_AxesRestAtCenter)
         {
             Assert::AreEqual ((int) AxisOwner::None, (int) InputModeRules::GetAxisOwner (InputModeRules::State()));
