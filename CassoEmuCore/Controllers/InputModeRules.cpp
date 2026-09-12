@@ -10,13 +10,18 @@
 //
 //  BuildPaddleSources
 //
-//  The picker's entries, in the order they are shown: the two built-in
-//  sources first, because they are always there, then whatever is attached.
+//  The picker's entries, in the order they are shown: REAL CONTROLLERS FIRST,
+//  then the keys and the mouse. A physical stick plays these games better than
+//  either stand-in, so it is what the list should offer first; the keys and
+//  the mouse are what a user falls back to, and they are always there to fall
+//  back to. It also puts the checked entry at the top whenever a controller is
+//  driving, which is the common case once one is plugged in.
 //
 //  A CHOSEN CONTROLLER THAT IS NOT ATTACHED STILL GETS A ROW, marked as not
-//  connected. Dropping it would leave the picker showing the arrow keys
-//  checked while the user's actual choice is a controller whose battery died,
-//  and picking the controller again would look like the only way back.
+//  connected, and stays with the controllers rather than sinking below the
+//  fallbacks. Dropping it would leave the picker showing the keys checked
+//  while the user's actual choice is a controller whose battery died, and
+//  picking the controller again would look like the only way back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,17 +41,6 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     // has, because neither "keys" nor "mouse" says on its own that it turns
     // into a joystick or a paddle. A controller needs no such sentence: its
     // own description is the whole answer.
-    arrows.label       = L"Use keys as joystick";
-    arrows.isArrowKeys = true;
-    arrows.isChecked   = state.arrowsJoystick && !state.hasController;
-
-    paddle.label         = L"Use mouse as paddle";
-    paddle.isMousePaddle = true;
-    paddle.isChecked     = state.mousePaddle && !state.hasController;
-
-    sources.push_back (arrows);
-    sources.push_back (paddle);
-
     for (const ControllerDeviceInfo & device : devices)
     {
         PaddleSource  entry;
@@ -74,6 +68,21 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
 
         sources.push_back (missing);
     }
+
+    // The built-in entries say what they DO to hardware the user already has,
+    // because neither "keys" nor "mouse" says on its own that it turns into a
+    // joystick or a paddle. A controller needs no such sentence: its own
+    // description is the whole answer.
+    arrows.label       = L"Use keys as joystick";
+    arrows.isArrowKeys = true;
+    arrows.isChecked   = state.arrowsJoystick && !state.hasController;
+
+    paddle.label         = L"Use mouse as paddle";
+    paddle.isMousePaddle = true;
+    paddle.isChecked     = state.mousePaddle && !state.hasController;
+
+    sources.push_back (arrows);
+    sources.push_back (paddle);
 
     return sources;
 }

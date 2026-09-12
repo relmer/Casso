@@ -130,7 +130,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (PaddleSources_ListTheBuiltInsThenWhatIsAttached)
+        TEST_METHOD (PaddleSources_ListRealControllersAheadOfTheStandIns)
         {
             InputModeRules::State              state;
             std::vector<ControllerDeviceInfo>  devices = { MakeStick ("{A}", L"Gladiator"),
@@ -140,16 +140,18 @@ namespace ControllerTests
             state.arrowsJoystick = true;
             sources              = InputModeRules::BuildPaddleSources (state, devices, std::nullopt);
 
-            Assert::AreEqual (size_t (4), sources.size(),      L"the two built-in sources plus each attached controller");
-            Assert::IsTrue   (sources[0].isArrowKeys,          L"the always-present sources come first");
-            Assert::IsTrue   (sources[1].isMousePaddle);
-            Assert::IsTrue   (sources[0].isChecked,            L"and the one in use is checked");
+            Assert::AreEqual (size_t (4), sources.size(), L"each attached controller plus the two stand-ins");
 
-            // The built-ins say what they do to hardware the user already has;
-            // a controller's own description is the whole answer.
-            Assert::AreEqual (std::wstring (L"Use keys as joystick"), sources[0].label);
-            Assert::AreEqual (std::wstring (L"Use mouse as paddle"),  sources[1].label);
-            Assert::AreEqual (std::wstring (L"Gladiator"),            sources[2].label);
+            // A real stick plays these games better than either stand-in, so
+            // it is what the list offers first.
+            Assert::AreEqual (std::wstring (L"Gladiator"),            sources[0].label);
+            Assert::AreEqual (std::wstring (L"Gamepad"),              sources[1].label);
+            Assert::AreEqual (std::wstring (L"Use keys as joystick"), sources[2].label);
+            Assert::AreEqual (std::wstring (L"Use mouse as paddle"),  sources[3].label);
+
+            Assert::IsTrue (sources[2].isArrowKeys);
+            Assert::IsTrue (sources[3].isMousePaddle);
+            Assert::IsTrue (sources[2].isChecked, L"the one in use is checked wherever it sits");
         }
 
 
@@ -163,8 +165,8 @@ namespace ControllerTests
             state.hasController  = true;
             sources              = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit);
 
-            Assert::IsFalse (sources[0].isChecked, L"one game port means one checked entry, never two");
-            Assert::IsTrue  (sources[2].isChecked, L"and it is the chosen controller");
+            Assert::IsTrue  (sources[0].isChecked, L"the chosen controller is the checked entry");
+            Assert::IsFalse (sources[1].isChecked, L"one game port means one checked entry, never two");
         }
 
 
@@ -180,8 +182,9 @@ namespace ControllerTests
 
             Assert::AreEqual (size_t (3), sources.size(),
                 L"a chosen controller that is unplugged must still appear, or the picker would show the keys checked instead");
-            Assert::IsTrue  (sources[2].isChecked);
-            Assert::IsFalse (sources[2].isConnected);
+            Assert::IsTrue  (sources[0].isChecked,   L"and it stays with the controllers rather than sinking below the stand-ins");
+            Assert::IsFalse (sources[0].isConnected);
+            Assert::IsTrue  (sources[1].isArrowKeys);
         }
 
 
