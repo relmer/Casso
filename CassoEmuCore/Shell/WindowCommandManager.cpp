@@ -638,7 +638,7 @@ void WindowCommandManager::OnEditCommand (int id)
 
         case IDM_EDIT_PASTE:
         {
-            m_shell.m_clipboardManager->PasteFromClipboard (m_shell.m_hwnd);
+            m_shell.PasteClipboardText();
             break;
         }
     }

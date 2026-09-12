@@ -1792,7 +1792,7 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
         // the pasted text, planting an invisible control byte in the input
         // line (the classic paste-then-SYNTAX-ERROR).
         m_swallowMetaChar = true;
-        m_clipboardManager->PasteFromClipboard (m_hwnd);
+        PasteClipboardText();
     }
     else
     {
@@ -1910,6 +1910,22 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // consumed before this runs again.
     m_swallowMetaChar = false;
 
+    // A Caps Lock press here hands the emulated key over to the host's, the
+    // first time, whatever else holds the keyboard. The host has already
+    // toggled by the time its key-down is read, so GetKeyState reports the
+    // state the press left. A held key repeats without toggling, so only a
+    // fresh press counts. Caps Lock is not part of the //e keyboard matrix, so
+    // the guest never sees the press.
+    if (vk == VK_CAPITAL)
+    {
+        if (!isRepeat && m_capsLock.OnCapsLockPressed ((GetKeyState (VK_CAPITAL) & 1) != 0))
+        {
+            ShowNotice (CapsLockTracker::kpszNowFollowingHostNotice);
+        }
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     // 0. Esc exits paddle mode: releases the mouse capture (cursor
     //    reappears) and returns the input mapping to Off, matching the
     //    "Esc to exit" hint on the widget.
@@ -1984,11 +2000,12 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (lParam);
 
-    // A released Caps Lock is the user setting the latch, unless the press
-    // was the one the latch itself sent; the latch tells the two apart.
+    // Caps Lock is not part of the //e keyboard matrix, and OnKeyDown kept
+    // its press from the guest. Its release must not reach the guest either,
+    // or it would end the auto-repeat of a letter still held down.
     if (vk == VK_CAPITAL)
     {
-        m_capsLockLatch.OnCapsLockKeyUp();
+        return DxuiMessageResult::Handled;
     }
 
     // Key-up is deliberately unconditional (no chrome / settings gate): a
@@ -2248,7 +2265,17 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
             // so MapTypedChar can skip the remap and avoid double-translating).
             // Clipboard paste feeds PressKey directly (not this path), so pasted
             // text is never remapped -- matching the hardware encoder.
-            Byte  code = static_cast<Byte> (ch);
+            //
+            // Caps Lock brackets the remap. The host's comes out first, so the
+            // remap sees the key the user pressed with only Shift applied; the
+            // emulated one goes on last, because the encoder raises the letter
+            // a key produces, and on Dvorak some QWERTY letter keys produce
+            // punctuation it must leave alone. Paste skips both, keeping its
+            // case.
+            Byte  code         = static_cast<Byte> (ch);
+            bool  hostCapsLock = (GetKeyState (VK_CAPITAL) & 1) != 0;
+
+            code = CapsLockTracker::RemoveHostCapsLock (code, hostCapsLock);
 
             if (m_machine.GetRefs().iieKeyboard != nullptr)
             {
@@ -2256,6 +2283,8 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 
                 code = m_machine.GetRefs().iieKeyboard->MapTypedChar (code);
             }
+
+            code = CapsLockTracker::ApplyCapsLock (code, m_capsLock.IsOn (hostCapsLock));
 
             m_machine.GetRefs().keyboard->PressKey (code);
             m_machine.GetRefs().keyboard->BeginKeyRepeat (code);
@@ -2844,6 +2873,45 @@ void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
         default:
             SetInputMappingMode (InputMappingMode::Off);
             break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PasteClipboardText
+//
+//  Ctrl+V and Edit > Paste. Caps Lock applies only where the machine has the
+//  key: the //e and //c keyboards. The ][ and ][+ have no lower case, and their
+//  keyboard raises every letter itself, so there is nothing to explain.
+//
+//  The notice appears only when the paste actually differs from the
+//  clipboard, which is the moment the user can see the result and wonder why.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PasteClipboardText()
+{
+    bool  hasCapsLockKey = m_machine.GetRefs().iieKeyboard != nullptr;
+    bool  hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
+    bool  capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
+    bool  raisedLetters  = false;
+
+
+
+    if (m_clipboardManager == nullptr)
+    {
+        return;
+    }
+
+    raisedLetters = m_clipboardManager->PasteFromClipboard (m_hwnd, capsLockOn);
+
+    if (raisedLetters)
+    {
+        ShowNotice (CapsLockTracker::kpszPasteRaisedNotice);
     }
 }
 
