@@ -107,6 +107,12 @@ public:
     // (FR-008a, FR-013).
     static std::wstring  BuildPaddleTip (const std::vector<PaddleSource> & sources);
 
+    // One line for the notice band when the user picks a source, stating
+    // what now drives the paddles and the buttons. Empty when there is
+    // nothing to state, and for mouse paddle mode, whose capture banner
+    // already says it and keeps saying it.
+    static std::wstring  DescribeSource (const PaddleSource & source);
+
     static AxisOwner  GetAxisOwner            (const State & state);
     static State      AfterSelectingController (State state);
     static State      AfterSettingArrows       (State state, bool on);

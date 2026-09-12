@@ -2638,6 +2638,10 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 void EmulatorShell::PickPaddleSource (const InputModeRules::PaddleSource & source)
 {
+    std::wstring  description = InputModeRules::DescribeSource (source);
+
+
+
     if (source.isArrowKeys)
     {
         SetControllerSelection (std::nullopt);
@@ -2659,6 +2663,15 @@ void EmulatorShell::PickPaddleSource (const InputModeRules::PaddleSource & sourc
 
     SyncGamePortAxisOwner();
     SyncInputModeUi();
+
+    // Over the picture for a few seconds. The keys and the mouse bind
+    // controls that carry no marking, so without this a user who picks
+    // "Use keys as joystick" can only find the buttons by pressing keys
+    // until one fires.
+    if (!description.empty())
+    {
+        ShowNotice (description);
+    }
 }
 
 

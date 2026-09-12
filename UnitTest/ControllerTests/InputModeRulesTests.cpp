@@ -253,5 +253,38 @@ namespace ControllerTests
             Assert::AreEqual ((int) AxisOwner::MousePaddle, (int) InputModeRules::GetAxisOwner (state),
                 L"the setters make this unreachable, but the owner must still be decided, never ambiguous");
         }
+
+        TEST_METHOD (Describe_TellsTheUserWhichControlsThePickTookOver)
+        {
+            InputModeRules::PaddleSource  arrows;
+            InputModeRules::PaddleSource  mouse;
+            InputModeRules::PaddleSource  pad;
+
+            arrows.isArrowKeys   = true;
+            mouse.isMousePaddle  = true;
+            pad.deviceName       = L"Xbox Controller";
+
+            // The keys and the mouse bind controls that carry no marking, so
+            // the notice is the only way to learn what X and Z now do.
+            Assert::AreEqual (std::wstring (L"The arrow keys drive the joystick. X and Z are the buttons."),
+                InputModeRules::DescribeSource (arrows));
+
+            // Mouse paddle mode is the exception: capturing the pointer
+            // raises a banner that stays up, so a transient one would be the
+            // same sentence twice, stacked.
+            Assert::IsTrue (InputModeRules::DescribeSource (mouse).empty());
+
+            Assert::AreEqual (std::wstring (L"Xbox Controller drives the paddles."),
+                InputModeRules::DescribeSource (pad));
+        }
+
+
+        TEST_METHOD (Describe_SaysNothingForARowWithNoDeviceBehindIt)
+        {
+            InputModeRules::PaddleSource  empty;
+
+            Assert::IsTrue (InputModeRules::DescribeSource (empty).empty(),
+                L"an empty notice is not shown at all, rather than flashing a blank band");
+        }
     };
 }

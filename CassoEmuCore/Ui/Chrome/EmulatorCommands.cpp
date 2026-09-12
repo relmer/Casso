@@ -99,7 +99,7 @@ static constexpr ToolbarRow  s_kToolbarRows[] =
     { EmulatorCommands::kIdColor,  DxuiToolbar::Kind::DropDown, 0, s_kGlyphColor,      L"Color",       L"Color"         },
     { IDM_PRINTER_PREVIEW,         DxuiToolbar::Kind::Command,  0, s_kGlyphPrint,      L"Printer",     nullptr          },
     { EmulatorCommands::kIdVolume, DxuiToolbar::Kind::Flyout,   1, s_kGlyphVolume,     L"Volume",      L"Mute"          },
-    { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Controller",  L"What drives the paddles" },
+    { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Controller",  L"Joystick and paddle source" },
     { EmulatorCommands::kIdMouse,  DxuiToolbar::Kind::Toggle,   2, s_kGlyphMouse,      L"Mouse",       L"Mouse" },
     { IDM_VIEW_FULLSCREEN,         DxuiToolbar::Kind::Command,  3, s_kGlyphFullscreen, L"Full screen", nullptr          },
     { IDM_EDIT_COPY_SCREENSHOT,    DxuiToolbar::Kind::Command,  3, s_kGlyphScreenshot, L"Screenshot",  nullptr          },

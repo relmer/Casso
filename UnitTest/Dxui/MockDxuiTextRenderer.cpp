@@ -187,11 +187,75 @@ HRESULT MockDxuiTextRenderer::MeasureString (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CountWrappedLines
+//
+//  Greedy word wrap, the rule every real text renderer uses: put each word on
+//  the current line if it fits, otherwise start a new one. A word longer than
+//  the box gets a line of its own rather than being broken, which is also
+//  what the real one does at these sizes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int MockDxuiTextRenderer::CountWrappedLines (const std::wstring & text,
+                                             float                glyphWidthDip,
+                                             float                maxWidthDip)
+{
+    size_t  start = 0;
+    float   line  = 0.0f;
+    int     lines = 1;
+
+
+
+    if (glyphWidthDip <= 0.0f)
+    {
+        return 1;
+    }
+
+    while (start <= text.size())
+    {
+        size_t  end   = text.find (L' ', start);
+        size_t  count = (end == std::wstring::npos ? text.size() : end) - start;
+        float   word  = (float) count * glyphWidthDip;
+        float   space = (line > 0.0f) ? glyphWidthDip : 0.0f;
+
+        if (line > 0.0f && line + space + word > maxWidthDip)
+        {
+            lines++;
+            line = word;
+        }
+        else
+        {
+            line += space + word;
+        }
+
+        if (end == std::wstring::npos)
+        {
+            break;
+        }
+
+        start = end + 1;
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureStringWrapped
 //
-//  A model, not a layout: the single-line width divided by the box is the
-//  line count, and the height is that many lines. Canned metrics are returned
-//  untouched -- a test that states a block's size means it.
+//  A model, not a layout, but a model that BREAKS AT WORDS the way a real
+//  renderer does. Dividing the single-line width by the box was the simpler
+//  rule and it flattered every caller: it says a box of exactly width/2 fits
+//  two lines, which no word-breaking renderer can promise. A widget that
+//  sized a box from that arithmetic then painted a third line with one word
+//  stranded on it, and nothing here could reproduce it.
+//
+//  Canned metrics are returned untouched -- a test that states a block's size
+//  means it, wrapped or not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,7 +284,7 @@ HRESULT MockDxuiTextRenderer::MeasureStringWrapped (
         return hr;
     }
 
-    lines = (int) std::ceil (outWidthDip / maxWidthDip);
+    lines = CountWrappedLines (key, outWidthDip / (float) (key.empty() ? 1 : key.size()), maxWidthDip);
 
     outHeightDip *= (float) lines;
     outWidthDip   = maxWidthDip;

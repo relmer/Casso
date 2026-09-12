@@ -218,12 +218,12 @@ namespace ControllerTests
             devices.push_back (here);
             state.hasController = true;
 
-            Assert::AreEqual (std::wstring (L"Xbox Controller is standing in for VKBsim Gladiator, which is not connected"),
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator is not connected. Xbox Controller is driving the paddles."),
                 InputModeRules::BuildPaddleTip (
                     InputModeRules::BuildPaddleSources (state, devices, gone.unit, here.unit, gone.description)),
-                L"the face wears the stand-in's name, so the tooltip is the only place the chosen one can be said");
+                L"the face shows only the stand-in, so the tooltip is the only place the chosen one appears");
 
-            Assert::AreEqual (std::wstring (L"VKBsim Gladiator is not connected"),
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator is not connected."),
                 InputModeRules::BuildPaddleTip (
                     InputModeRules::BuildPaddleSources (state, {}, gone.unit, std::nullopt, gone.description)),
                 L"with nothing standing in, it says only that");
@@ -240,7 +240,7 @@ namespace ControllerTests
             state.hasController        = true;
             state.isControllerAttached = true;
 
-            Assert::AreEqual (std::wstring (L"What drives the paddles"),
+            Assert::AreEqual (std::wstring (L"Joystick and paddle source"),
                 InputModeRules::BuildPaddleTip (
                     InputModeRules::BuildPaddleSources (state, devices, here.unit)),
                 L"the face already carries the answer, so the tooltip has nothing to add");
@@ -262,7 +262,7 @@ namespace ControllerTests
                 InputModeRules::BuildPaddleSources (state, devices, gone.unit, here.unit, gone.description));
 
             Assert::IsTrue (commands.Find (EmulatorCommands::kIdPaddle) != nullptr);
-            Assert::AreEqual (std::wstring (L"Xbox Controller is standing in for VKBsim Gladiator, which is not connected"),
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator is not connected. Xbox Controller is driving the paddles."),
                 commands.Find (EmulatorCommands::kIdPaddle)->tip);
         }
 

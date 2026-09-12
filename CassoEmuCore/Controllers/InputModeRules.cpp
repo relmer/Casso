@@ -110,11 +110,10 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
 //
 //  BuildPaddleTip
 //
-//  What the picker says on hover. Ordinarily the control's own purpose, since
-//  its face already carries the answer; but the two things its face CANNOT
-//  carry are said here, because the face wears the source that is driving and
-//  neither of these is that source: that the chosen controller is not
-//  connected, and that something is standing in for it (FR-008a, FR-013).
+//  What the picker shows on hover: the control's own purpose, or, when the
+//  chosen controller is not connected, that fact and what is driving the
+//  paddles instead. The picker's face shows only the source that is driving,
+//  so neither of those two can appear there (FR-008a, FR-013).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,15 +139,54 @@ std::wstring InputModeRules::BuildPaddleTip (const std::vector<PaddleSource> & s
 
     if (chosen == nullptr)
     {
-        return L"What drives the paddles";
+        return L"Joystick and paddle source";
     }
 
     if (standIn != nullptr)
     {
-        return standIn->deviceName + L" is standing in for " + chosen->deviceName + L", which is not connected";
+        return chosen->deviceName + L" is not connected. " + standIn->deviceName + L" is driving the paddles.";
     }
 
-    return chosen->deviceName + L" is not connected";
+    return chosen->deviceName + L" is not connected.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DescribeSource
+//
+//  One line for the notice band when the user picks a source, stating what
+//  now drives the paddles and the buttons. The arrow keys need it most:
+//  choosing them binds controls that carry no marking, so a user who picks
+//  "Use keys as joystick" has no way to learn that X and Z became the buttons
+//  except by pressing every key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InputModeRules::DescribeSource (const PaddleSource & source)
+{
+    if (source.isArrowKeys)
+    {
+        return L"The arrow keys drive the joystick. X and Z are the buttons.";
+    }
+
+    //  Mouse paddle mode says nothing here. Capturing the pointer raises a
+    //  banner that stays up for as long as the capture holds, and it already
+    //  states both what the mouse is doing and how to stop.
+    if (source.isMousePaddle)
+    {
+        return std::wstring();
+    }
+
+    if (source.deviceName.empty())
+    {
+        return std::wstring();
+    }
+
+    return source.deviceName + L" drives the paddles.";
 }
 
 

@@ -90,16 +90,21 @@ public:
                             float         & outWidthDip,
                             float         & outHeightDip) override;
 
-    //  Wrapped measurement, modeled rather than laid out: the single-line
-    //  width divided by the box gives the line count, so a caller can tell a
-    //  wrap from a fit. Canned metrics still win outright -- a test that
-    //  states the size of a block means that size, wrapped or not.
+    //  Wrapped measurement, modeled rather than laid out, but broken at WORDS
+    //  the way a real renderer breaks. Canned metrics still win outright -- a
+    //  test that states the size of a block means that size, wrapped or not.
     HRESULT  MeasureStringWrapped (const wchar_t * text,
                                    float           fontSizeDip,
                                    const wchar_t * fontFamily,
                                    float           maxWidthDip,
                                    float         & outWidthDip,
                                    float         & outHeightDip) override;
+
+    //  Greedy word wrap: how many lines `text` needs in a box `maxWidthDip`
+    //  wide, at `glyphWidthDip` per character. See the .cpp.
+    static int  CountWrappedLines (const std::wstring & text,
+                                   float                glyphWidthDip,
+                                   float                maxWidthDip);
 
     HRESULT  DrawIconBitmap (const uint32_t * srcBgraPremul,
                              int              srcWidthPx,
