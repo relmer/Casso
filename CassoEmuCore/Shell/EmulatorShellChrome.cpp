@@ -1059,6 +1059,13 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
     //  resize or a DPI change reflows it with everything else.
     LayoutChangeBanner();
 
+    //  AND SO DOES THE STAND-IN BAR. It was laid out only from the present
+    //  path, which runs on the frame's cadence rather than the resize's, so
+    //  while the toolbar and the picture followed the drag the bar arrived
+    //  behind them, a step at a time. Everything that rides a band is laid
+    //  out here, in the pass that gives the bands their rects.
+    SyncStandInBanner();
+
     return m_centerBand.GetBounds();
 }
 
