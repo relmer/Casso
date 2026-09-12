@@ -80,6 +80,11 @@ public:
     //  The toolbar's entries, in strip order: navigation, refresh, a new tab,
     //  and the preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
+
+    //  The toolbar entries' commands in strip order, so a host stepping focus
+    //  along the strip can ask whether each one can be used.
+    static size_t  GetToolbarEntryCount ();
+    static int     GetToolbarCommandId  (size_t index);
     const DxuiCommand *           Find (int id) const;
 
     //  The command a key reaches, or zero. Alt combinations are included, so

@@ -774,8 +774,154 @@ void CassqueWindow::SetFocusPane (Pane pane)
     m_list->OnFocusChanged        (pane == Pane::List);
     m_previewList->OnFocusChanged (pane == Pane::Preview);
     m_hexView->OnFocusChanged     (pane == Pane::Preview);
+    m_tabs->OnFocusChanged        (pane == Pane::Tabs);
+    m_toolbar->SetFocusIndex      (pane == Pane::Toolbar ? m_toolbarFocus : -1);
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetFocusStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FocusStop CassqueWindow::GetFocusStop() const
+{
+    switch (m_focus)
+    {
+        case Pane::Toolbar: return FocusStop { FocusStop::Kind::ToolbarEntry, m_toolbarFocus };
+        case Pane::Tabs:    return FocusStop { FocusStop::Kind::Tabs };
+        case Pane::List:    return FocusStop { FocusStop::Kind::List };
+        case Pane::Preview: return FocusStop { FocusStop::Kind::Preview };
+        default:            return FocusStop { FocusStop::Kind::Tree };
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SetFocusStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SetFocusStop (const FocusStop & stop)
+{
+    switch (stop.kind)
+    {
+        case FocusStop::Kind::ToolbarEntry:
+            m_toolbarFocus = stop.entry;
+            SetFocusPane (Pane::Toolbar);
+            break;
+
+        case FocusStop::Kind::Tabs:    SetFocusPane (Pane::Tabs);    break;
+        case FocusStop::Kind::List:    SetFocusPane (Pane::List);    break;
+        case FocusStop::Kind::Preview: SetFocusPane (Pane::Preview); break;
+        default:                       SetFocusPane (Pane::Tree);    break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::BuildFocusStops
+//
+//  A toolbar button that cannot be used right now -- Back with nothing to go
+//  back to -- is no stop, as a disabled control never is in Windows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FocusStop> CassqueWindow::BuildFocusStops() const
+{
+    std::vector<bool>  enabled;
+
+
+
+    for (size_t i = 0; i < CassqueCommands::GetToolbarEntryCount(); i++)
+    {
+        enabled.push_back (IsEnabled (CassqueCommands::GetToolbarCommandId (i)));
+    }
+
+    return FocusRing::BuildStops (enabled, m_prefs.previewVisible);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RouteToolbarKey
+//
+//  Enter, Space or Down presses the focused button; Left and Right walk the
+//  strip's usable buttons and stop at its ends. A picker or a flyout opened
+//  from the keyboard owns every key until it closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::RouteToolbarKey (const DxuiKeyEvent & ev)
+{
+    if (m_toolbar->OwnsKeyboard())
+    {
+        return m_toolbar->HandleKey (ev.vk);
+    }
+
+    switch (ev.vk)
+    {
+        case VK_RETURN:
+        case VK_SPACE:
+        case VK_DOWN:
+            m_toolbar->ActivateFocused();
+            return true;
+
+        case VK_LEFT:
+        case VK_RIGHT:
+            StepToolbarFocus (ev.vk == VK_RIGHT);
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::StepToolbarFocus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::StepToolbarFocus (bool forward)
+{
+    int  count = (int) CassqueCommands::GetToolbarEntryCount();
+    int  step  = forward ? 1 : -1;
+    int  at    = m_toolbarFocus + step;
+
+
+
+    while (at >= 0 && at < count)
+    {
+        if (IsEnabled (CassqueCommands::GetToolbarCommandId ((size_t) at)))
+        {
+            SetFocusStop (FocusStop { FocusStop::Kind::ToolbarEntry, at });
+            return;
+        }
+
+        at += step;
+    }
 }
 
 
@@ -1082,22 +1228,18 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  Tab walks the whole window -- the toolbar's usable buttons, the tab
+    //  strip, the tree, the list and the preview -- in the order FocusRing
+    //  keeps.
     if (ev.vk == VK_TAB && !ev.ctrl)
     {
-        static constexpr int  kPanes = 3;
+        FocusStop  next = FocusRing::GetNext (BuildFocusStops(), GetFocusStop(), !ev.shift);
 
-        int  next = ((int) m_focus + (ev.shift ? kPanes - 1 : 1)) % kPanes;
-
-        if ((Pane) next == Pane::Preview && !m_prefs.previewVisible)
-        {
-            next = ((int) next + (ev.shift ? kPanes - 1 : 1)) % kPanes;
-        }
-
-        SetFocusPane ((Pane) next);
+        SetFocusStop (next);
 
         //  A pane with stops inside it starts at the one the walk's direction
         //  calls for.
-        if ((Pane) next == Pane::Preview && IsHexPreviewShowing())
+        if (next.kind == FocusStop::Kind::Preview && IsHexPreviewShowing())
         {
             m_hexView->OnFocusEntered (!ev.shift);
         }
@@ -1107,6 +1249,8 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
 
     switch (m_focus)
     {
+        case Pane::Toolbar: handled = RouteToolbarKey (ev);      break;
+        case Pane::Tabs:    handled = m_tabs->OnKey (ev);        break;
         case Pane::Tree:    handled = m_tree->OnKey (ev);        break;
         case Pane::List:    handled = m_list->OnKey (ev);        break;
         case Pane::Preview: handled = IsHexPreviewShowing() ? m_hexView->OnKey (ev)
@@ -1219,6 +1363,7 @@ IDxuiControl * CassqueWindow::GetFocusedControl() const
 {
     switch (m_focus)
     {
+        case Pane::Tabs:    return m_tabs;
         case Pane::Tree:    return m_tree;
         case Pane::List:    return m_list;
         case Pane::Preview: return IsHexPreviewShowing() ? (IDxuiControl *) m_hexView

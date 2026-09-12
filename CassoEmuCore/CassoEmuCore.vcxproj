@@ -203,6 +203,7 @@
     <ClCompile Include="Cassque\Model\HostFileNaming.cpp" />
     <ClCompile Include="Cassque\Model\KnownFolderStore.cpp" />
     <ClCompile Include="Cassque\Model\LaunchCommand.cpp" />
+    <ClCompile Include="Cassque\Model\FocusRing.cpp" />
     <ClCompile Include="Seams\IntentReplyTracker.cpp" />
     <ClCompile Include="Seams\Win32ProcessLauncher.cpp" />
     <ClCompile Include="Seams\Win32ShellIcons.cpp" />
@@ -471,6 +472,7 @@
     <ClInclude Include="Cassque\Model\HostFileNaming.h" />
     <ClInclude Include="Cassque\Model\KnownFolderStore.h" />
     <ClInclude Include="Cassque\Model\LaunchCommand.h" />
+    <ClInclude Include="Cassque\Model\FocusRing.h" />
     <ClInclude Include="Seams\IntentReplyTracker.h" />
     <ClInclude Include="Seams\IProcessLauncher.h" />
     <ClInclude Include="Seams\IShellIcons.h" />

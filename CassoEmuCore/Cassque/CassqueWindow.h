@@ -6,6 +6,7 @@
 #include "Cassque/CassqueBrowser.h"
 #include "Cassque/CassqueCommands.h"
 #include "Cassque/CassqueNamedControl.h"
+#include "Cassque/Model/FocusRing.h"
 #include "Cassque/Model/CassquePrefs.h"
 #include "Config/IFileSystem.h"
 #include "Seams/Win32HostDialogs.h"
@@ -109,7 +110,9 @@ protected:
     DxuiMessageResult  OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 private:
-    enum class Pane { Tree, List, Preview };
+    //  Where the keyboard is. The toolbar is one pane whose focused button is
+    //  m_toolbarFocus; FocusRing decides the order Tab walks them in.
+    enum class Pane { Toolbar, Tabs, Tree, List, Preview };
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -161,6 +164,12 @@ private:
     void  FillPreview();
     void  FillStatus();
     void  SetFocusPane (Pane pane);
+
+    FocusStop               GetFocusStop     () const;
+    void                    SetFocusStop     (const FocusStop & stop);
+    std::vector<FocusStop>  BuildFocusStops  () const;
+    bool                    RouteToolbarKey  (const DxuiKeyEvent & ev);
+    void                    StepToolbarFocus (bool forward);
     void  Dispatch     (int id);
     bool  IsEnabled    (int id) const;
     bool  IsChecked    (int id) const;
@@ -228,6 +237,7 @@ private:
     DxuiDpiScaler                                m_scaler;
     RECT                                         m_client          = {};
     Pane                                         m_focus           = Pane::Tree;
+    int                                          m_toolbarFocus    = 0;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;
