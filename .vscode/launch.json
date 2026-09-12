@@ -2,6 +2,12 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Attach (native)",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        },
+        {
             "name": "Launch CassoCli (ARM64)",
             "type": "cppvsdbg",
             "request": "launch",
@@ -46,12 +52,6 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "preLaunchTask": "Build Debug x64 (no test)"
-        },
-        {
-            "name": "Attach Casso (native)",
-            "type": "cppvsdbg",
-            "request": "attach",
-            "processId": "${command:pickProcess}"
         }
     ]
 }
