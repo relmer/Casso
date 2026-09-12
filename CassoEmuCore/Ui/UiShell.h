@@ -48,7 +48,6 @@ public:
     bool     OnLButtonDown              (int x, int y);
     bool     OnLButtonUp                (int x, int y);
     bool     HandleKey                  (WPARAM vk);
-    bool     IsCapturingInput           () const;
 
     DxuiTextRenderer  & GetTextRenderer ()       { return m_text; }
     DxuiHitTester     & GetHitTester    ()       { return m_hitTest; }

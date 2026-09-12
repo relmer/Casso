@@ -539,6 +539,8 @@
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />
     <ClCompile Include="EmuTests\AppleKeyMappingTests.cpp" />
+    <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
+    <ClCompile Include="EmuTests\ShellKeyWiringTests.cpp" />
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
   </ItemGroup>
   <ItemGroup>

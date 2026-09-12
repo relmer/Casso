@@ -441,6 +441,7 @@
     <ClCompile Include="Shell\FramePacing.cpp" />
     <ClCompile Include="Shell\FrameClock.cpp" />
     <ClCompile Include="Shell\Input\AppleKeyMapping.cpp" />
+    <ClCompile Include="Shell\Input\ShellKeyRouting.cpp" />
     <ClCompile Include="Shell\Input\CapsLockTracker.cpp" />
     <ClCompile Include="Shell\Layout\DriveRowLayout.cpp" />
     <ClCompile Include="Shell\Layout\ChromeBandLayout.cpp" />
@@ -755,6 +756,7 @@
     <ClInclude Include="Shell\AudioSampleBudget.h" />
     <ClInclude Include="Shell\FrameClock.h" />
     <ClInclude Include="Shell\Input\AppleKeyMapping.h" />
+    <ClInclude Include="Shell\Input\ShellKeyRouting.h" />
     <ClInclude Include="Shell\Input\CapsLockTracker.h" />
     <ClInclude Include="Shell\Layout\DriveRowLayout.h" />
     <ClInclude Include="Shell\Layout\ChromeBandLayout.h" />
