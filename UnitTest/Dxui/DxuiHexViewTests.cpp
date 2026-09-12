@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiHexView.h"
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -567,6 +570,101 @@ public:
             L"A selection of bytes that are gone is not a selection");
         Assert::AreEqual (uint64_t (0), view.GetTopRow(),
             L"and the view is back at the top of the new bytes");
+    }
+
+
+    TEST_METHOD (Paint_ReadsOnlyTheRowsItDraws)
+    {
+        CountingHexSource     source (64 * 1024);
+        DxuiHexView           view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (uint64_t (20 * 16), source.GetBytesRead(),
+            L"A screenful is twenty rows of sixteen bytes, whatever the source holds");
+
+        view.SetTopRow (1000);
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (uint64_t (2 * 20 * 16), source.GetBytesRead(),
+            L"and scrolling deep into 64 KB costs another screenful, not a scan");
+    }
+
+
+    TEST_METHOD (Paint_LightsTheSelectionInBothColumns)
+    {
+        CountingHexSource     source (256);
+        DxuiHexView           view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        int                   fills = 0;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+        view.SelectByte (3, DxuiHexView::Column::Hex);
+        view.ExtendSelectionTo (5);
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if ((call.kind == RecordedTextKind::FillRect) && (call.argb == theme.SelectionBackground()))
+            {
+                fills++;
+            }
+        }
+
+        Assert::AreEqual (6, fills,
+            L"Three selected bytes are lit twice each, once under each column");
+    }
+
+
+    TEST_METHOD (Text_AppleHighBitDecodesBothHalvesTheSameWay)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        view.SetTextEncoding (DxuiHexView::TextEncoding::Ascii);
+        Assert::AreEqual (std::wstring (L"AB"), view.GetTextFor (0x41, 2),
+            L"Plain text reads as itself");
+        Assert::AreEqual (std::wstring (L".."), view.GetTextFor (0xC1, 2),
+            L"and a byte with the high bit set is not a character it can show");
+
+        view.SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
+        Assert::AreEqual (std::wstring (L"AB"), view.GetTextFor (0xC1, 2),
+            L"Apple text is the same letters with the high bit set");
+        Assert::AreEqual (std::wstring (L"AB"), view.GetTextFor (0x41, 2),
+            L"and the inverse half of the set decodes to the same letters");
+    }
+
+
+    TEST_METHOD (Hex_CopiesTheDigitsSpacedByTheGroupingInForce)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        Assert::AreEqual (std::wstring (L"10 11 12 13"), view.GetHexFor (0x10, 4),
+            L"At a grouping of one every byte is spaced");
+
+        Assert::IsTrue (view.SetGrouping (2), L"Two divides a sixteen-byte row");
+
+        Assert::AreEqual (std::wstring (L"1011 1213"), view.GetHexFor (0x10, 4),
+            L"and at two the digits pair up");
     }
 
 

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Theme/IDxuiTheme.h"
 
 
 
@@ -86,6 +87,14 @@ public:
         Column    column = Column::None;
     };
 
+    //  What the text column makes of a byte. Apple II text carries the high
+    //  bit set for ordinary characters and clear for inverse and flashing
+    //  ones, so both halves decode to the same letter.
+    enum class TextEncoding { Ascii, AppleHighBit };
+
+    //  A color for a marked byte, or false to leave it the ordinary one.
+    using MarkColorFn = std::function<bool (uint8_t mark, uint32_t & outArgb)>;
+
     DxuiHexView() { m_focusable = true; }
     ~DxuiHexView() override = default;
 
@@ -136,6 +145,17 @@ public:
     uint64_t  GetCaret           () const { return m_caret; }
     Column    GetSelectionColumn () const { return m_column; }
 
+    void          SetTextEncoding (TextEncoding encoding) { m_encoding = encoding; }
+    TextEncoding  GetTextEncoding () const                { return m_encoding; }
+
+    void  SetMarkColor (MarkColorFn fn) { m_markColor = std::move (fn); }
+
+    //  The characters the text column shows for a run of bytes, and the hex
+    //  digits the hex column shows for it. Painting and a copy of the
+    //  selection are the same two answers.
+    std::wstring  GetTextFor (uint64_t offset, uint64_t count) const;
+    std::wstring  GetHexFor  (uint64_t offset, uint64_t count) const;
+
     //  Told after any change to the selection, including its loss.
     void  SetOnSelectionChanged (std::function<void ()> fn) { m_onSelectionChanged = std::move (fn); }
 
@@ -177,6 +197,19 @@ private:
     void  NotifySelectionChanged ();
     uint64_t  GetLastOffset () const;
 
+    //  One row's bytes and marks, read straight from the source into the
+    //  buffers the view reuses frame after frame.
+    int   ReadRow (uint64_t row);
+    void  PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count);
+    void  EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+
+    //  One cell run of the fixed-width face, and the fill behind it.
+    static void  DrawCell (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font);
+    static void  FillCell (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
+
+    static wchar_t  GetHexDigit (int value);
+    wchar_t         GetCharFor  (uint8_t byte) const;
+
     int   GetHeightDip () const { return m_boundsDip.bottom - m_boundsDip.top; }
 
     const IDxuiHexSource *  m_source        = nullptr;
@@ -191,6 +224,10 @@ private:
     uint64_t                m_caret         = 0;
     Column                  m_column        = Column::None;
     bool                    m_dragging      = false;
+    TextEncoding            m_encoding      = TextEncoding::Ascii;
     DxuiDpiScaler           m_scaler;
+    MarkColorFn             m_markColor;
     std::function<void ()>  m_onSelectionChanged;
+    std::vector<uint8_t>    m_rowBytes;
+    std::vector<uint8_t>    m_rowMarks;
 };

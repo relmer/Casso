@@ -2,6 +2,9 @@
 
 #include "DxuiHexView.h"
 
+#include "Theme/IDxuiTheme.h"
+#include "Render/IDxuiTextRenderer.h"
+
 
 
 
@@ -1044,7 +1047,358 @@ void DxuiHexView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    float    x      = (float) m_boundsDip.left;
+    float    y      = (float) m_boundsDip.top;
+    float    width  = (float) (m_boundsDip.right - m_boundsDip.left);
+    float    height = (float) GetHeightDip();
+    int      cap    = 0;
+    HRESULT  hr     = S_OK;
+
+
+
     (void) painter;
-    (void) text;
-    (void) theme;
+
+    hr = text.FillRect (x, y, width, height, theme.Background());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    EnsureCellSize (text, theme);
+
+    cap = GetRowCap();
+
+    if ((m_source == nullptr) || (cap <= 0))
+    {
+        return;
+    }
+
+    hr = text.PushClipRect (x, y, width, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (int row = 0; row < cap; row++)
+    {
+        uint64_t  index = m_topRow + (uint64_t) row;
+        int       count = 0;
+
+        if (index >= GetRowCount())
+        {
+            break;
+        }
+
+        count = ReadRow (index);
+
+        PaintRow (text, theme, index, count);
+    }
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::EnsureCellSize
+//
+//  The cell the columns are built on, measured once from the face that will
+//  draw them. A host that has already set a size keeps it, which is what lets
+//  the geometry be exercised with no device at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    DxuiFontHandle  font   = theme.MonospaceFont();
+    float           width  = 0.0f;
+    float           height = 0.0f;
+    HRESULT         hr     = S_OK;
+
+
+
+    if (m_cellWidthDip > 0)
+    {
+        return;
+    }
+
+    //  Eight digits at once, so a face whose advance is not a whole number
+    //  of DIPs is rounded once rather than eight times.
+    hr = text.MeasureString (L"00000000", font.sizeDip, font.face, width, height);
+
+    if (FAILED (hr) || (width <= 0.0f) || (height <= 0.0f))
+    {
+        return;
+    }
+
+    SetCellSizeDip ((int) ((width / 8.0f) + 0.5f), (int) (height + 0.5f));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::ReadRow
+//
+//  The one place bytes are read. A row at a time, into buffers the view keeps,
+//  so what a frame costs follows the rows on screen and not the size of what
+//  is being shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::ReadRow (uint64_t row)
+{
+    uint64_t  start = row * (uint64_t) m_bytesPerRow;
+    uint64_t  bytes = m_source->GetByteCount();
+    uint64_t  left  = (start < bytes) ? (bytes - start) : 0;
+    int       count = (int) (std::min) (left, (uint64_t) m_bytesPerRow);
+
+
+
+    if (count <= 0)
+    {
+        return 0;
+    }
+
+    m_rowBytes.resize ((size_t) m_bytesPerRow);
+    m_rowMarks.resize ((size_t) m_bytesPerRow);
+
+    m_source->ReadBytes (start, std::span<uint8_t> (m_rowBytes.data(), (size_t) count));
+    m_source->ReadMarks (start, std::span<uint8_t> (m_rowMarks.data(), (size_t) count));
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::PaintRow
+//
+//  The offset, then each byte's digits and its character. Selected bytes are
+//  lit in both columns at once, which is the whole point of selecting bytes
+//  rather than characters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count)
+{
+    DxuiFontHandle  font     = theme.MonospaceFont();
+    RECT            gutter   = GetRowOffsetRect (row);
+    int             digits   = GetOffsetDigits();
+    uint64_t        address  = m_originAddress + (row * (uint64_t) m_bytesPerRow);
+    std::wstring    label;
+
+
+
+    for (int digit = digits - 1; digit >= 0; digit--)
+    {
+        label.push_back (GetHexDigit ((int) ((address >> (digit * 4)) & 0xF)));
+    }
+
+    DrawCell (text, gutter, label.c_str(), theme.ForegroundMuted(), font);
+
+    for (int index = 0; index < count; index++)
+    {
+        uint64_t      offset   = (row * (uint64_t) m_bytesPerRow) + (uint64_t) index;
+        uint8_t       byte     = m_rowBytes[(size_t) index];
+        RECT          hexRect  = GetByteRect (offset, Column::Hex);
+        RECT          txtRect  = GetByteRect (offset, Column::Text);
+        uint32_t      argb     = theme.Foreground();
+        std::wstring  digitsOf = { GetHexDigit ((byte >> 4) & 0xF), GetHexDigit (byte & 0xF) };
+        std::wstring  charOf   = { GetCharFor (byte) };
+
+        if (m_markColor)
+        {
+            uint32_t  marked = argb;
+
+            if (m_markColor (m_rowMarks[(size_t) index], marked))
+            {
+                argb = marked;
+            }
+        }
+
+        if (IsByteSelected (offset))
+        {
+            FillCell (text, hexRect, theme.SelectionBackground());
+            FillCell (text, txtRect, theme.SelectionBackground());
+        }
+
+        DrawCell (text, hexRect, digitsOf.c_str(), argb, font);
+
+        DrawCell (text, txtRect, charOf.c_str(), argb, font);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::DrawCell
+//
+//  Everything here is drawn at a cell boundary in a fixed-width face, so a
+//  cell run is always left-aligned, unwrapped, and exactly as wide as the
+//  characters it holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::DrawCell (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = text.DrawString (chars,
+                          (float) rect.left,
+                          (float) rect.top,
+                          (float) (rect.right - rect.left),
+                          (float) (rect.bottom - rect.top),
+                          argb,
+                          font.sizeDip,
+                          font.face,
+                          DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Top,
+                          DxuiFontWeight::Normal,
+                          false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::FillCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::FillCell (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = text.FillRect ((float) rect.left,
+                        (float) rect.top,
+                        (float) (rect.right - rect.left),
+                        (float) (rect.bottom - rect.top),
+                        argb);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetHexDigit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wchar_t DxuiHexView::GetHexDigit (int value)
+{
+    return (value < 10) ? (wchar_t) (L'0' + value) : (wchar_t) (L'A' + value - 10);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetCharFor
+//
+//  Anything the face cannot show as itself becomes a period, so the text
+//  column stays one cell a byte and the two columns keep their rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wchar_t DxuiHexView::GetCharFor (uint8_t byte) const
+{
+    uint8_t  value = (m_encoding == TextEncoding::AppleHighBit) ? (uint8_t) (byte & 0x7F) : byte;
+
+
+
+    return ((value >= 0x20) && (value < 0x7F)) ? (wchar_t) value : L'.';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetTextFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiHexView::GetTextFor (uint64_t offset, uint64_t count) const
+{
+    std::wstring          out;
+    std::vector<uint8_t>  bytes;
+
+
+
+    if ((m_source == nullptr) || (count == 0))
+    {
+        return out;
+    }
+
+    bytes.resize ((size_t) count);
+    m_source->ReadBytes (offset, std::span<uint8_t> (bytes.data(), bytes.size()));
+
+    for (uint8_t byte : bytes)
+    {
+        out.push_back (GetCharFor (byte));
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetHexFor
+//
+//  The digits spaced by the grouping in force, counted from the first byte
+//  asked for, so a copy of a selection reads the way the column does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiHexView::GetHexFor (uint64_t offset, uint64_t count) const
+{
+    std::wstring          out;
+    std::vector<uint8_t>  bytes;
+
+
+
+    if ((m_source == nullptr) || (count == 0))
+    {
+        return out;
+    }
+
+    bytes.resize ((size_t) count);
+    m_source->ReadBytes (offset, std::span<uint8_t> (bytes.data(), bytes.size()));
+
+    for (size_t index = 0; index < bytes.size(); index++)
+    {
+        if ((index > 0) && ((index % (size_t) m_grouping) == 0))
+        {
+            out.push_back (L' ');
+        }
+
+        out.push_back (GetHexDigit ((bytes[index] >> 4) & 0xF));
+        out.push_back (GetHexDigit (bytes[index] & 0xF));
+    }
+
+    return out;
 }
