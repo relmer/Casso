@@ -61,6 +61,13 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
 // toolbar's own. The short label is what the strip draws; the pickers
 // label themselves with their PURPOSE, not with the value they hold, since
 // a label that changes with the value moves every button to its right.
+//
+// The paddle picker is the one exception: it wears the source that is
+// driving, because that answer is worth a permanent place on the strip and
+// having it there is what lets the input cluster stop carrying it. Its width
+// moves as a result, so the strip is laid out again whenever it changes, and
+// the source labels are capped (InputModeRules::kShortLabelLimit) so the
+// movement stays small.
 struct ToolbarRow
 {
     int                id;
@@ -92,7 +99,7 @@ static constexpr ToolbarRow  s_kToolbarRows[] =
     { EmulatorCommands::kIdColor,  DxuiToolbar::Kind::DropDown, 0, s_kGlyphColor,      L"Color",       L"Color"         },
     { IDM_PRINTER_PREVIEW,         DxuiToolbar::Kind::Command,  0, s_kGlyphPrint,      L"Printer",     nullptr          },
     { EmulatorCommands::kIdVolume, DxuiToolbar::Kind::Flyout,   1, s_kGlyphVolume,     L"Volume",      L"Mute"          },
-    { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, s_kGlyphGamepad,    L"Joystick",    L"What drives the paddles" },
+    { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, s_kGlyphGamepad,    L"Controller",  L"What drives the paddles" },
     { EmulatorCommands::kIdInput,  DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Input",       L"Input devices" },
     { IDM_VIEW_FULLSCREEN,         DxuiToolbar::Kind::Command,  3, s_kGlyphFullscreen, L"Full screen", nullptr          },
     { IDM_EDIT_COPY_SCREENSHOT,    DxuiToolbar::Kind::Command,  3, s_kGlyphScreenshot, L"Screenshot",  nullptr          },
@@ -193,6 +200,20 @@ EmulatorCommands::EmulatorCommands()
 
         cmd->glyph      = row.glyph;
         cmd->shortLabel = row.shortLabel;
+    }
+
+    // The paddle picker wears the source that is driving, not the word for
+    // what it is for. With the answer on its face there is nothing left for a
+    // separate indicator to say. It keeps its static label as the fallback
+    // for when nothing is driving the axes at all.
+    {
+        DxuiCommand *  paddle = FindMutable (kIdPaddle);
+
+        if (paddle != nullptr)
+        {
+            paddle->shortLabel.clear();
+            paddle->labelText = [this] () { return GetCheckedPaddleSourceLabel(); };
+        }
     }
 
     for (size_t i = 0; i < std::size (s_kMonitorColorRows); i++)
@@ -661,6 +682,31 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 
         m_paddleSourceRows.push_back (std::move (cmd));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetPaddleSourceItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetCheckedPaddleSourceLabel() const
+{
+    for (const InputModeRules::PaddleSource & source : m_paddleSources)
+    {
+        if (source.isChecked)
+        {
+            return source.shortLabel;
+        }
+    }
+
+    // Nothing is driving the axes, which is a state worth showing rather than
+    // leaving the picker blank.
+    return L"Controller";
 }
 
 

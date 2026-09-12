@@ -4,6 +4,7 @@
 
 #include "Controllers/ControllerTypes.h"
 #include "Controllers/GamePortInputMixer.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -38,6 +39,11 @@ public:
     struct PaddleSource
     {
         std::wstring                      label;
+
+        // What the command bar shows while this one is driving. Short because
+        // the picker wears it on its face, and a label that grows moves every
+        // button to its right.
+        std::wstring                      shortLabel;
         std::optional<ControllerUnitKey>  controller;   // absent for the two keyboard and mouse entries
         bool                              isArrowKeys   = false;
         bool                              isMousePaddle = false;
@@ -57,6 +63,12 @@ public:
 
         bool operator== (const State &) const = default;
     };
+
+    // Longest a source's short label may run on the command bar before it is
+    // cut. Fits the longest built-in entry and a typical device description.
+    static constexpr size_t  kShortLabelLimit = 18;
+
+    static std::wstring  Shorten (const std::wstring & text);
 
     static std::vector<PaddleSource>  BuildPaddleSources (
         const State &                             state,

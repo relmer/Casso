@@ -188,6 +188,36 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (Shorten_DropsTheVendorParentheticalBeforeCutting)
+        {
+            // The strip has no room for the ids that tell two units apart, and
+            // cutting into them mid-word reads as a bug rather than a name.
+            Assert::AreEqual (std::wstring (L"Xbox Controller"),
+                              InputModeRules::Shorten (L"Xbox Controller (045e:02ff)"));
+
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"),
+                              InputModeRules::Shorten (L"VKBsim Gladiator"));
+        }
+
+
+        TEST_METHOD (Shorten_CutsWhatIsStillTooLong)
+        {
+            std::wstring  shortened = InputModeRules::Shorten (L"An Extremely Verbose Controller Name");
+
+            Assert::AreEqual (InputModeRules::kShortLabelLimit, shortened.size());
+            Assert::AreEqual (L'\x2026', shortened.back(), L"one ellipsis, not three dots");
+        }
+
+
+        TEST_METHOD (Shorten_LeavesAParenthesizedNameThatIsAllThereIs)
+        {
+            // Nothing before the parenthesis means the parenthesis is the
+            // name, so removing it would leave an empty label.
+            Assert::AreEqual (std::wstring (L"(not connected)"),
+                              InputModeRules::Shorten (L"(not connected)"));
+        }
+
+
         TEST_METHOD (NothingChosen_AxesRestAtCenter)
         {
             Assert::AreEqual ((int) AxisOwner::None, (int) InputModeRules::GetAxisOwner (InputModeRules::State()));

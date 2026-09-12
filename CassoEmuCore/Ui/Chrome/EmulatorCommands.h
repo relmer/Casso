@@ -136,7 +136,8 @@ public:
     void  SetPaddleSources        (const std::vector<InputModeRules::PaddleSource> & sources);
     void  SetPaddleSourcePickedFn (PaddleSourcePickedFn fn) { m_onPaddleSourcePicked = std::move (fn); }
 
-    std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems () const;
+    std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems     () const;
+    std::wstring                    GetCheckedPaddleSourceLabel () const;
 
     // Fills the toolbar: ten entries in strip order, the LED as the printer
     // entry's decoration, the cluster as the input entry's custom entry and

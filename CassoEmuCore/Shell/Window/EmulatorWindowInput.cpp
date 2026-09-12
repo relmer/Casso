@@ -2734,6 +2734,18 @@ void EmulatorShell::SyncPaddleSourceList()
     // and a cascade puts two hovers between them and their controller.
     m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
                                 m_mainMenu.GetCommands().GetPaddleSourceItems());
+
+    // The picker wears the chosen source, so its width moves with the answer.
+    // Without laying the strip out again the new word paints into the rect
+    // the old one left behind.
+    {
+        RECT  bounds = m_toolbar.GetBounds();
+
+        if (bounds.right > bounds.left)
+        {
+            m_toolbar.Layout (bounds, m_scaler);
+        }
+    }
 }
 
 

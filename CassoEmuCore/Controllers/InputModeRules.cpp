@@ -46,6 +46,7 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
         PaddleSource  entry;
 
         entry.label      = device.description;
+        entry.shortLabel = Shorten (device.description);
         entry.controller = device.unit;
         entry.isChecked  = selection.has_value() && selection.value() == device.unit;
 
@@ -62,6 +63,7 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
         PaddleSource  missing;
 
         missing.label       = L"(not connected)";
+        missing.shortLabel  = L"Not connected";
         missing.controller  = selection;
         missing.isChecked   = true;
         missing.isConnected = false;
@@ -74,10 +76,12 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     // joystick or a paddle. A controller needs no such sentence: its own
     // description is the whole answer.
     arrows.label       = L"Use keys as joystick";
+    arrows.shortLabel  = L"Keys";
     arrows.isArrowKeys = true;
     arrows.isChecked   = state.arrowsJoystick && !state.hasController;
 
     paddle.label         = L"Use mouse as paddle";
+    paddle.shortLabel    = L"Mouse";
     paddle.isMousePaddle = true;
     paddle.isChecked     = state.mousePaddle && !state.hasController;
 
@@ -85,6 +89,48 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     sources.push_back (paddle);
 
     return sources;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Shorten
+//
+//  Cuts a device description down to what the command bar can wear. A single
+//  ellipsis, not three dots, matching the drive labels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InputModeRules::Shorten (const std::wstring & text)
+{
+    std::wstring  shortened = text;
+    size_t        paren     = std::wstring::npos;
+
+
+
+    // A trailing parenthetical is the vendor and product that tell two units
+    // of a model apart. That is worth having where a user is choosing between
+    // them; on the strip it is noise, and cutting into it mid-word reads as a
+    // truncation bug rather than as a name.
+    if (!shortened.empty() && shortened.back() == L')')
+    {
+        paren = shortened.rfind (L" (");
+
+        if (paren != std::wstring::npos && paren > 0)
+        {
+            shortened.erase (paren);
+        }
+    }
+
+    if (shortened.size() <= kShortLabelLimit)
+    {
+        return shortened;
+    }
+
+    return shortened.substr (0, kShortLabelLimit - 1) + s_kchEllipsis;
 }
 
 
