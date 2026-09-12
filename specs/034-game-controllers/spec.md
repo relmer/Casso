@@ -10,14 +10,17 @@
 
 ## Context
 
-The Apple II game port has 2 analog axes and 2 buttons that matter to nearly all software:
+The Apple II game port has four analog axes and three buttons. Nearly all software uses the first two axes and the first two buttons; two-player games read the rest (FR-034):
 
 | Game port input | Soft switch | Driven today by |
 |---|---|---|
 | PDL0 (X) | `$C064` | arrow keys (joystick), mouse (paddle) |
 | PDL1 (Y) | `$C065` | arrow keys (joystick), mouse (paddle) |
+| PDL2 | `$C066` | nothing; absent on the //c, where the line is the mouse X direction |
+| PDL3 | `$C067` | nothing; absent on the //c, where the line is the mouse Y direction |
 | PB0 | `$C061` | fire key, Open-Apple, mouse button |
 | PB1 | `$C062` | second fire key, Solid-Apple |
+| PB2 | `$C063` | //e Shift key; the mouse button on the //c |
 
 Input selection is split in two today, persisted per machine:
 
@@ -44,6 +47,9 @@ Paddle mode and arrows-to-joystick are mutually exclusive, since both drive PDL0
 - Q: (analysis) A selected DirectInput controller comes back with a different unit identity after moving ports; does it stay unselected? -> A: No. If the selected unit is absent and exactly one unit of its model is attached, that unit is adopted (FR-032).
 - Q: (analysis) Should the spec set a deadzone value? -> A: No. The default comes from the API's published value where one exists; values live in research R8.
 - Q: Why is PB2 excluded? -> A: It no longer is. PB2 is a target on the ][, ][+ and //e (shared with Shift on the //e) and unavailable on the //c, where `$C063` is the mouse button (FR-020).
+- Q: (hardware) When the selected controller is unplugged and another is attached, what takes the game port? -> A: The other controller. A disconnect hands the port to an attached controller if there is one and falls back to the arrow keys only when there is none. The saved selection is not changed, so the original controller takes the port back when it returns (FR-008a, FR-010, FR-032).
+- Q: (hardware) Should two people be able to play at once on two controllers? -> A: Yes. The game port has four analog axes on the ][, ][+ and //e and two on the //c, and two-player games read them independently, so one selected controller cannot serve them. Controllers are assigned to axes rather than to a single "joystick source" slot (User Story 7, FR-034 to FR-038).
+- Q: (hardware) How are "four paddles" and "two joysticks" both expressed? -> A: As one number per machine. A joystick is two analog axes wired to one stick, so four axes means four paddles or two joysticks or one joystick plus two paddles, and the //c's two axes mean two paddles or one joystick. The spec carries the axis count and nothing else (FR-034).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -155,6 +161,28 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 4. **Given** a profile, **When** the user renames, duplicates or deletes it, **Then** the list updates; deleting the active profile makes Default active.
 5. **Given** two controllers of the same model, **When** the user creates a profile on one, **Then** it is available on the other too.
 
+---
+
+### User Story 7 - Two people play at once (Priority: P2)
+
+Two people sit down to a two-player game -- The Bilestoad, or a Pong-descended paddle game -- each with their own controller. Each drives their own paddle axis and their own button, independently, at the same time.
+
+**Why this priority**: a two-player game reads its players' axes separately, so a single selected controller does not make it merely inconvenient, it makes it unplayable. The game port has had the axes for this since 1977; only Casso's one-source-at-a-time assumption stands in the way.
+
+**Independent Test**: two mock controllers are assigned to PDL0 and PDL1. Moving each one moves only its own axis, and each one's button reaches its own button line, with both held at once.
+
+**Acceptance Scenarios**:
+
+1. **Given** two controllers assigned to PDL0 and PDL1 on a //e, **When** both sticks are moved at once, **Then** each axis follows its own controller and neither follows the other.
+2. **Given** two controllers each assigned one axis, **When** both buttons are held at once, **Then** both button lines read pressed.
+3. **Given** a //e with two controllers assigned two axes each, **When** both are moved, **Then** PDL0-PDL3 all follow their assigned controller.
+4. **Given** a //c, **When** the user opens the assignment settings, **Then** only PDL0 and PDL1 are offered, because the //c has no PDL2/PDL3 (FR-035).
+5. **Given** a controller assigned to PDL0, **When** the user assigns a second controller to PDL0, **Then** the second one takes the axis and the first no longer drives it (FR-036).
+6. **Given** two assigned controllers, **When** one disconnects, **Then** only its axes return to center and the other keeps driving its own without interruption.
+7. **Given** a single Xbox controller on a //e, **When** the user assigns its left stick to PDL0/PDL1 and its right stick to PDL2/PDL3, **Then** one controller drives a four-axis game.
+
+---
+
 ### Edge Cases
 
 - **User switches back to arrow keys with a controller still attached**: the switch holds for the session, because the controller is not newly connecting. The next time a controller connects (unplug and replug, relaunch, or switching to this machine) it is selected again (FR-032).
@@ -194,16 +222,16 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 
 - **FR-001**: Casso MUST enumerate attached game controllers, including Xbox-class controllers, generic USB/Bluetooth gamepads, and joysticks.
 - **FR-002**: Casso MUST detect controllers being attached and removed while running, without a restart.
-- **FR-003**: When a controller is the selected source, Casso MUST sample it continuously while Casso is active (FR-033), at least as often as the display refreshes (60 Hz), and apply its mapped axis controls to PDL0 (X) and PDL1 (Y) over the full 0-255 range. With no custom mapping, the left stick (or a joystick's primary axes) drives them.
+- **FR-003**: When a controller is the selected source, Casso MUST sample it continuously while Casso is active (FR-033), at least as often as the display refreshes (60 Hz), and apply its mapped axis controls to the axes it holds over the full 0-255 range. With no custom mapping, the left stick (or a joystick's primary axes) drives PDL0 (X) and PDL1 (Y).
 - **FR-004**: The mapping MUST be proportional: center at rest maps to 127/128, full deflection maps to 0 or 255, and intermediate deflection maps monotonically between them.
 - **FR-005**: The mapped button controls MUST drive PB0 and PB1, reaching the same machine inputs Open-Apple and Solid-Apple reach on a //e and //c. With no custom mapping, the first two face buttons (on an Xbox-class controller, A and B; on a joystick, its first two buttons) drive them.
 - **FR-006**: A deadzone around center MUST suppress rest jitter; a stick within it reads exactly center.
 - **FR-007**: Casso MUST calibrate center and travel limits per controller, so an off-center or short-throw stick still reads center at rest and 0/255 at its limits. Calibration is automatic by default: center is captured when the controller connects and the limits widen to the travel actually observed. A user-invoked Calibrate action (center, then full travel) MUST override the automatic values for that controller.
 - **FR-007a**: A controller with a user calibration MUST use it in place of automatic calibration, including the connect-time center capture. The user MUST be able to discard a user calibration and return to automatic.
 - **FR-008**: A physical controller MUST appear as a joystick source in the existing input selector (Machine menu and toolbar input control). Selecting a controller is mutually exclusive with arrows-to-joystick and mouse-to-paddle, the way paddle mode and arrows-to-joystick are today.
-- **FR-008a**: While the selected controller is disconnected, the arrow keys MUST drive the joystick in its place. When the controller reconnects, it takes the joystick back. The fallback does not change the saved selection, and the toolbar input indicator MUST show that the arrow keys are standing in.
-- **FR-009**: Only the selected controller MUST drive the game port; other attached controllers are ignored.
-- **FR-010**: On disconnect of the selected controller, Casso MUST return both axes to center and release both buttons within one sampling interval, then hand the joystick to the arrow keys (FR-008a), and MUST resume from that controller automatically on reconnect.
+- **FR-008a**: While the selected controller is disconnected, another attached controller MUST drive its axes in its place; the arrow keys stand in only when no controller is attached. Where several are attached, the one that has been attached longest is used, so the stand-in does not change as unrelated controllers come and go. When the selected controller reconnects, it takes its axes back. Standing in MUST NOT change the saved selection, and the toolbar input indicator MUST show that something is standing in and what.
+- **FR-009**: Only controllers the user has assigned to an axis MUST drive the game port; other attached controllers are ignored except when standing in for a disconnected one (FR-008a).
+- **FR-010**: On disconnect of an assigned controller, Casso MUST return its axes to center and release its buttons within one sampling interval, then hand those axes to whatever stands in (FR-008a), and MUST resume from that controller automatically on reconnect.
 - **FR-011**: The selection MUST persist per machine alongside the existing input-mapping preferences, and MUST be restored at launch and on machine switch. A selection whose controller is absent MUST be retained rather than discarded.
 - **FR-012**: Calibration MUST persist per controller unit, profiles MUST persist per controller model, and both MUST be restored automatically when a controller connects, without any user action.
 - **FR-013**: The user MUST be able to tell when the selected controller is not connected.
@@ -214,11 +242,11 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **FR-018**: Casso MUST recognize a controller at two levels: the specific unit, and its model (vendor and product). Calibration is keyed by unit; profiles are keyed by model, so every controller of a model shares them. A unit with no saved calibration starts with automatic calibration.
 - **FR-018a**: Every Xbox-class controller shares ONE model key, not one per vendor and product. XInput reports every controller it supports through a single fixed layout (two sticks, two triggers, a D-pad and ten buttons), so there is nothing per-model for a mapping to capture, and the same controller reports different product IDs depending on whether it is on USB or Bluetooth. Its vendor and product IDs are kept for display only. Xbox-class controllers are factory-calibrated, so they get no automatic calibration and no Calibrate action; the deadzone and profiles are all that apply. A saved Xbox-class selection matches whichever Xbox-class controller is connected.
 - **FR-019**: Casso MUST provide a Controllers page in the Settings sheet where the user picks an attached controller, edits its calibration (FR-007) and deadzone, and manages and edits its profiles. A Controller Settings item in the input selector MUST open the Settings sheet to that page. The page MUST follow the sheet's Apply/Cancel model: mapping, deadzone and profile edits take effect on the emulated machine only on Apply and are discarded on Cancel, while the live readings (FR-023) preview the edited mapping before it is applied.
-- **FR-020**: Each game-port target (PDL0, PDL1, PB0, PB1, PB2) MUST accept one or more assigned controls. PB2 is available on the ][, ][+ and //e, where on the //e it shares `$C063` with the Shift key; on the //c, whose `$C063` is the mouse button, the PB2 target MUST be shown as unavailable and its bindings ignored. PB2 has no default binding. Assignable controls are every axis, button, D-pad direction and trigger the controller reports.
+- **FR-020**: Each game-port target (PDL0-PDL3, PB0, PB1, PB2) MUST accept one or more assigned controls. PB2 is available on the ][, ][+ and //e, where on the //e it shares `$C063` with the Shift key; on the //c, whose `$C063` is the mouse button, the PB2 target MUST be shown as unavailable and its bindings ignored. PB2 has no default binding. Which analog targets exist follows the machine's axis count (FR-034, FR-035). Assignable controls are every axis, button, D-pad direction and trigger the controller reports.
 - **FR-021**: An axis target MUST accept an analog axis (optionally inverted) or a pair of digital controls (one for each direction, driving the axis to its extreme while held). A button target MUST accept a button, a D-pad direction, or an analog axis or trigger past a threshold.
 - **FR-021a**: An analog axis binding MUST offer two responses. **Absolute**: stick position sets paddle position. **Rate**: deflection beyond the deadzone moves the paddle at a speed proportional to deflection, up to a user-set maximum speed, and the paddle holds its position when the stick is released; the held position resets to center when the controller selection, the active profile, or the machine changes. Creating a profile MUST offer a "Paddles" starting point: left stick X in rate mode to PDL0, right stick X in rate mode to PDL1, first two face buttons to PB0 and PB1.
 - **FR-022**: The user MUST be able to assign a control by activating it on the controller while the target is waiting for input, as well as by choosing it from a list. Waiting for input MUST be cancelable, and MUST ignore a control already deflected or held when waiting began.
-- **FR-023**: The controller settings MUST show live readings of the controller's controls and of the resulting PDL0/PDL1 and PB0-PB2 values while open.
+- **FR-023**: The controller settings MUST show live readings of the controller's controls and of the resulting PDL0-PDL3 and PB0-PB2 values while open, showing only the axes the machine has (FR-035).
 - **FR-024**: The user MUST be able to reset a profile's mapping to the default mapping.
 - **FR-025**: The settings MUST show which controls drive more than one target, and MUST NOT remove an existing assignment as a side effect of adding one.
 - **FR-026**: Each controller model MUST have a Default profile, created automatically with the default mapping (FR-003, FR-005), which can be edited and reset but not deleted or renamed.
@@ -229,17 +257,23 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **FR-031**: The Machine menu entries and the toolbar's controller and profile pickers and status indicator (FR-008, FR-008a, FR-013, FR-028) MUST be built on the command, dropdown and toolbar widgets from the Dxui command-widgets feature (032), which is on master.
 - **FR-032**: Whenever the current machine has no controller selected and a controller connects, that controller MUST become the machine's selection automatically, replacing arrows-to-joystick or mouse-to-paddle if either is on, and Casso MUST show a brief notice saying which controller was selected. A controller already attached when Casso starts, or when the user switches to a machine with no controller selected, counts as connecting. A controller connecting while one is already selected (connected or not) MUST NOT change the selection, with one exception: if the selected DirectInput unit is not attached and exactly one unit of the same model is attached, that unit MUST be adopted as the selection, so a controller whose unit identity changed (for example, moved to another port) is picked back up. With two or more units of that model attached, nothing is adopted.
 - **FR-033**: Controller input MUST drive the game port only while Casso is active, meaning one of its windows (the emulator window or the Settings sheet) is the active window. When Casso becomes inactive or is minimized, the controller's contribution MUST return to rest; it resumes on reactivation. Xbox-class controllers are always read through XInput, and this activation rule applies to them the same as to every other controller.
+- **FR-034**: Each machine MUST carry how many analog game-port axes it exposes: four (PDL0-PDL3) on the ][, ][+ and //e, and two (PDL0/PDL1) on the //c, whose PDL2/PDL3 lines are the mouse direction lines instead. Everything else follows from that count. A joystick is two axes wired to one stick, so four axes serve four paddles, two joysticks, or one joystick and two paddles, and the //c's two serve two paddles or one joystick. The spec states no separate joystick maximum.
+- **FR-035**: An axis the machine does not expose MUST NOT be offered as an assignment or mapping target, and an assignment naming one MUST be ignored without faulting, the way a machine without a game port ignores a selection entirely (FR-017). A saved assignment MUST be kept rather than discarded when the user switches to a machine with fewer axes, so switching back restores it.
+- **FR-036**: Each analog axis MUST have at most one owner at a time. Assigning a controller to an axis another controller holds MUST displace the previous owner rather than letting both drive it. Buttons are not restricted this way: they already combine across sources, so several controllers and the keyboard can hold PB0 and the guest sees one press.
+- **FR-037**: The user MUST be able to assign each attached controller to the axes it drives, and the settings MUST show which controller holds which axis. A controller may hold one axis (a paddle), two (a joystick), or, where the machine has four and nothing else claims them, all four.
+- **FR-038**: The default assignment for a newly connected controller MUST claim PDL0 and PDL1 and no more, leaving the remaining axes free for a second controller. A controller with enough controls to drive four axes MUST NOT claim them by default; assigning the extra axes by hand (FR-037) is how a user opts into that.
 
 ### Key Entities
 
 - **Controller**: an attached input device. Has a unit identity usable to recognize it across reconnects and launches, a model identity (vendor and product) shared by every unit of the same model, a human-readable product description, a connected state, the set of controls it reports, and a current sample of those controls.
-- **Controller selection**: per machine, which controller (if any) is the joystick source. Refers to a controller identity that may or may not currently be attached.
+- **Controller selection**: per machine, which controller (if any) drives which analog axes. Refers to controller identities that may or may not currently be attached. One controller may hold several axes, and each axis has at most one owner (FR-036).
+- **Game-port axis budget**: per machine, how many analog axes exist -- four on the ][, ][+ and //e, two on the //c (FR-034). Bounds what can be assigned and what the settings offer.
 - **Controller profile**: a named control mapping belonging to a controller model, shared by every unit of that model. Each model has a Default profile plus any the user creates. Machine-independent.
 - **Active profile**: per machine and controller selection, which profile is in use.
 - **Calibration**: per DirectInput controller unit. Rest center and travel limits per axis, and whether they are automatic or user-set. Xbox-class controllers have none.
 - **Deadzone**: per controller model.
 - **Control mapping**: the content of a profile. For each game-port target, the list of assigned controls with their options (invert for an axis, threshold for an analog control driving a button, direction for a digital control driving an axis).
-- **Game port state**: the existing PDL0/PDL1 positions and PB0-PB2 states. Controller samples feed it through the same path the keyboard and mouse sources use.
+- **Game port state**: the existing PDL0-PDL3 positions and PB0-PB2 states. Controller samples feed it through the same path the keyboard and mouse sources use.
 
 ## Success Criteria *(mandatory)*
 
@@ -255,10 +289,12 @@ A user plays Lode Runner with the D-pad and A/B, and a flight simulator with the
 - **SC-008**: A user can reassign both buttons and switch the axes to the D-pad in under one minute from opening the controller settings.
 - **SC-009**: A controller not yet recognized as a unit, but of a model with saved profiles, drives the game port with those profiles available on its first connection.
 - **SC-010**: Switching the active profile from the input selector takes two actions or fewer and no more than 5 seconds, with no emulated machine reset.
+- **SC-011**: Two controllers assigned to separate axes both drive the machine at once, with neither one's stick or button affecting the other's axis or button line.
+- **SC-012**: When an assigned controller disconnects, the other assigned controllers keep driving their own axes with no interruption to their readings.
 
 ## Assumptions
 
-- **Scope of mapping**: one controller drives PDL0/PDL1 and PB0-PB2. PDL2/PDL3, rumble, and mapping controller controls to Apple II keyboard keys are out of scope for v1. The Guide button is not assignable.
+- **Scope of mapping**: controllers drive the machine's analog axes (PDL0-PDL3, or PDL0/PDL1 on the //c) and PB0-PB2. Rumble and mapping controller controls to Apple II keyboard keys are out of scope for v1. The Guide button is not assignable.
 - **Automatic calibration assumes the stick is at rest when it connects**; the Calibrate action exists for the case where it is not, and for sticks whose automatic limits never settle.
 - **Device access**: XInput for Xbox-class controllers, DirectInput for everything else, with XInput devices filtered out of the DirectInput enumeration so no controller appears twice. DirectInput alone was ruled out because it reports an Xbox-class controller's two triggers on one shared axis by design, which control mapping (FR-020) cannot live with.
 - **Xbox-class controllers need no unit recognition**: XInput exposes only a slot number (0-3), with no product, vendor or serial identity, and a controller can change slots across reconnects. That would make telling two identical Xbox controllers apart unreliable, but nothing requires it: calibration is the only per-unit data and they need none (FR-018a). Recognizing the model still has to come from correlating the slot with its underlying device.

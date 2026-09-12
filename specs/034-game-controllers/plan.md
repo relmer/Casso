@@ -8,7 +8,9 @@
 
 Xbox-class controllers are read through XInput and every other controller through DirectInput 8, on a dedicated controller thread that wakes on DirectInput's own state-change events and polls XInput at a period measured from the real controllers (R13), handles hot-plug through HID device notifications, and applies input only while Casso is active. Both APIs sit behind one `IControllerBackend` seam that delivers a normalized sample; everything the spec asks for (calibration, deadzone, control mapping, profiles, selection and fallback, press-to-assign) is pure logic in `CassoEmuCore/Controllers/`, driven in tests by a scripted fake backend.
 
-A new `GamePortInputMixer` becomes the single writer of PDL0/PDL1/PB0/PB1. Today the keyboard, Alt and mouse sources overwrite each other, and a controller on another thread could not satisfy FR-014 against that; the existing writers are migrated onto the mixer first.
+A new `GamePortInputMixer` becomes the single writer of PDL0-PDL3 and PB0-PB2. Today the keyboard, Alt and mouse sources overwrite each other, and a controller on another thread could not satisfy FR-014 against that; the existing writers are migrated onto the mixer first.
+
+The unit of assignment is an **analog axis**, not a controller slot. A machine exposes four axes (][, ][+, //e) or two (//c, whose PDL2/PDL3 lines carry the mouse directions instead), each axis has at most one owner, and a controller claims one axis (a paddle), two (a joystick) or four (FR-034 to FR-038). Two-player play, one-controller four-axis play and the //c's reduced port all fall out of that one rule rather than needing separate cases. This lands late, in phase 9, but it shapes three foundation types from the start: `GamePortContribution` carries four paddles, `ControlMapping` has four axis targets, and `AxisOwner` is per-axis rather than one owner for the pair.
 
 Two findings shape delivery:
 
@@ -29,11 +31,11 @@ Two findings shape delivery:
 
 **Project Type**: Desktop application (emulator)
 
-**Performance Goals**: DirectInput devices read on their own change events; XInput polled at the measured packet rate (R13; provisional 8 ms, unmeasured); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: with nothing connected the thread waits with no timeout; controllers are found by HID arrival notifications, never by polling empty slots)
+**Performance Goals**: DirectInput devices read on their own change events; XInput polled at the measured packet rate (R13; measured 125 packets/s, 8 ms); a change reaches the game port within one displayed frame (SC-002); no sink writes while input is unchanged; no measurable cost with no controller selected (SC-007: with nothing connected the thread waits with no timeout; controllers are found by HID arrival notifications, never by polling empty slots)
 
 **Constraints**: no redistributables; no real device access in unit tests; no undocumented API on a required path (`XInputGetCapabilitiesEx` is optional with fallback, R6); input applies only while Casso is active, and Xbox-class controllers always use XInput (FR-033)
 
-**Scale/Scope**: up to 4 XInput slots plus any number of DirectInput devices; one controller drives the game port at a time
+**Scale/Scope**: up to 4 XInput slots plus any number of DirectInput devices; up to four analog axes, each with at most one owner, so several controllers drive the port at once (FR-034 to FR-038)
 
 ## Constitution Check
 
@@ -153,11 +155,12 @@ Each slice matches a phase in [tasks.md](tasks.md), leaves the build green, and 
 | 2 | **Foundation**: types and tokens; mixer and `MachineGamePortSink` with every existing writer migrated; seam, decoders, Win32 backend, controller thread | 1 | FR-001, FR-002, FR-014, FR-015, FR-017 |
 | 3 | **US1 play (MVP)**: deadzone, default mapping, evaluator, service, activation gate, temporary first-controller selection | 2 | US1, FR-003-006, FR-009, FR-033 |
 | 4 | **US2 selection**: selection policy (automatic, adoption), per-machine persistence, input-mode exclusion, notice, Controller submenu in the Machine menu and input cluster | 3 | US2, FR-008, FR-011, FR-031, FR-032 |
-| 5 | **US3 hot-plug**: disconnect release, arrow-key fallback, reconnect, status LED and tooltip | 4 | US3, FR-008a, FR-010, FR-013 |
+| 5 | **US3 hot-plug**: disconnect release, stand-in by another attached controller then the arrow keys, reconnect, status LED and tooltip | 4 | US3, FR-008a, FR-010, FR-013 |
 | 6 | **US4 calibration**: automatic and user calibration per unit, calibration persistence | 3 | US4, FR-007, FR-007a, FR-018, FR-018a |
 | 7 | **US5 remapping**: Controllers page, capture, rate response, PB2, Default-profile mapping and deadzone persistence, Controller Settings command | 4, 6 | US5, FR-012, FR-019-025, FR-021a |
 | 8 | **US6 profiles**: named profiles, Paddles template, active profile per machine, Controller Profile submenus | 7 | US6, FR-026-030, SC-010 |
-| 9 | **Polish**: measurements, CHANGELOG, README, gates | 8 | SC-002, SC-005, SC-007 |
+| 9 | **US7 two players**: per-machine axis budget, per-axis ownership and displacement, multi-controller assignment and its persistence, assignment UI on the Controllers page, //c reduced to two axes | 7, 8 | US7, FR-034-038, SC-011, SC-012 |
+| 10 | **Polish**: measurements, CHANGELOG, README, gates | 9 | SC-002, SC-005, SC-007 |
 
 ## Complexity Tracking
 

@@ -16,7 +16,7 @@ description: "Task list for 034 physical game controllers"
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependency on an incomplete task)
-- **[Story]**: US1-US6 from spec.md
+- **[Story]**: US1-US7 from spec.md
 - Paths are repository-relative. Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` or `UnitTest/UnitTest.vcxproj` in the same task that creates it (neither project has a `.filters` file).
 - Existing functions are referenced by name, not line number; line numbers drift.
 - Code style: `.github/copilot-instructions.md` (EHM, column alignment, 5/3 blank lines, `////` banners in `.cpp`, verb-first function names, no magic numbers, American spelling). Run `scripts/CheckStyle.ps1 -Mode Staged` before every commit that adds files.
@@ -31,8 +31,8 @@ description: "Task list for 034 physical game controllers"
 - [X] T001 Write a throwaway probe console program in the session scratchpad directory (NOT in the repo, never committed) that: (a) calls `XInputGetState` in a tight loop for 10 s per connected slot and prints `dwPacketNumber` changes per second; (b) creates a DirectInput 8 device for each attached game controller whose `DIPROP_GUIDANDPATH` path lacks `IG_`, with `DISCL_BACKGROUND | DISCL_NONEXCLUSIVE` on a message-only window, calls `SetEventNotification`, and prints events per second plus whether `DIDEVCAPS` has `DIDC_POLLEDDEVICE`; (c) registers `RegisterDeviceNotification (GUID_DEVINTERFACE_HID)` and prints each `DBT_DEVICEARRIVAL`/`DBT_DEVICEREMOVECOMPLETE` with its device path; (d) opens a second top-level window and reports whether XInput readings keep changing while that window is active
 - [X] T002 Run the probe per `specs/034-game-controllers/quickstart.md` section 2 with the Xbox controller wired, wireless (adapter or Bluetooth), an Xbox 360 receiver if available, and a DirectInput gamepad or joystick; ask the user to move sticks and power controllers on and off at each step
 - [X] T003 Record results in `specs/034-game-controllers/research.md` R2, R4 and R13: measured XInput packet rate and the chosen poll period, DirectInput event behavior, which receivers raise HID notifications on controller power on/off (vendor and product IDs of any that do not), the second-window result, and a confirmed Microsoft Learn link for `SetEventNotification`; replace each UNVERIFIED/UNMEASURED marker the probe resolved. Update the spec edge case "Controllers page open in the Settings sheet" in `specs/034-game-controllers/spec.md` to match the second-window result, and if XInput stops there, add a paused-state requirement to FR-023. Delete the probe
-- [X] T004 [P] Create `specs/034-game-controllers/validation.md` with sections for the hardware check (T003), each phase's hardware scenario results (T037, T053, T060, T080, T089) and the final walk and measurements (T093)
-- [ ] T005 Commit: `docs(spec): hardware check results (034-game-controllers)`
+- [X] T004 [P] Create `specs/034-game-controllers/validation.md` with sections for the hardware check (T003), each phase's hardware scenario results (T037, T053, T060, T080, T089, T101) and the final walk and measurements (T105)
+- [X] T005 Commit: `docs(spec): hardware check results (034-game-controllers)`
 
 **Checkpoint**: Poll period, wake strategy, receiver fallback and Settings-sheet behavior are decided with evidence.
 
@@ -74,7 +74,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T025 Create `CassoEmuCore/Seams/Win32ControllerBackend.h/.cpp` implementing the contract (the backend owns the message-only window): `#pragma comment (lib, ...)` for `xinput.lib`, `dinput8.lib`, `dxguid.lib`, `hid.lib` in the `.cpp` (convention of `CassoEmuCore/WasapiAudio.cpp`; spacing as in `CassoEmuCore/Devices/Printer/PngCodec.cpp`); add `<Xinput.h>`, `<dinput.h>` (after `#define DIRECTINPUT_VERSION 0x0800`), `<hidsdi.h>` and `<dbt.h>` to `CassoEmuCore/Pch.h`; `Initialize` creates the window, HID notification registration and `DirectInput8Create`, and resolves `XInputGetCapabilitiesEx` ordinal 108 with `GetProcAddress`, tolerating its absence; `EnumerateDevices` lists connected XInput slots (model from ordinal 108, else the vendor/product of the single `IG_` raw-input HID device when only one Xbox model is attached, else `xinput:generic`), then `DI8DEVCLASS_GAMECTRL` attached devices whose path lacks `IG_`, with `DIPROP_VIDPID`, serial from `HidD_GetSerialNumberString` else `guidInstance`, `DIPROP_RANGE` [-32768, 32767], `SetDataFormat (&c_dfDIJoystick2)`, background non-exclusive cooperative level, `SetEventNotification`, and `EnumObjects` for the control list; `ReadSample` decodes through T020/T021, skips decoding when `dwPacketNumber` is unchanged, retries `Acquire` + `Poll` once on `DIERR_INPUTLOST`/`DIERR_NOTACQUIRED`, and returns `HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED)` with `connected = false` for a vanished device; `WM_DEVICECHANGE` arrival/removal schedules rescans at +300 ms and +2 s; the R4 receiver fallback per T003; EHM throughout
 - [X] T026 Create `CassoEmuCore/Shell/ControllerInputThread.h/.cpp`: owns a `std::thread` that calls `CoInitializeEx (COINIT_MULTITHREADED)` (tolerating `RPC_E_CHANGED_MODE`), initializes the backend, and loops on `MsgWaitForMultipleObjectsEx` over the backend's event handles with the timeout the service requests (T034), dispatching the window's messages; each wake calls the service tick, whose submissions to the mixer request a UI-thread flush (the controller thread never writes the machine); shutdown posts `WM_QUIT` to the thread and joins; the loop stays thin so the logic is in the service
 - [X] T027 Build with `-Target Rebuild` (Pch.h changed); run `scripts/RunTests.ps1 -Filter Controller`
-- [ ] T028 Commit: `feat(input): controller backend over XInput and DirectInput`
+- [X] T028 Commit: `feat(input): controller backend over XInput and DirectInput`
 
 **Checkpoint**: Devices enumerate and read through the seam; existing input unchanged.
 
@@ -88,19 +88,19 @@ description: "Task list for 034 physical game controllers"
 
 ### Tests for User Story 1
 
-- [ ] T029 [P] [US1] Create `UnitTest/ControllerTests/DeadzoneShaperTests.cpp`: inside the deadzone reads exactly center; the deadzone edge maps to center and full deflection to 0/255; radial when both axes come from one stick, axial otherwise; monotonic between; confirm failure with rescaling stubbed
-- [ ] T030 [P] [US1] Create `UnitTest/ControllerTests/MappingEvaluatorTests.cpp` (absolute bindings only): default mapping on the Xbox control list and on a DirectInput list lacking button 1; empty target reads center/released; two bindings on one axis choose the one furthest from center; digital pair drives 0/255 and both held reads center; analog-to-button thresholds for a trigger and each axis direction; confirm failure with button OR replaced
-- [ ] T031 [P] [US1] Create `UnitTest/ControllerTests/ControllerInputServiceTests.cpp` (US1 subset): the selected connected fake controller produces the expected mixer contributions; unselected controllers are ignored (FR-009); `SetActive (false)` releases the controller source and ignores samples until reactivated (FR-033); a failed read is reported as disconnected, never as a healthy rest sample (FR-015); no sink write while the sample is unchanged; the requested wait timeout is "none" while no controller is selected even with controllers attached, and the poll period only when the selected controller is XInput or polled DirectInput (SC-007)
+- [X] T029 [P] [US1] Create `UnitTest/ControllerTests/DeadzoneShaperTests.cpp`: inside the deadzone reads exactly center; the deadzone edge maps to center and full deflection to 0/255; radial when both axes come from one stick, axial otherwise; monotonic between; confirm failure with rescaling stubbed
+- [X] T030 [P] [US1] Create `UnitTest/ControllerTests/MappingEvaluatorTests.cpp` (absolute bindings only): default mapping on the Xbox control list and on a DirectInput list lacking button 1; empty target reads center/released; two bindings on one axis choose the one furthest from center; digital pair drives 0/255 and both held reads center; analog-to-button thresholds for a trigger and each axis direction; confirm failure with button OR replaced
+- [X] T031 [P] [US1] Create `UnitTest/ControllerTests/ControllerInputServiceTests.cpp` (US1 subset): the selected connected fake controller produces the expected mixer contributions; unselected controllers are ignored (FR-009); `SetActive (false)` releases the controller source and ignores samples until reactivated (FR-033); a failed read is reported as disconnected, never as a healthy rest sample (FR-015); no sink write while the sample is unchanged; the requested wait timeout is "none" while no controller is selected even with controllers attached, and the poll period only when the selected controller is XInput or polled DirectInput (SC-007)
 
 ### Implementation for User Story 1
 
-- [ ] T032 [P] [US1] Create `CassoEmuCore/Controllers/DeadzoneShaper.h/.cpp` per research R8: defaults as named constants (XInput's published 7849/32767 for Xbox-class; Casso's 12% for DirectInput), radial and axial shaping with rescale
-- [ ] T033 [P] [US1] Create `CassoEmuCore/Controllers/ControlMapping.h/.cpp` with `AxisBinding`, `ButtonBinding`, `ControlMapping` (pdl0, pdl1, pb0, pb1, pb2) and `DefaultMapping::For (model, controls)` per data-model.md; `response` and `maxSpeed` fields exist, but only `Absolute` is evaluated until US5
-- [ ] T034 [US1] Create `CassoEmuCore/Controllers/MappingEvaluator.h/.cpp` (sample + mapping + deadzone to `GamePortContribution`) and `CassoEmuCore/Controllers/ControllerInputService.h/.cpp`: holds the backend, attached device list, current selection, activation state and mixer pointer; `Tick()` reads the selected device, evaluates and submits `GamePortSource::Controller`; `SetActive (bool)` releases on false; `GetWaitTimeout()` computes the timed-poll decision from the selection and the backend's wake facts; a thread-safe snapshot (devices, connected state, last sample) for UI readers
-- [ ] T035 [US1] Wire into the shell: construct `Win32ControllerBackend`, `ControllerInputService` and `ControllerInputThread` in `CassoEmuCore/Shell/EmulatorShell.h/.cpp` startup and stop them before machine teardown at shutdown; call `SetActive` from `EmulatorShell::OnActivateApp` (`CassoEmuCore/Shell/Window/EmulatorWindow.cpp`), which covers the Settings sheet as part of the app
-- [ ] T036 [US1] Temporary selection for this phase only: the service selects the first enumerated controller when none is selected, so US1 is testable before US2; T045 replaces it with the selection policy
+- [X] T032 [P] [US1] Create `CassoEmuCore/Controllers/DeadzoneShaper.h/.cpp` per research R8: defaults as named constants (XInput's published 7849/32767 for Xbox-class; Casso's 12% for DirectInput), radial and axial shaping with rescale
+- [X] T033 [P] [US1] Create `CassoEmuCore/Controllers/ControlMapping.h/.cpp` with `AxisBinding`, `ButtonBinding`, `ControlMapping` (pdl0, pdl1, pb0, pb1, pb2) and `DefaultMapping::For (model, controls)` per data-model.md; `response` and `maxSpeed` fields exist, but only `Absolute` is evaluated until US5
+- [X] T034 [US1] Create `CassoEmuCore/Controllers/MappingEvaluator.h/.cpp` (sample + mapping + deadzone to `GamePortContribution`) and `CassoEmuCore/Controllers/ControllerInputService.h/.cpp`: holds the backend, attached device list, current selection, activation state and mixer pointer; `Tick()` reads the selected device, evaluates and submits `GamePortSource::Controller`; `SetActive (bool)` releases on false; `GetWaitTimeout()` computes the timed-poll decision from the selection and the backend's wake facts; a thread-safe snapshot (devices, connected state, last sample) for UI readers
+- [X] T035 [US1] Wire into the shell: construct `Win32ControllerBackend`, `ControllerInputService` and `ControllerInputThread` in `CassoEmuCore/Shell/EmulatorShell.h/.cpp` startup and stop them before machine teardown at shutdown; call `SetActive` from `EmulatorShell::OnActivateApp` (`CassoEmuCore/Shell/Window/EmulatorWindow.cpp`), which covers the Settings sheet as part of the app
+- [X] T036 [US1] Temporary selection for this phase only: the service selects the first enumerated controller when none is selected, so US1 is testable before US2; T045 replaces it with the selection policy
 - [ ] T037 [US1] Build; run `scripts/RunTests.ps1 -Filter Controller`; run quickstart sections 3-4 scenarios 2, 3, 6 and 10 on hardware (launch with `--title`), recording results in `specs/034-game-controllers/validation.md`
-- [ ] T038 [US1] Commit: `feat(input): physical controller drives the game port`
+- [X] T038 [US1] Commit: `feat(input): physical controller drives the game port`
 
 **Checkpoint**: MVP. A plugged-in controller plays joystick games.
 
@@ -140,18 +140,18 @@ description: "Task list for 034 physical game controllers"
 
 ## Phase 5: User Story 3 - Unplug and replug mid-session (Priority: P2)
 
-**Goal**: Disconnect releases the port and hands the joystick to the arrow keys; reconnect resumes; status is visible.
+**Goal**: Disconnect releases the port and hands the axes to another attached controller, or to the arrow keys when there is none; reconnect resumes; status is visible.
 
-**Independent Test**: A fake controller held at full deflection with PB0 is removed; the sink sees center and released, then arrow contributions own the axes; re-adding resumes the controller and held arrows stop driving.
+**Independent Test**: A fake controller held at full deflection with PB0 is removed; the sink sees center and released, then a second attached fake owns the axes; with no second fake, arrow contributions own them instead; re-adding the original resumes it and the stand-in stops driving.
 
 ### Tests for User Story 3
 
-- [ ] T055 [P] [US3] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: removal releases within one tick and sets `AxisOwner::ArrowKeys` without changing the saved selection; a release refused by the sink still arrives through `FlushPending`; reconnect restores `AxisOwner::Controller` and arrows held at that moment stop driving; rescans at +300 ms and +2 s are idempotent; the device list update is visible in the snapshot
+- [ ] T055 [P] [US3] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: removal releases within one tick and hands the axes to the longest-attached other controller, falling back to `AxisOwner::ArrowKeys` only when none is attached, in both cases without changing the saved selection; a release refused by the sink still arrives through `FlushPending`; reconnect restores `AxisOwner::Controller` and arrows held at that moment stop driving; rescans at +300 ms and +2 s are idempotent; the device list update is visible in the snapshot
 - [ ] T056 [P] [US3] Extend `UnitTest/UiTests/ChromeToolbarPartsTests.cpp`: `InputClusterEntry` tooltip and LED state for connected, disconnected and arrow keys standing in
 
 ### Implementation for User Story 3
 
-- [ ] T057 [US3] Implement disconnect release, fallback and reconnect in `CassoEmuCore/Controllers/ControllerInputService.cpp` and `ControllerSelectionPolicy.cpp` (FR-008a, FR-010), including reads that fail with `ERROR_DEVICE_NOT_CONNECTED` before the removal notification arrives
+- [ ] T057 [US3] Implement disconnect release, stand-in and reconnect in `CassoEmuCore/Controllers/ControllerInputService.cpp` and `ControllerSelectionPolicy.cpp` (FR-008a, FR-010): another attached controller takes the axes, ordered by how long it has been attached so the stand-in does not change as unrelated controllers come and go, and the arrow keys stand in only when none is attached. Cover reads that fail with `ERROR_DEVICE_NOT_CONNECTED` before the removal notification arrives
 - [ ] T058 [US3] In `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp`, run the arrow-key joystick update while the fallback is active regardless of `m_arrowsJoystick` (spec edge case)
 - [ ] T059 [US3] Add `SetControllerState` to `CassoEmuCore/Ui/Chrome/InputClusterEntry.h/.cpp` driving the controller segment LED and `GetTooltipAt` text (connected / not connected / arrow keys standing in) per FR-008a and FR-013; show a selected disconnected controller in the `Controller` submenu with "(not connected)" through `labelText`
 - [ ] T060 [US3] Build; run `-Filter Controller` and `-Filter Chrome`; run quickstart scenarios 4 and 5 and scenario 11's plug-in-while-menu-open on hardware
@@ -201,6 +201,7 @@ description: "Task list for 034 physical game controllers"
 
 - [ ] T073 [P] [US5] Create `CassoEmuCore/Controllers/ControlCapture.h/.cpp` per T069
 - [ ] T074 [US5] Implement rate response and PB2 in `CassoEmuCore/Controllers/MappingEvaluator.cpp` (accumulators owned by the evaluator; elapsed time from an injected clock so tests control it); create `CassoEmuCore/Controllers/ControlLabels.h/.cpp` with Xbox and DirectInput display labels
+- [ ] T074a [P] [US5] Create `UnitTest/ControllerTests/ControlLabelsTests.cpp`: a label for every `ControlKind` on both controller kinds, Xbox names (A/B/X/Y, LT/RT) distinct from the DirectInput numbered fallback, and an unknown control index labeled rather than empty (constitution II, VI)
 - [ ] T075 [US5] Extend `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp` with per-model settings holding the deadzone and the Default profile (created from `DefaultMapping` on first use), with JSON per the schema; the service reads the Default profile's mapping and the model deadzone from the store
 - [ ] T076 [US5] Create `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp`: pure page model with the controller being edited, pending mapping edits per target (add by capture or list, remove, invert, response and max speed, thresholds), deadzone, the Calibrate flow (center, then full travel, then a pending user calibration), "use automatic calibration", Reset to Defaults, and live readings computed from the service snapshot under the edited mapping; while the page is open the service polls the edited controller (T034's timeout rule)
 - [ ] T077 [US5] Create `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp` as a `DxuiPropertyPage` following `CassoEmuCore/Ui/Settings/PrintingPage.h`: controller list, per-target binding lists with add/remove and capture buttons, invert/response/speed/threshold controls, deadzone slider, Calibrate and Use Automatic buttons (hidden for Xbox-class), live readout of controls and PDL0/PDL1/PB0-PB2, PB2 shown unavailable on the //c; register it in `OnBuildPages` in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`
@@ -222,7 +223,7 @@ description: "Task list for 034 physical game controllers"
 ### Tests for User Story 6
 
 - [ ] T082 [P] [US6] Extend `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp`: Default never deletable or renamable; names unique case-insensitively, trimmed, 1-40 characters (FR-027); create from default, from a copy, and from the Paddles template; reset; `FindProfile (model, name)`; every remaining rejection rule in `contracts/prefs-schema.md`, including duplicate names
-- [ ] T083 [P] [US6] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: switching profiles releases buttons and centers axes no longer driven (FR-030) and resets rate accumulators; a remembered missing profile uses Default without recreating it (FR-029)
+- [ ] T083 [P] [US6] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: a controller of a known model but an unrecognized unit drives the port with that model's profiles available on its first connection (SC-009); switching profiles releases buttons and centers axes no longer driven (FR-030) and resets rate accumulators; a remembered missing profile uses Default without recreating it (FR-029)
 - [ ] T084 [P] [US6] Extend `UnitTest/ControllerTests/ControllerCommandsTests.cpp` with profile rows: one per profile of the selected model, checked equals active, rows rebuilt on create/rename/delete
 
 ### Implementation for User Story 6
@@ -238,16 +239,44 @@ description: "Task list for 034 physical game controllers"
 
 ---
 
-## Phase 9: Polish and Pre-Merge Gates
+## Phase 9: User Story 7 - Two people play at once (Priority: P2)
 
-- [ ] T091 [P] Add a `[Unreleased]` entry to `CHANGELOG.md` with `GH #97:` first, one or two lines of user-visible effect; show it to the user and wait for approval
-- [ ] T092 [P] Update `README.md` headline features if controller support belongs there; show it to the user and wait for approval
-- [ ] T093 Walk `specs/034-game-controllers/quickstart.md` sections 3-4 end to end on Release x64 and record outcomes in `specs/034-game-controllers/validation.md`, including any scenario that could not run and why. Measure and record, using temporary local instrumentation that is not committed: SC-002, time from a changed sample read to the sink write, plus one frame; SC-005, time from removal to the sink's release write and from arrival to the first controller write; SC-007, Casso's CPU time over 60 s idle on the //e with controllers attached and none selected, compared against the same run on master
-- [ ] T094 Merge `origin/master` into the branch; rebuild with `-Target Rebuild`; fix any renames the compiler surfaces
-- [ ] T095 `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
-- [ ] T096 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for Debug and Release, x64 and ARM64; zero warnings
-- [ ] T097 Full suite with `scripts/RunTests.ps1` in Debug and Release; confirm `UnitTest.dll` is newer than the build before trusting the result
-- [ ] T098 Present every commit subject, the CHANGELOG entry and any README change for approval; push only after approval; merge to master with `--no-ff`, subject `merge(input): 034 physical game controllers (...)`, body `Closes #97`
+**Goal**: Controllers are assigned to analog axes rather than to one joystick slot, so two people play at once, one controller can drive four axes, and the //c offers only the two it has.
+
+**Independent Test**: Two fake controllers assigned to PDL0 and PDL1 each move only their own axis with both moving at once; both buttons register together; on a //c only PDL0 and PDL1 are offered.
+
+### Tests for User Story 7
+
+- [ ] T091 [P] [US7] Extend `UnitTest/ControllerTests/GamePortInputMixerTests.cpp`: per-axis ownership, two `Controller` contributions holding PDL0 and PDL1 independently, an axis assigned away displacing its previous owner (FR-036), and buttons still ORing across both
+- [ ] T092 [P] [US7] Extend `UnitTest/ControllerTests/MappingEvaluatorTests.cpp`: a mapping driving all four axes; bindings on PDL2/PDL3 ignored on a two-axis machine without faulting (FR-035)
+- [ ] T093 [P] [US7] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: two assigned fakes drive their own axes simultaneously; one disconnecting releases only its own axes and leaves the other's readings uninterrupted (SC-012)
+- [ ] T094 [P] [US7] Add axis-budget tests: a //e reports four axes and a //c two; an assignment naming PDL2 on a //c is ignored but retained, and comes back on switching to a //e (FR-035)
+
+### Implementation for User Story 7
+
+- [ ] T095 [US7] Widen `GamePortContribution::paddle` to four per-axis optionals and `GamePortState::paddle` to four bytes in `CassoEmuCore/Controllers/ControllerTypes.h` and `GamePortInputMixer.h`; make `SetAxisOwner` take an axis index (FR-036)
+- [ ] T096 [US7] Write PDL2/PDL3 through `CassoEmuCore/Shell/MachineGamePortSink.cpp`, and report the machine's axis count from the machine config so the //c reports two (FR-034)
+- [ ] T097 [US7] Widen `ControlMapping` to four axis targets and update `MappingEvaluator` accordingly; keep the default mapping claiming PDL0/PDL1 only (FR-038)
+- [ ] T098 [US7] Hold the assignment as controller-to-axes in `ControllerSelectionPolicy`, persist it per machine, and displace the previous owner on reassignment (FR-036, FR-037)
+- [ ] T099 [US7] Add the axis assignment UI to the Controllers page: which controller holds which axis, axes the machine lacks not offered (FR-035, FR-037)
+- [ ] T100 [US7] Build a four-axis readout disk from `Disks/Casso/JoystickTest.bas` showing PDL(0)-PDL(3) and PB0-PB2, for validating two-controller play without a commercial two-player disk
+- [ ] T101 [US7] Build; run `-Filter Controller`; validate two controllers at once on hardware against the readout disk, and on a two-player game disk if one is available
+- [ ] T102 [US7] Commit: `feat(input): assign controllers to game-port axes`
+
+**Checkpoint**: Two people play at once; the //c offers two axes and the //e four.
+
+---
+
+## Phase 10: Polish and Pre-Merge Gates
+
+- [ ] T103 [P] Add a `[Unreleased]` entry to `CHANGELOG.md` with `GH #97:` first, one or two lines of user-visible effect; show it to the user and wait for approval
+- [ ] T104 [P] Update `README.md` headline features if controller support belongs there; show it to the user and wait for approval
+- [ ] T105 Walk `specs/034-game-controllers/quickstart.md` sections 3-4 end to end, scenarios 1 through 15 including the two-controller scenarios 12-15 (SC-011, SC-012) on Release x64 and record outcomes in `specs/034-game-controllers/validation.md`, including any scenario that could not run and why. Measure and record, using temporary local instrumentation that is not committed: SC-002, time from a changed sample read to the sink write, plus one frame; SC-005, time from removal to the sink's release write and from arrival to the first controller write; SC-007, Casso's CPU time over 60 s idle on the //e with controllers attached and none selected, compared against the same run on master
+- [ ] T106 Merge `origin/master` into the branch; rebuild with `-Target Rebuild`; fix any renames the compiler surfaces
+- [ ] T107 `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
+- [ ] T108 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for Debug and Release, x64 and ARM64; zero warnings
+- [ ] T109 Full suite with `scripts/RunTests.ps1` in Debug and Release; confirm `UnitTest.dll` is newer than the build before trusting the result
+- [ ] T110 Present every commit subject, the CHANGELOG entry and any README change for approval; push only after approval; merge to master with `--no-ff`, subject `merge(input): 034 physical game controllers (...)`, body `Closes #97`
 
 ---
 
@@ -263,6 +292,7 @@ description: "Task list for 034 physical game controllers"
 - **US4**: after US1; independent of US2 and US3.
 - **US5**: after US2 (Controller Settings entry beside the controller rows) and US4 (Calibrate UI and the profile store).
 - **US6**: after US5 (profile management lives on the page).
+- **US7**: after US5 (the assignment UI lives on the Controllers page) and US6. It widens types that US1-US6 already use, so doing it last means widening once; doing it first would mean building the selection policy twice.
 - **Polish**: after the stories to ship.
 
 ### Within Each Story

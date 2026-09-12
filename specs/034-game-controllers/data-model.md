@@ -130,8 +130,7 @@ Per model: `float` fraction of travel, [0, 0.9]. Defaults and radial/axial rule 
 
 | Field | Type | Notes |
 |---|---|---|
-| pdl0 | `std::vector<AxisBinding>` | Empty = center |
-| pdl1 | `std::vector<AxisBinding>` | Empty = center |
+| pdl | `std::array<std::vector<AxisBinding>, 4>` | PDL0-PDL3; empty = center. Indices 2 and 3 are never evaluated on a machine with two axes (FR-035) |
 | pb0 | `std::vector<ButtonBinding>` | Empty = released |
 | pb1 | `std::vector<ButtonBinding>` | Empty = released |
 | pb2 | `std::vector<ButtonBinding>` | Empty = released; ignored on the //c (R15) |
@@ -202,9 +201,9 @@ Xbox-class selection matches any unit of the selected model; with several connec
 
 | Field | Type | Notes |
 |---|---|---|
-| paddle | `std::optional<std::array<Byte, 2>>` | Absent = this source does not drive axes |
+| paddle | `std::array<std::optional<Byte>, 4>` | Per axis: absent = this source does not drive that axis. Per-axis rather than all-or-nothing, so two controllers can hold PDL0 and PDL1 separately (FR-036) |
 | buttons | `std::bitset<3>` | PB0, PB1, PB2 |
 
 ### GamePortInputMixer (pure, mutex-guarded)
 
-Sources: `FireKeys`, `AppleModifierKeys` (Open-Apple, Solid-Apple, and on the //e Shift as PB2), `MousePaddle`, `Controller`. Axis owner: `ArrowKeys`, `MousePaddle`, `Controller`, `None`, chosen from input mode plus the arrow fallback state. Final buttons = OR of all sources; final axes = owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.
+Sources: `FireKeys`, `AppleModifierKeys` (Open-Apple, Solid-Apple, and on the //e Shift as PB2), `MousePaddle`, `Controller`. Axis owner is held **per axis** (`ArrowKeys`, `MousePaddle`, `Controller`, `None`), chosen from input mode plus the stand-in state, so PDL0 and PDL1 can belong to different controllers (FR-036). Final buttons = OR of all sources; each final axis = that axis's owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.

@@ -35,14 +35,21 @@ Research R2 and R13 depend on it. It uses a throwaway probe, not Casso.
 
 ## 3. Game port readout program
 
-Boot DOS 3.3 or any Applesoft prompt and enter:
+Boot the readout disk, which runs the program on boot -- there is nothing to type:
 
-```basic
-10 PRINT PDL(0); " "; PDL(1); " "; PEEK(49249) > 127; " "; PEEK(49250) > 127; " "; PEEK(49251) > 127
-20 GOTO 10
+```powershell
+x64\Debug\Casso.exe --machine Apple2e --title <worktree> --disk1 Disks\Casso\JoystickTest.dsk
 ```
 
-`49249`, `49250` and `49251` are `$C061` (PB0), `$C062` (PB1) and `$C063` (PB2); `1` means pressed. On the //c the last column reads the mouse button, inverted.
+It shows each axis as a number and a bar, and each button as pressed or up. The source is `Disks/Casso/JoystickTest.bas`; rebuild the disk after editing it with:
+
+```powershell
+x64\Debug\CassoCli.exe disk create Disks\Casso\JoystickTest.dsk --bootable
+x64\Debug\CassoCli.exe disk put Disks\Casso\JoystickTest.dsk Disks\Casso\JoystickTest.bas --as STICK --basic
+x64\Debug\CassoCli.exe disk boot Disks\Casso\JoystickTest.dsk STICK
+```
+
+The program reads `PDL(0)` through `PDL(3)` and peeks `49249`, `49250` and `49251` -- `$C061` (PB0), `$C062` (PB1) and `$C063` (PB2). On the //c the PB2 column reads the mouse button, inverted, and PDL(2)/PDL(3) are the mouse direction lines rather than axes, so they are not meaningful there (FR-034).
 
 ## 4. Scenarios
 
@@ -61,6 +68,10 @@ Boot DOS 3.3 or any Applesoft prompt and enter:
 | 10a | Create a profile from the Paddles starting point on the Xbox controller; push the left stick right briefly and release. | PDL0 climbs while deflected and holds its value after release; the right stick moves PDL1 the same way. | FR-021a |
 | 10b | Bind LB to PB2; press it on the ][+, the //e and the //c. | Last column reads 1 on the ][+ and //e (and the //e treats it as Shift); on the //c the page shows PB2 unavailable and the mouse button column does not change. | FR-020 |
 | 11 | Choose a controller and a profile from the Machine menu submenus and from the toolbar input control (expanded segment and collapsed picker); plug a controller in while the Machine menu is open. | Selection and profile change without opening Settings, without a reset. | FR-008, FR-028, FR-031, SC-010 |
+| 12 | On a //e with two controllers attached, assign one to PDL0 and the other to PDL1. Move both sticks at once, then hold both buttons at once. | Each axis follows only its own controller; both button lines read 1 together. On a two-player game disk, both players control their own side. | US7, FR-036, FR-037, SC-011 |
+| 13 | With those two assigned, unplug one. | Only its axis centers; the other keeps reading its own stick with no interruption, and no stand-in takes the unplugged one's axis while a second controller is still driving its own. | SC-012, FR-008a, FR-010 |
+| 14 | On a //e, assign one Xbox controller's left stick to PDL0/PDL1 and its right stick to PDL2/PDL3. | All four axes move from the one controller. | US7 #7, FR-037 |
+| 15 | Switch to a //c with a four-axis assignment saved. | Only PDL0 and PDL1 are offered and driven; nothing faults; switching back to the //e restores the four-axis assignment. | FR-034, FR-035 |
 
 ## 5. Pre-merge gates
 

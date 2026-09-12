@@ -12,12 +12,17 @@ Replaces last-writer-wins on PDL0/PDL1/PB0-PB2 with one owner of the final value
 enum class GamePortSource { ArrowKeys, FireKeys, AppleModifierKeys, MousePaddle, Controller };
 enum class AxisOwner      { None, ArrowKeys, MousePaddle, Controller };
 
+// PDL0-PDL3. A machine with fewer axes (the //c has two) leaves the rest at
+// center and never offers them as targets (FR-034, FR-035).
+constexpr size_t  kGamePortAxisCount = 4;
+
 struct GamePortState
 {
     static constexpr Byte  kPaddleCenter = 127;
 
-    std::array<Byte, 2>  paddle  = { kPaddleCenter, kPaddleCenter };
-    std::bitset<3>       buttons;
+    std::array<Byte, kGamePortAxisCount>  paddle = { kPaddleCenter, kPaddleCenter,
+                                                     kPaddleCenter, kPaddleCenter };
+    std::bitset<3>                        buttons;
 };
 
 class IGamePortSink
@@ -34,7 +39,9 @@ class GamePortInputMixer
 public:
     void           SetSink              (IGamePortSink * sink);
     void           SetApplyThread       (std::thread::id applyThread, std::function<void()> requestFlush);
-    void           SetAxisOwner         (AxisOwner owner);
+    // Ownership is per axis: two controllers can hold PDL0 and PDL1
+    // independently, and each axis has at most one owner (FR-036).
+    void           SetAxisOwner         (size_t axis, AxisOwner owner);
     void           Submit               (GamePortSource source, const GamePortContribution & contribution);
     void           ReleaseSource        (GamePortSource source);
     void           NotifyMachineRebuilt ();
