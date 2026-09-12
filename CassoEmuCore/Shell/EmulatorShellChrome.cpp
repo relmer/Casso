@@ -295,10 +295,15 @@ void EmulatorShell::SyncStandInBanner()
     //  band docking and any cancel the window manager decides to send, the
     //  capture can go while everything the shell knows says it is still held.
     //  OnCancelMode covers the cancel it can identify; this covers the rest,
-    //  by simply asking. It fires only while this window is the foreground one
-    //  and the shell still believes the pointer is held, and costs one
-    //  GetCapture per frame while paddling -- nothing at all otherwise.
-    if (GetCapture() != m_hwnd && GetForegroundWindow() == m_hwnd)
+    //  by simply asking.
+    //
+    //  ONLY WHILE THE PADDLE HOLDS THE POINTER. This belongs to the capture,
+    //  not to the bar: the two were the same condition when the bar existed
+    //  only during a capture, and they stopped being the same when the bar
+    //  took on the arrow keys. Without the test it grabs the pointer and
+    //  clips the cursor to the client in keys mode, where nothing asked for
+    //  the mouse at all.
+    if (m_paddleCaptured && GetCapture() != m_hwnd && GetForegroundWindow() == m_hwnd)
     {
         SetCapture (m_hwnd);
         ClipPaddleCursorToClient();
