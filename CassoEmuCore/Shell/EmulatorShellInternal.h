@@ -148,15 +148,6 @@ static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 // that keeps changing size while it moves reads as chrome coming unglued.
 static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
 
-// The pointer-capture notice: what the mouse is doing and how to get it back,
-// said for as long as the capture holds. One bar carries both, rather than a
-// transient notice announcing the mode and this one explaining the way out:
-// they are the same sentence, and stacking two banners over the picture cost
-// more of it than either was worth. The bar sizes itself to this text;
-// nothing here places it.
-static const wchar_t * const  s_kpszCaptureNotice =
-    L"Using the mouse for paddle input. Press Esc to exit paddle mode.";
-
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.
 //

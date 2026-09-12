@@ -2638,10 +2638,6 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 void EmulatorShell::PickPaddleSource (const InputModeRules::PaddleSource & source)
 {
-    std::wstring  description = InputModeRules::DescribeSource (source);
-
-
-
     if (source.isArrowKeys)
     {
         SetControllerSelection (std::nullopt);
@@ -2663,15 +2659,6 @@ void EmulatorShell::PickPaddleSource (const InputModeRules::PaddleSource & sourc
 
     SyncGamePortAxisOwner();
     SyncInputModeUi();
-
-    // Over the picture for a few seconds. The keys and the mouse bind
-    // controls that carry no marking, so without this a user who picks
-    // "Use keys as joystick" can only find the buttons by pressing keys
-    // until one fires.
-    if (!description.empty())
-    {
-        ShowNotice (description);
-    }
 }
 
 
@@ -2812,6 +2799,31 @@ void EmulatorShell::ApplyAutomaticControllerSelection (const std::wstring & desc
     {
         ShowNotice (L"Controller selected: " + description);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetStandInBannerText
+//
+//  The line the stand-in bar carries, or empty when there is no bar. The
+//  rule is in InputModeRules; this only gathers what it asks about.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::GetStandInBannerText() const
+{
+    InputModeRules::State  state;
+
+
+
+    state.arrowsJoystick = IsArrowJoystickActive();
+    state.mousePaddle    = (m_pointerMode == InputMappingMode::Paddle);
+
+    return InputModeRules::GetStandInBannerText (state, m_paddleCaptured);
 }
 
 

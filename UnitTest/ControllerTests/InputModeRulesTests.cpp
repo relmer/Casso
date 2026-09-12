@@ -254,37 +254,45 @@ namespace ControllerTests
                 L"the setters make this unreachable, but the owner must still be decided, never ambiguous");
         }
 
-        TEST_METHOD (Describe_TellsTheUserWhichControlsThePickTookOver)
+        TEST_METHOD (StandInBanner_SaysWhichHostControlsTookOver)
         {
-            InputModeRules::PaddleSource  arrows;
-            InputModeRules::PaddleSource  mouse;
-            InputModeRules::PaddleSource  pad;
+            InputModeRules::State  keys;
+            InputModeRules::State  mouse;
 
-            arrows.isArrowKeys   = true;
-            mouse.isMousePaddle  = true;
-            pad.deviceName       = L"Xbox Controller";
+            keys.arrowsJoystick = true;
+            mouse.mousePaddle   = true;
 
-            // The keys and the mouse bind controls that carry no marking, so
-            // the notice is the only way to learn what X and Z now do.
-            Assert::AreEqual (std::wstring (L"The arrow keys drive the joystick. X and Z are the buttons."),
-                InputModeRules::DescribeSource (arrows));
+            Assert::AreEqual (std::wstring (L"Using the arrow keys as a joystick. X and Z are the buttons."),
+                InputModeRules::GetStandInBannerText (keys, false),
+                L"nothing on screen marks X and Z, so the bar is the only place they are stated");
 
-            // Mouse paddle mode is the exception: capturing the pointer
-            // raises a banner that stays up, so a transient one would be the
-            // same sentence twice, stacked.
-            Assert::IsTrue (InputModeRules::DescribeSource (mouse).empty());
-
-            Assert::AreEqual (std::wstring (L"Xbox Controller drives the paddles."),
-                InputModeRules::DescribeSource (pad));
+            Assert::AreEqual (std::wstring (L"Using the mouse for paddle input. Press Esc to exit paddle mode."),
+                InputModeRules::GetStandInBannerText (mouse, true));
         }
 
 
-        TEST_METHOD (Describe_SaysNothingForARowWithNoDeviceBehindIt)
+        TEST_METHOD (StandInBanner_MouseSaysNothingUntilThePointerIsCaptured)
         {
-            InputModeRules::PaddleSource  empty;
+            InputModeRules::State  mouse;
 
-            Assert::IsTrue (InputModeRules::DescribeSource (empty).empty(),
-                L"an empty notice is not shown at all, rather than flashing a blank band");
+            mouse.mousePaddle = true;
+
+            // Paddle mode with the pointer free is armed, not driving, and the
+            // way out is the whole reason that line exists.
+            Assert::IsTrue (InputModeRules::GetStandInBannerText (mouse, false).empty());
+        }
+
+
+        TEST_METHOD (StandInBanner_AControllerNeedsNoBar)
+        {
+            InputModeRules::State  pad;
+
+            pad.hasController        = true;
+            pad.isControllerAttached = true;
+
+            // Its buttons are labeled on the device, and a bar that never
+            // goes away would cost picture for the whole session.
+            Assert::IsTrue (InputModeRules::GetStandInBannerText (pad, false).empty());
         }
     };
 }

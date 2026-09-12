@@ -585,21 +585,20 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  The backing goes in FIRST: the root paints its children in the order
     //  they were adopted, so the panel lands under the words rather than over
     //  them.
-    m_captureBarSurface.SetToken (DxuiSurface::Token::Background);
-    m_host->GetRoot().Adopt (m_captureBarSurface);
-    m_host->GetRoot().Adopt (m_captureBar);
+    m_standInBarSurface.SetToken (DxuiSurface::Token::Background);
+    m_host->GetRoot().Adopt (m_standInBarSurface);
+    m_host->GetRoot().Adopt (m_standInBar);
 
     //  FIXED WORDS, SET ONCE. The bar says the same thing every time it is up,
     //  and its band is measured from that text before the bar has ever been
     //  shown -- so the text cannot wait until the first capture to exist.
-    m_captureBar.SetText     (s_kpszCaptureNotice);
-    m_captureBar.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_standInBar.SetSeverity (DxuiInfoBanner::Severity::Info);
 
     //  CENTERED, because this bar spans the window rather than sitting in a
     //  dialog: one short line held against the leading edge of a wide strip
     //  reads as something that failed to lay out.
-    m_captureBar.SetCentered (true);
-    m_captureBar.SetVisible  (false);
+    m_standInBar.SetCentered (true);
+    m_standInBar.SetVisible  (false);
 
     //  THE NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both are up the
     //  notice is the one on top -- it is the newer of the two, and the older

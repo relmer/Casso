@@ -601,7 +601,7 @@ void EmulatorShell::RegisterChromeDock()
 
     // Under the change notice, so a capture that starts while a disk question
     // stands does not push the question off the top of the chrome.
-    m_chromeDock.SetDock (m_captureBand, DxuiDock::Top);
+    m_chromeDock.SetDock (m_standInBand, DxuiDock::Top);
     m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
     // Registered AFTER the drive band so the dock peels the drive bar off the
     // very bottom first and the //c switch strip lands just above it (between

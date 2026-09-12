@@ -561,6 +561,11 @@ private:
     // Hands PDL0/PDL1 to whichever host input mode currently drives them.
     void    SyncGamePortAxisOwner ();
 
+    // The line the stand-in bar carries while the keys or the mouse drive
+    // the game port, and empty when neither does, which is what decides
+    // whether the bar and its band exist at all.
+    std::wstring  GetStandInBannerText () const;
+
     // Whether the arrow keys are driving the joystick: because the user
     // turned them on, or because they are standing in for a chosen
     // controller that is gone with nothing else to take its place
@@ -1037,7 +1042,7 @@ private:
 
     // The pointer-capture banner and the fullscreen top-edge chrome reveal,
     // both driven from the per-frame UI upkeep.
-    void    SyncCaptureBanner    ();
+    void    SyncStandInBanner    ();
     void    SyncFrameRateReadout ();
 
     // The scene pose across the middle of the picture, so a screenshot of a
@@ -1564,13 +1569,13 @@ private:
     // process. A message bar rather than a caption over the picture: it says
     // something and asks nothing, which is what an info banner is, and the
     // chrome under the command strip is the one place it covers nothing.
-    DxuiInfoBanner             m_captureBar;
+    DxuiInfoBanner             m_standInBar;
 
     // An opaque panel behind it, the way the drive bar has one. The banner's
     // own fill is a tint meant to sit on chrome, and the bar does not: it
     // hangs over the picture, and over the desk scene the monitor read
     // straight through the words.
-    DxuiSurface                m_captureBarSurface;
+    DxuiSurface                m_standInBarSurface;
 
     //  A SCREENSHOT IN FLIGHT.
     //
@@ -1647,7 +1652,7 @@ private:
 
     // Hides (or restores) the overlays that describe the application rather
     // than the machine, for the duration of a capture paint.
-    void  SetCaptureOverlaysHidden (bool hidden);
+    void  SetStandInOverlaysHidden (bool hidden);
 
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.
@@ -1707,7 +1712,7 @@ private:
     // The capture bar's own band, docked directly under the change notice so
     // both sit below the command strip. Zero height whenever the pointer is
     // not held, which is every ordinary session.
-    ChromeBand               m_captureBand;
+    ChromeBand               m_standInBand;
 
     // Whether the one authoritative layout pass (OnSize) is running, so a
     // notice band cannot ask for another from inside it. See
@@ -1718,7 +1723,7 @@ private:
     // and cleared by the re-dock at the top of the next frame. A flag rather
     // than the re-dock itself, because the sync that spots it runs inside the
     // frame the re-dock would repaint.
-    bool                     m_captureBandStale = false;
+    bool                     m_standInBandStale = false;
 
     // When the capture's own band was last docked, on the monotonic clock.
     // The resize that follows bounces WM_CANCELMODE back at whoever holds the

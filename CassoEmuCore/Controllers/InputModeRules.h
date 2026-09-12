@@ -107,11 +107,11 @@ public:
     // (FR-008a, FR-013).
     static std::wstring  BuildPaddleTip (const std::vector<PaddleSource> & sources);
 
-    // One line for the notice band when the user picks a source, stating
-    // what now drives the paddles and the buttons. Empty when there is
-    // nothing to state, and for mouse paddle mode, whose capture banner
-    // already says it and keeps saying it.
-    static std::wstring  DescribeSource (const PaddleSource & source);
+    // The line the persistent banner carries while the keys or the mouse
+    // stand in for a controller, and empty while a controller drives or
+    // nothing does. `isPointerCaptured` is the mouse's half: paddle mode
+    // with the pointer free is armed rather than driving.
+    static std::wstring  GetStandInBannerText (const State & state, bool isPointerCaptured);
 
     static AxisOwner  GetAxisOwner            (const State & state);
     static State      AfterSelectingController (State state);

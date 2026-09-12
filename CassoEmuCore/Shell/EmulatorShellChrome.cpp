@@ -233,7 +233,7 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncCaptureBanner
+//  EmulatorShell::SyncStandInBanner
 //
 //  A persistent way OUT, for as long as the pointer is held.
 //
@@ -253,7 +253,7 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncCaptureBanner()
+void EmulatorShell::SyncStandInBanner()
 {
     RECT   client = {};
     RECT   rc     = {};
@@ -263,10 +263,12 @@ void EmulatorShell::SyncCaptureBanner()
 
 
 
-    if (!m_paddleCaptured || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    m_standInBar.SetText (GetStandInBannerText());
+
+    if (m_standInBar.GetText().empty() || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        m_captureBar.SetVisible        (false);
-        m_captureBarSurface.SetVisible (false);
+        m_standInBar.SetVisible        (false);
+        m_standInBarSurface.SetVisible (false);
 
         //  A BAND LEFT BEHIND, NOTED FOR THE NEXT FRAME. The height is claimed
         //  and released where the capture starts and ends, but the capture is
@@ -281,9 +283,9 @@ void EmulatorShell::SyncCaptureBanner()
         //  TryPresentUiFrame acts on it at the top of the next frame, where
         //  the change band's own expiry already re-docks from.
         if (m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen()
-            && m_captureBand.GetBounds().bottom > m_captureBand.GetBounds().top)
+            && m_standInBand.GetBounds().bottom > m_standInBand.GetBounds().top)
         {
-            m_captureBandStale = true;
+            m_standInBandStale = true;
         }
 
         return;
@@ -314,7 +316,7 @@ void EmulatorShell::SyncCaptureBanner()
     //  that strip currently is.
     if (!m_d3dRenderer.IsFullscreen())
     {
-        rc = m_captureBand.GetBounds();
+        rc = m_standInBand.GetBounds();
     }
     else
     {
@@ -326,15 +328,15 @@ void EmulatorShell::SyncCaptureBanner()
         rc.left   = client.left;
         rc.right  = client.right;
         rc.top    = top;
-        rc.bottom = top + (LONG) m_captureBar.GetPreferredHeightPx (width, m_scaler);
+        rc.bottom = top + (LONG) m_standInBar.GetPreferredHeightPx (width, m_scaler);
     }
 
-    m_captureBarSurface.Layout     (rc, m_scaler);
-    m_captureBarSurface.SetVisible (true);
+    m_standInBarSurface.Layout     (rc, m_scaler);
+    m_standInBarSurface.SetVisible (true);
 
-    m_captureBar.SetDpi     (m_scaler.GetDpi());
-    m_captureBar.Layout     (rc, m_scaler);
-    m_captureBar.SetVisible (true);
+    m_standInBar.SetDpi     (m_scaler.GetDpi());
+    m_standInBar.Layout     (rc, m_scaler);
+    m_standInBar.SetVisible (true);
 }
 
 
@@ -902,7 +904,7 @@ void EmulatorShell::SyncChromeBands()
     m_navBand.SetBounds     (RECT{ 0, 0, 0, px.nav });
     m_toolbarBand.SetBounds (RECT{ 0, 0, 0, px.toolbar });
     m_changeBand.SetBounds  (RECT{ 0, 0, 0, px.change });
-    m_captureBand.SetBounds (RECT{ 0, 0, 0, px.capture });
+    m_standInBand.SetBounds (RECT{ 0, 0, 0, px.capture });
     m_driveBand.SetBounds   (RECT{ 0, 0, 0, px.drive });
     m_switchBand.SetBounds  (RECT{ 0, 0, 0, px.switches });
 }
@@ -933,7 +935,7 @@ void EmulatorShell::CollectDockedBands (IDxuiControl * (& outBands)[kDockedBandC
     outBands[1] = &m_navBand;
     outBands[2] = &m_toolbarBand;
     outBands[3] = &m_changeBand;
-    outBands[4] = &m_captureBand;
+    outBands[4] = &m_standInBand;
     outBands[5] = &m_driveBand;
     outBands[6] = &m_switchBand;
 }
@@ -1487,10 +1489,15 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 //
 //  EmulatorShell::GetCaptureBandThicknessPx
 //
-//  How tall the capture bar's band is.
+//  How tall the stand-in bar's band is.
 //
-//  ZERO WHILE THE POINTER IS FREE, so every session that never grabs it is
-//  laid out exactly as before.
+//  ZERO WHILE A CONTROLLER OR NOTHING DRIVES THE GAME PORT, so every session
+//  that never falls back to the keys or the mouse is laid out as before.
+//
+//  MEASURED FROM A BANNER OF ITS OWN rather than the docked one. This is a
+//  const query and the docked bar is given its text by the layout pass; a
+//  height taken before that pass would measure whatever the last mode left
+//  behind. The two share the text and the DPI, so they measure alike.
 //
 //  ZERO IN FULLSCREEN TOO, where there are no bands at all: the picture owns
 //  the whole client and the bar hangs off the top edge under the toolbar
@@ -1500,14 +1507,19 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 
 int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
 {
-    IDxuiTextRenderer *  text = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    IDxuiTextRenderer *  text    = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    std::wstring         line    = GetStandInBannerText();
+    DxuiInfoBanner       measure (line);
 
 
 
-    if (!m_paddleCaptured || m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
+    if (line.empty() || m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
     {
         return 0;
     }
+
+    measure.SetCentered (true);
+    measure.SetDpi      (m_scaler.GetDpi());
 
     //  MEASURED WHEN THERE IS A RENDERER TO ASK, because the bar centers its
     //  text and a centered banner picks its line width from that measurement.
@@ -1517,8 +1529,8 @@ int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
     //  for the moments before the renderer exists.
     if (text != nullptr)
     {
-        return (int) m_captureBar.GetMeasuredHeightPx (*text, (float) clientWidthPx, m_scaler);
+        return (int) measure.GetMeasuredHeightPx (*text, (float) clientWidthPx, m_scaler);
     }
 
-    return (int) m_captureBar.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
+    return (int) measure.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
 }

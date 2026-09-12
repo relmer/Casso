@@ -156,37 +156,38 @@ std::wstring InputModeRules::BuildPaddleTip (const std::vector<PaddleSource> & s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DescribeSource
+//  GetStandInBannerText
 //
-//  One line for the notice band when the user picks a source, stating what
-//  now drives the paddles and the buttons. The arrow keys need it most:
-//  choosing them binds controls that carry no marking, so a user who picks
-//  "Use keys as joystick" has no way to learn that X and Z became the buttons
-//  except by pressing every key.
+//  The line the persistent banner carries while a stand-in drives the game
+//  port, and nothing while a real controller does.
+//
+//  PERSISTENT RATHER THAN A FEW SECONDS, because it answers a question the
+//  user has for as long as the mode lasts, not only at the moment they chose
+//  it. Both stand-ins bind host controls that carry no marking: nothing on
+//  screen says X and Z became the buttons, or how to get the pointer back. A
+//  notice that expires leaves a user who looked away with no way to find out
+//  short of trying keys until one fires.
+//
+//  A controller needs none of this. Its buttons are labeled on the device.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InputModeRules::DescribeSource (const PaddleSource & source)
+std::wstring InputModeRules::GetStandInBannerText (const State & state, bool isPointerCaptured)
 {
-    if (source.isArrowKeys)
+    //  The mouse only while it is actually captured: paddle mode with the
+    //  pointer free is armed, not driving, and the way out is the one thing
+    //  the line has to say.
+    if (state.mousePaddle && isPointerCaptured)
     {
-        return L"The arrow keys drive the joystick. X and Z are the buttons.";
+        return L"Using the mouse for paddle input. Press Esc to exit paddle mode.";
     }
 
-    //  Mouse paddle mode says nothing here. Capturing the pointer raises a
-    //  banner that stays up for as long as the capture holds, and it already
-    //  states both what the mouse is doing and how to stop.
-    if (source.isMousePaddle)
+    if (state.arrowsJoystick)
     {
-        return std::wstring();
+        return L"Using the arrow keys as a joystick. X and Z are the buttons.";
     }
 
-    if (source.deviceName.empty())
-    {
-        return std::wstring();
-    }
-
-    return source.deviceName + L" drives the paddles.";
+    return std::wstring();
 }
 
 
