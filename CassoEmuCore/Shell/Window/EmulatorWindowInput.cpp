@@ -1851,6 +1851,82 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetKeyRoutingState
+//
+//  The chrome state a keydown's owner is decided over, gathered in one place
+//  so the classifier stays a function of plain values rather than reaching
+//  back into the shell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellKeyRouting::State EmulatorShell::GetKeyRoutingState() const
+{
+    ShellKeyRouting::State  state;
+
+
+
+    state.pointerMode         = m_pointerMode;
+    state.toolbarOwnsKeyboard = m_toolbar.OwnsKeyboard();
+    state.isChromeFocused     = m_chromeFocusIndex != s_kChromeFocusNone;
+    state.isMenuOpen          = m_mainMenu.IsOpen();
+
+    return state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchShellKey
+//
+//  Hands a claimed keydown to whichever part of the chrome owns it. Each arm
+//  is the action alone: the test that selected it has already run, and the
+//  character has already been claimed by the caller, so nothing here can
+//  deliver a key twice by forgetting either.
+//
+//  Guest is not an arm. Reaching here with it is the caller calling wrongly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DispatchShellKey (
+    ShellKeyOwner  owner,
+    WPARAM         vk)
+{
+    switch (owner)
+    {
+    case ShellKeyOwner::PaddleExit:
+        // The pointer is captured and hidden, so Esc is the only way out and
+        // has to work whatever else is up.
+        SetPointerMapping (InputMappingMode::Off);
+        break;
+
+    case ShellKeyOwner::Toolbar:
+        // An open picker is modal in practice: it owns arrows, Enter and
+        // Escape, so browsing the rows previews rather than typing into
+        // the //e. A flyout opened by keyboard owns them the same way.
+        (void) m_toolbar.HandleKey (vk);
+        break;
+
+    case ShellKeyOwner::Chrome:
+        // While a menu title / button / drive has keyboard focus, or a menu
+        // is open from any source, the ring owns every keydown.
+        (void) HandleChromeFocusKey (vk);
+        break;
+
+    case ShellKeyOwner::Guest:
+        ASSERT (false);
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnKeyDown
 //
 //  Skims off every keystroke the SHELL owns, then hands the rest to the guest.
@@ -1891,6 +1967,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool             ctrlHeld  = false;
     bool             altHeld   = false;
     bool             isRepeat  = (lParam & s_kPreviousKeyDownLParamBit) != 0;
+    ShellKeyOwner    owner     = ShellKeyOwner::Guest;
     AppleKeyboard *  keyboard  = lifetime.owns_lock() ? m_machine.GetRefs().keyboard : nullptr;
 
 
@@ -1913,33 +1990,21 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // 0. Esc exits paddle mode: releases the mouse capture (cursor
     //    reappears) and returns the input mapping to Off, matching the
     //    "Esc to exit" hint on the widget.
-    if (m_pointerMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
-    {
-        // TranslateMessage manufactures Escape's character from this keydown
-        // whether or not anything claimed the key, and the bail below keeps
-        // the key half from the guest. Without the swallow the character half
-        // arrives on its own and the //e is sent the Escape the user pressed
-        // to leave paddle mode.
-        m_swallowMetaChar = true;
-        SetPointerMapping (InputMappingMode::Off);
-        BAIL_OUT_IF (true, S_OK);
-    }
+    // Who owns this keydown is decided ONCE, here, and carried forward. The
+    // character Windows manufactures from it cannot be classified on its own
+    // -- it carries a character, not a key -- and re-asking this question when
+    // it arrives gives the wrong answer whenever the key CHANGED the state,
+    // which Escape over an open picker does by closing the picker.
+    owner = ShellKeyRouting::GetKeyOwner (GetKeyRoutingState(), vk);
 
-    // An open toolbar picker is modal in practice: it owns arrows, Enter and
-    //    Escape so browsing the rows previews rather than typing into the //e.
-    //    A flyout opened by keyboard owns them the same way.
-    if (m_toolbar.OwnsKeyboard())
+    if (owner != ShellKeyOwner::Guest)
     {
-        (void) m_toolbar.HandleKey (vk);
-        BAIL_OUT_IF (true, S_OK);
-    }
+        // The single site that arms the swallow. It follows from the key not
+        // being the guest's rather than from each arm remembering, so a claim
+        // added later cannot deliver its character by forgetting.
+        m_swallowMetaChar = ShellKeyRouting::DoesOwnerSwallowChar (owner);
 
-    // Chrome keyboard-focus ring. While a menu title / button / drive
-    //    has keyboard focus (or a dropdown is open from any source), the
-    //    ring owns every keydown so letters never leak through to the //e.
-    if (m_chromeFocusIndex != s_kChromeFocusNone || m_mainMenu.IsOpen())
-    {
-        HandleChromeFocusKey (vk);
+        DispatchShellKey (owner, vk);
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -3163,13 +3228,19 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 //  Decides whether a synthesized WM_CHAR belongs to the guest, and drops it
 //  otherwise. This handler is almost entirely suppression: Windows manufactures
 //  a WM_CHAR from a WM_KEYDOWN whether or not anything consumed the keydown,
-//  so every case OnKeyDown claimed has to be claimed again here.
+//  so a key the shell claimed arrives a second time as a character.
+//
+//  It does NOT decide who owns the keystroke. OnKeyDown did that once, through
+//  ShellKeyRouting, and armed m_swallowMetaChar; this reads that answer. The two
+//  used to ask separately and drifted, which is how Esc leaving paddle mode
+//  ended up claimed as a key and delivered as a character.
 //
 //  Three things are swallowed:
 //
-//    overlay input   a letter typed while the settings panel, an open menu, or
-//                    the chrome focus ring owns the keyboard would otherwise
-//                    ALSO drop into the //e latch
+//    a claimed key   whatever OnKeyDown took for the chrome -- an open picker,
+//                    an open menu, the focus ring, Esc leaving paddle mode, a
+//                    host-meta shortcut -- would otherwise ALSO drop into the
+//                    //e latch as its character
 //    fire keys       X / Z are joystick buttons in joystick mode and were
 //                    already handled as key transitions, so their characters
 //                    must not type as well -- mirroring how the arrows are
@@ -3213,13 +3284,12 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 
 
 
-    // Suppress the WM_CHAR that Windows synthesizes from a WM_KEYDOWN
-    // already consumed by overlay UI (settings panel / open menu) or by the
-    // chrome keyboard-focus ring. Without this, a letter typed while a menu
-    // title / button / drive is focused would also drop into the //e latch.
-    bool  overlayOwnsIt = m_uiShell.IsCapturingInput() ||
-                          m_chromeFocusIndex != s_kChromeFocusNone ||
-                          m_toolbar.OwnsKeyboard();
+    // Nothing here re-asks who owns the keyboard. OnKeyDown decided that for
+    // this press and armed m_swallowMetaChar above, which the bail at the top
+    // has already consumed. Re-asking would be wrong as well as duplicated:
+    // the claimed key often CHANGES the state it would be re-tested against,
+    // so Escape over an open picker closes the picker and the recomputed
+    // answer says nobody owns the keyboard.
 
     // In joystick mode the X / Z keys are fire buttons (handled in OnKeyDown
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
@@ -3237,7 +3307,6 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // (driven in real time by AppleKeyboard::TickAutoRepeat, so the emulation
     // speed does not move it).
     bool  isGuestChar = m_machine.GetRefs().keyboard != nullptr &&
-                        !overlayOwnsIt &&
                         !isRepeat &&
                         !isFireKey;
 

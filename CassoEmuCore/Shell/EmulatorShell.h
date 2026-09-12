@@ -22,6 +22,7 @@
 #include "Seams/Win32HostDialogs.h"
 #include "Shell/AudioSampleBudget.h"
 #include "Shell/Input/CapsLockLatch.h"
+#include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/FrameClock.h"
@@ -1086,6 +1087,13 @@ private:
     void    SetChromeFocusIndex   (int index);
     void    UpdateChromeFocusVisuals ();
     bool    HandleChromeFocusKey  (WPARAM vk);
+
+    // The chrome state a keydown's owner is decided over, and the hand-off to
+    // whichever part of the chrome that owner names. Keeping the decision in
+    // ShellKeyRouting is what lets OnChar suppress exactly what OnKeyDown
+    // claimed without asking the same question a second time.
+    ShellKeyRouting::State  GetKeyRoutingState () const;
+    void                  DispatchShellKey (ShellKeyOwner owner, WPARAM vk);
 
     // Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as
     // the WindowManager save callback so per-monitor window placement

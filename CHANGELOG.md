@@ -34,6 +34,8 @@ Entries before versioning was introduced use dates only.
 - The Disk menu's "Salvage readable sectors..." items now open the salvage
   dialog as expected.
 - Escape to leave paddle mode no longer also sends an Escape to the //e.
+- A key that operates an open toolbar picker no longer also reaches the //e.
+  Previously, dismissing a picker with Escape sent that Escape to the machine.
 
 ## [1.24.2]: The one with the redist dist
 
