@@ -200,16 +200,14 @@ this list; phases here through the executable need nothing from 032.
    menu bar, toolbar, context menus via `DxuiPopupMenu`; layout of tree,
    list, preview, tabs, status bar with splitters; routing to the models;
    drag and drop wiring; theme switching; About with the picture.
-7. **The preview's text and bytes**: `scripts/GenApple2Font.py` builds
-   `Resources/Fonts/CassoApple2.ttf` from the character generator table
-   in `CharacterRom.h`, embedded and registered the way
-   `CassoSymbols.ttf` already is, so a text preview draws in the
-   machine's own shapes as selectable text; `DxuiHexView` replaces the
-   hex dump's list of strings with a byte-range selection drawn in both
-   the hex and the text column, grouping at 1, 2, 4 and 8 bytes, copy
-   either way, and go to offset. The font's glyphs come from the table
-   at build time rather than a second copy of the dots, so the two
-   cannot drift. The hex view reads its bytes through a host-supplied
+7. **The preview's bytes**: `DxuiHexView` replaces the hex dump's list of
+   strings with a byte-range selection drawn in both the hex and the text
+   column, grouping at 1, 2, 4 and 8 bytes, copy either way, and go to
+   offset. Text, listing, hex and disassembly previews all draw in a
+   fixed-width face; an Apple II face was built from the character
+   generator table and dropped, because that table is substantially
+   Apple's ROM and every free reproduction is either personal-use or not
+   the machine's shapes. The hex view reads its bytes through a host-supplied
    source at a host-supplied origin and holds no copy, because the
    debugger's caller is live machine memory addressed from $0000, not a
    file the widget could own.

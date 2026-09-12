@@ -65,11 +65,15 @@ the browser layout needs and the browser itself.
 
 ### Session 2026-09-11
 
-- Q: What face shows an Apple II file's text? → A: The machine's own. The
-  character generator's glyphs become a real font built from that table,
-  so the preview keeps selectable, scalable text rather than a picture of
-  text. The II and II+ set has no lowercase, so lowercase shows as the
-  machine showed it: as uppercase.
+- Q: What face shows an Apple II file's text? → A: A fixed-width one, not
+  the machine's. Building a face from the character generator table in the
+  tree was tried and dropped: 47 of its 64 glyphs are bit-identical to
+  Apple's own character ROM, so shipping a font built from it redistributes
+  those shapes, and the seventeen that differ mean it was not faithful
+  anyway. Every free reproduction is either licensed for personal use only
+  or drawn from memory, and the 2513 datasheet prints one example glyph
+  rather than the font. Reading the user's own video ROM at runtime stays
+  open as a feature of its own, since nothing would be redistributed.
 - Q: How does a hex dump let a user select bytes? → A: One selection over
   a range of bytes, drawn in both columns at once. A drag in either
   column selects the same bytes, and the other column highlights them, so
@@ -325,8 +329,8 @@ bytes, change the grouping, and copy the selection both ways.
 **Acceptance Scenarios**:
 
 1. **Given** a text file previewed from an Apple II disk, **When** the
-   preview shows it, **Then** the characters carry the machine's own
-   glyph shapes, and the text can be selected and copied as text.
+   preview shows it, **Then** its columns line up in a fixed-width face,
+   and the text can be selected and copied as text.
 2. **Given** a binary previewed as a hex dump, **When** the user drags
    across bytes in the hex column, **Then** those bytes highlight in the
    hex column and the same bytes highlight in the text column.
@@ -439,14 +443,9 @@ bytes, change the grouping, and copy the selection both ways.
   graphics rule is: hi-res at $2000 or $4000 with 8192 or $1FF8 bytes;
   double hi-res at $2000 with 16384 bytes; lo-res at $400 or $800 with
   1024 bytes.
-- **FR-012a**: A text or listing preview MUST draw in the Apple II's own
-  character shapes, as selectable text that scales with the display, not
-  as a picture of text.
-- **FR-012b**: Those shapes MUST come from the character generator table
-  already in the tree, turned into a font by a checked-in generator whose
-  output is embedded in the executable and registered at startup. The
-  II and II+ set carries no lowercase, so lowercase MUST show as
-  uppercase.
+- **FR-012a**: A text, listing, hex or disassembly preview MUST draw in a
+  fixed-width face, on rows at the line's height, since every one of them
+  is columns of characters the reader lines up by eye.
 - **FR-012c**: A hex preview MUST carry one selection over a range of
   bytes, drawn at the same time in both the hex column and the text
   column, whatever rows the range spans.
@@ -664,9 +663,8 @@ bytes, change the grouping, and copy the selection both ways.
 - **SC-008a**: The hex view shows a 64 KB run, addressed from an origin
   of the host's choosing, with no copy of those bytes held by the widget
   and no pause a user can see when scrolling through it.
-- **SC-008**: Every character the Apple II character generator draws
-  appears in a text preview with the same dot pattern the emulator's
-  40-column display draws for it.
+- **SC-008**: A hex row, a disassembly line and a text file's columns all
+  line up down the pane at every window width and scale.
 
 ## Assumptions
 
@@ -692,10 +690,12 @@ bytes, change the grouping, and copy the selection both ways.
   it is never emulated by copy and delete.
 - Executable detection is not attempted; hex dump is the default for
   binaries and the graphics rule is the only exception.
-- The Apple II face covers the character generator's printable set,
-  $20 through $7F. Inverse, flashing and MouseText are display modes and
-  a second character set, and neither is part of previewing a file's
-  text.
+- No Apple II face ships. The character generator table in the tree is
+  substantially Apple's ROM -- 47 of its 64 glyphs match bit for bit --
+  so a font built from it would redistribute those shapes, and the
+  seventeen that differ mean it would not even be faithful. A face read
+  from the user's own video ROM at runtime redistributes nothing and is
+  a feature of its own, not part of this one.
 - The hex preview is a widget the UI library gains, general rather than
   Cassque-only: the emulator's debugger wants the same view of memory,
   which is why the bytes arrive through a source and an origin instead of

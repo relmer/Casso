@@ -1,33 +1,3 @@
-CassoApple2.ttf
-===============
-
-The Apple II's own character shapes, as a text face: 64 glyphs, $20 through
-$5F, seven dots by eight, monospaced. A listing or a text file pulled off a
-disk reads in the shapes the machine would have put on the screen.
-
-The dots come from the character generator table in
-
-    CassoEmuCore/Machines/Apple2/Common/CharacterRom.h
-
-which is what the emulator draws its own 40-column text with. The generator
-parses that header rather than carrying a copy, so the face and the screen
-cannot drift apart.
-
-The II and II+ had no lowercase and decoded six bits, so $60 through $7F drew
-what $40 through $5F draws. The font maps them the same way: a through z come
-out as A through Z, because that is what the machine showed.
-
-Rebuilding
-----------
-
-    python scripts/GenApple2Font.py
-
-Embedded in Casso.exe and Cassque.exe as IDR_FONT_APPLE2 and registered by
-family at startup by AssetBootstrap::RegisterApple2Font. `DxuiTheme::kApple2Face`
-names the family; a test asserts the built font carries that name, since a
-mismatch would quietly draw every Apple II file in the default face.
-
-
 CassoSymbols.ttf
 ================
 

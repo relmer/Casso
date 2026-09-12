@@ -51,20 +51,6 @@ public:
                                    uint32_t     firstCodepoint,
                                    uint32_t     lastCodepoint);
 
-    // Registers a font the process can then ask for BY FAMILY NAME, the way
-    // it asks for an installed one. AddSymbolFont's mapping covers a range of
-    // codepoints nothing else draws; this covers a face a caller chooses for
-    // text the system fonts could also have drawn -- the Apple II's own
-    // character shapes, say, which are a choice and not a fallback. The
-    // family name the font carries comes back in outFamily.
-    static HRESULT  AddPrivateFont (const void   * pFontBytes,
-                                    size_t         byteCount,
-                                    std::wstring & outFamily);
-
-    // Whether a family was registered by AddPrivateFont, so chrome that would
-    // otherwise draw in it can ask before choosing it.
-    static bool  HasPrivateFamily (const wchar_t * family);
-
     // Whether AddSymbolFont succeeded. Chrome that shows a symbol INSTEAD of
     // the words has to ask: registration is best-effort at startup, and
     // without it a private-use codepoint draws as a missing-glyph box that
@@ -336,12 +322,8 @@ private:
 
     // Set by AddSymbolFont, and shared by every renderer in the process. The
     // collection is held only to keep the fallback's reference to it valid;
-    // the map below is what a family lookup reads.
+    // nothing looks a family up in it by name.
     static inline ComPtr<IDWriteFontCollection1>  s_symbolFonts;
-
-    // Every privately registered family, by name, so CreateFormat can hand
-    // DirectWrite the collection a family lives in instead of the system's.
-    static inline std::unordered_map<std::wstring, ComPtr<IDWriteFontCollection1>>  s_privateFamilies;
     static inline ComPtr<IDWriteFontFallback>     s_fontFallback;
 
     std::map<TextFormatKey,

@@ -106,11 +106,6 @@ struct DxuiTheme : public IDxuiTheme
     // MDL2 Assets / Symbol) stay at the use site -- they are not text.
     static constexpr wchar_t       kBodyFace    [] = L"Segoe UI";
     static constexpr wchar_t       kMonoFace    [] = L"Cascadia Mono";
-
-    //  The Apple II's own character shapes, registered from the executable by
-    //  AssetBootstrap::RegisterApple2Font. Chrome showing text that came off a
-    //  disk asks for it; a build without it falls back to the default face.
-    static constexpr wchar_t       kApple2Face  [] = L"Casso Apple II";
     static constexpr float         kBodySizeDip    = 13.0f;
     static constexpr float         kCaptionSizeDip = 12.0f;
     static constexpr float         kHeadingSizeDip = 14.0f;

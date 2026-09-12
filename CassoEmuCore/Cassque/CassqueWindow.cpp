@@ -298,9 +298,8 @@ void CassqueWindow::ConfigureWidgets()
     m_previewList->SetColumns ({ DxuiListView::Column { L"", 0, true } });
 
     //  A hex dump and a disassembly are columns of fixed-width text, and read
-    //  as such only in a fixed-width face on rows close to the line height.
-    //  A file's own text takes the machine's face instead; FillPreview picks.
-    m_previewList->SetFace (DxuiListView::Face::Monospace);
+    //  as such only in a monospace face on rows close to the line height.
+    m_previewList->SetMonospace (true);
     m_previewList->SetRowHeightDip (kPreviewRowHeightDip);
     m_previewList->SetHorizontalScrollEnabled (true);
 
@@ -606,15 +605,6 @@ void CassqueWindow::FillPreview()
     {
         m_picture->Clear();
     }
-
-    //  A file's own text, and a BASIC listing, are what the machine would
-    //  have put on the screen, so they read in its character shapes. A hex
-    //  dump and a disassembly are columns of our own making and stay in the
-    //  monospace face; a catalog is chrome and takes the body face.
-    m_previewList->SetFace (catalog                                        ? DxuiListView::Face::Body
-                          : (preview.kind == PreviewContent::Kind::Text ||
-                             preview.kind == PreviewContent::Kind::Listing) ? DxuiListView::Face::Apple2
-                                                                           : DxuiListView::Face::Monospace);
 
     if (catalog)
     {

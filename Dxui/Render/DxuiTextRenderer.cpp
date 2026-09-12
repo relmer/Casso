@@ -271,129 +271,11 @@ HRESULT DxuiTextRenderer::AddSymbolFont (
 
     // Published last, together: until this point a failure would have left
     // the collection reading as loaded while no format could ever use it.
-    s_symbolFonts             = collection;
-    s_fontFallback            = fallback;
-    s_privateFamilies[familyName.c_str()] = collection;
+    s_symbolFonts  = collection;
+    s_fontFallback = fallback;
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AddPrivateFont
-//
-//  Loads a font from memory into a collection of its own and records the
-//  family it carries, so a caller can name that family the way it names an
-//  installed one. No fallback mapping: this face is chosen for text, not
-//  reached for when another font has no glyph.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::AddPrivateFont (
-    const void   * pFontBytes,
-    size_t         byteCount,
-    std::wstring & outFamily)
-{
-    HRESULT                                  hr          = S_OK;
-    IUnknown                               * factoryRaw  = nullptr;
-    ComPtr<IDWriteFactory>                   dwrite;
-    ComPtr<IDWriteFactory5>                  factory;
-    ComPtr<IDWriteInMemoryFontFileLoader>    loader;
-    ComPtr<IDWriteFontFile>                  fontFile;
-    ComPtr<IDWriteFontSetBuilder1>           setBuilder;
-    ComPtr<IDWriteFontSet>                   fontSet;
-    ComPtr<IDWriteFontCollection1>           collection;
-    ComPtr<IDWriteFontFamily>                family;
-    ComPtr<IDWriteLocalizedStrings>          familyNames;
-    UINT32                                   familyCount = 0;
-    UINT32                                   nameLength  = 0;
-    std::wstring                             familyName;
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRAEx (pFontBytes, E_INVALIDARG);
-    CBRAEx (byteCount > 0, E_INVALIDARG);
-
-    outFamily.clear();
-
-    hr = DWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED, __uuidof (IDWriteFactory), &factoryRaw);
-    CHRA (hr);
-
-    dwrite.Attach (static_cast<IDWriteFactory *> (factoryRaw));
-
-    hr = dwrite.As (&factory);
-    CHRA (hr);
-
-    hr = factory->CreateInMemoryFontFileLoader (&loader);
-    CHRA (hr);
-
-    hr = factory->RegisterFontFileLoader (loader.Get());
-    CHRA (hr);
-
-    //  A null owner means DirectWrite copies the bytes, so the caller's
-    //  buffer does not have to outlive this call.
-    hr = loader->CreateInMemoryFontFileReference (factory.Get(), pFontBytes,
-                                                  static_cast<UINT32> (byteCount), nullptr, &fontFile);
-    CHRA (hr);
-
-    hr = factory->CreateFontSetBuilder (&setBuilder);
-    CHRA (hr);
-
-    hr = setBuilder->AddFontFile (fontFile.Get());
-    CHRA (hr);
-
-    hr = setBuilder->CreateFontSet (&fontSet);
-    CHRA (hr);
-
-    hr = factory->CreateFontCollectionFromFontSet (fontSet.Get(), &collection);
-    CHRA (hr);
-
-    familyCount = collection->GetFontFamilyCount();
-    CBRA (familyCount > 0);
-
-    hr = collection->GetFontFamily (0, &family);
-    CHRA (hr);
-
-    hr = family->GetFamilyNames (&familyNames);
-    CHRA (hr);
-
-    hr = familyNames->GetStringLength (0, &nameLength);
-    CHRA (hr);
-
-    familyName.resize (static_cast<size_t> (nameLength) + 1);
-
-    hr = familyNames->GetString (0, familyName.data(), static_cast<UINT32> (familyName.size()));
-    CHRA (hr);
-
-    //  GetString writes its own terminator into the buffer; the name the map
-    //  is keyed by must not carry it, or a lookup by the same name misses.
-    outFamily = familyName.c_str();
-    s_privateFamilies[outFamily] = collection;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HasPrivateFamily
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTextRenderer::HasPrivateFamily (const wchar_t * family)
-{
-    return (family != nullptr) && (s_privateFamilies.find (family) != s_privateFamilies.end());
 }
 
 
@@ -1119,15 +1001,8 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
     {
         ComPtr<IDWriteTextFormat>  format;
 
-        //  A privately registered family lives in its own collection, which
-        //  DirectWrite has to be handed: the system collection knows nothing
-        //  of it, and a format built against that draws the default face.
-        auto  privateFamily = s_privateFamilies.find (useFamily);
-
         hr = m_dwriteFactory->CreateTextFormat (useFamily,
-                                                (privateFamily != s_privateFamilies.end())
-                                                    ? privateFamily->second.Get()
-                                                    : nullptr,
+                                                nullptr,
                                                 static_cast<DWRITE_FONT_WEIGHT> (weight),
                                                 DWRITE_FONT_STYLE_NORMAL,
                                                 DWRITE_FONT_STRETCH_NORMAL,

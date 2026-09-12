@@ -18,11 +18,6 @@ IDR_CASSQUE_CASSO_PNG        RCDATA "Assets\\CassqueCasso.png"
 // The photograph itself, which heads the About box.
 IDR_CASSQUE_CASSOWARY_PNG    RCDATA "Assets\\Cassowary.png"
 
-// Casso's symbol font and the Apple II character shapes, registered with
-// DirectWrite at startup rather than extracted.
-IDR_FONT_SYMBOLS             RCDATA "..\\Resources\\Fonts\\CassoSymbols.ttf"
-IDR_FONT_APPLE2              RCDATA "..\\Resources\\Fonts\\CassoApple2.ttf"
-
 // The same built-in themes Casso embeds. AssetBootstrap::EnsureThemes compares
 // the files on disk against the running module's embedded copies, so both
 // programs must carry identical ones or each would rewrite the other's.

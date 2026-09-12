@@ -101,14 +101,6 @@ extern "C" int WINAPI wCassqueMain (
     hrOptional = AssetBootstrap::EnsureThemes (hInstance);
     IGNORE_RETURN_VALUE (hrOptional, S_OK);
 
-    //  Before any window exists: a text format caches the fallback and the
-    //  collections it was built with, and the renderers are per window.
-    hrOptional = AssetBootstrap::RegisterSymbolFont (hInstance);
-    IGNORE_RETURN_VALUE (hrOptional, S_OK);
-
-    hrOptional = AssetBootstrap::RegisterApple2Font (hInstance);
-    IGNORE_RETURN_VALUE (hrOptional, S_OK);
-
     hrOptional = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), fs);
     IGNORE_RETURN_VALUE (hrOptional, S_OK);
 

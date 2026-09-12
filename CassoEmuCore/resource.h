@@ -170,13 +170,6 @@
 // scripts/GenSymbolFont.py.
 #define IDR_FONT_SYMBOLS                    360
 
-// The Apple II's own character shapes, built by scripts/GenApple2Font.py from
-// the character generator table in CharacterRom.h, which is what the emulator
-// draws its 40-column text with. Registered by family through
-// AssetBootstrap::RegisterApple2Font, so chrome can choose it for text that
-// came off a disk; never a fallback for the chrome's own text.
-#define IDR_FONT_APPLE2                     361
-
 // Embedded 3D reference model for the printer panel's skeuomorphic scene
 // (Printer3DScene) -- the user's own Tinkercad CAD model of the ImageWriter
 // II, exported as OBJ+MTL. See Resources/Models/ImageWriterII/.
