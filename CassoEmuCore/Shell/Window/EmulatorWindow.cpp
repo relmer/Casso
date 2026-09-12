@@ -56,6 +56,7 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Devices/Disk/WriteProtectChange.h"
 
 
 
@@ -600,24 +601,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_captureBar.SetCentered (true);
     m_captureBar.SetVisible  (false);
 
-    //  THE SCREENSHOT NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both
-    //  are up the result of the screenshot is the one on top -- it is the
-    //  newer of the two, and the older one is still readable in the strip
-    //  above it.
-    //
-    //  Its backing is a SCRIM rather than the panel color the capture bar
-    //  uses: this bar hangs over the picture instead of docking above it, and
-    //  filling that strip opaque would take a slice out of what the user is
-    //  looking at every time they photograph it.
-    m_screenshotNoticeScrim.SetToken   (DxuiSurface::Token::Background);
-    m_screenshotNoticeScrim.SetOpacity (s_kScreenshotNoticeScrimAlpha);
-    m_screenshotNoticeScrim.SetVisible (false);
-    m_host->GetRoot().Adopt (m_screenshotNoticeScrim);
-    m_host->GetRoot().Adopt (m_screenshotNotice);
-
-    m_screenshotNotice.SetSeverity (DxuiInfoBanner::Severity::Info);
-    m_screenshotNotice.SetCentered (true);
-    m_screenshotNotice.SetVisible  (false);
+    //  THE NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both are up the
+    //  notice is the one on top -- it is the newer of the two, and the older
+    //  one is still readable in the strip above it.
+    m_host->GetRoot().Adopt (m_notice);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -768,16 +755,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP1:
             case IDM_DISK_WP2:
             {
-                // Name the mounted image and state the ACTION the click will
-                // take, flipping the verb with the image's own protection
-                // (the file-borne flag or read-only attribute; the per-drive
-                // USER write-protect pref is a different toggle). An empty
-                // return keeps the static "Write-protect disk N" label for
-                // an empty (disabled) drive.
-                constexpr size_t  kMaxNameChars  = 20;
-                constexpr size_t  kKeepHeadChars = 10;
-                constexpr size_t  kKeepTailChars = 7;
-
+                // Give the mounted image and the ACTION the click will take:
+                // write-enable when the WOZ flag or the read-only attribute
+                // protects it, write-protect otherwise. The per-drive user
+                // preference is a different toggle and does not flip it. An
+                // empty return keeps the static "Write-protect disk N" label
+                // for an empty (disabled) drive.
                 int           drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
                 DiskImage  *  image = m_machine.GetDiskStore().GetImage (6, drive);
                 std::wstring  name;
@@ -795,24 +778,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                     return std::wstring();
                 }
 
-                // Middle-truncate very long names so the row stays inside
-                // the dropdown while keeping the extension visible.
-                if (name.size() > kMaxNameChars)
-                {
-                    name = name.substr (0, kKeepHeadChars) + L"..."
-                         + name.substr (name.size() - kKeepTailChars);
-                }
-
-                WriteProtectInfo  info = image->GetWriteProtectInfo();
-
-                // Names the flag the command actually changes. The old wording
-                // ("Allow writes to ...") described an outcome the command
-                // cannot promise -- the host file's read-only attribute and the
-                // drive preference protect the disk too, and neither is touched
-                // here. It also flipped on readOnlyFile, so a writable image in
-                // a read-only file offered to "allow writes" and then could not.
-                return (info.imageFlag ? L"Clear \"" : L"Set \"")
-                     + name + L"\" internal write-protect flag";
+                return WriteProtectChange::GetMenuLabel (
+                           WriteProtectChange::IsImageProtected (image->GetWriteProtectInfo()), name);
             }
 
             default:
@@ -1587,9 +1554,6 @@ void EmulatorShell::OnDestroy()
     // RevokeDragDrop requires a valid window handle.
     m_dragDropTarget.Shutdown();
 
-    // Hand the host its own Caps Lock back. A no-op when focus already left.
-    m_capsLockLatch.OnLostFocus();
-
     // Join the printer drain thread before teardown frees the card.
     m_printerWorker.Stop();
 
@@ -1652,28 +1616,6 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnSetFocus
-//
-//  Keyboard focus is the boundary for the Caps Lock latch: while this window
-//  has it, the host toggle reads as the emulated key. The Win32 dialogs the
-//  shell puts up (file pickers, print) take focus and so fall outside it,
-//  which keeps file names from being typed in capitals; the Dxui popups do
-//  not take focus and so stay inside it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult EmulatorShell::OnSetFocus()
-{
-    m_capsLockLatch.OnGainedFocus();
-    return DxuiMessageResult::NotHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnKillFocus
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1688,9 +1630,6 @@ DxuiMessageResult EmulatorShell::OnKillFocus()
     // across a focus change (Enter while a window pops up, Alt-Tab mid-key)
     // can never leave the emulated key repeating forever.
     ReleaseGuestKeys();
-
-    // The host gets its own Caps Lock back for whoever took focus.
-    m_capsLockLatch.OnLostFocus();
     return DxuiMessageResult::NotHandled;
 }
 
@@ -2426,6 +2365,19 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         if (carried != nullptr)
         {
             ShowNotification (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_SHOW_NOTICE)
+    {
+        wstring *  carried = reinterpret_cast<wstring *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowNotice (*carried);
             delete carried;
         }
 

@@ -57,7 +57,10 @@ public:
     // Returns false when the clipboard could not be opened or filled, which
     // the caller records: a clipboard failure must not cost the file.
     bool  CopyScreenshot     (HWND hwnd, const CapturedImage & image);
-    void  PasteFromClipboard (HWND hwnd);
+
+    // Queues the clipboard's text, with lower-case letters raised when
+    // `capsLockOn`. True when that raised at least one letter.
+    bool  PasteFromClipboard (HWND hwnd, bool capsLockOn);
 
     // `cyclesElapsed` is the emulated-cycle budget of the slice about to run
     // -- the settle pacing below is measured in guest time.
@@ -75,8 +78,10 @@ public:
 
     // Pasted text reduced to what the Apple II keyboard can take: a return
     // becomes the CR the guest expects, a newline is dropped so CRLF is one
-    // return, and anything outside printable ASCII is left out.
-    static void  AppendPasteText (const std::wstring & text, std::string & pasteBuffer);
+    // return, and anything outside printable ASCII is left out. With
+    // `capsLockOn`, lower-case letters go in upper case; the return is true
+    // when any did.
+    static bool  AppendPasteText (const std::wstring & text, bool capsLockOn, std::string & pasteBuffer);
 
 private:
     static constexpr Byte  kHighBitMask      = 0x80;

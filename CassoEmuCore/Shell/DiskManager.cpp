@@ -8,6 +8,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
+#include "Devices/Disk/WriteProtectChange.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
@@ -183,31 +184,38 @@ void DiskManager::ApplyExternalWriteProtect (
 //
 //  ToggleImageWriteProtect
 //
-//  WOZ carries its own write-protect flag (INFO byte 2), so the toggle has
-//  to reach the file. SetImageWriteProtect does the whole operation --
-//  flush pending guest writes, patch the one flag byte, recompute the
-//  header CRC, write it back atomically, then move the live image's flag to
-//  match. That ordering used to live here, split across a Flush, a flag
-//  assignment and a ForceFlush, and getting it wrong lost data; it belongs
-//  with the operation, not with the menu handler. Sector-image formats have
-//  no in-image flag, so the toggle sets or clears the backing file's
-//  read-only attribute instead.
+//  Write-protects an unprotected image, or write-enables a protected one.
+//  WriteProtectChange::MakePlan decides which mechanisms that touches: a WOZ
+//  is protected by its own flag (INFO byte 2), any other format by the
+//  backing file's read-only attribute, and write-enabling clears whichever
+//  of the two are set -- both, on a WOZ that carries both.
+//
+//  The attribute is cleared BEFORE the flag is, because the flag lives in
+//  the file and patching it needs the file writable. SetImageWriteProtect
+//  does the whole flag operation -- flush pending guest writes, patch the
+//  one byte, recompute the header CRC, write it back atomically, then move
+//  the live image's flag to match. Setting the attribute flushes first for
+//  the same reason: a protected image drops dirty content at flush.
 //
 //  Either way the function ends by re-probing the backing file and
-//  re-applying the external state: the padlock, tooltip, and menu check
+//  re-applying the external state: the padlock, tooltip, and menu label
 //  reflect what actually happened, never what was merely attempted.
-//  Failures report through the shared EHM notifier.
+//  Failures report through the shared EHM notifier; only a change that was
+//  carried out in full is reported through the write-protect callback.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 {
-    HRESULT       hr         = S_OK;
-    DiskImage   * image      = nullptr;
-    DiskFormat    fmt        = DiskFormat::Dsk;
-    bool          protecting = false;
-    std::string   path;
-    std::wstring  wide;
+    HRESULT             hr        = S_OK;
+    DiskImage         * image     = nullptr;
+    DiskFormat          fmt       = DiskFormat::Dsk;
+    bool                readOnly  = false;
+    bool                completed = false;
+    WriteProtectInfo    info;
+    WriteProtectChange  plan;
+    std::string         path;
+    std::wstring        wide;
 
 
 
@@ -221,40 +229,48 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
     hr = DiskImageStore::GetSourceFormatByExtension (path, fmt);
     CHR (hr);
 
-    if (fmt == DiskFormat::Woz)
-    {
-        protecting = !image->GetWriteProtectInfo().imageFlag;
+    wide = fs::path (path).wstring();
 
-        hr = m_diskStore.SetImageWriteProtect (6, drive, protecting);
+    hr = m_fileSystem.GetReadOnlyAttribute (wide, readOnly);
+    CHRN (hr, L"The disk file's attributes could not be read.");
+
+    info = image->GetWriteProtectInfo();
+    plan = WriteProtectChange::MakePlan (fmt == DiskFormat::Woz,
+                                         info.imageFlag,
+                                         readOnly,
+                                         fs::path (path).filename().wstring());
+
+    if (plan.changesAttribute && plan.protecting)
+    {
+        hr = m_diskStore.Flush (6, drive);
         CHR (hr);
     }
-    else
+
+    if (plan.changesAttribute)
     {
-        bool  readOnly = false;
-
-        wide = fs::path (path).wstring();
-
-        hr = m_fileSystem.GetReadOnlyAttribute (wide, readOnly);
-        CHRN (hr, L"The disk file's attributes could not be read.");
-
-        protecting = !readOnly;
-
-        if (protecting)
-        {
-            hr = m_diskStore.Flush (6, drive);
-            CHR (hr);
-        }
-
-        hr = m_fileSystem.SetReadOnlyAttribute (wide, protecting);
+        hr = m_fileSystem.SetReadOnlyAttribute (wide, plan.protecting);
         CHRN (hr, L"The disk file's read-only attribute could not be changed.");
     }
 
+    if (plan.changesImageFlag)
+    {
+        hr = m_diskStore.SetImageWriteProtect (6, drive, plan.protecting);
+        CHR (hr);
+    }
+
+    completed = true;
+
 Error:
     // Truth, not intent: whatever happened above, the indicators re-read
-    // the file and the effective state (FR-015 / FR-016).
+    // the file and the effective state.
     if (image != nullptr)
     {
         ApplyExternalWriteProtect (drive, image, path);
+    }
+
+    if (completed && m_onWriteProtectChanged)
+    {
+        m_onWriteProtectChanged (WriteProtectChange::DescribeResult (plan));
     }
 
     return hr;

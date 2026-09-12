@@ -18,7 +18,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //    enabled iff the active machine config wires a Disk II controller.
 //
 //    ShouldEnableWriteProtectMenuItem -- the Disk -> Write-protect item is
-//    enabled iff something is mounted and it is not a damaged image.
+//    enabled iff something is mounted, it is not a damaged image, and the
+//    file is not closed to writes by a permission denial.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,6 +102,33 @@ namespace MenuPredicatesTests
             Assert::IsTrue (ShouldEnableWriteProtectMenuItem (true, wp),
                 L"and the drive preference is a separate control, not a reason to "
                 L"disable this one");
+        }
+
+
+
+        TEST_METHOD (ShouldEnableWriteProtectMenuItem_readOnlyFile_returnsTrue)
+        {
+            WriteProtectInfo  wp;
+
+            wp.readOnlyFile = true;
+
+            Assert::IsTrue (ShouldEnableWriteProtectMenuItem (true, wp),
+                L"the read-only attribute is one of the two things the command "
+                L"clears -- disabling on it strands a disk the command itself "
+                L"write-protected");
+        }
+
+
+
+        TEST_METHOD (ShouldEnableWriteProtectMenuItem_noPermission_returnsFalse)
+        {
+            WriteProtectInfo  wp;
+
+            wp.noPermission = true;
+
+            Assert::IsFalse (ShouldEnableWriteProtectMenuItem (true, wp),
+                L"an ACL denial or lock is not something the command changes, so "
+                L"every write it tries would fail");
         }
 
 
