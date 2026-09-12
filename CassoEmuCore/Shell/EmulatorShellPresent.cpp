@@ -640,7 +640,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // strip was last frame -- visibly trailing it through the reveal.
     TickFullscreenTopChrome();
     SyncCaptureBanner();
-    SyncCaptureNotice();
+    SyncTransientNotice();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
 
@@ -1233,7 +1233,7 @@ uint64_t EmulatorShell::ComputeColorSig()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShowCaptureNotice
+//  ShowTransientNotice
 //
 //  Post the screenshot result over the picture for a few seconds.
 //
@@ -1243,17 +1243,17 @@ uint64_t EmulatorShell::ComputeColorSig()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ShowCaptureNotice (const std::wstring & text)
+void EmulatorShell::ShowTransientNotice (const std::wstring & text)
 {
     int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                           std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
-    m_screenshotNotice.SetText (text);
-    m_screenshotNoticeUntilMs = nowMs + s_kScreenshotNoticeMs;
+    m_noticeState.Show (text, nowMs);
+    m_transientNotice.SetText (text);
 
-    SyncCaptureNotice();
+    SyncTransientNotice();
 
     m_d3dRenderer.MarkRedrawNeeded();
 }
@@ -1264,7 +1264,7 @@ void EmulatorShell::ShowCaptureNotice (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SyncCaptureNotice
+//  SyncTransientNotice
 //
 //  Lay the notice out while it is live, and drop it once it expires.
 //
@@ -1288,7 +1288,7 @@ void EmulatorShell::ShowCaptureNotice (const std::wstring & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncCaptureNotice()
+void EmulatorShell::SyncTransientNotice()
 {
     RECT                 client = {};
     RECT                 rc     = {};
@@ -1299,10 +1299,10 @@ void EmulatorShell::SyncCaptureNotice()
 
 
 
-    if (nowMs >= m_screenshotNoticeUntilMs || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    if (!m_noticeState.IsShowing (nowMs) || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        m_screenshotNotice.SetVisible      (false);
-        m_screenshotNoticeScrim.SetVisible (false);
+        m_transientNotice.SetVisible      (false);
+        m_transientNoticeScrim.SetVisible (false);
         return;
     }
 
@@ -1318,17 +1318,17 @@ void EmulatorShell::SyncCaptureNotice()
     //  width, so a wide face or a long path measures past it and the last
     //  line lands outside the strip. The estimate stays as the fallback for
     //  the frames before the renderer exists.
-    m_screenshotNotice.SetDpi (m_scaler.GetDpi());
+    m_transientNotice.SetDpi (m_scaler.GetDpi());
 
     rc.bottom = rc.top + (LONG) ((text != nullptr)
-                                 ? m_screenshotNotice.GetMeasuredHeightPx (*text, width, m_scaler)
-                                 : m_screenshotNotice.GetPreferredHeightPx (width, m_scaler));
+                                 ? m_transientNotice.GetMeasuredHeightPx (*text, width, m_scaler)
+                                 : m_transientNotice.GetPreferredHeightPx (width, m_scaler));
 
-    m_screenshotNoticeScrim.Layout     (rc, m_scaler);
-    m_screenshotNoticeScrim.SetVisible (true);
+    m_transientNoticeScrim.Layout     (rc, m_scaler);
+    m_transientNoticeScrim.SetVisible (true);
 
-    m_screenshotNotice.Layout     (rc, m_scaler);
-    m_screenshotNotice.SetVisible (true);
+    m_transientNotice.Layout     (rc, m_scaler);
+    m_transientNotice.SetVisible (true);
 }
 
 
@@ -1418,8 +1418,8 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
 
         //  Including this one. Two captures inside the notice's few seconds
         //  would otherwise photograph the first one's filename.
-        m_screenshotNotice.SetVisible      (false);
-        m_screenshotNoticeScrim.SetVisible (false);
+        m_transientNotice.SetVisible      (false);
+        m_transientNoticeScrim.SetVisible (false);
     }
     else
     {
@@ -1432,7 +1432,7 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
         SyncFrameRateReadout();
         SyncSceneViewReadout();
         SyncCaptureBanner();
-        SyncCaptureNotice();
+        SyncTransientNotice();
     }
 }
 
@@ -1711,7 +1711,7 @@ void EmulatorShell::TakeScreenshot()
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    ShowCaptureNotice (CaptureOutcome::DescribeResult (outcome));
+    ShowTransientNotice (CaptureOutcome::DescribeResult (outcome));
 
     if (picturesRaw != nullptr)
     {

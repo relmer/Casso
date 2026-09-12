@@ -609,15 +609,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  uses: this bar hangs over the picture instead of docking above it, and
     //  filling that strip opaque would take a slice out of what the user is
     //  looking at every time they photograph it.
-    m_screenshotNoticeScrim.SetToken   (DxuiSurface::Token::Background);
-    m_screenshotNoticeScrim.SetOpacity (s_kScreenshotNoticeScrimAlpha);
-    m_screenshotNoticeScrim.SetVisible (false);
-    m_host->GetRoot().Adopt (m_screenshotNoticeScrim);
-    m_host->GetRoot().Adopt (m_screenshotNotice);
+    m_transientNoticeScrim.SetToken   (DxuiSurface::Token::Background);
+    m_transientNoticeScrim.SetOpacity (s_kScreenshotNoticeScrimAlpha);
+    m_transientNoticeScrim.SetVisible (false);
+    m_host->GetRoot().Adopt (m_transientNoticeScrim);
+    m_host->GetRoot().Adopt (m_transientNotice);
 
-    m_screenshotNotice.SetSeverity (DxuiInfoBanner::Severity::Info);
-    m_screenshotNotice.SetCentered (true);
-    m_screenshotNotice.SetVisible  (false);
+    m_transientNotice.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_transientNotice.SetCentered (true);
+    m_transientNotice.SetVisible  (false);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.

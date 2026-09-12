@@ -283,6 +283,7 @@
     <ClCompile Include="ControllerTests\MappingEvaluatorTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerSelectionPolicyTests.cpp" />
     <ClCompile Include="ControllerTests\InputModeRulesTests.cpp" />
+    <ClCompile Include="ControllerTests\TransientNoticeStateTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerInputServiceTests.cpp" />
     <ClCompile Include="EmuTests\KeyboardTests.cpp" />
     <ClCompile Include="EmuTests\InputEventRingTests.cpp" />

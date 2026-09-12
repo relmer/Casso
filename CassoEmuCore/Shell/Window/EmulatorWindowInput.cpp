@@ -2632,9 +2632,12 @@ void EmulatorShell::ApplyAutomaticControllerSelection (const std::wstring & desc
     SyncGamePortAxisOwner();
     SyncInputModeUi();
 
+    // Over the picture for a few seconds, never a dialog: the user did not
+    // ask about this, so stopping the machine to have it acknowledged would
+    // interrupt them to report something they may not care about.
     if (!isAdoption && !description.empty())
     {
-        ShowNotification (L"Controller selected: " + description);
+        ShowTransientNotice (L"Controller selected: " + description);
     }
 }
 

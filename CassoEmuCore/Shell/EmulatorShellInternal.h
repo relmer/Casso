@@ -156,7 +156,6 @@ static const wchar_t * const  s_kpszCaptureNotice =
 // How long the screenshot result stays up. Long enough to read a filename
 // without hunting for it, short enough that it is gone before the next thing
 // the user wants to look at.
-static constexpr int64_t s_kScreenshotNoticeMs      = 4000;
 
 // How much of the picture the notice's scrim lets through. Enough dimming
 // that a filename stays legible over a bright screen, little enough that what

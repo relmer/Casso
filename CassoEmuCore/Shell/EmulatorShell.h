@@ -10,6 +10,7 @@
 #include "Config/Win32FileSystem.h"
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
+#include "Controllers/TransientNoticeState.h"
 #include "Seams/Win32ControllerBackend.h"
 #include "Shell/ControllerInputThread.h"
 #include "Shell/MachineGamePortSink.h"
@@ -1612,12 +1613,12 @@ private:
     // timer would reflow the machine twice per screenshot. So this one hangs
     // under whatever docked chrome is at the top and covers a little of the
     // picture instead, with a scrim thin enough to read through.
-    DxuiInfoBanner             m_screenshotNotice;
-    DxuiSurface                m_screenshotNoticeScrim;
-    int64_t                    m_screenshotNoticeUntilMs = 0;
+    DxuiInfoBanner             m_transientNotice;
+    DxuiSurface                m_transientNoticeScrim;
+    TransientNoticeState       m_noticeState;
 
-    void  ShowCaptureNotice   (const std::wstring & text);
-    void  SyncCaptureNotice   ();
+    void  ShowTransientNotice   (const std::wstring & text);
+    void  SyncTransientNotice   ();
 
     // The lowest edge of whatever chrome is docked (or, in fullscreen,
     // revealed) at the top of the client, which is where an overlay that

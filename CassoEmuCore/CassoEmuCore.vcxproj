@@ -289,6 +289,7 @@
     <ClCompile Include="Controllers\ControllerInputService.cpp" />
     <ClCompile Include="Controllers\ControllerSelectionPolicy.cpp" />
     <ClCompile Include="Controllers\InputModeRules.cpp" />
+    <ClCompile Include="Controllers\TransientNoticeState.cpp" />
     <ClCompile Include="Devices\Disk\Win32ImageWatcher.cpp" />
     <ClCompile Include="Devices\Disk\ExternalChangePolicy.cpp" />
     <ClCompile Include="Devices\Disk\MountedImageState.cpp" />
@@ -550,6 +551,7 @@
     <ClInclude Include="Controllers\MappingEvaluator.h" />
     <ClInclude Include="Controllers\ControllerSelectionPolicy.h" />
     <ClInclude Include="Controllers\InputModeRules.h" />
+    <ClInclude Include="Controllers\TransientNoticeState.h" />
     <ClInclude Include="Controllers\ControllerInputService.h" />
     <ClInclude Include="Controllers\DirectInputSampleDecoder.h" />
     <ClInclude Include="Controllers\XInputSampleDecoder.h" />
