@@ -33,14 +33,20 @@ public:
     static constexpr const char *  kpszControllerKey = "controller";
     static constexpr const char *  kpszProfileKey    = "controllerProfile";
 
+    // outArrows always comes back false: arrows-to-joystick is not resumed,
+    // only turned on by hand in the session that plays. It takes X and Z for
+    // the fire buttons, and a machine that starts in it is one where two
+    // letter keys quietly do not type. The pointer axis has refused to resume
+    // Paddle for the same reason.
     static void  ReadFromUiPrefs (const JsonValue  * uiPrefs,
-                                  bool               seedArrows,
                                   InputMappingMode   seedPointer,
                                   bool             & outArrows,
                                   InputMappingMode & outPointer);
 
+    // Only what will be read back: arrows-to-joystick is not written at all,
+    // and a pointer mode that holds the pointer is written as Off, so the
+    // file never describes a machine that will not come up that way.
     static std::vector<std::pair<std::string, JsonValue>>  BuildUiPrefEntries (
-        bool              arrows,
         InputMappingMode  pointer);
 
     // The chosen controller and its active profile. Separate from the pair

@@ -65,11 +65,11 @@ public:
         InputMappingMode  pointer = InputMappingMode::Off;
 
 
-        MachineInputPrefs::ReadFromUiPrefs (nullptr, true, InputMappingMode::Mouse,
+        MachineInputPrefs::ReadFromUiPrefs (nullptr, InputMappingMode::Mouse,
                                             arrows, pointer);
 
-        Assert::IsTrue (arrows);
-        Assert::IsTrue (pointer == InputMappingMode::Mouse);
+        Assert::IsFalse (arrows, L"arrows-to-joystick is never resumed");
+        Assert::IsTrue  (pointer == InputMappingMode::Mouse);
     }
 
 
@@ -80,11 +80,11 @@ public:
         InputMappingMode  pointer = InputMappingMode::Off;
 
 
-        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc), true,
+        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc),
                                             InputMappingMode::Mouse, arrows, pointer);
 
-        Assert::IsTrue (arrows);
-        Assert::IsTrue (pointer == InputMappingMode::Mouse);
+        Assert::IsFalse (arrows, L"arrows-to-joystick is never resumed");
+        Assert::IsTrue  (pointer == InputMappingMode::Mouse);
     }
 
 
@@ -99,7 +99,7 @@ public:
         // Both stored values happen to be the falsy ones, which is the case
         // that matters: a machine deliberately turned OFF must not inherit
         // the global setting back.
-        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc), true,
+        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc),
                                             InputMappingMode::Mouse, arrows, pointer);
 
         Assert::IsFalse (arrows);
@@ -114,11 +114,30 @@ public:
         InputMappingMode  pointer = InputMappingMode::Off;
 
 
-        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc), true,
+        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc),
                                             InputMappingMode::Off, arrows, pointer);
 
-        Assert::IsTrue (arrows);                                  // seeded
-        Assert::IsTrue (pointer == InputMappingMode::Mouse);      // stored
+        Assert::IsFalse (arrows);                                 // never resumed
+        Assert::IsTrue  (pointer == InputMappingMode::Mouse);     // stored
+    }
+
+
+    TEST_METHOD (ReadFromUiPrefs_StoredArrowsToJoystick_StillStartsOff)
+    {
+        JsonValue         doc     = ParseOrFail (
+            "{\"$cassoUiPrefs\":{\"arrowsToJoystick\":true,\"pointerMapping\":\"off\"}}");
+        bool              arrows  = false;
+        InputMappingMode  pointer = InputMappingMode::Off;
+
+
+        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc),
+                                            InputMappingMode::Off, arrows, pointer);
+
+        //  The mode takes X and Z for the fire buttons, so resuming it leaves
+        //  a machine where two letter keys quietly do not type. Saved, but
+        //  turned on by hand in the session that plays -- the same rule the
+        //  pointer axis already applies to Paddle.
+        Assert::IsFalse (arrows, L"a stored arrows-to-joystick is not resumed at launch");
     }
 
 
@@ -129,7 +148,7 @@ public:
         InputMappingMode  pointer = InputMappingMode::Mouse;
 
 
-        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc), false,
+        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc),
                                             InputMappingMode::Off, arrows, pointer);
 
         Assert::IsTrue (pointer == InputMappingMode::Off);
@@ -144,7 +163,7 @@ public:
 
         // The pre-1.23 global prefs could hold Paddle, so the seed needs the
         // same downgrade the stored value gets.
-        MachineInputPrefs::ReadFromUiPrefs (nullptr, false, InputMappingMode::Paddle,
+        MachineInputPrefs::ReadFromUiPrefs (nullptr, InputMappingMode::Paddle,
                                             arrows, pointer);
 
         Assert::IsTrue (pointer == InputMappingMode::Off);
@@ -158,7 +177,7 @@ public:
         InputMappingMode  pointer = InputMappingMode::Mouse;
 
 
-        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc), false,
+        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc),
                                             InputMappingMode::Off, arrows, pointer);
 
         Assert::IsTrue (pointer == InputMappingMode::Off);
@@ -174,52 +193,50 @@ public:
 
         // A value written by a newer build must not silently disable the
         // mapping the current one was using.
-        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc), false,
+        MachineInputPrefs::ReadFromUiPrefs (GetUiPrefsOrFail (doc),
                                             InputMappingMode::Mouse, arrows, pointer);
 
         Assert::IsTrue (pointer == InputMappingMode::Mouse);
     }
 
 
-    TEST_METHOD (BuildUiPrefEntries_WritesBothKeys)
+    TEST_METHOD (BuildUiPrefEntries_WritesOnlyWhatIsReadBack)
     {
         std::vector<std::pair<std::string, JsonValue>>  entries =
-            MachineInputPrefs::BuildUiPrefEntries (true, InputMappingMode::Mouse);
+            MachineInputPrefs::BuildUiPrefEntries (InputMappingMode::Mouse);
+
+        Assert::AreEqual (static_cast<size_t> (1), entries.size(),
+            L"arrows-to-joystick is not resumed, so it is not stored");
+        Assert::AreEqual (std::string (MachineInputPrefs::kpszPointerKey), entries[0].first);
+    }
 
 
-        Assert::AreEqual (size_t (2), entries.size());
+    TEST_METHOD (BuildUiPrefEntries_APointerModeThatHoldsThePointerIsStoredAsOff)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  entries =
+            MachineInputPrefs::BuildUiPrefEntries (InputMappingMode::Paddle);
 
-        Assert::AreEqual (std::string ("arrowsToJoystick"), entries[0].first);
-        Assert::IsTrue (entries[0].second.GetType() == JsonType::Bool);
-        Assert::IsTrue (entries[0].second.GetBool());
-
-        Assert::AreEqual (std::string ("pointerMapping"), entries[1].first);
-        Assert::IsTrue (entries[1].second.GetType() == JsonType::String);
-        Assert::AreEqual (std::string ("mouse"), entries[1].second.GetString());
+        Assert::AreEqual (std::string ("off"), entries[0].second.GetString(),
+            L"a file claiming paddle mode would describe a machine that never comes up that way");
     }
 
 
     TEST_METHOD (BuildUiPrefEntries_RoundTripsThroughReadFromUiPrefs)
     {
-        std::vector<std::pair<std::string, JsonValue>>  entries =
-            MachineInputPrefs::BuildUiPrefEntries (true, InputMappingMode::Mouse);
-        JsonValue                                       uiPrefs (std::move (entries));
-        bool                                            arrows  = false;
-        InputMappingMode                                pointer = InputMappingMode::Off;
+        JsonValue         uiPrefs (MachineInputPrefs::BuildUiPrefEntries (InputMappingMode::Mouse));
+        bool              arrows  = true;
+        InputMappingMode  pointer = InputMappingMode::Off;
 
 
-        MachineInputPrefs::ReadFromUiPrefs (&uiPrefs, false, InputMappingMode::Off,
-                                            arrows, pointer);
+        MachineInputPrefs::ReadFromUiPrefs (&uiPrefs, InputMappingMode::Off, arrows, pointer);
 
-        Assert::IsTrue (arrows);
-        Assert::IsTrue (pointer == InputMappingMode::Mouse);
+        //  What is written comes back unchanged, which is the whole point of
+        //  writing only what is read.
+        Assert::IsFalse (arrows);
+        Assert::IsTrue  (pointer == InputMappingMode::Mouse);
     }
 
 
-    // Every mode has a token, and every token maps back. A mode added without
-    // a token would serialize as "off" and silently become Off on the way
-    // back in, which is the failure a sweep over the enum catches and a sweep
-    // over the table cannot.
     TEST_METHOD (ModeTokens_RoundTripForEveryMode)
     {
         const InputMappingMode  modes[] = { InputMappingMode::Off,

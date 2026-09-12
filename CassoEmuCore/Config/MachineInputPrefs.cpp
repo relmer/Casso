@@ -103,33 +103,30 @@ InputMappingMode MachineInputPrefs::ModeFromToken (
 
 void MachineInputPrefs::ReadFromUiPrefs (
     const JsonValue  * uiPrefs,
-    bool               seedArrows,
     InputMappingMode   seedPointer,
     bool             & outArrows,
     InputMappingMode & outPointer)
 {
     std::string  token;
-    bool         storedArrows = false;
 
 
 
-    // Seeds first, so a null block or a block missing either key leaves the
+    // Seed first, so a null block or a block missing the key leaves the
     // fallback in place.
-    outArrows  = seedArrows;
     outPointer = seedPointer;
 
-    if (uiPrefs != nullptr)
+    if (uiPrefs != nullptr && uiPrefs->HasString (kpszPointerKey, token))
     {
-        if (uiPrefs->HasBool (kpszArrowsKey, storedArrows))
-        {
-            outArrows = storedArrows;
-        }
-
-        if (uiPrefs->HasString (kpszPointerKey, token))
-        {
-            outPointer = ModeFromToken (token, seedPointer);
-        }
+        outPointer = ModeFromToken (token, seedPointer);
     }
+
+    //  NEITHER MODE THAT SWALLOWS HOST INPUT IS EVER RESUMED. Paddle mode
+    //  takes the pointer; arrows-to-joystick takes X and Z for the fire
+    //  buttons, so a machine that comes up in it is one where two letter keys
+    //  do not type and nothing about a fresh boot says why. Both are modes a
+    //  user turns on for the session they are playing in, and the setting is
+    //  still saved -- it is resuming it unasked that is refused.
+    outArrows = false;
 
     if (outPointer == InputMappingMode::Paddle || outPointer == InputMappingMode::Joystick)
     {
@@ -157,14 +154,24 @@ void MachineInputPrefs::ReadFromUiPrefs (
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::pair<std::string, JsonValue>> MachineInputPrefs::BuildUiPrefEntries (
-    bool              arrows,
     InputMappingMode  pointer)
 {
     std::vector<std::pair<std::string, JsonValue>>  entries;
 
 
 
-    entries.emplace_back (kpszArrowsKey,  JsonValue (arrows));
+    //  NOTHING IS WRITTEN THAT WILL NOT BE READ BACK. Arrows-to-joystick and
+    //  a captured pointer are never resumed, so storing them would leave the
+    //  file describing a machine that will not come up that way -- and the
+    //  next person to read it would have to find the coercion to know.
+    //
+    //  The reader still coerces, because files written before this did store
+    //  them.
+    if (pointer == InputMappingMode::Paddle || pointer == InputMappingMode::Joystick)
+    {
+        pointer = InputMappingMode::Off;
+    }
+
     entries.emplace_back (kpszPointerKey, JsonValue (std::string (ModeToToken (pointer))));
 
     return entries;

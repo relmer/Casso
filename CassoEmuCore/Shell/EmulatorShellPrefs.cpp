@@ -181,7 +181,6 @@ void EmulatorShell::RestoreColorTextPref()
 void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
 {
     MachineInputPrefs::ReadFromUiPrefs (uiPrefs,
-                                        m_globalPrefs.arrowsToJoystick,
                                         m_globalPrefs.pointerMapping,
                                         m_arrowsJoystick,
                                         m_pointerMode);
@@ -270,7 +269,7 @@ void EmulatorShell::PersistInputModeForMachine()
         return;
     }
 
-    entries = MachineInputPrefs::BuildUiPrefEntries (m_arrowsJoystick, m_pointerMode);
+    entries = MachineInputPrefs::BuildUiPrefEntries (m_pointerMode);
 
     // The controller rides along in the same read-modify-write: choosing one
     // turns the arrows and the paddle off, so every change that touches one
