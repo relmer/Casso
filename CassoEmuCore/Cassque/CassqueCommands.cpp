@@ -232,9 +232,10 @@ std::vector<DxuiToolbar::Entry> CassqueCommands::BuildToolbarEntries() const
     {
         DxuiToolbar::Entry  entry;
 
-        entry.command = Find (row.id);
-        entry.kind    = row.kind;
-        entry.group   = row.group;
+        entry.command  = Find (row.id);
+        entry.kind     = row.kind;
+        entry.group    = row.group;
+        entry.iconOnly = row.iconOnly;
 
         entries.push_back (std::move (entry));
     }

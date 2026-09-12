@@ -115,6 +115,7 @@ private:
         const wchar_t    * glyph;
         const wchar_t    * shortLabel;
         const wchar_t    * tip;
+        bool               iconOnly = false;
     };
 
     struct Key
@@ -165,12 +166,14 @@ private:
 
     static constexpr ToolbarRow  kToolbarRows[] =
     {
-        { kBack,          DxuiToolbar::Kind::Command, 0, s_kpszMdl2Back,    L"Back",    L"Back (Alt+Left)"        },
-        { kForward,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Forward, L"Forward", L"Forward (Alt+Right)"    },
-        { kUp,            DxuiToolbar::Kind::Command, 0, s_kpszMdl2Up,      L"Up",      L"Up one level (Alt+Up)"  },
-        { kRefresh,       DxuiToolbar::Kind::Command, 1, s_kpszMdl2Refresh, L"Refresh", L"Refresh (F5)"           },
-        { kNewTab,        DxuiToolbar::Kind::Command, 2, s_kpszMdl2Add,     L"New tab", L"New tab (Ctrl+T)"       },
-        { kTogglePreview, DxuiToolbar::Kind::Toggle,  3, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)"   },
+        //  Back, Forward, Up and Refresh are one group of bare icons, as in
+        //  Explorer; the new tab and the preview toggle keep their labels.
+        { kBack,          DxuiToolbar::Kind::Command, 0, s_kpszMdl2Back,    L"Back",    L"Back (Alt+Left)",        true  },
+        { kForward,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Forward, L"Forward", L"Forward (Alt+Right)",    true  },
+        { kUp,            DxuiToolbar::Kind::Command, 0, s_kpszMdl2Up,      L"Up",      L"Up one level (Alt+Up)",  true  },
+        { kRefresh,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Refresh, L"Refresh", L"Refresh (F5)",           true  },
+        { kNewTab,        DxuiToolbar::Kind::Command, 2, s_kpszMdl2Add,     L"New tab", L"New tab (Ctrl+T)",       false },
+        { kTogglePreview, DxuiToolbar::Kind::Toggle,  3, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)",   false },
     };
 
     static constexpr Key  kKeys[] =

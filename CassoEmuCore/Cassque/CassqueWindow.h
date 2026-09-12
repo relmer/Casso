@@ -25,6 +25,7 @@
 #include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiTooltip.h"
+#include "Render/DxuiTextRenderer.h"
 #include "Widgets/DxuiTreeView.h"
 #include "Core/DxuiDockLayout.h"
 #include "Core/DxuiHitTester.h"

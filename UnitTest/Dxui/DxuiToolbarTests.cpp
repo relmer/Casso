@@ -228,6 +228,29 @@ public:
     };
 
 
+    TEST_METHOD (IconOnlyEntry_StaysUnlabeledWithRoomToSpare)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+
+
+        f.alpha.id = 1;
+        f.gamma.id = 3;
+
+        entries[0].command  = &f.alpha;
+        entries[0].iconOnly = true;
+        entries[1].command  = &f.gamma;
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (f.FullWidth());
+
+        Assert::IsFalse (f.bar.IsLabeled (f.alpha.id),
+            L"An icon-only entry shows no label however wide the strip is");
+        Assert::IsTrue  (f.bar.IsLabeled (f.gamma.id),
+            L"while its neighbor, with room, keeps its own");
+    }
+
+
     TEST_METHOD (PlanForWidth_AllLabeledAtFittingWidth)
     {
         Fixture  f;

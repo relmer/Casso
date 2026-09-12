@@ -250,6 +250,13 @@ void CassqueWindow::OnCreate()
     m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
     m_tooltip.SetPopupHost     (GetPopupHost());
 
+    //  Explorer's navigation glyphs are Windows 11's Fluent icons. A system
+    //  without that font keeps MDL2, which has the same code points, rather
+    //  than drawing every toolbar glyph as nothing.
+    m_toolbar->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
+                            ? DxuiToolbar::kFluentIconFace
+                            : DxuiToolbar::kMdl2IconFace);
+
     m_menuBar->SetPopupHost (GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
 

@@ -2063,3 +2063,41 @@ HRESULT DxuiTextRenderer::OnDeviceRestored (ID3D11Device * pDevice)
     return Initialize (pDevice);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextRenderer::IsFontFamilyInstalled
+//
+//  Through a shared factory of its own, so it can be asked before any window
+//  or renderer exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextRenderer::IsFontFamilyInstalled (const wchar_t * family)
+{
+    HRESULT                        hr         = S_OK;
+    ComPtr<IDWriteFactory>         factory;
+    ComPtr<IDWriteFontCollection>  collection;
+    UINT32                         index      = 0;
+    BOOL                           found      = FALSE;
+
+
+
+    CBRAEx (family != nullptr, E_INVALIDARG);
+
+    hr = DWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED, __uuidof (IDWriteFactory),
+                              reinterpret_cast<IUnknown **> (factory.GetAddressOf()));
+    CHR (hr);
+
+    hr = factory->GetSystemFontCollection (&collection, FALSE);
+    CHR (hr);
+
+    hr = collection->FindFamilyName (family, &index, &found);
+    CHR (hr);
+
+Error:
+    return SUCCEEDED (hr) && found != FALSE;
+}

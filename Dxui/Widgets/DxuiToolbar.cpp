@@ -643,7 +643,7 @@ int DxuiToolbar::GetTotalWidthPx (int labeledCount) const
 
     for (const Slot & slot : m_slots)
     {
-        width += GetEntryWidthPx (slot, index < labeledCount);
+        width += GetEntryWidthPx (slot, !slot.entry.iconOnly && index < labeledCount);
 
         if (index + 1 < (int) m_slots.size())
         {
@@ -736,7 +736,7 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         int   width      = 0;
         bool  wasLabeled = slot.labeled;
 
-        slot.labeled = index < m_labeledCount;
+        slot.labeled = !slot.entry.iconOnly && index < m_labeledCount;
         width        = GetEntryWidthPx (slot, slot.labeled);
         slot.rc      = RECT { x, top, x + width, bottom };
         x           += width;

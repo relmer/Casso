@@ -57,6 +57,11 @@ public:
     // names nothing at all.
     static bool  HasSymbolFont () { return s_fontFallback != nullptr; }
 
+    //  Whether the system has a font family by this name. A face that is not
+    //  there draws a private-use glyph as nothing at all, so a caller picking
+    //  between icon fonts asks first.
+    static bool  IsFontFamilyInstalled (const wchar_t * family);
+
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
                                UINT           dpiY);

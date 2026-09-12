@@ -134,6 +134,10 @@ public:
         int                        group      = 0;
         DecorationFn               decoration;
         IDxuiToolbarCustomEntry  * custom     = nullptr;
+
+        //  Never labeled, however much room the strip has -- Explorer's Back,
+        //  Forward, Up and Refresh are bare icons. The tooltip still names it.
+        bool  iconOnly = false;
     };
 
     DxuiToolbar  ();
@@ -141,6 +145,13 @@ public:
 
     void  SetEntries       (std::vector<Entry> entries);
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
+
+    //  The two icon faces the glyphs in UnicodeSymbols.h render in. They share
+    //  code points; Windows 11 draws its own chrome in the Fluent one, whose
+    //  shapes differ in places -- Refresh most visibly -- and which Windows 10
+    //  does not have.
+    static constexpr const wchar_t *  kMdl2IconFace   = L"Segoe MDL2 Assets";
+    static constexpr const wchar_t *  kFluentIconFace = L"Segoe Fluent Icons";
     void  SetTextRenderer  (IDxuiTextRenderer * text)    { m_textRenderer = text; }
     void  SetStripColors   (uint32_t stripArgb, uint32_t textArgb);
     void  ClearStripColors ()                            { m_stripColorsSet = false; }
@@ -269,7 +280,7 @@ private:
     int                      m_focusIndex     = -1;
 
     IDxuiTextRenderer      * m_textRenderer   = nullptr;
-    const wchar_t          * m_iconFace       = L"Segoe MDL2 Assets";
+    const wchar_t          * m_iconFace       = kMdl2IconFace;
     RECT                     m_barRect        = {};
     RECT                     m_hostClient     = {};
     DxuiDpiScaler            m_scaler;

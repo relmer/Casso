@@ -107,6 +107,16 @@ public:
             Assert::IsFalse   (entry.command->tip.empty());
         }
 
-        Assert::IsTrue (entries[2].group != entries[3].group);
+        //  Back, Forward, Up and Refresh are one group of bare icons, as
+        //  Explorer draws them; the new tab button keeps its label and starts
+        //  a group of its own.
+        for (size_t i = 0; i < 4; i++)
+        {
+            Assert::IsTrue   (entries[i].iconOnly,              L"The navigation buttons are icons alone");
+            Assert::AreEqual (entries[0].group, entries[i].group, L"in one evenly spaced group");
+        }
+
+        Assert::IsFalse (entries[4].iconOnly, L"The new tab button keeps its label");
+        Assert::IsTrue  (entries[3].group != entries[4].group);
     }
 };
