@@ -306,7 +306,7 @@ private:
         int                  height = 0;
     };
 
-    static constexpr size_t           s_kMaxIconBitmaps    = 16;
+    static constexpr size_t           s_kMaxIconBitmaps    = 64;
 
     // Creates a bitmap for the picture, uploads it, and adds it to the cache,
     // dropping the oldest entry once the cache is full.

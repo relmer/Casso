@@ -10,6 +10,7 @@
 #include "Config/IFileSystem.h"
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Seams/IShellIcons.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTreeView.h"
 
@@ -131,13 +132,16 @@ public:
     //  The list widget's columns, in CatalogModel::Column order, and one
     //  row's cells.
     static std::vector<DxuiListView::Column>  GetColumns();
-    static std::vector<DxuiListView::Cell>    ToCells (const CatalogRow & row);
+    //  The shell's icons for the tree and the list. None set, none drawn.
+    void  SetShellIcons (IShellIcons * icons) { m_shellIcons = icons; }
+
+    static std::vector<DxuiListView::Cell>    ToCells (const CatalogRow & row, const Location & at = Location(), IShellIcons * icons = nullptr);
 
     //  The narrower set a disk image's catalog uses in the preview pane.
     static std::vector<DxuiListView::Column>  GetCatalogPreviewColumns();
     static std::vector<DxuiListView::Cell>    ToCatalogPreviewCells (const CatalogRow & row);
 
-    static DxuiTreeNode  ToTreeNode (const TreeNode & node);
+    static DxuiTreeNode  ToTreeNode (const TreeNode & node, IShellIcons * icons = nullptr);
 
     static std::wstring  FormatSize      (uint64_t bytes);
     static std::wstring  FormatModified  (int64_t unixSeconds, bool wallClock);
@@ -153,6 +157,9 @@ private:
     void     UpdatePreview();
     void     UpdateStatus();
     bool     TryGetSelectedEntry (const FileEntry *& outEntry) const;
+
+    static std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const CatalogRow & row, const Location & at, IShellIcons & icons);
+    static std::shared_ptr<const DxuiIconImage>  GetNodeIcon (const TreeNode & node, IShellIcons & icons);
 
     IFileSystem                       & m_fs;
     TreeModel                           m_tree;
@@ -171,4 +178,5 @@ private:
     PreviewContent                      m_preview;
     std::wstring                        m_listError;
     Status                              m_status;
+    IShellIcons                       * m_shellIcons   = nullptr;
 };

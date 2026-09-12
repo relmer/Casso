@@ -33,7 +33,7 @@ CassqueBrowser::CassqueBrowser (IFileSystem & fs, IDiskFileIo & fileIo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTreeNode CassqueBrowser::ToTreeNode (const TreeNode & node)
+DxuiTreeNode CassqueBrowser::ToTreeNode (const TreeNode & node, IShellIcons * icons)
 {
     DxuiTreeNode  out;
 
@@ -66,6 +66,11 @@ DxuiTreeNode CassqueBrowser::ToTreeNode (const TreeNode & node)
     out.childrenLoaded = !node.canExpand;
     out.dimmed         = node.missing || !node.loadError.empty();
 
+    if (icons != nullptr)
+    {
+        out.icon = GetNodeIcon (node, *icons);
+    }
+
     return out;
 }
 
@@ -91,7 +96,7 @@ void CassqueBrowser::GetTreeRoots (std::vector<DxuiTreeNode> & outNodes)
     for (const TreeNode & node : roots)
     {
         m_nodes[node.id] = node;
-        outNodes.push_back (ToTreeNode (node));
+        outNodes.push_back (ToTreeNode (node, m_shellIcons));
     }
 }
 
@@ -126,7 +131,7 @@ std::vector<DxuiTreeNode> CassqueBrowser::GetTreeChildren (const std::wstring & 
     for (const TreeNode & node : children)
     {
         m_nodes[node.id] = node;
-        out.push_back (ToTreeNode (node));
+        out.push_back (ToTreeNode (node, m_shellIcons));
     }
 
     return out;
@@ -759,7 +764,7 @@ std::vector<DxuiListView::Cell> CassqueBrowser::ToCatalogPreviewCells (const Cat
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiListView::Cell> CassqueBrowser::ToCells (const CatalogRow & row)
+std::vector<DxuiListView::Cell> CassqueBrowser::ToCells (const CatalogRow & row, const Location & at, IShellIcons * icons)
 {
     std::vector<DxuiListView::Cell>  cells;
 
@@ -771,6 +776,11 @@ std::vector<DxuiListView::Cell> CassqueBrowser::ToCells (const CatalogRow & row)
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
     cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix, row.modifiedIsWallClock) : std::wstring(), false });
+
+    if (icons != nullptr && !cells.empty())
+    {
+        cells[0].icon = GetRowIcon (row, at, *icons);
+    }
 
     return cells;
 }
@@ -1466,4 +1476,50 @@ void CassqueBrowser::RestoreTabs (const std::vector<Location> & locations)
 
     switched = SwitchTab (0);
     IGNORE_RETURN_VALUE (switched, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetRowIcon
+//
+//  A host folder's rows are real files and folders, so the shell answers for
+//  each -- a disk image gets whatever its extension is registered to show. A
+//  row inside an image has no path Windows could look at, so it gets the
+//  plain folder or file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> CassqueBrowser::GetRowIcon (const CatalogRow & row, const Location & at, IShellIcons & icons)
+{
+    if (at.kind == Location::Kind::HostFolder)
+    {
+        return icons.GetForPath (JoinPath (at.path, row.name));
+    }
+
+    return icons.GetForKind (row.isDirectory ? IShellIcons::Kind::Folder : IShellIcons::Kind::File);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetNodeIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> CassqueBrowser::GetNodeIcon (const TreeNode & node, IShellIcons & icons)
+{
+    switch (node.kind)
+    {
+        case TreeNode::Kind::CassoRoot:     return icons.GetForKind (IShellIcons::Kind::Casso);
+        case TreeNode::Kind::ThisPcRoot:    return icons.GetForKind (IShellIcons::Kind::ThisPc);
+        case TreeNode::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
+        default:                            return icons.GetForPath (node.location.path);
+    }
 }

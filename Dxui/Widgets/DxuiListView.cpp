@@ -541,7 +541,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
                 hr = text.MeasureString (row[c].text.c_str(), fontDip, GetBodyFace(), w, h);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
-                wpx = std::max (wpx, (int) std::ceil (w));
+                wpx = std::max (wpx, (int) std::ceil (w) + (row[c].icon ? m_scaler.ToPx (s_kCellIconDip + s_kCellIconGapDip) : 0));
             }
         }
 
@@ -2663,11 +2663,25 @@ void DxuiListView::PaintDataRows (
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
         {
-            uint32_t  argb = cells[c].dim ? pal.fgDim : pal.fg;
+            uint32_t  argb      = cells[c].dim ? pal.fgDim : pal.fg;
+            float     iconShift = 0.0f;
 
             if (!m_columns[c].visible || colWPx[c] <= 0)
             {
                 continue;
+            }
+
+            if (cells[c].icon && !cells[c].icon->bgraPremul.empty())
+            {
+                float  iconPx = m_scaler.ToPxf ((float) s_kCellIconDip);
+
+                hr = text.DrawIconBitmap (cells[c].icon->bgraPremul.data(), cells[c].icon->width, cells[c].icon->height,
+                                          x + colOff + (float) colXPx[c] + cellPadL,
+                                          ry + (rowH - iconPx) * 0.5f,
+                                          iconPx, iconPx);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                iconShift = iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
             }
 
             // Search-match highlight: an accent band behind each matched
@@ -2676,8 +2690,8 @@ void DxuiListView::PaintDataRows (
             if (!cells[c].matches.empty() && m_columns[c].align == DxuiTextHAlign::Left)
             {
                 const std::wstring &  cellText  = cells[c].text;
-                float                 cellX     = x + colOff + (float) colXPx[c] + cellPadL;
-                float                 cellMaxW  = (float) colWPx[c] - cellPadL - cellPadR;
+                float                 cellX     = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
+                float                 cellMaxW  = (float) colWPx[c] - cellPadL - cellPadR - iconShift;
                 float                 bandInset = rowH * 0.14f;
 
                 for (const std::pair<int, int> & mr : cells[c].matches)
@@ -2716,9 +2730,9 @@ void DxuiListView::PaintDataRows (
             }
 
             hr = text.DrawString (cells[c].text.c_str(),
-                                  x + colOff + (float) colXPx[c] + cellPadL,
+                                  x + colOff + (float) colXPx[c] + cellPadL + iconShift,
                                   ry,
-                                  (float) colWPx[c] - cellPadL - cellPadR,
+                                  (float) colWPx[c] - cellPadL - cellPadR - iconShift,
                                   rowH,
                                   argb,
                                   fontPx,

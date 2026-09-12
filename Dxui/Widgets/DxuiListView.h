@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiIconImage.h"
 #include "DxuiScrollbar.h"
 
 
@@ -47,6 +48,9 @@ public:
         // as search-match highlights. Empty = none. Supplied sorted and
         // non-overlapping; honored only for left-aligned columns.
         std::vector<std::pair<int, int>>  matches;
+
+        //  Drawn at the start of the cell, the text moved along past it.
+        std::shared_ptr<const DxuiIconImage>  icon;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -352,6 +356,8 @@ private:
     static constexpr int    s_kCellPadRightDip   = 16;
     static constexpr int    s_kSortGlyphWidthDip = 10;
     static constexpr int    s_kScrollbarWidthDip = 10;
+    static constexpr int    s_kCellIconDip       = 16;
+    static constexpr int    s_kCellIconGapDip    = 6;
     static constexpr int    s_kMinColWidthDip    = 48;
     static constexpr int    s_kResizeGrabDip     = 4;
     static constexpr int    s_kHScrollStepDip    = 32;

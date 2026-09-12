@@ -285,6 +285,7 @@
     <ClInclude Include="Widgets\DxuiHexView.h" />
     <ClInclude Include="Core\DxuiClipboard.h" />
     <ClInclude Include="Core\DxuiStandardCommand.h" />
+    <ClInclude Include="Core\DxuiIconImage.h" />
     <ClInclude Include="Window\DxuiDragDropSource.h" />
     <ClInclude Include="Theme\DxuiLightTheme.h" />
     <ClInclude Include="Theme\DxuiDarkTheme.h" />

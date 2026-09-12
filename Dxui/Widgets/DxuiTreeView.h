@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiIconImage.h"
 #include "Widgets/DxuiScrollbar.h"
 
 
@@ -62,6 +63,9 @@ struct DxuiTreeNode
     bool                       childrenLoaded = true;           // false: ask the provider on first expand
     bool                       dimmed         = false;          // drawn in the muted color
     std::vector<DxuiTreeNode>  children;
+
+    //  Drawn before the label, as Explorer draws a folder's; none draws none.
+    std::shared_ptr<const DxuiIconImage>  icon;
 };
 
 
@@ -110,6 +114,8 @@ public:
 
     //  Explorer's navigation pane, measured at 120 dpi: forty pixels a row.
     static constexpr int  s_kRowHeightDip = 32;
+    static constexpr int  s_kIconDip      = 16;
+    static constexpr int  s_kIconGapDip   = 6;
     void  SetNodes     (std::vector<DxuiTreeNode> nodes) { m_nodes = std::move (nodes); RebuildFlatRows(); }
     void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }

@@ -11,6 +11,7 @@
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32ProcessLauncher.h"
+#include "Seams/Win32ShellIcons.h"
 #include "Theme/DxuiDarkTheme.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Theme/DxuiLightTheme.h"
@@ -207,6 +208,7 @@ private:
     Context                                      m_context;
     Win32HostDialogs                             m_dialogs;
     Win32ProcessLauncher                         m_launcher;
+    Win32ShellIcons                              m_shellIcons;
     std::vector<std::unique_ptr<DxuiCommand>>    m_menuCommands;
     std::vector<Win32IntentChannel::Reply>       m_pendingReplies;
     bool                                         m_dragArmed       = false;

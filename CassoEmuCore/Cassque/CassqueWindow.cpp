@@ -232,6 +232,11 @@ void CassqueWindow::OnCreate()
     m_menuBar->SetPopupHost (GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
 
+    //  Drawn by the shell at the pixel size a row's icon is laid out at, and
+    //  handed to the browser before the first nodes and rows are built.
+    m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
+    m_browser.SetShellIcons (&m_shellIcons);
+
     ConfigureWidgets();
 }
 
@@ -589,15 +594,16 @@ void CassqueWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 void CassqueWindow::FillList()
 {
-    std::vector<std::vector<DxuiListView::Cell>>  rows;
-    const BrowserModel &                          model   = m_browser.GetBrowserModel();
-    std::wstring                                  message = m_browser.GetListError();
+    std::vector<std::vector<DxuiListView::Cell>>    rows;
+    const BrowserModel                            & model    = m_browser.GetBrowserModel();
+    std::wstring                                    message  = m_browser.GetListError();
+    Location                                        location = m_browser.GetLocation();
 
 
 
     for (const CatalogRow & row : m_browser.GetRows())
     {
-        rows.push_back (CassqueBrowser::ToCells (row));
+        rows.push_back (CassqueBrowser::ToCells (row, location, &m_shellIcons));
     }
 
     m_list->SetRows (std::move (rows));

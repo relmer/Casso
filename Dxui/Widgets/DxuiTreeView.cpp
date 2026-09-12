@@ -967,6 +967,17 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
+        if (node != nullptr && node->icon && !node->icon->bgraPremul.empty())
+        {
+            float  iconPx = m_scaler.ToPxf ((float) s_kIconDip);
+
+            hr = text.DrawIconBitmap (node->icon->bgraPremul.data(), node->icon->width, node->icon->height,
+                                      textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, iconPx);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            textX += iconPx + m_scaler.ToPxf ((float) s_kIconGapDip);
+        }
+
         if (node != nullptr)
         {
             hr = text.DrawString (node->label.c_str(),

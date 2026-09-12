@@ -271,6 +271,7 @@
     <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
     <ClCompile Include="Cassque\CassqueFixtureTests.cpp" />
     <ClCompile Include="Cassque\CassqueShellTests.cpp" />
+    <ClCompile Include="Cassque\CassqueShellIconsTests.cpp" />
     <ClCompile Include="Cassque\CassqueBrowserTests.cpp" />
     <ClCompile Include="Cassque\CassqueCommandsTests.cpp" />
     <ClCompile Include="Cassque\CassqueActionsTests.cpp" />
