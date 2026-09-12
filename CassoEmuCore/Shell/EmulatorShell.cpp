@@ -213,6 +213,21 @@ EmulatorShell::~EmulatorShell()
     SetNotifyFunction (nullptr);
     s_pNotifyShell = nullptr;
 
+    //  THE CONTROLLER STACK GOES BY HAND, HERE, for the same reason. Its
+    //  members are declared after the window, so member-order destruction
+    //  leaves the HWND alive and dispatching messages after the service is
+    //  gone -- and WM_ACTIVATEAPP is exactly the kind that arrives while a
+    //  window is being torn down. OnActivateApp guards on the pointer, but a
+    //  unique_ptr does not null itself as it destroys, so the guard reads a
+    //  stale non-null pointer and calls into freed memory. The crash lands
+    //  on the service's mutex, which is the first thing it touches.
+    //
+    //  In order: the thread stops and joins first, so nothing is inside the
+    //  service when it goes; then the service, then the backend it reads.
+    m_controllerThread.reset();
+    m_controllerService.reset();
+    m_controllerBackend.reset();
+
     m_cpuManager.Stop();
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
