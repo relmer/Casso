@@ -103,7 +103,8 @@ Dxui/
 │   ├── DxuiSplitter.h/.cpp            # NEW
 │   ├── DxuiStatusBar.h/.cpp           # NEW
 │   ├── DxuiFramebufferView.h/.cpp     # NEW
-│   └── DxuiHexView.h/.cpp             # NEW: offset, hex and text columns over one byte selection
+│   └── DxuiHexView.h/.cpp             # NEW: offset, hex and text columns over one byte selection,
+│                                      #      bytes from a host source at a host origin (debugger too)
 ├── Window/
 │   └── DxuiDragDropSource.h/.cpp      # NEW: IDropSource + IDataObject with delayed rendering
 └── Theme/
@@ -206,7 +207,10 @@ this list; phases here through the executable need nothing from 032.
    the hex and the text column, grouping at 1, 2, 4 and 8 bytes, copy
    either way, and go to offset. The font's glyphs come from the table
    at build time rather than a second copy of the dots, so the two
-   cannot drift.
+   cannot drift. The hex view reads its bytes through a host-supplied
+   source at a host-supplied origin and holds no copy, because the
+   debugger's caller is live machine memory addressed from $0000, not a
+   file the widget could own.
 8. **Validation and gates**: quickstart §1 through §9, `validation.md`,
    CHANGELOG, README headline, style sweep, four-configuration analysis
    rebuild, master merge.

@@ -450,6 +450,13 @@ bytes, change the grouping, and copy the selection both ways.
 - **FR-012h**: The text column MUST read a byte as Apple text, ignoring
   the high bit, and show a period for a byte that is printable neither
   way.
+- **FR-012i**: The hex view MUST serve any run of bytes, not a previewed
+  file alone: it MUST read them through a supplied source rather than
+  hold a copy, address them from a supplied origin rather than from zero,
+  take a per-byte mark from its host for bytes worth showing differently,
+  and stay responsive over a run as large as a machine's whole memory
+  with a source whose bytes change under it. The emulator's debugger is
+  the second caller and MUST need no change to the widget to use it.
 
 **Operations**
 
@@ -598,6 +605,9 @@ bytes, change the grouping, and copy the selection both ways.
 - **SC-007**: A range selected in either column of a hex preview covers
   exactly the same bytes in the other column, at every grouping width,
   including a range that starts and ends mid-row.
+- **SC-008a**: The hex view shows a 64 KB run, addressed from an origin
+  of the host's choosing, with no copy of those bytes held by the widget
+  and no pause a user can see when scrolling through it.
 - **SC-008**: Every character the Apple II character generator draws
   appears in a text preview with the same dot pattern the emulator's
   40-column display draws for it.
@@ -631,7 +641,11 @@ bytes, change the grouping, and copy the selection both ways.
   a second character set, and neither is part of previewing a file's
   text.
 - The hex preview is a widget the UI library gains, general rather than
-  Cassque-only: the emulator's debugger wants the same view of memory.
+  Cassque-only: the emulator's debugger wants the same view of memory,
+  which is why the bytes arrive through a source and an origin instead of
+  a buffer the widget owns. Editing bytes in place is not part of this
+  feature; the debugger's write path is a follow-on, and the widget's
+  selection is the ground it will stand on.
 - Sector and block operations live under an Advanced submenu and confirm
   before writing.
 - Known folders are seeded once from the recent-disks list and thereafter
