@@ -263,23 +263,26 @@ namespace ControllerTests
             mouse.mousePaddle   = true;
 
             Assert::AreEqual (std::wstring (L"Using the arrow keys as a joystick. X and Z are the buttons."),
-                InputModeRules::GetStandInBannerText (keys, false),
+                InputModeRules::GetStandInBannerText (keys),
                 L"nothing on screen marks X and Z, so the bar is the only place they are stated");
 
             Assert::AreEqual (std::wstring (L"Using the mouse for paddle input. Press Esc to exit paddle mode."),
-                InputModeRules::GetStandInBannerText (mouse, true));
+                InputModeRules::GetStandInBannerText (mouse));
         }
 
 
-        TEST_METHOD (StandInBanner_MouseSaysNothingUntilThePointerIsCaptured)
+        TEST_METHOD (StandInBanner_FollowsTheModeAndNotThePointerCapture)
         {
             InputModeRules::State  mouse;
 
             mouse.mousePaddle = true;
 
-            // Paddle mode with the pointer free is armed, not driving, and the
-            // way out is the whole reason that line exists.
-            Assert::IsTrue (InputModeRules::GetStandInBannerText (mouse, false).empty());
+            // Whether the pointer is held at this instant is how paddle mode
+            // reads the mouse, not something the user asked about, and
+            // Escape leaves the mode either way. The rule cannot see the
+            // capture at all, which is the point.
+            Assert::AreEqual (std::wstring (L"Using the mouse for paddle input. Press Esc to exit paddle mode."),
+                InputModeRules::GetStandInBannerText (mouse));
         }
 
 
@@ -292,7 +295,7 @@ namespace ControllerTests
 
             // Its buttons are labeled on the device, and a bar that never
             // goes away would cost picture for the whole session.
-            Assert::IsTrue (InputModeRules::GetStandInBannerText (pad, false).empty());
+            Assert::IsTrue (InputModeRules::GetStandInBannerText (pad).empty());
         }
     };
 }

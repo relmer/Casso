@@ -109,9 +109,9 @@ public:
 
     // The line the persistent banner carries while the keys or the mouse
     // stand in for a controller, and empty while a controller drives or
-    // nothing does. `isPointerCaptured` is the mouse's half: paddle mode
-    // with the pointer free is armed rather than driving.
-    static std::wstring  GetStandInBannerText (const State & state, bool isPointerCaptured);
+    // nothing does. Follows the MODE; how the mouse is read while paddle
+    // mode is on is not a question this answers.
+    static std::wstring  GetStandInBannerText (const State & state);
 
     static AxisOwner  GetAxisOwner            (const State & state);
     static State      AfterSelectingController (State state);

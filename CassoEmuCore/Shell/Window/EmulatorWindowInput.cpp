@@ -2823,7 +2823,7 @@ std::wstring EmulatorShell::GetStandInBannerText() const
     state.arrowsJoystick = IsArrowJoystickActive();
     state.mousePaddle    = (m_pointerMode == InputMappingMode::Paddle);
 
-    return InputModeRules::GetStandInBannerText (state, m_paddleCaptured);
+    return InputModeRules::GetStandInBannerText (state);
 }
 
 

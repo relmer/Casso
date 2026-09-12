@@ -164,20 +164,22 @@ std::wstring InputModeRules::BuildPaddleTip (const std::vector<PaddleSource> & s
 //  PERSISTENT RATHER THAN A FEW SECONDS, because it answers a question the
 //  user has for as long as the mode lasts, not only at the moment they chose
 //  it. Both stand-ins bind host controls that carry no marking: nothing on
-//  screen says X and Z became the buttons, or how to get the pointer back. A
-//  notice that expires leaves a user who looked away with no way to find out
-//  short of trying keys until one fires.
+//  screen says X and Z became the buttons, or that Escape is the way out of
+//  paddle mode. A notice that expires leaves a user who looked away with no
+//  way to find out short of trying keys until one fires.
+//
+//  THE MODE, NOT THE POINTER CAPTURE. Capture is how paddle mode reads the
+//  mouse, which is nothing the user asked about; Escape leaves paddle mode
+//  whether or not the pointer is held at that moment, so the line is true
+//  for as long as the mode is on.
 //
 //  A controller needs none of this. Its buttons are labeled on the device.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InputModeRules::GetStandInBannerText (const State & state, bool isPointerCaptured)
+std::wstring InputModeRules::GetStandInBannerText (const State & state)
 {
-    //  The mouse only while it is actually captured: paddle mode with the
-    //  pointer free is armed, not driving, and the way out is the one thing
-    //  the line has to say.
-    if (state.mousePaddle && isPointerCaptured)
+    if (state.mousePaddle)
     {
         return L"Using the mouse for paddle input. Press Esc to exit paddle mode.";
     }
