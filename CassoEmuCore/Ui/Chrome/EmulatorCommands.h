@@ -179,11 +179,16 @@ private:
     std::vector<std::unique_ptr<DxuiCommand>>  m_colorRows;
     std::vector<std::unique_ptr<DxuiCommand>>  m_paddleSourceRows;
 
-    // The generation before it, kept alive because a drop-down already on
-    // screen holds its rows by pointer and the list is rebuilt whenever a
-    // controller comes or goes. Each row answers for the source it was
-    // built from, so a click on one of these still does what it says.
-    std::vector<std::unique_ptr<DxuiCommand>>  m_retiredPaddleRows;
+    // Earlier generations, kept alive for two holders. A drop-down already on
+    // screen holds its rows by pointer, which one generation covers. And a
+    // row's own DISPATCH holds its row while it runs -- picking a source
+    // rebuilds the rows several times before the dispatch returns -- so every
+    // generation retired during a dispatch survives until the next rebuild
+    // that happens outside one.
+    std::vector<std::vector<std::unique_ptr<DxuiCommand>>>  m_retiredPaddleRows;
+
+    // How many row dispatches are on the stack right now. See above.
+    int                                        m_paddleDispatchDepth  = 0;
     std::vector<InputModeRules::PaddleSource>  m_paddleSources;
     PaddleSourcePickedFn                       m_onPaddleSourcePicked;
 

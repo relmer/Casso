@@ -188,6 +188,67 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (APickThatRebuildsTheRows_StillReadsTheSourceItPicked)
+        {
+            EmulatorCommands                commands;
+            InputModeRules::PaddleSource    stick   = MakeSource (L"VKBsim Gladiator", L"VKBsim Gladiator", false);
+            ControllerUnitKey               unit;
+            std::wstring                    labelAfterRebuilds;
+            bool                            unitIntact = false;
+
+            unit.model      = { ControllerKind::DirectInput, 0x231d, 0x0121 };
+            unit.unitId     = "{01661270-ADF7-11F1-8005-444553540000}";
+            unit.source     = ControllerUnitSource::InstanceGuid;
+            stick.controller = unit;
+
+            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true),
+                                         stick,
+                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
+
+            // What the shell does on a pick: turning the arrows and the paddle
+            // off re-syncs the picker, which rebuilds the rows -- more than once
+            // -- all before the dispatch returns. The source handed in belongs
+            // to the row being rebuilt away.
+            commands.SetPaddleSourcePickedFn ([&] (const InputModeRules::PaddleSource & source)
+            {
+                commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+                commands.SetPaddleSources ({ MakeSource (L"Use mouse as paddle", L"Mouse", true) });
+
+                labelAfterRebuilds = source.label;
+                unitIntact         = source.controller.has_value() && source.controller.value() == unit;
+            });
+
+            commands.GetPaddleSourceItems()[1].command->dispatch();
+
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), labelAfterRebuilds,
+                L"the picked source outlives the rows rebuilt during its own dispatch");
+            Assert::IsTrue (unitIntact,
+                L"and so does the controller key the selection is copied from");
+        }
+
+
+        TEST_METHOD (AfterADispatch_TheNextRebuildReleasesTheRetiredGenerations)
+        {
+            EmulatorCommands  commands;
+
+            commands.SetPaddleSourcePickedFn ([&] (const InputModeRules::PaddleSource &)
+            {
+                commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+                commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            });
+
+            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true) });
+            commands.GetPaddleSourceItems()[0].command->dispatch();
+
+            // A rebuild outside any dispatch is where the kept generations go.
+            // The live list is still exactly what was last set.
+            commands.SetPaddleSources ({ MakeSource (L"Use mouse as paddle", L"Mouse", true),
+                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
+
+            Assert::AreEqual (static_cast<size_t> (2), commands.GetPaddleSourceItems().size());
+        }
+
+
         TEST_METHOD (RowsShrinking_DropsTheSpareRowsFromTheList)
         {
             EmulatorCommands  commands;

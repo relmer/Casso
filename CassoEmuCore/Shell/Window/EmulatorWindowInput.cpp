@@ -2719,7 +2719,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PickPaddleSource (const InputModeRules::PaddleSource & source)
+void EmulatorShell::PickPaddleSource (InputModeRules::PaddleSource source)
 {
     if (source.isArrowKeys)
     {
@@ -3046,8 +3046,9 @@ void EmulatorShell::SyncGamePortAxisOwner()
 
 void EmulatorShell::SyncInputModeUi()
 {
+    // SyncSelectorState rebuilds the picker rows; calling SyncPaddleSourceList
+    // here as well rebuilt them twice for every mode change.
     SyncSelectorState();
-    SyncPaddleSourceList();
     PersistInputModeForMachine();
 }
 

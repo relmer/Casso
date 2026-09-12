@@ -584,7 +584,11 @@ private:
     // written to it, so the key handlers ask this rather than m_arrowsJoystick.
     bool    IsArrowJoystickActive () const { return m_arrowsJoystick || m_arrowKeyFallback; }
     void    ApplyAutomaticControllerSelection (const std::wstring & description, bool isAdoption);
-    void    PickPaddleSource       (const InputModeRules::PaddleSource & source);
+    // BY VALUE, not by reference. The source arrives from a picker row's
+    // dispatch, and picking rebuilds the rows -- turning the arrows and the
+    // paddle off each re-syncs the picker -- so a reference into the row
+    // would outlive the row it refers to.
+    void    PickPaddleSource       (InputModeRules::PaddleSource source);
     void    SetControllerSelection (const std::optional<ControllerUnitKey> & selection);
     void    SyncPaddleSourceList   ();
 

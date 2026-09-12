@@ -673,7 +673,17 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
     //  is open is a case the quickstart tests on purpose. One generation is
     //  enough: the surface is handed the new list as soon as the rows are
     //  rebuilt, so only a menu already on screen can still hold the old one.
-    m_retiredPaddleRows = std::move (m_paddleSourceRows);
+    //  OUTSIDE A DISPATCH, only the generation just replaced is kept, for a
+    //  drop-down still on screen. INSIDE ONE, nothing is freed: the row whose
+    //  dispatch is running is in one of these, and picking a source rebuilds
+    //  the rows more than once before that dispatch returns. Freeing it frees
+    //  the source its dispatch is still reading.
+    if (m_paddleDispatchDepth == 0)
+    {
+        m_retiredPaddleRows.clear();
+    }
+
+    m_retiredPaddleRows.push_back (std::move (m_paddleSourceRows));
     m_paddleSourceRows.clear();
 
     for (i = 0; i < m_paddleSources.size(); i++)
@@ -699,7 +709,9 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
         {
             if (m_onPaddleSourcePicked)
             {
+                m_paddleDispatchDepth++;
                 m_onPaddleSourcePicked (source);
+                m_paddleDispatchDepth--;
             }
         };
 
