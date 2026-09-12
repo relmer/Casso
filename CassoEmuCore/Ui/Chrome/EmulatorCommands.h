@@ -81,6 +81,7 @@ public:
     static constexpr int  kIdColor  = 2;
     static constexpr int  kIdVolume = 3;
     static constexpr int  kIdInput  = 4;
+    static constexpr int  kIdPaddle = 5;
 
     static constexpr int  kMenuCount = 7;
 

@@ -2716,7 +2716,6 @@ void EmulatorShell::SyncPaddleSourceList()
     // going empty.
     if (m_controllerService == nullptr)
     {
-        m_toolbar.SetDropDownItems (EmulatorCommands::kIdInput, m_inputCluster.GetPickerItems());
         return;
     }
 
@@ -2733,7 +2732,7 @@ void EmulatorShell::SyncPaddleSourceList()
     // Straight onto the command bar's Input drop-down rather than a submenu
     // off the Machine menu: this is a list the user picks from while playing,
     // and a cascade puts two hovers between them and their controller.
-    m_toolbar.SetDropDownItems (EmulatorCommands::kIdInput,
+    m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
                                 m_mainMenu.GetCommands().GetPaddleSourceItems());
 }
 
@@ -2875,6 +2874,7 @@ void EmulatorShell::SyncSelectorState()
     // picker list is handed over again for the same reason.
     if (countChanged)
     {
+        m_toolbar.SetDropDownItems (EmulatorCommands::kIdInput, m_inputCluster.GetPickerItems());
         SyncPaddleSourceList();
 
         if (bounds.right > bounds.left)
