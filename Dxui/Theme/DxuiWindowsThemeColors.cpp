@@ -2,6 +2,8 @@
 
 #include "DxuiWindowsThemeColors.h"
 
+#pragma comment(lib, "uxtheme.lib")
+
 
 
 
@@ -116,7 +118,193 @@ DxuiWindowsThemeColors::DxuiWindowsThemeColors()
 
 void DxuiWindowsThemeColors::Refresh()
 {
+    SystemColors  colors;
+
+
+
     m_darkMode = !ReadAppsUseLightTheme();
+
+    ReadAccentPalette   (colors);
+    ReadItemsViewColors (colors);
+
+    m_system = colors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiWindowsThemeColors::ToArgb
+//
+//  A COLORREF is 0x00BBGGRR; Dxui paints in opaque 0xAARRGGBB.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiWindowsThemeColors::ToArgb (COLORREF color)
+{
+    return 0xFF000000u
+         | ((uint32_t) GetRValue (color) << 16)
+         | ((uint32_t) GetGValue (color) << 8)
+         |  (uint32_t) GetBValue (color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiWindowsThemeColors::DecodeAccentPalette
+//
+//  Fluent takes the accent a step lighter on a dark surface and a step darker
+//  on a light one, so a dark theme's accent is Light2 and a light theme's is
+//  Dark1, each with the next step out for hover. UISettings reports the same
+//  ramp; the registry is read instead so the library needs no WinRT.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindowsThemeColors::DecodeAccentPalette (std::span<const BYTE> bytes, SystemColors & colors)
+{
+    static constexpr size_t  kLight3 = 0;
+    static constexpr size_t  kLight2 = 1;
+    static constexpr size_t  kDark1  = 4;
+    static constexpr size_t  kDark2  = 5;
+
+
+
+    if (bytes.size() < kAccentPaletteBytes)
+    {
+        return false;
+    }
+
+    colors.accentLight3 = GetPaletteEntry (bytes, kLight3);
+    colors.accentLight2 = GetPaletteEntry (bytes, kLight2);
+    colors.accentDark1  = GetPaletteEntry (bytes, kDark1);
+    colors.accentDark2  = GetPaletteEntry (bytes, kDark2);
+    colors.hasAccent    = true;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiWindowsThemeColors::GetPaletteEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiWindowsThemeColors::GetPaletteEntry (std::span<const BYTE> bytes, size_t index)
+{
+    const BYTE *  at = bytes.data() + index * 4;
+
+
+
+    return 0xFF000000u | ((uint32_t) at[0] << 16) | ((uint32_t) at[1] << 8) | (uint32_t) at[2];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiWindowsThemeColors::ReadAccentPalette
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindowsThemeColors::ReadAccentPalette (SystemColors & colors)
+{
+    HKEY     hKey                       = nullptr;
+    BYTE     bytes[kAccentPaletteBytes] = {};
+    DWORD    size                       = sizeof (bytes);
+    LSTATUS  rc                         = ERROR_SUCCESS;
+    bool     decoded                    = false;
+
+
+
+    rc = RegOpenKeyExW (HKEY_CURRENT_USER, kpszAccentSubkey, 0, KEY_READ, &hKey);
+
+    if (rc != ERROR_SUCCESS)
+    {
+        return;
+    }
+
+    rc = RegQueryValueExW (hKey, kpszAccentPalette, nullptr, nullptr, bytes, &size);
+    RegCloseKey (hKey);
+
+    if (rc == ERROR_SUCCESS)
+    {
+        decoded = DecodeAccentPalette (std::span<const BYTE> (bytes, size), colors);
+        IGNORE_RETURN_VALUE (decoded, true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiWindowsThemeColors::ReadItemsViewColors
+//
+//  Both modes are read whatever mode is active, so a window set to Light while
+//  Windows is dark still gets the system's light surface. Measured 2026-09-12:
+//  the dark class gives #191919, the value read off Explorer by capture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindowsThemeColors::ReadItemsViewColors (SystemColors & colors)
+{
+    bool  dark  = ReadThemeFill (kpszItemsViewDark,  colors.contentDark);
+    bool  light = ReadThemeFill (kpszItemsViewLight, colors.contentLight);
+
+
+
+    colors.hasSurfaces = dark && light;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiWindowsThemeColors::ReadThemeFill
+//
+//  The list item's fill as the visual style declares it. No window is needed
+//  to open the data, which is what lets this run before the first one exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindowsThemeColors::ReadThemeFill (LPCWSTR themeClass, uint32_t & outArgb)
+{
+    HTHEME    theme  = OpenThemeData (nullptr, themeClass);
+    COLORREF  fill   = 0;
+    HRESULT   hrFill = E_FAIL;
+
+
+
+    if (theme == nullptr)
+    {
+        return false;
+    }
+
+    hrFill = GetThemeColor (theme, LVP_LISTITEM, LISS_NORMAL, TMT_FILLCOLOR, &fill);
+    CloseThemeData (theme);
+
+    if (FAILED (hrFill))
+    {
+        return false;
+    }
+
+    outArgb = ToArgb (fill);
+
+    return true;
 }
 
 

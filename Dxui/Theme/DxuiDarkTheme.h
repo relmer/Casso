@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiWindowsThemeColors.h"
 
 
 
@@ -25,4 +26,10 @@
 struct DxuiDarkTheme : public DxuiTheme
 {
     DxuiDarkTheme();
+
+    //  Overwrites the values Windows publishes -- the list surface and the
+    //  accent -- keeping the built-in ones for whatever it does not. Not done
+    //  in the constructor, so a theme built in a test does not depend on the
+    //  machine it runs on.
+    void  ApplySystemColors (const DxuiWindowsThemeColors::SystemColors & colors);
 };

@@ -145,6 +145,7 @@ private:
 
     void  ConfigureWidgets();
     void  ApplyTheme();
+    void  AdoptSystemColors();
     void  SelectTheme (const char * name);
 
     static bool  IsCassoThemeName (const std::string & name);

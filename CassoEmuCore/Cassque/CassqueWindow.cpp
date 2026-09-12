@@ -76,6 +76,8 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
 
 
 
+    AdoptSystemColors();
+
     m_theme = &CassqueShell::ChooseTheme (m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
 
     //  Before the first layout, which the window's creation can bring on.
@@ -356,12 +358,38 @@ void CassqueWindow::ConfigureWidgets()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::AdoptSystemColors
+//
+//  The Windows themes take the list surface and the accent from the system
+//  each time a theme is chosen, which also picks up an accent changed while
+//  the window was away.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::AdoptSystemColors()
+{
+    const DxuiWindowsThemeColors::SystemColors &  system = DxuiWindowsThemeColors::Instance().GetSystemColors();
+
+
+
+    m_lightTheme.ApplySystemColors (system);
+    m_darkTheme.ApplySystemColors  (system);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::ApplyTheme
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassqueWindow::ApplyTheme()
 {
+    AdoptSystemColors();
+
     m_theme = &CassqueShell::ChooseTheme (m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
 
     //  Casso's own themes lend their chrome colors; the skeuomorphic one has

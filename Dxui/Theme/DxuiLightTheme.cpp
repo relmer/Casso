@@ -48,3 +48,34 @@ DxuiLightTheme::DxuiLightTheme()
     tooltipText              = 0xFF1A1A1A;
     errorText                = 0xFFC42B1C;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLightTheme::ApplySystemColors
+//
+//  A light surface takes the accent a step darker, Dark1 with Dark2 for
+//  hover, as Fluent does.
+//
+//  The text is left alone. The visual style's list text is the classic
+//  style's value, which for light is #000000 where Windows 11 draws #1A1A1A,
+//  and the body text drives every menu and dialog besides the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiLightTheme::ApplySystemColors (const DxuiWindowsThemeColors::SystemColors & colors)
+{
+    if (colors.hasSurfaces)
+    {
+        contentBg = colors.contentLight;
+    }
+
+    if (colors.hasAccent)
+    {
+        link      = colors.accentDark1;
+        linkHover = colors.accentDark2;
+    }
+}

@@ -371,13 +371,15 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 
 
-    // Underline-style strip: the "selected" slot carries the accent used for
-    // the active-tab underline (the theme selection color), hover is a subtle
-    // fill hint, idle is unused (idle tabs blend with the page).
+    // Underline-style strip: the "selected" slot carries the accent for the
+    // active-tab underline, hover is a subtle fill hint, idle is unused (idle
+    // tabs blend with the page). The accent, not the selection fill: the two
+    // were the same color until the Windows themes began taking the accent
+    // from the system, and a row's selection is deliberately neutral.
     PaintInternal (painter, text,
                    DxuiColor::Scale (hover, s_kIdleScale),
                    hover,
-                   theme.SelectionBackground(),
+                   theme.Accent(),
                    theme.Foreground(),
                    theme.FocusRing());
 }
