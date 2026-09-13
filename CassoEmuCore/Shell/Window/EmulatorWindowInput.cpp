@@ -1548,7 +1548,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             // A browse opened from the strip pins it (the FSM must not
             // auto-hide under the dialog).
             m_stripBrowseOpen = inStrip;
-            BrowseForDisk (sceneHit.driveIndex);
+            BrowseForDisk (sceneHit.driveIndex,
+                           inStrip ? &m_stripComp.driveRectPx[sceneHit.driveIndex]
+                                   : &m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
             m_stripBrowseOpen = false;
 
             driveTook = true;
@@ -1570,8 +1572,10 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 // In fullscreen the widget is riding the overlay strip, and a
                 // browse opened from the strip pins it (the FSM must not
                 // auto-hide under the dialog).
+                RECT  driveRect = drive.GetOuterRect();
+
                 m_stripBrowseOpen = m_d3dRenderer.IsFullscreen();
-                BrowseForDisk (drive.GetDrive());
+                BrowseForDisk (drive.GetDrive(), &driveRect);
                 m_stripBrowseOpen = false;
 
                 driveTook = true;

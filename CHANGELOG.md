@@ -28,9 +28,14 @@ Entries before versioning was introduced use dates only.
   own tooltips on the minimize, maximize and close buttons.
 - Casso follows the Windows settings for access-key underlines, notification
   duration, mouse-wheel scrolling, menu show delay and menu animations.
+- The disk picker opens centered below the drive that was clicked, moving
+  only as far as it must to stay on screen. Opened from the menu or the
+  keyboard, it centers on the Casso window.
 
 ### Fixed
 
+- The disk picker opens with its list scrolled to the top rather than the
+  bottom.
 - Fixed bug preventing write-enabling images that rely on +R attribute for
   write protection.
 - The padlock on a drive appears and clears as soon as the disk is

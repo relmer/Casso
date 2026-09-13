@@ -1223,6 +1223,7 @@ void Disk2DebugPanel::ConfigureWidgets()
         SortByColumn (col);
     });
     m_eventList->SetOnColumnResized ([] (int, int) {});
+    m_eventList->EnableStickyTail   (true);   // a live log follows its newest row
 
     // Install the virtual-row provider once: the list pulls only its visible
     // window through FillRow, so a 100k-row live log costs O(visible) per
