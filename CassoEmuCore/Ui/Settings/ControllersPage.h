@@ -74,6 +74,15 @@ public:
     // Re-sync every widget from the state.
     void  Refresh          ();
 
+    // Press-to-assign in progress, for the sheet's prompt over the page: the
+    // sentence it shows, and a way to call the wait off.
+    bool          IsCapturing        () const;
+    std::wstring  GetCapturePrompt   () const;
+    void          CancelCapture      ();
+
+    // The page's rows came or went, which changes what Tab reaches.
+    void          SetOnLayoutChanged (std::function<void ()> onLayoutChanged);
+
 private:
 
     // One control a row's drop-down offers, after "Press to assign..." and
@@ -122,6 +131,7 @@ private:
     DxuiDpiScaler                               m_lastScaler;
     bool                                        m_hasLayout           = false;
     bool                                        m_isSyncing           = false;
+    std::function<void ()>                      m_onLayoutChanged;
 
     DxuiLabel          m_controllerLabel;
     DxuiComboBox       m_controller;

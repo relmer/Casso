@@ -369,6 +369,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_speed[target].SetStep          (16.0f);
         m_speed[target].SetDecimalPlaces (0);
         m_speed[target].SetSuffix        (L"/s");
+        m_speed[target].SetTickInterval  (128.0f);
 
         axesBottom += rowH + sectionGap;
     }
@@ -413,6 +414,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_deadzone.SetStep          (1.0f);
     m_deadzone.SetDecimalPlaces (0);
     m_deadzone.SetSuffix        (L"%");
+    m_deadzone.SetTickInterval  (10.0f);
     y += rowH + sectionGap;
 
     m_calibrationLabel.SetRect  (MakeRect (x, y, labelWidth, rowH));
@@ -975,19 +977,40 @@ void ControllersPage::OnRowSelect (size_t target, size_t row, int item)
 //
 //  AddRow
 //
-//  Shows one more row under the target, reading "None" until the user picks
-//  a control for it. Nothing is added to the mapping until they do.
+//  Waits at once for the control the new row will hold. The sheet shows a
+//  prompt over the page while it waits, so the user is not left wondering
+//  what a click on "+" did; Escape or a click calls it off, and the row is
+//  never added.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::AddRow (size_t target)
 {
-    if (GetShownRows (target) >= kMaxRows)
+    std::optional<size_t>            selected;
+    std::optional<ControllerSample>  baseline;
+    size_t                           count    = GetBindingCount (target);
+
+
+
+    if (m_state == nullptr || count >= kMaxRows)
     {
         return;
     }
 
-    m_hasExtraRow[target] = true;
+    selected = m_state->GetSelectedIndex();
+
+    if (!selected.has_value())
+    {
+        return;
+    }
+
+    if (m_sampleSource)
+    {
+        baseline = m_sampleSource (m_state->GetControllers()[selected.value()].unit);
+    }
+
+    m_state->BeginCapture (TargetAt (target), baseline.value_or (ControllerSample()), std::nullopt);
+    m_capturing = std::make_pair (target, count);
     Relayout();
 }
 
@@ -1095,7 +1118,8 @@ void ControllersPage::AfterEdit()
 //
 //  Relayout
 //
-//  Rows came or went, which moves everything below them.
+//  Rows came or went, which moves everything below them and changes what Tab
+//  reaches; the sheet is told so it can rebuild its tab order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1109,6 +1133,92 @@ void ControllersPage::Relayout()
     {
         Refresh();
     }
+
+    if (m_onLayoutChanged)
+    {
+        m_onLayoutChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsCapturing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPage::IsCapturing() const
+{
+    return m_state != nullptr && m_state->IsCapturing();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCapturePrompt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPage::GetCapturePrompt() const
+{
+    std::optional<size_t>  selected = m_state != nullptr ? m_state->GetSelectedIndex() : std::nullopt;
+    std::wstring           target   = m_capturing.has_value() ? std::wstring (s_kTargetNames[m_capturing->first]) : std::wstring();
+
+
+
+    if (!target.empty() && target.back() == L':')
+    {
+        target.pop_back();
+    }
+
+    if (!selected.has_value())
+    {
+        return L"Press a control.";
+    }
+
+    return L"Press a control on " + m_state->GetControllers()[selected.value()].description + L" for " + target + L".";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CancelCapture
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::CancelCapture()
+{
+    if (m_state != nullptr)
+    {
+        m_state->CancelCapture();
+    }
+
+    m_capturing.reset();
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetOnLayoutChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::SetOnLayoutChanged (std::function<void()> onLayoutChanged)
+{
+    m_onLayoutChanged = std::move (onLayoutChanged);
 }
 
 

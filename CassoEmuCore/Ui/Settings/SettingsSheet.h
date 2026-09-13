@@ -108,6 +108,10 @@ private:
     //  Show/hide + fill the amber restart-notice caption (list #3 / FR-131).
     void  UpdateRestartNotice ();
 
+    //  The prompt over the sheet while the Controllers page waits for a
+    //  control to be pressed.
+    void  PaintCapturePrompt  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+
     // Drive-sound audition for the Machine page's play (>) buttons. Ported
     // verbatim from SettingsPanel: push the current volumes / pan / mechanism
     // to the engine and post the one-shot test command. Self-contained (needs

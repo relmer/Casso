@@ -452,6 +452,13 @@ HRESULT SettingsSheet::OpenModeless (
         }
 
         m_controllersPage->SetState (&m_controllersState);
+
+        // Rows added or removed on the page change what Tab reaches.
+        m_controllersPage->SetOnLayoutChanged ([this] ()
+        {
+            RefreshFocusOrder (m_controllersPage);
+            Invalidate();
+        });
         m_apply.BindControllers (&m_controllersState, service);
     }
 
@@ -999,7 +1006,7 @@ void SettingsSheet::UpdateDiskTabVisibility()
 
 bool SettingsSheet::HasModalOverlay() const
 {
-    return m_colorPicker.IsOpen();
+    return m_colorPicker.IsOpen() || (m_controllersPage != nullptr && m_controllersPage->IsCapturing());
 }
 
 
@@ -1018,6 +1025,68 @@ void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer
     {
         m_colorPicker.Paint (painter, text, theme);
     }
+    else if (m_controllersPage != nullptr && m_controllersPage->IsCapturing())
+    {
+        PaintCapturePrompt (text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintCapturePrompt
+//
+//  A card over a dimmed sheet saying what the page is waiting for. Without
+//  it, a click on "+" or "Press to assign..." appears to do nothing until a
+//  control happens to be pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::PaintCapturePrompt (IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    constexpr int  kCardWidthDp  = 440;
+    constexpr int  kCardHeightDp = 110;
+    constexpr int  kFontDp       = 14;
+    RECT           client        = {};
+    UINT           dpi           = GetDpiForWindow (GetHwnd());
+    float          scale         = (float) dpi / 96.0f;
+    float          cardW         = kCardWidthDp  * scale;
+    float          cardH         = kCardHeightDp * scale;
+    float          left          = 0.0f;
+    float          top           = 0.0f;
+    float          border        = std::max (1.0f, scale);
+    HRESULT        hr            = S_OK;
+
+
+
+    GetClientRect (GetHwnd(), &client);
+
+    left = ((float) (client.right - client.left) - cardW) * 0.5f;
+    top  = ((float) (client.bottom - client.top) - cardH) * 0.5f;
+
+    hr = text.FillRect (0.0f, 0.0f, (float) (client.right - client.left), (float) (client.bottom - client.top), 0x80000000u);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillRect (left - border, top - border, cardW + border * 2.0f, cardH + border * 2.0f, theme.Border());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillRect (left, top, cardW, cardH, theme.BackgroundElevated());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (m_controllersPage->GetCapturePrompt().c_str(),
+                          left, top + cardH * 0.2f, cardW, cardH * 0.35f,
+                          theme.Foreground(), kFontDp * scale, L"Segoe UI",
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (L"Press Esc or click to cancel.",
+                          left, top + cardH * 0.55f, cardW, cardH * 0.3f,
+                          theme.ForegroundMuted(), kFontDp * scale * 0.9f, L"Segoe UI",
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -1035,9 +1104,23 @@ bool SettingsSheet::OnOverlayMouse (const DxuiMouseEvent & ev)
     // An open color picker is modal over the sheet, so it takes EVERY mouse
     // event -- including the kinds it ignores, which must not reach the
     // controls behind it.
-    bool  isOpen = m_colorPicker.IsOpen();
+    bool  isOpen      = m_colorPicker.IsOpen();
+    bool  isCapturing = m_controllersPage != nullptr && m_controllersPage->IsCapturing();
 
 
+
+    // While the Controllers page waits for a control, the prompt is modal
+    // too: a click anywhere calls the wait off, and nothing reaches the page.
+    if (!isOpen && isCapturing)
+    {
+        if (ev.kind == DxuiMouseEventKind::Down)
+        {
+            m_controllersPage->CancelCapture();
+        }
+
+        Invalidate();
+        return true;
+    }
 
     if (isOpen)
     {
@@ -1093,6 +1176,20 @@ bool SettingsSheet::OnOverlayChar (wchar_t ch)
 bool SettingsSheet::OnOverlayKey (WPARAM vk)
 {
     bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnKey (vk);
+
+
+
+    // The capture prompt takes every key; Escape calls the wait off.
+    if (!m_colorPicker.IsOpen() && m_controllersPage != nullptr && m_controllersPage->IsCapturing())
+    {
+        if (vk == VK_ESCAPE)
+        {
+            m_controllersPage->CancelCapture();
+        }
+
+        Invalidate();
+        return true;
+    }
 
 
 
