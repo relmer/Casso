@@ -70,6 +70,13 @@ public:
     void  SetOwnerWindow   (HWND hwnd)            { m_hwnd = hwnd; }
     void  SetOnContextMenu (ContextMenuFn fn)     { m_onContextMenu = std::move (fn); }
 
+    //  The face's size as a multiple of the theme's, and how far the text
+    //  color goes from the background toward the theme's foreground (1 is
+    //  the full foreground).
+    void   SetZoom         (float zoom);
+    float  GetZoom         () const               { return m_zoom; }
+    void   SetTextStrength (float strength)       { m_textStrength = strength; }
+
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
     int   GetTopLine   () const { return m_topLine; }
@@ -125,8 +132,11 @@ private:
     void          SyncScrollbar     ();
     void          EnsureCellSize    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void          SelectWordAt      (Position pos);
+    void          GetWordBounds     (Position pos, Position & outFirst, Position & outLast) const;
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int column, int flatStart, int count, int trailCells, int selFrom, int selTo, uint32_t argb) const;
+    void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int column,
+                                     int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo) const;
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;
@@ -134,6 +144,8 @@ private:
     int                m_cellWidthPx   = 0;
     int                m_cellHeightPx  = 0;
     bool               m_cellPinned    = false;
+    float              m_zoom          = 1.0f;
+    float              m_textStrength  = 1.0f;
     UINT               m_measuredDpi   = 0;
     int                m_topLine       = 0;
     Position           m_anchor;
@@ -141,6 +153,9 @@ private:
     Position           m_lastClick;
     int64_t            m_lastClickMs   = 0;
     bool               m_dragging      = false;
+    bool               m_wordDrag      = false;
+    Position           m_wordFirst;
+    Position           m_wordLast;
     HWND               m_hwnd          = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;

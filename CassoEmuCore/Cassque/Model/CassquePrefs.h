@@ -54,6 +54,9 @@ struct CassquePrefs
     int                    hexColumns      = 0;
     bool                   hexShowValues   = true;
     std::string            hexFormat       = kHexFormatHex;
+
+    //  The preview's text size, as a percentage of the theme's.
+    int                    previewZoom     = kDefaultPreviewZoom;
     std::vector<Location>  tabs;
 
     //  Absent file: defaults, with the theme seeded from the emulator's
@@ -95,6 +98,9 @@ struct CassquePrefs
     static constexpr const wchar_t *  kFileName = L"CassquePrefs.json";
 
     static constexpr int  kDefaultHexGrouping     = 1;
+    static constexpr int  kDefaultPreviewZoom     = 100;
+    static constexpr int  kMinPreviewZoom         = 50;
+    static constexpr int  kMaxPreviewZoom         = 300;
     static constexpr int  kDefaultTreeWidthDip    = 240;
     static constexpr int  kDefaultPreviewWidthDip = 360;
 

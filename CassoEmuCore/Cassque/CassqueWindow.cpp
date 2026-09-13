@@ -422,6 +422,10 @@ void CassqueWindow::ConfigureWidgets()
     m_hexView->SetColumns      (m_prefs.hexColumns);
     m_hexView->SetValueFormat  (ParseHexFormat (m_prefs.hexFormat));
     m_hexView->SetShowValues   (m_prefs.hexShowValues);
+    m_hexView->SetTextStrength (kPreviewTextStrength);
+    m_hexView->SetZoom         ((float) m_prefs.previewZoom / 100.0f);
+    m_textView->SetTextStrength (kPreviewTextStrength);
+    m_textView->SetZoom         ((float) m_prefs.previewZoom / 100.0f);
 
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
@@ -1039,7 +1043,7 @@ void CassqueWindow::FillPreview()
     m_hexView->SetSource (hex ? &m_previewBytes : nullptr);
     m_hexView->SetOriginAddress (preview.origin);
 
-    m_previewMessage->SetText (error ? preview.message : std::wstring());
+    m_previewMessage->SetText (error ? FormatPreviewError (preview.message) : std::wstring());
     m_previewMessage->SetVisible (visible && error);
     m_picture->SetVisible (visible && picture);
     m_previewList->SetVisible (visible && columns);
@@ -1366,6 +1370,14 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::X1 || ev.button == DxuiMouseButton::X2))
     {
         Dispatch (ev.button == DxuiMouseButton::X1 ? CassqueCommands::kBack : CassqueCommands::kForward);
+        return true;
+    }
+
+    //  Ctrl with the wheel over the preview zooms it, as in a browser.
+    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal
+        && m_prefs.previewVisible && Contains (m_previewRect, point))
+    {
+        Dispatch ((ev.wheelDelta > 0.0f) ? CassqueCommands::kZoomIn : CassqueCommands::kZoomOut);
         return true;
     }
 
@@ -2109,6 +2121,61 @@ std::vector<std::wstring> CassqueWindow::SplitLineNumber (const std::wstring & l
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::FormatPreviewError
+//
+//  "No preview", and three lines below it, why. An image refused for its size
+//  carries a whole sentence about the file for the command line; the preview
+//  says only the reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueWindow::FormatPreviewError (const std::wstring & message)
+{
+    std::wstring  reason = message;
+
+
+
+    if (message.find (L"800K images") != std::wstring::npos)
+    {
+        reason = L"800K images are not supported yet";
+    }
+
+    return L"No preview\n\n\n" + reason;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SetPreviewZoom
+//
+//  The text and hex previews share one zoom, kept within the range the
+//  preferences allow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SetPreviewZoom (int percent)
+{
+    int  clamped = (std::max) (CassquePrefs::kMinPreviewZoom, (std::min) (percent, CassquePrefs::kMaxPreviewZoom));
+
+
+
+    m_prefs.previewZoom = clamped;
+
+    m_textView->SetZoom ((float) clamped / 100.0f);
+    m_hexView->SetZoom  ((float) clamped / 100.0f);
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::SetHexColumns
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2558,6 +2625,9 @@ void CassqueWindow::Dispatch (int id)
 
             break;
 
+        case CassqueCommands::kZoomIn:         SetPreviewZoom (m_prefs.previewZoom + kPreviewZoomStep); break;
+        case CassqueCommands::kZoomOut:        SetPreviewZoom (m_prefs.previewZoom - kPreviewZoomStep); break;
+        case CassqueCommands::kZoomReset:      SetPreviewZoom (CassquePrefs::kDefaultPreviewZoom);      break;
         case CassqueCommands::kFindNext:       FindNext();                                      break;
         case CassqueCommands::kNoData:         SetHexShowValues (false);                        break;
         case CassqueCommands::kFormatHex:      SetHexFormat (CassquePrefs::kHexFormatHex);      break;

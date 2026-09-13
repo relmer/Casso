@@ -109,6 +109,13 @@ public:
     //  keeps its program.
     static constexpr int  kIntegerBasicHimem   = 0x9600;
 
+    //  Preview text is drawn this far from the background toward the theme's
+    //  foreground, a gray like a terminal's text rather than full white.
+    static constexpr float  kPreviewTextStrength = 0.8f;
+
+    //  Each zoom step, in percent of the theme's text size.
+    static constexpr int    kPreviewZoomStep     = 10;
+
     //  The private message that carries a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
 
@@ -223,6 +230,9 @@ private:
     void  OnSearchChanged  (const std::wstring & text);
     void  FindNext         (bool incremental = false);
     void  SetHexColumns    (int columns);
+    void  SetPreviewZoom   (int percent);
+
+    static std::wstring  FormatPreviewError (const std::wstring & message);
     void  SetHexFormat     (const char * format);
     void  SetHexShowValues (bool show);
     int   GetPreviewStopIndex (int commandId) const;

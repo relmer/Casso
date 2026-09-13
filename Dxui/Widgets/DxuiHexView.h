@@ -133,6 +133,12 @@ public:
     void         SetShowValues   (bool show);
     bool         IsShowingValues () const { return m_showValues; }
 
+    //  The face's size as a multiple of the theme's, and how far the bytes'
+    //  color goes from the background toward the theme's foreground.
+    void   SetZoom         (float zoom);
+    float  GetZoom         () const         { return m_zoom; }
+    void   SetTextStrength (float strength) { m_textStrength = strength; }
+
     //  One character cell of the face the host paints with, in DIPs.
     void  SetCellSizeDip (int widthDip, int heightDip);
 
@@ -261,6 +267,9 @@ private:
     static constexpr int  s_kSelectionMarginDip = 2;
     static constexpr int  s_kFixedRowWidth      = -1;
 
+    //  The addresses' strength as a fraction of the bytes'.
+    static constexpr float  s_kAddressStrength  = 0.55f;
+
     //  Cells one value spends, its text, and the fill behind a selected one.
     int           GetValueCells         () const;
     std::wstring  FormatValue           (uint64_t value, int present) const;
@@ -295,6 +304,8 @@ private:
     int                     m_columns       = s_kFixedRowWidth;
     ValueFormat             m_format        = ValueFormat::Hex;
     bool                    m_showValues    = true;
+    float                   m_zoom          = 1.0f;
+    float                   m_textStrength  = 1.0f;
     int                     m_cellWidthDip  = 0;
     int                     m_cellHeightDip = 0;
     uint64_t                m_topRow        = 0;

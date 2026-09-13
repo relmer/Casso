@@ -3,6 +3,7 @@
 #include "DxuiHexView.h"
 
 #include "Theme/IDxuiTheme.h"
+#include "Theme/DxuiColor.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Core/DxuiClipboard.h"
 
@@ -116,6 +117,30 @@ bool DxuiHexView::SetGrouping (int bytesPerGroup)
     RecomputeRowWidth();
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SetZoom
+//
+//  The cells are measured again at the new size on the next paint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetZoom (float zoom)
+{
+    if (zoom == m_zoom || zoom <= 0.0f)
+    {
+        return;
+    }
+
+    m_zoom          = zoom;
+    m_cellWidthDip  = 0;
+    m_cellHeightDip = 0;
 }
 
 
@@ -490,7 +515,7 @@ RECT DxuiHexView::GetValueSelectionRect (uint64_t first, const RECT & cell) cons
 
 uint32_t DxuiHexView::GetByteColor (const IDxuiTheme & theme, uint8_t mark) const
 {
-    uint32_t  argb = theme.Foreground();
+    uint32_t  argb = DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
 
 
 
@@ -1896,7 +1921,7 @@ void DxuiHexView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & t
 
     //  Eight digits at once, so a face whose advance is not a whole number
     //  of DIPs is rounded once rather than eight times.
-    hr = text.MeasureString (L"00000000", m_scaler.ToPxf (font.sizeDip), font.face, width, height);
+    hr = text.MeasureString (L"00000000", m_scaler.ToPxf (font.sizeDip * m_zoom), font.face, width, height);
 
     if (FAILED (hr) || (width <= 0.0f) || (height <= 0.0f))
     {
@@ -1968,13 +1993,14 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 
     //  The theme's size is in DIPs; the renderer draws in pixels, and the cell
     //  size was measured at this same pixel size.
-    font.sizeDip = m_scaler.ToPxf (font.sizeDip);
+    font.sizeDip = m_scaler.ToPxf (font.sizeDip * m_zoom);
     for (int digit = digits - 1; digit >= 0; digit--)
     {
         label.push_back (GetHexDigit ((int) ((address >> (digit * 4)) & 0xF)));
     }
 
-    DrawCell (text, gutter, label.c_str(), theme.ForegroundMuted(), font);
+    //  The addresses are a shade darker than the bytes, so the bytes stand out.
+    DrawCell (text, gutter, label.c_str(), DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
 
     //  The value column, a value at a time.
     for (int first = 0; m_showValues && (first < count); first += m_grouping)
@@ -1998,7 +2024,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
             FillCell (text, GetValueSelectionRect (offset, cell), theme.SelectionBackground());
         }
 
-        DrawCell (text, cell, FormatValue (value, present).c_str(), argb, font);
+        DrawCell (text, cell, FormatValue (value, present).c_str(), selected ? theme.Foreground() : argb, font);
     }
 
     //  The text column, a byte at a time.
@@ -2009,9 +2035,11 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         uint32_t      argb    = GetByteColor (theme, m_rowMarks[(size_t) index]);
         std::wstring  charOf  = { GetCharFor (m_rowBytes[(size_t) index]) };
 
+        //  Selected bytes are drawn in the full foreground, over the selection.
         if (IsByteSelected (offset))
         {
             FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), theme.SelectionBackground());
+            argb = theme.Foreground();
         }
 
         DrawCell (text, txtRect, charOf.c_str(), argb, font);

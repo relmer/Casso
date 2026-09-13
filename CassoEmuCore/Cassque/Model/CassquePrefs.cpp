@@ -239,6 +239,7 @@ JsonValue CassquePrefs::ToJson() const
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
     root.emplace_back ("hexShowValues",  JsonValue (hexShowValues));
     root.emplace_back ("hexFormat",      JsonValue (hexFormat));
+    root.emplace_back ("previewZoom",    JsonValue ((double) previewZoom));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
@@ -270,6 +271,7 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     size_t             i         = 0;
     int                grouping  = kDefaultHexGrouping;
     int                columns   = 0;
+    int                zoom      = kDefaultPreviewZoom;
 
 
 
@@ -283,6 +285,11 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     root.HasBool ("previewVisible", previewVisible);
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("hexShowValues",  hexShowValues);
+
+    if (root.HasInt ("previewZoom", zoom) && zoom >= kMinPreviewZoom && zoom <= kMaxPreviewZoom)
+    {
+        previewZoom = zoom;
+    }
 
     if (root.HasInt ("hexColumns", columns) && (columns == 0 || columns == 16 || IsKnownHexGrouping (columns)))
     {
