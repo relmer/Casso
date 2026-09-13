@@ -269,12 +269,33 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         // not read, or may be damaged, and nothing available here separates the
         // three. What IS worth saying is that the first of those is ordinary,
         // so a reader does not conclude their disk is broken.
-        snprintf (note, sizeof (note),
-                  "%d of %d tracks are standard 16-sector data, %d are partly, and %d are not%s",
-                  complete, trackCount, partial, unformatted,
-                  complete == 0 ? "; copy-protected disks often use their own track format" : "");
+        //  A count of zero goes unsaid. A partial track has sectors, but some
+        //  are missing or appear twice; an unformatted one has none at all.
+        std::string  decoded;
 
-        text += FormatDetailLine ("decoded", note);
+        snprintf (note, sizeof (note), "%d of %d tracks are standard 16-sector data", complete, trackCount);
+        decoded = note;
+
+        if (partial > 0)
+        {
+            snprintf (note, sizeof (note), "; %d %s sectors that could not be read",
+                      partial, (partial == 1) ? "has" : "have");
+            decoded += note;
+        }
+
+        if (unformatted > 0)
+        {
+            snprintf (note, sizeof (note), "%s%d %s no sectors at all",
+                      (partial > 0) ? ", and " : "; ", unformatted, (unformatted == 1) ? "has" : "have");
+            decoded += note;
+        }
+
+        if (complete == 0)
+        {
+            decoded += "; copy-protected disks often use their own track format";
+        }
+
+        text += FormatDetailLine ("decoded", decoded);
     }
 
     // ZEROS IN THE BUFFER MEAN TWO DIFFERENT THINGS and only one of them is
