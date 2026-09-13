@@ -56,6 +56,9 @@ public:
         bool                              clearsOtherInputModes = false;
         std::wstring                      description;
 
+        // The controller that left, when that is what moved the selection.
+        std::wstring                      departedDescription;
+
         // Whether the user hears about it. A saved controller that is not
         // plugged in at launch was never driving anything, so dropping it is
         // not news.

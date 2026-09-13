@@ -118,7 +118,7 @@ A wireless controller's battery dies, or a USB cable is pulled, mid-game. Casso 
 2. **Given** the selected controller disconnected and no other controller is attached, **When** it reconnects, **Then** it is selected again and drives the game port with no user action.
 2a. **Given** the selected controller disconnected and a second controller took over, **When** the first reconnects, **Then** the second keeps the axes and the first is listed, unchecked, in the selector.
 3. **Given** the input selector is open, **When** a controller is attached or removed, **Then** the list reflects the change.
-4. **Given** a controller disconnects, **Then** a brief notice says so and names the controller that took over, or says that nothing drives the axes.
+4. **Given** a controller disconnects, **Then** a brief notice names the controller that disconnected; the command bar shows what took over, or "Controller" when nothing did.
 
 ---
 
@@ -251,7 +251,7 @@ Two people sit down to a two-player game -- The Bilestoad, or a Pong-descended p
 - **FR-010**: On disconnect of an assigned controller, Casso MUST return its axes to center and release its buttons within one sampling interval, then move the selection as FR-008a says.
 - **FR-011**: The selection MUST persist per machine alongside the existing input-mapping preferences, and MUST be restored at launch and on machine switch when its controller is attached. A saved controller that is absent at launch or on machine switch MUST be replaced by an attached controller as FR-032 chooses, or by none when none is attached.
 - **FR-012**: Calibration MUST persist per controller unit, profiles MUST persist per controller model, and both MUST be restored automatically when a controller connects, without any user action.
-- **FR-013**: When a disconnect changes the selection, Casso MUST show a brief notice naming the controller that took over, or saying that nothing drives the axes.
+- **FR-013**: When a disconnect changes the selection, Casso MUST show a brief notice naming the controller that disconnected. What took over, or "Controller" when nothing did, is already on the command bar's picker (FR-008b).
 - **FR-014**: Button state MUST combine with keyboard and mouse button sources: a button reads pressed while any enabled source holds it.
 - **FR-015**: A controller-reading failure (device lost, access denied, driver error) MUST NOT fault emulation; it is treated as a disconnect, and the failure MUST be observable (for example as a disconnected indicator), not silently read as a centered stick.
 - **FR-016**: All mapping, deadzone, calibration, selection, source-combination and connect/disconnect state logic MUST be exercisable by the unit test suite through a substitute controller, with no access to real devices in unit tests.

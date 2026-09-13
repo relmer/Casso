@@ -409,6 +409,7 @@ void ControllerInputService::RefreshDevices()
     ControllerSelectionPolicy::Decision  decision;
     SelectionChangedFn                   onSelectionChanged;
     StateChangedFn                       onStateChanged;
+    std::wstring                         departedDescription;
     bool                                 wasSelectionAttached = false;
     bool                                 hasListChanged       = false;
     size_t                               i                    = 0;
@@ -424,7 +425,11 @@ void ControllerInputService::RefreshDevices()
         //  WHETHER THE SELECTION WAS HERE BEFORE THIS SCAN. A selection that
         //  is cleared because its controller left is news; one that is
         //  cleared because a saved controller was never plugged in is not.
-        wasSelectionAttached = m_selection.has_value() && FindDeviceLocked (m_selection.value()) != nullptr;
+        if (m_selection.has_value() && FindDeviceLocked (m_selection.value()) != nullptr)
+        {
+            wasSelectionAttached = true;
+            departedDescription  = FindDeviceLocked (m_selection.value())->description;
+        }
 
         //  WHAT IS ATTACHED, compared on its own. An arrival or removal that
         //  moves nothing else -- a second controller coming or going while
@@ -454,6 +459,8 @@ void ControllerInputService::RefreshDevices()
         {
             decision.isAnnounced = false;
         }
+
+        decision.departedDescription = departedDescription;
 
         if (decision.hasChanged)
         {

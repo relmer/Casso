@@ -368,6 +368,7 @@ namespace ControllerTests
             Assert::IsFalse  (service.GetSnapshot().selection.has_value(), L"nothing is attached to take over");
             Assert::AreEqual ((int) SelectionChangeReason::Cleared, (int) decision.reason);
             Assert::IsTrue   (decision.isAnnounced, L"a controller that was driving has gone, which the user hears about");
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"), decision.departedDescription, L"and the notice names the one that left");
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],
                 L"the axes return to center within the tick that saw the disconnect");
             Assert::IsFalse (sink.writes.back().state.buttons.test (0), L"and its buttons are released");

@@ -2881,13 +2881,12 @@ void EmulatorShell::ApplyControllerSelectionChange (const std::wstring & descrip
     {
         ShowNotice (L"Controller selected: " + description);
     }
-    else if (reason == SelectionChangeReason::Replacement)
+    else if ((reason == SelectionChangeReason::Replacement || reason == SelectionChangeReason::Cleared)
+             && !description.empty())
     {
-        ShowNotice (L"Controller disconnected. Using " + description + L" instead.");
-    }
-    else if (reason == SelectionChangeReason::Cleared)
-    {
-        ShowNotice (L"Controller disconnected. Nothing is driving the joystick.");
+        // Only what left. The picker on the command bar already shows what
+        // took over, or "Controller" when nothing did.
+        ShowNotice (description + L" disconnected.");
     }
 }
 
