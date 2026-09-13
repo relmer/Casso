@@ -22,20 +22,12 @@ Entries before versioning was introduced use dates only.
   volume. Previously a data disk listed exactly like a bootable one, and the
   first sign was the monitor prompt after a boot.
 - The menu bar, the toolbar and the debug panels' right-click menus now share
-  one command model and one dropdown. Dropdowns fit their content instead of
-  a fixed width, and take their row height, font and check gutter from the
-  Windows menu settings, so they match a standard menu at any display scale
-  and follow an enlarged menu font. Accelerators line up in their own column
-  on a shared left edge, and a long label no longer runs under them. The menu
-  bar and toolbar labels use that same font.
-- Casso follows the Windows access-key, notification-duration, mouse-wheel and
-  animation settings. With "underline access keys" on the mnemonics show
-  without holding Alt; a raised notification duration holds banners longer;
-  the wheel scrolls the configured number of lines, including "one screen at a
-  time"; and with animation effects off the chrome widgets settle into place
-  instead of sliding. A submenu now waits out the system's menu show delay
-  before it opens, so the pointer passing over its row on the way somewhere
-  else no longer opens it.
+  one command model and one dropdown.
+- Menus, dropdowns, tooltips and controls now follow Windows 11 design: rounded
+  corners, soft shadows, modern spacing, slide and fade animations, and Casso's
+  own tooltips on the minimize, maximize and close buttons.
+- Casso follows the Windows settings for access-key underlines, notification
+  duration, mouse-wheel scrolling, menu show delay and menu animations.
 
 ### Fixed
 
