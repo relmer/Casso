@@ -66,6 +66,10 @@ public:
     void  SetSelectionChangedFn (SelectionChangedFn onSelectionChanged);
     void  SetStateChangedFn     (StateChangedFn onStateChanged);
 
+    // Runs the selection policy on the next tick, for a machine switched to:
+    // one with no controller saved counts as a controller connecting (FR-032).
+    void  RequestRescan         ();
+
     // Reads the selected controller once and returns what the thread should
     // wait on before reading again.
     ControllerWaitSources  Tick ();

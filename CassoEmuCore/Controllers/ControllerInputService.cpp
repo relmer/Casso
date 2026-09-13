@@ -214,6 +214,25 @@ void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RequestRescan
+//
+//  A selection handed in that did not change -- none, to a machine that had
+//  none -- would otherwise never reach the policy, since only a device
+//  notification marks the list dirty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::RequestRescan()
+{
+    m_devicesDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Tick
 //
 //  Controller thread. Reads the selected controller once and submits what it

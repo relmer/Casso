@@ -587,5 +587,28 @@ namespace ControllerTests
             Assert::IsTrue (service.GetSnapshot().selection.value() == pad.unit,
                 L"the attached controller replaces it, without waiting for a device to arrive");
         }
+
+        TEST_METHOD (MachineSwitchWithNothingSaved_SelectsAnAttachedController)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    pad = MakePadDevice ("{AAAA}", L"First Pad");
+
+            backend.AddDevice (pad);
+            service.Tick();
+            Assert::IsTrue (service.GetSnapshot().selection.has_value(), L"the first tick selects it");
+
+            // The user picked the keys: that holds, since nothing connected.
+            service.SetSelection (std::nullopt);
+            service.Tick();
+            Assert::IsFalse (service.GetSnapshot().selection.has_value(), L"a pick of the keys is not undone by a tick");
+
+            // Switching to a machine with nothing saved counts as connecting.
+            service.SetSelection (std::nullopt);
+            service.RequestRescan();
+            service.Tick();
+            Assert::IsTrue (service.GetSnapshot().selection.value() == pad.unit, L"the machine switched to selects the attached controller");
+        }
     };
 }

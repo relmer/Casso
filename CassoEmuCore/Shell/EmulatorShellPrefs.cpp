@@ -236,6 +236,16 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs)
     }
 
     m_controllerService->SetSelection (selection);
+
+    // Whatever was saved, the policy decides against what is attached now: a
+    // machine with nothing saved selects an attached controller, and one
+    // whose saved controller is absent has it replaced (FR-011, FR-032).
+    m_controllerService->RequestRescan();
+
+    if (m_controllerThread != nullptr)
+    {
+        m_controllerThread->Wake();
+    }
 }
 
 
