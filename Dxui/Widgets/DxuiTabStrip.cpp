@@ -3,6 +3,7 @@
 
 #include "DxuiTabStrip.h"
 #include "Theme/DxuiColor.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -290,6 +291,8 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
         bool         isSel   = (i == m_selected);
         bool         isHover = (i == m_hover);
         bool         isArmed = (i == m_pressed && i == m_hover);
+        float        labelW  = (float) (t.rect.right - t.rect.left) - padX * 2.0f;
+        std::wstring shown;
 
         if (!isSel && (isHover || isArmed))
         {
@@ -318,7 +321,10 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                  focusThick, focusArgb);
         }
 
-        hr = text.DrawString (t.label.c_str(),
+        //  A label wider than its tab is cut off with an ellipsis, never wrapped.
+        shown = DxuiTextElide::ToWidth (text, t.label, fontDip, DxuiTheme::kBodyFace, labelW, DxuiElide::Tail);
+
+        hr = text.DrawString (shown.c_str(),
                               (float) t.rect.left + padX,
                               (float) t.rect.top  + padY,
                               (float) (t.rect.right  - t.rect.left) - padX * 2.0f,
@@ -327,7 +333,9 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                               fontDip,
                               DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Center,
-                              DxuiTextVAlign::Center);
+                              DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal,
+                              false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }

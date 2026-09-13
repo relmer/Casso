@@ -1,6 +1,10 @@
 #include "Pch.h"
 
+#include "Core/UnicodeSymbols.h"
 #include "Widgets/DxuiTabStrip.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -116,5 +120,31 @@ public:
 
         Assert::IsFalse (ts.OnKey (VK_RIGHT));
     }
-};
 
+    TEST_METHOD (Paint_LongLabelIsCutOffNotWrapped)
+    {
+        DxuiTabStrip                    ts;
+        MockDxuiTextRenderer            text;
+        MockDxuiTheme                   theme;
+        MockDxuiPainter                 painter;
+        std::vector<DxuiTabStrip::Tab>  tabs;
+        std::wstring                    drawn;
+
+        tabs.push_back (MakeTab (0, 0, 60, 24, L"A very long tab label"));
+        ts.SetTabs (std::move (tabs));
+
+        ts.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString)
+            {
+                drawn = call.text;
+            }
+        }
+
+        Assert::IsFalse (drawn.empty(), L"The tab draws its label");
+        Assert::IsTrue  (drawn.size() < wcslen (L"A very long tab label"), L"A label wider than its tab is shortened");
+        Assert::AreEqual (s_kchEllipsis, drawn.back(), L"and ends in an ellipsis");
+    }
+};

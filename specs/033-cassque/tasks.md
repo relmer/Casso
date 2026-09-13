@@ -207,7 +207,7 @@
 - [x] T096 [P] [US5] `DxuiSplitter`: a hairline to the eye over a grab band far wider than the line, Explorer's proportions; the grab must not follow the drawn width (FR-032)
 - [x] T097 [P] [US1] Explorer's iconography for Back, Forward, Up and Refresh, through `UnicodeSymbols.h` (FR-033)
 - [ ] T098 [US1] The preview toggle moves to the toolbar's trailing end, which `DxuiToolbar` needs a trailing group for (FR-034)
-- [ ] T099 [P] [US1] Cut a long name off rather than wrapping it, in tree rows, list cells and tabs (FR-035)
+- [x] T099 [P] [US1] Cut a long name off rather than wrapping it, in tree rows, list cells and tabs (FR-035)
 - [ ] T100 [US5] `DxuiTabStrip`: reach every tab past the point where they stop fitting, and reorder by dragging (FR-036, FR-037, SC-010)
 - [ ] T101 [US5] A new tab opens from the strip's own affordance, as a browser opens one, with the toolbar button retired (FR-037)
 - [ ] T102 [US1] `DxuiAddressBar`: the location as navigable segments, editable into a typed path, reaching a directory inside an image as readily as a host folder; `BrowserModel` parses and formats both (FR-038, SC-011)
