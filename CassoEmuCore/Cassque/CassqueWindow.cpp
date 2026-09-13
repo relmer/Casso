@@ -384,6 +384,7 @@ void CassqueWindow::ConfigureWidgets()
 
         IGNORE_RETURN_VALUE (moved, true);
     });
+    m_tabs->SetOnNewTab ([this]() { Dispatch (CassqueCommands::kNewTab); });
 
     m_browser.RestoreTabs (m_prefs.tabs);
 
@@ -2327,8 +2328,8 @@ DxuiMessageResult CassqueWindow::OnActivateApp (bool active)
 //  CassqueWindow::FillTabs
 //
 //  Tabs from the left of the strip, labeled by where each tab is. They share
-//  the strip's width, no wider than a full tab and no narrower than the
-//  minimum; past that the strip scrolls.
+//  the strip's width less the + button, no wider than a full tab and no
+//  narrower than the minimum; past that the strip scrolls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2345,7 +2346,7 @@ void CassqueWindow::FillTabs()
 
     if (count > 0)
     {
-        width = std::clamp ((int) (strip.right - strip.left) / count, m_scaler.ToPx (kTabMinWidthDip), width);
+        width = std::clamp (((int) (strip.right - strip.left) - m_scaler.ToPx (DxuiTabStrip::kNewTabWidthDip)) / count, m_scaler.ToPx (kTabMinWidthDip), width);
     }
 
     for (index = 0; index < model.GetTabCount(); index++)

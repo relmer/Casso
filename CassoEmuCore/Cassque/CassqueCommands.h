@@ -173,13 +173,12 @@ private:
     static constexpr ToolbarRow  kToolbarRows[] =
     {
         //  Back, Forward, Up and Refresh are one group of bare icons, as in
-        //  Explorer; the new tab and the preview toggle keep their labels, and
-        //  the preview toggle sits at the far end, where Explorer puts Details.
+        //  Explorer; the preview toggle keeps its label and sits at the far end,
+        //  where Explorer puts Details. A new tab opens from the tab strip.
         { kBack,          DxuiToolbar::Kind::Command, 0, s_kpszMdl2Back,    L"Back",    L"Back (Alt+Left)",        true  },
         { kForward,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Forward, L"Forward", L"Forward (Alt+Right)",    true  },
         { kUp,            DxuiToolbar::Kind::Command, 0, s_kpszMdl2Up,      L"Up",      L"Up one level (Alt+Up)",  true  },
         { kRefresh,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Refresh, L"Refresh", L"Refresh (F5)",           true  },
-        { kNewTab,        DxuiToolbar::Kind::Command, 2, s_kpszMdl2Add,     L"New tab", L"New tab (Ctrl+T)",       false },
         { kTogglePreview, DxuiToolbar::Kind::Toggle,  3, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)",   false, true },
     };
 

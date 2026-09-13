@@ -90,21 +90,22 @@ public:
     }
 
 
-    TEST_METHOD (Toolbar_ShowsNavigationRefreshNewTabAndPreview)
+    TEST_METHOD (Toolbar_ShowsNavigationRefreshAndPreview)
     {
         CassqueCommands                  commands ({});
         std::vector<DxuiToolbar::Entry>  entries = commands.BuildToolbarEntries();
 
-        Assert::AreEqual ((size_t) 6, entries.size());
+        Assert::AreEqual ((size_t) 5, entries.size());
         Assert::AreEqual ((int) CassqueCommands::kBack, entries[0].command->id);
-        Assert::IsTrue   (entries[5].kind == DxuiToolbar::Kind::Toggle);
-        Assert::AreEqual ((int) CassqueCommands::kTogglePreview, entries[5].command->id);
-        Assert::IsTrue   (entries[5].trailing, L"The preview toggle sits at the toolbar's far end");
-        Assert::IsFalse  (entries[4].trailing);
+        Assert::IsTrue   (entries[4].kind == DxuiToolbar::Kind::Toggle);
+        Assert::AreEqual ((int) CassqueCommands::kTogglePreview, entries[4].command->id);
+        Assert::IsTrue   (entries[4].trailing, L"The preview toggle sits at the toolbar's far end");
+        Assert::IsFalse  (entries[3].trailing);
 
         for (const DxuiToolbar::Entry & entry : entries)
         {
             Assert::IsNotNull (entry.command->glyph);
+            Assert::AreNotEqual ((int) CassqueCommands::kNewTab, entry.command->id, L"A new tab opens from the tab strip, not the toolbar");
             Assert::IsFalse   (entry.command->tip.empty());
         }
 

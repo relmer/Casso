@@ -20,6 +20,9 @@
 //  arrows, the wheel, being selected, or a drag held past either end. A tab dragged along the
 //  strip moves as it crosses its neighbors, and each move is reported.
 //
+//  With a new-tab handler set, a + button follows the last tab, or holds the
+//  strip's right end when the tabs overflow.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiTabStrip : public IDxuiControl
@@ -27,6 +30,7 @@ class DxuiTabStrip : public IDxuiControl
 public:
     using ChangeFn = std::function<void (int newIndex)>;
     using MoveFn   = std::function<void (int from, int to)>;
+    using NewTabFn = std::function<void ()>;
 
     DxuiTabStrip() { m_focusable = true; }
 
@@ -44,6 +48,7 @@ public:
     void  SetFocused (bool focused) { m_focused = focused; }
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
     void  SetOnMove   (MoveFn fn)   { m_move   = std::move (fn); }
+    void  SetOnNewTab (NewTabFn fn) { m_newTab = std::move (fn); }
 
     const std::vector<Tab> & GetTabs       () const { return m_tabs;    }
     int                      GetSelected   () const { return m_selected; }
@@ -58,6 +63,9 @@ public:
 
     //  True while the tabs are wider than the strip and the arrows are shown.
     bool                     HasScrollArrows () const { return IsOverflowing(); }
+
+    //  The + button's width, which a host sizing its tabs leaves free.
+    static constexpr int     kNewTabWidthDip = 32;
 
     int   HitTest        (int x, int y) const;
     void  SetMouseHover  (int x, int y);
@@ -97,11 +105,15 @@ private:
     bool  IsOverflowing  () const;
     int   GetArrowWidthPx () const;
     int   GetViewLeft    () const { return (int) m_boundsDip.left  + GetArrowWidthPx(); }
-    int   GetViewRight   () const { return (int) m_boundsDip.right - GetArrowWidthPx(); }
+    int   GetViewRight   () const { return (int) m_boundsDip.right - GetNewTabWidthPx() - GetArrowWidthPx(); }
     int   GetArrowAt     (int x, int y) const;
     bool  CanScroll      (int direction) const;
     void  ScrollByTab    (int direction);
     void  PaintArrow     (IDxuiPainter & painter, IDxuiTextRenderer & text, int direction, uint32_t hoverArgb, uint32_t textArgb) const;
+    int   GetNewTabWidthPx () const;
+    RECT  GetNewTabRect  () const;
+    bool  IsOverNewTab   (int x, int y) const;
+    void  PaintNewTab    (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const;
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          uint32_t idleArgb, uint32_t hoverArgb, uint32_t selectedArgb,
                          uint32_t textArgb, uint32_t focusArgb) const;
@@ -110,15 +122,18 @@ private:
     std::vector<Tab>  m_tabs;
     ChangeFn          m_change;
     MoveFn            m_move;
-    int               m_selected     = 0;
-    int               m_hover        = -1;
-    int               m_pressed      = -1;
-    int               m_pressX       = 0;
-    int               m_scrollPx     = 0;
-    bool              m_dragging     = false;
-    int               m_hoverArrow   = 0;   // -1 left, +1 right, 0 neither
-    int               m_pressedArrow = 0;
-    bool              m_enabled      = true;
-    bool              m_focused      = false;
+    int               m_selected      = 0;
+    int               m_hover         = -1;
+    int               m_pressed       = -1;
+    int               m_pressX        = 0;
+    int               m_scrollPx      = 0;
+    bool              m_dragging      = false;
+    int               m_hoverArrow    = 0;   // -1 left, +1 right, 0 neither
+    int               m_pressedArrow  = 0;
+    NewTabFn          m_newTab;
+    bool              m_hoverNewTab   = false;
+    bool              m_pressedNewTab = false;
+    bool              m_enabled       = true;
+    bool              m_focused       = false;
     DxuiDpiScaler     m_scaler;
 };

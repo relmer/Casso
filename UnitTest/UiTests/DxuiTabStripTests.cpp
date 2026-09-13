@@ -330,4 +330,51 @@ public:
 
         Assert::AreEqual (0, ts.GetSelected(), L"Scrolling selects nothing");
     }
+
+    TEST_METHOD (NewTabButton_FollowsTheLastTab)
+    {
+        DxuiTabStrip  ts;
+        int           opened = 0;
+
+        ts.SetTabs     (MakeThreeTabs());
+        ts.SetOnNewTab ([&]() { opened++; });
+        LayOut (ts, 400);
+
+        Assert::IsFalse  (ts.HasScrollArrows());
+        Assert::AreEqual (-1, ts.HitTest (250, 10), L"The + button is no tab");
+
+        Assert::IsTrue   (ts.OnLButtonDown (250, 10));
+        Assert::IsTrue   (ts.OnLButtonUp   (250, 10));
+        Assert::AreEqual (1, opened, L"The + button just past the last tab opens a new one");
+
+        ts.OnLButtonDown (350, 10);
+        ts.OnLButtonUp   (350, 10);
+        Assert::AreEqual (1, opened, L"The strip past the + button is empty");
+    }
+
+
+    TEST_METHOD (NewTabButton_HoldsTheRightEndWhenTabsOverflow)
+    {
+        DxuiTabStrip  ts;
+        int           opened = 0;
+
+        ts.SetTabs     (MakeTenTabs());
+        ts.SetOnNewTab ([&]() { opened++; });
+        LayOut (ts, 240);
+
+        Assert::IsTrue   (ts.HasScrollArrows());
+
+        ts.OnLButtonDown (230, 10);
+        ts.OnLButtonUp   (230, 10);
+        Assert::AreEqual (1, opened, L"The + button sits at the strip's right end");
+        Assert::AreEqual (0, ts.GetScrollPx(), L"and is not the right arrow");
+
+        ts.OnLButtonDown (190, 10);
+        ts.OnLButtonUp   (190, 10);
+        Assert::AreEqual (8, ts.GetScrollPx(), L"The right arrow sits just before it");
+
+        Assert::IsTrue   (ts.OnWheel (-100.0f));
+        Assert::AreEqual (648, ts.GetScrollPx(), L"Scrolled to the end, the last tab stops at the right arrow");
+        Assert::AreEqual (9,   ts.HitTest (170, 10));
+    }
 };

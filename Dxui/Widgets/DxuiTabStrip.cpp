@@ -83,8 +83,9 @@ int DxuiTabStrip::HitTest (int x, int y) const
 
 void DxuiTabStrip::SetMouseHover (int x, int y)
 {
-    m_hover      = HitTest (x, y);
-    m_hoverArrow = GetArrowAt (x, y);
+    m_hover       = HitTest (x, y);
+    m_hoverArrow  = GetArrowAt (x, y);
+    m_hoverNewTab = IsOverNewTab (x, y);
 
     if (m_pressed >= 0 && m_pressed != m_hover)
     {
@@ -104,15 +105,20 @@ void DxuiTabStrip::SetMouseHover (int x, int y)
 
 bool DxuiTabStrip::OnLButtonDown (int x, int y)
 {
-    int   arrow  = GetArrowAt (x, y);
-    int   hit    = HitTest (x, y);
-    bool  wasHit = (arrow != 0 || hit >= 0);
+    int   arrow   = GetArrowAt (x, y);
+    int   hit     = HitTest (x, y);
+    bool  overNew = IsOverNewTab (x, y);
+    bool  wasHit  = (arrow != 0 || hit >= 0 || overNew);
 
 
 
     if (arrow != 0)
     {
         m_pressedArrow = arrow;
+    }
+    else if (overNew)
+    {
+        m_pressedNewTab = true;
     }
     else if (hit >= 0)
     {
@@ -139,14 +145,16 @@ bool DxuiTabStrip::OnLButtonUp (int x, int y)
     int   hit      = HitTest (x, y);
     int   pressed  = m_pressed;
     int   arrow    = m_pressedArrow;
+    bool  newTab   = m_pressedNewTab;
     bool  consumed = (pressed >= 0) && (m_dragging || hit == pressed);
 
 
 
     //  A drag ends on the tab it carried, wherever the pointer is.
-    m_pressed      = -1;
-    m_dragging     = false;
-    m_pressedArrow = 0;
+    m_pressed       = -1;
+    m_dragging      = false;
+    m_pressedArrow  = 0;
+    m_pressedNewTab = false;
 
     if (arrow != 0)
     {
@@ -155,6 +163,15 @@ bool DxuiTabStrip::OnLButtonUp (int x, int y)
         if (GetArrowAt (x, y) == arrow)
         {
             ScrollByTab (arrow);
+        }
+    }
+    else if (newTab)
+    {
+        consumed = true;
+
+        if (IsOverNewTab (x, y))
+        {
+            m_newTab();
         }
     }
     else if (consumed)
@@ -346,7 +363,7 @@ int DxuiTabStrip::GetMaxScrollPx() const
 
     if (IsOverflowing())
     {
-        maxScroll = (std::max) (0, (int) (m_tabs.back().rect.right - m_boundsDip.right) + GetArrowWidthPx() * 2);
+        maxScroll = (std::max) (0, (int) (m_tabs.back().rect.right - m_boundsDip.right) + GetArrowWidthPx() * 2 + GetNewTabWidthPx());
     }
 
     return maxScroll;
@@ -516,7 +533,7 @@ void DxuiTabStrip::MoveDraggedTab (int to)
 
 bool DxuiTabStrip::IsOverflowing() const
 {
-    return HasBounds() && !m_tabs.empty() && m_tabs.back().rect.right > m_boundsDip.right;
+    return HasBounds() && !m_tabs.empty() && m_tabs.back().rect.right > m_boundsDip.right - GetNewTabWidthPx();
 }
 
 
@@ -560,7 +577,7 @@ int DxuiTabStrip::GetArrowAt (int x, int y) const
     {
         result = -1;
     }
-    else if (arrow > 0 && inRow && x >= m_boundsDip.right - arrow && x < m_boundsDip.right)
+    else if (arrow > 0 && inRow && x >= GetViewRight() && x < GetViewRight() + arrow)
     {
         result = 1;
     }
@@ -656,7 +673,7 @@ void DxuiTabStrip::PaintArrow (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     HRESULT   hr      = S_OK;
     int       arrow   = GetArrowWidthPx();
-    float     left    = (float) ((direction < 0) ? m_boundsDip.left : m_boundsDip.right - arrow);
+    float     left    = (float) ((direction < 0) ? (int) m_boundsDip.left : GetViewRight());
     float     top     = (float) m_boundsDip.top;
     float     height  = (float) (m_boundsDip.bottom - m_boundsDip.top);
     bool      enabled = CanScroll (direction);
@@ -674,6 +691,120 @@ void DxuiTabStrip::PaintArrow (IDxuiPainter & painter, IDxuiTextRenderer & text,
                           left, top, (float) arrow, height,
                           color,
                           m_scaler.ToPxf (s_kArrowFontDip),
+                          DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Center,
+                          DxuiTextVAlign::Center,
+                          DxuiFontWeight::Normal,
+                          false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNewTabWidthPx
+//
+//  Zero with no new-tab handler, so a strip without one has no + button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTabStrip::GetNewTabWidthPx() const
+{
+    return (HasBounds() && m_newTab) ? m_scaler.ToPx (kNewTabWidthDip) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNewTabRect
+//
+//  Just past the last tab while the tabs fit, at the strip's right end once
+//  they overflow, as in File Explorer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiTabStrip::GetNewTabRect() const
+{
+    RECT  rc    = {};
+    int   width = GetNewTabWidthPx();
+    LONG  left  = m_boundsDip.left;
+
+
+
+    if (width > 0)
+    {
+        if (IsOverflowing())
+        {
+            left = m_boundsDip.right - width;
+        }
+        else if (!m_tabs.empty())
+        {
+            left = m_tabs.back().rect.right;
+        }
+
+        rc = RECT { left, m_boundsDip.top, left + width, m_boundsDip.bottom };
+    }
+
+    return rc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOverNewTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTabStrip::IsOverNewTab (int x, int y) const
+{
+    RECT  rc = GetNewTabRect();
+
+
+
+    return m_enabled && x >= rc.left && x < rc.right && y >= rc.top && y < rc.bottom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintNewTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabStrip::PaintNewTab (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const
+{
+    constexpr float  s_kGlyphDip     = 16.0f;
+    constexpr float  s_kPressedScale = 0.82f;
+
+
+
+    HRESULT  hr = S_OK;
+    RECT     rc = GetNewTabRect();
+
+
+
+    if (m_hoverNewTab)
+    {
+        painter.FillRect ((float) rc.left, (float) rc.top, (float) (rc.right - rc.left), (float) (rc.bottom - rc.top),
+                          m_pressedNewTab ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
+    }
+
+    hr = text.DrawString (L"+",
+                          (float) rc.left, (float) rc.top, (float) (rc.right - rc.left), (float) (rc.bottom - rc.top),
+                          textArgb,
+                          m_scaler.ToPxf (s_kGlyphDip),
                           DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center,
@@ -851,6 +982,11 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     {
         PaintArrow (painter, text, -1, hoverArgb, textArgb);
         PaintArrow (painter, text,  1, hoverArgb, textArgb);
+    }
+
+    if (GetNewTabWidthPx() > 0)
+    {
+        PaintNewTab (painter, text, hoverArgb, textArgb);
     }
 }
 
