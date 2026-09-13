@@ -424,13 +424,17 @@ void DxuiPainter::PushQuad (
     Vertex  tr = topRight;
     Vertex  bl = bottomLeft;
     Vertex  br = bottomRight;
+    float   x0 = xPx + m_originXPx;
+    float   y0 = yPx + m_originYPx;
 
 
 
-    NdcFromPixel (xPx,           yPx,            tl.x, tl.y);
-    NdcFromPixel (xPx + widthPx, yPx,            tr.x, tr.y);
-    NdcFromPixel (xPx,           yPx + heightPx, bl.x, bl.y);
-    NdcFromPixel (xPx + widthPx, yPx + heightPx, br.x, br.y);
+    // The origin is applied HERE and only here: every primitive, spans and
+    // arcs included, reaches the vertex buffer through this function.
+    NdcFromPixel (x0,            y0,            tl.x, tl.y);
+    NdcFromPixel (x0 + widthPx,  y0,            tr.x, tr.y);
+    NdcFromPixel (x0,            y0 + heightPx, bl.x, bl.y);
+    NdcFromPixel (x0 + widthPx,  y0 + heightPx, br.x, br.y);
 
     // Two triangles per quad: (tl, tr, bl) and (bl, tr, br). Append all six in
     // one insert so the vector grows/size-checks once rather than six times
@@ -522,6 +526,92 @@ void DxuiPainter::OutlineRect (
     FillRect (xPx,                    yPx + heightPx - t,     widthPx,  t,                  argbColor);
     FillRect (xPx,                    yPx + t,                t,        heightPx - 2.0f * t, argbColor);
     FillRect (xPx + widthPx - t,      yPx + t,                t,        heightPx - 2.0f * t, argbColor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillRoundedRect
+//
+//  A solid rounded rect, drawn with the same scanline formulation as
+//  OutlineRoundedRect below and for the same reason: no corner arc to butt
+//  against an edge segment, so no seam. Each row is one span, walked inward
+//  by the circle inside the corner bands and full width along the straight
+//  run, and every span goes through FillSpanAA so the curve is feathered.
+//
+//  The inset is written out here rather than shared with the outline. The
+//  outline is working and in use; lifting its lambda into a helper to save
+//  twenty lines would put a change in a path this fill does not need.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillRoundedRect (
+    float     xPx,
+    float     yPx,
+    float     widthPx,
+    float     heightPx,
+    float     radiusPx,
+    uint32_t  argbColor)
+{
+    float  r    = radiusPx;
+    float  half = 0.0f;
+    int    rows = 0;
+    int    i    = 0;
+
+
+
+    if (widthPx <= 0.0f || heightPx <= 0.0f)
+    {
+        return;
+    }
+
+    // Past half the shorter side a radius makes a pill, not a rounder rect.
+    half = (widthPx < heightPx ? widthPx : heightPx) * 0.5f;
+    r    = (r > half) ? half : ((r < 0.0f) ? 0.0f : r);
+
+    // No radius is a plain fill; skip the scanline walk entirely.
+    if (r <= 0.0f)
+    {
+        FillRect (xPx, yPx, widthPx, heightPx, argbColor);
+        return;
+    }
+
+    rows = (int) ceilf (heightPx);
+
+    for (i = 0; i < rows; i++)
+    {
+        float  rowY  = yPx + (float) i;
+        float  rowH  = 1.0f;
+        float  cy    = rowY + 0.5f;
+        float  dy    = 0.0f;
+        float  sq    = 0.0f;
+        float  dx    = 0.0f;
+
+        if (rowY + rowH > yPx + heightPx)
+        {
+            rowH = (yPx + heightPx) - rowY;
+        }
+
+        if (cy < yPx + r)
+        {
+            dy = (yPx + r) - cy;
+        }
+        else if (cy > yPx + heightPx - r)
+        {
+            dy = cy - (yPx + heightPx - r);
+        }
+
+        if (dy > 0.0f)
+        {
+            sq = r * r - dy * dy;
+            dx = r - ((sq > 0.0f) ? sqrtf (sq) : 0.0f);
+        }
+
+        FillSpanAA (xPx + dx, xPx + widthPx - dx, rowY, rowH, argbColor);
+    }
 }
 
 

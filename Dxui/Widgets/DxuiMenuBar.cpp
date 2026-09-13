@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiMenuBar.h"
+#include "Core/DxuiSystemSettings.h"
 #include "Window/DxuiHwndSource.h"
 
 #include "Core/UnicodeSymbols.h"
@@ -13,7 +14,6 @@ static constexpr int      s_kBaseDpi                = 96;
 static constexpr int      s_kNavHeightDip           = 32;
 static constexpr int      s_kItemInternalPaddingDip = 8;
 static constexpr int      s_kInterItemPaddingDip    = 4;
-static constexpr float    s_kFontDip                = 14.0f;
 static constexpr float    s_kUnderlineThicknessDip  = 1.0f;
 static constexpr const wchar_t * s_kFontFamily           = DxuiTheme::kBodyFace;
 
@@ -245,6 +245,32 @@ int DxuiMenuBar::GetStripHeightPx (UINT dpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiMenuBar::GetMenuFontPx
+//
+//  The em size of the system menu font at a DPI, re-read only when the DPI
+//  changes. Layout and PaintStrip both ask on every call, and the metrics
+//  come from a system-parameters query that has no business running per
+//  frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiMenuBar::GetMenuFontPx (UINT eDpi)
+{
+    if (m_metricsDpi != eDpi)
+    {
+        m_metrics    = DxuiMenuMetrics::FromSystem (eDpi);
+        m_metricsDpi = eDpi;
+    }
+
+    return m_metrics.fontPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiMenuBar::Layout
 //
 //  Lays out the title strip starting at (x, y) spanning `width` pixels
@@ -262,7 +288,7 @@ void DxuiMenuBar::Layout (int x, int y, int width, UINT dpi, IDxuiTextRenderer *
     int    gap      = ScaleDpi (s_kInterItemPaddingDip,    dpi);
     int    height   = ScaleDpi (s_kNavHeightDip, dpi);
     UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
-    float  fontDip  = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
+    float  fontDip  = GetMenuFontPx (eDpi);
 
 
 
@@ -401,7 +427,12 @@ void DxuiMenuBar::Open (int menuIndex, bool keyboardActivated)
     }
     else if (canOpen)
     {
+        // Walking from one title to another is a move WITHIN menu mode, not
+        // an entry into it, so the open animation plays only for the first.
+        bool  wasOpen = m_isOpen && m_dropdown.IsVisible();
+
         m_dropdown.Hide();
+        m_dropdown.SetRevealSuppressed (wasOpen);
 
         m_openIndex        = menuIndex;
         m_isOpen           = true;
@@ -938,7 +969,7 @@ void DxuiMenuBar::PaintStrip (
 {
     HRESULT   hr        = S_OK;
     UINT      eDpi      = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
-    float     fontDip   = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
+    float     fontDip   = GetMenuFontPx (eDpi);
     bool      showCues  = ShouldShowMnemonicCues (IsOpenByKeyboard());
     uint32_t  stripBg   = m_stripColorsSet ? m_stripBgOverride    : theme.Background();
     uint32_t  stripHov  = m_stripColorsSet ? m_stripHoverOverride : theme.HoverBackground();
@@ -974,11 +1005,12 @@ void DxuiMenuBar::PaintStrip (
             (m_isOpen && m_openIndex == (int) i) ||
             (m_hasFocus && !m_isOpen && m_focusedIndex == (int) i))
         {
-            painter.FillRect ((float) m_titleRects[i].left,
-                              (float) m_titleRects[i].top,
-                              rectW,
-                              rectH,
-                              stripHov);
+            painter.FillRoundedRect ((float) m_titleRects[i].left,
+                                     (float) m_titleRects[i].top,
+                                     rectW,
+                                     rectH,
+                                     DxuiTheme::kCornerRadiusDip * (float) eDpi / (float) s_kBaseDpi,
+                                     stripHov);
         }
 
         hr = text.DrawString (stripped.c_str(),
@@ -1473,15 +1505,24 @@ void DxuiMenuBar::ParseMnemonic (
 //
 //  DxuiMenuBar::ShouldShowMnemonicCues
 //
-//  Menu mnemonic underlines appear when (a) the user is holding Alt
-//  (Windows convention for "show me the access keys") or (b) the menu
-//  was opened via keyboard (F10 or Alt+mnemonic) -- keyboard navigation
-//  implies the user wants to see the access keys. Mouse-opened menus
-//  stay clean unless Alt is also pressed.
+//  Menu mnemonic underlines appear when (a) the system says to underline
+//  access keys at all times, (b) the user is holding Alt (the convention
+//  for "show me the access keys") or (c) the menu was opened via keyboard
+//  (F10 or Alt+mnemonic) -- keyboard navigation implies the user wants to
+//  see the access keys. Mouse-opened menus stay clean unless Alt is also
+//  pressed.
+//
+//  (a) is the accessibility setting, and it is checked FIRST because it is
+//  the user saying the Alt-to-reveal convention does not work for them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiMenuBar::ShouldShowMnemonicCues (bool openedByKeyboard)
 {
+    if (DxuiSystemSettings::Instance().AlwaysShowKeyboardCues())
+    {
+        return true;
+    }
+
     return openedByKeyboard || (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
 }

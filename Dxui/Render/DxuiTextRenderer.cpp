@@ -404,6 +404,71 @@ void DxuiTextRenderer::UnbindBackBuffer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetOrigin
+//
+//  Stores an offset for every position drawn after it, in pixels, and pushes
+//  it into the transform at once if a draw is already under way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::SetOrigin (float xPx, float yPx)
+{
+    m_originXPx = xPx;
+    m_originYPx = yPx;
+
+    if (m_drawing)
+    {
+        ApplyOrigin();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyOrigin
+//
+//  The origin is in pixels and a D2D transform is in DIPs, so the offset is
+//  scaled through the context's own DPI rather than assuming 96. The
+//  context's DPI is read here, never set here, so whatever it is, this is
+//  right for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::ApplyOrigin()
+{
+    float              dpiX = 0.0f;
+    float              dpiY = 0.0f;
+    D2D1_MATRIX_3X2_F  m    = {};
+
+
+
+    if (!m_d2dContext)
+    {
+        return;
+    }
+
+    m_d2dContext->GetDpi (&dpiX, &dpiY);
+
+    dpiX = (dpiX > 0.0f) ? dpiX : (float) USER_DEFAULT_SCREEN_DPI;
+    dpiY = (dpiY > 0.0f) ? dpiY : (float) USER_DEFAULT_SCREEN_DPI;
+
+    m._11 = 1.0f;
+    m._22 = 1.0f;
+    m._31 = m_originXPx * (float) USER_DEFAULT_SCREEN_DPI / dpiX;
+    m._32 = m_originYPx * (float) USER_DEFAULT_SCREEN_DPI / dpiY;
+
+    m_d2dContext->SetTransform (m);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BeginDraw
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -421,6 +486,7 @@ HRESULT DxuiTextRenderer::BeginDraw()
 
     m_d2dContext->BeginDraw();
     m_drawing = true;
+    ApplyOrigin();
 
 Error:
     return hr;

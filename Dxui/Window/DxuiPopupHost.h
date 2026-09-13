@@ -119,6 +119,9 @@ public:
         bool                            flipIfOffscreen    = true;
         DxuiPopupDismiss                dismiss            = DxuiPopupDismiss::OnClickOutside;
         DxuiPopupInput                  input              = DxuiPopupInput::Interactive;
+        // Draw a soft shadow around the popup. The window is enlarged by a
+        // margin that holds it, and pointer coordinates are reported relative
+        // to the card rather than the window, so a consumer never sees it.
         bool                            shadow             = true;
 
         // When true (the default) a popup whose dismiss policy is
@@ -130,13 +133,20 @@ public:
         // directly over it, and the owner drives dismiss/switch.
         bool                            grabsCapture       = true;
         SIZE                            sizeDip            = { 160, 120 };
+
+        // The open animation, in ms; 0 shows the popup outright. Set HERE
+        // rather than started after Show, because a reveal begun afterwards
+        // has already let one full-size frame reach the screen -- which is
+        // the blink it was supposed to replace.
+        int                             revealMs           = 0;
+        bool                            revealFade         = false;
         std::unique_ptr<DxuiPanel>      content;
 
-        // Opaque background the popup back buffer is cleared to before
-        // the render hook runs. The popup swap chain composites with
-        // premultiplied alpha, so this MUST be fully opaque (A=0xFF) or
-        // owner content shows through (translucency bug). Defaults to
-        // the stock menu background.
+        // Background of the card. With a shadow margin the host draws it as
+        // a rounded card over a transparent surround; without one it is the
+        // clear color and must be fully opaque (A=0xFF), or the owner shows
+        // through the premultiplied surface. Defaults to the stock menu
+        // background.
         uint32_t                        backgroundArgb     = kDefaultMenuBackgroundArgb;
 
         // Content render hook. Invoked between the popup painter's
@@ -224,6 +234,30 @@ public:
     //  or when the popup is closed / has no render resources.
     //
     void     MarkDirty ();
+
+    //  The open reveal: the menu is rendered once at full size and the WINDOW
+    //  then uncovers it, top to bottom, which is the unfold a Windows menu
+    //  plays. The swap chain is not resized with the window, so the content
+    //  stays put while the frame grows over it and nothing repaints per frame.
+    //
+    //  A popup placed ABOVE its anchor, because it would not fit below, keeps
+    //  its bottom edge pinned and grows upward instead; a menu that unfolded
+    //  downward from a flipped position would crawl away from the title that
+    //  opened it.
+    //
+    //  `AdvanceReveal` returns true while more frames are wanted.
+    //  Reveal control. Show() starts one itself from `ShowParams`; these are
+    //  for a caller driving one on an already-open popup.
+    void     BeginReveal   (int durationMs, bool fade);
+
+    //  The closing counterpart: content ramps to transparent and the caller
+    //  closes the popup once `AdvanceReveal` reports it is finished. A
+    //  tooltip that vanished on the frame its time ran out looked like a
+    //  glitch rather than a dismissal.
+    void     BeginFadeOut  (int durationMs);
+    bool     AdvanceReveal (int64_t nowMs);
+    void     ApplyReveal    (float t);
+    bool     IsRevealing   () const { return m_revealing; }
 
     //
     //  Measure the natural extent of `text` (in DIPs) through the
@@ -342,18 +376,36 @@ private:
     ComPtr<IDCompositionVisual>             m_compVisual;
     ComPtr<ID3D11RenderTargetView>          m_rtv;
 
-    // Per-popup render facades bound to the popup's own back buffer.
-    // The popup composites with premultiplied alpha (DComp), so RenderNow
-    // clears the whole buffer opaque before invoking the content hook.
+    // Per-popup render facades bound to the popup's own back buffer. The
+    // surface composites with premultiplied alpha (DComp); RenderNow clears
+    // it transparent, draws the shadow and the rounded card, and offsets
+    // the content hook onto the card.
     DxuiPainter                             m_painter;
     DxuiTextRenderer                        m_textRenderer;
     bool                                    m_renderReady       = false;
     SIZE                                    m_backBufferSizePx  = {};
 
+    //  The client rect less the shadow margin: the card, in window-client
+    //  pixels. What the pointer has to be over to count as inside.
+    RECT  GetContentClientRect () const;
+
+    //  The drawn shadow and the rounded card it sits under.
+    void  PaintShadowAndCard   ();
+
     ShowParams  m_params;
     bool        m_open               = false;
     int         m_resultCode         = 0;
     RECT        m_placedRectScreenPx = {};
+    bool        m_revealing          = false;
+    bool        m_revealFade         = false;
+    bool        m_revealOut          = false;
+    bool        m_revealUpward       = false;
+    int         m_revealDurationMs   = 0;
+    int64_t     m_revealStartMs      = 0;
+    float       m_revealAlpha        = 1.0f;
+    RECT        m_windowRectScreenPx = {};
+    int         m_shadowMarginPx     = 0;
+    UINT        m_dpi                = 0;
 
     DxuiPopupHost                         * m_parent            = nullptr;
     DxuiPopupHost                         * m_activeChild       = nullptr;

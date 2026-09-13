@@ -1031,6 +1031,18 @@ bool EmulatorShell::TryPresentUiFrame()
         m_toolbarTooltip.Tick   (nowMs);
         m_switchBarTooltip.Tick (nowMs);
         m_driveTooltip.Tick     (nowMs);
+        m_captionTooltip.Tick   (nowMs);
+
+        // An open menu's submenu waits out the system's show delay before it
+        // opens, and the pointer resting on the row produces no messages, so
+        // a present is requested every frame one is armed, as for the compass.
+        if (m_mainMenu.WantsTick() || m_toolbar.WantsTick())
+        {
+            m_mainMenu.TickMenus (nowMs);
+            m_toolbar.TickMenus  (nowMs);
+
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
 
         // A HELD COMPASS ARROW REPEATS, and a held arrow produces no messages
         // to wake this loop -- the pointer is not moving, which is the very

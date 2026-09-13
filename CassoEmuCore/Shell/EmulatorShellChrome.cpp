@@ -1285,6 +1285,7 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     m_toolbarTooltip.SetTheme   (theme);
     m_switchBarTooltip.SetTheme (theme);
     m_driveTooltip.SetTheme     (theme);
+    m_captionTooltip.SetTheme   (theme);
 
     // A balloon that is already up was sized and cleared with the outgoing
     // colors, and nothing repaints its background. Take it down; the next
@@ -1292,6 +1293,7 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     m_toolbarTooltip.HideImmediate();
     m_switchBarTooltip.HideImmediate();
     m_driveTooltip.HideImmediate();
+    m_captionTooltip.HideImmediate();
 
     // Every path applies the new thickness; only the window resize is
     // conditional. Min/max/fullscreen windows are skipped because the user

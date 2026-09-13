@@ -3,6 +3,7 @@
 
 #include "DxuiToolbar.h"
 #include "Window/DxuiHwndSource.h"
+#include "Render/DxuiShadow.h"
 
 
 
@@ -29,6 +30,7 @@ DxuiToolbar::DxuiToolbar()
     m_hostClient.right  =  s_kUnboundedClientPx;
     m_hostClient.bottom =  s_kUnboundedClientPx;
 
+    RefreshMetrics();
     WireDropDown();
 }
 
@@ -575,7 +577,7 @@ int DxuiToolbar::MeasureLabelPx (const wchar_t * text, float fontPx) const
         return (int) (w + 0.5f);
     }
 
-    return (int) ((float) wcslen (text) * kFallbackCharPx * fontPx / kFontDip);
+    return (int) ((float) wcslen (text) * kFallbackCharPx * fontPx / kFallbackFontDip);
 }
 
 
@@ -595,7 +597,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
 {
     int           padX    = m_scaler.ToPx (kBtnPadXDp);
     int           iconGap = m_scaler.ToPx (kIconGapDp);
-    float         fontPx  = m_scaler.ToPxf (kFontDip);
+    float         fontPx  = GetChromeFontPx();
     int           iconW   = (int) (m_scaler.ToPxf (kIconDip) + 0.5f);
     int           width   = 0;
     std::wstring  label;
@@ -662,6 +664,25 @@ int DxuiToolbar::GetTotalWidthPx (int labeledCount) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::RefreshMetrics
+//
+//  Re-reads the chrome font for the scaler's DPI. The strip asks for the
+//  size on every width plan and every paint, and the metrics come from a
+//  system-parameters query that has no business running per frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::RefreshMetrics()
+{
+    m_metrics = DxuiMenuMetrics::FromSystem (m_scaler.GetDpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::PlanForWidth
 //
 //  Drops one label at a time FROM THE RIGHT until the strip fits, so the
@@ -680,6 +701,7 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
 
     m_scaler.SetDpi (scaler.GetDpi());
+    RefreshMetrics();
 
     while (labeled > 0 && GetTotalWidthPx (labeled) > clientWidthPx)
     {
@@ -1300,7 +1322,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     float                bt      = (float) slot.rc.top;
     float                bw      = (float) (slot.rc.right  - slot.rc.left);
     float                bh      = (float) (slot.rc.bottom - slot.rc.top);
-    float                fontDip = m_scaler.ToPxf (kFontDip);
+    float                fontDip = GetChromeFontPx();
     float                iconDip = m_scaler.ToPxf (kIconDip);
     int                  padX    = m_scaler.ToPx (kBtnPadXDp);
     int                  iconGap = m_scaler.ToPx (kIconGapDp);
@@ -1321,18 +1343,22 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
         uint32_t  fill = (slot.pressed || checked) ? theme.ButtonPressed()
                                                    : (slot.hovered ? theme.ButtonHover() : theme.ButtonIdle());
 
-        painter.FillRect    (bl, bt, bw, bh, fill);
-        painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.ButtonBorder());
+        painter.FillRoundedRect    (bl, bt, bw, bh, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), fill);
+        painter.OutlineRoundedRect (bl, bt, bw, bh, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, theme.ButtonBorder());
     }
 
     // The keyboard focus ring sits just outside the entry, as the drive
-    // widgets draw theirs, so it never covers the hover chrome.
+    // widgets draw theirs, so it never covers the hover chrome. Its radius is
+    // the entry's plus the gap between them, which keeps the ring parallel to
+    // the rounded entry; the entry's own radius would pinch in at the corners.
     if (&slot == &m_slots[(size_t) (std::max) (m_focusIndex, 0)] && m_focusIndex >= 0)
     {
         float  ring = (float) m_scaler.ToPx (2);
         float  pen  = (float) (std::max) (1, m_scaler.ToPx (1));
 
-        painter.OutlineRect (bl - ring, bt - ring, bw + ring * 2.0f, bh + ring * 2.0f, pen, theme.FocusRing());
+        painter.OutlineRoundedRect (bl - ring, bt - ring, bw + ring * 2.0f, bh + ring * 2.0f,
+                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip) + ring,
+                                    pen, theme.FocusRing());
     }
 
     if (slot.entry.custom != nullptr)
@@ -1453,8 +1479,18 @@ void DxuiToolbar::PaintFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
         return;
     }
 
-    painter.FillRect (fl - 1.0f, ft - 1.0f, fw + 2.0f, fh + 2.0f, theme.ButtonBorder());
-    painter.FillRect (fl, ft, fw, fh, strip);
+    // The flyout floats over the window like a popup, so it wears the same
+    // shadow and overlay radius a popup's card does -- drawn here in the
+    // window, since the flyout is not a separate surface.
+    DxuiShadow::Paint (painter, fl, ft, fw, fh,
+                       m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip),
+                       m_scaler.ToPxf (1.0f));
+    painter.FillRoundedRect (fl - 1.0f, ft - 1.0f, fw + 2.0f, fh + 2.0f,
+                             m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip) + 1.0f,
+                             theme.ButtonBorder());
+    painter.FillRoundedRect (fl, ft, fw, fh,
+                             m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip),
+                             strip);
 
     m_flyoutControl->Paint (painter, text, theme);
 }

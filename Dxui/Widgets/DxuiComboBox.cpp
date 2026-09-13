@@ -780,17 +780,19 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         textWidth = 0;
     }
 
-    painter.FillRect    ((float) m_boundsDip.left,
-                         (float) m_boundsDip.top,
-                         (float) (m_boundsDip.right - m_boundsDip.left),
-                         (float) (m_boundsDip.bottom - m_boundsDip.top),
-                         boxColor);
-    painter.OutlineRect ((float) m_boundsDip.left,
-                         (float) m_boundsDip.top,
-                         (float) (m_boundsDip.right - m_boundsDip.left),
-                         (float) (m_boundsDip.bottom - m_boundsDip.top),
-                         edgePx,
-                         edgeColor);
+    painter.FillRoundedRect ((float) m_boundsDip.left,
+                             (float) m_boundsDip.top,
+                             (float) (m_boundsDip.right - m_boundsDip.left),
+                             (float) (m_boundsDip.bottom - m_boundsDip.top),
+                             m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                             boxColor);
+    painter.OutlineRoundedRect ((float) m_boundsDip.left,
+                                (float) m_boundsDip.top,
+                                (float) (m_boundsDip.right - m_boundsDip.left),
+                                (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                edgePx,
+                                edgeColor);
     hr = text.DrawString (label.c_str(),
                           (float) (m_boundsDip.left + textInset),
                           (float) m_boundsDip.top,
@@ -823,12 +825,13 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);
 
-        painter.OutlineRect ((float) m_boundsDip.left + focusInset,
-                             (float) m_boundsDip.top  + focusInset,
-                             (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
-                             (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
-                             focusThick,
-                             c.focus);
+        painter.OutlineRoundedRect ((float) m_boundsDip.left + focusInset,
+                                    (float) m_boundsDip.top  + focusInset,
+                                    (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
+                                    (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
+                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                    focusThick,
+                                    c.focus);
     }
 }
 
@@ -911,29 +914,47 @@ void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
 void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    HRESULT         hr        = S_OK;
-    int             i         = 0;
-    int             rowHeight = m_scaler.ToPx (s_kRowHeightDip);
-    int             textInset = m_scaler.ToPx (s_kTextInsetDip);
-    int             width     = m_boundsDip.right - m_boundsDip.left;
-    float           fontPx    = m_scaler.ToPxf (s_kFontDip);
-    ResolvedColors  c         = ResolveColors();
+    constexpr float  kHoverInsetXDip = 4.0f;
+    constexpr float  kHoverInsetYDip = 2.0f;
+    HRESULT          hr              = S_OK;
+    int              i               = 0;
+    int              rowHeight       = m_scaler.ToPx (s_kRowHeightDip);
+    int              textInset       = m_scaler.ToPx (s_kTextInsetDip);
+    int              width           = m_boundsDip.right - m_boundsDip.left;
+    float            fontPx          = m_scaler.ToPxf (s_kFontDip);
+    float            insetX          = m_scaler.ToPxf (kHoverInsetXDip);
+    float            insetY          = m_scaler.ToPxf (kHoverInsetYDip);
+    ResolvedColors   c               = ResolveColors();
 
 
 
-    (void) painter;
+    // The card is rounded at the overlay radius, as the popup host draws it.
+    // Rows used to be filled square edge to edge, which painted the first
+    // and last rows' corners back over the host's rounded card. The fill
+    // goes through the painter, which the host renders beneath the text.
+    painter.FillRoundedRect (0.0f,
+                             0.0f,
+                             (float) width,
+                             (float) ((int) m_items.size() * rowHeight),
+                             m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip),
+                             c.menu);
 
     for (i = 0; i < (int) m_items.size(); i++)
     {
-        RECT      row   = { 0, i * rowHeight, width, (i + 1) * rowHeight };
-        uint32_t  color = (i == m_highlight) ? c.menuHover : c.menu;
+        RECT  row = { 0, i * rowHeight, width, (i + 1) * rowHeight };
 
-        hr = text.FillRect ((float) row.left,
-                            (float) row.top,
-                            (float) (row.right - row.left),
-                            (float) (row.bottom - row.top),
-                            color);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        // The highlight is the same inset rounded card a menu row's hover
+        // draws, not a full-bleed band.
+        if (i == m_highlight)
+        {
+            painter.FillRoundedRect ((float) row.left + insetX,
+                                     (float) row.top  + insetY,
+                                     (float) (row.right  - row.left) - insetX - insetX,
+                                     (float) (row.bottom - row.top)  - insetY - insetY,
+                                     m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                     c.menuHover);
+        }
+
         hr = text.DrawString (m_items[(size_t) i].c_str(),
                               (float) (row.left + textInset),
                               (float) row.top,

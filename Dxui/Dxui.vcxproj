@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -158,14 +158,17 @@
     <ClCompile Include="Core\DxuiInput.cpp" />
     <ClCompile Include="Core\DxuiPanel.cpp" />
     <ClCompile Include="Core\DxuiPanZoom.cpp" />
+    <ClCompile Include="Core\DxuiSystemSettings.cpp" />
     <ClCompile Include="Core\DxuiStackLayout.cpp" />
     <ClCompile Include="Core\DxuiThread.cpp" />
     <ClCompile Include="Core\DxuiViewport.cpp" />
     <ClCompile Include="Core\IDxuiControl.cpp" />
     <ClCompile Include="Render\Dxui3DRenderer.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
+    <ClCompile Include="Render\DxuiShadow.cpp" />
     <ClCompile Include="Render\DxuiTextRenderer.cpp" />
     <ClCompile Include="Theme\DxuiDwm.cpp" />
+    <ClCompile Include="Theme\DxuiMenuMetrics.cpp" />
     <ClCompile Include="Theme\DxuiWindowsThemeColors.cpp" />
     <ClCompile Include="Widgets\DxuiButton.cpp" />
     <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
@@ -224,6 +227,7 @@
     <ClInclude Include="Core\DxuiInput.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
     <ClInclude Include="Core\DxuiPanZoom.h" />
+    <ClInclude Include="Core\DxuiSystemSettings.h" />
     <ClInclude Include="Core\DxuiStackLayout.h" />
     <ClInclude Include="Core\DxuiThread.h" />
     <ClInclude Include="Core\UnicodeSymbols.h" />
@@ -233,10 +237,12 @@
     <ClInclude Include="Core\IDxuiViewportInputSink.h" />
     <ClInclude Include="Render\Dxui3DRenderer.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
+    <ClInclude Include="Render\DxuiShadow.h" />
     <ClInclude Include="Render\DxuiTextRenderer.h" />
     <ClInclude Include="Render\IDxuiPainter.h" />
     <ClInclude Include="Render\IDxuiTextRenderer.h" />
     <ClInclude Include="Theme\DxuiDwm.h" />
+    <ClInclude Include="Theme\DxuiMenuMetrics.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
     <ClInclude Include="Theme\DxuiColor.h" />
     <ClInclude Include="Theme\DxuiTheme.h" />
