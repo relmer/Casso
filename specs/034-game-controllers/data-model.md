@@ -101,7 +101,8 @@ User --connect--> User (no recapture, FR-007a)
 Only `User` calibration and the automatic limits persist; the automatic center is recaptured each connect.
 
 - Automatic travel on each side is taken as at least `kMinimumTravel` (0.5 of the half range), capped by how far the reading can physically go, until the stick has shown more. Without that floor, limits set to the rest position at connect would read full deflection for the first hair's width of movement.
-- An axis that never moves keeps `minimum == maximum == center` and reads center, which covers an enumerated axis with no hardware behind it (research R3).
+- A reading at connect is taken as center only within `kMaxRestOffset` (0.25) of zero; further out the stick is being held over, and the center stays 0.
+- An automatic axis reads center until it moves more than `kMovedThreshold` (0.02) from its reading at connect. That covers an enumerated axis with no hardware behind it, pinned at a rail (research R3), and a stick held over while it connects.
 - Calibrations are held by the controller service and written to the global prefs when Casso exits, and only when they changed. An automatic axis is written only once it has shown travel.
 
 ### Deadzone

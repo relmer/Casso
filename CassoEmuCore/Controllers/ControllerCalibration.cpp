@@ -10,10 +10,11 @@
 //
 //  CaptureCenter
 //
-//  The controller just connected, so this reading is where it rests. Limits
-//  learned before are kept and widened to take the new center in; an axis
-//  with none takes the center as both limits, and the travel floor covers it
-//  until the stick moves.
+//  The controller just connected, so this reading is where it rests -- when
+//  it is close enough to zero to be a rest at all. Further out it is a stick
+//  being held over, and the center is left at zero. Limits learned before are
+//  kept and widened to take the reading in; an axis with none takes it as
+//  both limits, and the travel floor covers it until the stick moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +34,9 @@ void ControllerCalibration::CaptureCenter (const ControllerSample & sample)
         AxisCalibration &  axis  = axes[i];
         float              value = sample.axes[i];
 
-        axis.center = value;
+        axis.center       = (std::abs (value) <= kMaxRestOffset) ? value : 0.0f;
+        connectReading[i] = value;
+        hasMoved[i]       = false;
 
         if (axis.minimum < axis.maximum)
         {
@@ -75,6 +78,11 @@ void ControllerCalibration::Observe (const ControllerSample & sample)
     {
         axes[i].minimum = std::min (axes[i].minimum, sample.axes[i]);
         axes[i].maximum = std::max (axes[i].maximum, sample.axes[i]);
+
+        if (std::abs (sample.axes[i] - connectReading[i]) > kMovedThreshold)
+        {
+            hasMoved[i] = true;
+        }
     }
 }
 
@@ -100,7 +108,7 @@ ControllerSample ControllerCalibration::Apply (const ControllerSample & sample) 
 
     for (i = 0; i < axes.size(); i++)
     {
-        calibrated.axes[i] = ApplyAxis (sample.axes[i], axes[i], mode);
+        calibrated.axes[i] = ApplyAxis (sample.axes[i], axes[i], mode, hasMoved[i]);
     }
 
     return calibrated;
@@ -121,8 +129,10 @@ ControllerSample ControllerCalibration::Apply (const ControllerSample & sample) 
 
 void ControllerCalibration::ResetToAutomatic()
 {
-    mode = CalibrationMode::Automatic;
-    axes = {};
+    mode           = CalibrationMode::Automatic;
+    axes           = {};
+    connectReading = {};
+    hasMoved       = {};
 }
 
 
@@ -164,7 +174,8 @@ bool ControllerCalibration::IsValid (const AxisCalibration & axis, CalibrationMo
 //
 //  ApplyAxis
 //
-//  Distance from the center over the travel on that side. Automatic travel
+//  Distance from the center over the travel on that side, and center for an
+//  automatic axis that has not moved since it connected. Automatic travel
 //  is never taken as less than the floor, nor as more than the reading can
 //  physically go: a center near a rail leaves less than the floor on that
 //  side, and an axis pinned AT a rail has none, so it reads center rather
@@ -172,7 +183,7 @@ bool ControllerCalibration::IsValid (const AxisCalibration & axis, CalibrationMo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float ControllerCalibration::ApplyAxis (float value, const AxisCalibration & axis, CalibrationMode mode)
+float ControllerCalibration::ApplyAxis (float value, const AxisCalibration & axis, CalibrationMode mode, bool hasMoved)
 {
     constexpr float  kNoTravel  = 1.0e-6f;
     bool             isNegative = value < axis.center;
@@ -184,6 +195,11 @@ float ControllerCalibration::ApplyAxis (float value, const AxisCalibration & axi
 
     if (mode == CalibrationMode::Automatic)
     {
+        if (!hasMoved)
+        {
+            return 0.0f;
+        }
+
         travel = std::max (observed, std::min (kMinimumTravel, available));
     }
 

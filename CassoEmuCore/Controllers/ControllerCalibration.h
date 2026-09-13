@@ -69,10 +69,28 @@ public:
     // stick whose limits were just set to its rest position would read full
     // deflection for the first hair's width of movement, and rest jitter
     // would swing the paddle from end to end.
-    static constexpr float  kMinimumTravel = 0.5f;
+    static constexpr float  kMinimumTravel  = 0.5f;
+
+    // Furthest from zero a reading at connect can be and still be taken as
+    // where the stick rests. A worn stick's rest error is a small fraction of
+    // this; a stick held over while it connects is far past it, and taking
+    // that as center would read full deflection at rest until a reconnect.
+    static constexpr float  kMaxRestOffset  = 0.25f;
+
+    // How far an axis must move from its reading at connect before it counts.
+    // Above rest jitter, well below any deliberate movement.
+    static constexpr float  kMovedThreshold = 0.02f;
 
     CalibrationMode                                            mode = CalibrationMode::Automatic;
     std::array<AxisCalibration, ControllerSample::kAxisCount>  axes = {};
+
+    // Automatic only, and never saved: each axis's reading at connect and
+    // whether it has moved from it since. AN AXIS THAT HAS NOT MOVED READS
+    // CENTER. That covers an axis pinned at a rail with no hardware behind it,
+    // and a stick held over as it connects, whose reading cannot be trusted
+    // as its rest until it is let go.
+    std::array<float, ControllerSample::kAxisCount>            connectReading = {};
+    std::array<bool, ControllerSample::kAxisCount>             hasMoved       = {};
 
     void              CaptureCenter     (const ControllerSample & sample);
     void              Observe           (const ControllerSample & sample);
@@ -88,5 +106,5 @@ public:
 
 private:
 
-    static float      ApplyAxis         (float value, const AxisCalibration & axis, CalibrationMode mode);
+    static float      ApplyAxis         (float value, const AxisCalibration & axis, CalibrationMode mode, bool hasMoved);
 };

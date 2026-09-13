@@ -125,6 +125,38 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (Automatic_AStickHeldOverAtConnectReadsCenterOnceReleased)
+        {
+            ControllerCalibration  calibration;
+
+            calibration.CaptureCenter (MakeSample (0.8f));
+            calibration.Observe       (MakeSample (0.8f));
+
+            Assert::AreEqual (0.0f, calibration.axes[0].center, kTolerance,
+                L"a reading that far out is a stick being held over, not where it rests");
+            Assert::AreEqual (0.0f, calibration.Apply (MakeSample (0.8f)).axes[0], kTolerance,
+                L"and while it is held still it reads center rather than a jammed control");
+
+            calibration.Observe (MakeSample (0.0f));
+            Assert::AreEqual (0.0f, calibration.Apply (MakeSample (0.0f)).axes[0], kTolerance, L"let go, it rests at center");
+
+            calibration.Observe (MakeSample (1.0f));
+            Assert::AreEqual (1.0f, calibration.Apply (MakeSample (1.0f)).axes[0], kTolerance, L"and pushed over, it reaches the end");
+        }
+
+
+        TEST_METHOD (Automatic_AnAxisThatHasNotMovedReadsCenter)
+        {
+            ControllerCalibration  calibration;
+
+            calibration.CaptureCenter (MakeSample (0.1f));
+            calibration.Observe       (MakeSample (0.11f));
+
+            Assert::AreEqual (0.0f, calibration.Apply (MakeSample (0.11f)).axes[0], kTolerance,
+                L"rest jitter is not movement");
+        }
+
+
         TEST_METHOD (User_SkipsTheConnectTimeCapture)
         {
             ControllerCalibration  calibration;
@@ -194,7 +226,7 @@ namespace ControllerTests
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
             backend.AddDevice (stick);
-            backend.SetSample (stick.unit, MakeSample (0.3f, 0.3f));
+            backend.SetSample (stick.unit, MakeSample (0.2f, 0.2f));
             service.SetSelection (stick.unit);
             service.Tick();
 
