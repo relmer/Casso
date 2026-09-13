@@ -78,10 +78,4 @@ public:
     virtual void     GetWakeSources   (const ControllerUnitKey   & unit,
                                        std::vector<HANDLE>       & outEvents,
                                        bool                      & outNeedsTimedPoll)          = 0;
-
-    // True when an XInput slot that was empty at the last enumeration now
-    // reports a controller. Reads the empty slots and opens nothing, so it is
-    // safe on a timer -- unlike EnumerateDevices, which closes and reopens
-    // every DirectInput device.
-    virtual bool     RecheckXInputSlots ()                                                    = 0;
 };

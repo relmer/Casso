@@ -208,116 +208,6 @@ void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetClock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllerInputService::SetClock (ClockFn clock)
-{
-    std::lock_guard<std::mutex>  lock (m_mutex);
-
-
-
-    m_clock = std::move (clock);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NowMs
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t ControllerInputService::NowMs() const
-{
-    ClockFn  clock;
-
-
-
-    {
-        std::lock_guard<std::mutex>  lock (m_mutex);
-
-        clock = m_clock;
-    }
-
-    if (clock)
-    {
-        return clock();
-    }
-
-    return (uint64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-               std::chrono::steady_clock::now().time_since_epoch()).count();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsAbsentXboxSelection
-//
-//  The one state in which empty XInput slots are rechecked on a timer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ControllerInputService::IsAbsentXboxSelection() const
-{
-    std::lock_guard<std::mutex>  lock (m_mutex);
-
-
-
-    return m_selection.has_value()
-           && m_selection.value().model.kind == ControllerKind::XInput
-           && FindDeviceLocked (m_selection.value()) == nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyXInputRecheckDeadline
-//
-//  Shortens the wait so the thread wakes for the next slot recheck even when
-//  it has nothing else to wait on: an absent Xbox controller with no stand-in
-//  leaves no events and no poll period at all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllerInputService::ApplyXInputRecheckDeadline (ControllerWaitSources & wait, bool needsRecheck) const
-{
-    uint64_t  elapsed   = 0;
-    DWORD     remaining = 0;
-
-
-
-    if (!needsRecheck)
-    {
-        return;
-    }
-
-    elapsed   = NowMs() - m_lastXInputRecheckMs;
-
-    // Already due is due now, not never: a zero timeout would still wait.
-    remaining = (elapsed >= kXInputRecheckMs) ? 1 : (DWORD) (kXInputRecheckMs - elapsed);
-
-    if (!wait.timeoutMs.has_value() || wait.timeoutMs.value() > remaining)
-    {
-        wait.timeoutMs = remaining;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Tick
 //
 //  Controller thread. Reads the selected controller once and submits what it
@@ -330,19 +220,17 @@ void ControllerInputService::ApplyXInputRecheckDeadline (ControllerWaitSources &
 
 ControllerWaitSources ControllerInputService::Tick()
 {
-    HRESULT                           hr                 = S_OK;
+    HRESULT                           hr                = S_OK;
     std::optional<ControllerUnitKey>  active;
-    bool                              isSelectionActive  = false;
+    bool                              isSelectionActive = false;
     ControllerSample                  sample;
     ControlMapping                    mapping;
     ControllerWaitSources             wait;
-    float                             deadzone           = 0.0f;
-    bool                              isActive           = false;
-    bool                              wasConnected       = false;
-    bool                              isConnected        = false;
-    bool                              needsTimedPoll     = false;
-    bool                              needsXInputRecheck = false;
-    uint64_t                          nowMs              = 0;
+    float                             deadzone          = 0.0f;
+    bool                              isActive          = false;
+    bool                              wasConnected      = false;
+    bool                              isConnected       = false;
+    bool                              needsTimedPoll    = false;
     StateChangedFn                    onStateChanged;
 
 
@@ -350,42 +238,6 @@ ControllerWaitSources ControllerInputService::Tick()
     if (m_devicesDirty.exchange (false))
     {
         RefreshDevices();
-    }
-
-    //  THE ONE STATE THAT POLLS FOR AN ARRIVAL. A Bluetooth Xbox controller
-    //  reconnecting after airplane mode was not caught by the rescans that
-    //  follow an arrival notification, so its slot was never looked at again.
-    //  While the chosen controller is an Xbox controller that is not attached,
-    //  and only then, the empty slots are rechecked every two seconds -- by
-    //  reading the slots and opening nothing, since a full enumeration closes
-    //  and reopens every DirectInput device, a stick standing in included.
-    needsXInputRecheck = IsAbsentXboxSelection();
-
-    if (!needsXInputRecheck)
-    {
-        m_isXInputRecheckArmed = false;
-    }
-    else if (!m_isXInputRecheckArmed)
-    {
-        //  The clock starts when the controller goes missing: checking at the
-        //  moment of the removal would find nothing.
-        m_isXInputRecheckArmed = true;
-        m_lastXInputRecheckMs  = NowMs();
-    }
-    else
-    {
-        nowMs = NowMs();
-
-        if (nowMs - m_lastXInputRecheckMs >= kXInputRecheckMs)
-        {
-            m_lastXInputRecheckMs = nowMs;
-
-            if (m_backend.RecheckXInputSlots())
-            {
-                RefreshDevices();
-                needsXInputRecheck = IsAbsentXboxSelection();
-            }
-        }
     }
 
     {
@@ -416,8 +268,6 @@ ControllerWaitSources ControllerInputService::Tick()
 
     if (!active.has_value())
     {
-        ApplyXInputRecheckDeadline (wait, needsXInputRecheck);
-
         return wait;
     }
 
@@ -454,10 +304,8 @@ ControllerWaitSources ControllerInputService::Tick()
     {
         // A controller that could not be read is gone, not resting. Nothing
         // to wait on either: the next device notification is what brings it
-        // back, and that arrives as a window message -- or, for an absent
-        // Xbox controller, the slot recheck, whose deadline is set here.
+        // back, and that arrives as a window message.
         ReleaseContribution();
-        ApplyXInputRecheckDeadline (wait, needsXInputRecheck);
 
         return wait;
     }
@@ -490,8 +338,6 @@ ControllerWaitSources ControllerInputService::Tick()
     {
         wait.timeoutMs = kPollPeriodMs;
     }
-
-    ApplyXInputRecheckDeadline (wait, needsXInputRecheck);
 
     return wait;
 }

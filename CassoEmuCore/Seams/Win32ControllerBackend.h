@@ -38,7 +38,6 @@ public:
     void     GetWakeSources   (const ControllerUnitKey & unit,
                                std::vector<HANDLE>     & outEvents,
                                bool                    & outNeedsTimedPoll) override;
-    bool     RecheckXInputSlots () override;
 
 private:
 

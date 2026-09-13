@@ -39,10 +39,6 @@ public:
     // The measured XInput report interval on this machine (research R13).
     static constexpr DWORD  kPollPeriodMs = 8;
 
-    // At most this often, the empty XInput slots are rechecked while the
-    // chosen controller is an Xbox controller that is not attached (R4).
-    static constexpr uint64_t  kXInputRecheckMs = 2000;
-
     struct Snapshot
     {
         std::vector<ControllerDeviceInfo>  devices;
@@ -71,10 +67,6 @@ public:
     // owner depends on it, and the owner is decided on the UI thread.
     using StateChangedFn = std::function<void ()>;
 
-    // Milliseconds from an arbitrary start. Tests supply one; the default is
-    // the steady clock.
-    using ClockFn = std::function<uint64_t ()>;
-
     ControllerInputService (IControllerBackend & backend, GamePortInputMixer & mixer);
 
     void  OnDevicesChanged () override;
@@ -85,7 +77,6 @@ public:
     void  SetHasGamePort        (bool hasGamePort);
     void  SetSelectionChangedFn (SelectionChangedFn onSelectionChanged);
     void  SetStateChangedFn     (StateChangedFn onStateChanged);
-    void  SetClock              (ClockFn clock);
 
     // Reads the selected controller once and returns what the thread should
     // wait on before reading again.
@@ -133,11 +124,6 @@ private:
     // the read fails and the disconnect path runs.
     bool                          UpdateActiveUnitLocked    ();
 
-    // None of these expects the caller to hold m_mutex.
-    uint64_t  NowMs                      () const;
-    bool      IsAbsentXboxSelection      () const;
-    void      ApplyXInputRecheckDeadline (ControllerWaitSources & wait, bool needsRecheck) const;
-
     IControllerBackend                 & m_backend;
     GamePortInputMixer                 & m_mixer;
     MappingEvaluator                     m_evaluator;
@@ -156,19 +142,13 @@ private:
 
     ControllerSample                     m_lastSample;
     TickReport                           m_lastTick;
-    ClockFn                              m_clock;
-
-    // When the empty XInput slots were last rechecked, and whether the recheck
-    // is running at all. Touched only on the controller thread.
-    uint64_t            m_lastXInputRecheckMs  = 0;
-    bool                m_isXInputRecheckArmed = false;
-    SelectionChangedFn  m_onSelectionChanged;
-    StateChangedFn      m_onStateChanged;
-    float               m_deadzone             = 0.0f;
-    bool                m_isActive             = true;
-    bool                m_hasGamePort          = true;
-    bool                m_isSelectedConnected  = false;
-    bool                m_hasContribution      = false;
+    SelectionChangedFn                   m_onSelectionChanged;
+    StateChangedFn                       m_onStateChanged;
+    float                                m_deadzone            = 0.0f;
+    bool                                 m_isActive            = true;
+    bool                                 m_hasGamePort         = true;
+    bool                                 m_isSelectedConnected = false;
+    bool                                 m_hasContribution     = false;
     std::atomic<bool>                    m_devicesDirty        {true};
     mutable std::mutex                   m_mutex;
 };

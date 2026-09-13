@@ -47,16 +47,9 @@ public:
     {
         outDevices.clear();
 
-        enumeratedXInput = false;
-
         for (const Device & device : devices)
         {
             outDevices.push_back (device.info);
-
-            if (device.info.unit.model.kind == ControllerKind::XInput)
-            {
-                enumeratedXInput = true;
-            }
         }
 
         enumerateCount++;
@@ -101,28 +94,6 @@ public:
         outNeedsTimedPoll = device != nullptr && device->needsTimedPoll;
     }
 
-    // An XInput device attached since the last enumeration, found without
-    // a device-change event -- which is the case the recheck exists for.
-    bool RecheckXInputSlots() override
-    {
-        recheckCount++;
-
-        if (enumeratedXInput)
-        {
-            return false;
-        }
-
-        for (const Device & device : devices)
-        {
-            if (device.info.unit.model.kind == ControllerKind::XInput)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     void AddDevice (const ControllerDeviceInfo & info, bool needsTimedPoll = false)
     {
         Device  device;
@@ -162,13 +133,11 @@ public:
         return found != devices.end() ? &*found : nullptr;
     }
 
-    std::vector<Device>         devices;
-    IControllerBackendEvents  * events           = nullptr;
-    HRESULT                     failNextRead     = S_OK;
-    int                         initializeCount  = 0;
-    int                         shutdownCount    = 0;
-    int                         enumerateCount   = 0;
-    int                         readCount        = 0;
-    int                         recheckCount     = 0;
-    bool                        enumeratedXInput = false;
+    std::vector<Device>          devices;
+    IControllerBackendEvents   * events          = nullptr;
+    HRESULT                      failNextRead    = S_OK;
+    int                          initializeCount = 0;
+    int                          shutdownCount   = 0;
+    int                          enumerateCount  = 0;
+    int                          readCount       = 0;
 };

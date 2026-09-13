@@ -780,43 +780,6 @@ void Win32ControllerBackend::GetWakeSources (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RecheckXInputSlots
-//
-//  Reads the XInput slots the last enumeration found empty and reports whether
-//  any of them has a controller now. Nothing is opened and nothing is
-//  recorded: the enumeration that follows a true answer does both.
-//
-//  For a Bluetooth reconnect that the rescans after its notification missed,
-//  so that nothing would otherwise look at the slot again (research R4).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Win32ControllerBackend::RecheckXInputSlots()
-{
-    for (int slot = 0; slot < kXInputSlotCount; slot++)
-    {
-        XINPUT_STATE  state = {};
-
-        if (m_xinputConnected.test ((size_t) slot))
-        {
-            continue;
-        }
-
-        if (XInputGetState ((DWORD) slot, &state) == ERROR_SUCCESS)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  FindDirectInputDevice
 //
 ////////////////////////////////////////////////////////////////////////////////
