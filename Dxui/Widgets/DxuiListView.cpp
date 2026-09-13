@@ -525,15 +525,12 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 
         if (m_showHeader && !m_columns[c].title.empty())
         {
-            int  sortReservePx = m_scaler.ToPx (s_kSortGlyphWidthDip) + m_scaler.ToPx (s_kCellPadRightDip);
-
+            //  The title paints at regular weight, and the sort chevron sits
+            //  above it, so the title's own width is all a header needs.
             hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, DxuiTheme::kBodyFace, w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            // MeasureString uses regular weight; the header paints bold
-            // (~10% wider) and reserves room on the right for the sort
-            // glyph, so widen to fit both and never clip the title.
-            wpx = std::max (wpx, (int) std::ceil (w * 1.12f) + sortReservePx);
+            wpx = std::max (wpx, (int) std::ceil (w));
         }
 
         for (const auto & row : m_rows)
@@ -564,6 +561,8 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 void DxuiListView::ResetAutoFit()
 {
     m_autoMaxChars.clear();
+    m_measuredWPx.clear();
+    m_measureDirty = true;
 }
 
 
@@ -2430,8 +2429,7 @@ void DxuiListView::PaintHeader (
     for (size_t c = 0; c < m_columns.size(); ++c)
     {
         bool   hasSort     = ((int) c == m_sortColumn) && m_columns[c].visible && (colWPx[c] > 0);
-        float  sortGlyphW  = (float) m_scaler.ToPx (s_kSortGlyphWidthDip);
-        float  sortReserve = hasSort ? (sortGlyphW + cellPadR) : 0.0f;
+        float  sortReserve = 0.0f;
         float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - sortReserve;
 
         if (!m_columns[c].visible || colWPx[c] <= 0)
@@ -2456,21 +2454,20 @@ void DxuiListView::PaintHeader (
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
+        //  File Explorer's sort indicator: a small chevron centered over the
+        //  column title, pointing up for ascending and down for descending.
         if (hasSort)
         {
-            const wchar_t * glyph = m_sortDescending ? s_kpszTriangleDown : s_kpszTriangleUp;
-            float           gw    = sortGlyphW;
+            float  halfW = (float) m_scaler.ToPxf (4.0f);
+            float  halfH = (float) m_scaler.ToPxf (2.0f);
+            float  thick = (float) m_scaler.ToPxf (1.0f);
+            float  cx    = x + colOff + (float) colXPx[c] + (float) colWPx[c] / 2.0f;
+            float  cy    = y + (float) m_scaler.ToPxf (6.0f);
+            float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
+            float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
 
-            hr = text.DrawString (glyph,
-                                  x + colOff + (float) colXPx[c] + (float) colWPx[c] - cellPadR - gw,
-                                  y,
-                                  gw,
-                                  headerH,
-                                  pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
-                                  DxuiTextHAlign::Right,
-                                  DxuiTextVAlign::Center,
-                                  DxuiFontWeight::Bold);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            painter.DrawLineApprox (cx - halfW, endY, cx, tipY, thick, pal.hdrFg);
+            painter.DrawLineApprox (cx, tipY, cx + halfW, endY, thick, pal.hdrFg);
         }
     }
 

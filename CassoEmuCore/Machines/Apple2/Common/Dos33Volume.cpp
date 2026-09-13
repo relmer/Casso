@@ -592,6 +592,22 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
         listed.sizeUnits   = entry.sectorCount;
         listed.isDirectory = false;
 
+        //  A binary's load address is in its first two bytes, not the catalog,
+        //  so listing it costs a walk to the file's first data sector.
+        if (listed.type == kTypeBinary)
+        {
+            ChainWalkGuard    guard (kUnitCount);
+            vector<uint32_t>  units;
+            vector<uint32_t>  listUnits;
+
+            if (CollectDataSectors (entry, units, listUnits, guard) && !units.empty())
+            {
+                listed.loadAddress    = (Word) (ReadByte (GetTrack (units[0]), GetSector (units[0]), 0)
+                                              | (ReadByte (GetTrack (units[0]), GetSector (units[0]), 1) << 8));
+                listed.hasLoadAddress = true;
+            }
+        }
+
         outListing.entries.push_back (listed);
     }
 

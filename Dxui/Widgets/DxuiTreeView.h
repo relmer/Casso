@@ -95,6 +95,9 @@ public:
     //  Moves the highlight and reports the selection.
     void  SelectRow (int flatRow);
 
+    //  Moves the highlight and scrolls to it without reporting a selection.
+    void  HighlightRow (int flatRow) { m_highlight = flatRow; EnsureRowVisible (flatRow); }
+
     int                   FindRowById      (const std::wstring & id) const;
     std::wstring          GetHighlightedId () const;
     const DxuiTreeNode *  FindNodeById     (const std::wstring & id) const;
@@ -218,6 +221,8 @@ private:
     int                        m_highlight      = -1;
     int                        m_hoverRow       = -1;
     int                        m_pressedRow     = -1;
+    int                        m_lastClickRow   = -1;
+    ULONGLONG                  m_lastClickMs    = 0;
     bool                       m_enabled        = true;
     bool                       m_focused        = false;
     std::vector<DxuiTreeNode>  m_nodes;

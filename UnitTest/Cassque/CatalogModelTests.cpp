@@ -76,7 +76,7 @@ public:
 
 
 
-    TEST_METHOD (Dos33Rows_LetterTypesSectorSizesAndNoAddress)
+    TEST_METHOD (Dos33Rows_LetterTypesSectorSizesAndBinaryAddress)
     {
         std::vector<CatalogRow>  rows;
 
@@ -92,8 +92,10 @@ public:
         //  DOS 3.3 records sectors, not bytes: 34 sectors for the picture.
         Assert::AreEqual ((uint64_t) 34 * 256, FindRow (rows, L"PICTURE").sizeBytes);
 
-        //  And no load address in the catalog, so the column stays blank.
-        Assert::IsTrue (FindRow (rows, L"PICTURE").addressText.empty());
+        //  A binary's load address comes from its first two bytes, since the
+        //  catalog does not record one; other types leave the column blank.
+        Assert::IsFalse (FindRow (rows, L"PICTURE").addressText.empty());
+        Assert::IsTrue  (FindRow (rows, L"HELLO").addressText.empty());
         Assert::IsFalse (FindRow (rows, L"PICTURE").hasModified);
         Assert::IsFalse (FindRow (rows, L"PICTURE").locked);
         Assert::IsFalse (FindRow (rows, L"PICTURE").isDirectory);

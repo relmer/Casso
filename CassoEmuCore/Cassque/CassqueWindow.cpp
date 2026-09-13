@@ -315,6 +315,7 @@ void CassqueWindow::ConfigureWidgets()
 
     m_list->SetShowHeader (true);
     m_list->SetColumns (CassqueBrowser::GetColumns());
+    m_list->SetPreciseAutoFit (true);
 
     //  Columns keep the widths they are given, and a pane too narrow for them
     //  scrolls, the way Explorer's details view does, rather than squeezing
@@ -422,6 +423,7 @@ void CassqueWindow::ConfigureWidgets()
     m_address->SetOnOverflow  ([this] (const RECT & anchor) { ShowAddressOverflowMenu (anchor); });
 
     m_browser.RestoreTabs (m_prefs.tabs);
+    RevealLocationInTree();
 
     m_tree->OnFocusChanged (true);
     FillList();
@@ -588,6 +590,14 @@ void CassqueWindow::RecomputeLayout()
     sashRect = m_treeSplitter->GetSashRect();
     m_tree->Layout (RECT { body.left, body.top, sashRect.left, body.bottom }, m_scaler);
 
+    //  The tree has no height until its first layout, so the node revealed at
+    //  startup is scrolled into view here.
+    if (m_treeRevealPending && m_tree->GetRowCap() > 0)
+    {
+        m_tree->EnsureRowVisible (m_tree->GetHighlight());
+        m_treeRevealPending = false;
+    }
+
     right    = RECT { sashRect.right, body.top, body.right, body.bottom };
 
     m_tabs->Layout (RECT { right.left, right.top, right.right, right.top + m_scaler.ToPx (kTabHeightDip) }, m_scaler);
@@ -671,6 +681,78 @@ void CassqueWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::RevealLocationInTree
+//
+//  Expands This PC down to the current location's folder and highlights it,
+//  as File Explorer's navigation pane does when a window opens on a folder.
+//  Each path component is matched against the child labels without regard to
+//  case, since a restored path need not match the case on disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::RevealLocationInTree()
+{
+    Location      location = m_browser.GetLocation();
+    std::wstring  path     = location.path;
+    int           row      = m_tree->FindRowById (TreeModel::kThisPcRootId);
+    size_t        start    = 0;
+
+
+
+    if (location.kind == Location::Kind::None || path.size() < 2 || path[1] != L':' || row < 0)
+    {
+        return;
+    }
+
+    while (start < path.size())
+    {
+        size_t                slash = path.find (L'\\', start);
+        std::wstring          label = path.substr (start, (slash == std::wstring::npos) ? std::wstring::npos : slash - start);
+        const DxuiTreeNode *  node  = nullptr;
+        int                   next  = -1;
+
+        start = (slash == std::wstring::npos) ? path.size() : slash + 1;
+
+        if (label.empty())
+        {
+            continue;
+        }
+
+        m_tree->SetRowExpanded (row, true);
+        node = m_tree->GetNodeAt (row);
+
+        for (size_t i = 0; node != nullptr && i < node->children.size() && next < 0; i++)
+        {
+            const std::wstring &  childLabel = node->children[i].label;
+            bool                  isDrive    = label.size() == 2 && label[1] == L':';
+
+            //  A drive's label is its volume name, so a drive is matched by the
+            //  letter its id ends with instead.
+            if (isDrive ? (_wcsnicmp (node->children[i].id.c_str() + wcslen (TreeModel::kThisPcRootId), label.c_str(), 2) == 0)
+                        : (_wcsicmp (childLabel.c_str(), label.c_str()) == 0))
+            {
+                next = m_tree->FindRowById (node->children[i].id);
+            }
+        }
+
+        if (next < 0)
+        {
+            break;
+        }
+
+        row = next;
+    }
+
+    m_tree->HighlightRow (row);
+    m_treeRevealPending = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::FillList
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -692,12 +774,16 @@ void CassqueWindow::FillList()
     m_list->SetRows (std::move (rows));
 
     //  A new location opens at its first row, as Explorer's does, rather than
-    //  wherever the list was scrolled for the last one.
+    //  wherever the list was scrolled for the last one. Its columns fit its
+    //  own contents, not the widest values of every folder visited before.
     if (m_browser.GetLocation() != m_listLocation)
     {
         m_listLocation = m_browser.GetLocation();
         m_list->SetTopRow (0);
+        m_list->ResetAutoFit();
     }
+
+    m_list->UpdateAutoFitFromRows();
 
     m_list->SetSelectedRows (m_browser.GetSelectedRows(), m_browser.GetSelectedRows().empty() ? -1 : m_browser.GetSelectedRows()[0]);
 
@@ -1209,6 +1295,13 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
     if (m_previewList->IsInteracting())
     {
         m_previewList->OnMouse (ToLocal (ev, m_previewList->GetBounds()));
+        Invalidate();
+        return true;
+    }
+
+    if (m_hexView->IsDragging())
+    {
+        m_hexView->OnMouse (ev);
         Invalidate();
         return true;
     }

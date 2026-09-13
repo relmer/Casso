@@ -416,8 +416,25 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
         }
         else
         {
-            SelectRow (row);
-            consumed = true;
+            ULONGLONG             nowMs = GetTickCount64();
+            const DxuiTreeNode *  n     = GetNodeAt (row);
+            bool                  twice = row == m_lastClickRow
+                                          && (nowMs - m_lastClickMs) <= (ULONGLONG) GetDoubleClickTime();
+
+            //  A second click on the same row within the double-click time
+            //  expands or collapses it, as in File Explorer.
+            if (twice && n != nullptr && CanExpand (*n))
+            {
+                SetRowExpanded (row, !n->expanded);
+            }
+            else
+            {
+                SelectRow (row);
+            }
+
+            m_lastClickRow = twice ? -1 : row;
+            m_lastClickMs  = nowMs;
+            consumed       = true;
         }
     }
 

@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Theme/IDxuiTheme.h"
+#include "DxuiScrollbar.h"
 
 
 
@@ -181,7 +182,8 @@ public:
     //  Told after any change to the selection, including its loss.
     void  SetOnSelectionChanged (std::function<void ()> fn) { m_onSelectionChanged = std::move (fn); }
 
-    bool  IsDragging () const { return m_dragging; }
+    bool  IsDragging () const { return m_dragging || m_vertScroll.IsDragging(); }
+    bool  IsScrollbarVisible () const { return GetRowCount() > (uint64_t) (std::max) (GetRowCap(), 0); }
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  OnFocusEntered (bool forward) override;
@@ -233,6 +235,10 @@ private:
     RECT  GetSelectionCellRect (uint64_t offset, int index, const RECT & cell, bool hexColumn) const;
 
     static constexpr int  s_kSelectionMarginDip = 2;
+    static constexpr int  s_kScrollbarWidthDip  = 10;
+
+    void  SyncScrollbar ();
+    void  ScrollToBarPos ();
     static void  FillCell (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
 
     static wchar_t  GetHexDigit (int value);
@@ -240,7 +246,7 @@ private:
 
     int   GetHeightDip () const { return m_boundsDip.bottom - m_boundsDip.top; }
 
-    const IDxuiHexSource *  m_source        = nullptr;
+    const IDxuiHexSource  * m_source        = nullptr;
     uint64_t                m_originAddress = 0;
     int                     m_bytesPerRow   = kDefaultBytesPerRow;
     int                     m_grouping      = kDefaultGrouping;
@@ -255,6 +261,7 @@ private:
     bool                    m_dragging      = false;
     TextEncoding            m_encoding      = TextEncoding::Ascii;
     DxuiDpiScaler           m_scaler;
+    DxuiScrollbar           m_vertScroll;
     MarkColorFn             m_markColor;
     ContextMenuFn           m_onContextMenu;
     std::function<void ()>  m_onSelectionChanged;

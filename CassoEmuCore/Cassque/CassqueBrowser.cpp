@@ -708,11 +708,11 @@ std::vector<DxuiListView::Column> CassqueBrowser::GetColumns()
 
 
     columns.push_back (DxuiListView::Column { L"Name",     200, true,  DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Type",     70,  false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Size",     92,  false, DxuiTextHAlign::Right });
-    columns.push_back (DxuiListView::Column { L"Address",  76,  false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Locked",   74,  false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Modified", 140, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Type",     0,   false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Size",     0,   false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Address",  0,   false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Locked",   0,   false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Modified", 0,   false, DxuiTextHAlign::Left  });
 
     return columns;
 }

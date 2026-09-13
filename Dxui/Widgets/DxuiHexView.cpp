@@ -964,6 +964,15 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Down:
+        if (ev.button == DxuiMouseButton::Left && IsScrollbarVisible()
+            && m_vertScroll.HitTest (ev.positionDip.x, ev.positionDip.y))
+        {
+            SyncScrollbar();
+            m_vertScroll.OnMouseDown (ev.positionDip.x, ev.positionDip.y);
+            ScrollToBarPos();
+            return true;
+        }
+
         hit = HitTestPoint (ev.positionDip);
 
         if (!hit.hit)
@@ -1012,6 +1021,13 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Move:
+        if (m_vertScroll.IsDragging())
+        {
+            m_vertScroll.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+            ScrollToBarPos();
+            return true;
+        }
+
         if (!m_dragging)
         {
             return false;
@@ -1028,6 +1044,11 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Up:
+        if (m_vertScroll.IsDragging())
+        {
+            return m_vertScroll.OnMouseUp();
+        }
+
         if (!m_dragging)
         {
             return false;
@@ -1258,6 +1279,50 @@ void DxuiHexView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     m_scaler.SetDpi (scaler.GetDpi());
 
     ClampTopRow();
+    SyncScrollbar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SyncScrollbar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SyncScrollbar()
+{
+    int         barW = m_scaler.ToPx (s_kScrollbarWidthDip);
+    SCROLLINFO  info = { sizeof (info) };
+
+
+
+    m_vertScroll.Configure (DxuiScrollbar::Orientation::Vertical, barW, barW, 1);
+    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom });
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+    info.nMax  = (int) (std::min) (GetRowCount(), (uint64_t) INT_MAX) - 1;
+    info.nPage = (UINT) (std::max) (GetRowCap(), 0);
+    info.nPos  = (int) (std::min) (m_topRow, (uint64_t) INT_MAX);
+    m_vertScroll.SetScrollInfo (info);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::ScrollToBarPos
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::ScrollToBarPos()
+{
+    SetTopRow ((uint64_t) (std::max) (m_vertScroll.GetScrollPos(), 0));
 }
 
 
@@ -1281,10 +1346,9 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
 
 
-    (void) painter;
-
-    hr = text.FillRect (x, y, width, height, theme.Background());
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    //  The background goes through the painter, whose layer is beneath the
+    //  text renderer's, so the scrollbar the painter draws is not covered.
+    painter.FillRect (x, y, width, height, theme.ContentBackground());
 
     EnsureCellSize (text, theme);
 
@@ -1293,6 +1357,12 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     if ((m_source == nullptr) || (cap <= 0))
     {
         return;
+    }
+
+    //  The rows stop short of the scrollbar, which paints over nothing.
+    if (IsScrollbarVisible())
+    {
+        width -= (float) m_scaler.ToPx (s_kScrollbarWidthDip);
     }
 
     hr = text.PushClipRect (x, y, width, height);
@@ -1315,6 +1385,12 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (IsScrollbarVisible())
+    {
+        SyncScrollbar();
+        m_vertScroll.Paint (painter, theme.ForegroundMuted());
+    }
 }
 
 
