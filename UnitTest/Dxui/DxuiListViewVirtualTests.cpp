@@ -164,8 +164,9 @@ public:
         DxuiListView  list;
 
         ConfigureList (list);
+        list.EnableStickyTail (true);
 
-        // Sticky by default -> installing 20 rows pins the view to the tail.
+        // Sticky once enabled -> installing 20 rows pins the view to the tail.
         list.SetRowProvider (20, [] (int, std::vector<DxuiListView::Cell> &) {});
         Assert::AreEqual (10, list.GetTopRow());
         Assert::IsTrue   (list.IsAtBottom());
@@ -179,6 +180,30 @@ public:
         list.SetTopRow (0);
         list.SetVirtualRowCount (60);
         Assert::AreEqual (0, list.GetTopRow());
+    }
+
+
+    //
+    //  Sticky tail is opt-in: a list that never enabled it opens at its top
+    //  and stays there through a layout in which every row fits. The disk
+    //  picker lays out tall before its real size, and that pass used to arm
+    //  the tail so the shrink that followed opened the list at its last row.
+    //
+    TEST_METHOD (StickyTail_offByDefault_staysAtTopThroughAFittingLayout)
+    {
+        DxuiListView   list;
+        DxuiDpiScaler  scaler;
+
+        scaler.SetDpi (96);
+
+        ConfigureList (list);
+        list.SetRows (MakeRows (20));
+
+        list.Layout (MakeRect (0, 0, 400, 3000), scaler);
+        list.Layout (MakeRect (0, 0, 400, 300),  scaler);
+
+        Assert::AreEqual (0, list.GetTopRow());
+        Assert::IsFalse  (list.IsStickyTailEnabled());
     }
 
 
@@ -224,13 +249,14 @@ public:
         std::vector<int>      requested;
 
         ConfigureList (list);
+        list.EnableStickyTail (true);
         list.SetRowProvider (1000, [&] (int row, std::vector<DxuiListView::Cell> & out)
         {
             requested.push_back (row);
             out.push_back ({ L"x", false });
         });
 
-        // Sticky by default -> window is the last 10 rows [990, 1000).
+        // Sticky once enabled -> window is the last 10 rows [990, 1000).
         requested.clear();
         static_cast<IDxuiControl &> (list).Paint (painter, text, theme);
 

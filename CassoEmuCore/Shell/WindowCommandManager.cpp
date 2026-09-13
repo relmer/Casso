@@ -1294,7 +1294,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, bool & outMountStarted)
+HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * anchorRectPx, bool & outMountStarted)
 {
     HRESULT                      hr            = S_OK;
     DiskMru                      mru;
@@ -1326,6 +1326,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, bool & outMountSta
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
                                               m_shell.m_hwnd,
                                               drive,
+                                              anchorRectPx,
                                               mruPruned,
                                               diskDir,
                                               m_shell.m_globalPrefs.activeTheme,

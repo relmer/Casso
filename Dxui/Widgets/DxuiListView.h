@@ -181,16 +181,17 @@ public:
     void  SetKeyboardColumnResize (bool enabled)           { m_kbColResize = enabled; }
 
     // Vertical scroll. The widget keeps a top-row index into m_rows;
-    // Paint clips to [m_topRow, m_topRow + capacity). "Sticky tail"
-    // auto-pins the view to the bottom when new rows arrive while the
-    // user is already parked at the tail.
+    // Paint clips to [m_topRow, m_topRow + capacity). A list opens at its
+    // top. "Sticky tail" is opt-in, for live logs: once enabled, it pins
+    // the view to the bottom when new rows arrive while the user is already
+    // parked at the tail.
     int   GetScrollbarWidthPx   () const                 { return m_scaler.ToPx (s_kScrollbarWidthDip); }
     int   GetTopRow             () const                 { return m_topRow; }
     int   GetVisibleRowCapacity () const;
     int   GetMaxTopRow          () const;
     bool  IsAtBottom            () const                 { return m_topRow >= GetMaxTopRow(); }
-    void  EnableStickyTail      (bool b)                 { m_stickyTail = b; }
-    bool  IsStickyTailEnabled   () const                 { return m_stickyTail; }
+    void  EnableStickyTail      (bool b)                 { m_stickyTailEnabled = b; m_stickyTail = b; }
+    bool  IsStickyTailEnabled   () const                 { return m_stickyTailEnabled; }
     void  SetTopRow             (int topRow);
     void  ScrollByRows          (int delta)              { SetTopRow (m_topRow + delta); }
     // Scroll just enough to bring `row` into the visible window, without
@@ -484,7 +485,14 @@ private:
     bool                       m_sortDescending    = false;
     bool                       m_showHeader        = false;
     int                        m_topRow            = 0;
-    bool                       m_stickyTail        = true;
+    bool                       m_stickyTail        = false;
+
+    // Whether the host opted into sticky-tail behavior. Off by default: a
+    // list opens at its top, and following the last row is for live logs.
+    // m_stickyTail is re-derived on every resize and row change, and this
+    // gate keeps that re-derivation from switching it on for a list that
+    // never asked for it.
+    bool                       m_stickyTailEnabled = false;
     bool                       m_listFocused       = false;
     int                        m_focusedHeaderCol  = -1;
     int                        m_focusedDividerCol = -1;

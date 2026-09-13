@@ -89,6 +89,10 @@ public:
         // owner -- for a window that wants to open beside another without
         // being owned by it. Defaults to ownerHwnd when null.
         HWND                placementAnchorHwnd = nullptr;
+
+        // The screen rect BelowAnchorRect opens under. Ignored by every
+        // other mode.
+        RECT                placementAnchorRectPx = {};
     };
 
 

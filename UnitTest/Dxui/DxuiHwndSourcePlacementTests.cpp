@@ -305,5 +305,46 @@ public:
 
         AssertPoint (900, 440, p, L"bottom meets work.bottom; the side placement holds");
     }
+
+
+    //
+    //  Room below the anchor: the window hangs from its bottom edge,
+    //  centered on it left/right.
+    //
+    TEST_METHOD (BelowRectCentersUnderTheAnchor)
+    {
+        POINT  p = DxuiHwndSource::PlaceBelowRect (GetRect (800, 200, 1000, 300), GetSize (500, 400), s_kWork);
+
+
+        AssertPoint (650, 300, p, L"top at the anchor's bottom, centered on it");
+    }
+
+
+    //
+    //  An anchor low on the screen would push the bottom under the taskbar:
+    //  the window rises only until it fits and stays centered on the anchor.
+    //
+    TEST_METHOD (BelowRectLiftsOnlyAsFarAsItMust)
+    {
+        POINT  p = DxuiHwndSource::PlaceBelowRect (GetRect (800, 800, 1000, 900), GetSize (500, 400), s_kWork);
+
+
+        AssertPoint (650, 640, p, L"bottom meets work.bottom; still centered");
+    }
+
+
+    //
+    //  An anchor near either side slides the window only as far as it takes
+    //  to stay on the work area; the vertical placement holds.
+    //
+    TEST_METHOD (BelowRectShiftsOnlyAsFarAsItMust)
+    {
+        POINT  left  = DxuiHwndSource::PlaceBelowRect (GetRect (0,    200, 200,  300), GetSize (500, 400), s_kWork);
+        POINT  right = DxuiHwndSource::PlaceBelowRect (GetRect (1800, 200, 1920, 300), GetSize (500, 400), s_kWork);
+
+
+        AssertPoint (0,    300, left,  L"pinned to the work-area left edge");
+        AssertPoint (1420, 300, right, L"pinned to the work-area right edge");
+    }
 };
 
