@@ -693,10 +693,14 @@ public:
     // //c external-drive connect toggle. A live UI pref: it must
     // round-trip through $cassoUiPrefs, push through the sink on Apply, make
     // the panel dirty, and -- unlike a hardware enable -- never queue a reset.
+    //
+    // Loaded from a machine with no disk port and no Disk ][ card, the one
+    // case where the legacy boolean still decides the flag. A card or a port
+    // would answer it from the hardware instead.
     TEST_METHOD (ExternalDriveConnected_RoundTripsAndPushesLiveNoReset)
     {
         SettingsPanelState  st;
-        JsonValue           v        = ParseOrFail (kFixtureJson);
+        JsonValue           v        = ParseOrFail (R"JSON({ "$cassoMachineVersion": 1, "name": "TestMachine" })JSON");
         RecordingSink       sink;
         JsonValue           outJson;
         SettingsUiPrefs     reloaded;
@@ -853,6 +857,45 @@ public:
 
         Assert::IsTrue (st.SecondDriveAttached(),
             L"a Disk ][ with no ports declared has both drives.");
+    }
+
+
+    // OK pushes the external-drive flag to the shell on every Apply, whatever
+    // tab was open, and the shell detaches or attaches the Disk ][ card's
+    // second drive to match it. The flag was read only from a //c's disk
+    // port, so on a carded machine it stayed false, and OK took the second
+    // drive away and ejected its disk.
+    TEST_METHOD (SecondDrive_OkWithNoEditsLeavesACardsSecondDriveAttached)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+
+        st.LoadFromMachine ("X", v, v);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        Assert::IsTrue (sink.lastExternalDriveConnected,
+            L"OK on a machine with both drives on its Disk ][ card must not detach the second.");
+    }
+
+
+    TEST_METHOD (SecondDrive_OkWithNoEditsKeepsADetachedSecondDriveDetached)
+    {
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "slots": [ { "slot": 6, "device": "disk-ii", "ports": [ "disk-ii-drive", "" ] } ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        Assert::IsFalse (sink.lastExternalDriveConnected,
+            L"and a second drive the user detached stays detached.");
     }
 
 

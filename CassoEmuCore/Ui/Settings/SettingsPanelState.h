@@ -310,6 +310,7 @@ public:
     // question, two stores, because the hardware really is different -- the
     // //c's is an external unit on a cable and the //e's is a drive on the
     // card's other plug.
+    bool    HasSecondDriveStore () const;
     bool    SecondDriveAttached () const;
     void    SetSecondDriveAttached (bool attached);
     void    SetMouseConnected         (bool connected);
