@@ -1034,7 +1034,7 @@ bool EmulatorShell::TryPresentUiFrame()
 
         // An open menu's submenu waits out the system's show delay before it
         // opens, and the pointer resting on the row produces no messages, so
-        // the same votes-for-a-present rule the compass needs applies here.
+        // a present is requested every frame one is armed, as for the compass.
         if (m_mainMenu.WantsTick() || m_toolbar.WantsTick())
         {
             m_mainMenu.TickMenus (nowMs);

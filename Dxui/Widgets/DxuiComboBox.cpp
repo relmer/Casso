@@ -943,8 +943,8 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
     {
         RECT  row = { 0, i * rowHeight, width, (i + 1) * rowHeight };
 
-        // The highlight is an inset rounded card, the same shape a menu
-        // row's hover takes, not a full-bleed band.
+        // The highlight is the same inset rounded card a menu row's hover
+        // draws, not a full-bleed band.
         if (i == m_highlight)
         {
             painter.FillRoundedRect ((float) row.left + insetX,

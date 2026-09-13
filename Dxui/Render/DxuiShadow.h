@@ -18,8 +18,8 @@ class IDxuiPainter;
 //
 //  The shadow is a stack of rounded rects around the card, each carrying the
 //  same small alpha. Coverage at a distance from the card is the number of
-//  layers reaching that far, so how the layers are SPACED is the shape of the
-//  falloff. Evenly spaced layers give a straight-line ramp, which over a dozen
+//  layers reaching that far, so the SPACING of the layers sets how opacity
+//  falls off. Evenly spaced layers give a straight-line ramp, which over a dozen
 //  pixels changes too little per pixel to see and reads as one flat band.
 //  Spacing by 1 - sqrt(k/N) puts most layers close to the card and a few far
 //  out, so opacity falls off quadratically: dense at the edge, a long faint
