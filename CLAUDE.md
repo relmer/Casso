@@ -12,9 +12,6 @@ otherwise reach, and who is working where right now. Shipped-feature history
 belongs in `CHANGELOG.md` and `git log`; design rationale belongs in the spec it
 came from. If something here is derivable from the code, delete it.
 
-Everything below `<!-- SPECKIT START -->` belongs to Spec Kit's `agent-context`
-extension. Do not hand-write inside those markers; add to this section instead.
-
 ## Hazards
 
 **Merge master into a long-lived branch EARLY, and expect renames.** Master has
@@ -29,9 +26,12 @@ time. The rule, the derivation method, and the traps that cost real time --
 Windows SDK macro collisions, continuation lines left silently crooked -- are in
 `docs/coding-standards-backlog.md` items 6 and 7.
 
-**Speckit scripts need `$env:SPECIFY_FEATURE` when the branch name is
-unnumbered.** `.specify/scripts/powershell/check-prerequisites.ps1` rejects any
-branch that does not start with three digits.
+**Speckit scripts find the feature from `.specify/feature.json`, not from the
+branch.** Checking out another branch does not change it, so in a checkout last
+used for one spec, `/speckit-plan` and the other scripts silently work on that
+spec. Set `$env:SPECIFY_FEATURE_DIRECTORY = 'specs/<name>'` before running them;
+this also rewrites `feature.json`. The file is untracked and belongs to each
+checkout, so every worktree keeps its own.
 
 **`ProDosReader` and `ProDosFileWriter` are declared inside `ProDosSkeleton.h`,**
 so a survey by filename misses them. DOS 3.3 has no reader at all.
@@ -82,19 +82,3 @@ merge work already on master. A list kept true by hand is a list that will lie.
 usually gains commits AFTER its merge, so `git merge-base --is-ancestor
 origin/<branch> origin/master` answers no for work that shipped. Ask whether the
 merge commit or the code is on master instead.
-
-<!-- SPECKIT START -->
-## Active feature
-
-**034-game-controllers** -- Xbox controllers through XInput and other
-controllers through DirectInput, driving PDL0/PDL1/PB0-PB2 through a single
-game-port mixer, with per-model profiles and per-unit calibration. GH #97.
-Menu and toolbar entries build on 032's command table, now on master.
-
-- Plan: `specs/034-game-controllers/plan.md`
-- Spec: `specs/034-game-controllers/spec.md`
-- Research: `specs/034-game-controllers/research.md`
-- Data model: `specs/034-game-controllers/data-model.md`
-- Contracts: `specs/034-game-controllers/contracts/`
-- Validation: `specs/034-game-controllers/quickstart.md`
-<!-- SPECKIT END -->
