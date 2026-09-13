@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Ui/Settings/ControllerReadoutViews.h"
 #include "Ui/Settings/ControllersPageState.h"
 
 #include "Window/DxuiPropertyPage.h"
@@ -28,19 +29,20 @@ class DxuiHwndSource;
 //  OK and reverts it on Cancel.
 //
 //      * Controller         (DxuiComboBox: every attached controller)
-//      * PDL0 .. PB2        (one row each: what drives it, an "Add control"
-//                            list, Press to assign, Clear)
-//      * Invert / response  (per paddle axis: position or paddle speed, and
-//                            the speed)
-//      * Deadzone           (DxuiSlider)
-//      * Calibration        (DirectInput only: Calibrate, then Next, then
-//                            Finish; or Use automatic)
-//      * Live               (what the game port reads under the edits)
-//      * Restore defaults
+//      * Joystick           (a circle with a dot where the stick is, PDL0 and
+//                            PDL1 labeled, beside a row per mapping for each)
+//      * Buttons            (PB0 .. PB2: a light, and a row per mapping)
+//      * Deadzone, Calibration, Restore defaults
+//
+//  ONE DROP-DOWN PER MAPPING. It shows the control assigned, and lists "Press
+//  to assign...", "None" and the controller's controls. A target takes more
+//  than one control through "+", which adds a row; "None" on an added row
+//  removes it. The first row always stays, showing "None" when the target is
+//  unassigned, so every target keeps its place on the page.
 //
 //  The page is polled each dialog tick with the controller's latest reading,
-//  which is what drives press-to-assign, the Calibrate steps and the live
-//  readout.
+//  which is what drives press-to-assign, the Calibrate steps, the stick and
+//  the lights.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +52,8 @@ public:
 
     static constexpr size_t  kTargetCount = 5;
     static constexpr size_t  kAxisCount   = 2;
+    static constexpr size_t  kButtonCount = 3;
+    static constexpr size_t  kMaxRows     = 4;
 
     using SampleSource = std::function<std::optional<ControllerSample> (const ControllerUnitKey &)>;
     using InspectFn    = std::function<void (const std::optional<ControllerUnitKey> &)>;
@@ -64,7 +68,7 @@ public:
     void  Layout           (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
     // Each dialog tick: feed the controller's latest reading to the capture,
-    // the calibration and the live readout.
+    // the calibration, the stick and the lights.
     void  Poll             ();
 
     // Re-sync every widget from the state.
@@ -72,7 +76,8 @@ public:
 
 private:
 
-    // One entry of a target's "Add control" list.
+    // One control a row's drop-down offers, after "Press to assign..." and
+    // "None".
     struct ControlChoice
     {
         bool       isPair = false;
@@ -80,58 +85,71 @@ private:
         ControlId  positive;
     };
 
-    static RECT          MakeRect          (int l, int t, int w, int h);
-    static PaddleTarget  TargetAt          (size_t index);
-    static std::wstring  DescribeAxis      (ControllerKind kind, const AxisBinding & binding);
-    static std::wstring  DescribeButton    (ControllerKind kind, const ButtonBinding & binding);
+    static constexpr int  kPressToAssignItem = 0;
+    static constexpr int  kNoneItem          = 1;
+    static constexpr int  kFirstControlItem  = 2;
 
-    void                 RebuildChoices    ();
-    void                 RefreshTargets    ();
+    static RECT          MakeRect           (int l, int t, int w, int h);
+    static PaddleTarget  TargetAt           (size_t index);
+    static std::wstring  DescribeAxis       (ControllerKind kind, const AxisBinding & binding);
+    static std::wstring  DescribeButton     (ControllerKind kind, const ButtonBinding & binding);
+
+    size_t               GetBindingCount    (size_t target) const;
+    size_t               GetShownRows       (size_t target) const;
+    int                  FindChoice         (size_t target, size_t row) const;
+
+    void                 RebuildChoices     ();
+    void                 RefreshRows        ();
     void                 RefreshAxisOptions ();
     void                 RefreshCalibration ();
-    void                 AddChoice         (size_t target, int comboIndex);
-    void                 ToggleCapture     (size_t target);
-    void                 ClearTarget       (size_t target);
-    void                 SetAxisInverted   (size_t axis, bool inverted);
-    void                 SetAxisResponse   (size_t axis, AxisResponse response, float maxSpeed);
-    void                 OnCalibrateClick  ();
-    void                 AfterEdit         ();
-    ControllerKind       GetSelectedKind   () const;
+    void                 OnRowSelect        (size_t target, size_t row, int item);
+    void                 AddRow             (size_t target);
+    void                 SetAxisInverted    (size_t axis, bool inverted);
+    void                 SetAxisResponse    (size_t axis, AxisResponse response, float maxSpeed);
+    void                 OnCalibrateClick   ();
+    void                 AfterEdit          ();
+    void                 Relayout           ();
+    ControllerKind       GetSelectedKind    () const;
 
-    ControllersPageState              * m_state               = nullptr;
-    SampleSource                        m_sampleSource;
-    InspectFn                           m_onInspect;
-    std::optional<ControllerUnitKey>    m_inspected;
-    size_t                              m_lastControllerCount = 0;
-    size_t                              m_captureTarget       = kTargetCount;
+    ControllersPageState                      * m_state               = nullptr;
+    SampleSource                                m_sampleSource;
+    InspectFn                                   m_onInspect;
+    std::optional<ControllerUnitKey>            m_inspected;
+    size_t                                      m_lastControllerCount = 0;
+    std::optional<std::pair<size_t, size_t>>    m_capturing;
+    std::array<bool, kTargetCount>              m_hasExtraRow         = {};
+    RECT                                        m_lastRect            = {};
+    DxuiDpiScaler                               m_lastScaler;
+    bool                                        m_hasLayout           = false;
+    bool                                        m_isSyncing           = false;
 
-    DxuiLabel     m_controllerLabel;
-    DxuiComboBox  m_controller;
+    DxuiLabel          m_controllerLabel;
+    DxuiComboBox       m_controller;
 
-    std::array<DxuiLabel, kTargetCount>                   m_targetLabel;
-    std::array<DxuiLabel, kTargetCount>                   m_summary;
-    std::array<DxuiComboBox, kTargetCount>                m_add;
-    std::array<DxuiButton, kTargetCount>                  m_capture;
-    std::array<DxuiButton, kTargetCount>                  m_clear;
-    std::array<std::vector<ControlChoice>, kTargetCount>  m_choices;
+    DxuiLabel          m_joystickHeading;
+    StickPositionView  m_stick;
+    DxuiLabel          m_buttonsHeading;
 
-    std::array<DxuiCheckbox, kAxisCount>    m_invert;
-    std::array<DxuiComboBox, kAxisCount>    m_response;
-    std::array<DxuiSlider,   kAxisCount>    m_speed;
+    std::array<DxuiLabel, kTargetCount>                                 m_targetLabel;
+    std::array<ButtonLightView, kButtonCount>                           m_lights;
+    std::array<std::array<DxuiComboBox, kMaxRows>, kTargetCount>        m_rows;
+    std::array<DxuiButton, kTargetCount>                                m_addRow;
+    std::array<std::vector<ControlChoice>, kTargetCount>                m_choices;
 
-    DxuiLabel     m_sharedWarning;
+    std::array<DxuiCheckbox, kAxisCount>  m_invert;
+    std::array<DxuiComboBox, kAxisCount>  m_response;
+    std::array<DxuiSlider, kAxisCount>    m_speed;
 
-    DxuiLabel     m_deadzoneLabel;
-    DxuiSlider    m_deadzone;
+    DxuiLabel          m_sharedWarning;
 
-    DxuiLabel     m_calibrationLabel;
-    DxuiLabel     m_calibrationStatus;
-    DxuiButton    m_calibrate;
-    DxuiButton    m_calibrationCancel;
-    DxuiButton    m_useAutomatic;
+    DxuiLabel          m_deadzoneLabel;
+    DxuiSlider         m_deadzone;
 
-    DxuiLabel     m_liveLabel;
-    DxuiLabel     m_live;
+    DxuiLabel          m_calibrationLabel;
+    DxuiLabel          m_calibrationStatus;
+    DxuiButton         m_calibrate;
+    DxuiButton         m_calibrationCancel;
+    DxuiButton         m_useAutomatic;
 
-    DxuiButton    m_reset;
+    DxuiButton         m_reset;
 };

@@ -337,6 +337,62 @@ bool ControllersPageState::AddButtonBinding (PaddleTarget target, const ButtonBi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReplaceAxisBinding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::ReplaceAxisBinding (PaddleTarget target, size_t index, const AxisBinding & binding)
+{
+    ControllerProfile *         profile = IsAxisTarget (target) ? EnsureDefaultProfile() : nullptr;
+    std::vector<AxisBinding> *  list    = profile != nullptr ? FindAxisList (profile->mapping, target) : nullptr;
+
+
+
+    if (list == nullptr || index >= list->size())
+    {
+        return false;
+    }
+
+    (*list)[index]          = binding;
+    (*list)[index].maxSpeed = std::clamp (binding.maxSpeed, ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
+    m_liveEvaluator.ResetRate();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplaceButtonBinding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::ReplaceButtonBinding (PaddleTarget target, size_t index, const ButtonBinding & binding)
+{
+    ControllerProfile *           profile = (IsAxisTarget (target) || !IsTargetAvailable (target)) ? nullptr : EnsureDefaultProfile();
+    std::vector<ButtonBinding> *  list    = profile != nullptr ? FindButtonList (profile->mapping, target) : nullptr;
+
+
+
+    if (list == nullptr || index >= list->size())
+    {
+        return false;
+    }
+
+    (*list)[index] = binding;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RemoveBinding
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -565,7 +621,7 @@ std::vector<ControlId> ControllersPageState::GetSharedControls() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::BeginCapture (PaddleTarget target, const ControllerSample & baseline)
+void ControllersPageState::BeginCapture (PaddleTarget target, const ControllerSample & baseline, std::optional<size_t> replaceIndex)
 {
     const ControllerEntry *  selected = GetSelected();
 
@@ -576,7 +632,8 @@ void ControllersPageState::BeginCapture (PaddleTarget target, const ControllerSa
         return;
     }
 
-    m_captureTarget = target;
+    m_captureTarget  = target;
+    m_captureReplace = replaceIndex;
     m_capture.Begin (baseline, selected->controls);
 }
 
@@ -624,6 +681,11 @@ bool ControllersPageState::FeedCapture (const ControllerSample & sample)
             binding.positive = captured->control;
         }
 
+        if (m_captureReplace.has_value() && ReplaceAxisBinding (m_captureTarget, m_captureReplace.value(), binding))
+        {
+            return true;
+        }
+
         return AddAxisBinding (m_captureTarget, binding);
     }
 
@@ -635,6 +697,11 @@ bool ControllersPageState::FeedCapture (const ControllerSample & sample)
     if (captured->control.kind == ControlKind::Trigger)
     {
         binding.threshold = ButtonBinding::kTriggerThreshold;
+    }
+
+    if (m_captureReplace.has_value() && ReplaceButtonBinding (m_captureTarget, m_captureReplace.value(), binding))
+    {
+        return true;
     }
 
     return AddButtonBinding (m_captureTarget, binding);

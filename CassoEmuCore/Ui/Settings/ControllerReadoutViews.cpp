@@ -1,0 +1,193 @@
+#include "Pch.h"
+
+#include "Ui/Settings/ControllerReadoutViews.h"
+
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Theme/IDxuiTheme.h"
+
+
+
+
+
+static constexpr const wchar_t *  s_kpszReadoutFont   = L"Segoe UI";
+static constexpr float            s_kReadoutFontDip   = 12.0f;
+static constexpr float            s_kLabelBandDip     = 18.0f;
+static constexpr float            s_kRingThicknessDip = 2.0f;
+static constexpr float            s_kDotRadiusDip     = 6.0f;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetValues
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StickPositionView::SetValues (Byte pdl0, Byte pdl1)
+{
+    m_pdl0 = pdl0;
+    m_pdl1 = pdl1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetActive
+//
+//  Whether a controller is being read. Without one the dot is drawn muted,
+//  so a centered dot is not mistaken for a stick at rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StickPositionView::SetActive (bool isActive)
+{
+    m_isActive = isActive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StickPositionView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    m_scaler.SetDpi (scaler.GetDpi());
+    SetBounds (boundsDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint
+//
+//  The circle fills the bounds less a band below for PDL0's label and a band
+//  to the right for PDL1's, so both labels sit beside the axis they name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StickPositionView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    RECT      bounds    = GetBounds();
+    float     band      = m_scaler.ToPxf (s_kLabelBandDip);
+    float     ring      = m_scaler.ToPxf (s_kRingThicknessDip);
+    float     dot       = m_scaler.ToPxf (s_kDotRadiusDip);
+    float     fontPx    = m_scaler.ToPxf (s_kReadoutFontDip);
+    float     width     = (float) (bounds.right - bounds.left);
+    float     height    = (float) (bounds.bottom - bounds.top);
+    float     diameter  = std::max (0.0f, std::min (width - band * 3.0f, height - band));
+    float     radius    = diameter * 0.5f;
+    float     cx        = (float) bounds.left + radius;
+    float     cy        = (float) bounds.top  + radius;
+    float     reach     = std::max (0.0f, radius - dot - ring);
+    float     dotX      = cx + reach * ((m_pdl0 / 255.0f) * 2.0f - 1.0f);
+    float     dotY      = cy + reach * ((m_pdl1 / 255.0f) * 2.0f - 1.0f);
+    uint32_t  dotColor  = m_isActive ? theme.Accent() : theme.ForegroundDisabled();
+    HRESULT   hr        = S_OK;
+
+
+
+    if (!IsVisible() || radius <= ring)
+    {
+        return;
+    }
+
+    painter.FillCircleApprox (cx, cy, radius,        theme.Border());
+    painter.FillCircleApprox (cx, cy, radius - ring, theme.BackgroundElevated());
+
+    painter.DrawLineApprox (cx - radius + ring, cy, cx + radius - ring, cy, 1.0f, theme.Divider());
+    painter.DrawLineApprox (cx, cy - radius + ring, cx, cy + radius - ring, 1.0f, theme.Divider());
+
+    painter.FillCircleApprox (dotX, dotY, dot, dotColor);
+
+    hr = text.DrawString (std::format (L"PDL0  {}", m_pdl0).c_str(),
+                          (float) bounds.left, cy + radius, diameter, band,
+                          theme.ForegroundMuted(), fontPx, s_kpszReadoutFont,
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (std::format (L"PDL1  {}", m_pdl1).c_str(),
+                          cx + radius + ring * 2.0f, cy - band * 0.5f, band * 3.0f, band,
+                          theme.ForegroundMuted(), fontPx, s_kpszReadoutFont,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetLit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ButtonLightView::SetLit (bool isLit)
+{
+    m_isLit = isLit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ButtonLightView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    m_scaler.SetDpi (scaler.GetDpi());
+    SetBounds (boundsDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ButtonLightView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    RECT   bounds = GetBounds();
+    float  ring   = m_scaler.ToPxf (s_kRingThicknessDip);
+    float  radius = std::min ((float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top)) * 0.5f;
+    float  cx     = (float) bounds.left + (bounds.right - bounds.left) * 0.5f;
+    float  cy     = (float) bounds.top  + (bounds.bottom - bounds.top) * 0.5f;
+
+
+
+    UNREFERENCED_PARAMETER (text);
+
+    if (!IsVisible() || radius <= ring)
+    {
+        return;
+    }
+
+    painter.FillCircleApprox (cx, cy, radius, m_isLit ? theme.Accent() : theme.Border());
+
+    if (!m_isLit)
+    {
+        painter.FillCircleApprox (cx, cy, radius - ring, theme.BackgroundElevated());
+    }
+}

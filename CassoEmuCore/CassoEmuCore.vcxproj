@@ -374,6 +374,7 @@
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
     <ClCompile Include="Ui\Settings\DiskPage.cpp" />
     <ClCompile Include="Ui\Settings\SettingsApplyAdapter.cpp" />
+    <ClCompile Include="Ui\Settings\ControllerReadoutViews.cpp" />
     <ClCompile Include="Ui\Settings\ControllersPage.cpp" />
     <ClCompile Include="Ui\Settings\ControllersPageState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsApplyController.cpp" />
@@ -709,6 +710,7 @@
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
     <ClInclude Include="Ui\Settings\DiskPage.h" />
     <ClInclude Include="Ui\Settings\SettingsApplyAdapter.h" />
+    <ClInclude Include="Ui\Settings\ControllerReadoutViews.h" />
     <ClInclude Include="Ui\Settings\ControllersPage.h" />
     <ClInclude Include="Ui\Settings\ControllersPageState.h" />
     <ClInclude Include="Ui\Settings\SettingsApplyController.h" />

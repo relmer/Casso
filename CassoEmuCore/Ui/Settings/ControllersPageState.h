@@ -91,6 +91,11 @@ public:
     bool                                  AddAxisBinding     (PaddleTarget target, const AxisBinding & binding);
     bool                                  AddButtonBinding   (PaddleTarget target, const ButtonBinding & binding);
     bool                                  RemoveBinding      (PaddleTarget target, size_t index);
+
+    // The control on one row of a target, in place: the rest of the target's
+    // controls keep their order.
+    bool                                  ReplaceAxisBinding   (PaddleTarget target, size_t index, const AxisBinding & binding);
+    bool                                  ReplaceButtonBinding (PaddleTarget target, size_t index, const ButtonBinding & binding);
     bool                                  SetInverted        (PaddleTarget target, size_t index, bool inverted);
     bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
     bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
@@ -100,8 +105,9 @@ public:
     std::vector<ControlId>                GetSharedControls  () const;
 
     // Press-to-assign on one target. Feeding a reading that activates a
-    // control adds a binding for it and ends the wait.
-    void                                  BeginCapture       (PaddleTarget target, const ControllerSample & baseline);
+    // control ends the wait and puts the control on the row `replaceIndex`
+    // names, or adds it as a new row when that is absent.
+    void                                  BeginCapture       (PaddleTarget target, const ControllerSample & baseline, std::optional<size_t> replaceIndex = std::nullopt);
     bool                                  FeedCapture        (const ControllerSample & sample);
     void                                  CancelCapture      ();
     bool                                  IsCapturing        () const;
@@ -148,6 +154,7 @@ private:
 
     ControlCapture                                  m_capture;
     PaddleTarget                                    m_captureTarget = PaddleTarget::Pdl0;
+    std::optional<size_t>                           m_captureReplace;
 
     CalibrationStep                                 m_calibrationStep = CalibrationStep::None;
     ControllerSample                                m_calibrationLast;

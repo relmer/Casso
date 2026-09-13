@@ -11,15 +11,16 @@
 
 // Layout metrics (DIP), matching the other settings pages.
 static constexpr int  s_kRowHeightDp    = 28;
-static constexpr int  s_kLabelWidthDp   = 110;
-static constexpr int  s_kSummaryWidthDp = 210;
-static constexpr int  s_kAddWidthDp     = 140;
-static constexpr int  s_kCaptureWidthDp = 120;
-static constexpr int  s_kClearWidthDp   = 60;
+static constexpr int  s_kLabelWidthDp   = 90;
+static constexpr int  s_kRowWidthDp     = 220;
+static constexpr int  s_kAddWidthDp     = 28;
+static constexpr int  s_kStickSizeDp    = 190;
+static constexpr int  s_kLightSizeDp    = 14;
 static constexpr int  s_kWideWidthDp    = 340;
 static constexpr int  s_kButtonWidthDp  = 130;
+static constexpr int  s_kOptionWidthDp  = 110;
 static constexpr int  s_kChildIndentDp  = 18;
-static constexpr int  s_kGapDp          = 8;
+static constexpr int  s_kGapDp          = 6;
 static constexpr int  s_kSectionGapDp   = 14;
 static constexpr int  s_kPagePadDp      = 16;
 
@@ -44,27 +45,38 @@ static constexpr const wchar_t *  s_kTargetNames[ControllersPage::kTargetCount] 
 ControllersPage::ControllersPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
-    size_t  i = 0;
+    size_t  target = 0;
+    size_t  row    = 0;
 
 
 
     Adopt (m_controllerLabel);
     Adopt (m_controller);
+    Adopt (m_joystickHeading);
+    Adopt (m_stick);
+    Adopt (m_buttonsHeading);
 
-    for (i = 0; i < kTargetCount; i++)
+    for (target = 0; target < kTargetCount; target++)
     {
-        Adopt (m_targetLabel[i]);
-        Adopt (m_summary[i]);
-        Adopt (m_add[i]);
-        Adopt (m_capture[i]);
-        Adopt (m_clear[i]);
+        Adopt (m_targetLabel[target]);
+        Adopt (m_addRow[target]);
+
+        for (row = 0; row < kMaxRows; row++)
+        {
+            Adopt (m_rows[target][row]);
+        }
     }
 
-    for (i = 0; i < kAxisCount; i++)
+    for (target = 0; target < kButtonCount; target++)
     {
-        Adopt (m_invert[i]);
-        Adopt (m_response[i]);
-        Adopt (m_speed[i]);
+        Adopt (m_lights[target]);
+    }
+
+    for (target = 0; target < kAxisCount; target++)
+    {
+        Adopt (m_invert[target]);
+        Adopt (m_response[target]);
+        Adopt (m_speed[target]);
     }
 
     Adopt (m_sharedWarning);
@@ -75,8 +87,6 @@ ControllersPage::ControllersPage (std::wstring title)
     Adopt (m_calibrate);
     Adopt (m_calibrationCancel);
     Adopt (m_useAutomatic);
-    Adopt (m_liveLabel);
-    Adopt (m_live);
     Adopt (m_reset);
 }
 
@@ -88,14 +98,16 @@ ControllersPage::ControllersPage (std::wstring title)
 //
 //  SetState
 //
-//  Wires every widget's callback into the state once; Refresh only ever
-//  syncs values, so a callback never replaces itself while it runs.
+//  Wires every widget's callback into the state once. Refresh only syncs
+//  values, and sets m_isSyncing while it does, so a drop-down whose selection
+//  it moves does not read that as the user picking.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::SetState (ControllersPageState * state)
 {
-    size_t  i = 0;
+    size_t  target = 0;
+    size_t  row    = 0;
 
 
 
@@ -103,43 +115,67 @@ void ControllersPage::SetState (ControllersPageState * state)
 
     m_controller.SetSelect ([this] (int index)
     {
-        if (m_state != nullptr && index >= 0)
+        if (m_isSyncing || m_state == nullptr || index < 0)
         {
-            m_state->SelectController ((size_t) index);
-            m_captureTarget = kTargetCount;
-            RebuildChoices();
-            Refresh();
+            return;
         }
+
+        m_state->SelectController ((size_t) index);
+        m_capturing.reset();
+        m_hasExtraRow = {};
+        RebuildChoices();
+        AfterEdit();
     });
 
-    for (i = 0; i < kTargetCount; i++)
+    for (target = 0; target < kTargetCount; target++)
     {
-        m_add[i].SetSelect   ([this, i] (int index) { AddChoice (i, index); });
-        m_capture[i].SetOnClick ([this, i] () { ToggleCapture (i); });
-        m_clear[i].SetOnClick   ([this, i] () { ClearTarget (i); });
+        for (row = 0; row < kMaxRows; row++)
+        {
+            m_rows[target][row].SetSelect ([this, target, row] (int item)
+            {
+                if (!m_isSyncing)
+                {
+                    OnRowSelect (target, row, item);
+                }
+            });
+        }
+
+        m_addRow[target].SetOnClick ([this, target] () { AddRow (target); });
     }
 
-    for (i = 0; i < kAxisCount; i++)
+    for (target = 0; target < kAxisCount; target++)
     {
-        m_invert[i].SetOnChange ([this, i] (bool checked) { SetAxisInverted (i, checked); });
-
-        m_response[i].SetSelect ([this, i] (int index)
+        m_invert[target].SetOnChange ([this, target] (bool checked)
         {
-            SetAxisResponse (i, index == 1 ? AxisResponse::Rate : AxisResponse::Absolute, m_speed[i].GetValue());
+            if (!m_isSyncing)
+            {
+                SetAxisInverted (target, checked);
+            }
         });
 
-        m_speed[i].SetOnChange ([this, i] (float value)
+        m_response[target].SetSelect ([this, target] (int index)
         {
-            SetAxisResponse (i, AxisResponse::Rate, value);
+            if (!m_isSyncing)
+            {
+                SetAxisResponse (target, index == 1 ? AxisResponse::Rate : AxisResponse::Absolute, m_speed[target].GetValue());
+            }
+        });
+
+        m_speed[target].SetOnChange ([this, target] (float value)
+        {
+            if (!m_isSyncing)
+            {
+                SetAxisResponse (target, AxisResponse::Rate, value);
+            }
         });
     }
 
     m_deadzone.SetOnChange ([this] (float percent)
     {
-        if (m_state != nullptr)
+        if (!m_isSyncing && m_state != nullptr)
         {
             m_state->SetDeadzone (percent / 100.0f);
-            AfterEdit();
+            MarkDirty (m_state->IsDirty());
         }
     });
 
@@ -168,6 +204,7 @@ void ControllersPage::SetState (ControllersPageState * state)
         if (m_state != nullptr)
         {
             m_state->ResetToDefaults();
+            m_hasExtraRow = {};
             AfterEdit();
         }
     });
@@ -218,20 +255,24 @@ void ControllersPage::SetOnInspect (InspectFn onInspect)
 
 void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 {
-    size_t  i = 0;
+    size_t  target = 0;
+    size_t  row    = 0;
 
 
 
     m_controller.SetPopupHost (host);
 
-    for (i = 0; i < kTargetCount; i++)
+    for (target = 0; target < kTargetCount; target++)
     {
-        m_add[i].SetPopupHost (host);
+        for (row = 0; row < kMaxRows; row++)
+        {
+            m_rows[target][row].SetPopupHost (host);
+        }
     }
 
-    for (i = 0; i < kAxisCount; i++)
+    for (target = 0; target < kAxisCount; target++)
     {
-        m_response[i].SetPopupHost (host);
+        m_response[target].SetPopupHost (host);
     }
 }
 
@@ -243,132 +284,173 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 //
 //  Layout
 //
-//  One aligned form: a label column, then each row's controls left to right.
-//  The two paddle axes carry an indented second row for how the stick drives
-//  them.
+//  The controller picker across the top. Below it the joystick: the stick
+//  circle on the left, and to its right each paddle axis's rows followed by
+//  its options. Then the buttons, each with its light, then the deadzone,
+//  calibration and Restore defaults.
+//
+//  Row counts change as mappings are added and removed, so everything below
+//  a target's rows moves with them; Relayout reruns this with the last
+//  rectangle whenever they change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT    dpi          = scaler.GetDpi();
-    int     pad          = scaler.ToPx (s_kPagePadDp);
-    int     row          = scaler.ToPx (s_kRowHeightDp);
-    int     labelWidth   = scaler.ToPx (s_kLabelWidthDp);
-    int     summaryWidth = scaler.ToPx (s_kSummaryWidthDp);
-    int     addWidth     = scaler.ToPx (s_kAddWidthDp);
-    int     captureWidth = scaler.ToPx (s_kCaptureWidthDp);
-    int     clearWidth   = scaler.ToPx (s_kClearWidthDp);
-    int     wideWidth    = scaler.ToPx (s_kWideWidthDp);
-    int     buttonWidth  = scaler.ToPx (s_kButtonWidthDp);
-    int     indent       = scaler.ToPx (s_kChildIndentDp);
-    int     gap          = scaler.ToPx (s_kGapDp);
-    int     sectionGap   = scaler.ToPx (s_kSectionGapDp);
-    int     x            = rect.left + pad;
-    int     y            = rect.top  + pad;
-    int     controlsX    = x + labelWidth;
-    size_t  i            = 0;
+    UINT    dpi         = scaler.GetDpi();
+    int     pad         = scaler.ToPx (s_kPagePadDp);
+    int     rowH        = scaler.ToPx (s_kRowHeightDp);
+    int     labelWidth  = scaler.ToPx (s_kLabelWidthDp);
+    int     rowWidth    = scaler.ToPx (s_kRowWidthDp);
+    int     addWidth    = scaler.ToPx (s_kAddWidthDp);
+    int     stickSize   = scaler.ToPx (s_kStickSizeDp);
+    int     lightSize   = scaler.ToPx (s_kLightSizeDp);
+    int     wideWidth   = scaler.ToPx (s_kWideWidthDp);
+    int     buttonWidth = scaler.ToPx (s_kButtonWidthDp);
+    int     optionWidth = scaler.ToPx (s_kOptionWidthDp);
+    int     indent      = scaler.ToPx (s_kChildIndentDp);
+    int     gap         = scaler.ToPx (s_kGapDp);
+    int     sectionGap  = scaler.ToPx (s_kSectionGapDp);
+    int     x           = rect.left + pad;
+    int     y           = rect.top  + pad;
+    int     axesX       = x + stickSize + sectionGap;
+    int     stickTop    = 0;
+    int     axesBottom  = 0;
+    size_t  target      = 0;
+    size_t  row         = 0;
 
 
 
-    m_controllerLabel.SetRect (MakeRect (x, y, labelWidth, row));
+    m_lastRect   = rect;
+    m_lastScaler = scaler;
+    m_hasLayout  = true;
+
+    m_controllerLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
     m_controllerLabel.SetText (L"Controller:");
-    m_controller.SetRect      (MakeRect (controlsX, y, wideWidth, row));
-    y += row + sectionGap;
+    m_controller.SetRect      (MakeRect (x + labelWidth, y, wideWidth, rowH));
+    y += rowH + sectionGap;
 
-    for (i = 0; i < kTargetCount; i++)
+    m_joystickHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
+    m_joystickHeading.SetText (L"Joystick");
+    y += rowH;
+
+    stickTop   = y;
+    axesBottom = y;
+
+    m_stick.Layout (MakeRect (x, stickTop, stickSize, stickSize), scaler);
+
+    // The two axes, stacked to the right of the stick.
+    for (target = 0; target < kAxisCount; target++)
     {
-        int  cx = controlsX;
+        size_t  shown = GetShownRows (target);
 
-        m_targetLabel[i].SetRect (MakeRect (x, y, labelWidth, row));
-        m_targetLabel[i].SetText (s_kTargetNames[i]);
+        m_targetLabel[target].SetRect (MakeRect (axesX, axesBottom, labelWidth, rowH));
+        m_targetLabel[target].SetText (s_kTargetNames[target]);
 
-        m_summary[i].SetRect (MakeRect (cx, y, summaryWidth, row));
-        cx += summaryWidth + gap;
-
-        m_add[i].SetRect (MakeRect (cx, y, addWidth, row));
-        cx += addWidth + gap;
-
-        m_capture[i].Layout (MakeRect (cx, y, captureWidth, row));
-        cx += captureWidth + gap;
-
-        m_clear[i].SetLabel (L"Clear");
-        m_clear[i].Layout   (MakeRect (cx, y, clearWidth, row));
-
-        y += row + gap;
-
-        if (i < kAxisCount)
+        for (row = 0; row < kMaxRows; row++)
         {
-            int  ox = controlsX + indent;
-
-            m_invert[i].SetRect  (MakeRect (ox, y, addWidth - indent, row));
-            m_invert[i].SetLabel (L"Invert");
-            ox += addWidth - indent + gap;
-
-            m_response[i].SetRect  (MakeRect (ox, y, addWidth, row));
-            m_response[i].SetItems ({ L"Position", L"Paddle speed" });
-            ox += addWidth + gap;
-
-            m_speed[i].SetRect         (MakeRect (ox, y, captureWidth + clearWidth + gap, row));
-            m_speed[i].SetRange        (ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
-            m_speed[i].SetStep         (16.0f);
-            m_speed[i].SetDecimalPlaces (0);
-            m_speed[i].SetSuffix       (L"/s");
-
-            y += row + gap;
+            m_rows[target][row].SetVisible (row < shown);
+            m_rows[target][row].SetRect    (MakeRect (axesX + labelWidth, axesBottom + (int) row * (rowH + gap), rowWidth, rowH));
         }
+
+        m_addRow[target].SetLabel (L"+");
+        m_addRow[target].Layout   (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+
+        axesBottom += (int) shown * (rowH + gap);
+
+        m_invert[target].SetRect  (MakeRect (axesX + labelWidth + indent, axesBottom, optionWidth - indent, rowH));
+        m_invert[target].SetLabel (L"Invert");
+
+        m_response[target].SetRect  (MakeRect (axesX + labelWidth + optionWidth, axesBottom, optionWidth, rowH));
+        m_response[target].SetItems ({ L"Position", L"Paddle speed" });
+
+        m_speed[target].SetRect          (MakeRect (axesX + labelWidth + optionWidth * 2 + gap, axesBottom, optionWidth, rowH));
+        m_speed[target].SetRange         (ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
+        m_speed[target].SetStep          (16.0f);
+        m_speed[target].SetDecimalPlaces (0);
+        m_speed[target].SetSuffix        (L"/s");
+
+        axesBottom += rowH + sectionGap;
     }
 
-    m_sharedWarning.SetRect  (MakeRect (x, y, wideWidth + labelWidth, row));
+    y = std::max (stickTop + stickSize, axesBottom) + sectionGap;
+
+    // The buttons, each with a light that fills while it reads pressed.
+    m_buttonsHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
+    m_buttonsHeading.SetText (L"Buttons");
+    y += rowH;
+
+    for (target = kAxisCount; target < kTargetCount; target++)
+    {
+        size_t  shown = GetShownRows (target);
+        size_t  light = target - kAxisCount;
+
+        m_lights[light].Layout (MakeRect (x, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
+
+        m_targetLabel[target].SetRect (MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap, rowH));
+        m_targetLabel[target].SetText (s_kTargetNames[target]);
+
+        for (row = 0; row < kMaxRows; row++)
+        {
+            m_rows[target][row].SetVisible (row < shown);
+            m_rows[target][row].SetRect    (MakeRect (x + labelWidth, y + (int) row * (rowH + gap), rowWidth, rowH));
+        }
+
+        m_addRow[target].SetLabel (L"+");
+        m_addRow[target].Layout   (MakeRect (x + labelWidth + rowWidth + gap, y + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+
+        y += (int) shown * (rowH + gap);
+    }
+
+    m_sharedWarning.SetRect  (MakeRect (x, y, wideWidth + labelWidth + buttonWidth, rowH));
     m_sharedWarning.SetColor (0xFFF0A030);   // amber caution, as the sheet's restart notice
-    y += row + sectionGap;
+    y += rowH + gap;
 
-    m_deadzoneLabel.SetRect (MakeRect (x, y, labelWidth, row));
+    m_deadzoneLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
     m_deadzoneLabel.SetText (L"Deadzone:");
-    m_deadzone.SetRect         (MakeRect (controlsX, y, wideWidth, row));
-    m_deadzone.SetRange        (0.0f, 90.0f);
-    m_deadzone.SetStep         (1.0f);
+    m_deadzone.SetRect          (MakeRect (x + labelWidth, y, wideWidth, rowH));
+    m_deadzone.SetRange         (0.0f, 90.0f);
+    m_deadzone.SetStep          (1.0f);
     m_deadzone.SetDecimalPlaces (0);
-    m_deadzone.SetSuffix       (L"%");
-    y += row + sectionGap;
+    m_deadzone.SetSuffix        (L"%");
+    y += rowH + sectionGap;
 
-    m_calibrationLabel.SetRect (MakeRect (x, y, labelWidth, row));
-    m_calibrationLabel.SetText (L"Calibration:");
-    m_calibrationStatus.SetRect (MakeRect (controlsX, y, wideWidth + buttonWidth, row));
-    y += row + gap;
+    m_calibrationLabel.SetRect  (MakeRect (x, y, labelWidth, rowH));
+    m_calibrationLabel.SetText  (L"Calibration:");
+    m_calibrationStatus.SetRect (MakeRect (x + labelWidth, y, wideWidth + buttonWidth, rowH));
+    y += rowH + gap;
 
-    m_calibrate.Layout (MakeRect (controlsX, y, buttonWidth, row));
+    m_calibrate.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
     m_calibrationCancel.SetLabel (L"Cancel");
-    m_calibrationCancel.Layout (MakeRect (controlsX + buttonWidth + gap, y, buttonWidth, row));
+    m_calibrationCancel.Layout (MakeRect (x + labelWidth + buttonWidth + gap, y, buttonWidth, rowH));
     m_useAutomatic.SetLabel (L"Use automatic");
-    m_useAutomatic.Layout (MakeRect (controlsX + (buttonWidth + gap) * 2, y, buttonWidth, row));
-    y += row + sectionGap;
-
-    m_liveLabel.SetRect (MakeRect (x, y, labelWidth, row));
-    m_liveLabel.SetText (L"Live:");
-    m_live.SetRect (MakeRect (controlsX, y, wideWidth + buttonWidth, row));
-    y += row + sectionGap;
+    m_useAutomatic.Layout (MakeRect (x + labelWidth + (buttonWidth + gap) * 2, y, buttonWidth, rowH));
+    y += rowH + sectionGap;
 
     m_reset.SetLabel (L"Restore defaults");
-    m_reset.Layout (MakeRect (controlsX, y, buttonWidth, row));
+    m_reset.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
 
     m_controllerLabel.SetDpi (dpi);
     m_controller.SetDpi      (dpi);
+    m_joystickHeading.SetDpi (dpi);
+    m_buttonsHeading.SetDpi  (dpi);
 
-    for (i = 0; i < kTargetCount; i++)
+    for (target = 0; target < kTargetCount; target++)
     {
-        m_targetLabel[i].SetDpi (dpi);
-        m_summary[i].SetDpi     (dpi);
-        m_add[i].SetDpi         (dpi);
-        m_capture[i].SetDpi     (dpi);
-        m_clear[i].SetDpi       (dpi);
+        m_targetLabel[target].SetDpi (dpi);
+        m_addRow[target].SetDpi      (dpi);
+
+        for (row = 0; row < kMaxRows; row++)
+        {
+            m_rows[target][row].SetDpi (dpi);
+        }
     }
 
-    for (i = 0; i < kAxisCount; i++)
+    for (target = 0; target < kAxisCount; target++)
     {
-        m_invert[i].SetDpi   (dpi);
-        m_response[i].SetDpi (dpi);
-        m_speed[i].SetDpi    (dpi);
+        m_invert[target].SetDpi   (dpi);
+        m_response[target].SetDpi (dpi);
+        m_speed[target].SetDpi    (dpi);
     }
 
     m_sharedWarning.SetDpi     (dpi);
@@ -379,8 +461,6 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_calibrate.SetDpi         (dpi);
     m_calibrationCancel.SetDpi (dpi);
     m_useAutomatic.SetDpi      (dpi);
-    m_liveLabel.SetDpi         (dpi);
-    m_live.SetDpi              (dpi);
     m_reset.SetDpi             (dpi);
 
     RebuildChoices();
@@ -409,6 +489,7 @@ void ControllersPage::Poll()
     std::optional<ControllerUnitKey>  unit;
     std::optional<ControllerSample>   sample;
     GamePortContribution              reading;
+    size_t                            light    = 0;
 
 
 
@@ -436,26 +517,29 @@ void ControllersPage::Poll()
         m_onInspect (unit);
     }
 
-    if (!unit.has_value())
-    {
-        m_live.SetText (L"No controller is attached.");
-        return;
-    }
-
-    if (m_sampleSource)
+    if (unit.has_value() && m_sampleSource)
     {
         sample = m_sampleSource (unit.value());
     }
 
+    m_stick.SetActive (sample.has_value());
+
     if (!sample.has_value())
     {
-        m_live.SetText (L"Not connected.");
+        m_stick.SetValues (127, 127);
+
+        for (light = 0; light < kButtonCount; light++)
+        {
+            m_lights[light].SetLit (false);
+        }
+
         return;
     }
 
     if (m_state->IsCapturing() && m_state->FeedCapture (sample.value()))
     {
-        m_captureTarget = kTargetCount;
+        m_capturing.reset();
+        m_hasExtraRow = {};
         AfterEdit();
     }
 
@@ -466,12 +550,13 @@ void ControllersPage::Poll()
 
     reading = m_state->ComputeLiveReading (sample.value());
 
-    m_live.SetText (std::format (L"PDL0 {}    PDL1 {}    PB0 {}    PB1 {}    PB2 {}",
-                                 reading.paddle.has_value() ? reading.paddle.value()[0] : 127,
-                                 reading.paddle.has_value() ? reading.paddle.value()[1] : 127,
-                                 reading.buttons.test (0) ? L"down" : L"up",
-                                 reading.buttons.test (1) ? L"down" : L"up",
-                                 m_state->IsTargetAvailable (PaddleTarget::Pb2) ? (reading.buttons.test (2) ? L"down" : L"up") : L"n/a"));
+    m_stick.SetValues (reading.paddle.has_value() ? reading.paddle.value()[0] : 127,
+                       reading.paddle.has_value() ? reading.paddle.value()[1] : 127);
+
+    for (light = 0; light < kButtonCount; light++)
+    {
+        m_lights[light].SetLit (reading.buttons.test (light));
+    }
 }
 
 
@@ -508,18 +593,21 @@ void ControllersPage::Refresh()
 
     selected              = m_state->GetSelectedIndex();
     m_lastControllerCount = m_state->GetControllers().size();
+    m_isSyncing           = true;
 
     m_controller.SetItems    (names);
     m_controller.SetSelected (selected.has_value() ? (int) selected.value() : 0);
     m_controller.SetEnabled  (selected.has_value());
 
-    RefreshTargets();
+    RefreshRows();
     RefreshAxisOptions();
     RefreshCalibration();
 
     m_deadzone.SetValue   (m_state->GetDeadzone() * 100.0f);
     m_deadzone.SetEnabled (selected.has_value());
     m_reset.SetEnabled    (selected.has_value());
+
+    m_isSyncing = false;
 }
 
 
@@ -530,61 +618,45 @@ void ControllersPage::Refresh()
 //
 //  RebuildChoices
 //
-//  Each target's "Add control" list, from the selected controller's
-//  controls. An axis target offers the analog controls and each D-pad as a
-//  left/right or up/down pair; a button target offers every control.
+//  Each target's controls, from the selected controller. An axis target
+//  offers the analog controls and each D-pad as a left/right or up/down pair;
+//  a button target offers every control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::RebuildChoices()
 {
     std::optional<size_t>  selected = m_state != nullptr ? m_state->GetSelectedIndex() : std::nullopt;
-    ControllerKind         kind     = GetSelectedKind();
-    size_t                 i        = 0;
+    size_t                 target   = 0;
 
 
 
-    for (i = 0; i < kTargetCount; i++)
+    for (target = 0; target < kTargetCount; target++)
     {
-        std::vector<std::wstring>  items = { L"Add control..." };
+        m_choices[target].clear();
 
-        m_choices[i].clear();
-
-        if (selected.has_value())
+        if (!selected.has_value())
         {
-            for (const ControlId & control : m_state->GetControllers()[selected.value()].controls)
-            {
-                bool  isAnalog = control.kind == ControlKind::Axis || control.kind == ControlKind::Trigger;
-
-                if (i >= kAxisCount)
-                {
-                    m_choices[i].push_back ({ false, control, {} });
-                    items.push_back (ControlLabels::For (kind, control));
-                }
-                else if (isAnalog)
-                {
-                    m_choices[i].push_back ({ false, control, {} });
-                    items.push_back (ControlLabels::For (kind, control));
-                }
-                else if (control.kind == ControlKind::DpadLeft)
-                {
-                    ControlId  right = { ControlKind::DpadRight, control.index };
-
-                    m_choices[i].push_back ({ true, control, right });
-                    items.push_back (ControlLabels::For (kind, control) + L" / right");
-                }
-                else if (control.kind == ControlKind::DpadUp)
-                {
-                    ControlId  down = { ControlKind::DpadDown, control.index };
-
-                    m_choices[i].push_back ({ true, control, down });
-                    items.push_back (ControlLabels::For (kind, control) + L" / down");
-                }
-            }
+            continue;
         }
 
-        m_add[i].SetItems    (items);
-        m_add[i].SetSelected (0);
+        for (const ControlId & control : m_state->GetControllers()[selected.value()].controls)
+        {
+            bool  isAnalog = control.kind == ControlKind::Axis || control.kind == ControlKind::Trigger;
+
+            if (target >= kAxisCount || isAnalog)
+            {
+                m_choices[target].push_back ({ false, control, {} });
+            }
+            else if (control.kind == ControlKind::DpadLeft)
+            {
+                m_choices[target].push_back ({ true, control, { ControlKind::DpadRight, control.index } });
+            }
+            else if (control.kind == ControlKind::DpadUp)
+            {
+                m_choices[target].push_back ({ true, control, { ControlKind::DpadDown, control.index } });
+            }
+        }
     }
 }
 
@@ -594,59 +666,62 @@ void ControllersPage::RebuildChoices()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RefreshTargets
+//  RefreshRows
+//
+//  Every drop-down's items and selection, and which rows and "+" buttons
+//  show. A binding the list does not offer -- a pair built some other way,
+//  say -- is added to its own row's list so the row still names it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::RefreshTargets()
+void ControllersPage::RefreshRows()
 {
-    const ControlMapping &  mapping  = m_state->GetMapping();
-    ControllerKind          kind     = GetSelectedKind();
-    bool                    hasUnit  = m_state->GetSelectedIndex().has_value();
-    std::vector<ControlId>  shared   = m_state->GetSharedControls();
-    size_t                  i        = 0;
+    ControllerKind          kind    = GetSelectedKind();
+    bool                    hasUnit = m_state->GetSelectedIndex().has_value();
+    std::vector<ControlId>  shared  = m_state->GetSharedControls();
+    size_t                  target  = 0;
+    size_t                  row     = 0;
 
 
 
-    for (i = 0; i < kTargetCount; i++)
+    for (target = 0; target < kTargetCount; target++)
     {
-        PaddleTarget  target    = TargetAt (i);
-        bool          available = m_state->IsTargetAvailable (target);
-        std::wstring  summary;
+        PaddleTarget  paddleTarget = TargetAt (target);
+        bool          available    = hasUnit && m_state->IsTargetAvailable (paddleTarget);
+        size_t        count        = GetBindingCount (target);
+        size_t        shown        = GetShownRows (target);
 
-        if (i < kAxisCount)
+        for (row = 0; row < kMaxRows; row++)
         {
-            const std::vector<AxisBinding> &  bindings = (i == 0) ? mapping.pdl0 : mapping.pdl1;
+            std::vector<std::wstring>  items;
+            bool                       isCapturing = m_capturing.has_value() && m_capturing->first == target && m_capturing->second == row;
+            int                        choice      = FindChoice (target, row);
 
-            for (const AxisBinding & binding : bindings)
+            items.push_back (isCapturing ? L"Press a control..." : L"Press to assign...");
+            items.push_back (available ? L"None" : L"Not on this machine");
+
+            for (const ControlChoice & entry : m_choices[target])
             {
-                summary += (summary.empty() ? L"" : L", ") + DescribeAxis (kind, binding);
+                items.push_back (entry.isPair ? ControlLabels::For (kind, entry.control) + L" / " + ControlLabels::For (kind, entry.positive)
+                                              : ControlLabels::For (kind, entry.control));
             }
-        }
-        else
-        {
-            const std::vector<ButtonBinding> &  bindings = (i == 2) ? mapping.pb0 : (i == 3) ? mapping.pb1 : mapping.pb2;
 
-            for (const ButtonBinding & binding : bindings)
+            if (row < count && choice < 0)
             {
-                summary += (summary.empty() ? L"" : L", ") + DescribeButton (kind, binding);
+                const ControlMapping &  mapping = m_state->GetMapping();
+
+                items.push_back (target < kAxisCount ? DescribeAxis   (kind, (target == 0 ? mapping.pdl0 : mapping.pdl1)[row])
+                                                     : DescribeButton (kind, (target == 2 ? mapping.pb0 : target == 3 ? mapping.pb1 : mapping.pb2)[row]));
+                choice = (int) items.size() - 1;
             }
+
+            m_rows[target][row].SetItems    (items);
+            m_rows[target][row].SetSelected (isCapturing ? kPressToAssignItem : (row < count ? choice : kNoneItem));
+            m_rows[target][row].SetEnabled  (available);
+            m_rows[target][row].SetVisible  (row < shown);
         }
 
-        if (!available)
-        {
-            summary = L"Not on this machine";
-        }
-        else if (summary.empty())
-        {
-            summary = L"Not assigned";
-        }
-
-        m_summary[i].SetText  (summary);
-        m_add[i].SetEnabled     (hasUnit && available);
-        m_capture[i].SetEnabled (hasUnit && available);
-        m_clear[i].SetEnabled   (hasUnit && available);
-        m_capture[i].SetLabel   (m_captureTarget == i && m_state->IsCapturing() ? L"Press a control..." : L"Press to assign");
+        m_addRow[target].SetEnabled (available && count > 0 && shown < kMaxRows && !m_hasExtraRow[target]);
     }
 
     if (shared.empty())
@@ -674,21 +749,21 @@ void ControllersPage::RefreshTargets()
 //
 //  RefreshAxisOptions
 //
-//  The first analog binding on each axis speaks for the row, since the
-//  options set every analog binding on it at once.
+//  The first analog binding on each axis speaks for its options, since the
+//  options set every analog binding on the axis at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::RefreshAxisOptions()
 {
     const ControlMapping &  mapping = m_state->GetMapping();
-    size_t                  i       = 0;
+    size_t                  axis    = 0;
 
 
 
-    for (i = 0; i < kAxisCount; i++)
+    for (axis = 0; axis < kAxisCount; axis++)
     {
-        const std::vector<AxisBinding> &  bindings = (i == 0) ? mapping.pdl0 : mapping.pdl1;
+        const std::vector<AxisBinding> &  bindings = (axis == 0) ? mapping.pdl0 : mapping.pdl1;
         const AxisBinding *               analog   = nullptr;
 
         for (const AxisBinding & binding : bindings)
@@ -700,15 +775,15 @@ void ControllersPage::RefreshAxisOptions()
             }
         }
 
-        m_invert[i].SetEnabled   (analog != nullptr);
-        m_response[i].SetEnabled (analog != nullptr);
-        m_speed[i].SetEnabled    (analog != nullptr && analog->response == AxisResponse::Rate);
+        m_invert[axis].SetEnabled   (analog != nullptr);
+        m_response[axis].SetEnabled (analog != nullptr);
+        m_speed[axis].SetEnabled    (analog != nullptr && analog->response == AxisResponse::Rate);
 
         if (analog != nullptr)
         {
-            m_invert[i].SetChecked    (analog->inverted);
-            m_response[i].SetSelected (analog->response == AxisResponse::Rate ? 1 : 0);
-            m_speed[i].SetValue       (analog->maxSpeed);
+            m_invert[axis].SetChecked    (analog->inverted);
+            m_response[axis].SetSelected (analog->response == AxisResponse::Rate ? 1 : 0);
+            m_speed[axis].SetValue       (analog->maxSpeed);
         }
     }
 }
@@ -725,9 +800,9 @@ void ControllersPage::RefreshAxisOptions()
 
 void ControllersPage::RefreshCalibration()
 {
+    std::optional<size_t>  selected     = m_state->GetSelectedIndex();
     bool                   canCalibrate = m_state->IsCalibratable();
     CalibrationStep        step         = m_state->GetCalibrationStep();
-    std::optional<size_t>  selected     = m_state->GetSelectedIndex();
     bool                   hasUser      = false;
 
 
@@ -774,76 +849,20 @@ void ControllersPage::RefreshCalibration()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AddChoice
+//  OnRowSelect
+//
+//  "Press to assign..." waits for a control to replace the row's, or to fill
+//  an empty row; "None" removes the row's control, which removes an added
+//  row outright; a control replaces the row's or fills it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::AddChoice (size_t target, int comboIndex)
-{
-    const ControlChoice *  choice = nullptr;
-
-
-
-    if (m_state == nullptr || comboIndex <= 0 || (size_t) comboIndex > m_choices[target].size())
-    {
-        return;
-    }
-
-    choice = &m_choices[target][(size_t) comboIndex - 1];
-
-    if (target < kAxisCount)
-    {
-        AxisBinding  binding;
-
-        if (choice->isPair)
-        {
-            binding.kind     = AxisBindingKind::DigitalPair;
-            binding.negative = choice->control;
-            binding.positive = choice->positive;
-        }
-        else
-        {
-            binding.analog = choice->control;
-        }
-
-        m_state->AddAxisBinding (TargetAt (target), binding);
-    }
-    else
-    {
-        ButtonBinding  binding;
-
-        binding.control = choice->control;
-
-        if (choice->control.kind == ControlKind::Trigger)
-        {
-            binding.threshold = ButtonBinding::kTriggerThreshold;
-        }
-
-        m_state->AddButtonBinding (TargetAt (target), binding);
-    }
-
-    m_add[target].SetSelected (0);
-    AfterEdit();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ToggleCapture
-//
-//  A second click on the waiting button cancels the wait (FR-022). The
-//  baseline is the controller's reading at the click, so whatever was
-//  already held then is ignored until it is let go.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ControllersPage::ToggleCapture (size_t target)
+void ControllersPage::OnRowSelect (size_t target, size_t row, int item)
 {
     std::optional<size_t>            selected;
     std::optional<ControllerSample>  baseline;
+    size_t                           count    = 0;
+    size_t                           choice   = 0;
 
 
 
@@ -852,35 +871,100 @@ void ControllersPage::ToggleCapture (size_t target)
         return;
     }
 
-    if (m_state->IsCapturing())
-    {
-        bool  wasThis = (m_captureTarget == target);
-
-        m_state->CancelCapture();
-        m_captureTarget = kTargetCount;
-
-        if (wasThis)
-        {
-            RefreshTargets();
-            return;
-        }
-    }
-
     selected = m_state->GetSelectedIndex();
+    count    = GetBindingCount (target);
 
     if (!selected.has_value())
     {
         return;
     }
 
-    if (m_sampleSource)
+    if (item == kPressToAssignItem)
     {
-        baseline = m_sampleSource (m_state->GetControllers()[selected.value()].unit);
+        if (m_sampleSource)
+        {
+            baseline = m_sampleSource (m_state->GetControllers()[selected.value()].unit);
+        }
+
+        m_state->BeginCapture (TargetAt (target), baseline.value_or (ControllerSample()),
+                               row < count ? std::optional<size_t> (row) : std::nullopt);
+        m_capturing = std::make_pair (target, row);
+        Refresh();
+        return;
     }
 
-    m_state->BeginCapture (TargetAt (target), baseline.value_or (ControllerSample()));
-    m_captureTarget = target;
-    RefreshTargets();
+    if (m_capturing.has_value())
+    {
+        m_state->CancelCapture();
+        m_capturing.reset();
+    }
+
+    if (item == kNoneItem)
+    {
+        if (row < count)
+        {
+            m_state->RemoveBinding (TargetAt (target), row);
+        }
+
+        m_hasExtraRow[target] = false;
+        AfterEdit();
+        return;
+    }
+
+    choice = (size_t) (item - kFirstControlItem);
+
+    if (choice >= m_choices[target].size())
+    {
+        return;
+    }
+
+    if (target < kAxisCount)
+    {
+        AxisBinding  binding;
+
+        if (m_choices[target][choice].isPair)
+        {
+            binding.kind     = AxisBindingKind::DigitalPair;
+            binding.negative = m_choices[target][choice].control;
+            binding.positive = m_choices[target][choice].positive;
+        }
+        else
+        {
+            binding.analog = m_choices[target][choice].control;
+        }
+
+        if (row < count)
+        {
+            m_state->ReplaceAxisBinding (TargetAt (target), row, binding);
+        }
+        else
+        {
+            m_state->AddAxisBinding (TargetAt (target), binding);
+        }
+    }
+    else
+    {
+        ButtonBinding  binding;
+
+        binding.control = m_choices[target][choice].control;
+
+        if (binding.control.kind == ControlKind::Trigger)
+        {
+            binding.threshold = ButtonBinding::kTriggerThreshold;
+        }
+
+        if (row < count)
+        {
+            m_state->ReplaceButtonBinding (TargetAt (target), row, binding);
+        }
+        else
+        {
+            m_state->AddButtonBinding (TargetAt (target), binding);
+        }
+    }
+
+    m_hasExtraRow[target] = false;
+    AfterEdit();
 }
 
 
@@ -889,34 +973,22 @@ void ControllersPage::ToggleCapture (size_t target)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ClearTarget
+//  AddRow
+//
+//  Shows one more row under the target, reading "None" until the user picks
+//  a control for it. Nothing is added to the mapping until they do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPage::ClearTarget (size_t target)
+void ControllersPage::AddRow (size_t target)
 {
-    size_t  count = 0;
-
-
-
-    if (m_state == nullptr)
+    if (GetShownRows (target) >= kMaxRows)
     {
         return;
     }
 
-    count = (target == 0) ? m_state->GetMapping().pdl0.size()
-          : (target == 1) ? m_state->GetMapping().pdl1.size()
-          : (target == 2) ? m_state->GetMapping().pb0.size()
-          : (target == 3) ? m_state->GetMapping().pb1.size()
-          :                 m_state->GetMapping().pb2.size();
-
-    while (count > 0)
-    {
-        count--;
-        m_state->RemoveBinding (TargetAt (target), count);
-    }
-
-    AfterEdit();
+    m_hasExtraRow[target] = true;
+    Relayout();
 }
 
 
@@ -931,17 +1003,10 @@ void ControllersPage::ClearTarget (size_t target)
 
 void ControllersPage::SetAxisInverted (size_t axis, bool inverted)
 {
-    size_t  count = 0;
+    size_t  count = GetBindingCount (axis);
     size_t  i     = 0;
 
 
-
-    if (m_state == nullptr)
-    {
-        return;
-    }
-
-    count = (axis == 0) ? m_state->GetMapping().pdl0.size() : m_state->GetMapping().pdl1.size();
 
     for (i = 0; i < count; i++)
     {
@@ -963,17 +1028,10 @@ void ControllersPage::SetAxisInverted (size_t axis, bool inverted)
 
 void ControllersPage::SetAxisResponse (size_t axis, AxisResponse response, float maxSpeed)
 {
-    size_t  count = 0;
+    size_t  count = GetBindingCount (axis);
     size_t  i     = 0;
 
 
-
-    if (m_state == nullptr)
-    {
-        return;
-    }
-
-    count = (axis == 0) ? m_state->GetMapping().pdl0.size() : m_state->GetMapping().pdl1.size();
 
     for (i = 0; i < count; i++)
     {
@@ -1025,8 +1083,146 @@ void ControllersPage::OnCalibrateClick()
 
 void ControllersPage::AfterEdit()
 {
-    Refresh();
+    Relayout();
     MarkDirty (m_state != nullptr && m_state->IsDirty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Relayout
+//
+//  Rows came or went, which moves everything below them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::Relayout()
+{
+    if (m_hasLayout)
+    {
+        Layout (m_lastRect, m_lastScaler);
+    }
+    else
+    {
+        Refresh();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBindingCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ControllersPage::GetBindingCount (size_t target) const
+{
+    static const ControlMapping  s_kEmpty;
+    const ControlMapping &       mapping = m_state != nullptr ? m_state->GetMapping() : s_kEmpty;
+
+
+
+    switch (target)
+    {
+        case 0:  return mapping.pdl0.size();
+        case 1:  return mapping.pdl1.size();
+        case 2:  return mapping.pb0.size();
+        case 3:  return mapping.pb1.size();
+        default: return mapping.pb2.size();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetShownRows
+//
+//  One row per control, plus an empty row "+" asked for, plus a row waiting
+//  on press-to-assign past the end; never fewer than one, never more than
+//  kMaxRows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ControllersPage::GetShownRows (size_t target) const
+{
+    size_t  count = GetBindingCount (target);
+    size_t  shown = count;
+
+
+
+    if (m_hasExtraRow[target])
+    {
+        shown++;
+    }
+
+    if (m_capturing.has_value() && m_capturing->first == target && m_capturing->second >= count)
+    {
+        shown = std::max (shown, m_capturing->second + 1);
+    }
+
+    return std::clamp (shown, (size_t) 1, kMaxRows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindChoice
+//
+//  The drop-down item for the control on a row, or -1 when the row has no
+//  control or the list does not offer it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ControllersPage::FindChoice (size_t target, size_t row) const
+{
+    const ControlMapping &  mapping = m_state->GetMapping();
+    size_t                  i       = 0;
+
+
+
+    if (row >= GetBindingCount (target))
+    {
+        return -1;
+    }
+
+    for (i = 0; i < m_choices[target].size(); i++)
+    {
+        const ControlChoice &  choice  = m_choices[target][i];
+        bool                   isMatch = false;
+
+        if (target < kAxisCount)
+        {
+            const AxisBinding &  binding = (target == 0 ? mapping.pdl0 : mapping.pdl1)[row];
+
+            isMatch = choice.isPair ? (binding.kind == AxisBindingKind::DigitalPair && binding.negative == choice.control && binding.positive == choice.positive)
+                                    : (binding.kind == AxisBindingKind::Analog && binding.analog == choice.control);
+        }
+        else
+        {
+            const ButtonBinding &  binding = (target == 2 ? mapping.pb0 : target == 3 ? mapping.pb1 : mapping.pb2)[row];
+
+            isMatch = binding.control == choice.control;
+        }
+
+        if (isMatch)
+        {
+            return kFirstControlItem + (int) i;
+        }
+    }
+
+    return -1;
 }
 
 
@@ -1106,28 +1302,12 @@ PaddleTarget ControllersPage::TargetAt (size_t index)
 
 std::wstring ControllersPage::DescribeAxis (ControllerKind kind, const AxisBinding & binding)
 {
-    std::wstring  text;
-
-
-
     if (binding.kind == AxisBindingKind::DigitalPair)
     {
         return ControlLabels::For (kind, binding.negative) + L" / " + ControlLabels::For (kind, binding.positive);
     }
 
-    text = ControlLabels::For (kind, binding.analog);
-
-    if (binding.inverted)
-    {
-        text += L" (inverted)";
-    }
-
-    if (binding.response == AxisResponse::Rate)
-    {
-        text += L" (paddle speed)";
-    }
-
-    return text;
+    return ControlLabels::For (kind, binding.analog);
 }
 
 

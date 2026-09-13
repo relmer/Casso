@@ -290,5 +290,54 @@ namespace ControllerTests
 
             Assert::AreEqual (0.3f, page.GetDeadzone(), 0.0001f, L"Cancel after an Apply goes back to what was applied");
         }
+
+
+        TEST_METHOD (ReplacingARow_KeepsTheTargetsOtherControlsInOrder)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+            page.AddButtonBinding (PaddleTarget::Pb0, { { ControlKind::Button, 1 } });
+            page.AddButtonBinding (PaddleTarget::Pb0, { { ControlKind::Button, 2 } });
+
+            Assert::IsTrue (page.ReplaceButtonBinding (PaddleTarget::Pb0, 1, { { ControlKind::Button, 4 } }));
+
+            Assert::AreEqual (size_t (3), page.GetMapping().pb0.size());
+            Assert::IsTrue   (page.GetMapping().pb0[0].control == ControlId { ControlKind::Button, 0 });
+            Assert::IsTrue   (page.GetMapping().pb0[1].control == ControlId { ControlKind::Button, 4 }, L"the second row takes the new control");
+            Assert::IsTrue   (page.GetMapping().pb0[2].control == ControlId { ControlKind::Button, 2 }, L"and the third keeps its place");
+            Assert::IsFalse  (page.ReplaceButtonBinding (PaddleTarget::Pb0, 9, { { ControlKind::Button, 4 } }), L"a row that does not exist is refused");
+        }
+
+
+        TEST_METHOD (ACaptureOnARow_ReplacesThatRow)
+        {
+            ControllersPageState  page;
+            ControllerSample      pressed = Rest();
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+            page.BeginCapture (PaddleTarget::Pb0, Rest(), 0);
+            pressed.buttons.set (2);
+            page.FeedCapture (pressed);
+
+            Assert::AreEqual (size_t (1), page.GetMapping().pb0.size(), L"the row's control is replaced, not added to");
+            Assert::IsTrue   (page.GetMapping().pb0[0].control == ControlId { ControlKind::Button, 2 });
+        }
+
+
+        TEST_METHOD (ReplacingAnAxisRow_CanTurnItIntoAPair)
+        {
+            ControllersPageState  page;
+            AxisBinding           pair;
+
+            pair.kind     = AxisBindingKind::DigitalPair;
+            pair.negative = { ControlKind::DpadLeft, 0 };
+            pair.positive = { ControlKind::DpadRight, 0 };
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+
+            Assert::IsTrue (page.ReplaceAxisBinding (PaddleTarget::Pdl0, 0, pair));
+            Assert::IsTrue (page.GetMapping().pdl0[0] == pair);
+        }
     };
 }
