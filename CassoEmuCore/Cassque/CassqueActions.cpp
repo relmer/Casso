@@ -778,9 +778,22 @@ bool CassqueActions::TryParseSearch (const std::wstring & text, std::vector<Byte
         }
     }
 
-    if (digits.empty() || (digits.size() % 2) != 0 || digits.find_first_not_of (L"0123456789ABCDEFabcdef") != std::wstring::npos)
+    //  Anything that is not an even run of hex digits is text, as typed.
+    if ((digits.size() % 2) != 0 || digits.find_first_not_of (L"0123456789ABCDEFabcdef") != std::wstring::npos)
     {
-        return false;
+        for (size_t i = first; i <= last; i++)
+        {
+            if (text[i] < 0x20 || text[i] > 0x7E)
+            {
+                return false;
+            }
+
+            bytes.push_back ((Byte) text[i]);
+        }
+
+        outBytes  = std::move (bytes);
+        outIsText = true;
+        return true;
     }
 
     for (size_t i = 0; i < digits.size(); i += 2)

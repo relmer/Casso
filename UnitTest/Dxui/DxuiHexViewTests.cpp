@@ -158,8 +158,73 @@ public:
 
         sixth = view.GetByteRect (5, DxuiHexView::Column::Hex);
 
-        Assert::AreEqual ((LONG) ((kHexStart + 11) * kCellW), sixth.left,
-            L"Byte five is ten digits and one group space from the left");
+        Assert::AreEqual ((LONG) ((kHexStart + 13) * kCellW), sixth.left,
+            L"Byte five is the second byte of the second value, whose little-endian digits put it second from the right");
+    }
+
+
+    TEST_METHOD (Values_AFourByteUnsignedValueIsOneLittleEndianNumber)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+        RECT               rect = {};
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        Assert::IsTrue (view.SetGrouping (4), L"Four divides a sixteen-byte row");
+        view.SetValueFormat (DxuiHexView::ValueFormat::Unsigned);
+
+        Assert::AreEqual (std::wstring (L"50462976"), view.GetHexFor (0, 4),
+            L"Bytes 00 01 02 03 are the number $03020100");
+
+        rect = view.GetByteRect (5, DxuiHexView::Column::Hex);
+
+        Assert::AreEqual ((LONG) ((kHexStart + 11) * kCellW), rect.left,
+            L"The second value starts ten digits and a space in");
+        Assert::AreEqual ((LONG) (10 * kCellW), rect.right - rect.left,
+            L"and each of its bytes is the whole value");
+    }
+
+
+    TEST_METHOD (Values_SignedReadsTheHighBitAsTheSign)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+        view.SetValueFormat (DxuiHexView::ValueFormat::Signed);
+
+        Assert::AreEqual (std::wstring (L"-1"), view.GetHexFor (0xFF, 1),
+            L"$FF is minus one");
+        Assert::AreEqual (std::wstring (L"127"), view.GetHexFor (0x7F, 1),
+            L"and $7F is the largest positive byte");
+    }
+
+
+    TEST_METHOD (Columns_AutoFitsTheValuesTheWidthHolds)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        view.SetColumns (0);
+        LayOut (view);
+
+        //  790 DIPs past the scrollbar is 98 cells: six for the offsets and
+        //  their gutter, one more for the text column's gutter less the space
+        //  after the last value, and four for each byte shown both ways.
+        Assert::AreEqual (22, view.GetBytesPerRow(),
+            L"Twenty-two single bytes fit in eight hundred DIPs");
+
+        view.SetShowValues (false);
+
+        Assert::AreEqual (92, view.GetBytesPerRow(),
+            L"Without values, only the characters take room");
     }
 
 
@@ -297,15 +362,15 @@ public:
         LayOut (view);
 
         view.SelectByte (4, DxuiHexView::Column::Hex);
-        view.ExtendSelectionTo (9);
+        view.ExtendSelectionTo (15);
 
-        before = view.GetByteRect (9, DxuiHexView::Column::Hex);
+        before = view.GetByteRect (15, DxuiHexView::Column::Hex);
 
         Assert::IsTrue (view.SetGrouping (8), L"Eight divides a sixteen-byte row");
 
-        after = view.GetByteRect (9, DxuiHexView::Column::Hex);
+        after = view.GetByteRect (15, DxuiHexView::Column::Hex);
 
-        Assert::AreEqual (uint64_t (6), view.GetSelectionCount(),
+        Assert::AreEqual (uint64_t (12), view.GetSelectionCount(),
             L"Regrouping moves the digits, not the selection");
         Assert::IsTrue (after.left < before.left,
             L"A wider group spends fewer spaces, so the byte moves left");

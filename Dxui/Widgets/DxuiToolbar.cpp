@@ -609,12 +609,18 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
         return slot.entry.custom->GetWidthPx (labeled, m_scaler, m_textRenderer);
     }
 
-    width = padX * 2 + iconW;
+    labeled = labeled || !HasGlyph (slot);
+    width   = padX * 2 + (HasGlyph (slot) ? iconW : 0);
 
     if (labeled && slot.entry.command != nullptr)
     {
         label  = slot.entry.command->GetShortText();
-        width += iconGap + MeasureLabelPx (label.c_str(), fontPx);
+        width += (HasGlyph (slot) ? iconGap : 0) + MeasureLabelPx (label.c_str(), fontPx);
+    }
+
+    if (slot.entry.kind == Kind::DropDown && !HasGlyph (slot))
+    {
+        width += iconGap + m_scaler.ToPx (kChevronDp);
     }
 
     return width;
@@ -760,7 +766,7 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         int   width      = 0;
         bool  wasLabeled = slot.labeled;
 
-        slot.labeled = !slot.entry.iconOnly && index < m_labeledCount;
+        slot.labeled = !slot.entry.iconOnly && (index < m_labeledCount || !HasGlyph (slot));
         width        = GetEntryWidthPx (slot, slot.labeled);
         slot.rc      = RECT { x, top, x + width, bottom };
         x           += width;
@@ -1446,7 +1452,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
         if (!label.empty())
         {
-            textX = bl + (float) padX + iconDip + (float) iconGap;
+            textX = bl + (float) padX + (HasGlyph (slot) ? iconDip + (float) iconGap : 0.0f);
 
             hr = text.DrawString (label.c_str(), textX, bt,
                                   (float) slot.rc.right - textX, bh,
@@ -1455,6 +1461,17 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
                                   DxuiTextVAlign::CenterOnCapHeight);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
+    }
+
+    if (slot.entry.kind == Kind::DropDown && !HasGlyph (slot))
+    {
+        float  size = m_scaler.ToPxf ((float) kChevronDp);
+        float  pen  = (std::max) (1.0f, m_scaler.ToPxf (1.0f));
+        float  cx   = (float) slot.rc.right - (float) padX - size * 0.5f;
+        float  cy   = bt + bh * 0.5f;
+
+        painter.DrawLineApprox (cx - size * 0.5f, cy - size * 0.25f, cx, cy + size * 0.25f, pen, ink);
+        painter.DrawLineApprox (cx, cy + size * 0.25f, cx + size * 0.5f, cy - size * 0.25f, pen, ink);
     }
 }
 

@@ -18,6 +18,7 @@
 
 static constexpr wchar_t s_kchBullet         = L'\x2022';       // U+2022 BULLET (•)
 static constexpr wchar_t s_kchEmDash         = L'\x2014';       // U+2014 EM DASH (—)
+static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for ranges
 static constexpr wchar_t s_kchEllipsis       = L'\x2026';       // U+2026 HORIZONTAL ELLIPSIS (…)
 static constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
 static constexpr wchar_t s_kchDegree         = L'\x00B0';       // U+00B0 DEGREE SIGN (°)
@@ -48,6 +49,7 @@ static constexpr LPCWSTR s_kpszMdl2Preview   = L"\xE8A1";       // U+E8A1 Segoe 
 static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";  // U+E76C Segoe MDL2 ChevronRight
 static constexpr LPCWSTR s_kpszMdl2More   = L"\xE712";       // U+E712 Segoe MDL2 More (three dots)
 static constexpr LPCWSTR s_kpszMdl2Cancel = L"\xE711";       // U+E711 Segoe MDL2 Cancel (the clear button's X)
+static constexpr LPCWSTR s_kpszMdl2Search = L"\xE721";       // U+E721 Segoe MDL2 Search (magnifying glass)
 static constexpr LPCWSTR s_kpszMdl2WarningSolid = L"\xE814";  // U+E814 Segoe MDL2 warning triangle, filled
 
 // Casso's own symbol font (Resources/Fonts/CassoSymbols.ttf, embedded and

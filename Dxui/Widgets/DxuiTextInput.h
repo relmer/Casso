@@ -69,6 +69,10 @@ public:
     // Muted prompt text drawn in place of the value while the field is
     // empty (e.g. "Search"). Empty by default.
     void  SetPlaceholder (const std::wstring & text)  { m_placeholder = text; }
+
+    //  Draws the placeholder in italics and the disabled color, as File
+    //  Explorer's search box draws its hint.
+    void  SetPlaceholderItalic (bool italic)          { m_placeholderItalic = italic; }
     void  SetFont       (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
 
     const std::wstring & GetText   () const { return m_text;    }
@@ -116,23 +120,24 @@ private:
     static bool IsShiftKeyDown   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool IsControlKeyDown () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
     static bool IsAltKeyDown     () { return (GetKeyState (VK_MENU)    & 0x8000) != 0; }
-    std::wstring        m_text;
-    std::wstring        m_placeholder;
-    size_t              m_maxLen      = 64;
-    size_t              m_caret       = 0;
-    size_t              m_anchor      = 0;
-    bool                m_focused     = false;
-    bool                m_enabled     = true;
-    bool                m_hover       = false;
-    bool                m_dragging    = false;
-    bool                m_chromeless  = false;
-    const wchar_t     * m_face        = nullptr;   // null: the theme's body face
-    float               m_fontDip     = 13.0f;
-    const IDxuiTheme  * m_theme       = nullptr;
-    HWND                m_hwnd        = nullptr;
-    IDxuiTextRenderer * m_renderer    = nullptr;   // non-owning
-    ChangeFn            m_change;
-    DxuiDpiScaler       m_scaler;
+    std::wstring         m_text;
+    std::wstring         m_placeholder;
+    size_t               m_maxLen            = 64;
+    size_t               m_caret             = 0;
+    size_t               m_anchor            = 0;
+    bool                 m_focused           = false;
+    bool                 m_enabled           = true;
+    bool                 m_hover             = false;
+    bool                 m_dragging          = false;
+    bool                 m_chromeless        = false;
+    bool                 m_placeholderItalic = false;
+    const wchar_t      * m_face              = nullptr;   // null: the theme's body face
+    float                m_fontDip           = 13.0f;
+    const IDxuiTheme   * m_theme             = nullptr;
+    HWND                 m_hwnd              = nullptr;
+    IDxuiTextRenderer  * m_renderer          = nullptr;   // non-owning
+    ChangeFn             m_change;
+    DxuiDpiScaler        m_scaler;
 
     // Horizontal scroll offset (pixels) for the rendered text. Paint
     // adjusts this so the caret remains inside the visible inner

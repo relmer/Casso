@@ -274,12 +274,33 @@ void CassqueWindow::OnCreate()
     m_previewToolbar->SetIconDip      (kNavIconDip);
     m_previewToolbar->SetVisible      (false);
 
-    m_previewToolbar->SetDropDownItems (CassqueCommands::kGrouping,
-                                        { DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kGroup1)),
-                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kGroup2)),
-                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kGroup4)),
-                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kGroup8)) });
-    m_previewToolbar->SetDropDownSinks (CassqueCommands::kGrouping, nullptr, [this] (int index) { SetHexGrouping (1 << index); });
+    m_previewToolbar->SetDropDownItems (CassqueCommands::kColumns,
+                                        { DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumnsAuto)),
+                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumns1)),
+                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumns2)),
+                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumns4)),
+                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumns8)) });
+    m_previewToolbar->SetDropDownSinks (CassqueCommands::kColumns, nullptr,
+                                        [this] (int index) { Dispatch (CassqueCommands::kColumnsAuto + index); });
+
+    m_searchBox.SetHint         (L"Search");
+    m_searchBox.SetHwnd         (GetHwnd());
+    m_searchBox.SetTextRenderer (GetTextRenderer());
+    m_searchBox.SetOnChange     ([this] (const std::wstring & text) { OnSearchChanged (text); });
+    m_searchBox.SetOnSubmit     ([this] () { FindNext(); });
+
+    m_searchBox.SetOnCancel ([this] ()
+    {
+        m_searchBox.SetText (L"");
+        m_findBytes.clear();
+        SetFocusPane (Pane::Preview);
+    });
+
+    m_searchBox.SetOnFocusRequest ([this] ()
+    {
+        m_previewBarFocus = GetSearchStopIndex();
+        SetFocusPane (Pane::Search);
+    });
 
     m_menuBar->SetPopupHost (GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
@@ -385,6 +406,9 @@ void CassqueWindow::ConfigureWidgets()
     m_hexView->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
     m_hexView->SetOwnerWindow  (GetHwnd());
     m_hexView->SetPaddingDip   (6);
+    m_hexView->SetColumns      (m_prefs.hexColumns);
+    m_hexView->SetValueFormat  (ParseHexFormat (m_prefs.hexFormat));
+    m_hexView->SetShowValues   (m_prefs.hexShowValues);
 
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
@@ -914,7 +938,13 @@ void CassqueWindow::FillPreview()
 
         if (mode != 0)
         {
-            m_previewToolbar->SetEntries (m_commands.BuildPreviewToolbarEntries (mode == 2));
+            m_previewToolbar->SetEntries (m_commands.BuildPreviewToolbarEntries (mode == 2, &m_searchBox));
+        }
+
+        //  The search box goes with the hex view's toolbar, and its focus with it.
+        if (mode != 2 && m_focus == Pane::Search)
+        {
+            SetFocusPane (Pane::Preview);
         }
 
         RecomputeLayout();
@@ -953,8 +983,26 @@ void CassqueWindow::FillStatus()
 
 
 
+    std::wstring  detail = status.detail;
+    uint64_t      origin = m_hexView->GetOriginAddress();
+
+
+
+    //  Bytes selected in the hex view take the detail section: where they
+    //  are, and how many.
+    if (IsHexPreviewShowing() && m_hexView->HasSelection())
+    {
+        detail = (m_hexView->GetSelectionCount() == 1)
+               ? std::format (L"${:04X}, 1 byte selected", origin + m_hexView->GetSelectionFirst())
+               : std::format (L"${:04X}{}${:04X}, {} bytes selected",
+                              origin + m_hexView->GetSelectionFirst(),
+                              s_kchEnDash,
+                              origin + m_hexView->GetSelectionLast(),
+                              m_hexView->GetSelectionCount());
+    }
+
     m_status->SetText (0, status.selection);
-    m_status->SetText (1, status.detail);
+    m_status->SetText (1, detail);
     m_status->SetText (2, status.freeSpace);
 }
 
@@ -970,7 +1018,9 @@ void CassqueWindow::FillStatus()
 
 void CassqueWindow::SetFocusPane (Pane pane)
 {
-    if ((pane == Pane::Preview && !m_prefs.previewVisible) || (pane == Pane::PreviewToolbar && !m_previewToolbar->IsVisible()))
+    if ((pane == Pane::Preview && !m_prefs.previewVisible)
+        || (pane == Pane::PreviewToolbar && !m_previewToolbar->IsVisible())
+        || (pane == Pane::Search && m_previewBarMode != 2))
     {
         pane = Pane::Tree;
     }
@@ -985,6 +1035,7 @@ void CassqueWindow::SetFocusPane (Pane pane)
     m_address->OnFocusChanged     (pane == Pane::Address);
     m_toolbar->SetFocusIndex      (pane == Pane::Toolbar ? m_toolbarFocus : -1);
     m_previewToolbar->SetFocusIndex (pane == Pane::PreviewToolbar ? m_previewBarFocus : -1);
+    m_searchBox.SetFocused          (pane == Pane::Search);
 
     Invalidate();
 }
@@ -1005,6 +1056,7 @@ FocusStop CassqueWindow::GetFocusStop() const
     {
         case Pane::Toolbar: return FocusStop { FocusStop::Kind::ToolbarEntry, m_toolbarFocus };
         case Pane::PreviewToolbar: return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_previewBarFocus };
+        case Pane::Search:         return FocusStop { FocusStop::Kind::PreviewToolbarEntry, GetSearchStopIndex() };
         case Pane::Address: return FocusStop { FocusStop::Kind::Address };
         case Pane::Tabs:    return FocusStop { FocusStop::Kind::Tabs };
         case Pane::List:    return FocusStop { FocusStop::Kind::List };
@@ -1034,7 +1086,7 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
 
         case FocusStop::Kind::PreviewToolbarEntry:
             m_previewBarFocus = stop.entry;
-            SetFocusPane (Pane::PreviewToolbar);
+            SetFocusPane ((stop.entry == GetSearchStopIndex()) ? Pane::Search : Pane::PreviewToolbar);
             break;
 
         case FocusStop::Kind::Address: SetFocusPane (Pane::Address); break;
@@ -1498,6 +1550,19 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
 
 
 
+    //  The search box takes keys and characters first while it has focus;
+    //  Tab and the keys it has no use for carry on as usual.
+    if (m_focus == Pane::Search)
+    {
+        handled = m_searchBox.OnKey (ev);
+
+        if (handled || ev.kind != DxuiKeyEventKind::Down)
+        {
+            Invalidate();
+            return handled;
+        }
+    }
+
     //  While the address bar is being edited, keys and characters go to its
     //  text field first; the keys it leaves, Tab and Ctrl+T among them, carry
     //  on as usual.
@@ -1588,6 +1653,7 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
     {
         case Pane::Toolbar: handled = RouteToolbarKey (false, ev); break;
         case Pane::PreviewToolbar: handled = RouteToolbarKey (true, ev); break;
+        case Pane::Search:                                               break;
         case Pane::Address: handled = m_address->OnKey (ev);     break;
         case Pane::Tabs:    handled = m_tabs->OnKey (ev);        break;
         case Pane::Tree:    handled = m_tree->OnKey (ev);        break;
@@ -1643,7 +1709,16 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kLineAddresses:     return m_previewBarMode == 1;
         case CassqueCommands::kFindNext:          return IsHexPreviewShowing() && !m_findBytes.empty();
         case CassqueCommands::kFind:
-        case CassqueCommands::kGrouping:
+        case CassqueCommands::kNoData:
+        case CassqueCommands::kFormatHex:
+        case CassqueCommands::kFormatSigned:
+        case CassqueCommands::kFormatUnsigned:
+        case CassqueCommands::kColumns:
+        case CassqueCommands::kColumnsAuto:
+        case CassqueCommands::kColumns1:
+        case CassqueCommands::kColumns2:
+        case CassqueCommands::kColumns4:
+        case CassqueCommands::kColumns8:
         case CassqueCommands::kGoToOffset:
         case CassqueCommands::kGroup1:
         case CassqueCommands::kGroup2:
@@ -1684,10 +1759,19 @@ bool CassqueWindow::IsChecked (int id) const
         case CassqueCommands::kThemeSkeuomorphic: return m_prefs.theme == CassquePrefs::kThemeSkeuomorphic;
         case CassqueCommands::kThemeDarkModern:   return m_prefs.theme == CassquePrefs::kThemeDarkModern;
         case CassqueCommands::kThemeRetroTerminal: return m_prefs.theme == CassquePrefs::kThemeRetroTerminal;
-        case CassqueCommands::kGroup1:            return m_prefs.hexGrouping == 1;
-        case CassqueCommands::kGroup2:            return m_prefs.hexGrouping == 2;
-        case CassqueCommands::kGroup4:            return m_prefs.hexGrouping == 4;
-        case CassqueCommands::kGroup8:            return m_prefs.hexGrouping == 8;
+        case CassqueCommands::kNoData:            return !m_prefs.hexShowValues;
+        case CassqueCommands::kGroup1:            return m_prefs.hexShowValues && m_prefs.hexGrouping == 1;
+        case CassqueCommands::kGroup2:            return m_prefs.hexShowValues && m_prefs.hexGrouping == 2;
+        case CassqueCommands::kGroup4:            return m_prefs.hexShowValues && m_prefs.hexGrouping == 4;
+        case CassqueCommands::kGroup8:            return m_prefs.hexShowValues && m_prefs.hexGrouping == 8;
+        case CassqueCommands::kFormatHex:         return m_prefs.hexFormat == CassquePrefs::kHexFormatHex;
+        case CassqueCommands::kFormatSigned:      return m_prefs.hexFormat == CassquePrefs::kHexFormatSigned;
+        case CassqueCommands::kFormatUnsigned:    return m_prefs.hexFormat == CassquePrefs::kHexFormatUnsigned;
+        case CassqueCommands::kColumnsAuto:       return m_prefs.hexColumns == 0;
+        case CassqueCommands::kColumns1:          return m_prefs.hexColumns == 1;
+        case CassqueCommands::kColumns2:          return m_prefs.hexColumns == 2;
+        case CassqueCommands::kColumns4:          return m_prefs.hexColumns == 4;
+        case CassqueCommands::kColumns8:          return m_prefs.hexColumns == 8;
         case CassqueCommands::kNamingDescriptive: return m_prefs.hostNaming != CassquePrefs::kNamingCiderPress;
         case CassqueCommands::kNamingCiderPress:  return m_prefs.hostNaming == CassquePrefs::kNamingCiderPress;
         default:                                  return false;
@@ -1936,6 +2020,125 @@ std::vector<std::wstring> CassqueWindow::SplitLineNumber (const std::wstring & l
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::SetHexColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SetHexColumns (int columns)
+{
+    m_hexView->SetColumns (columns);
+    m_prefs.hexColumns = columns;
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SetHexFormat
+//
+//  Choosing a format shows the values it applies to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SetHexFormat (const char * format)
+{
+    m_prefs.hexFormat     = format;
+    m_prefs.hexShowValues = true;
+
+    m_hexView->SetShowValues  (true);
+    m_hexView->SetValueFormat (ParseHexFormat (m_prefs.hexFormat));
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SetHexShowValues
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SetHexShowValues (bool show)
+{
+    m_prefs.hexShowValues = show;
+    m_hexView->SetShowValues (show);
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ParseHexFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiHexView::ValueFormat CassqueWindow::ParseHexFormat (const std::string & name)
+{
+    if (name == CassquePrefs::kHexFormatSigned)
+    {
+        return DxuiHexView::ValueFormat::Signed;
+    }
+
+    if (name == CassquePrefs::kHexFormatUnsigned)
+    {
+        return DxuiHexView::ValueFormat::Unsigned;
+    }
+
+    return DxuiHexView::ValueFormat::Hex;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetSearchStopIndex
+//
+//  The search box's place among the preview toolbar's stops, or -1 while the
+//  toolbar has no search box.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassqueWindow::GetSearchStopIndex() const
+{
+    std::vector<int>  ids = CassqueCommands::GetPreviewToolbarCommandIds (true);
+
+
+
+    if (m_previewBarMode != 2)
+    {
+        return -1;
+    }
+
+    for (size_t i = 0; i < ids.size(); i++)
+    {
+        if (ids[i] == CassqueCommands::kFind)
+        {
+            return (int) i;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::SetHexGrouping
 //
 //  A grouping the row cannot divide is refused by the view, and a refused
@@ -1950,7 +2153,10 @@ void CassqueWindow::SetHexGrouping (int grouping)
         return;
     }
 
-    m_prefs.hexGrouping = grouping;
+    m_prefs.hexGrouping   = grouping;
+    m_prefs.hexShowValues = true;
+
+    m_hexView->SetShowValues (true);
 
     Invalidate();
 }
@@ -2011,41 +2217,26 @@ void CassqueWindow::AskForOffset()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassqueWindow::AskToFind
+//  CassqueWindow::OnSearchChanged
 //
-//  Hex digits find bytes; text in quotes finds characters with or without
-//  the high bit, since Apple II text is stored both ways.
+//  Each edit searches again from the start of the current match, so typing
+//  more of a term keeps the match it has while it still fits. Hex digits find
+//  bytes; other text finds characters with or without the high bit, since
+//  Apple II text is stored both ways.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassqueWindow::AskToFind()
+void CassqueWindow::OnSearchChanged (const std::wstring & text)
 {
-    std::wstring  text = m_findTyped;
-
-
-
-    if (!IsHexPreviewShowing())
+    if (!CassqueActions::TryParseSearch (text, m_findBytes, m_findIsText))
     {
+        m_findBytes.clear();
+        Invalidate();
         return;
     }
 
-    for (;;)
-    {
-        if (!CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Find",
-                                       L"Hex bytes, or text in quotes:", text, 64, text))
-        {
-            return;
-        }
-
-        if (CassqueActions::TryParseSearch (text, m_findBytes, m_findIsText))
-        {
-            m_findTyped = text;
-            FindNext();
-            return;
-        }
-
-        ShowMessage (L"Type hex bytes, such as A9 00, or text in quotes, such as \"HELLO\".", MB_ICONWARNING);
-    }
+    m_findTyped = text;
+    FindNext (true);
 }
 
 
@@ -2056,11 +2247,13 @@ void CassqueWindow::AskToFind()
 //
 //  CassqueWindow::FindNext
 //
-//  Searches forward from just past the selection, wrapping at the end.
+//  Searches forward from just past the selection, wrapping at the end. An
+//  incremental search starts at the selection itself and says nothing when
+//  the term is not found, since the user is still typing it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassqueWindow::FindNext()
+void CassqueWindow::FindNext (bool incremental)
 {
     const std::vector<Byte> &  bytes = m_browser.GetPreview().bytes;
     size_t                     start = 0;
@@ -2073,12 +2266,16 @@ void CassqueWindow::FindNext()
         return;
     }
 
-    start = m_hexView->HasSelection() ? (size_t) m_hexView->GetSelectionFirst() + 1 : (size_t) m_hexView->GetCaret();
+    start = m_hexView->HasSelection() ? (size_t) m_hexView->GetSelectionFirst() + (incremental ? 0 : 1) : (size_t) m_hexView->GetCaret();
     found = CassqueActions::FindBytes (bytes, m_findBytes, m_findIsText, start);
 
     if (found == CassqueActions::kNotFound)
     {
-        ShowMessage (std::format (L"{} isn't in this file.", m_findTyped).c_str(), MB_ICONINFORMATION);
+        if (!incremental)
+        {
+            ShowMessage (std::format (L"{} isn't in this file.", m_findTyped).c_str(), MB_ICONINFORMATION);
+        }
+
         return;
     }
 
@@ -2109,9 +2306,16 @@ void CassqueWindow::ShowHexContextMenu (int x, int y)
 
 
 
-    static constexpr int  kIds[] = { (int) CassqueCommands::kCopy,
-                                     (int) CassqueCommands::kSelectAll,
+    static constexpr int  kIds[] = { (int) CassqueCommands::kNoData,
+                                     (int) CassqueCommands::kGroup1,
+                                     (int) CassqueCommands::kGroup2,
+                                     (int) CassqueCommands::kGroup4,
                                      kSeparatorId,
+                                     (int) CassqueCommands::kFormatHex,
+                                     (int) CassqueCommands::kFormatSigned,
+                                     (int) CassqueCommands::kFormatUnsigned,
+                                     kSeparatorId,
+                                     (int) CassqueCommands::kCopy,
                                      (int) CassqueCommands::kGoToOffset };
 
     for (int id : kIds)
@@ -2228,9 +2432,26 @@ void CassqueWindow::Dispatch (int id)
             Invalidate();
             break;
 
-        case CassqueCommands::kFind:     AskToFind(); break;
-        case CassqueCommands::kFindNext: FindNext();  break;
-        case CassqueCommands::kGrouping:              break;
+        case CassqueCommands::kFind:
+            if (IsHexPreviewShowing())
+            {
+                m_previewBarFocus = GetSearchStopIndex();
+                SetFocusPane (Pane::Search);
+            }
+
+            break;
+
+        case CassqueCommands::kFindNext:       FindNext();                                      break;
+        case CassqueCommands::kNoData:         SetHexShowValues (false);                        break;
+        case CassqueCommands::kFormatHex:      SetHexFormat (CassquePrefs::kHexFormatHex);      break;
+        case CassqueCommands::kFormatSigned:   SetHexFormat (CassquePrefs::kHexFormatSigned);   break;
+        case CassqueCommands::kFormatUnsigned: SetHexFormat (CassquePrefs::kHexFormatUnsigned); break;
+        case CassqueCommands::kColumns:                                                         break;
+        case CassqueCommands::kColumnsAuto:    SetHexColumns (0);                               break;
+        case CassqueCommands::kColumns1:       SetHexColumns (1);                               break;
+        case CassqueCommands::kColumns2:       SetHexColumns (2);                               break;
+        case CassqueCommands::kColumns4:       SetHexColumns (4);                               break;
+        case CassqueCommands::kColumns8:       SetHexColumns (8);                               break;
 
         case CassqueCommands::kGroup1: SetHexGrouping (1); break;
         case CassqueCommands::kGroup2: SetHexGrouping (2); break;
@@ -3741,6 +3962,12 @@ DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
         m_toolbar->TickMenus (GetNowMs());
         m_previewToolbar->TickMenus (GetNowMs());
         GetPopupHost()->GetContextMenu().Tick (GetNowMs());
+        Invalidate();
+    }
+
+    //  The search box's caret blinks on the frames this asks for.
+    if (m_focus == Pane::Search)
+    {
         Invalidate();
     }
 

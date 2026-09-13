@@ -118,6 +118,21 @@ public:
     bool  SetGrouping    (int bytesPerGroup);
     int   GetGrouping    () const { return m_grouping; }
 
+    //  Values across a row, each one grouping's bytes wide, or 0 for as many
+    //  as the width holds. Setting a count replaces a row set in bytes.
+    void  SetColumns     (int valuesPerRow);
+    int   GetColumns     () const { return m_columns; }
+
+    //  How the value column reads each value: its bytes as one little-endian
+    //  integer, in hex or in decimal. Without values only the text column
+    //  shows.
+    enum class ValueFormat { Hex, Signed, Unsigned };
+
+    void         SetValueFormat  (ValueFormat format);
+    ValueFormat  GetValueFormat  () const { return m_format; }
+    void         SetShowValues   (bool show);
+    bool         IsShowingValues () const { return m_showValues; }
+
     //  One character cell of the face the host paints with, in DIPs.
     void  SetCellSizeDip (int widthDip, int heightDip);
 
@@ -238,6 +253,18 @@ private:
     RECT  GetSelectionCellRect (uint64_t offset, int index, const RECT & cell, bool hexColumn) const;
 
     static constexpr int  s_kSelectionMarginDip = 2;
+    static constexpr int  s_kFixedRowWidth      = -1;
+
+    //  Cells one value spends, its text, and the fill behind a selected one.
+    int           GetValueCells         () const;
+    std::wstring  FormatValue           (uint64_t value, int present) const;
+    uint64_t      SnapToValue           (uint64_t offset, bool toEnd) const;
+    RECT          GetValueSelectionRect (uint64_t first, const RECT & cell) const;
+    uint32_t      GetByteColor          (const IDxuiTheme & theme, uint8_t mark) const;
+
+    //  Recomputes the bytes in a row from the columns, the grouping and, for
+    //  automatic columns, the width.
+    void  RecomputeRowWidth ();
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
     void  SyncScrollbar ();
@@ -253,6 +280,9 @@ private:
     uint64_t                m_originAddress = 0;
     int                     m_bytesPerRow   = kDefaultBytesPerRow;
     int                     m_grouping      = kDefaultGrouping;
+    int                     m_columns       = s_kFixedRowWidth;
+    ValueFormat             m_format        = ValueFormat::Hex;
+    bool                    m_showValues    = true;
     int                     m_cellWidthDip  = 0;
     int                     m_cellHeightDip = 0;
     uint64_t                m_topRow        = 0;

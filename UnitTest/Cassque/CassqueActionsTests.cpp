@@ -364,8 +364,9 @@ public:
         Assert::IsTrue  (isText);
         Assert::IsTrue  (bytes == std::vector<Byte> { 'H', 'I' });
 
-        Assert::IsFalse (CassqueActions::TryParseSearch (L"A9 0", bytes, isText));
-        Assert::IsFalse (CassqueActions::TryParseSearch (L"ZZ", bytes, isText));
+        Assert::IsTrue  (CassqueActions::TryParseSearch (L"ZZ", bytes, isText));
+        Assert::IsTrue  (isText, L"What is not hex digits is text");
+        Assert::IsTrue  (bytes == std::vector<Byte> { 'Z', 'Z' });
         Assert::IsFalse (CassqueActions::TryParseSearch (L"\"\"", bytes, isText));
         Assert::IsFalse (CassqueActions::TryParseSearch (L"", bytes, isText));
     }

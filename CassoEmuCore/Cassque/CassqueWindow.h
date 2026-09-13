@@ -27,6 +27,7 @@
 #include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiTextView.h"
 #include "Widgets/DxuiToolbar.h"
+#include "Widgets/DxuiToolbarSearchBox.h"
 #include "Widgets/DxuiTooltip.h"
 #include "Render/DxuiTextRenderer.h"
 #include "Widgets/DxuiTreeView.h"
@@ -123,7 +124,7 @@ protected:
 private:
     //  Keyboard focus. The toolbar is one pane, with its focused button in
     //  m_toolbarFocus; FocusRing defines the Tab order.
-    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, Preview };
+    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, Search, Preview };
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -218,8 +219,14 @@ private:
     //  statement, a detail as its label and value, anything else as one cell.
     static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview, bool lineAddresses);
     static std::vector<Word>               GetLineAddresses (const std::vector<Byte> & program, bool integerBasic);
-    void  AskToFind();
-    void  FindNext();
+    void  OnSearchChanged  (const std::wstring & text);
+    void  FindNext         (bool incremental = false);
+    void  SetHexColumns    (int columns);
+    void  SetHexFormat     (const char * format);
+    void  SetHexShowValues (bool show);
+    int   GetSearchStopIndex () const;
+
+    static DxuiHexView::ValueFormat  ParseHexFormat (const std::string & name);
     static std::vector<std::wstring>       SplitLineNumber (const std::wstring & line);
     bool  RouteToolbarMouse   (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
 
@@ -300,6 +307,7 @@ private:
     std::wstring           m_findTyped;
     std::vector<Byte>      m_findBytes;
     bool                   m_findIsText      = false;
+    DxuiToolbarSearchBox   m_searchBox;
     DxuiAddressBar       * m_address         = nullptr;
     DxuiTooltip            m_tooltip;
 

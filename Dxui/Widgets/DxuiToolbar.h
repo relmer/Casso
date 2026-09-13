@@ -269,6 +269,12 @@ private:
 
     static bool  IsPointInRect (const RECT & rc, int x, int y);
 
+    //  An entry without a glyph is its label alone: it spends no room on an
+    //  icon, never collapses to one, and as a drop-down shows a chevron.
+    static bool  HasGlyph (const Slot & slot) { return slot.entry.command != nullptr && slot.entry.command->glyph != nullptr && slot.entry.command->glyph[0] != 0; }
+
+    static constexpr int  kChevronDp = 8;
+
     const Slot *  FindSlot             (int commandId) const;
     Slot       *  FindSlot             (int commandId);
     int           MeasureLabelPx       (const wchar_t * text, float fontPx) const;

@@ -140,8 +140,9 @@ public:
     //  Apple II writes addresses; a leading # marks decimal.
     static bool  TryParseAddress (const std::wstring & text, Word & outAddress);
 
-    //  A search as typed: hex digits, with spaces anywhere, are bytes; text in
-    //  double quotes is characters, and `outIsText` is set.
+    //  A search as typed: an even run of hex digits, with spaces anywhere, is
+    //  bytes; text in double quotes, or anything else, is characters, and
+    //  `outIsText` is set.
     static bool  TryParseSearch (const std::wstring & text, std::vector<Byte> & outBytes, bool & outIsText);
 
     //  The first match at or after `start`, wrapping to the beginning, or

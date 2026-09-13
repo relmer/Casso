@@ -460,7 +460,9 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (m_text.empty() && !m_placeholder.empty())
     {
-        uint32_t  phArgb = (m_theme != nullptr) ? m_theme->ForegroundMuted() : s_kFallbackPlaceholder;
+        uint32_t  phArgb = (m_theme == nullptr) ? s_kFallbackPlaceholder
+                         : m_placeholderItalic  ? m_theme->ForegroundDisabled()
+                                                : m_theme->ForegroundMuted();
 
         hr = text.DrawString (m_placeholder.c_str(),
                               x + padL,
@@ -472,7 +474,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                               GetFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center,
-                              DxuiFontWeight::Normal,
+                              m_placeholderItalic ? DxuiFontWeight::Italic : DxuiFontWeight::Normal,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }

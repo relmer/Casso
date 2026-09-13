@@ -25,6 +25,8 @@ void DxuiHexView::SetSource (const IDxuiHexSource * source)
 
     ClearSelection();
     m_topRow = 0;
+
+    RecomputeRowWidth();
 }
 
 
@@ -40,6 +42,8 @@ void DxuiHexView::SetSource (const IDxuiHexSource * source)
 void DxuiHexView::SetOriginAddress (uint64_t address)
 {
     m_originAddress = address;
+
+    RecomputeRowWidth();
 }
 
 
@@ -62,6 +66,7 @@ void DxuiHexView::SetBytesPerRow (int count)
     }
 
     m_bytesPerRow = count;
+    m_columns     = s_kFixedRowWidth;
 
     //  A grouping the new row width cannot divide falls back to single bytes,
     //  which every row width divides.
@@ -94,14 +99,307 @@ bool DxuiHexView::SetGrouping (int bytesPerGroup)
 
 
 
-    if (!known || ((m_bytesPerRow % bytesPerGroup) != 0))
+    if (!known)
+    {
+        return false;
+    }
+
+    //  A row counted in values is always a whole number of them; only a row
+    //  set in bytes can be one the grouping does not divide.
+    if ((m_columns == s_kFixedRowWidth) && ((m_bytesPerRow % bytesPerGroup) != 0))
     {
         return false;
     }
 
     m_grouping = bytesPerGroup;
 
+    RecomputeRowWidth();
+
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SetColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetColumns (int valuesPerRow)
+{
+    assert (valuesPerRow >= 0);
+
+    m_columns = (std::max) (valuesPerRow, 0);
+
+    RecomputeRowWidth();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SetValueFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetValueFormat (ValueFormat format)
+{
+    m_format = format;
+
+    RecomputeRowWidth();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SetShowValues
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetShowValues (bool show)
+{
+    m_showValues = show;
+
+    RecomputeRowWidth();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::RecomputeRowWidth
+//
+//  Automatic columns take as many values as fit beside the offsets and the
+//  text column, with room kept for the scrollbar so a row does not change
+//  width when the scrollbar comes and goes. A caret the new width moves off
+//  the screen is brought back into view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::RecomputeRowWidth()
+{
+    int  values = m_columns;
+    int  width  = 0;
+    int  cells  = 0;
+    int  fixed  = 0;
+    int  each   = 0;
+
+
+
+    if (m_columns == s_kFixedRowWidth)
+    {
+        return;
+    }
+
+    if (m_columns == 0)
+    {
+        width  = (m_boundsDip.right - m_boundsDip.left) - m_scaler.ToPx (m_padDip) - m_scaler.ToPx (s_kScrollbarWidthDip);
+        cells  = (m_cellWidthDip > 0) ? (width / m_cellWidthDip) : 0;
+        fixed  = GetOffsetDigits() + kGutterCells + (m_showValues ? (kGutterCells - 1) : 0);
+        each   = m_grouping + (m_showValues ? (GetValueCells() + 1) : 0);
+        values = (std::max) ((cells - fixed) / each, 1);
+    }
+
+    m_bytesPerRow = values * m_grouping;
+
+    ClampTopRow();
+
+    if (m_hasSelection)
+    {
+        EnsureByteVisible (m_caret);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetValueCells
+//
+//  Two digits a byte in hex; in decimal, the digits of the largest value the
+//  bytes hold, and a sign's cell when signed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetValueCells() const
+{
+    int  digits = 0;
+
+
+
+    if (m_format == ValueFormat::Hex)
+    {
+        return m_grouping * 2;
+    }
+
+    switch (m_grouping)
+    {
+    case 1:  digits = 3;  break;
+    case 2:  digits = 5;  break;
+    case 4:  digits = 10; break;
+    default: digits = 20; break;
+    }
+
+    return (m_format == ValueFormat::Signed) ? (digits + 1) : digits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::FormatValue
+//
+//  A value's text, right-aligned to its cells. `present` is how many of its
+//  bytes the source has, which is short only for the last value of the file:
+//  in hex the missing bytes are blanks, and in decimal they count as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiHexView::FormatValue (uint64_t value, int present) const
+{
+    std::wstring  out;
+    int           cells    = GetValueCells();
+    int64_t       asSigned = (int64_t) value;
+
+
+
+    if (m_format == ValueFormat::Hex)
+    {
+        for (int index = m_grouping - 1; index >= 0; index--)
+        {
+            if (index < present)
+            {
+                out.push_back (GetHexDigit ((int) ((value >> (index * 8 + 4)) & 0xF)));
+                out.push_back (GetHexDigit ((int) ((value >> (index * 8)) & 0xF)));
+            }
+            else
+            {
+                out.append (L"  ");
+            }
+        }
+
+        return out;
+    }
+
+    if (m_format == ValueFormat::Signed)
+    {
+        if ((present < 8) && (((value >> (present * 8 - 1)) & 1) != 0))
+        {
+            asSigned = (int64_t) (value | (~0ull << (present * 8)));
+        }
+
+        out = std::to_wstring (asSigned);
+    }
+    else
+    {
+        out = std::to_wstring (value);
+    }
+
+    if ((int) out.size() < cells)
+    {
+        out.insert (0, (size_t) (cells - (int) out.size()), L' ');
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SnapToValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::SnapToValue (uint64_t offset, bool toEnd) const
+{
+    uint64_t  start = offset - (offset % (uint64_t) m_grouping);
+
+
+
+    return toEnd ? (std::min) (start + (uint64_t) m_grouping - 1, GetLastOffset()) : start;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetValueSelectionRect
+//
+//  A selected value's fill reaches halfway into the space on each side, so a
+//  run of values reads as one band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiHexView::GetValueSelectionRect (uint64_t first, const RECT & cell) const
+{
+    RECT      rect   = cell;
+    int       margin = m_scaler.ToPx (s_kSelectionMarginDip);
+    uint64_t  perRow = (uint64_t) m_bytesPerRow;
+
+
+
+    rect.left  -= m_cellWidthDip / 2;
+    rect.right += m_cellWidthDip - (m_cellWidthDip / 2);
+
+    if ((first < perRow) || !IsByteSelected (first - perRow))
+    {
+        rect.top -= margin;
+    }
+
+    if (!IsByteSelected (first + perRow))
+    {
+        rect.bottom += margin;
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetByteColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiHexView::GetByteColor (const IDxuiTheme & theme, uint8_t mark) const
+{
+    uint32_t  argb = theme.Foreground();
+
+
+
+    if (m_markColor)
+    {
+        uint32_t  marked = argb;
+
+        if (m_markColor (mark, marked))
+        {
+            argb = marked;
+        }
+    }
+
+    return argb;
 }
 
 
@@ -125,6 +423,7 @@ void DxuiHexView::SetCellSizeDip (int widthDip, int heightDip)
     m_cellWidthDip  = (std::max) (widthDip,  0);
     m_cellHeightDip = (std::max) (heightDip, 0);
 
+    RecomputeRowWidth();
     ClampTopRow();
 }
 
@@ -318,13 +617,18 @@ int DxuiHexView::GetGroupCount() const
 //
 //  DxuiHexView::GetHexCells
 //
-//  Two cells a byte, and one cell between groups.
+//  Each value's cells, and one cell between values; nothing without values.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiHexView::GetHexCells() const
 {
-    return (m_bytesPerRow * 2) + (GetGroupCount() - 1);
+    if (!m_showValues)
+    {
+        return 0;
+    }
+
+    return (GetGroupCount() * (GetValueCells() + 1)) - 1;
 }
 
 
@@ -339,7 +643,18 @@ int DxuiHexView::GetHexCells() const
 
 int DxuiHexView::GetByteCellInRow (int indexInRow) const
 {
-    return (indexInRow * 2) + (indexInRow / m_grouping);
+    int  value = indexInRow / m_grouping;
+    int  start = value * (GetValueCells() + 1);
+
+
+
+    //  A hex value is little-endian, so its first byte's digits come last.
+    if (m_format == ValueFormat::Hex)
+    {
+        start += (m_grouping - 1 - (indexInRow % m_grouping)) * 2;
+    }
+
+    return start;
 }
 
 
@@ -365,7 +680,7 @@ int DxuiHexView::GetColumnStartCell (Column column) const
 
     if (column == Column::Text)
     {
-        return hexStart + GetHexCells() + kGutterCells;
+        return m_showValues ? (hexStart + GetHexCells() + kGutterCells) : hexStart;
     }
 
     return 0;
@@ -480,7 +795,15 @@ RECT DxuiHexView::GetByteRect (uint64_t offset, Column column) const
 
     if (column == Column::Hex)
     {
-        return GetCellRect (GetColumnStartCell (Column::Hex) + GetByteCellInRow (index), row, 2);
+        if (!m_showValues)
+        {
+            return RECT{};
+        }
+
+        //  A decimal value has no digits of its own for each byte, so every
+        //  byte in it is the whole value.
+        return GetCellRect (GetColumnStartCell (Column::Hex) + GetByteCellInRow (index), row,
+                            (m_format == ValueFormat::Hex) ? 2 : GetValueCells());
     }
 
     return GetCellRect (GetColumnStartCell (Column::Text) + index, row, 1);
@@ -541,20 +864,21 @@ DxuiHexView::HitResult DxuiHexView::HitTestPoint (POINT clientDip) const
         return result;
     }
 
-    if ((cellX >= hexStart) && (cellX < (hexStart + GetHexCells())))
+    if (m_showValues && (cellX >= hexStart) && (cellX < (hexStart + GetHexCells())))
     {
-        int  inHex = cellX - hexStart;
+        int  inHex  = cellX - hexStart;
+        int  each   = GetValueCells() + 1;
+        int  value  = (std::min) (inHex / each, GetGroupCount() - 1);
+        int  within = inHex - (value * each);
 
-        //  Walk the row's bytes rather than inverting the group spacing:
-        //  sixteen comparisons are cheaper to read than the arithmetic.
-        for (int idx = 0; idx < m_bytesPerRow; idx++)
+        //  In hex a point lands on the byte whose digits it is over, counting
+        //  from the right since the value is little-endian; in decimal, on the
+        //  value's first byte.
+        index = value * m_grouping;
+
+        if (m_format == ValueFormat::Hex)
         {
-            int  start = GetByteCellInRow (idx);
-
-            if (inHex >= start)
-            {
-                index = idx;
-            }
+            index += m_grouping - 1 - ((std::min) (within, (m_grouping * 2) - 1) / 2);
         }
 
         result.column = Column::Hex;
@@ -1011,6 +1335,12 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         {
             ExtendSelectionTo (hit.offset);
         }
+        else if ((hit.column == Column::Hex) && (m_grouping > 1))
+        {
+            //  In the value column a press takes the whole value under it.
+            SelectByte (SnapToValue (hit.offset, false), hit.column);
+            ExtendSelectionTo (SnapToValue (hit.offset, true));
+        }
         else
         {
             SelectByte (hit.offset, hit.column);
@@ -1037,7 +1367,8 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
 
         if (hit.hit)
         {
-            ExtendSelectionTo (hit.offset);
+            ExtendSelectionTo (((hit.column == Column::Hex) && (m_grouping > 1)) ? SnapToValue (hit.offset, hit.offset >= m_anchor)
+                                                                                 : hit.offset);
             EnsureByteVisible (hit.offset);
         }
 
@@ -1278,6 +1609,7 @@ void DxuiHexView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
 
+    RecomputeRowWidth();
     ClampTopRow();
     SyncScrollbar();
 }
@@ -1503,33 +1835,43 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 
     DrawCell (text, gutter, label.c_str(), theme.ForegroundMuted(), font);
 
+    //  The value column, a value at a time.
+    for (int first = 0; m_showValues && (first < count); first += m_grouping)
+    {
+        uint64_t  offset   = (row * (uint64_t) m_bytesPerRow) + (uint64_t) first;
+        int       present  = (std::min) (m_grouping, count - first);
+        uint64_t  value    = 0;
+        bool      selected = false;
+        uint32_t  argb     = GetByteColor (theme, m_rowMarks[(size_t) first]);
+        RECT      cell     = GetCellRect (GetColumnStartCell (Column::Hex) + ((first / m_grouping) * (GetValueCells() + 1)),
+                                          row, GetValueCells());
+
+        for (int index = 0; index < present; index++)
+        {
+            value   |= (uint64_t) m_rowBytes[(size_t) (first + index)] << (index * 8);
+            selected = selected || IsByteSelected (offset + (uint64_t) index);
+        }
+
+        if (selected)
+        {
+            FillCell (text, GetValueSelectionRect (offset, cell), theme.SelectionBackground());
+        }
+
+        DrawCell (text, cell, FormatValue (value, present).c_str(), argb, font);
+    }
+
+    //  The text column, a byte at a time.
     for (int index = 0; index < count; index++)
     {
-        uint64_t      offset   = (row * (uint64_t) m_bytesPerRow) + (uint64_t) index;
-        uint8_t       byte     = m_rowBytes[(size_t) index];
-        RECT          hexRect  = GetByteRect (offset, Column::Hex);
-        RECT          txtRect  = GetByteRect (offset, Column::Text);
-        uint32_t      argb     = theme.Foreground();
-        std::wstring  digitsOf = { GetHexDigit ((byte >> 4) & 0xF), GetHexDigit (byte & 0xF) };
-        std::wstring  charOf   = { GetCharFor (byte) };
-
-        if (m_markColor)
-        {
-            uint32_t  marked = argb;
-
-            if (m_markColor (m_rowMarks[(size_t) index], marked))
-            {
-                argb = marked;
-            }
-        }
+        uint64_t      offset  = (row * (uint64_t) m_bytesPerRow) + (uint64_t) index;
+        RECT          txtRect = GetByteRect (offset, Column::Text);
+        uint32_t      argb    = GetByteColor (theme, m_rowMarks[(size_t) index]);
+        std::wstring  charOf  = { GetCharFor (m_rowBytes[(size_t) index]) };
 
         if (IsByteSelected (offset))
         {
-            FillCell (text, GetSelectionCellRect (offset, index, hexRect, true),  theme.SelectionBackground());
             FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), theme.SelectionBackground());
         }
-
-        DrawCell (text, hexRect, digitsOf.c_str(), argb, font);
 
         DrawCell (text, txtRect, charOf.c_str(), argb, font);
     }
@@ -1751,6 +2093,29 @@ std::wstring DxuiHexView::GetHexFor (uint64_t offset, uint64_t count) const
 
     bytes.resize ((size_t) count);
     m_source->ReadBytes (offset, std::span<uint8_t> (bytes.data(), bytes.size()));
+
+    //  Decimal values copy as the numbers shown, a space between each.
+    if (m_format != ValueFormat::Hex)
+    {
+        for (size_t first = 0; first < bytes.size(); first += (size_t) m_grouping)
+        {
+            uint64_t      value   = 0;
+            int           present = (int) (std::min) ((size_t) m_grouping, bytes.size() - first);
+            std::wstring  shown;
+
+            for (int index = 0; index < present; index++)
+            {
+                value |= (uint64_t) bytes[first + (size_t) index] << (index * 8);
+            }
+
+            shown = FormatValue (value, present);
+            shown.erase (0, shown.find_first_not_of (L' '));
+
+            out += out.empty() ? shown : (L" " + shown);
+        }
+
+        return out;
+    }
 
     for (size_t index = 0; index < bytes.size(); index++)
     {

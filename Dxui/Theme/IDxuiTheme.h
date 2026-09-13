@@ -38,6 +38,10 @@ enum class DxuiFontWeight : int
     Normal   = 400,
     SemiBold = 600,
     Bold     = 700,
+
+    //  Regular weight in the italic style. The bit above the weights carries
+    //  the style, so one parameter holds both.
+    Italic   = 0x10000 | 400,
 };
 
 

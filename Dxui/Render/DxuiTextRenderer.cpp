@@ -1069,8 +1069,8 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
 
         hr = m_dwriteFactory->CreateTextFormat (useFamily,
                                                 nullptr,
-                                                static_cast<DWRITE_FONT_WEIGHT> (weight),
-                                                DWRITE_FONT_STYLE_NORMAL,
+                                                static_cast<DWRITE_FONT_WEIGHT> ((int) weight & 0xFFFF),
+                                                (((int) weight & 0x10000) != 0) ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
                                                 DWRITE_FONT_STRETCH_NORMAL,
                                                 fontSizeDip,
                                                 L"en-us",

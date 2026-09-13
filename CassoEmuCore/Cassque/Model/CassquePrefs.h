@@ -48,6 +48,12 @@ struct CassquePrefs
 
     //  Whether a BASIC listing shows where each line starts in memory.
     bool                   lineAddresses   = false;
+
+    //  How a hex preview reads: values in each row, 0 to fit the width;
+    //  whether the values show at all; and their format.
+    int                    hexColumns      = 0;
+    bool                   hexShowValues   = true;
+    std::string            hexFormat       = kHexFormatHex;
     std::vector<Location>  tabs;
 
     //  Absent file: defaults, with the theme seeded from the emulator's
@@ -71,6 +77,10 @@ struct CassquePrefs
     //  1, 2, 4 and 8 are the groupings a hex view offers; anything else in
     //  the file is a hand edit and falls back to the default.
     static bool  IsKnownHexGrouping (int grouping);
+
+    static constexpr const char *  kHexFormatHex       = "Hexadecimal";
+    static constexpr const char *  kHexFormatSigned    = "Signed";
+    static constexpr const char *  kHexFormatUnsigned  = "Unsigned";
 
     static constexpr const char *  kThemeLight         = "Light";
     static constexpr const char *  kThemeDark          = "Dark";
