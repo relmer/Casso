@@ -1347,7 +1347,7 @@ void DxuiHexView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & t
 
     //  Eight digits at once, so a face whose advance is not a whole number
     //  of DIPs is rounded once rather than eight times.
-    hr = text.MeasureString (L"00000000", font.sizeDip, font.face, width, height);
+    hr = text.MeasureString (L"00000000", m_scaler.ToPxf (font.sizeDip), font.face, width, height);
 
     if (FAILED (hr) || (width <= 0.0f) || (height <= 0.0f))
     {
@@ -1417,8 +1417,8 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 
 
 
-    //  The theme's size is in DIPs; the renderer draws in pixels. The cell size
-    //  was measured in DIPs and is scaled with the rest of the geometry.
+    //  The theme's size is in DIPs; the renderer draws in pixels, and the cell
+    //  size was measured at this same pixel size.
     font.sizeDip = m_scaler.ToPxf (font.sizeDip);
     for (int digit = digits - 1; digit >= 0; digit--)
     {
