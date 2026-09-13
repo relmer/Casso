@@ -58,6 +58,15 @@ void DxuiTreeView::FlattenRecursive (const DxuiTreeNode & node, std::vector<int>
 
 
 
+    if (node.dividerAbove)
+    {
+        FlatRow  divider;
+
+        divider.depth   = depth;
+        divider.divider = true;
+        m_flatRows.push_back (divider);
+    }
+
     row.pathStack = path;
     row.depth     = depth;
     m_flatRows.push_back (row);
@@ -233,8 +242,9 @@ int DxuiTreeView::HitTestRow (int x, int y) const
         relY = y - m_boundsDip.top;
         row  = m_topRow + relY / m_rowHeightPx;
 
-        // Past the last populated row is a miss, not the last row.
-        if (row >= (int) m_flatRows.size())
+        // Past the last populated row is a miss, not the last row, and a
+        // divider is no row to click on.
+        if (row >= (int) m_flatRows.size() || m_flatRows[(size_t) row].divider)
         {
             row = -1;
         }
@@ -503,6 +513,33 @@ void DxuiTreeView::SelectRow (int flatRow)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SkipDividers
+//
+//  The nearest row from `flatRow` in the direction of `step` that is not a
+//  divider, or the highlighted row when there is none that way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTreeView::SkipDividers (int flatRow, int step) const
+{
+    int  row = flatRow;
+
+
+
+    while (row >= 0 && row < (int) m_flatRows.size() && m_flatRows[(size_t) row].divider)
+    {
+        row += step;
+    }
+
+    return (row >= 0 && row < (int) m_flatRows.size()) ? row : m_highlight;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FindNodeRecursive
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -720,11 +757,11 @@ bool DxuiTreeView::OnKey (WPARAM vk)
         switch (vk)
         {
             case VK_UP:
-                if (m_highlight > 0) { SelectRow (m_highlight - 1); }
+                if (m_highlight > 0) { SelectRow (SkipDividers (m_highlight - 1, -1)); }
                 break;
 
             case VK_DOWN:
-                if (m_highlight < (int) m_flatRows.size() - 1) { SelectRow (m_highlight + 1); }
+                if (m_highlight < (int) m_flatRows.size() - 1) { SelectRow (SkipDividers (m_highlight + 1, 1)); }
                 break;
 
             case VK_RIGHT:
@@ -827,17 +864,19 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 
 
-    HRESULT  hr         = S_OK;
-    int      i          = 0;
-    int      first      = 0;
-    int      last       = 0;
-    float    contentW   = 0.0f;
-    size_t   n          = m_flatRows.size();
-    float    checkInset = m_scaler.ToPxf (s_kCheckInset);
-    float    fontDip    = m_scaler.ToPxf (s_kFontDip);
-    float    twistyHt   = m_scaler.ToPxf (s_kTwistyHeight);
-    float    textGap    = m_scaler.ToPxf (4.0f);
-    float    twistyPad  = m_scaler.ToPxf (4.0f);
+    HRESULT  hr           = S_OK;
+    int      i            = 0;
+    int      first        = 0;
+    int      last         = 0;
+    float    contentW     = 0.0f;
+    size_t   n            = m_flatRows.size();
+    float    checkInset   = m_scaler.ToPxf (s_kCheckInset);
+    float    fontDip      = m_scaler.ToPxf (s_kFontDip);
+    float    twistyHt     = m_scaler.ToPxf (s_kTwistyHeight);
+    float    textGap      = m_scaler.ToPxf (4.0f);
+    float    twistyPad    = m_scaler.ToPxf (4.0f);
+    float    dividerInset = m_scaler.ToPxf (8.0f);
+    float    dividerThick = (std::max) (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
 
 
 
@@ -890,6 +929,15 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         if (node != nullptr && node->dimmed && interactive)
         {
             textCol = s_kTwistyArgb;
+        }
+
+        //  A line between sections, as Explorer draws above This PC: across the
+        //  middle of its row, inset from both sides.
+        if (fr.divider)
+        {
+            painter.FillRect ((float) m_boundsDip.left + dividerInset, std::floor (rowY + rowHeight * 0.5f),
+                              contentW - dividerInset * 2.0f, dividerThick, theme.Divider());
+            continue;
         }
 
         if (rowFill != 0)

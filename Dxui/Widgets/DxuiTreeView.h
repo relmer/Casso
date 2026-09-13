@@ -62,6 +62,7 @@ struct DxuiTreeNode
     bool                       expanded       = true;
     bool                       childrenLoaded = true;           // false: ask the provider on first expand
     bool                       dimmed         = false;          // drawn in the muted color
+    bool                       dividerAbove   = false;          // a divider row separates it from the row before
     std::vector<DxuiTreeNode>  children;
 
     //  Drawn before the label, as Explorer draws a folder's; none draws none.
@@ -182,12 +183,14 @@ private:
     struct FlatRow
     {
         std::vector<int>  pathStack;   // indices into m_nodes children
-        int               depth = 0;
+        int               depth   = 0;
+        bool              divider = false;   // a line between sections, with no node
     };
 
 
     void  FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
     void  ToggleRow        (int flatRow);
+    int   SkipDividers     (int flatRow, int step) const;
 
     static const DxuiTreeNode *  FindNodeRecursive (const std::vector<DxuiTreeNode> & nodes, const std::wstring & id);
 

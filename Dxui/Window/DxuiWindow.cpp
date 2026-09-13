@@ -584,6 +584,32 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnXButtonUp
+//
+//  A five-button mouse's back and forward buttons, delivered on release,
+//  which is when Explorer acts on them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    DxuiMouseButton  button = (GET_XBUTTON_WPARAM (wParam) == XBUTTON1) ? DxuiMouseButton::X1 : DxuiMouseButton::X2;
+
+
+
+    return DispatchMouse (DxuiMouseEventKind::Up,
+                          button,
+                          (int) (short) LOWORD (lParam),
+                          (int) (short) HIWORD (lParam),
+                          0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouseMove
 //
 ////////////////////////////////////////////////////////////////////////////////

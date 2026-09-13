@@ -164,6 +164,7 @@ private:
     void  FillTabs();
     void  FillAddress();
     void  SubmitAddress (const std::wstring & text);
+    void  ShowAddressMenu (int index, const RECT & anchor);
     void  SwitchToTab (size_t index);
     void  FillPreview();
     void  FillStatus();

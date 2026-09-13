@@ -452,4 +452,34 @@ public:
         Assert::IsNotNull (tv.FindNodeById (L"casso:child"), L"a collapsed child is still in the tree");
         Assert::AreEqual  (-1, tv.FindRowById (L"casso:child"));
     }
+
+
+    TEST_METHOD (Divider_IsARowThatCannotBeHitOrSelected)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<std::wstring>  selected;
+        RECT                       rect = { 0, 0, 300, 400 };
+
+        roots.push_back (MakeLazy (L"casso:", L"Casso"));
+        roots.push_back (MakeLazy (L"pc:",    L"This PC"));
+        roots.back().dividerAbove = true;
+
+        tv.SetRect           (rect);
+        tv.SetRowHeight      (20);
+        tv.SetShowCheckboxes (false);
+        tv.SetNodes          (std::move (roots));
+        tv.SetFocused        (true);
+        tv.SetOnSelect       ([&selected] (const std::wstring & id) { selected.push_back (id); });
+
+        Assert::AreEqual (3, tv.GetVisibleCount(), L"The divider is a row of its own");
+        Assert::IsNull   (tv.GetNodeAt (1), L"with no node behind it");
+        Assert::AreEqual (-1, tv.HitTestRow (100, 30), L"A click on the divider hits nothing");
+
+        Assert::IsTrue   (tv.OnKey (VK_DOWN));
+        Assert::AreEqual (std::wstring (L"pc:"), selected.back(), L"Down steps over the divider");
+        Assert::IsTrue   (tv.OnKey (VK_UP));
+        Assert::AreEqual (std::wstring (L"casso:"), selected.back(), L"and so does Up");
+        Assert::AreEqual (2, tv.FindRowById (L"pc:"));
+    }
 };

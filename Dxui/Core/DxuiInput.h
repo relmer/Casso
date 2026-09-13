@@ -36,6 +36,8 @@ enum class DxuiMouseButton
     Left    = 1,
     Middle  = 2,
     Right   = 3,
+    X1      = 4,   // a five-button mouse's back button
+    X2      = 5,   // and its forward button
 };
 
 

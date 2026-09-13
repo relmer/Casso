@@ -99,10 +99,16 @@ public:
     static std::wstring                 FormatAddress      (const Location & location);
     static bool                         ParseAddress       (IFileSystem & fs, const std::wstring & text, Location & outLocation);
 
+    //  The folders and disk images in a host folder, folders first and each in
+    //  name order, for the menu an address bar separator opens. Empty for any
+    //  other kind of location.
+    static void                         GetFolderChildren  (IFileSystem & fs, const Location & location, std::vector<AddressSegment> & outChildren);
+
 private:
     static bool  IsSameImage (const std::wstring & a, const std::wstring & b);
     static void  AppendHostSegments (const std::wstring & path, std::vector<AddressSegment> & outSegments);
     static bool  IsHostFolder       (IFileSystem & fs, const std::wstring & path);
+    static bool  IsLabelBefore      (const AddressSegment & a, const AddressSegment & b);
 
     std::vector<Tab>  m_tabs;
     size_t            m_active = 0;

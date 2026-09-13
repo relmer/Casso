@@ -2687,6 +2687,7 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_LBUTTONUP:     isHandled = IsClaimed (m_client->OnLButtonUp   (wp, lp), RepaintOnClaim::No); break;
         case WM_RBUTTONDOWN:   isHandled = IsClaimed (m_client->OnRButtonDown (wp, lp), RepaintOnClaim::No); break;
         case WM_RBUTTONUP:     isHandled = IsClaimed (m_client->OnRButtonUp   (wp, lp), RepaintOnClaim::No); break;
+        case WM_XBUTTONUP:     isHandled = IsClaimed (m_client->OnXButtonUp   (wp, lp), RepaintOnClaim::No); break;
         case WM_MOUSEMOVE:     isHandled = IsClaimed (m_client->OnMouseMove   (wp, lp), RepaintOnClaim::No); break;
         case WM_MOUSELEAVE:    isHandled = IsClaimed (m_client->OnMouseLeave(),   RepaintOnClaim::No); break;
         case WM_ACTIVATEAPP:   isHandled = IsClaimed (m_client->OnActivateApp (wp != 0), RepaintOnClaim::No); break;

@@ -107,6 +107,10 @@ public:
     void  NavigateToLocation (const Location & location);
     bool  NavigateToAddress  (const std::wstring & text);
 
+    //  What an address bar separator lists: the folders and images in a host
+    //  folder.
+    void  GetFolderChildren  (const Location & location, std::vector<BrowserModel::AddressSegment> & outChildren) { BrowserModel::GetFolderChildren (m_fs, location, outChildren); }
+
     //  The folder holding a host path, or empty at a drive root.
     static std::wstring  GetParentFolder (const std::wstring & path);
     static std::wstring  JoinPath        (const std::wstring & folder, const std::wstring & name);

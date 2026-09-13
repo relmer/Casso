@@ -717,3 +717,68 @@ bool BrowserModel::IsHostFolder (IFileSystem & fs, const std::wstring & path)
 
     return found;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserModel::GetFolderChildren
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserModel::GetFolderChildren (IFileSystem & fs, const Location & location, std::vector<AddressSegment> & outChildren)
+{
+    std::vector<FileSystemEntry>  entries;
+    std::vector<AddressSegment>   images;
+    std::wstring                  folder = location.path;
+    HRESULT                       hr     = E_FAIL;
+
+
+
+    outChildren.clear();
+
+    while (!folder.empty() && folder.back() == L'\\')
+    {
+        folder.pop_back();
+    }
+
+    if (location.kind == Location::Kind::HostFolder && !folder.empty())
+    {
+        hr = fs.EnumerateEntries (folder, entries);
+    }
+
+    for (const FileSystemEntry & entry : entries)
+    {
+        if (SUCCEEDED (hr) && entry.isFolder)
+        {
+            outChildren.push_back (AddressSegment { entry.name, Location::MakeHostFolder (folder + L"\\" + entry.name) });
+        }
+        else if (SUCCEEDED (hr) && TreeModel::IsSupportedImage (entry.name))
+        {
+            images.push_back (AddressSegment { entry.name, Location::MakeDiskImage (folder + L"\\" + entry.name) });
+        }
+    }
+
+    std::sort (outChildren.begin(), outChildren.end(), IsLabelBefore);
+    std::sort (images.begin(), images.end(), IsLabelBefore);
+    outChildren.insert (outChildren.end(), images.begin(), images.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserModel::IsLabelBefore
+//
+//  Name order as Explorer sorts, without regard to case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserModel::IsLabelBefore (const AddressSegment & a, const AddressSegment & b)
+{
+    return _wcsicmp (a.label.c_str(), b.label.c_str()) < 0;
+}

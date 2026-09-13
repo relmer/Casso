@@ -17,7 +17,7 @@
 void DxuiAddressBar::SetSegments (std::vector<std::wstring> labels)
 {
     m_labels = std::move (labels);
-    m_hover  = s_kNoSegment;
+    m_hover  = Hit();
 
     LayoutSegments();
 }
@@ -61,7 +61,7 @@ void DxuiAddressBar::BeginEdit()
 void DxuiAddressBar::EndEdit()
 {
     m_editing = false;
-    m_pressed = s_kNoSegment;
+    m_pressed = Hit();
     m_input.SetFocused (false);
 }
 
@@ -71,13 +71,13 @@ void DxuiAddressBar::EndEdit()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiAddressBar::HitTestSegment
+//  DxuiAddressBar::HitTest
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiAddressBar::HitTestSegment (int x, int y) const
+DxuiAddressBar::Hit DxuiAddressBar::HitTest (int x, int y) const
 {
-    int   hit    = s_kNoSegment;
+    Hit   hit;
     int   i      = 0;
     bool  inside = x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
 
@@ -85,15 +85,17 @@ int DxuiAddressBar::HitTestSegment (int x, int y) const
 
     if (inside)
     {
-        hit = (x < m_segmentsRight) ? s_kSeparator : s_kBlank;
+        hit.part = Part::Blank;
 
         for (i = m_firstShown; i < (int) m_rects.size(); i++)
         {
-            const RECT & r = m_rects[(size_t) i];
-
-            if (x >= r.left && x < r.right)
+            if (x >= m_rects[(size_t) i].left && x < m_rects[(size_t) i].right)
             {
-                hit = i;
+                hit = Hit { Part::Segment, i };
+            }
+            else if (x >= m_separators[(size_t) i].left && x < m_separators[(size_t) i].right)
+            {
+                hit = Hit { Part::Separator, i };
             }
         }
     }
@@ -134,7 +136,7 @@ void DxuiAddressBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 //
 //  DxuiAddressBar::LayoutSegments
 //
-//  Each segment is its label and padding, followed by a separator. Leading
+//  Each segment is its label and padding, followed by its separator. Leading
 //  segments are dropped until the rest fit; the last always shows.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,7 +154,8 @@ void DxuiAddressBar::LayoutSegments()
 
 
 
-    m_rects.assign (m_labels.size(), RECT {});
+    m_rects.assign      (m_labels.size(), RECT {});
+    m_separators.assign (m_labels.size(), RECT {});
     m_firstShown = 0;
 
     for (const std::wstring & label : m_labels)
@@ -169,11 +172,11 @@ void DxuiAddressBar::LayoutSegments()
 
     for (i = m_firstShown; i < (int) m_labels.size(); i++)
     {
-        m_rects[(size_t) i] = RECT { x, m_boundsDip.top, x + widths[(size_t) i], m_boundsDip.bottom };
-        x                  += widths[(size_t) i] + sep;
+        m_rects[(size_t) i]      = RECT { x, m_boundsDip.top, x + widths[(size_t) i], m_boundsDip.bottom };
+        x                       += widths[(size_t) i];
+        m_separators[(size_t) i] = RECT { x, m_boundsDip.top, x + sep, m_boundsDip.bottom };
+        x                       += sep;
     }
-
-    m_segmentsRight = x;
 }
 
 
@@ -196,7 +199,7 @@ int DxuiAddressBar::MeasurePx (const std::wstring & label) const
 
     if (m_renderer != nullptr)
     {
-        hr = m_renderer->MeasureString (label.c_str(), m_scaler.ToPxf (s_kFontDip), DxuiTheme::kBodyFace, width, height);
+        hr = m_renderer->MeasureString (label.c_str(), m_scaler.ToPxf (m_fontDip), (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace, width, height);
     }
 
     return SUCCEEDED (hr) ? (int) std::ceil (width) : 0;
@@ -210,21 +213,21 @@ int DxuiAddressBar::MeasurePx (const std::wstring & label) const
 //
 //  DxuiAddressBar::Paint
 //
-//  A raised field, outlined in the accent while it is being edited and in
-//  the focus color while it only has focus.
+//  A raised, rounded field, outlined in the accent while it is being edited
+//  and in the focus color while it only has focus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT  hr     = S_OK;
-    float    x      = (float) m_boundsDip.left;
-    float    y      = (float) m_boundsDip.top;
-    float    w      = (float) (m_boundsDip.right - m_boundsDip.left);
-    float    h      = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float    fontPx = m_scaler.ToPxf (s_kFontDip);
-    float    sep    = (float) m_scaler.ToPx (s_kSeparatorDip);
-    int      i      = 0;
+    HRESULT          hr      = S_OK;
+    float            x       = (float) m_boundsDip.left;
+    float            y       = (float) m_boundsDip.top;
+    float            w       = (float) (m_boundsDip.right - m_boundsDip.left);
+    float            h       = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    float            radius  = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
+    const wchar_t  * face    = (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
+    int              i       = 0;
 
 
 
@@ -233,11 +236,11 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         return;
     }
 
-    painter.FillRect (x, y, w, h, theme.BackgroundElevated());
+    painter.FillRoundedRect (x, y, w, h, radius, theme.BackgroundElevated());
 
     if (m_editing || m_focused)
     {
-        painter.OutlineRoundedRect (x, y, w, h, m_scaler.ToPxf (s_kRadiusDip), 1.0f, m_editing ? theme.Accent() : theme.FocusRing());
+        painter.OutlineRoundedRect (x, y, w, h, radius, 1.0f, m_editing ? theme.Accent() : theme.FocusRing());
     }
 
     if (m_editing)
@@ -251,29 +254,28 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     for (i = m_firstShown; i < (int) m_labels.size(); i++)
     {
-        const RECT & r = m_rects[(size_t) i];
+        const RECT & seg = m_rects[(size_t) i];
+        const RECT & sep = m_separators[(size_t) i];
 
-        if (i == m_hover || i == m_pressed)
-        {
-            painter.FillRect ((float) r.left, y, (float) (r.right - r.left), h, theme.HoverBackground());
-        }
+        PaintHover (painter, theme, seg, Hit { Part::Segment,   i });
+        PaintHover (painter, theme, sep, Hit { Part::Separator, i });
 
         hr = text.DrawString (m_labels[(size_t) i].c_str(),
-                              (float) r.left, y, (float) (r.right - r.left), h,
+                              (float) seg.left, y, (float) (seg.right - seg.left), h,
                               theme.Foreground(),
-                              fontPx,
-                              DxuiTheme::kBodyFace,
+                              m_scaler.ToPxf (m_fontDip),
+                              face,
                               DxuiTextHAlign::Center,
                               DxuiTextVAlign::Center,
                               DxuiFontWeight::Normal,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.DrawString (s_kpszChevronRight,
-                              (float) r.right, y, sep, h,
-                              theme.ForegroundMuted(),
-                              fontPx,
-                              DxuiTheme::kBodyFace,
+        hr = text.DrawString (s_kpszMdl2ChevronRight,
+                              (float) sep.left, y, (float) (sep.right - sep.left), h,
+                              theme.Foreground(),
+                              m_scaler.ToPxf (s_kChevronDip),
+                              m_iconFace,
                               DxuiTextHAlign::Center,
                               DxuiTextVAlign::Center,
                               DxuiFontWeight::Normal,
@@ -291,18 +293,49 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiAddressBar::PaintHover
+//
+//  A rounded card inset from the bar's top and bottom, in Windows' subtle
+//  hover fill, or its pressed fill while the button is down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiAddressBar::PaintHover (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, const Hit & hit) const
+{
+    float  inset = (float) m_scaler.ToPx (s_kHoverInsetDip);
+
+
+
+    if (hit == m_hover || hit == m_pressed)
+    {
+        painter.FillRoundedRect ((float) rc.left,
+                                 (float) rc.top + inset,
+                                 (float) (rc.right - rc.left),
+                                 (float) (rc.bottom - rc.top) - inset * 2.0f,
+                                 m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                 (hit == m_pressed) ? theme.SystemButtonPressed() : theme.SystemButtonHover());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiAddressBar::OnMouse
 //
-//  While editing, the text field takes the pointer. Otherwise a segment or
-//  the blank past them acts on release over what was pressed; a separator
-//  does nothing.
+//  While editing, the text field takes the pointer. Otherwise what was
+//  pressed acts on release over the same part: a segment navigates, a
+//  separator opens its menu, and the blank past them starts an edit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
 {
-    int   hit     = HitTestSegment (ev.positionDip.x, ev.positionDip.y);
-    int   pressed = m_pressed;
+    Hit   hit     = HitTest (ev.positionDip.x, ev.positionDip.y);
+    Hit   pressed = m_pressed;
+    Hit   hover;
     bool  left    = ev.button == DxuiMouseButton::Left;
     bool  handled = false;
 
@@ -312,11 +345,11 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
     {
         if (ev.kind == DxuiMouseEventKind::Down && left)
         {
-            m_pressed = s_kBlank;
+            m_pressed = Hit { Part::Blank, -1 };
         }
         else if (ev.kind == DxuiMouseEventKind::Up && left)
         {
-            m_pressed = s_kNoSegment;
+            m_pressed = Hit();
         }
 
         handled = m_input.OnMouse (ev) || ev.kind != DxuiMouseEventKind::Move;
@@ -324,24 +357,29 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
     }
     else if (ev.kind == DxuiMouseEventKind::Move)
     {
-        handled = (hit >= 0 ? hit : s_kNoSegment) != m_hover;
-        m_hover = (hit >= 0) ? hit : s_kNoSegment;
+        hover   = (hit.part == Part::Segment || hit.part == Part::Separator) ? hit : Hit();
+        handled = !(hover == m_hover);
+        m_hover = hover;
     }
-    else if (ev.kind == DxuiMouseEventKind::Down && left && hit != s_kNoSegment)
+    else if (ev.kind == DxuiMouseEventKind::Down && left && hit.part != Part::None)
     {
         m_pressed = hit;
         handled   = true;
     }
-    else if (ev.kind == DxuiMouseEventKind::Up && left && pressed != s_kNoSegment)
+    else if (ev.kind == DxuiMouseEventKind::Up && left && pressed.part != Part::None)
     {
-        m_pressed = s_kNoSegment;
+        m_pressed = Hit();
         handled   = true;
 
-        if (hit == pressed && hit >= 0 && m_onSegment)
+        if (hit == pressed && hit.part == Part::Segment && m_onSegment)
         {
-            m_onSegment (hit);
+            m_onSegment (hit.index);
         }
-        else if (hit == pressed && hit == s_kBlank)
+        else if (hit == pressed && hit.part == Part::Separator && m_onSeparator)
+        {
+            m_onSeparator (hit.index, m_separators[(size_t) hit.index]);
+        }
+        else if (hit == pressed && hit.part == Part::Blank)
         {
             BeginEdit();
         }

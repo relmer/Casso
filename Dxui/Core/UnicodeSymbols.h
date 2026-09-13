@@ -45,6 +45,7 @@ static constexpr LPCWSTR s_kpszMdl2Up        = L"\xE74A";       // U+E74A Segoe 
 static constexpr LPCWSTR s_kpszMdl2Refresh   = L"\xE72C";       // U+E72C Segoe MDL2 Refresh
 static constexpr LPCWSTR s_kpszMdl2Add       = L"\xE710";       // U+E710 Segoe MDL2 Add
 static constexpr LPCWSTR s_kpszMdl2Preview   = L"\xE8A1";       // U+E8A1 Segoe MDL2 PreviewLink
+static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";  // U+E76C Segoe MDL2 ChevronRight
 
 // Casso's own symbol font (Resources/Fonts/CassoSymbols.ttf, embedded and
 // registered by AssetBootstrap::RegisterSymbolFont). These need no family at

@@ -248,6 +248,13 @@ void CassqueWindow::OnCreate()
 
     m_toolbar->SetTextRenderer (GetTextRenderer());
     m_address->SetTextRenderer (GetTextRenderer());
+    m_address->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
+                                ? DxuiToolbar::kFluentIconFace
+                                : DxuiToolbar::kMdl2IconFace);
+    m_address->SetFont         (DxuiTextRenderer::IsFontFamilyInstalled (DxuiAddressBar::kVariableTextFace)
+                                ? DxuiAddressBar::kVariableTextFace
+                                : DxuiTheme::kBodyFace,
+                                DxuiAddressBar::kFontDip);
     m_toolbar->SetPopupHost    (GetPopupHost());
     m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
     m_tooltip.SetPopupHost     (GetPopupHost());
@@ -397,6 +404,7 @@ void CassqueWindow::ConfigureWidgets()
         }
     });
     m_address->SetOnSubmit ([this] (const std::wstring & text) { SubmitAddress (text); });
+    m_address->SetOnSeparator ([this] (int index, const RECT & anchor) { ShowAddressMenu (index, anchor); });
 
     m_browser.RestoreTabs (m_prefs.tabs);
 
@@ -1007,6 +1015,14 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
     bool   press = ev.kind == DxuiMouseEventKind::Down;
 
 
+
+    //  A five-button mouse's back and forward buttons move through the tab's
+    //  history wherever the pointer is, as in Explorer.
+    if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::X1 || ev.button == DxuiMouseButton::X2))
+    {
+        Dispatch (ev.button == DxuiMouseButton::X1 ? CassqueCommands::kBack : CassqueCommands::kForward);
+        return true;
+    }
 
     if (m_menuBar->OnMouse (ev))
     {
@@ -2433,6 +2449,61 @@ void CassqueWindow::SubmitAddress (const std::wstring & text)
     else
     {
         ShowMessage (L"Cassque can't find \"" + text + L"\". Check the path and try again.", MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowAddressMenu
+//
+//  The folders and images inside a segment's location, hung from the
+//  separator after it, as Explorer's address bar lists a folder's children.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
+{
+    std::vector<BrowserModel::AddressSegment>  children;
+    std::vector<DxuiPopupMenuItem>             items;
+
+
+
+    if (index < 0 || index >= (int) m_addressSegments.size())
+    {
+        return;
+    }
+
+    m_browser.GetFolderChildren (m_addressSegments[(size_t) index].location, children);
+    m_menuCommands.clear();
+
+    for (const BrowserModel::AddressSegment & child : children)
+    {
+        std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+        Location                      target  = child.location;
+
+        //  A menu label treats an ampersand as a mnemonic; a name's own is doubled.
+        for (wchar_t ch : child.label)
+        {
+            command->label += (ch == L'&') ? L"&&" : std::wstring (1, ch);
+        }
+
+        command->dispatch = [this, target]()
+        {
+            m_browser.NavigateToLocation (target);
+            FillList();
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    if (!items.empty())
+    {
+        DxuiContextMenu::Show (*GetPopupHost(), anchor.left, anchor.bottom, std::move (items));
     }
 }
 

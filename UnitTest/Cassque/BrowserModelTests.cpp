@@ -158,6 +158,39 @@ public:
 
 
 
+    TEST_METHOD (Address_FolderChildrenAreFoldersThenImages)
+    {
+        InMemoryFileSystem                         fs;
+        std::vector<BrowserModel::AddressSegment>  children;
+        HRESULT                                    hr = S_OK;
+
+        hr = fs.WriteAllText (L"C:\\Disks\\zed\\one.po", "x");
+        Assert::IsTrue (SUCCEEDED (hr));
+        hr = fs.WriteAllText (L"C:\\Disks\\Apple\\two.po", "x");
+        Assert::IsTrue (SUCCEEDED (hr));
+        hr = fs.WriteAllText (L"C:\\Disks\\b.po", "x");
+        Assert::IsTrue (SUCCEEDED (hr));
+        hr = fs.WriteAllText (L"C:\\Disks\\a.dsk", "x");
+        Assert::IsTrue (SUCCEEDED (hr));
+        hr = fs.WriteAllText (L"C:\\Disks\\notes.txt", "x");
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        BrowserModel::GetFolderChildren (fs, Folder (L"C:\\Disks"), children);
+
+        Assert::AreEqual ((size_t) 4, children.size(), L"A file that is not a disk image is not listed");
+        Assert::AreEqual (std::wstring (L"Apple"), children[0].label);
+        Assert::IsTrue   (children[0].location == Folder (L"C:\\Disks\\Apple"));
+        Assert::AreEqual (std::wstring (L"zed"),   children[1].label, L"Folders are in name order, without regard to case");
+        Assert::AreEqual (std::wstring (L"a.dsk"), children[2].label, L"and the images follow them");
+        Assert::IsTrue   (children[2].location == Image (L"C:\\Disks\\a.dsk"));
+        Assert::AreEqual (std::wstring (L"b.po"),  children[3].label);
+
+        BrowserModel::GetFolderChildren (fs, Image (L"C:\\Disks\\b.po"), children);
+        Assert::IsTrue   (children.empty(), L"An image lists nothing");
+    }
+
+
+
     TEST_METHOD (History_BackAndForwardPerTab)
     {
         BrowserModel  model;

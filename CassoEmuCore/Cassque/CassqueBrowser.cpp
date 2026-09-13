@@ -41,6 +41,7 @@ DxuiTreeNode CassqueBrowser::ToTreeNode (const TreeNode & node, IShellIcons * ic
 
     out.id             = node.id;
     out.label          = node.label;
+    out.dividerAbove   = node.kind == TreeNode::Kind::ThisPcRoot;   // Explorer's line above This PC
 
     //  A known folder's label is its whole path, which a narrow tree cannot
     //  hold; the folder's own name is what Explorer shows there too.

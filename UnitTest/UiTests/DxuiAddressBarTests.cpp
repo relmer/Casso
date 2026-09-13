@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiAddressBar.h"
+#include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -13,11 +15,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiAddressBarTests
 //
-//  The segments, the switch into a typed path and back, and the segments
-//  dropped from the start of a narrow bar. The mock renderer's glyphs are 7
-//  pixels wide, so at 96 DPI the segments C:, Disks and work.po are 26, 47
-//  and 61 pixels with their padding, each followed by an 18-pixel separator,
-//  starting 8 pixels in: C: spans 8-34, Disks 52-99, work.po 117-178.
+//  The segments and their separators, the switch into a typed path and back,
+//  the hover card, and the segments dropped from the start of a narrow bar.
+//  The mock renderer's glyphs are 7 pixels wide, so at 96 DPI the segments
+//  C:, Disks and work.po are 30, 51 and 65 pixels with their padding, each
+//  followed by a 28-pixel separator, starting 4 pixels in: C: spans 4-34 and
+//  its separator 34-62, Disks 62-113 and 113-141, work.po 141-206 and 206-234.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,17 +44,21 @@ public:
             bar.SetPath (L"C:\\Disks\\work.po");
         }
 
-        void  Click (int x)
+        void  Mouse (DxuiMouseEventKind kind, int x)
         {
             DxuiMouseEvent  ev;
 
-            ev.button      = DxuiMouseButton::Left;
+            ev.kind        = kind;
+            ev.button      = (kind == DxuiMouseEventKind::Move) ? DxuiMouseButton::None : DxuiMouseButton::Left;
             ev.positionDip = POINT { x, 10 };
 
-            ev.kind = DxuiMouseEventKind::Down;
             bar.OnMouse (ev);
-            ev.kind = DxuiMouseEventKind::Up;
-            bar.OnMouse (ev);
+        }
+
+        void  Click (int x)
+        {
+            Mouse (DxuiMouseEventKind::Down, x);
+            Mouse (DxuiMouseEventKind::Up,   x);
         }
 
         bool  Key (DxuiKeyEventKind kind, WPARAM vk)
@@ -74,25 +81,53 @@ public:
         f.LayOut (400);
         f.bar.SetOnSegment ([&] (int index) { clicked = index; });
 
-        f.Click (60);
+        f.Click (80);
 
         Assert::AreEqual (1, clicked, L"A click on Disks reports the second segment");
         Assert::IsFalse  (f.bar.IsEditing());
     }
 
 
-    TEST_METHOD (SeparatorClick_DoesNothing)
+    TEST_METHOD (SeparatorClick_ReportsTheSegmentBeforeItAndItsRect)
     {
         Fixture  f;
+        int      opened  = -1;
         int      clicked = -1;
+        RECT     anchor  = {};
 
         f.LayOut (400);
-        f.bar.SetOnSegment ([&] (int index) { clicked = index; });
+        f.bar.SetOnSegment   ([&] (int index) { clicked = index; });
+        f.bar.SetOnSeparator ([&] (int index, const RECT & rc) { opened = index; anchor = rc; });
 
-        f.Click (40);
+        f.Click (50);
 
-        Assert::AreEqual (-1, clicked);
-        Assert::IsFalse  (f.bar.IsEditing());
+        Assert::AreEqual (0,  opened, L"The separator after C: opens C:'s menu");
+        Assert::AreEqual (-1, clicked, L"and navigates nowhere itself");
+        Assert::AreEqual (34L, anchor.left);
+        Assert::AreEqual (62L, anchor.right);
+        Assert::AreEqual (30L, anchor.bottom, L"The menu hangs from the bottom of the bar");
+    }
+
+
+    TEST_METHOD (Hover_IsARoundedCardInsetFromTheBarsEdges)
+    {
+        Fixture          f;
+        MockDxuiPainter  painter;
+        MockDxuiTheme    theme;
+        bool             found = false;
+
+        f.LayOut (400);
+        f.Mouse (DxuiMouseEventKind::Move, 80);
+        f.bar.Paint (painter, f.text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            found = found || (call.kind == RecordedPaintKind::FillRoundedRect
+                              && call.x == 62.0f && call.width == 51.0f
+                              && call.y == 4.0f  && call.height == 22.0f);
+        }
+
+        Assert::IsTrue (found, L"The hovered segment's card spans the segment and stops 4 pixels short of the top and bottom");
     }
 
 
