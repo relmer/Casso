@@ -491,13 +491,11 @@ void ControllerInputService::RefreshDevices()
         {
             // The mapping belongs to the controller it was made for, so the
             // next one starts from its own defaults.
-            // THE SAVED CONTROLLER CHANGES ONLY WHERE THE MACHINE HAD NONE, or
-            // where the saved unit itself came back under a new identity. A
-            // takeover or a clear follows what is plugged in at the moment,
-            // and writing that down overwrote the user's own choice with
-            // whatever happened to be attached, or with nothing.
-            if ((decision.reason == SelectionChangeReason::AutomaticSelection && !m_saved.has_value())
-                || (decision.reason == SelectionChangeReason::Adoption && m_saved == m_selection))
+            // EVERY CHANGE IS SAVED BUT A CLEAR. Nothing being attached is not
+            // a choice, and writing it down threw away the controller the
+            // machine had, so the next switch to it picked whatever was
+            // attached longest instead.
+            if (decision.reason != SelectionChangeReason::Cleared)
             {
                 m_saved = decision.selection;
             }
