@@ -43,6 +43,15 @@ public:
     // from under the menu.
     RECT  GetInWindowMenuRect () const;
     const std::vector<std::wstring> & GetItems () const { return m_items; }
+
+    // Most rows the open list shows at once. A longer list scrolls, by the
+    // wheel or by moving the highlight past an edge, so a device reporting
+    // 128 buttons does not throw a list off the bottom of the screen.
+    static constexpr int  kMaxVisibleRows = 12;
+
+    int   GetVisibleRowCount () const;
+    int   GetScrollTop       () const { return m_scrollTop; }
+    void  ScrollBy           (int rows);
     bool  HitTest       (int x, int y) const;
     int   HitTestItem   (int x, int y) const;
     bool  IsEnabled     () const { return m_enabled; }
@@ -127,6 +136,7 @@ private:
     };
 
     void            Commit          (int index);
+    void            EnsureHighlightVisible ();
     void            RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void            OnPopupMove     (POINT localPx);
     void            OnPopupClick    (POINT localPx);
@@ -140,6 +150,7 @@ private:
     bool                         m_hover           = false;
     int                          m_highlight       = -1;
     int                          m_selected        = -1;
+    int                          m_scrollTop       = 0;
     DxuiDpiScaler                m_scaler;
     bool                         m_enabled         = true;
     bool                         m_focused         = false;

@@ -932,6 +932,17 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
             break;
 
+        case WM_MOUSEWHEEL:
+            // The popup holds capture, so the wheel arrives here wherever
+            // the pointer is while it is open.
+            if (m_open && m_params.onWheel)
+            {
+                m_params.onWheel (GET_WHEEL_DELTA_WPARAM (wp));
+                claimed = true;
+            }
+
+            break;
+
         case WM_LBUTTONDOWN:
         case WM_RBUTTONDOWN:
         case WM_MBUTTONDOWN:

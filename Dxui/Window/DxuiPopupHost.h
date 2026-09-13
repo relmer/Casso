@@ -162,6 +162,11 @@ public:
         std::function<void (POINT localPx)>                        onMoveInside;
         std::function<void (POINT localPx)>                        onClickInside;
 
+        // The mouse wheel turned while the popup is open, in WHEEL_DELTA
+        // units (positive away from the user). A popup with more content
+        // than it shows scrolls by it.
+        std::function<void (int wheelDelta)>                       onWheel;
+
         // Fired when a click OUTSIDE the popup dismisses it, after the
         // dismissal, in SCREEN pixels.
         //
