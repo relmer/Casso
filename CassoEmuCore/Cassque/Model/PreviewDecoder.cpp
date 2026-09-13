@@ -292,15 +292,14 @@ HRESULT PreviewDecoder::Render (
             {
                 hr = ApplesoftTokenizer::Detokenize (payload.bytes, text, applesoftError);
 
-                //  A DOS 3.3 file's recorded length can stop partway through its
-                //  last line. The lines before it are shown, with the cut noted.
+                //  A DOS 3.3 file's recorded length can stop short of the end of
+                //  its program. The lines before the cut are shown, and why the
+                //  file is not a valid program follows them.
                 if (FAILED (hr) && IsCutOff (applesoftError) && !applesoftError.partialListing.empty())
                 {
-                    text = applesoftError.partialListing
-                         + (applesoftError.hasLineNumber
-                                ? std::format ("\n(The file ends partway through line {}.)\n", (unsigned) applesoftError.lineNumber)
-                                : std::string ("\n(The file ends partway through its last line.)\n"));
-                    hr   = S_OK;
+                    text               = applesoftError.partialListing;
+                    outContent.warning = DescribeCutOff (applesoftError);
+                    hr                 = S_OK;
                 }
                 else if (FAILED (hr))
                 {
@@ -569,4 +568,42 @@ bool PreviewDecoder::IsCutOff (const ApplesoftListingError & error)
     return error.reason == "has no byte ending it"
         || error.reason == "the program ends before its last line does"
         || error.reason == "the program ends inside a line header";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::DescribeCutOff
+//
+//  Where the file ends, in the terms of the program's own lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PreviewDecoder::DescribeCutOff (const ApplesoftListingError & error)
+{
+    std::wstring  text;
+
+
+
+    if (error.reason == "has no byte ending it")
+    {
+        text = std::format (L"Line {}: the file ends before the end-of-line byte", (unsigned) error.lineNumber);
+    }
+    else if (error.reason == "the program ends inside a line header")
+    {
+        text = error.hasLastLineNumber
+             ? std::format (L"After line {}: the file ends partway through the next line's header", (unsigned) error.lastLineNumber)
+             : std::wstring (L"The file ends partway through the first line's header");
+    }
+    else
+    {
+        text = error.hasLastLineNumber
+             ? std::format (L"After line {}: the file ends without the end-of-program marker", (unsigned) error.lastLineNumber)
+             : std::wstring (L"The file ends before its first line");
+    }
+
+    return text;
 }

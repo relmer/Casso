@@ -968,17 +968,18 @@ HRESULT ApplesoftTokenizer::Detokenize (
     std::string              &  outHostListing,
     ApplesoftListingError    &  outError)
 {
-    HRESULT            hr      = S_OK;
-    size_t             at      = 0;
-    size_t             count   = programBytes.size();
-    size_t             lines   = 0;
-    bool               ok      = true;
-    bool               ended   = false;
-    uint32_t           number  = 0;
-    uint32_t           link    = 0;
-    uint32_t           base    = (uint32_t) kProgramBase;
-    bool               based   = false;
-    uint32_t           first   = 0;
+    HRESULT            hr       = S_OK;
+    size_t             at       = 0;
+    size_t             count    = programBytes.size();
+    size_t             lines    = 0;
+    bool               ok       = true;
+    bool               ended    = false;
+    uint32_t           number   = 0;
+    uint32_t           link     = 0;
+    uint32_t           base     = (uint32_t) kProgramBase;
+    bool               based    = false;
+    uint32_t           first    = 0;
+    uint32_t           lastRead = 0;
     std::string        text;
     std::string        reason;
     std::vector<Byte>  body;
@@ -1082,7 +1083,8 @@ HRESULT ApplesoftTokenizer::Detokenize (
         outHostListing += '\n';
 
         lines++;
-        at = endAt;
+        lastRead = number;
+        at       = endAt;
     }
 
     if (ok && lines == 0)
@@ -1101,7 +1103,9 @@ HRESULT ApplesoftTokenizer::Detokenize (
 Error:
     if (FAILED (hr))
     {
-        outError.partialListing = outHostListing;
+        outError.partialListing    = outHostListing;
+        outError.lastLineNumber    = lastRead;
+        outError.hasLastLineNumber = lines > 0;
         outHostListing.clear();
     }
 

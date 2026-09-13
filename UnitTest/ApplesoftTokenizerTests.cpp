@@ -725,5 +725,7 @@ public:
         Assert::IsTrue   (listing.empty(), L"the listing is still refused");
         Assert::AreEqual (std::string ("10  PRINT\n"), error.partialListing, L"but the lines before the cut are kept for a caller to show");
         Assert::AreEqual ((uint32_t) 20, error.lineNumber);
+        Assert::IsTrue   (error.hasLastLineNumber);
+        Assert::AreEqual ((uint32_t) 10, error.lastLineNumber, L"and the last line read whole is known");
     }
 };

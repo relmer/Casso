@@ -31,6 +31,9 @@ struct PreviewContent
 
     Kind                       kind   = Kind::Hex;
     std::vector<std::wstring>  lines;
+
+    //  Why a listing that is shown is not a valid program, shown after it.
+    std::wstring               warning;
     std::vector<uint32_t>      bgra;
     int                        width  = 0;
     int                        height = 0;
@@ -104,6 +107,7 @@ private:
     //  A ProDOS date as CAT prints it, 17-AUG-84, or <NO DATE>.
     static std::wstring  FormatProDosDate (const FileEntry & entry);
     static bool          IsCutOff         (const ApplesoftListingError & error);
+    static std::wstring  DescribeCutOff   (const ApplesoftListingError & error);
 
     static constexpr const wchar_t *  s_kMonths[12] =
     {

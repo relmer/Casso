@@ -225,6 +225,7 @@ void CassqueWindow::OnCreate()
     previewList       = CreateChild<CassqueNamedControl<DxuiListView>>();
     picture           = CreateChild<CassqueNamedControl<DxuiFramebufferView>>();
     hexView           = CreateChild<CassqueNamedControl<DxuiHexView>>();
+    m_textView        = CreateChild<DxuiTextView>();
     m_previewMessage  = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     treeSplitter      = CreateChild<CassqueNamedControl<DxuiSplitter>>();
     previewSplitter   = CreateChild<CassqueNamedControl<DxuiSplitter>>();
@@ -358,6 +359,12 @@ void CassqueWindow::ConfigureWidgets()
     m_previewList->SetAlwaysShowSelection (true);
     m_previewList->SetTextSelectionColors (true);
     m_previewList->SetOwnerWindow (GetHwnd());
+
+    m_textView->SetOwnerWindow   (GetHwnd());
+    m_textView->SetIconFace      (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
+                                  ? DxuiToolbar::kFluentIconFace
+                                  : DxuiToolbar::kMdl2IconFace);
+    m_textView->SetOnContextMenu ([this] (POINT at) { ShowTextContextMenu (at.x, at.y); });
 
     //  The bytes are Apple text in the column on the right, which is what
     //  the files here hold; the grouping is the user's, kept between runs.
@@ -591,6 +598,7 @@ void CassqueWindow::RecomputeLayout()
     m_previewSplitter->SetVisible (preview);
     m_previewList->SetVisible (preview && m_previewList->IsVisible());
     m_hexView->SetVisible (preview && m_hexView->IsVisible());
+    m_textView->SetVisible (preview && m_textView->IsVisible());
     m_picture->SetVisible (preview && m_picture->IsVisible());
     m_previewMessage->SetVisible (preview && m_previewMessage->IsVisible());
 
@@ -608,6 +616,7 @@ void CassqueWindow::RecomputeLayout()
         m_list->Layout           (listRect,    m_scaler);
         m_listMessage->Layout    (listRect,    m_scaler);
         m_previewList->Layout    (previewRect, m_scaler);
+        m_textView->Layout       (previewRect, m_scaler);
         m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (previewRect, m_scaler);
         m_previewMessage->Layout (previewRect, m_scaler);
@@ -735,7 +744,7 @@ void CassqueWindow::FillPreview()
     bool                                          error   = preview.kind == PreviewContent::Kind::Error;
     bool                                          catalog = preview.kind == PreviewContent::Kind::Catalog;
     bool                                          hex     = preview.kind == PreviewContent::Kind::Hex && !preview.bytes.empty();
-    bool                                          details = preview.kind == PreviewContent::Kind::Details;
+    bool                                          columns = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
 
 
 
@@ -748,19 +757,10 @@ void CassqueWindow::FillPreview()
         m_picture->Clear();
     }
 
-    //  A DOS 3.3 or ProDOS catalog arrives as its own listing's lines; any
-    //  other volume's arrives as rows, under columns fitted to them.
-    if (details)
-    {
-        m_previewList->SetShowHeader (false);
-        m_previewList->SetColumns ({ DxuiListView::Column { L"", 0, false }, DxuiListView::Column { L"", 0, true } });
-
-        for (const std::pair<std::wstring, std::wstring> & field : preview.details)
-        {
-            rows.push_back ({ DxuiListView::Cell { field.first, true }, DxuiListView::Cell { field.second, false } });
-        }
-    }
-    else if (catalog && preview.lines.empty())
+    //  A catalog of any volume but DOS 3.3 or ProDOS arrives as rows under
+    //  sortable columns. Everything else shown as text goes to the text view,
+    //  where it wraps and selects by character.
+    if (columns)
     {
         m_previewList->SetShowHeader (true);
         m_previewList->SetColumns (CassqueBrowser::GetCatalogPreviewColumns());
@@ -770,21 +770,13 @@ void CassqueWindow::FillPreview()
             rows.push_back (CassqueBrowser::ToCatalogPreviewCells (row));
         }
     }
-    else
-    {
-        m_previewList->SetShowHeader (false);
-        m_previewList->SetColumns ({ DxuiListView::Column { L"", 0, true } });
-
-        for (const std::wstring & line : preview.lines)
-        {
-            rows.push_back ({ DxuiListView::Cell { line, false } });
-        }
-    }
 
     m_previewList->SetRows (std::move (rows));
     m_previewList->ResetAutoFit();
     m_previewList->UpdateAutoFitFromRows();
     m_previewList->SetTopRow (0);
+
+    m_textView->SetRows (BuildTextRows (preview));
 
     //  The hex view reads the preview's own bytes where they lie. The source
     //  is re-pointed rather than refilled, so a file of any size costs the
@@ -796,7 +788,8 @@ void CassqueWindow::FillPreview()
     m_previewMessage->SetText (error ? preview.message : std::wstring());
     m_previewMessage->SetVisible (visible && error);
     m_picture->SetVisible (visible && picture);
-    m_previewList->SetVisible (visible && !picture && !error && !hex);
+    m_previewList->SetVisible (visible && columns);
+    m_textView->SetVisible (visible && !picture && !error && !hex && !columns);
     m_hexView->SetVisible (visible && hex);
 
     Invalidate();
@@ -1220,6 +1213,13 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    if (m_textView->IsInteracting())
+    {
+        m_textView->OnMouse (ev);
+        Invalidate();
+        return true;
+    }
+
     //  DxuiHexView takes points in the same coordinates as its bounds, so the
     //  event is passed unchanged, not converted to widget-local coordinates as
     //  the older list views require.
@@ -1231,6 +1231,18 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         }
 
         m_hexView->OnMouse (ev);
+        Invalidate();
+        return true;
+    }
+
+    if (m_textView->IsVisible() && Contains (m_textView->GetBounds(), point))
+    {
+        if (press)
+        {
+            SetFocusPane (Pane::Preview);
+        }
+
+        m_textView->OnMouse (ev);
         Invalidate();
         return true;
     }
@@ -1394,7 +1406,8 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         case Pane::Tree:    handled = m_tree->OnKey (ev);        break;
         case Pane::List:    handled = m_list->OnKey (ev);        break;
         case Pane::Preview: handled = IsHexPreviewShowing() ? m_hexView->OnKey (ev)
-                                                            : m_previewList->OnKey (ev);
+                                                            : IsTextPreviewShowing() ? m_textView->OnKey (ev)
+                                                                                     : m_previewList->OnKey (ev);
                             break;
     }
 
@@ -1506,8 +1519,9 @@ IDxuiControl * CassqueWindow::GetFocusedControl() const
         case Pane::Tabs:    return m_tabs;
         case Pane::Tree:    return m_tree;
         case Pane::List:    return m_list;
-        case Pane::Preview: return IsHexPreviewShowing() ? (IDxuiControl *) m_hexView
-                                                         : (IDxuiControl *) m_previewList;
+        case Pane::Preview: return IsHexPreviewShowing()  ? (IDxuiControl *) m_hexView
+                                 : IsTextPreviewShowing() ? (IDxuiControl *) m_textView
+                                                          : (IDxuiControl *) m_previewList;
         default:            return nullptr;
     }
 }
@@ -1525,6 +1539,104 @@ IDxuiControl * CassqueWindow::GetFocusedControl() const
 bool CassqueWindow::IsHexPreviewShowing() const
 {
     return m_prefs.previewVisible && m_hexView->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::IsTextPreviewShowing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::IsTextPreviewShowing() const
+{
+    return m_prefs.previewVisible && m_textView->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::BuildTextRows
+//
+//  A listing that is not a valid program ends with a blank row and the
+//  warning that says why.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> CassqueWindow::BuildTextRows (const PreviewContent & preview)
+{
+    std::vector<DxuiTextView::Row>  rows;
+    DxuiTextView::Row               warning;
+
+
+
+    if (preview.kind == PreviewContent::Kind::Details)
+    {
+        for (const std::pair<std::wstring, std::wstring> & field : preview.details)
+        {
+            rows.push_back (DxuiTextView::Row { { field.first, field.second } });
+        }
+    }
+    else
+    {
+        for (const std::wstring & line : preview.lines)
+        {
+            rows.push_back (DxuiTextView::Row { (preview.kind == PreviewContent::Kind::Listing) ? SplitLineNumber (line)
+                                                                                               : std::vector<std::wstring> { line } });
+        }
+    }
+
+    if (!preview.warning.empty())
+    {
+        warning.cells.push_back (preview.warning);
+        warning.warning = true;
+
+        rows.push_back (DxuiTextView::Row());
+        rows.push_back (warning);
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SplitLineNumber
+//
+//  A listing line's number and the statement after the spaces that follow it,
+//  or the whole line as one cell when it does not start with a number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassqueWindow::SplitLineNumber (const std::wstring & line)
+{
+    size_t  first = line.find_first_not_of (L' ');
+    size_t  end   = std::wstring::npos;
+    size_t  text  = std::wstring::npos;
+
+
+
+    if (first != std::wstring::npos && iswdigit (line[first]))
+    {
+        end  = line.find_first_not_of (L"0123456789", first);
+        text = (end == std::wstring::npos) ? std::wstring::npos : line.find_first_not_of (L' ', end);
+    }
+
+    if (text == std::wstring::npos || text == end)
+    {
+        return { line };
+    }
+
+    return { line.substr (0, end), line.substr (text) };
 }
 
 
@@ -1633,6 +1745,37 @@ void CassqueWindow::ShowHexContextMenu (int x, int y)
 
         items.push_back ((command != nullptr) ? DxuiPopupMenuItem::ForCommand (command)
                                               : DxuiPopupMenuItem::ForSeparator());
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowTextContextMenu
+//
+//  Copy and Select all, which reach the text view as the focused control.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowTextContextMenu (int x, int y)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    for (int id : { (int) CassqueCommands::kCopy, (int) CassqueCommands::kSelectAll })
+    {
+        const DxuiCommand *  command = m_commands.Find (id);
+
+        if (command != nullptr)
+        {
+            items.push_back (DxuiPopupMenuItem::ForCommand (command));
+        }
     }
 
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));

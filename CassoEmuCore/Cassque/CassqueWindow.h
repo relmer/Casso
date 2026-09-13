@@ -25,6 +25,7 @@
 #include "Widgets/DxuiSplitter.h"
 #include "Widgets/DxuiStatusBar.h"
 #include "Widgets/DxuiTabStrip.h"
+#include "Widgets/DxuiTextView.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiTooltip.h"
 #include "Render/DxuiTextRenderer.h"
@@ -191,6 +192,7 @@ private:
 
     void  ShowListContextMenu (int x, int y);
     void  ShowHexContextMenu  (int x, int y);
+    void  ShowTextContextMenu (int x, int y);
     void  AskForOffset();
     void  SetHexGrouping (int grouping);
 
@@ -205,6 +207,12 @@ private:
     //  lines, a picture or a message. Key, copy and Tab routing in the pane
     //  depend on it.
     bool  IsHexPreviewShowing() const;
+    bool  IsTextPreviewShowing() const;
+
+    //  The text view's rows for a preview: a BASIC line as its number and its
+    //  statement, a detail as its label and value, anything else as one cell.
+    static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview);
+    static std::vector<std::wstring>       SplitLineNumber (const std::wstring & line);
     bool  RouteToolbarMouse   (const DxuiMouseEvent & ev);
 
     static int64_t  GetNowMs();
@@ -264,6 +272,7 @@ private:
     DxuiLabel            * m_listMessage     = nullptr;
     DxuiSplitter         * m_previewSplitter = nullptr;
     DxuiListView         * m_previewList     = nullptr;
+    DxuiTextView         * m_textView        = nullptr;
     DxuiHexView          * m_hexView         = nullptr;
     PreviewBytes           m_previewBytes;
     DxuiFramebufferView  * m_picture         = nullptr;

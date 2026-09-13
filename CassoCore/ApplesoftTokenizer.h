@@ -87,6 +87,11 @@ struct ApplesoftListingError
     //  The lines read before the one that failed, for a caller that shows what
     //  a file cut off in its last line does hold.
     std::string  partialListing;
+
+    //  The number of the last line read whole, which names where a file that
+    //  ends between two lines was cut.
+    uint32_t     lastLineNumber    = 0;
+    bool         hasLastLineNumber = false;
 };
 
 
