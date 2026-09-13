@@ -2877,15 +2877,13 @@ void EmulatorShell::ApplyControllerSelectionChange (const std::wstring & descrip
         return;
     }
 
-    if (reason == SelectionChangeReason::AutomaticSelection && !description.empty())
+    // Only a disconnect is announced, and only by the controller that left. A
+    // selection needs no notice: the picker on the command bar shows what is
+    // selected, or "Controller" when nothing is, and it is the one thing the
+    // bar can no longer show once a controller has gone.
+    if ((reason == SelectionChangeReason::Replacement || reason == SelectionChangeReason::Cleared)
+        && !description.empty())
     {
-        ShowNotice (L"Controller selected: " + description);
-    }
-    else if ((reason == SelectionChangeReason::Replacement || reason == SelectionChangeReason::Cleared)
-             && !description.empty())
-    {
-        // Only what left. The picker on the command bar already shows what
-        // took over, or "Controller" when nothing did.
         ShowNotice (description + L" disconnected.");
     }
 }

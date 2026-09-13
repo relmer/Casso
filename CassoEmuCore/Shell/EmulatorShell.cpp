@@ -452,9 +452,7 @@ HRESULT EmulatorShell::Initialize (
             {
                 std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
-                m_controllerPickDescription = (decision.reason == SelectionChangeReason::AutomaticSelection)
-                                              ? decision.description
-                                              : decision.departedDescription;
+                m_controllerPickDescription = decision.departedDescription;
                 m_controllerPickReason      = decision.reason;
                 m_controllerPickHasNotice   = decision.isAnnounced;
             }

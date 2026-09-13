@@ -55,11 +55,11 @@ The program reads `PDL(0)` through `PDL(3)` and peeks `49249`, `49250` and `4925
 
 | # | Steps | Expected | Spec |
 |---|---|---|---|
-| 1 | Fresh machine prefs, arrows-to-joystick on. Plug in the Xbox controller. | Notice says which controller was selected; arrows-to-joystick is off; stick at rest reads 127/128. | FR-032, US1 |
+| 1 | Fresh machine prefs, arrows-to-joystick on. Plug in the Xbox controller. | The picker shows the controller; arrows-to-joystick is off; stick at rest reads 127/128. | FR-032, US1 |
 | 2 | Push the stick to each extreme; half deflection; press A and B. | 0 and 255 at extremes; roughly halfway at half deflection; PB0/PB1 read 1. | FR-003-005, SC-004 |
 | 3 | Leave the stick untouched for 10 s. | Both paddles stay exactly at center. | SC-003 |
 | 4 | With only the Xbox controller attached, hold the stick right and A, then unplug. | Within 100 ms both paddles center and both buttons release; the notice names the controller and the picker reads "Controller"; the arrow keys do not move the paddles and X/Z still type. | FR-010, FR-008a, FR-013, SC-005 |
-| 5 | Plug it back in. Then attach the DirectInput joystick, unplug the Xbox controller, and plug it back in. | The Xbox controller is selected again within 2 s. When it is unplugged the joystick becomes the selection with a notice; when it returns the joystick keeps the axes and the Xbox row is unchecked. | FR-008a, FR-032, SC-005 |
+| 5 | Plug it back in. Then attach the DirectInput joystick, unplug the Xbox controller, and plug it back in. | The Xbox controller is selected again within 2 s. When it is unplugged the joystick becomes the selection and the notice names the Xbox controller; when it returns the joystick keeps the axes and the Xbox row is unchecked. | FR-008a, FR-032, SC-005 |
 | 6 | Hold the stick right and A; activate another application; release; reactivate Casso. | On deactivation both paddles center and both buttons release; nothing moves while inactive; input resumes on reactivation. With the Settings sheet active, input still applies. | FR-033 |
 | 7 | Settings > Controllers: edit the Default profile, assign the D-pad to both axes and LT to PB0, Apply; restart Casso. | D-pad drives the paddles to 0/255; LT past its threshold reads PB0 = 1; the mapping survives the restart. | FR-012, FR-019-022, SC-008 |
 | 8 | Create profile "D-pad" as a copy of Default, reset Default, make "D-pad" active, restart Casso, switch machines and back. | "D-pad" still active on that machine with the D-pad mapping; Default active on the other with the default mapping. | FR-026-029, SC-006 |
