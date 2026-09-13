@@ -610,5 +610,69 @@ namespace ControllerTests
             service.Tick();
             Assert::IsTrue (service.GetSnapshot().selection.value() == pad.unit, L"the machine switched to selects the attached controller");
         }
+
+        TEST_METHOD (Saved_ATakeoverAndAClearDoNotOverwriteIt)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            ControllerDeviceInfo    pad   = MakePadDevice ("{AAAA}", L"First Pad");
+            ControllerUnitKey       xbox  = MakeXboxDevice().unit;
+
+            // A machine with the Xbox controller saved, switched to while it
+            // is off and the stick is attached.
+            backend.AddDevice (stick);
+            service.SetSelection (xbox);
+            service.Tick();
+            Assert::IsTrue (service.GetSnapshot().selection.value() == stick.unit, L"the stick takes over");
+            Assert::IsTrue (service.GetSnapshot().saved.value() == xbox,           L"but the machine still has the Xbox saved");
+
+            backend.RemoveDevice (stick.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+            Assert::IsFalse (service.GetSnapshot().selection.has_value(), L"with nothing attached, nothing is in use");
+            Assert::IsTrue  (service.GetSnapshot().saved.value() == xbox, L"and an unplug does not write nothing over the saved one");
+
+            backend.AddDevice (pad);
+            service.OnDevicesChanged();
+            service.Tick();
+            Assert::IsTrue (service.GetSnapshot().selection.value() == pad.unit, L"the next controller to connect drives");
+            Assert::IsTrue (service.GetSnapshot().saved.value() == xbox,         L"without becoming the saved one");
+        }
+
+
+        TEST_METHOD (Saved_TheFirstAutomaticSelectionIsKeptWhereNothingWasSaved)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    pad = MakePadDevice ("{AAAA}", L"First Pad");
+
+            backend.AddDevice (pad);
+            service.Tick();
+
+            Assert::IsTrue (service.GetSnapshot().saved.value() == pad.unit,
+                L"a machine with nothing saved keeps the controller it first selected");
+        }
+
+
+        TEST_METHOD (Saved_APickOfTheControllerInUseSavesIt)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            ControllerUnitKey       xbox  = MakeXboxDevice().unit;
+
+            backend.AddDevice (stick);
+            service.SetSelection (xbox);
+            service.Tick();
+
+            service.SetSelection (stick.unit);   // the checked row, picked on purpose
+
+            Assert::IsTrue (service.GetSnapshot().saved.value() == stick.unit,
+                L"picking the controller that took over makes it the saved one");
+        }
     };
 }

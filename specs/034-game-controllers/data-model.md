@@ -186,7 +186,7 @@ Inputs: machine selection, attached devices, connect events, machine has game po
 |---|---|---|
 | Connect (incl. present at start or machine switch) | none, or saved and absent | Select the lone attached unit of a saved DirectInput model if there is exactly one, else the first device in enumeration order, turn off arrows-to-joystick and mouse-to-paddle, no notice (FR-032) |
 | Connect | set (any) | No change (FR-032) |
-| Disconnect of selected | set | Rest contribution; the longest-attached unassigned controller becomes the selection and is persisted, else selection none; notice naming the controller that left (FR-008a, FR-010, FR-013) |
+| Disconnect of selected | set | Rest contribution; the longest-attached unassigned controller becomes the selection for the session (the saved controller is unchanged), else selection none; notice naming the controller that left (FR-008a, FR-010, FR-013) |
 | User selects arrows or paddle | set | Selection cleared for the machine |
 | Machine has no game port | any | Policy inert (FR-017) |
 

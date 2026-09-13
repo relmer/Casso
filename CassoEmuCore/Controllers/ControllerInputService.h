@@ -43,6 +43,11 @@ public:
     {
         std::vector<ControllerDeviceInfo>  devices;
         std::optional<ControllerUnitKey>   selection;
+
+        // What the machine keeps: the controller the user picked, or the first
+        // one selected for a machine that had none. A takeover or a clear
+        // moves `selection` for the session and leaves this alone (FR-011).
+        std::optional<ControllerUnitKey>   saved;
         ControllerSample                   lastSample;
         bool                               isSelectedConnected = false;
     };
@@ -114,6 +119,7 @@ private:
     ControlMapping                       m_mapping;
     std::vector<ControllerDeviceInfo>    m_devices;
     std::optional<ControllerUnitKey>     m_selection;
+    std::optional<ControllerUnitKey>     m_saved;
 
     // When each attached controller was first seen, so the one that takes
     // over from a controller that leaves is the one that has been there

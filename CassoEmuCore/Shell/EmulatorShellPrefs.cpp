@@ -286,7 +286,9 @@ void EmulatorShell::PersistInputModeForMachine()
     // of the three touches at least two of the keys.
     if (m_controllerService != nullptr)
     {
-        std::optional<ControllerUnitKey>  selection = m_controllerService->GetSnapshot().selection;
+        // The saved controller, not the one in use: a takeover or a clear is
+        // for the session only (FR-011).
+        std::optional<ControllerUnitKey>  selection = m_controllerService->GetSnapshot().saved;
 
         if (selection.has_value())
         {
