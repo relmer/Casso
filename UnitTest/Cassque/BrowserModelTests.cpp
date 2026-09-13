@@ -99,6 +99,24 @@ public:
 
 
 
+    TEST_METHOD (Address_ProfileFolderIsOneSegmentUnderItsOwnName)
+    {
+        BrowserModel::AddressRoot                  root    { L"C:\\Users\\relmer", L"Rob Elmer" };
+        std::vector<BrowserModel::AddressSegment>  inside  = BrowserModel::GetAddressSegments (Folder (L"C:\\Users\\relmer\\source\\repos"), root);
+        std::vector<BrowserModel::AddressSegment>  outside = BrowserModel::GetAddressSegments (Folder (L"C:\\Users\\relmerx"), root);
+
+        Assert::AreEqual ((size_t) 3, inside.size());
+        Assert::AreEqual (std::wstring (L"Rob Elmer"), inside[0].label, L"The profile folder reads as its owner's name, as in Explorer");
+        Assert::IsTrue   (inside[0].location == Folder (L"C:\\Users\\relmer"));
+        Assert::AreEqual (std::wstring (L"source"), inside[1].label);
+        Assert::IsTrue   (inside[2].location == Folder (L"C:\\Users\\relmer\\source\\repos"));
+
+        Assert::AreEqual ((size_t) 3, outside.size(), L"A folder whose name only starts the same way is not inside it");
+        Assert::AreEqual (std::wstring (L"C:"), outside[0].label);
+    }
+
+
+
     TEST_METHOD (Address_HomeAndShareRoots)
     {
         std::vector<BrowserModel::AddressSegment>  home  = BrowserModel::GetAddressSegments (Location());

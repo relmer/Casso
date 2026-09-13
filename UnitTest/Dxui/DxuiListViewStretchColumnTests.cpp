@@ -93,3 +93,44 @@ public:
             L"A stretch column with no declared width has no floor, as before");
     }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListViewCopyTests
+//
+//  The text Copy puts on the clipboard, and when Copy is offered at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiListViewCopyTests)
+{
+public:
+
+    TEST_METHOD (SelectionText_IsTheSelectedRowsInOrder_CellsTabSeparated)
+    {
+        DxuiListView                                  list;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        bool                                          enabled = false;
+
+        rows.push_back ({ DxuiListView::Cell { L"HELLO", false }, DxuiListView::Cell { L"BAS", false } });
+        rows.push_back ({ DxuiListView::Cell { L"NOTES", false }, DxuiListView::Cell { L"TXT", false } });
+        rows.push_back ({ DxuiListView::Cell { L"ODD",   false }, DxuiListView::Cell { L"BIN", false } });
+
+        list.SetMultiSelect (true);
+        list.SetRows (std::move (rows));
+
+        Assert::IsFalse  (list.QueryCommand (DxuiStandardCommand::Copy, enabled),
+            L"Copy is offered only by a list with a window to own the clipboard");
+
+        list.SetOwnerWindow ((HWND) 1);
+        list.SelectAllRows();
+
+        Assert::IsTrue   (list.QueryCommand (DxuiStandardCommand::Copy, enabled));
+        Assert::IsTrue   (enabled);
+        Assert::AreEqual (std::wstring (L"HELLO\tBAS\r\nNOTES\tTXT\r\nODD\tBIN\r\n"), list.GetSelectionText());
+    }
+};

@@ -213,4 +213,39 @@ public:
         f.Click (20);
         Assert::AreEqual (0, clicked, L"With room for every segment the first starts at the edge");
     }
+
+
+    TEST_METHOD (ClearButton_EmptiesTheFieldAndKeepsEditing)
+    {
+        Fixture  f;
+
+        f.LayOut (400);
+        f.bar.BeginEdit();
+        f.Click (390);
+
+        Assert::IsTrue (f.bar.IsEditing());
+        Assert::IsTrue (f.bar.GetEditText().empty(), L"The button at the right end empties the field, as Explorer's does");
+    }
+
+
+    TEST_METHOD (OpenSeparator_TurnsItsChevronDownAndBack)
+    {
+        Fixture  f;
+        int64_t  now = 1000;
+
+        f.LayOut (400);
+        f.bar.SetOpenSeparator (1);
+        Assert::IsTrue (f.bar.WantsTick(), L"Opening a separator's menu starts its chevron turning");
+
+        for (int i = 0; i < 100 && f.bar.WantsTick(); i++)
+        {
+            now += 16;
+            f.bar.Tick (now);
+        }
+
+        Assert::IsFalse (f.bar.WantsTick(), L"and it comes to rest");
+
+        f.bar.SetOpenSeparator (-1);
+        Assert::IsTrue  (f.bar.WantsTick(), L"Closing the menu turns it back");
+    }
 };

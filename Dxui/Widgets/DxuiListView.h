@@ -191,6 +191,11 @@ public:
     // Selects every row, when multiple selection is on.
     void                      SelectAllRows   ();
 
+    //  Copy is offered once a window to own the clipboard is set: the selected
+    //  rows as text, one to a line, their cells separated by tabs.
+    void                      SetOwnerWindow  (HWND hwnd)    { m_ownerHwnd = hwnd; }
+    std::wstring              GetSelectionText () const;
+
     // Opt-in keyboard column navigation. When enabled, OnKey walks the
     // header / divider sub-stops and the list body via Tab and acts on
     // them (sort on a header, resize on a divider, row moves in the body)
@@ -497,9 +502,10 @@ private:
     bool    OnKeyBodyHeaderNav       (const DxuiKeyEvent & ev);
     void    ApplyBodyHeaderFocus     ();
     void    MoveHeaderFocus          (int dir);
-    const IDxuiTheme                * m_theme      = nullptr;
+    const IDxuiTheme                * m_theme     = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
+    HWND                              m_ownerHwnd = nullptr;
     // Per-column pixel width fitted to the header + widest cell via
     // MeasureColumnsPx (DWrite). Monotonic and persists across SetRows so
     // filter/sort don't collapse content-fit columns; reset by SetColumns.

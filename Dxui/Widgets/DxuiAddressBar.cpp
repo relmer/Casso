@@ -3,6 +3,7 @@
 
 #include "DxuiAddressBar.h"
 #include "Core/UnicodeSymbols.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -60,8 +61,10 @@ void DxuiAddressBar::BeginEdit()
 
 void DxuiAddressBar::EndEdit()
 {
-    m_editing = false;
-    m_pressed = Hit();
+    m_editing      = false;
+    m_pressed      = Hit();
+    m_clearHover   = false;
+    m_clearPressed = false;
     m_input.SetFocused (false);
 }
 
@@ -83,7 +86,11 @@ DxuiAddressBar::Hit DxuiAddressBar::HitTest (int x, int y) const
 
 
 
-    if (inside)
+    if (inside && m_editing)
+    {
+        hit.part = (x >= GetClearRect().left) ? Part::Clear : Part::Blank;
+    }
+    else if (inside)
     {
         hit.part = Part::Blank;
 
@@ -133,7 +140,7 @@ void DxuiAddressBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     padX = m_scaler.ToPx (s_kPadXDip);
 
-    m_input.Layout (RECT { boundsDip.left + padX, boundsDip.top, boundsDip.right - padX, boundsDip.bottom }, m_scaler);
+    m_input.Layout (RECT { boundsDip.left + padX, boundsDip.top, boundsDip.right - m_scaler.ToPx (s_kClearDip), boundsDip.bottom }, m_scaler);
     LayoutSegments();
 }
 
@@ -254,6 +261,8 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float            h       = (float) (m_boundsDip.bottom - m_boundsDip.top);
     float            radius  = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
     float            accent  = (float) m_scaler.ToPx (2);   // the editing field's accent underline
+    float            inset   = (float) m_scaler.ToPx (s_kHoverInsetDip);
+    RECT             clear   = GetClearRect();
     const wchar_t  * face    = (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
     int              i       = 0;
 
@@ -271,7 +280,7 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (m_editing)
     {
-        painter.OutlineRoundedRect (x, y, w, h, radius, 1.0f, (theme.Foreground() & 0x00FFFFFFu) | 0x18000000u);
+        painter.OutlineRoundedRect (x, y, w, h, radius, 1.0f, (theme.Foreground() & 0x00FFFFFFu) | 0x40000000u);
         painter.FillRect (x + radius, y + h - accent, w - radius * 2.0f, accent, theme.Accent());
     }
     else if (m_focused)
@@ -282,6 +291,24 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     if (m_editing)
     {
         m_input.Paint (painter, text, theme);
+
+        if (m_clearHover || m_clearPressed)
+        {
+            painter.FillRoundedRect ((float) clear.left + inset, (float) clear.top + inset,
+                                     (float) (clear.right - clear.left) - inset * 2.0f, (float) (clear.bottom - clear.top) - inset * 2.0f,
+                                     radius, m_clearPressed ? theme.SystemButtonPressed() : theme.SystemButtonHover());
+        }
+
+        hr = text.DrawString (s_kpszMdl2Cancel,
+                              (float) clear.left, y, (float) (clear.right - clear.left), h,
+                              theme.Foreground(),
+                              m_scaler.ToPxf (s_kCancelDip),
+                              m_iconFace,
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal,
+                              false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
         return;
     }
 
@@ -303,16 +330,7 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.DrawString (s_kpszMdl2ChevronRight,
-                              (float) m_overflowSep.left, y, (float) (m_overflowSep.right - m_overflowSep.left), h,
-                              theme.Foreground(),
-                              m_scaler.ToPxf (s_kChevronDip),
-                              m_iconFace,
-                              DxuiTextHAlign::Center,
-                              DxuiTextVAlign::Center,
-                              DxuiFontWeight::Normal,
-                              false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        PaintChevron (painter, m_overflowSep, 0.0f, theme.Foreground());
     }
 
     for (i = m_firstShown; i < (int) m_labels.size(); i++)
@@ -334,16 +352,7 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.DrawString (s_kpszMdl2ChevronRight,
-                              (float) sep.left, y, (float) (sep.right - sep.left), h,
-                              theme.Foreground(),
-                              m_scaler.ToPxf (s_kChevronDip),
-                              m_iconFace,
-                              DxuiTextHAlign::Center,
-                              DxuiTextVAlign::Center,
-                              DxuiFontWeight::Normal,
-                              false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        PaintChevron (painter, sep, (i == m_chevronIndex) ? m_chevronAngle : 0.0f, theme.Foreground());
     }
 
     hr = text.PopClipRect();
@@ -386,6 +395,122 @@ void DxuiAddressBar::PaintHover (IDxuiPainter & painter, const IDxuiTheme & them
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiAddressBar::GetClearRect
+//
+//  The clear button at the field's right end while it is being edited.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiAddressBar::GetClearRect() const
+{
+    return RECT { m_boundsDip.right - m_scaler.ToPx (s_kClearDip), m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAddressBar::PaintChevron
+//
+//  Two strokes meeting at a point, turned about the separator's center: at
+//  0 degrees it points right, at 90 down. Drawn rather than set from a font so
+//  it can turn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiAddressBar::PaintChevron (IDxuiPainter & painter, const RECT & rc, float angleDegrees, uint32_t argb) const
+{
+    constexpr float  s_kPi = 3.14159265f;
+
+
+
+    float  cx    = (float) (rc.left + rc.right) * 0.5f;
+    float  cy    = (float) (rc.top + rc.bottom) * 0.5f;
+    float  halfH = m_scaler.ToPxf (s_kChevronHalfDip);
+    float  depth = m_scaler.ToPxf (s_kChevronDepthDip);
+    float  thick = (std::max) (1.0f, m_scaler.ToPxf (s_kChevronStrokeDip));
+    float  c     = std::cos (angleDegrees * s_kPi / 180.0f);
+    float  s     = std::sin (angleDegrees * s_kPi / 180.0f);
+    float  tipX  = cx + depth * 0.5f * c;
+    float  tipY  = cy + depth * 0.5f * s;
+
+
+
+    painter.DrawLineApprox (cx - depth * 0.5f * c + halfH * s, cy - depth * 0.5f * s - halfH * c, tipX, tipY, thick, argb);
+    painter.DrawLineApprox (cx - depth * 0.5f * c - halfH * s, cy - depth * 0.5f * s + halfH * c, tipX, tipY, thick, argb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAddressBar::SetOpenSeparator
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiAddressBar::SetOpenSeparator (int index)
+{
+    if (index >= 0)
+    {
+        m_chevronIndex  = index;
+        m_chevronAngle  = 0.0f;
+        m_chevronTarget = 90.0f;
+    }
+    else
+    {
+        m_chevronTarget = 0.0f;
+    }
+
+    m_lastTickMs = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAddressBar::Tick
+//
+//  Turns the open chevron a quarter turn over s_kTurnMs, or at once when
+//  Windows animations are off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiAddressBar::Tick (int64_t nowMs)
+{
+    float  elapsed = (m_lastTickMs > 0) ? (float) (nowMs - m_lastTickMs) : 16.0f;
+    float  step    = DxuiSystemSettings::Instance().AreMenuAnimationsEnabled() ? 90.0f * elapsed / s_kTurnMs : 90.0f;
+
+
+
+    m_lastTickMs = nowMs;
+
+    if (m_chevronAngle < m_chevronTarget)
+    {
+        m_chevronAngle = (std::min) (m_chevronTarget, m_chevronAngle + step);
+    }
+    else
+    {
+        m_chevronAngle = (std::max) (m_chevronTarget, m_chevronAngle - step);
+    }
+
+    if (m_chevronAngle == m_chevronTarget)
+    {
+        m_lastTickMs = 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiAddressBar::OnMouse
 //
 //  While editing, the text field takes the pointer. Otherwise what was
@@ -404,7 +529,29 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (m_editing)
+    if (m_editing && ev.kind == DxuiMouseEventKind::Move)
+    {
+        handled      = (hit.part == Part::Clear) != m_clearHover;
+        m_clearHover = hit.part == Part::Clear;
+        handled      = m_input.OnMouse (ev) || handled;
+    }
+    else if (m_editing && left && ev.kind == DxuiMouseEventKind::Down && hit.part == Part::Clear)
+    {
+        m_clearPressed = true;
+        handled        = true;
+    }
+    else if (m_editing && left && ev.kind == DxuiMouseEventKind::Up && m_clearPressed)
+    {
+        if (hit.part == Part::Clear)
+        {
+            m_input.SetText    (std::wstring());
+            m_input.SetFocused (true);
+        }
+
+        m_clearPressed = false;
+        handled        = true;
+    }
+    else if (m_editing)
     {
         if (ev.kind == DxuiMouseEventKind::Down && left)
         {

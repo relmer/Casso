@@ -18,8 +18,8 @@
 //  before it with the separator's rect, for the host to hang a menu from. A
 //  click past the last separator, or Enter or F4 while the bar has focus,
 //  turns the bar into a text field holding the location's path, all selected.
-//  Enter reports what was typed, and Escape or a loss of focus puts the
-//  segments back.
+//  Enter reports what was typed, an X at the right end empties the field, and
+//  Escape or a loss of focus puts the segments back.
 //
 //  Segments and separators light on hover and press with Windows' subtle fills
 //  in rounded cards inset from the bar's edges, as Explorer's do.
@@ -42,7 +42,7 @@ public:
     using SubmitFn    = std::function<void (const std::wstring & text)>;
 
     //  What lies under a point.
-    enum class Part { None, Overflow, Segment, Separator, Blank };
+    enum class Part { None, Overflow, Segment, Separator, Blank, Clear };
 
     struct Hit
     {
@@ -69,11 +69,16 @@ public:
     void  SetFont         (const wchar_t * face, float sizeDip)   { m_face = face; m_fontDip = sizeDip; m_input.SetFont (face, sizeDip); LayoutSegments(); }
     void  SetIconFace     (const wchar_t * face)                  { m_iconFace = face; }
 
+    //  The chevron of the separator whose menu is open turns to point down,
+    //  and back when it closes (-1); the host ticks the turn.
+    void  SetOpenSeparator (int index);
+
     void  BeginEdit ();
     void  EndEdit   ();
 
     bool                 IsEditing     () const { return m_editing; }
-    bool                 IsInteracting () const { return m_pressed.part != Part::None; }
+    bool                 IsInteracting () const { return m_pressed.part != Part::None || m_clearPressed; }
+    bool                 WantsTick     () const { return m_chevronAngle != m_chevronTarget; }
     const std::wstring & GetEditText   () const { return m_input.GetText(); }
     int                  GetFirstShown () const { return m_firstShown; }
     Hit                  HitTest       (int x, int y) const;
@@ -83,22 +88,31 @@ public:
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     void                OnFocusChanged    (bool focused) override;
+    void                Tick              (int64_t nowMs) override;
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override { return m_editing && m_input.QueryCommand (command, outEnabled); }
     bool                InvokeCommand     (DxuiStandardCommand command) override                      { return m_editing && m_input.InvokeCommand (command); }
     std::wstring        GetAccessibleName () const override { return m_path; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 
 private:
-    static constexpr float  s_kChevronDip    = 12.0f;
-    static constexpr int    s_kPadXDip       = 4;
-    static constexpr int    s_kSegmentPadDip = 8;
-    static constexpr int    s_kSeparatorDip  = 28;
-    static constexpr int    s_kHoverInsetDip = 4;
-    static constexpr int    s_kOverflowDip   = 32;
+    static constexpr float  s_kChevronDip       = 12.0f;
+    static constexpr int    s_kPadXDip          = 4;
+    static constexpr int    s_kSegmentPadDip    = 8;
+    static constexpr int    s_kSeparatorDip     = 28;
+    static constexpr int    s_kHoverInsetDip    = 4;
+    static constexpr int    s_kOverflowDip      = 32;
+    static constexpr int    s_kClearDip         = 32;
+    static constexpr float  s_kCancelDip        = 10.0f;
+    static constexpr float  s_kTurnMs           = 150.0f;   // a chevron's quarter turn
+    static constexpr float  s_kChevronHalfDip   = 4.5f;   // half the chevron's height, measured off Explorer
+    static constexpr float  s_kChevronDepthDip  = 4.5f;
+    static constexpr float  s_kChevronStrokeDip = 1.25f;
 
     void  LayoutSegments ();
     int   MeasurePx      (const std::wstring & label) const;
     void  PaintHover     (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, const Hit & hit) const;
+    void  PaintChevron   (IDxuiPainter & painter, const RECT & rc, float angleDegrees, uint32_t argb) const;
+    RECT  GetClearRect   () const;
 
     std::vector<std::wstring>    m_labels;
     std::vector<RECT>            m_rects;
@@ -114,11 +128,17 @@ private:
     IDxuiTextRenderer          * m_renderer    = nullptr;
     const wchar_t              * m_face        = nullptr;
     const wchar_t            * m_iconFace   = L"Segoe MDL2 Assets";
-    float                      m_fontDip    = kFontDip;
-    DxuiDpiScaler              m_scaler;
-    int                        m_firstShown = 0;
-    Hit                        m_hover;
-    Hit                        m_pressed;
-    bool                       m_editing    = false;
-    bool                       m_focused    = false;
+    float          m_fontDip       = kFontDip;
+    DxuiDpiScaler  m_scaler;
+    int            m_firstShown    = 0;
+    Hit            m_hover;
+    Hit            m_pressed;
+    bool           m_editing       = false;
+    bool           m_focused       = false;
+    int            m_chevronIndex  = -1;
+    float          m_chevronAngle  = 0.0f;
+    float          m_chevronTarget = 0.0f;
+    int64_t        m_lastTickMs    = 0;
+    bool           m_clearHover    = false;
+    bool           m_clearPressed  = false;
 };

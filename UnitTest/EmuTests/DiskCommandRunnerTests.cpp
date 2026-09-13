@@ -3880,11 +3880,11 @@ public:
                             == std::string::npos,
             L"and not the old one");
 
-        Assert::IsTrue (result.diagnostics.find ("35 tracks x 16 sectors x 256 bytes")
+        Assert::IsTrue (result.diagnostics.find ("35 tracks, 16 sectors, 256 bytes per sector")
                             != std::string::npos,
             L"the geometry is still knowable and is still worth stating");
 
-        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 holds a boot program")
+        Assert::IsTrue (result.diagnostics.find ("sector 0 contains boot code")
                             != std::string::npos,
             L"and so is the fact that it boots");
 
@@ -3910,7 +3910,7 @@ public:
 
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List, path));
 
-        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 is blank")
+        Assert::IsTrue (result.diagnostics.find ("sector 0 is blank")
                             != std::string::npos,
             L"an empty first sector is reported as empty, not as bootable");
     }

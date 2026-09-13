@@ -296,6 +296,7 @@ void CassqueWindow::ConfigureWidgets()
 
 
     m_menuBar->SetItems (m_commands.BuildMenuItems());
+    m_addressRoot = GetProfileRoot();
 
     m_browser.GetTreeRoots (roots);
 
@@ -353,6 +354,8 @@ void CassqueWindow::ConfigureWidgets()
     m_previewList->SetRowHeightDip (kPreviewRowHeightDip);
     m_previewList->SetHorizontalScrollEnabled (true);
     m_previewList->SetPreciseAutoFit (true);
+    m_previewList->SetMultiSelect (true);
+    m_previewList->SetOwnerWindow (GetHwnd());
 
     //  The bytes are Apple text in the column on the right, which is what
     //  the files here hold; the grouping is the user's, kept between runs.
@@ -606,6 +609,7 @@ void CassqueWindow::RecomputeLayout()
         m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (previewRect, m_scaler);
         m_previewMessage->Layout (previewRect, m_scaler);
+        m_previewRect = previewRect;
     }
     else
     {
@@ -637,6 +641,15 @@ void CassqueWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     painter.FillRect ((float) bounds.left, (float) bounds.top,
                       (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top), theme.Background());
+
+    //  Every preview draws on the content surface, a message included, which
+    //  has no background of its own.
+    if (m_prefs.previewVisible && m_previewRect.right > m_previewRect.left)
+    {
+        painter.FillRect ((float) m_previewRect.left, (float) m_previewRect.top,
+                          (float) (m_previewRect.right - m_previewRect.left), (float) (m_previewRect.bottom - m_previewRect.top),
+                          theme.ContentBackground());
+    }
 
     DxuiWindow::Paint (painter, text, theme);
 }
@@ -711,6 +724,7 @@ void CassqueWindow::FillPreview()
     bool                                          error   = preview.kind == PreviewContent::Kind::Error;
     bool                                          catalog = preview.kind == PreviewContent::Kind::Catalog;
     bool                                          hex     = preview.kind == PreviewContent::Kind::Hex && !preview.bytes.empty();
+    bool                                          details = preview.kind == PreviewContent::Kind::Details;
 
 
 
@@ -725,7 +739,17 @@ void CassqueWindow::FillPreview()
 
     //  A DOS 3.3 or ProDOS catalog arrives as its own listing's lines; any
     //  other volume's arrives as rows, under columns fitted to them.
-    if (catalog && preview.lines.empty())
+    if (details)
+    {
+        m_previewList->SetShowHeader (false);
+        m_previewList->SetColumns ({ DxuiListView::Column { L"", 0, false }, DxuiListView::Column { L"", 0, true } });
+
+        for (const std::pair<std::wstring, std::wstring> & field : preview.details)
+        {
+            rows.push_back ({ DxuiListView::Cell { field.first, true }, DxuiListView::Cell { field.second, false } });
+        }
+    }
+    else if (catalog && preview.lines.empty())
     {
         m_previewList->SetShowHeader (true);
         m_previewList->SetColumns (CassqueBrowser::GetCatalogPreviewColumns());
@@ -2423,7 +2447,7 @@ void CassqueWindow::FillAddress()
 
 
 
-    m_addressSegments = BrowserModel::GetAddressSegments (location);
+    m_addressSegments = BrowserModel::GetAddressSegments (location, m_addressRoot);
 
     for (const BrowserModel::AddressSegment & segment : m_addressSegments)
     {
@@ -2506,7 +2530,12 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
 
     if (!items.empty())
     {
-        DxuiContextMenu::Show (*GetPopupHost(), anchor.left, anchor.bottom, std::move (items));
+        m_address->SetOpenSeparator (index);
+        DxuiContextMenu::ShowUnder (*GetPopupHost(), anchor, std::move (items), [this] (bool)
+        {
+            m_address->SetOpenSeparator (-1);
+            Invalidate();
+        });
     }
 }
 
@@ -2550,7 +2579,7 @@ void CassqueWindow::ShowAddressOverflowMenu (const RECT & anchor)
 
     if (!items.empty())
     {
-        DxuiContextMenu::Show (*GetPopupHost(), anchor.left, anchor.bottom, std::move (items));
+        DxuiContextMenu::ShowUnder (*GetPopupHost(), anchor, std::move (items));
     }
 }
 
@@ -2605,7 +2634,7 @@ void CassqueWindow::ShowHistoryMenu (bool forward, const RECT & anchor)
 
     if (!items.empty())
     {
-        DxuiContextMenu::Show (*GetPopupHost(), anchor.left, anchor.bottom, std::move (items));
+        DxuiContextMenu::ShowUnder (*GetPopupHost(), anchor, std::move (items));
     }
 }
 
@@ -2634,6 +2663,54 @@ std::wstring CassqueWindow::EscapeMnemonics (const std::wstring & text)
     }
 
     return escaped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetProfileRoot
+//
+//  The user's profile folder and the name the shell gives it, which is the
+//  user's own name; empty when the shell will not say.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BrowserModel::AddressRoot CassqueWindow::GetProfileRoot()
+{
+    BrowserModel::AddressRoot  root;
+    PIDLIST_ABSOLUTE           pidl = nullptr;
+    PWSTR                      path = nullptr;
+    PWSTR                      name = nullptr;
+    HRESULT                    hr   = S_OK;
+
+
+
+    hr = SHGetKnownFolderIDList (FOLDERID_Profile, 0, nullptr, &pidl);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = SHGetNameFromIDList (pidl, SIGDN_FILESYSPATH, &path);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        hr = SHGetNameFromIDList (pidl, SIGDN_NORMALDISPLAY, &name);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        root.path  = path;
+        root.label = name;
+    }
+
+    CoTaskMemFree (name);
+    CoTaskMemFree (path);
+    CoTaskMemFree (pidl);
+
+    return root;
 }
 
 
@@ -3091,6 +3168,12 @@ DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
     if (m_tooltip.WantsTick())
     {
         m_tooltip.Tick (GetNowMs());
+    }
+
+    if (m_address->WantsTick())
+    {
+        m_address->Tick (GetNowMs());
+        Invalidate();
     }
 
     //  Menus slide open and submenus wait out a delay, both on ticks the host

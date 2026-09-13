@@ -457,7 +457,7 @@ void BrowserModel::GetLocations (std::vector<Location> & outLocations) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (const Location & location)
+std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (const Location & location, const AddressRoot & root)
 {
     std::vector<AddressSegment>  segments;
     size_t                       slash = 0;
@@ -469,13 +469,13 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
     switch (location.kind)
     {
         case Location::Kind::HostFolder:
-            AppendHostSegments (location.path, segments);
+            AppendHostSegments (location.path, root, segments);
             break;
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
             slash = location.path.rfind (L'\\');
-            AppendHostSegments (location.path.substr (0, (slash == std::wstring::npos) ? 0 : slash), segments);
+            AppendHostSegments (location.path.substr (0, (slash == std::wstring::npos) ? 0 : slash), root, segments);
             segments.push_back (AddressSegment { location.path.substr (slash + 1), Location::MakeDiskImage (location.path) });
             break;
 
@@ -513,20 +513,33 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 //
 //  BrowserModel::AppendHostSegments
 //
-//  The first segment is the drive, or a share's server and share together,
-//  as Explorer shows them.
+//  The first segment is the drive, or a share's server and share together, or
+//  the root folder under its own name when the path is inside it, as Explorer
+//  shows them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BrowserModel::AppendHostSegments (const std::wstring & path, std::vector<AddressSegment> & outSegments)
+void BrowserModel::AppendHostSegments (const std::wstring & path, const AddressRoot & root, std::vector<AddressSegment> & outSegments)
 {
     std::wstring  prefix;
     size_t        slash  = std::wstring::npos;
     size_t        start  = 0;
+    bool          inRoot = false;
 
 
 
-    if (path.compare (0, 2, L"\\\\") == 0)
+    inRoot = !root.path.empty()
+             && path.size() >= root.path.size()
+             && _wcsnicmp (path.c_str(), root.path.c_str(), root.path.size()) == 0
+             && (path.size() == root.path.size() || path[root.path.size()] == L'\\');
+
+    if (inRoot)
+    {
+        prefix = path.substr (0, root.path.size());
+        slash  = (path.size() == root.path.size()) ? std::wstring::npos : root.path.size();
+        outSegments.push_back (AddressSegment { root.label, Location::MakeHostFolder (prefix) });
+    }
+    else if (path.compare (0, 2, L"\\\\") == 0)
     {
         slash  = path.find (L'\\', 2);
         slash  = (slash == std::wstring::npos) ? slash : path.find (L'\\', slash + 1);

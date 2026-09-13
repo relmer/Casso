@@ -173,6 +173,7 @@ private:
     void  ShowHistoryMenu (bool forward, const RECT & anchor);
 
     static std::wstring  EscapeMnemonics (const std::wstring & text);
+    static BrowserModel::AddressRoot  GetProfileRoot();
     void  SwitchToTab (size_t index);
     void  FillPreview();
     void  FillStatus();
@@ -249,9 +250,11 @@ private:
     const DxuiTheme                            * m_theme           = nullptr;
     DxuiDpiScaler                                m_scaler;
     RECT                                         m_client          = {};
+    RECT                                         m_previewRect     = {};
     Pane                                         m_focus           = Pane::Tree;
     int                                          m_toolbarFocus    = 0;
     std::vector<BrowserModel::AddressSegment>    m_addressSegments;
+    BrowserModel::AddressRoot                    m_addressRoot;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;

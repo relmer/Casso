@@ -585,6 +585,12 @@ void CassqueBrowser::UpdatePreview()
 
         result = m_operations.Read (TextEncoding::WideToNarrow (location.path), entry->name, payload);
 
+        if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
+        {
+            m_preview.kind = PreviewContent::Kind::Details;
+            return;
+        }
+
         if (!result.Succeeded())
         {
             m_preview.kind    = PreviewContent::Kind::Error;
@@ -625,6 +631,12 @@ void CassqueBrowser::UpdatePreview()
     if (!m_model.TryGetCachedCatalog (imagePath, listing, kind))
     {
         result = m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+
+        if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
+        {
+            m_preview.kind = PreviewContent::Kind::Details;
+            return;
+        }
 
         if (!result.Succeeded())
         {

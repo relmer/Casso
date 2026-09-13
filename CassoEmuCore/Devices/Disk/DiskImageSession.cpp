@@ -68,6 +68,12 @@ std::string DiskImageSession::FormatDetailLine (const char * label, const std::s
         text += " ";
     }
 
+    //  A label that fills the column still gets a gap before its value.
+    if (text.size() > kLabelColumn || text.back() != ' ')
+    {
+        text += "  ";
+    }
+
     text += value + "\n";
 
 Error:
@@ -113,19 +119,19 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
 
     BAIL_OUT_IF (!woz.isWoz, S_OK);
 
-    snprintf (note, sizeof (note), "WOZ %d bit-stream image, INFO version %d",
+    snprintf (note, sizeof (note), "WOZ %d, INFO chunk version %d",
               woz.wozVersion, woz.infoVersion);
 
     text += FormatDetailLine ("format",  note);
     text += FormatDetailLine ("creator", woz.creator);
 
-    media = (woz.diskType == WozLoader::kDiskType525) ? "5.25-inch disk"
-          : (woz.diskType == WozLoader::kDiskType35)  ? "3.5-inch disk"
-                                                      : "disk of an unrecorded size";
+    media = (woz.diskType == WozLoader::kDiskType525) ? "5.25-inch"
+          : (woz.diskType == WozLoader::kDiskType35)  ? "3.5-inch"
+                                                      : "size not recorded";
 
     if (woz.writeProtected) { media += ", write-protected"; }
-    if (woz.synchronized)   { media += ", tracks synchronized to each other"; }
-    if (woz.cleaned)        { media += ", cleaned of drive noise"; }
+    if (woz.synchronized)   { media += ", tracks synchronized"; }
+    if (woz.cleaned)        { media += ", drive noise cleaned"; }
 
     text += FormatDetailLine ("media", media);
 
@@ -134,15 +140,14 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         const char *  boot =
             (woz.bootSectorFormat == WozLoader::kBootSector16)   ? "16-sector"
           : (woz.bootSectorFormat == WozLoader::kBootSector13)   ? "13-sector"
-          : (woz.bootSectorFormat == WozLoader::kBootSectorBoth) ? "both 13- and 16-sector"
+          : (woz.bootSectorFormat == WozLoader::kBootSectorBoth) ? "13- and 16-sector"
                                                                  : "not recorded";
 
         text += FormatDetailLine ("boots as", boot);
     }
 
     snprintf (note, sizeof (note),
-              "%d track positions carry data, reached at %d of the 160 quarter-track "
-              "stops the head can make",
+              "%d tracks with data, on %d of the 160 quarter-track positions",
               woz.trackSlotsWithData, woz.quarterTracksWithData);
 
     text += FormatDetailLine ("surface", note);
@@ -236,11 +241,10 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
     // that is an actively misleading thing to say.
     if (!bitStream)
     {
-        snprintf (note, sizeof (note), "%d tracks x %d sectors x %d bytes = %d bytes",
+        snprintf (note, sizeof (note), "%d tracks, %d sectors, %d bytes per sector",
                   NibblizationLayer::kTrackCount,
                   NibblizationLayer::kSectorsPerTrack,
-                  NibblizationLayer::kSectorByteSize,
-                  NibblizationLayer::kImageByteSize);
+                  NibblizationLayer::kSectorByteSize);
 
         text += FormatDetailLine ("geometry", note);
     }
@@ -266,13 +270,9 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         // three. What IS worth saying is that the first of those is ordinary,
         // so a reader does not conclude their disk is broken.
         snprintf (note, sizeof (note),
-                  "of %d tracks, %d read as standard 16-sector data, %d only partly,\n"
-                  "                and %d had no standard address fields at all%s",
-                  trackCount, complete, partial, unformatted,
-                  complete == 0 ? ".\n                A disk that boots and runs can still"
-                                  " read this way: most\n                protected software"
-                                  " wrote a track format of its own"
-                                : "");
+                  "%d of %d tracks are standard 16-sector data, %d are partly, and %d are not%s",
+                  complete, trackCount, partial, unformatted,
+                  complete == 0 ? "; copy-protected disks often use their own track format" : "");
 
         text += FormatDetailLine ("decoded", note);
     }
@@ -283,9 +283,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
     // blank would tell somebody their bootable disk does not boot.
     if (!trackZeroOk)
     {
-        text += FormatDetailLine ("boot sector",
-            "track 0 did not decode as standard sectors, so what it holds\n"
-            "                cannot be judged from here");
+        text += FormatDetailLine ("boot sector", "track 0 is not standard sectors, so its contents are unknown");
     }
     else
     {
@@ -299,12 +297,8 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         }
 
         text += FormatDetailLine ("boot sector",
-                            bootCode
-                                ? "track 0 sector 0 holds a boot program. The drive's ROM\n"
-                                  "                loads that sector and runs it, so this image"
-                                  " boots.\n                Its files are in a layout this tool"
-                                  " does not read"
-                                : "track 0 sector 0 is blank, so nothing here would boot");
+                                  bootCode ? "sector 0 contains boot code, so the disk boots"
+                                           : "sector 0 is blank, so the disk does not boot");
     }
 
     return text;

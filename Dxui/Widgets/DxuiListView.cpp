@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/DxuiClipboard.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiListView.h"
@@ -2911,14 +2912,22 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
 
 bool DxuiListView::QueryCommand (DxuiStandardCommand command, bool & outEnabled) const
 {
-    if (command != DxuiStandardCommand::SelectAll || !m_multiSelect)
+    bool  handled = false;
+
+
+
+    if (command == DxuiStandardCommand::SelectAll && m_multiSelect)
     {
-        return false;
+        outEnabled = !m_rows.empty();
+        handled    = true;
+    }
+    else if (command == DxuiStandardCommand::Copy && m_ownerHwnd != nullptr)
+    {
+        outEnabled = !m_selectedRows.empty();
+        handled    = true;
     }
 
-    outEnabled = !m_rows.empty();
-
-    return true;
+    return handled;
 }
 
 
@@ -2934,20 +2943,20 @@ bool DxuiListView::QueryCommand (DxuiStandardCommand command, bool & outEnabled)
 bool DxuiListView::InvokeCommand (DxuiStandardCommand command)
 {
     bool  enabled = false;
+    bool  handled = QueryCommand (command, enabled);
 
 
 
-    if (!QueryCommand (command, enabled))
-    {
-        return false;
-    }
-
-    if (enabled)
+    if (handled && enabled && command == DxuiStandardCommand::SelectAll)
     {
         SelectAllRows();
     }
+    else if (handled && enabled && command == DxuiStandardCommand::Copy)
+    {
+        DxuiClipboard::SetText (m_ownerHwnd, GetSelectionText());
+    }
 
-    return true;
+    return handled;
 }
 
 
@@ -3951,4 +3960,41 @@ void DxuiListView::MoveHeaderFocus (int dir)
     }
 
     SetFocusedHeaderColumn (GetNthVisibleColumnIndex (next));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetSelectionText
+//
+//  The selected rows in list order, whatever order they were selected in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiListView::GetSelectionText() const
+{
+    std::vector<int>  rows = m_selectedRows;
+    std::wstring      text;
+
+
+
+    std::sort (rows.begin(), rows.end());
+
+    for (int row : rows)
+    {
+        if (row >= 0 && row < (int) m_rows.size())
+        {
+            for (size_t col = 0; col < m_rows[(size_t) row].size(); col++)
+            {
+                text += (col > 0 ? L"\t" : L"") + m_rows[(size_t) row][col].text;
+            }
+
+            text += L"\r\n";
+        }
+    }
+
+    return text;
 }

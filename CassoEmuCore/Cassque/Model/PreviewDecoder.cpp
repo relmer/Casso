@@ -469,3 +469,69 @@ std::wstring PreviewDecoder::FormatProDosDate (const FileEntry & entry)
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::ParseDetails
+//
+//  A detail line is two spaces, a label, and its value from column 16, or
+//  after a two-space gap when the label fills the column. Any other line, such
+//  as the headline naming the image, is not a detail.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std::pair<std::wstring, std::wstring>> & outDetails)
+{
+    constexpr size_t  s_kValueColumn = 16;
+
+
+
+    size_t       start = 0;
+    size_t       end   = 0;
+    size_t       gap   = 0;
+    std::string  line;
+    std::string  label;
+    std::string  value;
+
+
+
+    outDetails.clear();
+
+    while (start < message.size())
+    {
+        end   = message.find ('\n', start);
+        end   = (end == std::string::npos) ? message.size() : end;
+        line  = message.substr (start, end - start);
+        start = end + 1;
+
+        if (line.size() <= s_kValueColumn || line.compare (0, 2, "  ") != 0 || line[2] == ' ')
+        {
+            continue;
+        }
+
+        gap   = (line[s_kValueColumn - 1] == ' ') ? s_kValueColumn - 1 : line.find ("  ", 2);
+        gap   = (gap == std::string::npos) ? s_kValueColumn : gap;
+        label = line.substr (2, gap - 2);
+        value = line.substr (gap);
+
+        label.erase (label.find_last_not_of (' ') + 1);
+        value.erase (0, value.find_first_not_of (' '));
+
+        if (!label.empty() && !value.empty())
+        {
+            label[0] = (char) toupper ((unsigned char) label[0]);
+            outDetails.emplace_back (TextEncoding::NarrowToWide (label), TextEncoding::NarrowToWide (value));
+        }
+    }
+
+    if (!outDetails.empty())
+    {
+        outDetails.insert (outDetails.begin(), std::make_pair (std::wstring (L"File system"), std::wstring (L"Not DOS 3.3 or ProDOS")));
+    }
+
+    return !outDetails.empty();
+}

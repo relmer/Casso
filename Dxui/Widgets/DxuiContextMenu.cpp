@@ -37,7 +37,44 @@ void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<Dxu
     menu.SetPopupHost (&host);
     menu.SetTheme (host.GetTheme());
     menu.SetDpi (host.GetScaler().GetDpi());
+    menu.SetOnClosed (nullptr);
     menu.ShowAt (x, y, std::move (items), *text, client);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiContextMenu::ShowUnder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiContextMenu::ShowUnder (DxuiHwndSource & host, const RECT & anchor, std::vector<DxuiPopupMenuItem> items, DxuiPopupMenu::ClosedFn onClosed)
+{
+    HRESULT              hr        = S_OK;
+    HWND                 hwnd      = host.GetHwnd();
+    IDxuiTextRenderer  * text      = host.GetTextRenderer();
+    DxuiPopupMenu      & menu      = host.GetContextMenu();
+    RECT                 client    = {};
+    BOOL                 gotClient = FALSE;
+
+
+
+    BAIL_OUT_IF (hwnd == nullptr || text == nullptr, S_OK);
+
+    gotClient = GetClientRect (hwnd, &client);
+    CWRA (gotClient);
+
+    menu.SetPopupHost (&host);
+    menu.SetTheme (host.GetTheme());
+    menu.SetDpi (host.GetScaler().GetDpi());
+    menu.SetOnClosed (std::move (onClosed));
+    menu.ShowUnder (anchor, std::move (items), *text, client);
 
 Error:
     return;

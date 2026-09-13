@@ -26,7 +26,7 @@ enum class VolumeKind;
 
 struct PreviewContent
 {
-    enum class Kind { Listing, Text, Picture, Hex, Catalog, Error };
+    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error };
 
     Kind                       kind   = Kind::Hex;
     std::vector<std::wstring>  lines;
@@ -34,8 +34,11 @@ struct PreviewContent
     int                        width  = 0;
     int                        height = 0;
     std::vector<CatalogRow>    rows;
-    std::wstring               message;
-    size_t                     offset = 0;
+
+    //  What an image with no file system says about itself, as label and value.
+    std::vector<std::pair<std::wstring, std::wstring>>  details;
+    std::wstring                                        message;
+    size_t                                              offset  = 0;
 
     //  A hex preview hands its bytes over as they are, for a view that reads
     //  the rows it draws, rather than as rendered lines of text.
@@ -84,6 +87,10 @@ public:
     //  A DOS 3.3 or ProDOS catalog as the guest's own CATALOG or CAT prints it.
     static void  RenderDos33Catalog  (const VolumeListing & listing, std::vector<std::wstring> & outLines);
     static void  RenderProDosCatalog (const VolumeListing & listing, std::vector<std::wstring> & outLines);
+
+    //  The labeled lines of the disk command runner's description of an image
+    //  with no file system, as label and value; false when the message has none.
+    static bool  ParseDetails (const std::string & message, std::vector<std::pair<std::wstring, std::wstring>> & outDetails);
 
     static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, const Microcode * table, std::vector<std::wstring> & outLines);
 

@@ -58,6 +58,14 @@ public:
         Location      location;
     };
 
+    //  A folder the address bar shows as one segment under a name of its own,
+    //  as Explorer shows the user's profile folder under the user's name.
+    struct AddressRoot
+    {
+        std::wstring  path;
+        std::wstring  label;
+    };
+
     size_t  OpenTab   (const Location & location);
     bool    CloseTab  (size_t index);
     bool    MoveTab   (size_t from, size_t to);
@@ -95,7 +103,7 @@ public:
     //  down, and the path shown for editing. ParseAddress reads a typed path
     //  back: a host folder, a disk image, or a directory inside an image,
     //  which is the image's path followed by the directory's.
-    static std::vector<AddressSegment>  GetAddressSegments (const Location & location);
+    static std::vector<AddressSegment>  GetAddressSegments (const Location & location, const AddressRoot & root = AddressRoot());
     static std::wstring                 FormatAddress      (const Location & location);
     static bool                         ParseAddress       (IFileSystem & fs, const std::wstring & text, Location & outLocation);
 
@@ -106,7 +114,7 @@ public:
 
 private:
     static bool  IsSameImage (const std::wstring & a, const std::wstring & b);
-    static void  AppendHostSegments (const std::wstring & path, std::vector<AddressSegment> & outSegments);
+    static void  AppendHostSegments (const std::wstring & path, const AddressRoot & root, std::vector<AddressSegment> & outSegments);
     static bool  IsHostFolder       (IFileSystem & fs, const std::wstring & path);
     static bool  IsLabelBefore      (const AddressSegment & a, const AddressSegment & b);
 
