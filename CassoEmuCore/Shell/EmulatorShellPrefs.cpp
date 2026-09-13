@@ -385,7 +385,6 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     JsonValue          doc;
     const JsonValue *  uiPrefs      = nullptr;
     const JsonValue *  wpArr        = nullptr;
-    std::string        colorMode;
     std::string        speedMode;
     bool               extConnected = false;
     bool               mouseConn    = true;
@@ -406,25 +405,7 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // up color exactly once: the window position written on the way out gave
     // the block something to hold, and the second launch reached this line
     // and found green.
-    {
-        int  modeIdx = MonitorCatalog::PhosphorSettingsIndex (
-                           MonitorCatalog::ForMachineJson (doc));
-
-        if (uiPrefs != nullptr)
-        {
-            hrOpt = uiPrefs->GetString ("colorMode", colorMode);
-
-            if (SUCCEEDED (hrOpt))
-            {
-                if      (colorMode == "color") { modeIdx = 0; }
-                else if (colorMode == "green") { modeIdx = 1; }
-                else if (colorMode == "amber") { modeIdx = 2; }
-                else if (colorMode == "white") { modeIdx = 3; }
-            }
-        }
-
-        SetColorModeLive (modeIdx);
-    }
+    SetColorModeLive (MonitorCatalog::GetSettingsIndex (MonitorCatalog::GetColorModeForMachineJson (doc)));
 
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 

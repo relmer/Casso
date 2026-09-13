@@ -142,4 +142,69 @@ public:
         }
     }
 
+
+    static ColorMode  ColorModeOf (const char * json)
+    {
+        JsonValue       doc;
+        JsonParseError  err;
+        HRESULT         hr = S_OK;
+
+        hr = JsonParser::Parse (json, doc, err);
+        AssertSucceeded (hr);
+
+        return MonitorCatalog::GetColorModeForMachineJson (doc);
+    }
+
+
+    // The case that shipped broken on a machine switch: a monochrome monitor
+    // with the user's color saved over it.
+    TEST_METHOD (SavedColorWinsOverAGreenMonitor)
+    {
+        Assert::AreEqual ((int) ColorMode::Color,
+                          (int) ColorModeOf ("{\"$cassoUiPrefs\":{\"colorMode\":\"color\"}}"),
+                          L"a saved color must not fall back to the monitor's green");
+    }
+
+
+    TEST_METHOD (EachSavedModeIsRead)
+    {
+        Assert::AreEqual ((int) ColorMode::GreenMono,
+                          (int) ColorModeOf ("{\"monitor\":\"AppleMonitorII\",\"$cassoUiPrefs\":{\"colorMode\":\"green\"}}"));
+        Assert::AreEqual ((int) ColorMode::AmberMono,
+                          (int) ColorModeOf ("{\"$cassoUiPrefs\":{\"colorMode\":\"amber\"}}"));
+        Assert::AreEqual ((int) ColorMode::WhiteMono,
+                          (int) ColorModeOf ("{\"$cassoUiPrefs\":{\"colorMode\":\"white\"}}"));
+    }
+
+
+    // Nothing saved -- no key, no block, or a value this build does not know --
+    // is the monitor's own phosphor, so the screen matches the tube on the desk.
+    TEST_METHOD (NothingUsableSavedIsTheMonitorsPhosphor)
+    {
+        ColorMode  phosphor = MonitorCatalog::ByName ("AppleMonitorIIc").phosphor;
+
+        Assert::AreEqual ((int) phosphor, (int) ColorModeOf ("{\"monitor\":\"AppleMonitorIIc\"}"),
+                          L"no $cassoUiPrefs block");
+        Assert::AreEqual ((int) phosphor, (int) ColorModeOf ("{\"monitor\":\"AppleMonitorIIc\",\"$cassoUiPrefs\":{}}"),
+                          L"a block without colorMode");
+        Assert::AreEqual ((int) phosphor, (int) ColorModeOf ("{\"monitor\":\"AppleMonitorIIc\",\"$cassoUiPrefs\":{\"colorMode\":\"sepia\"}}"),
+                          L"a value this build does not know");
+    }
+
+
+    // Both paths turn the one answer into what they apply, so the two
+    // conversions have to agree with each other for every mode.
+    TEST_METHOD (ViewCommandAndSettingsIndexAgree)
+    {
+        Assert::AreEqual ((int) IDM_VIEW_COLOR, (int) MonitorCatalog::GetViewCommand (ColorMode::Color));
+        Assert::AreEqual ((int) IDM_VIEW_GREEN, (int) MonitorCatalog::GetViewCommand (ColorMode::GreenMono));
+        Assert::AreEqual ((int) IDM_VIEW_AMBER, (int) MonitorCatalog::GetViewCommand (ColorMode::AmberMono));
+        Assert::AreEqual ((int) IDM_VIEW_WHITE, (int) MonitorCatalog::GetViewCommand (ColorMode::WhiteMono));
+
+        Assert::AreEqual (0, MonitorCatalog::GetSettingsIndex (ColorMode::Color));
+        Assert::AreEqual (1, MonitorCatalog::GetSettingsIndex (ColorMode::GreenMono));
+        Assert::AreEqual (2, MonitorCatalog::GetSettingsIndex (ColorMode::AmberMono));
+        Assert::AreEqual (3, MonitorCatalog::GetSettingsIndex (ColorMode::WhiteMono));
+    }
+
 };
