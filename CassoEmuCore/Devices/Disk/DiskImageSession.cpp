@@ -125,7 +125,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
     text += FormatDetailLine ("format",  note);
     text += FormatDetailLine ("creator", woz.creator);
 
-    media = (woz.diskType == WozLoader::kDiskType525) ? "5.25-inch"
+    media = (woz.diskType == WozLoader::kDiskType525) ? "5\xBC-inch"
           : (woz.diskType == WozLoader::kDiskType35)  ? "3.5-inch"
                                                       : "size not recorded";
 

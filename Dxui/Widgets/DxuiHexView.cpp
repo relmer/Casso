@@ -1449,7 +1449,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 
         if (IsByteSelected (offset))
         {
-            FillCell (text, hexRect, theme.SelectionBackground());
+            FillCell (text, GetSelectionCellRect (offset, index, hexRect), theme.SelectionBackground());
             FillCell (text, txtRect, theme.SelectionBackground());
         }
 
@@ -1457,6 +1457,47 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 
         DrawCell (text, txtRect, charOf.c_str(), argb, font);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetSelectionCellRect
+//
+//  A selected byte's fill reaches halfway into the gap on each side, so a run
+//  reads as one band with the spacing inside it and a margin past its ends.
+//  A byte at the row's edge borrows the gap from its other side.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiHexView::GetSelectionCellRect (uint64_t offset, int index, const RECT & cell) const
+{
+    RECT  rect     = cell;
+    int   gapLeft  = 0;
+    int   gapRight = 0;
+
+
+
+    if (index + 1 < m_bytesPerRow)
+    {
+        gapRight = GetByteRect (offset + 1, Column::Hex).left - cell.right;
+    }
+
+    if (index > 0)
+    {
+        gapLeft = cell.left - GetByteRect (offset - 1, Column::Hex).right;
+    }
+
+    gapRight = (index + 1 < m_bytesPerRow) ? gapRight : gapLeft;
+    gapLeft  = (index > 0) ? gapLeft : gapRight;
+
+    rect.left  -= gapLeft / 2;
+    rect.right += gapRight - gapRight / 2;
+
+    return rect;
 }
 
 
@@ -1618,11 +1659,6 @@ std::wstring DxuiHexView::GetHexFor (uint64_t offset, uint64_t count) const
 
     for (size_t index = 0; index < bytes.size(); index++)
     {
-        if ((index > 0) && ((index % (size_t) m_grouping) == 0))
-        {
-            out.push_back (L' ');
-        }
-
         out.push_back (GetHexDigit ((bytes[index] >> 4) & 0xF));
         out.push_back (GetHexDigit (bytes[index] & 0xF));
     }

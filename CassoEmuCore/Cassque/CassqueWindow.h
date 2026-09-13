@@ -251,6 +251,7 @@ private:
     DxuiDpiScaler                                m_scaler;
     RECT                                         m_client          = {};
     RECT                                         m_previewRect     = {};
+    Location                                     m_listLocation;
     Pane                                         m_focus           = Pane::Tree;
     int                                          m_toolbarFocus    = 0;
     std::vector<BrowserModel::AddressSegment>    m_addressSegments;

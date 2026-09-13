@@ -628,7 +628,7 @@ public:
 
         Assert::AreEqual (uint64_t (2 * 20 * 16), source.GetBytesRead(),
             L"and jumping into the middle of it costs another screenful, not a scan");
-        Assert::AreEqual (std::wstring (L"00 01"), view.GetHexFor (0x8000, 2),
+        Assert::AreEqual (std::wstring (L"0001"), view.GetHexFor (0x8000, 2),
             L"The bytes read are the ones at that offset, counted from the source's own start");
     }
 
@@ -685,7 +685,7 @@ public:
     }
 
 
-    TEST_METHOD (Hex_CopiesTheDigitsSpacedByTheGroupingInForce)
+    TEST_METHOD (Hex_CopiesTheDigitsWithoutTheSpacingBetweenBytes)
     {
         CountingHexSource  source (256);
         DxuiHexView        view;
@@ -694,13 +694,13 @@ public:
         view.SetSource (&source);
         LayOut (view);
 
-        Assert::AreEqual (std::wstring (L"10 11 12 13"), view.GetHexFor (0x10, 4),
-            L"At a grouping of one every byte is spaced");
+        Assert::AreEqual (std::wstring (L"10111213"), view.GetHexFor (0x10, 4),
+            L"The spacing drawn between bytes is not copied");
 
         Assert::IsTrue (view.SetGrouping (2), L"Two divides a sixteen-byte row");
 
-        Assert::AreEqual (std::wstring (L"1011 1213"), view.GetHexFor (0x10, 4),
-            L"and at two the digits pair up");
+        Assert::AreEqual (std::wstring (L"10111213"), view.GetHexFor (0x10, 4),
+            L"whatever the grouping");
     }
 
 
@@ -738,7 +738,7 @@ public:
 
         Assert::AreEqual (uint64_t (4), view.GetSelectionCount(),
             L"Ctrl+A is every byte whichever column it is pressed in");
-        Assert::AreEqual (std::wstring (L"00 01 02 03"), view.GetSelectionText(),
+        Assert::AreEqual (std::wstring (L"00010203"), view.GetSelectionText(),
             L"and in the hex column it means the digits");
 
         view.OnMouse (MakeMouse (DxuiMouseEventKind::Down, textStart * kCellW, 0));
@@ -762,7 +762,7 @@ public:
         view.SelectByte (0x41, DxuiHexView::Column::Hex);
         view.ExtendSelectionTo (0x43);
 
-        Assert::AreEqual (std::wstring (L"41 42 43"), view.GetSelectionText(),
+        Assert::AreEqual (std::wstring (L"414243"), view.GetSelectionText(),
             L"A run selected in the hex column copies as digits");
 
         view.OnMouse (MakeMouse (DxuiMouseEventKind::Down, textStart * kCellW, 0));

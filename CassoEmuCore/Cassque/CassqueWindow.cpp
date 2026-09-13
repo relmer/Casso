@@ -355,6 +355,7 @@ void CassqueWindow::ConfigureWidgets()
     m_previewList->SetHorizontalScrollEnabled (true);
     m_previewList->SetPreciseAutoFit (true);
     m_previewList->SetMultiSelect (true);
+    m_previewList->SetAlwaysShowSelection (true);
     m_previewList->SetOwnerWindow (GetHwnd());
 
     //  The bytes are Apple text in the column on the right, which is what
@@ -679,6 +680,15 @@ void CassqueWindow::FillList()
     }
 
     m_list->SetRows (std::move (rows));
+
+    //  A new location opens at its first row, as Explorer's does, rather than
+    //  wherever the list was scrolled for the last one.
+    if (m_browser.GetLocation() != m_listLocation)
+    {
+        m_listLocation = m_browser.GetLocation();
+        m_list->SetTopRow (0);
+    }
+
     m_list->SetSelectedRows (m_browser.GetSelectedRows(), m_browser.GetSelectedRows().empty() ? -1 : m_browser.GetSelectedRows()[0]);
 
     if (model.HasTabs())
@@ -773,6 +783,7 @@ void CassqueWindow::FillPreview()
     m_previewList->SetRows (std::move (rows));
     m_previewList->ResetAutoFit();
     m_previewList->UpdateAutoFitFromRows();
+    m_previewList->SetTopRow (0);
 
     //  The hex view reads the preview's own bytes where they lie. The source
     //  is re-pointed rather than refilled, so a file of any size costs the
@@ -2681,23 +2692,26 @@ std::wstring CassqueWindow::EscapeMnemonics (const std::wstring & text)
 BrowserModel::AddressRoot CassqueWindow::GetProfileRoot()
 {
     BrowserModel::AddressRoot  root;
-    PIDLIST_ABSOLUTE           pidl = nullptr;
+    IShellItem               * item = nullptr;
     PWSTR                      path = nullptr;
     PWSTR                      name = nullptr;
     HRESULT                    hr   = S_OK;
 
 
 
-    hr = SHGetKnownFolderIDList (FOLDERID_Profile, 0, nullptr, &pidl);
+    //  The profile as the shell's namespace holds it, where its display name
+    //  is the user's name. The item for its file system path is displayed as
+    //  the folder's own name instead.
+    hr = SHCreateItemFromParsingName (L"shell:UsersFilesFolder", nullptr, IID_PPV_ARGS (&item));
 
     if (SUCCEEDED (hr))
     {
-        hr = SHGetNameFromIDList (pidl, SIGDN_FILESYSPATH, &path);
+        hr = item->GetDisplayName (SIGDN_FILESYSPATH, &path);
     }
 
     if (SUCCEEDED (hr))
     {
-        hr = SHGetNameFromIDList (pidl, SIGDN_NORMALDISPLAY, &name);
+        hr = item->GetDisplayName (SIGDN_NORMALDISPLAY, &name);
     }
 
     if (SUCCEEDED (hr))
@@ -2708,7 +2722,11 @@ BrowserModel::AddressRoot CassqueWindow::GetProfileRoot()
 
     CoTaskMemFree (name);
     CoTaskMemFree (path);
-    CoTaskMemFree (pidl);
+
+    if (item != nullptr)
+    {
+        item->Release();
+    }
 
     return root;
 }

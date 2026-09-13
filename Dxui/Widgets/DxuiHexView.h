@@ -230,6 +230,7 @@ private:
 
     //  One cell run of the fixed-width face, and the fill behind it.
     static void  DrawCell (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font);
+    RECT  GetSelectionCellRect (uint64_t offset, int index, const RECT & cell) const;
     static void  FillCell (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
 
     static wchar_t  GetHexDigit (int value);
