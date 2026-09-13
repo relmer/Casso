@@ -213,10 +213,115 @@ void DxuiHexView::RecomputeRowWidth()
     m_bytesPerRow = values * m_grouping;
 
     ClampTopRow();
+    SetLeftPx (m_leftPx);
 
     if (m_hasSelection)
     {
         EnsureByteVisible (m_caret);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SetLeftPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetLeftPx (int leftPx)
+{
+    m_leftPx = (std::max) (0, (std::min) (leftPx, GetContentWidthPx() - GetViewWidthPx()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetHeightDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetHeightDip() const
+{
+    int  height = m_boundsDip.bottom - m_boundsDip.top;
+
+
+
+    if (IsHorzScrollbarVisible())
+    {
+        height -= m_scaler.ToPx (s_kScrollbarWidthDip);
+    }
+
+    return height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetContentWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetContentWidthPx() const
+{
+    return m_scaler.ToPx (m_padDip) + ((GetColumnStartCell (Column::Text) + m_bytesPerRow) * m_cellWidthDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetViewWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetViewWidthPx() const
+{
+    return (std::max) (0, (int) (m_boundsDip.right - m_boundsDip.left) - m_scaler.ToPx (s_kScrollbarWidthDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::KeepCaretInView
+//
+//  Scrolls sideways the least that shows the caret's cell in the active
+//  column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::KeepCaretInView()
+{
+    int   index = (int) (m_caret % (uint64_t) m_bytesPerRow);
+    bool  text  = (m_activeColumn == Column::Text) || !m_showValues;
+    int   cell  = text ? (GetColumnStartCell (Column::Text) + index) : (GetColumnStartCell (Column::Hex) + GetByteCellInRow (index));
+    int   wide  = text ? 1 : ((m_format == ValueFormat::Hex) ? 2 : GetValueCells());
+    int   left  = m_scaler.ToPx (m_padDip) + (cell * m_cellWidthDip);
+    int   right = left + (wide * m_cellWidthDip);
+    int   view  = GetViewWidthPx();
+
+
+
+    if (left < m_leftPx)
+    {
+        SetLeftPx (left - m_scaler.ToPx (m_padDip));
+    }
+    else if (right > (m_leftPx + view))
+    {
+        SetLeftPx (right - view);
     }
 }
 
@@ -560,6 +665,11 @@ void DxuiHexView::EnsureByteVisible (uint64_t offset)
         return;
     }
 
+    if (offset == m_caret)
+    {
+        KeepCaretInView();
+    }
+
     if (row < m_topRow)
     {
         SetTopRow (row);
@@ -701,7 +811,7 @@ RECT DxuiHexView::GetCellRect (int cellX, uint64_t row, int cellCount) const
     RECT      rect  = {};
     int64_t   rowUp = (int64_t) (row - m_topRow);
     LONG      top   = m_boundsDip.top + (LONG) (rowUp * m_cellHeightDip);
-    LONG      left  = m_boundsDip.left + m_scaler.ToPx (m_padDip) + (LONG) (cellX * m_cellWidthDip);
+    LONG      left  = m_boundsDip.left + m_scaler.ToPx (m_padDip) + (LONG) (cellX * m_cellWidthDip) - m_leftPx;
 
 
 
@@ -850,7 +960,7 @@ DxuiHexView::HitResult DxuiHexView::HitTestPoint (POINT clientDip) const
     }
 
     rowUp = (int) ((clientDip.y - m_boundsDip.top) / cellH);
-    cellX = (int) ((clientDip.x - m_boundsDip.left - m_scaler.ToPx (m_padDip)) / cellW);
+    cellX = (int) ((clientDip.x - m_boundsDip.left - m_scaler.ToPx (m_padDip) + m_leftPx) / cellW);
 
     if (rowUp >= GetRowCap())
     {
@@ -1297,6 +1407,15 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
             return true;
         }
 
+        if (ev.button == DxuiMouseButton::Left && IsHorzScrollbarVisible()
+            && m_horzScroll.HitTest (ev.positionDip.x, ev.positionDip.y))
+        {
+            SyncScrollbar();
+            m_horzScroll.OnMouseDown (ev.positionDip.x, ev.positionDip.y);
+            ScrollToBarPos();
+            return true;
+        }
+
         hit = HitTestPoint (ev.positionDip);
 
         if (!hit.hit)
@@ -1351,9 +1470,10 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Move:
-        if (m_vertScroll.IsDragging())
+        if (m_vertScroll.IsDragging() || m_horzScroll.IsDragging())
         {
             m_vertScroll.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+            m_horzScroll.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
             ScrollToBarPos();
             return true;
         }
@@ -1375,6 +1495,11 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Up:
+        if (m_horzScroll.IsDragging())
+        {
+            return m_horzScroll.OnMouseUp();
+        }
+
         if (m_vertScroll.IsDragging())
         {
             return m_vertScroll.OnMouseUp();
@@ -1392,7 +1517,8 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Wheel:
         if (ev.wheelHorizontal)
         {
-            return false;
+            SetLeftPx (m_leftPx + (int) (ev.wheelDelta * (float) (kWheelRows * m_cellWidthDip)));
+            return IsHorzScrollbarVisible();
         }
 
         ScrollRows (-(int64_t) (ev.wheelDelta * (float) kWheelRows));
@@ -1632,7 +1758,7 @@ void DxuiHexView::SyncScrollbar()
 
 
     m_vertScroll.Configure (DxuiScrollbar::Orientation::Vertical, barW, barW, 1);
-    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom });
+    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.top + GetHeightDip() });
 
     info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     info.nMin  = 0;
@@ -1640,6 +1766,14 @@ void DxuiHexView::SyncScrollbar()
     info.nPage = (UINT) (std::max) (GetRowCap(), 0);
     info.nPos  = (int) (std::min) (m_topRow, (uint64_t) INT_MAX);
     m_vertScroll.SetScrollInfo (info);
+
+    m_horzScroll.Configure (DxuiScrollbar::Orientation::Horizontal, barW, barW, (std::max) (m_cellWidthDip, 1));
+    m_horzScroll.SetTrack (RECT { m_boundsDip.left, m_boundsDip.bottom - barW, m_boundsDip.left + GetViewWidthPx(), m_boundsDip.bottom });
+
+    info.nMax  = (std::max) (GetContentWidthPx() - 1, 0);
+    info.nPage = (UINT) GetViewWidthPx();
+    info.nPos  = m_leftPx;
+    m_horzScroll.SetScrollInfo (info);
 }
 
 
@@ -1655,6 +1789,7 @@ void DxuiHexView::SyncScrollbar()
 void DxuiHexView::ScrollToBarPos()
 {
     SetTopRow ((uint64_t) (std::max) (m_vertScroll.GetScrollPos(), 0));
+    SetLeftPx (m_horzScroll.GetScrollPos());
 }
 
 
@@ -1718,10 +1853,16 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    SyncScrollbar();
+
     if (IsScrollbarVisible())
     {
-        SyncScrollbar();
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
+    }
+
+    if (IsHorzScrollbarVisible())
+    {
+        m_horzScroll.Paint (painter, theme.ForegroundMuted());
     }
 }
 

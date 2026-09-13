@@ -205,6 +205,34 @@ public:
     }
 
 
+    TEST_METHOD (Scrolling_ARowWiderThanTheViewScrollsToTheTextColumn)
+    {
+        CountingHexSource  source (4096);
+        DxuiHexView        view;
+        DxuiDpiScaler      scaler;
+        RECT               rect  = {};
+
+
+        scaler.SetDpi (96);
+        view.SetSource (&source);
+        view.SetCellSizeDip (kCellW, kCellH);
+        view.Layout (RECT { 0, 0, 200, 320 }, scaler);
+
+        Assert::IsTrue (view.IsHorzScrollbarVisible(),
+            L"Sixteen bytes and their characters do not fit in 200 DIPs");
+
+        view.SetActiveColumn (DxuiHexView::Column::Text);
+        view.GoToOffset (15);
+
+        rect = view.GetByteRect (15, DxuiHexView::Column::Text);
+
+        Assert::IsTrue (view.GetLeftPx() > 0,
+            L"Going to the row's last character scrolls sideways");
+        Assert::IsTrue (rect.right <= 190,
+            L"and brings its cell inside the view, clear of the scrollbar");
+    }
+
+
     TEST_METHOD (Columns_AutoFitsTheValuesTheWidthHolds)
     {
         CountingHexSource  source (256);

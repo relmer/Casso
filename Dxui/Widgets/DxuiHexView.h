@@ -200,7 +200,13 @@ public:
     //  Told after any change to the selection, including its loss.
     void  SetOnSelectionChanged (std::function<void ()> fn) { m_onSelectionChanged = std::move (fn); }
 
-    bool  IsDragging () const { return m_dragging || m_vertScroll.IsDragging(); }
+    bool  IsDragging () const { return m_dragging || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
+
+    //  Rows wider than the view scroll sideways, so the text column can always
+    //  be reached whatever the columns and grouping.
+    bool  IsHorzScrollbarVisible () const { return GetContentWidthPx() > GetViewWidthPx(); }
+    int   GetLeftPx              () const { return m_leftPx; }
+    void  SetLeftPx              (int leftPx);
     bool  IsScrollbarVisible () const { return GetRowCount() > (uint64_t) (std::max) (GetRowCap(), 0); }
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
@@ -274,7 +280,13 @@ private:
     static wchar_t  GetHexDigit (int value);
     wchar_t         GetCharFor  (uint8_t byte) const;
 
-    int   GetHeightDip () const { return m_boundsDip.bottom - m_boundsDip.top; }
+    //  The rows' height, less the horizontal scrollbar when it shows; the
+    //  full width a row needs; and the width left for rows beside the
+    //  vertical scrollbar, whose room is always kept.
+    int   GetHeightDip      () const;
+    int   GetContentWidthPx () const;
+    int   GetViewWidthPx    () const;
+    void  KeepCaretInView   ();
 
     const IDxuiHexSource  * m_source        = nullptr;
     uint64_t                m_originAddress = 0;
@@ -296,6 +308,8 @@ private:
     TextEncoding            m_encoding      = TextEncoding::Ascii;
     DxuiDpiScaler           m_scaler;
     DxuiScrollbar           m_vertScroll;
+    DxuiScrollbar           m_horzScroll;
+    int                     m_leftPx        = 0;
     MarkColorFn             m_markColor;
     ContextMenuFn           m_onContextMenu;
     std::function<void ()>  m_onSelectionChanged;
