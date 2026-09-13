@@ -160,6 +160,9 @@ public:
     //  The window a copy names as the clipboard's owner.
     void  SetOwnerWindow (HWND hwnd) { m_hwnd = hwnd; }
 
+    //  Space before the address column.
+    void  SetPaddingDip (int padDip) { m_padDip = padDip; }
+
     //  The active column. A click sets it, and it determines the format Copy
     //  produces.
     Column  GetActiveColumn () const { return m_activeColumn; }
@@ -258,6 +261,7 @@ private:
     uint64_t                m_caret         = 0;
     Column                  m_activeColumn  = Column::Hex;
     HWND                    m_hwnd          = nullptr;
+    int                     m_padDip        = 0;
     bool                    m_dragging      = false;
     TextEncoding            m_encoding      = TextEncoding::Ascii;
     DxuiDpiScaler           m_scaler;

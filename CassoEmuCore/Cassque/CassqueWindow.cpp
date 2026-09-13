@@ -371,6 +371,7 @@ void CassqueWindow::ConfigureWidgets()
     //  the files here hold; the grouping is the user's, kept between runs.
     m_hexView->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
     m_hexView->SetOwnerWindow  (GetHwnd());
+    m_hexView->SetPaddingDip   (6);
 
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
@@ -423,7 +424,6 @@ void CassqueWindow::ConfigureWidgets()
     m_address->SetOnOverflow  ([this] (const RECT & anchor) { ShowAddressOverflowMenu (anchor); });
 
     m_browser.RestoreTabs (m_prefs.tabs);
-    RevealLocationInTree();
 
     m_tree->OnFocusChanged (true);
     FillList();
@@ -699,7 +699,18 @@ void CassqueWindow::RevealLocationInTree()
 
 
 
+    std::wstring  current  = m_tree->GetHighlightedId();
+
+
+
     if (location.kind == Location::Kind::None || path.size() < 2 || path[1] != L':' || row < 0)
+    {
+        return;
+    }
+
+    //  A node the user clicked already shows the location, possibly under the
+    //  Casso root rather than This PC, so it stays highlighted.
+    if (current.size() >= path.size() && _wcsicmp (current.c_str() + current.size() - path.size(), path.c_str()) == 0)
     {
         return;
     }
@@ -781,6 +792,7 @@ void CassqueWindow::FillList()
         m_listLocation = m_browser.GetLocation();
         m_list->SetTopRow (0);
         m_list->ResetAutoFit();
+        RevealLocationInTree();
     }
 
     m_list->UpdateAutoFitFromRows();

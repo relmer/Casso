@@ -386,7 +386,7 @@ RECT DxuiHexView::GetCellRect (int cellX, uint64_t row, int cellCount) const
     RECT      rect  = {};
     int64_t   rowUp = (int64_t) (row - m_topRow);
     LONG      top   = m_boundsDip.top + (LONG) (rowUp * m_cellHeightDip);
-    LONG      left  = m_boundsDip.left + (LONG) (cellX * m_cellWidthDip);
+    LONG      left  = m_boundsDip.left + m_scaler.ToPx (m_padDip) + (LONG) (cellX * m_cellWidthDip);
 
 
 
@@ -527,7 +527,7 @@ DxuiHexView::HitResult DxuiHexView::HitTestPoint (POINT clientDip) const
     }
 
     rowUp = (int) ((clientDip.y - m_boundsDip.top) / cellH);
-    cellX = (int) ((clientDip.x - m_boundsDip.left) / cellW);
+    cellX = (int) ((clientDip.x - m_boundsDip.left - m_scaler.ToPx (m_padDip)) / cellW);
 
     if (rowUp >= GetRowCap())
     {
