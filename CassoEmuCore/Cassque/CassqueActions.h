@@ -140,6 +140,13 @@ public:
     //  Apple II writes addresses; a leading # marks decimal.
     static bool  TryParseAddress (const std::wstring & text, Word & outAddress);
 
+    //  A Go to as typed: an address in TryParseAddress's forms, or one of
+    //  them after + or -, which moves that far from `caretAddress`. A range
+    //  follows with a hyphen and its last address ($0803-$0810), or with a
+    //  comma and a length ($0803,+10). Without a range the first and last
+    //  addresses are the same.
+    static bool  TryParseGoTo (const std::wstring & text, int64_t caretAddress, int64_t & outFirst, int64_t & outLast);
+
     //  A search as typed: an even run of hex digits, with spaces anywhere, is
     //  bytes; text in double quotes, or anything else, is characters, and
     //  `outIsText` is set.
@@ -152,6 +159,8 @@ public:
 
 private:
     void  FinishWrite (const std::wstring & imagePath);
+
+    static bool  TryParseGoToTarget (const std::wstring & text, int64_t caretAddress, int64_t & outAddress);
 
     static void  Append (Outcome & inOutOutcome, const DiskOperations::Result & result);
 

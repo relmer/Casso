@@ -274,15 +274,28 @@ void CassqueWindow::OnCreate()
     m_previewToolbar->SetIconDip      (kNavIconDip);
     m_previewToolbar->SetVisible      (false);
 
-    m_previewToolbar->SetDropDownItems (CassqueCommands::kColumns,
-                                        { DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumnsAuto)),
-                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumns1)),
-                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumns2)),
-                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumns4)),
-                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kColumns8)) });
-    m_previewToolbar->SetDropDownSinks (CassqueCommands::kColumns, nullptr,
-                                        [this] (int index) { Dispatch (CassqueCommands::kColumnsAuto + index); });
+    m_goToBox.SetHint         (L"Go to");
+    m_goToBox.SetWidthDip     (130);
+    m_goToBox.SetTooltip      (L"Go to an address (e.g., $08FF) or offset (e.g., +10, +$A0), or select a range (e.g., $0803-$0810, $0803,+10). Numbers are hex; # marks decimal, as in -#16.");
+    m_goToBox.SetHwnd         (GetHwnd());
+    m_goToBox.SetTextRenderer (GetTextRenderer());
+    m_goToBox.SetOnChange     ([this] (const std::wstring &) { m_goToBox.SetError (false); });
+    m_goToBox.SetOnSubmit     ([this] () { GoToTyped (m_goToBox.GetText()); });
 
+    m_goToBox.SetOnCancel ([this] ()
+    {
+        m_goToBox.SetText  (L"");
+        m_goToBox.SetError (false);
+        SetFocusPane (Pane::Preview);
+    });
+
+    m_goToBox.SetOnFocusRequest ([this] ()
+    {
+        m_previewBarFocus = GetPreviewStopIndex (CassqueCommands::kGoToOffset);
+        SetFocusPane (Pane::GoTo);
+    });
+
+    m_searchBox.SetGlyph        (s_kpszMdl2Search);
     m_searchBox.SetHint         (L"Search");
     m_searchBox.SetHwnd         (GetHwnd());
     m_searchBox.SetTextRenderer (GetTextRenderer());
@@ -298,7 +311,7 @@ void CassqueWindow::OnCreate()
 
     m_searchBox.SetOnFocusRequest ([this] ()
     {
-        m_previewBarFocus = GetSearchStopIndex();
+        m_previewBarFocus = GetPreviewStopIndex (CassqueCommands::kFind);
         SetFocusPane (Pane::Search);
     });
 
@@ -744,18 +757,20 @@ void CassqueWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 void CassqueWindow::RevealLocationInTree()
 {
-    Location      location = m_browser.GetLocation();
-    std::wstring  path     = location.path;
-    int           row      = m_tree->FindRowById (TreeModel::kThisPcRootId);
-    size_t        start    = 0;
+    Location              location = m_browser.GetLocation();
+    std::wstring          path     = location.path;
+    std::wstring          current  = m_tree->GetHighlightedId();
+    int                   casso    = m_tree->FindRowById (TreeModel::kCassoRootId);
+    size_t                prefix   = wcslen (TreeModel::kCassoRootId);
+    const DxuiTreeNode *  root     = nullptr;
+    bool                  wasOpen  = false;
+    size_t                known    = 0;
+    std::wstring          knownId;
+    int                   row      = -1;
 
 
 
-    std::wstring  current  = m_tree->GetHighlightedId();
-
-
-
-    if (location.kind == Location::Kind::None || path.size() < 2 || path[1] != L':' || row < 0)
+    if (location.kind == Location::Kind::None || path.size() < 2 || path[1] != L':')
     {
         return;
     }
@@ -765,6 +780,76 @@ void CassqueWindow::RevealLocationInTree()
     if (current.size() >= path.size() && _wcsicmp (current.c_str() + current.size() - path.size(), path.c_str()) == 0)
     {
         return;
+    }
+
+    //  Casso's known folders come first: the deepest one that holds the
+    //  location is where the walk starts. The Casso root is closed again when
+    //  none does and it was closed before.
+    if (casso >= 0)
+    {
+        root    = m_tree->GetNodeAt (casso);
+        wasOpen = (root != nullptr) && root->expanded;
+
+        m_tree->SetRowExpanded (casso, true);
+        root = m_tree->GetNodeAt (m_tree->FindRowById (TreeModel::kCassoRootId));
+
+        for (size_t i = 0; root != nullptr && i < root->children.size(); i++)
+        {
+            const std::wstring &  id     = root->children[i].id;
+            std::wstring          folder = (id.size() > prefix) ? id.substr (prefix) : std::wstring();
+            bool                  within = !folder.empty() && folder.size() > known
+                                        && _wcsnicmp (path.c_str(), folder.c_str(), folder.size()) == 0
+                                        && (path.size() == folder.size() || path[folder.size()] == L'\\' || folder.back() == L'\\');
+
+            if (within)
+            {
+                known   = folder.size();
+                knownId = id;
+            }
+        }
+
+        if (knownId.empty() && !wasOpen)
+        {
+            m_tree->SetRowExpanded (m_tree->FindRowById (TreeModel::kCassoRootId), false);
+        }
+    }
+
+    row = knownId.empty() ? WalkTreeLabels (m_tree->FindRowById (TreeModel::kThisPcRootId), path)
+                          : WalkTreeLabels (m_tree->FindRowById (knownId), path.substr (known));
+
+    if (row < 0)
+    {
+        return;
+    }
+
+    m_tree->HighlightRow (row);
+    m_treeRevealPending = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::WalkTreeLabels
+//
+//  Expands down from a row one path component at a time, matching each against
+//  the child labels without regard to case, and returns the deepest row
+//  reached. A drive's label is its volume name, so a drive is matched by the
+//  letter its id ends with instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassqueWindow::WalkTreeLabels (int row, const std::wstring & path)
+{
+    size_t  start = 0;
+
+
+
+    if (row < 0)
+    {
+        return -1;
     }
 
     while (start < path.size())
@@ -789,8 +874,6 @@ void CassqueWindow::RevealLocationInTree()
             const std::wstring &  childLabel = node->children[i].label;
             bool                  isDrive    = label.size() == 2 && label[1] == L':';
 
-            //  A drive's label is its volume name, so a drive is matched by the
-            //  letter its id ends with instead.
             if (isDrive ? (_wcsnicmp (node->children[i].id.c_str() + wcslen (TreeModel::kThisPcRootId), label.c_str(), 2) == 0)
                         : (_wcsicmp (childLabel.c_str(), label.c_str()) == 0))
             {
@@ -806,8 +889,7 @@ void CassqueWindow::RevealLocationInTree()
         row = next;
     }
 
-    m_tree->HighlightRow (row);
-    m_treeRevealPending = true;
+    return row;
 }
 
 
@@ -938,11 +1020,11 @@ void CassqueWindow::FillPreview()
 
         if (mode != 0)
         {
-            m_previewToolbar->SetEntries (m_commands.BuildPreviewToolbarEntries (mode == 2, &m_searchBox));
+            m_previewToolbar->SetEntries (m_commands.BuildPreviewToolbarEntries (mode == 2, &m_searchBox, &m_goToBox));
         }
 
-        //  The search box goes with the hex view's toolbar, and its focus with it.
-        if (mode != 2 && m_focus == Pane::Search)
+        //  The boxes go with the hex view's toolbar, and their focus with it.
+        if (mode != 2 && (m_focus == Pane::Search || m_focus == Pane::GoTo))
         {
             SetFocusPane (Pane::Preview);
         }
@@ -1020,7 +1102,7 @@ void CassqueWindow::SetFocusPane (Pane pane)
 {
     if ((pane == Pane::Preview && !m_prefs.previewVisible)
         || (pane == Pane::PreviewToolbar && !m_previewToolbar->IsVisible())
-        || (pane == Pane::Search && m_previewBarMode != 2))
+        || ((pane == Pane::Search || pane == Pane::GoTo) && m_previewBarMode != 2))
     {
         pane = Pane::Tree;
     }
@@ -1036,6 +1118,7 @@ void CassqueWindow::SetFocusPane (Pane pane)
     m_toolbar->SetFocusIndex      (pane == Pane::Toolbar ? m_toolbarFocus : -1);
     m_previewToolbar->SetFocusIndex (pane == Pane::PreviewToolbar ? m_previewBarFocus : -1);
     m_searchBox.SetFocused          (pane == Pane::Search);
+    m_goToBox.SetFocused            (pane == Pane::GoTo);
 
     Invalidate();
 }
@@ -1056,7 +1139,8 @@ FocusStop CassqueWindow::GetFocusStop() const
     {
         case Pane::Toolbar: return FocusStop { FocusStop::Kind::ToolbarEntry, m_toolbarFocus };
         case Pane::PreviewToolbar: return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_previewBarFocus };
-        case Pane::Search:         return FocusStop { FocusStop::Kind::PreviewToolbarEntry, GetSearchStopIndex() };
+        case Pane::Search:         return FocusStop { FocusStop::Kind::PreviewToolbarEntry, GetPreviewStopIndex (CassqueCommands::kFind) };
+        case Pane::GoTo:           return FocusStop { FocusStop::Kind::PreviewToolbarEntry, GetPreviewStopIndex (CassqueCommands::kGoToOffset) };
         case Pane::Address: return FocusStop { FocusStop::Kind::Address };
         case Pane::Tabs:    return FocusStop { FocusStop::Kind::Tabs };
         case Pane::List:    return FocusStop { FocusStop::Kind::List };
@@ -1086,7 +1170,9 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
 
         case FocusStop::Kind::PreviewToolbarEntry:
             m_previewBarFocus = stop.entry;
-            SetFocusPane ((stop.entry == GetSearchStopIndex()) ? Pane::Search : Pane::PreviewToolbar);
+            SetFocusPane ((stop.entry == GetPreviewStopIndex (CassqueCommands::kFind))       ? Pane::Search
+                        : (stop.entry == GetPreviewStopIndex (CassqueCommands::kGoToOffset)) ? Pane::GoTo
+                                                                                             : Pane::PreviewToolbar);
             break;
 
         case FocusStop::Kind::Address: SetFocusPane (Pane::Address); break;
@@ -1552,9 +1638,9 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
 
     //  The search box takes keys and characters first while it has focus;
     //  Tab and the keys it has no use for carry on as usual.
-    if (m_focus == Pane::Search)
+    if (m_focus == Pane::Search || m_focus == Pane::GoTo)
     {
-        handled = m_searchBox.OnKey (ev);
+        handled = (m_focus == Pane::Search) ? m_searchBox.OnKey (ev) : m_goToBox.OnKey (ev);
 
         if (handled || ev.kind != DxuiKeyEventKind::Down)
         {
@@ -1654,6 +1740,7 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         case Pane::Toolbar: handled = RouteToolbarKey (false, ev); break;
         case Pane::PreviewToolbar: handled = RouteToolbarKey (true, ev); break;
         case Pane::Search:                                               break;
+        case Pane::GoTo:                                                 break;
         case Pane::Address: handled = m_address->OnKey (ev);     break;
         case Pane::Tabs:    handled = m_tabs->OnKey (ev);        break;
         case Pane::Tree:    handled = m_tree->OnKey (ev);        break;
@@ -1719,6 +1806,7 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kColumns2:
         case CassqueCommands::kColumns4:
         case CassqueCommands::kColumns8:
+        case CassqueCommands::kColumns16:
         case CassqueCommands::kGoToOffset:
         case CassqueCommands::kGroup1:
         case CassqueCommands::kGroup2:
@@ -1772,6 +1860,7 @@ bool CassqueWindow::IsChecked (int id) const
         case CassqueCommands::kColumns2:          return m_prefs.hexColumns == 2;
         case CassqueCommands::kColumns4:          return m_prefs.hexColumns == 4;
         case CassqueCommands::kColumns8:          return m_prefs.hexColumns == 8;
+        case CassqueCommands::kColumns16:         return m_prefs.hexColumns == 16;
         case CassqueCommands::kNamingDescriptive: return m_prefs.hostNaming != CassquePrefs::kNamingCiderPress;
         case CassqueCommands::kNamingCiderPress:  return m_prefs.hostNaming == CassquePrefs::kNamingCiderPress;
         default:                                  return false;
@@ -2104,14 +2193,14 @@ DxuiHexView::ValueFormat CassqueWindow::ParseHexFormat (const std::string & name
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassqueWindow::GetSearchStopIndex
+//  CassqueWindow::GetPreviewStopIndex
 //
-//  The search box's place among the preview toolbar's stops, or -1 while the
-//  toolbar has no search box.
+//  A command's place among the hex view toolbar's stops, or -1 while that
+//  toolbar is not showing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CassqueWindow::GetSearchStopIndex() const
+int CassqueWindow::GetPreviewStopIndex (int commandId) const
 {
     std::vector<int>  ids = CassqueCommands::GetPreviewToolbarCommandIds (true);
 
@@ -2124,7 +2213,7 @@ int CassqueWindow::GetSearchStopIndex() const
 
     for (size_t i = 0; i < ids.size(); i++)
     {
-        if (ids[i] == CassqueCommands::kFind)
+        if (ids[i] == commandId)
         {
             return (int) i;
         }
@@ -2167,20 +2256,22 @@ void CassqueWindow::SetHexGrouping (int grouping)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassqueWindow::AskForOffset
+//  CassqueWindow::GoToTyped
 //
-//  Offsets are entered in hex, with or without a dollar sign, as the offset
-//  column displays them. When the file has a load address, the value entered
-//  is an address, matching the left-hand column.
+//  An address matches the offset column, which counts from the file's load
+//  address when it has one; an offset moves from the caret. A target that
+//  does not parse or is outside the file marks the box in error, and one
+//  that is inside it moves the caret there and returns focus to the bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassqueWindow::AskForOffset()
+void CassqueWindow::GoToTyped (const std::wstring & text)
 {
-    uint64_t      origin = m_hexView->GetOriginAddress();
-    uint64_t      caret  = m_hexView->GetCaret();
-    std::wstring  text   = std::format (L"${:04X}", (unsigned) (origin + caret));
-    Word          typed  = 0;
+    int64_t   origin = (int64_t) m_hexView->GetOriginAddress();
+    int64_t   caret  = origin + (int64_t) m_hexView->GetCaret();
+    int64_t   count  = (m_hexView->GetSource() != nullptr) ? (int64_t) m_hexView->GetSource()->GetByteCount() : 0;
+    int64_t   target = 0;
+    int64_t   last   = 0;
 
 
 
@@ -2189,26 +2280,25 @@ void CassqueWindow::AskForOffset()
         return;
     }
 
-    for (;;)
+    if (!CassqueActions::TryParseGoTo (text, caret, target, last) || target < origin || last >= origin + count)
     {
-        if (!CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Go to Offset",
-                                       L"Offset to go to:", text, 8, text))
-        {
-            return;
-        }
-
-        if (CassqueActions::TryParseAddress (text, typed) && ((uint64_t) typed >= origin))
-        {
-            m_hexView->GoToOffset ((uint64_t) typed - origin);
-            Invalidate();
-            return;
-        }
-
-        ShowMessage (std::format (L"Type an offset from ${:04X} to ${:04X}.",
-                                  (unsigned) origin,
-                                  (unsigned) (origin + m_hexView->GetSource()->GetByteCount() - 1)).c_str(),
-                     MB_ICONWARNING);
+        m_goToBox.SetError (true);
+        Invalidate();
+        return;
     }
+
+    m_goToBox.SetText  (L"");
+    m_goToBox.SetError (false);
+    m_hexView->GoToOffset ((uint64_t) (target - origin));
+
+    //  A range selects from its first address to its last.
+    if (last > target)
+    {
+        m_hexView->ExtendSelectionTo ((uint64_t) (last - origin));
+        m_hexView->EnsureByteVisible ((uint64_t) (target - origin));
+    }
+
+    SetFocusPane (Pane::Preview);
 }
 
 
@@ -2315,15 +2405,37 @@ void CassqueWindow::ShowHexContextMenu (int x, int y)
                                      (int) CassqueCommands::kFormatSigned,
                                      (int) CassqueCommands::kFormatUnsigned,
                                      kSeparatorId,
+                                     (int) CassqueCommands::kColumns,
+                                     kSeparatorId,
                                      (int) CassqueCommands::kCopy,
                                      (int) CassqueCommands::kGoToOffset };
 
+    static constexpr int  kColumnIds[] = { (int) CassqueCommands::kColumnsAuto,
+                                           (int) CassqueCommands::kColumns1,
+                                           (int) CassqueCommands::kColumns2,
+                                           (int) CassqueCommands::kColumns4,
+                                           (int) CassqueCommands::kColumns8,
+                                           (int) CassqueCommands::kColumns16 };
+
     for (int id : kIds)
     {
-        const DxuiCommand *  command = (id == kSeparatorId) ? nullptr : m_commands.Find (id);
+        const DxuiCommand *             command = (id == kSeparatorId) ? nullptr : m_commands.Find (id);
+        std::vector<DxuiPopupMenuItem>  columns;
 
-        items.push_back ((command != nullptr) ? DxuiPopupMenuItem::ForCommand (command)
-                                              : DxuiPopupMenuItem::ForSeparator());
+        if (id == CassqueCommands::kColumns)
+        {
+            for (int columnId : kColumnIds)
+            {
+                columns.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (columnId)));
+            }
+
+            items.push_back (DxuiPopupMenuItem::ForSubmenu (command, std::move (columns)));
+        }
+        else
+        {
+            items.push_back ((command != nullptr) ? DxuiPopupMenuItem::ForCommand (command)
+                                                  : DxuiPopupMenuItem::ForSeparator());
+        }
     }
 
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
@@ -2423,7 +2535,12 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kThemeRetroTerminal: SelectTheme (CassquePrefs::kThemeRetroTerminal); break;
 
         case CassqueCommands::kGoToOffset:
-            AskForOffset();
+            if (IsHexPreviewShowing())
+            {
+                m_previewBarFocus = GetPreviewStopIndex (CassqueCommands::kGoToOffset);
+                SetFocusPane (Pane::GoTo);
+            }
+
             break;
 
         case CassqueCommands::kLineAddresses:
@@ -2435,7 +2552,7 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kFind:
             if (IsHexPreviewShowing())
             {
-                m_previewBarFocus = GetSearchStopIndex();
+                m_previewBarFocus = GetPreviewStopIndex (CassqueCommands::kFind);
                 SetFocusPane (Pane::Search);
             }
 
@@ -2452,6 +2569,7 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kColumns2:       SetHexColumns (2);                               break;
         case CassqueCommands::kColumns4:       SetHexColumns (4);                               break;
         case CassqueCommands::kColumns8:       SetHexColumns (8);                               break;
+        case CassqueCommands::kColumns16:      SetHexColumns (16);                              break;
 
         case CassqueCommands::kGroup1: SetHexGrouping (1); break;
         case CassqueCommands::kGroup2: SetHexGrouping (2); break;
@@ -3966,7 +4084,7 @@ DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
     }
 
     //  The search box's caret blinks on the frames this asks for.
-    if (m_focus == Pane::Search)
+    if (m_focus == Pane::Search || m_focus == Pane::GoTo)
     {
         Invalidate();
     }

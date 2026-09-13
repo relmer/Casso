@@ -284,7 +284,7 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("hexShowValues",  hexShowValues);
 
-    if (root.HasInt ("hexColumns", columns) && (columns == 0 || IsKnownHexGrouping (columns)))
+    if (root.HasInt ("hexColumns", columns) && (columns == 0 || columns == 16 || IsKnownHexGrouping (columns)))
     {
         hexColumns = columns;
     }

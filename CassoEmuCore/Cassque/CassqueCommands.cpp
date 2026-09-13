@@ -287,7 +287,7 @@ std::vector<DxuiToolbar::Entry> CassqueCommands::BuildToolbarEntries() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiToolbar::Entry> CassqueCommands::BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search) const
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const
 {
     std::vector<DxuiToolbar::Entry>  entries;
 
@@ -306,7 +306,9 @@ std::vector<DxuiToolbar::Entry> CassqueCommands::BuildPreviewToolbarEntries (boo
         entry.kind     = row.kind;
         entry.group    = row.group;
         entry.trailing = row.trailing;
-        entry.custom   = (row.id == kFind) ? search : nullptr;
+        entry.custom   = (row.id == kFind)       ? search
+                       : (row.id == kGoToOffset) ? goTo
+                                                 : nullptr;
 
         entries.push_back (std::move (entry));
     }

@@ -10,10 +10,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToolbarSearchBox
+//  DxuiToolbarEditBox
 //
-//  File Explorer's search box as a toolbar entry: a rounded field with a
-//  magnifying glass at its right end, and a hint in italics while it is empty.
+//  A text field as a toolbar entry, styled like File Explorer's search box: a
+//  rounded field with an optional glyph at its right end, and a hint in
+//  italics while it is empty.
 //
 //  THE TOOLBAR LAYS IT OUT AND PAINTS IT; THE HOST ROUTES ITS KEYS. A press
 //  inside it arrives through the toolbar's custom entry hooks and asks the
@@ -21,22 +22,31 @@
 //  to OnKey until focus moves elsewhere.
 //
 //  Unfocused, the field is a subtle fill a shade off the strip. Focused, it
-//  takes the content background and an accent line along its bottom edge.
+//  takes the content background and an accent line along its bottom edge. A
+//  host that rejects what was typed marks the field in error, which draws its
+//  border in the error color until the host clears it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiToolbarSearchBox : public IDxuiToolbarCustomEntry
+class DxuiToolbarEditBox : public IDxuiToolbarCustomEntry
 {
 public:
     using TextFn   = std::function<void (const std::wstring & text)>;
-    using ActionFn = std::function<void ()>;
+    using ActionFn = std::function<void()>;
 
-    DxuiToolbarSearchBox();
-    ~DxuiToolbarSearchBox() override = default;
+    DxuiToolbarEditBox();
+    ~DxuiToolbarEditBox() override = default;
 
     void  SetHint         (const std::wstring & hint)    { m_input.SetPlaceholder (hint); }
     void  SetHwnd         (HWND hwnd)                    { m_input.SetHwnd (hwnd); }
     void  SetTextRenderer (IDxuiTextRenderer * renderer) { m_input.SetTextRenderer (renderer); }
+
+    //  A Segoe MDL2 glyph drawn at the right end, or none.
+    void  SetGlyph    (const wchar_t * glyph)       { m_glyph = glyph; }
+    void  SetWidthDip (int widthDip)                { m_widthDip = widthDip; }
+    void  SetTooltip  (const std::wstring & text)   { m_tooltip = text; }
+    void  SetError    (bool error)                  { m_error = error; }
+    bool  IsInError   () const                      { return m_error; }
 
     //  Told on every edit, on Enter and on Escape.
     void  SetOnChange (TextFn fn)   { m_onChange = std::move (fn); }
@@ -70,23 +80,27 @@ public:
     void             OnMouseLeave  () override;
     bool             OnLButtonDown (int x, int y) override;
 
-    static constexpr int    kWidthDip = 220;
-    static constexpr float  kFontDip  = 14.0f;
+    static constexpr int    kDefaultWidthDip = 220;
+    static constexpr float  kFontDip         = 14.0f;
 
 private:
     bool  Contains (int x, int y) const;
-    void  EditThenNotify (const std::function<void ()> & edit);
+    void  EditThenNotify (const std::function<void()> & edit);
 
     static constexpr int  s_kInsetDip     = 4;
     static constexpr int  s_kGlyphSlotDip = 30;
 
-    DxuiTextInput  m_input;
-    DxuiDpiScaler  m_scaler;
-    RECT           m_rc             = {};
-    bool           m_focused        = false;
-    bool           m_hover          = false;
-    TextFn         m_onChange;
-    ActionFn       m_onSubmit;
-    ActionFn       m_onCancel;
-    ActionFn       m_onFocusRequest;
+    DxuiTextInput    m_input;
+    DxuiDpiScaler    m_scaler;
+    RECT             m_rc             = {};
+    const wchar_t  * m_glyph          = nullptr;
+    int              m_widthDip       = kDefaultWidthDip;
+    std::wstring     m_tooltip;
+    bool             m_focused        = false;
+    bool             m_hover          = false;
+    bool             m_error          = false;
+    TextFn           m_onChange;
+    ActionFn         m_onSubmit;
+    ActionFn         m_onCancel;
+    ActionFn         m_onFocusRequest;
 };

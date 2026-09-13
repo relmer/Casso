@@ -73,6 +73,7 @@ public:
         kColumns2,
         kColumns4,
         kColumns8,
+        kColumns16,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -97,7 +98,7 @@ public:
 
     //  The preview pane's toolbar: Go to and the byte grouping over a hex
     //  view, or the line address toggle over a BASIC listing.
-    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search) const;
+    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
     static std::vector<int>          GetPreviewToolbarCommandIds (bool hex);
 
     //  The toolbar entries' commands in strip order, so a host moving focus
@@ -163,18 +164,19 @@ private:
         { kCopy,              Menu::Edit, L"&Copy",                L"Ctrl+C",  false, DxuiStandardCommand::Copy },
         { kSelectAll,         Menu::Edit, L"Select &all",          L"Ctrl+A",  false, DxuiStandardCommand::SelectAll },
         { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
-        { kGoToOffset,        Menu::Edit, L"&Go to...",            L"Ctrl+G",  false },
+        { kGoToOffset,        Menu::Edit, L"&Go to",               L"Ctrl+G",  false },
         { kFind,              Menu::Edit, L"&Find",                L"Ctrl+F",  false },
         { kFindNext,          Menu::Edit, L"Find &next",           L"F3",      false },
 
-        //  Rows under Menu::Count are in no menu; they are the preview
-        //  toolbar's Columns dropdown and its choices.
+        //  Rows under Menu::Count are in no menu bar menu; they are the hex
+        //  context menu's Columns submenu and its choices.
         { kColumns,           Menu::Count, L"Columns",             nullptr,    false },
         { kColumnsAuto,       Menu::Count, L"&Auto",               nullptr,    true  },
         { kColumns1,          Menu::Count, L"&1",                  nullptr,    true  },
         { kColumns2,          Menu::Count, L"&2",                  nullptr,    true  },
         { kColumns4,          Menu::Count, L"&4",                  nullptr,    true  },
         { kColumns8,          Menu::Count, L"&8",                  nullptr,    true  },
+        { kColumns16,         Menu::Count, L"1&6",                 nullptr,    true  },
         { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
@@ -221,10 +223,8 @@ private:
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kLineAddresses, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Line addresses", L"Show where each line starts in memory" },
-        { kGoToOffset,    DxuiToolbar::Kind::Command,  0, nullptr, L"Go to...",      L"Go to an address (Ctrl+G)"   },
-        { kColumns,       DxuiToolbar::Kind::DropDown, 0, nullptr, L"Columns",       L"Values in each row"          },
-
-        //  The search box, which the host supplies as a custom entry.
+        //  The Go to and search boxes, which the host supplies as custom entries.
+        { kGoToOffset,    DxuiToolbar::Kind::Command,  0, nullptr, L"Go to",         L""                            },
         { kFind,          DxuiToolbar::Kind::Command,  1, nullptr, L"Search",        L"",                           false, true },
     };
 

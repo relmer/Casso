@@ -27,7 +27,7 @@
 #include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiTextView.h"
 #include "Widgets/DxuiToolbar.h"
-#include "Widgets/DxuiToolbarSearchBox.h"
+#include "Widgets/DxuiToolbarEditBox.h"
 #include "Widgets/DxuiTooltip.h"
 #include "Render/DxuiTextRenderer.h"
 #include "Widgets/DxuiTreeView.h"
@@ -124,7 +124,7 @@ protected:
 private:
     //  Keyboard focus. The toolbar is one pane, with its focused button in
     //  m_toolbarFocus; FocusRing defines the Tab order.
-    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, Search, Preview };
+    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, GoTo, Search, Preview };
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -172,6 +172,7 @@ private:
     void  RecomputeLayout();
     void  FillList();
     void  RevealLocationInTree();
+    int   WalkTreeLabels (int row, const std::wstring & path);
     void  FillTabs();
     void  FillAddress();
     void  SubmitAddress (const std::wstring & text);
@@ -199,7 +200,7 @@ private:
     void  ShowListContextMenu (int x, int y);
     void  ShowHexContextMenu  (int x, int y);
     void  ShowTextContextMenu (int x, int y);
-    void  AskForOffset();
+    void  GoToTyped (const std::wstring & text);
     void  SetHexGrouping (int grouping);
 
     //  Stands for a separator in a list of command ids.
@@ -224,7 +225,7 @@ private:
     void  SetHexColumns    (int columns);
     void  SetHexFormat     (const char * format);
     void  SetHexShowValues (bool show);
-    int   GetSearchStopIndex () const;
+    int   GetPreviewStopIndex (int commandId) const;
 
     static DxuiHexView::ValueFormat  ParseHexFormat (const std::string & name);
     static std::vector<std::wstring>       SplitLineNumber (const std::wstring & line);
@@ -307,7 +308,8 @@ private:
     std::wstring           m_findTyped;
     std::vector<Byte>      m_findBytes;
     bool                   m_findIsText      = false;
-    DxuiToolbarSearchBox   m_searchBox;
+    DxuiToolbarEditBox     m_searchBox;
+    DxuiToolbarEditBox     m_goToBox;
     DxuiAddressBar       * m_address         = nullptr;
     DxuiTooltip            m_tooltip;
 

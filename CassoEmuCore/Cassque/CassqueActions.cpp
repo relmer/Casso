@@ -724,6 +724,119 @@ CassqueActions::Outcome CassqueActions::FormatImage (const DiskOperations::NewDi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueActions::TryParseGoTo
+//
+//  A hyphen at the very start moves back from the caret, so only a hyphen
+//  after the first address separates a range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::TryParseGoTo (const std::wstring & text, int64_t caretAddress, int64_t & outFirst, int64_t & outLast)
+{
+    size_t        first  = text.find_first_not_of (L' ');
+    size_t        split  = std::wstring::npos;
+    size_t        start  = std::wstring::npos;
+    std::wstring  rest;
+    Word          amount = 0;
+
+
+
+    if (first == std::wstring::npos)
+    {
+        return false;
+    }
+
+    split = text.find (L',', first);
+    split = (split != std::wstring::npos) ? split : text.find (L'-', first + 1);
+
+    if (split == std::wstring::npos)
+    {
+        if (!TryParseGoToTarget (text, caretAddress, outFirst))
+        {
+            return false;
+        }
+
+        outLast = outFirst;
+        return true;
+    }
+
+    if (!TryParseGoToTarget (text.substr (0, split), caretAddress, outFirst))
+    {
+        return false;
+    }
+
+    rest  = text.substr (split + 1);
+    start = rest.find_first_not_of (L' ');
+
+    if ((text[split] == L',') && (start != std::wstring::npos) && (rest[start] == L'+'))
+    {
+        if (!TryParseAddress (rest.substr (start + 1), amount) || amount == 0)
+        {
+            return false;
+        }
+
+        outLast = outFirst + (int64_t) amount - 1;
+    }
+    else
+    {
+        if (!TryParseAddress (rest, amount))
+        {
+            return false;
+        }
+
+        outLast = (int64_t) amount;
+    }
+
+    return outLast >= outFirst;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::TryParseGoToTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::TryParseGoToTarget (const std::wstring & text, int64_t caretAddress, int64_t & outAddress)
+{
+    size_t   first  = text.find_first_not_of (L' ');
+    wchar_t  sign   = 0;
+    Word     amount = 0;
+
+
+
+    if (first == std::wstring::npos)
+    {
+        return false;
+    }
+
+    if (text[first] == L'+' || text[first] == L'-')
+    {
+        sign = text[first];
+        first++;
+    }
+
+    if (!TryParseAddress (text.substr (first), amount))
+    {
+        return false;
+    }
+
+    outAddress = (sign == L'+') ? (caretAddress + (int64_t) amount)
+               : (sign == L'-') ? (caretAddress - (int64_t) amount)
+                                : (int64_t) amount;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueActions::TryParseSearch
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -351,6 +351,45 @@ public:
     }
 
 
+    TEST_METHOD (GoTo_ParsesAddressesAndOffsetsFromTheCaret)
+    {
+        int64_t  address = 0;
+        int64_t  last    = 0;
+
+        Assert::IsTrue   (CassqueActions::TryParseGoTo (L"$08FF", 0x0800, address, last));
+        Assert::AreEqual ((int64_t) 0x08FF, address);
+        Assert::AreEqual (address, last, L"One address is a range of one");
+        Assert::IsTrue   (CassqueActions::TryParseGoTo (L"+10", 0x0800, address, last));
+        Assert::AreEqual ((int64_t) 0x0810, address, L"An offset is hex, as addresses are");
+        Assert::IsTrue   (CassqueActions::TryParseGoTo (L"+$A0", 0x0800, address, last));
+        Assert::AreEqual ((int64_t) 0x08A0, address);
+        Assert::IsTrue   (CassqueActions::TryParseGoTo (L" -#16 ", 0x0800, address, last));
+        Assert::AreEqual ((int64_t) 0x07F0, address, L"and # marks decimal");
+        Assert::IsFalse  (CassqueActions::TryParseGoTo (L"+", 0x0800, address, last));
+        Assert::IsFalse  (CassqueActions::TryParseGoTo (L"", 0x0800, address, last));
+        Assert::IsFalse  (CassqueActions::TryParseGoTo (L"zz", 0x0800, address, last));
+    }
+
+
+    TEST_METHOD (GoTo_ParsesARangeByLastAddressOrByLength)
+    {
+        int64_t  first = 0;
+        int64_t  last  = 0;
+
+        Assert::IsTrue   (CassqueActions::TryParseGoTo (L"$0803-$0810", 0x0800, first, last));
+        Assert::AreEqual ((int64_t) 0x0803, first);
+        Assert::AreEqual ((int64_t) 0x0810, last, L"A hyphen gives the last address");
+
+        Assert::IsTrue   (CassqueActions::TryParseGoTo (L"$0803,+10", 0x0800, first, last));
+        Assert::AreEqual ((int64_t) 0x0812, last, L"A comma and a plus give a length of sixteen");
+
+        Assert::IsFalse  (CassqueActions::TryParseGoTo (L"$0810-$0803", 0x0800, first, last),
+            L"A range cannot end before it starts");
+        Assert::IsFalse  (CassqueActions::TryParseGoTo (L"$0803,+0", 0x0800, first, last),
+            L"or be empty");
+    }
+
+
     TEST_METHOD (Search_ParsesHexBytesAndQuotedText)
     {
         std::vector<Byte>  bytes;
