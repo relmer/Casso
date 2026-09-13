@@ -240,15 +240,18 @@ public:
         ts.SetTabs (MakeTenTabs());
         LayOut (ts, 240);
 
-        Assert::AreEqual (-1, ts.HitTest (300, 10), L"Nothing past the strip's edge is under the pointer");
+        Assert::IsTrue   (ts.HasScrollArrows());
+        Assert::AreEqual (-1, ts.HitTest (10, 10),  L"The left arrow is no tab");
+        Assert::AreEqual (-1, ts.HitTest (230, 10), L"nor is the right one");
+        Assert::AreEqual (0,  ts.HitTest (40, 10),  L"The first tab starts after the left arrow");
 
         Assert::IsTrue   (ts.OnWheel (-1.0f));
         Assert::AreEqual (60, ts.GetScrollPx());
-        Assert::AreEqual (1,  ts.HitTest (30, 10), L"Scrolled, the second tab is under the start of the strip");
+        Assert::AreEqual (1,  ts.HitTest (58, 10), L"Scrolled, the second tab is under the start of the tabs");
 
         Assert::IsTrue   (ts.OnWheel (-100.0f));
-        Assert::AreEqual (560, ts.GetScrollPx(), L"Scrolling stops with the last tab at the edge");
-        Assert::AreEqual (9,   ts.HitTest (230, 10));
+        Assert::AreEqual (616, ts.GetScrollPx(), L"Scrolling stops with the last tab against the right arrow");
+        Assert::AreEqual (9,   ts.HitTest (200, 10));
         Assert::IsFalse  (ts.OnWheel (-1.0f));
     }
 
@@ -261,7 +264,7 @@ public:
         LayOut (ts, 240);
 
         ts.SetSelected (9);
-        Assert::AreEqual (560, ts.GetScrollPx());
+        Assert::AreEqual (616, ts.GetScrollPx());
 
         ts.SetSelected (0);
         Assert::AreEqual (0, ts.GetScrollPx());
@@ -275,7 +278,7 @@ public:
         ts.SetTabs (MakeTenTabs());
         LayOut (ts, 240);
 
-        ts.OnLButtonDown (10, 10);
+        ts.OnLButtonDown (40, 10);
 
         for (int i = 0; i < 100; i++)
         {
@@ -286,6 +289,45 @@ public:
 
         Assert::AreEqual (std::wstring (L"0"), ts.GetTabs()[9].label, L"A drag held past the right end carries its tab to the last place");
         Assert::AreEqual (9,   ts.GetSelected());
-        Assert::AreEqual (560, ts.GetScrollPx());
+        Assert::AreEqual (616, ts.GetScrollPx());
+    }
+
+
+    TEST_METHOD (TabsThatFit_ShowNoArrows)
+    {
+        DxuiTabStrip  ts;
+
+        ts.SetTabs (MakeThreeTabs());
+        LayOut (ts, 300);
+
+        Assert::IsFalse  (ts.HasScrollArrows());
+        Assert::AreEqual (0, ts.HitTest (10, 10), L"With no arrows the first tab starts at the strip's edge");
+    }
+
+
+    TEST_METHOD (Arrows_ScrollOneTabAtATime)
+    {
+        DxuiTabStrip  ts;
+
+        ts.SetTabs (MakeTenTabs());
+        LayOut (ts, 240);
+
+        Assert::IsTrue   (ts.OnLButtonDown (10, 10));
+        Assert::IsTrue   (ts.OnLButtonUp   (10, 10));
+        Assert::AreEqual (0, ts.GetScrollPx(), L"At the start the left arrow has nowhere to go");
+
+        ts.OnLButtonDown (230, 10);
+        ts.OnLButtonUp   (230, 10);
+        Assert::AreEqual (56, ts.GetScrollPx(), L"The right arrow brings the third tab, the first cut off, fully into view");
+
+        ts.OnLButtonDown (230, 10);
+        ts.OnLButtonUp   (230, 10);
+        Assert::AreEqual (136, ts.GetScrollPx(), L"then the fourth");
+
+        ts.OnLButtonDown (10, 10);
+        ts.OnLButtonUp   (10, 10);
+        Assert::AreEqual (80, ts.GetScrollPx(), L"The left arrow brings the second tab back to the start");
+
+        Assert::AreEqual (0, ts.GetSelected(), L"Scrolling selects nothing");
     }
 };

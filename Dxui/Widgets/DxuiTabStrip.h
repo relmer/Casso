@@ -15,8 +15,9 @@
 //  tabs and a single selected index. Mouse activates whichever tab
 //  the click lands in; keyboard cycles Left / Right with wrap.
 //
-//  Tabs past the strip's edge scroll into reach, by the wheel, by being
-//  selected, or by a drag held past either end. A tab dragged along the
+//  When the tabs do not fit, the strip shows a scroll arrow at each end, as
+//  File Explorer does, and the tabs between them scroll into reach by the
+//  arrows, the wheel, being selected, or a drag held past either end. A tab dragged along the
 //  strip moves as it crosses its neighbors, and each move is reported.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +56,9 @@ public:
     //  keep sending moves to a drag that has left the strip.
     bool                     IsInteracting () const { return m_pressed >= 0; }
 
+    //  True while the tabs are wider than the strip and the arrows are shown.
+    bool                     HasScrollArrows () const { return IsOverflowing(); }
+
     int   HitTest        (int x, int y) const;
     void  SetMouseHover  (int x, int y);
     bool  OnLButtonDown  (int x, int y);
@@ -81,6 +85,7 @@ private:
     static constexpr int  s_kDragThresholdDip = 4;    // movement before a press becomes a drag
     static constexpr int  s_kDragScrollDip    = 16;   // scroll per move while a drag is held past an end
     static constexpr int  s_kWheelStepDip     = 60;   // scroll per wheel notch
+    static constexpr int  s_kArrowWidthDip    = 28;   // each scroll arrow
 
     void  Commit         (int newIndex);
     bool  HasBounds      () const { return m_boundsDip.right > m_boundsDip.left; }
@@ -89,6 +94,14 @@ private:
     void  ClampScroll    ();
     void  ScrollIntoView (int index);
     void  MoveDraggedTab (int to);
+    bool  IsOverflowing  () const;
+    int   GetArrowWidthPx () const;
+    int   GetViewLeft    () const { return (int) m_boundsDip.left  + GetArrowWidthPx(); }
+    int   GetViewRight   () const { return (int) m_boundsDip.right - GetArrowWidthPx(); }
+    int   GetArrowAt     (int x, int y) const;
+    bool  CanScroll      (int direction) const;
+    void  ScrollByTab    (int direction);
+    void  PaintArrow     (IDxuiPainter & painter, IDxuiTextRenderer & text, int direction, uint32_t hoverArgb, uint32_t textArgb) const;
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          uint32_t idleArgb, uint32_t hoverArgb, uint32_t selectedArgb,
                          uint32_t textArgb, uint32_t focusArgb) const;
@@ -97,13 +110,15 @@ private:
     std::vector<Tab>  m_tabs;
     ChangeFn          m_change;
     MoveFn            m_move;
-    int               m_selected = 0;
-    int               m_hover    = -1;
-    int               m_pressed  = -1;
-    int               m_pressX   = 0;
-    int               m_scrollPx = 0;
-    bool              m_dragging = false;
-    bool              m_enabled  = true;
-    bool              m_focused  = false;
+    int               m_selected     = 0;
+    int               m_hover        = -1;
+    int               m_pressed      = -1;
+    int               m_pressX       = 0;
+    int               m_scrollPx     = 0;
+    bool              m_dragging     = false;
+    int               m_hoverArrow   = 0;   // -1 left, +1 right, 0 neither
+    int               m_pressedArrow = 0;
+    bool              m_enabled      = true;
+    bool              m_focused      = false;
     DxuiDpiScaler     m_scaler;
 };
