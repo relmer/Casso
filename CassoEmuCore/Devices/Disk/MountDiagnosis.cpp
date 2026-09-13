@@ -59,11 +59,20 @@ string MountDiagnosis::Describe() const
             observed = FormatByteCount (fileByteSize);
             required = FormatByteCount ((size_t) NibblizationLayer::kImageByteSize);
 
-            snprintf (note, sizeof (note),
-                      "is %s, but a %s image must be exactly %s -- 35 tracks of 16 "
-                      "sectors of 256 bytes. A file of any other size was either "
-                      "truncated on its way here or was never a disk image",
-                      observed.c_str(), GetPrimaryExtension (format), required.c_str());
+            //  An 800K image is a 3.5-inch disk, a real format rather than a damaged
+            //  140K one, so it is refused as unsupported, not as the wrong size.
+            if (fileByteSize == 800u * 1024u)
+            {
+                snprintf (note, sizeof (note), "is an 800K 3.5-inch disk image, and 800K images aren't supported yet");
+            }
+            else
+            {
+                snprintf (note, sizeof (note),
+                          "is %s, but a %s image must be exactly %s -- 35 tracks of 16 "
+                          "sectors of 256 bytes. A file of any other size was either "
+                          "truncated on its way here or was never a disk image",
+                          observed.c_str(), GetPrimaryExtension (format), required.c_str());
+            }
 
             text = note;
             break;

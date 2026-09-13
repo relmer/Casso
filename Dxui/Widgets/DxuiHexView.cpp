@@ -1449,8 +1449,8 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 
         if (IsByteSelected (offset))
         {
-            FillCell (text, GetSelectionCellRect (offset, index, hexRect), theme.SelectionBackground());
-            FillCell (text, txtRect, theme.SelectionBackground());
+            FillCell (text, GetSelectionCellRect (offset, index, hexRect, true),  theme.SelectionBackground());
+            FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), theme.SelectionBackground());
         }
 
         DrawCell (text, hexRect, digitsOf.c_str(), argb, font);
@@ -1469,24 +1469,27 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 //
 //  A selected byte's fill reaches halfway into the gap on each side, so a run
 //  reads as one band with the spacing inside it and a margin past its ends.
-//  A byte at the row's edge borrows the gap from its other side.
+//  A byte at the row's edge borrows the gap from its other side, and a text
+//  column cell, which has no gap, keeps its width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiHexView::GetSelectionCellRect (uint64_t offset, int index, const RECT & cell) const
+RECT DxuiHexView::GetSelectionCellRect (uint64_t offset, int index, const RECT & cell, bool hexColumn) const
 {
-    RECT  rect     = cell;
-    int   gapLeft  = 0;
-    int   gapRight = 0;
+    RECT      rect     = cell;
+    int       gapLeft  = 0;
+    int       gapRight = 0;
+    int       margin   = m_scaler.ToPx (s_kSelectionMarginDip);
+    uint64_t  perRow   = (uint64_t) m_bytesPerRow;
 
 
 
-    if (index + 1 < m_bytesPerRow)
+    if (hexColumn && index + 1 < m_bytesPerRow)
     {
         gapRight = GetByteRect (offset + 1, Column::Hex).left - cell.right;
     }
 
-    if (index > 0)
+    if (hexColumn && index > 0)
     {
         gapLeft = cell.left - GetByteRect (offset - 1, Column::Hex).right;
     }
@@ -1496,6 +1499,19 @@ RECT DxuiHexView::GetSelectionCellRect (uint64_t offset, int index, const RECT &
 
     rect.left  -= gapLeft / 2;
     rect.right += gapRight - gapRight / 2;
+
+    //  A run's top and bottom edges reach a little past the characters, but
+    //  not where the neighboring row is selected too, whose text would be
+    //  covered.
+    if (offset < perRow || !IsByteSelected (offset - perRow))
+    {
+        rect.top -= margin;
+    }
+
+    if (!IsByteSelected (offset + perRow))
+    {
+        rect.bottom += margin;
+    }
 
     return rect;
 }
@@ -1520,10 +1536,13 @@ void DxuiHexView::DrawCell (IDxuiTextRenderer & text, const RECT & rect, const w
 
 
 
+    //  The box is a cell wider than the characters: a glyph whose ink runs past
+    //  its advance, or a width rounded down to whole pixels, is otherwise
+    //  cut off at its right edge.
     hr = text.DrawString (chars,
                           (float) rect.left,
                           (float) rect.top,
-                          (float) (rect.right - rect.left),
+                          (float) (rect.right - rect.left) + (float) (rect.bottom - rect.top),
                           (float) (rect.bottom - rect.top),
                           argb,
                           font.sizeDip,

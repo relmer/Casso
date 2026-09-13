@@ -239,7 +239,7 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
-        hr = volume.Read (FilePath::Parse (name), outPayload);
+        hr = volume.Read ((opened.kind == VolumeKind::Dos33) ? FilePath::FromName (name) : FilePath::Parse (name), outPayload);
 
         if (FAILED (hr))
         {
@@ -563,7 +563,7 @@ DiskOperations::Result DiskOperations::WritePayload (
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
-        hr = volume.Write (FilePath::Parse (name), payload, edited);
+        hr = volume.Write ((opened.kind == VolumeKind::Dos33) ? FilePath::FromName (name) : FilePath::Parse (name), payload, edited);
 
         if (FAILED (hr))
         {
@@ -610,7 +610,7 @@ DiskOperations::Result DiskOperations::Rename (
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
-        hr = volume.Rename (FilePath::Parse (from), to, edited);
+        hr = volume.Rename ((opened.kind == VolumeKind::Dos33) ? FilePath::FromName (from) : FilePath::Parse (from), to, edited);
 
         if (FAILED (hr))
         {

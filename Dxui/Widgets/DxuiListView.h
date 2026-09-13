@@ -315,12 +315,17 @@ public:
     // selection visible regardless, like a real list view.
     void  SetAlwaysShowSelection   (bool enabled)                { m_alwaysShowSelection = enabled; }
 
+    // Selected rows in the accent selection color a text control uses, as a
+    // preview of a file's contents does, rather than the neutral fill a file
+    // list uses.
+    void  SetTextSelectionColors   (bool enabled)                { m_textSelectionColors = enabled; }
+
     // Raised once when an interactive column-resize drag completes, with
     // the column index and its new effective width in physical pixels.
     // Lets a host that owns a persisted column model (e.g. the debug
     // panels) record the user's width without re-implementing the drag.
     void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
-    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None; }
+    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting; }
     bool  IsResizingColumn      () const  { return m_resizeColumn >= 0; }
 
     // Auto-repeat for a held scrollbar arrow / track press (like key
@@ -448,6 +453,7 @@ private:
     bool    DispatchMouseDown      (const DxuiMouseEvent & ev, int lx, int ly, bool inside);
     bool    DispatchScrollbarPress (int lx, int ly);
     bool    DispatchMouseMove      (int lx, int ly, bool inside);
+    void    DragSelectTo           (int ly);
     bool    DispatchMouseUp        (int lx, int ly, bool inside);
     bool    DispatchMouseWheel     (const DxuiMouseEvent & ev, bool inside);
 
@@ -580,6 +586,8 @@ private:
 
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;
+    bool     m_textSelectionColors   = false;
+    bool     m_dragSelecting         = false;
     int      m_lastClickRow          = -1;
     int64_t  m_lastClickMs           = 0;
 };

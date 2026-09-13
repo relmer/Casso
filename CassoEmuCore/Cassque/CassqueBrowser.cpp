@@ -580,6 +580,8 @@ void CassqueBrowser::UpdatePreview()
     {
         if (entry->isDirectory)
         {
+            m_preview.kind    = PreviewContent::Kind::Error;
+            m_preview.message = L"ProDOS subdirectories aren't supported yet.";
             return;
         }
 
@@ -975,7 +977,7 @@ bool CassqueBrowser::OpenRow (int row)
     {
         target = Location::MakeHostFolder (JoinPath (location.path, m_rows[row].name));
     }
-    else if (m_rows[row].isDiskImage)
+    else if (m_rows[row].isDiskImage && CanListImage (JoinPath (location.path, m_rows[row].name)))
     {
         target = Location::MakeDiskImage (JoinPath (location.path, m_rows[row].name));
     }
@@ -1645,4 +1647,40 @@ bool CassqueBrowser::GoForwardBy (size_t steps)
     }
 
     return moved > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::CanListImage
+//
+//  Whether an image has a catalog to open, read once and cached; an image
+//  with no file system has nothing to open into.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::CanListImage (const std::wstring & imagePath)
+{
+    VolumeListing           listing;
+    VolumeKind              kind   = VolumeKind::Unknown;
+    DiskOperations::Result  result;
+    bool                    listed = m_model.TryGetCachedCatalog (imagePath, listing, kind);
+
+
+
+    if (!listed)
+    {
+        result = m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+        listed = result.Succeeded();
+
+        if (listed)
+        {
+            m_model.CacheCatalog (imagePath, listing, kind);
+        }
+    }
+
+    return listed;
 }

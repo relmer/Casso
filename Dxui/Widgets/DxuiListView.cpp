@@ -2385,7 +2385,7 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.hdrFg    = m_theme->HeadingForeground();
     pal.bgRow    = m_theme->ContentBackground();
     pal.bgHover  = m_theme->ContentHover();
-    pal.bgSel    = m_theme->ContentSelection();
+    pal.bgSel    = m_textSelectionColors ? m_theme->SelectionBackground() : m_theme->ContentSelection();
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
     pal.border   = m_theme->ContentEdge();
     pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
@@ -2658,7 +2658,7 @@ void DxuiListView::PaintDataRows (
             painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgSel);
         }
 
-        if (isHov)
+        if (isHov && !isSel)
         {
             painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
         }
@@ -3101,6 +3101,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     if (row >= 0)
     {
         ClickRow (row, ev.ctrl, ev.shift);
+        m_dragSelecting = m_multiSelect;
     }
 
     handled = true;
@@ -3186,6 +3187,10 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
     {
         UpdateHorzThumbDrag (lx);
     }
+    else if (m_dragSelecting)
+    {
+        DragSelectTo (ly);
+    }
     else if (inside)
     {
         SetHoveredRow (HitTestRow (lx, ly));
@@ -3197,6 +3202,50 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::DragSelectTo
+//
+//  Extends the selection from the row the drag began on to the row under the
+//  pointer, scrolling one row at a time when the pointer is past either edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::DragSelectTo (int ly)
+{
+    int  rowH    = GetRowHeightPx();
+    int  headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int  hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
+    int  body    = ly - headerH - hdrGap;
+    int  row     = 0;
+
+
+
+    if (rowH <= 0 || m_anchorRow < 0 || GetRowCount() == 0)
+    {
+        return;
+    }
+
+    row = (body < 0) ? m_topRow - 1 : m_topRow + body / rowH;
+    row = (std::max) (0, (std::min) (row, GetRowCount() - 1));
+
+    if (row != m_selectedRow)
+    {
+        SelectRangeFromAnchor (row);
+        m_selectedRow = row;
+        EnsureVisible (row);
+
+        if (m_onSelectionChanged)
+        {
+            m_onSelectionChanged (row);
+        }
+    }
 }
 
 
@@ -3217,10 +3266,19 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
 {
     bool  handled = true;
     int   row     = inside ? HitTestRow (lx, ly) : -1;
+    bool  ranged  = m_dragSelecting && m_selectedRows.size() > 1;
 
 
 
-    if (m_scrollRepeat != ScrollRepeat::None)
+    //  A drag or a Shift or Ctrl click that left several rows selected keeps
+    //  them; only a plain click collapses the selection to its row.
+    m_dragSelecting = false;
+
+    if (ranged)
+    {
+        handled = true;
+    }
+    else if (m_scrollRepeat != ScrollRepeat::None)
     {
         m_scrollRepeat = ScrollRepeat::None;
     }

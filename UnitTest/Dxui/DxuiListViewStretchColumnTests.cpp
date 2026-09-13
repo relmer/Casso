@@ -133,4 +133,42 @@ public:
         Assert::IsTrue   (enabled);
         Assert::AreEqual (std::wstring (L"HELLO\tBAS\r\nNOTES\tTXT\r\nODD\tBIN\r\n"), list.GetSelectionText());
     }
+
+
+    TEST_METHOD (Drag_SelectsTheRowsItCrosses)
+    {
+        DxuiListView                                  list;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        DxuiDpiScaler                                 scaler;
+        DxuiMouseEvent                                ev;
+        int                                           rowH = 0;
+
+        for (int i = 0; i < 10; i++)
+        {
+            rows.push_back ({ DxuiListView::Cell { std::to_wstring (i), false } });
+        }
+
+        scaler.SetDpi (96);
+        list.SetColumns     ({ DxuiListView::Column { L"", 0, true } });
+        list.SetShowHeader  (false);
+        list.SetMultiSelect (true);
+        list.SetRows        (std::move (rows));
+        list.Layout         (RECT { 0, 0, 300, 600 }, scaler);
+
+        rowH           = list.GetRowHeightDip();
+        ev.button      = DxuiMouseButton::Left;
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.positionDip = POINT { 10, rowH / 2 };
+        list.OnMouse (ev);
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = POINT { 10, rowH * 3 + rowH / 2 };
+        list.OnMouse (ev);
+
+        ev.kind = DxuiMouseEventKind::Up;
+        list.OnMouse (ev);
+
+        Assert::AreEqual ((size_t) 4, list.GetSelectedRows().size(), L"A drag from the first row to the fourth selects all four");
+        Assert::IsFalse  (list.IsInteracting(), L"and releasing the button ends the drag");
+    }
 };

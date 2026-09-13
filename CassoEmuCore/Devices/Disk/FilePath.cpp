@@ -106,3 +106,27 @@ std::string FilePath::ToString() const
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilePath::FromName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FilePath FilePath::FromName (const std::string & name)
+{
+    FilePath  path;
+
+
+
+    if (!name.empty())
+    {
+        path.m_components.push_back (name);
+    }
+
+    return path;
+}

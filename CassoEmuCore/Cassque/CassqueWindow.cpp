@@ -356,6 +356,7 @@ void CassqueWindow::ConfigureWidgets()
     m_previewList->SetPreciseAutoFit (true);
     m_previewList->SetMultiSelect (true);
     m_previewList->SetAlwaysShowSelection (true);
+    m_previewList->SetTextSelectionColors (true);
     m_previewList->SetOwnerWindow (GetHwnd());
 
     //  The bytes are Apple text in the column on the right, which is what
@@ -370,7 +371,7 @@ void CassqueWindow::ConfigureWidgets()
 
     m_hexView->SetOnContextMenu ([this] (POINT atDip)
     {
-        ShowHexContextMenu (m_scaler.ToPx (atDip.x), m_scaler.ToPx (atDip.y));
+        ShowHexContextMenu (atDip.x, atDip.y);
     });
 
     m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
@@ -1206,6 +1207,15 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         }
 
         m_list->OnMouse (local);
+        Invalidate();
+        return true;
+    }
+
+    //  A drag selecting lines keeps the pointer until the button comes up, as
+    //  the file list's does.
+    if (m_previewList->IsInteracting())
+    {
+        m_previewList->OnMouse (ToLocal (ev, m_previewList->GetBounds()));
         Invalidate();
         return true;
     }

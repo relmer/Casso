@@ -168,6 +168,7 @@ private:
     HRESULT  LoadHostFolder (const std::wstring & path);
     HRESULT  LoadRoot       (const std::wstring & id);
     HRESULT  LoadImage      (const std::wstring & path);
+    bool     CanListImage   (const std::wstring & imagePath);
     void     SortRows();
     void     UpdatePreview();
     void     UpdateStatus();

@@ -283,11 +283,26 @@ HRESULT PreviewDecoder::Render (
     switch (decided)
     {
         case PreviewContent::Kind::Listing:
-            if (IsApplesoftType (entry.type, kind))
+            if (payload.bytes.empty())
+            {
+                outContent.kind    = PreviewContent::Kind::Error;
+                outContent.message = L"This file is empty.";
+            }
+            else if (IsApplesoftType (entry.type, kind))
             {
                 hr = ApplesoftTokenizer::Detokenize (payload.bytes, text, applesoftError);
 
-                if (FAILED (hr))
+                //  A DOS 3.3 file's recorded length can stop partway through its
+                //  last line. The lines before it are shown, with the cut noted.
+                if (FAILED (hr) && IsCutOff (applesoftError) && !applesoftError.partialListing.empty())
+                {
+                    text = applesoftError.partialListing
+                         + (applesoftError.hasLineNumber
+                                ? std::format ("\n(The file ends partway through line {}.)\n", (unsigned) applesoftError.lineNumber)
+                                : std::string ("\n(The file ends partway through its last line.)\n"));
+                    hr   = S_OK;
+                }
+                else if (FAILED (hr))
                 {
                     outContent.kind    = PreviewContent::Kind::Error;
                     outContent.message = std::format (L"Line {}: {}",
@@ -534,4 +549,24 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
     }
 
     return !outDetails.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::IsCutOff
+//
+//  Whether a listing failed because the file ends too soon, rather than
+//  because what it holds is not a program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDecoder::IsCutOff (const ApplesoftListingError & error)
+{
+    return error.reason == "has no byte ending it"
+        || error.reason == "the program ends before its last line does"
+        || error.reason == "the program ends inside a line header";
 }

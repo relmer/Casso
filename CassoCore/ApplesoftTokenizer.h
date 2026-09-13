@@ -83,6 +83,10 @@ struct ApplesoftListingError
     uint32_t     lineNumber      = 0;
     size_t       sourceLineIndex = 0;   // 1-based, for a line carrying no number
     bool         hasLineNumber   = false;
+
+    //  The lines read before the one that failed, for a caller that shows what
+    //  a file cut off in its last line does hold.
+    std::string  partialListing;
 };
 
 

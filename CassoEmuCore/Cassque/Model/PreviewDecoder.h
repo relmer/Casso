@@ -9,6 +9,7 @@
 class MemoryBus;
 class Microcode;
 enum class VolumeKind;
+struct ApplesoftListingError;
 
 
 
@@ -102,6 +103,7 @@ private:
 
     //  A ProDOS date as CAT prints it, 17-AUG-84, or <NO DATE>.
     static std::wstring  FormatProDosDate (const FileEntry & entry);
+    static bool          IsCutOff         (const ApplesoftListingError & error);
 
     static constexpr const wchar_t *  s_kMonths[12] =
     {

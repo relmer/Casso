@@ -31,6 +31,10 @@ public:
     //  doubled separator is tolerated rather than producing a nameless step.
     static FilePath  Parse (const std::string & text);
 
+    //  One component holding the whole name, for a volume with no directories.
+    //  A DOS 3.3 name may contain a slash, which is part of the name.
+    static FilePath  FromName (const std::string & name);
+
     const std::vector<std::string> &  GetComponents () const { return m_components; }
 
     bool  IsRooted () const { return m_isRooted; }
