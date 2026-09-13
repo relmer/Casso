@@ -3136,7 +3136,13 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     // not sufficient on its own here -- the host's flip swap chain covers
     // the entire window (caption included), so the DWM has no non-client
     // redirection surface in the maximize-button region to host the flyout.
-    toDefault = (msg == WM_NCMOUSEMOVE);
+    //
+    // Except over minimize and close. DefWindowProc answers a move over
+    // HTMINBUTTON or HTCLOSE with the stock system tooltip -- square, in the
+    // old style, and unlike every other tooltip in the window. Nothing else
+    // depends on that forward: the hover is painted above and the press is
+    // owned, so for those two the move stops here.
+    toDefault = (msg == WM_NCMOUSEMOVE) && wp != (WPARAM) HTMINBUTTON && wp != (WPARAM) HTCLOSE;
 
 Error:
     return toDefault ? DefaultProc (msg, wp, lp) : 0;
