@@ -712,7 +712,8 @@ std::vector<DxuiListView::Column> CassqueBrowser::GetColumns()
 //  CassqueBrowser::GetCatalogPreviewColumns
 //
 //  The preview pane is narrower than the list, so a catalog there keeps only
-//  what identifies a file.
+//  what identifies a file, each column as wide as its header or its widest
+//  entry.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -722,9 +723,9 @@ std::vector<DxuiListView::Column> CassqueBrowser::GetCatalogPreviewColumns()
 
 
 
-    columns.push_back (DxuiListView::Column { L"Name", 0,  true,  DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Type", 60, false, DxuiTextHAlign::Left  });
-    columns.push_back (DxuiListView::Column { L"Size", 92, false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Name", 0, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Type", 0, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Size", 0, false, DxuiTextHAlign::Right });
 
     return columns;
 }
@@ -1574,4 +1575,62 @@ bool CassqueBrowser::NavigateToAddress (const std::wstring & text)
     }
 
     return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GoBackBy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::GoBackBy (size_t steps)
+{
+    size_t  moved = 0;
+
+
+
+    while (moved < steps && m_model.HasTabs() && m_model.GoBack())
+    {
+        moved++;
+    }
+
+    if (moved > 0)
+    {
+        ReloadAfterNavigation();
+    }
+
+    return moved > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GoForwardBy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::GoForwardBy (size_t steps)
+{
+    size_t  moved = 0;
+
+
+
+    while (moved < steps && m_model.HasTabs() && m_model.GoForward())
+    {
+        moved++;
+    }
+
+    if (moved > 0)
+    {
+        ReloadAfterNavigation();
+    }
+
+    return moved > 0;
 }

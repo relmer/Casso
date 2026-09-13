@@ -271,4 +271,76 @@ public:
         Assert::IsTrue   (content.kind == Kind::Error);
         Assert::AreEqual (integer.bytes.size() - 3, content.offset, L"the offset of the line that was cut");
     }
+
+
+
+    TEST_METHOD (Catalog_Dos33ReadsAsCatalogPrintsIt)
+    {
+        VolumeListing   listing;
+        PreviewContent  content;
+        FileEntry       hello;
+        FileEntry       loader;
+
+        listing.volumeNumber    = 254;
+        listing.hasVolumeNumber = true;
+        listing.totalUnits      = 560;
+        listing.freeUnits       = 283;
+
+        hello.name       = "HELLO";
+        hello.type       = 0x02;
+        hello.isLocked   = true;
+        hello.sizeUnits  = 3;
+        loader.name      = "LOADER.OBJ0";
+        loader.type      = 0x04;
+        loader.sizeUnits = 6;
+
+        listing.entries = { hello, loader };
+
+        PreviewDecoder::RenderCatalog (listing, VolumeKind::Dos33, content);
+
+        Assert::IsTrue   (content.kind == Kind::Catalog);
+        Assert::AreEqual ((size_t) 6, content.lines.size());
+        Assert::AreEqual (std::wstring (L"DISK VOLUME 254"),        content.lines[0]);
+        Assert::IsTrue   (content.lines[1].empty());
+        Assert::AreEqual (std::wstring (L"*A 003 HELLO"),           content.lines[2]);
+        Assert::AreEqual (std::wstring (L" B 006 LOADER.OBJ0"),     content.lines[3]);
+        Assert::IsTrue   (content.lines[4].empty());
+        Assert::AreEqual (std::wstring (L"283 sectors free of 560"), content.lines[5]);
+    }
+
+
+
+    TEST_METHOD (Catalog_ProDosReadsAsCatPrintsIt)
+    {
+        VolumeListing   listing;
+        PreviewContent  content;
+        FileEntry       hello;
+        FileEntry       subdir;
+
+        listing.volumeName    = "CASSQUE";
+        listing.hasVolumeName = true;
+        listing.totalUnits    = 280;
+        listing.freeUnits     = 214;
+
+        hello.name         = "HELLO";
+        hello.type         = 0xFC;
+        hello.sizeUnits    = 1;
+        hello.hasModified  = true;
+        hello.modifiedUnix = 461548800;   // 17 August 1984
+        subdir.name        = "SUBDIR";
+        subdir.type        = 0x0F;
+        subdir.isDirectory = true;
+        subdir.sizeUnits   = 1;
+
+        listing.entries = { hello, subdir };
+
+        PreviewDecoder::RenderCatalog (listing, VolumeKind::ProDos, content);
+
+        Assert::AreEqual ((size_t) 8, content.lines.size());
+        Assert::AreEqual (std::wstring (L"/CASSQUE"), content.lines[0]);
+        Assert::AreEqual (std::wstring (L" NAME" L"           " L"TYPE  BLOCKS  MODIFIED"), content.lines[2]);
+        Assert::AreEqual (std::wstring (L" HELLO" L"           " L"BAS" L"       " L"1  17-AUG-84"), content.lines[4]);
+        Assert::AreEqual (std::wstring (L" SUBDIR" L"          " L"DIR" L"       " L"1  <NO DATE>"), content.lines[5]);
+        Assert::AreEqual (std::wstring (L"BLOCKS FREE:  214     BLOCKS USED:   66"), content.lines[7]);
+    }
 };

@@ -69,6 +69,7 @@ public:
     // Muted prompt text drawn in place of the value while the field is
     // empty (e.g. "Search"). Empty by default.
     void  SetPlaceholder (const std::wstring & text)  { m_placeholder = text; }
+    void  SetFont       (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
 
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetRect   () const { return m_boundsDip;    }
@@ -102,6 +103,7 @@ private:
     void   ClampCaret ();
     size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
     size_t GetWordBoundary (size_t from, bool forward) const;
+    const wchar_t *  GetFace () const;
 
     static bool IsWordChar (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
     void   DeleteSelection ();
@@ -124,6 +126,8 @@ private:
     bool                m_hover       = false;
     bool                m_dragging    = false;
     bool                m_chromeless  = false;
+    const wchar_t     * m_face        = nullptr;   // null: the theme's body face
+    float               m_fontDip     = 13.0f;
     const IDxuiTheme  * m_theme       = nullptr;
     HWND                m_hwnd        = nullptr;
     IDxuiTextRenderer * m_renderer    = nullptr;   // non-owning

@@ -99,6 +99,10 @@ public:
     bool  CanGoUp () const;
     bool  GoBack    ();
     bool  GoForward ();
+
+    //  Several steps at once, as a pick from the Back or Forward list takes.
+    bool  GoBackBy    (size_t steps);
+    bool  GoForwardBy (size_t steps);
     bool  GoUp      ();
 
     //  Navigates the active tab to a location, as a click on an address bar

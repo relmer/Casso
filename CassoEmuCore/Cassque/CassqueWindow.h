@@ -84,8 +84,12 @@ public:
 
     static constexpr int       kMaxCatalogName     = 30;
     static constexpr UINT_PTR  kTooltipTimerId     = 0x5153;
-    static constexpr UINT      kTooltipTickMs      = 50;
+    static constexpr UINT      kTooltipTickMs      = 16;   // the menus' reveal runs on it too, so display rate
     static constexpr int       kTabHeightDip       = 32;
+
+    //  Explorer's navigation glyphs are smaller than Casso's toolbar icons:
+    //  15 pixels of ink at 120 DPI.
+    static constexpr float     kNavIconDip         = 12.0f;
 
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
@@ -165,6 +169,10 @@ private:
     void  FillAddress();
     void  SubmitAddress (const std::wstring & text);
     void  ShowAddressMenu (int index, const RECT & anchor);
+    void  ShowAddressOverflowMenu (const RECT & anchor);
+    void  ShowHistoryMenu (bool forward, const RECT & anchor);
+
+    static std::wstring  EscapeMnemonics (const std::wstring & text);
     void  SwitchToTab (size_t index);
     void  FillPreview();
     void  FillStatus();

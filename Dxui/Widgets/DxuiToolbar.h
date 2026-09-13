@@ -150,6 +150,7 @@ public:
 
     void  SetEntries       (std::vector<Entry> entries);
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
+    void  SetIconDip       (float dip)                   { m_iconDip = dip; }
 
     //  The two icon fonts for the glyphs in UnicodeSymbols.h. They use the same
     //  code points; Windows 11 uses Fluent for its own chrome, which draws some
@@ -166,6 +167,7 @@ public:
     int   PlanForWidth     (int clientWidthPx, const DxuiDpiScaler & scaler);
     int   GetBandDp        () const;
     bool  IsLabeled        (int commandId) const;
+    bool  TryGetEntryRect  (int commandId, RECT & outRect) const;
 
     //  The span between the last leading entry and the first trailing one, a
     //  group gap from each, for a host control such as an address bar. Empty
@@ -302,6 +304,7 @@ private:
 
     IDxuiTextRenderer      * m_textRenderer   = nullptr;
     const wchar_t          * m_iconFace       = kMdl2IconFace;
+    float                    m_iconDip        = kIconDip;
     RECT                     m_barRect        = {};
     RECT                     m_freeRect       = {};
     RECT                     m_hostClient     = {};

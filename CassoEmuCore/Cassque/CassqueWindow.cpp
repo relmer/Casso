@@ -265,6 +265,7 @@ void CassqueWindow::OnCreate()
     m_toolbar->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                             ? DxuiToolbar::kFluentIconFace
                             : DxuiToolbar::kMdl2IconFace);
+    m_toolbar->SetIconDip  (kNavIconDip);
 
     m_menuBar->SetPopupHost (GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
@@ -351,6 +352,7 @@ void CassqueWindow::ConfigureWidgets()
     m_previewList->SetMonospace (true);
     m_previewList->SetRowHeightDip (kPreviewRowHeightDip);
     m_previewList->SetHorizontalScrollEnabled (true);
+    m_previewList->SetPreciseAutoFit (true);
 
     //  The bytes are Apple text in the column on the right, which is what
     //  the files here hold; the grouping is the user's, kept between runs.
@@ -405,6 +407,7 @@ void CassqueWindow::ConfigureWidgets()
     });
     m_address->SetOnSubmit ([this] (const std::wstring & text) { SubmitAddress (text); });
     m_address->SetOnSeparator ([this] (int index, const RECT & anchor) { ShowAddressMenu (index, anchor); });
+    m_address->SetOnOverflow  ([this] (const RECT & anchor) { ShowAddressOverflowMenu (anchor); });
 
     m_browser.RestoreTabs (m_prefs.tabs);
 
@@ -720,7 +723,9 @@ void CassqueWindow::FillPreview()
         m_picture->Clear();
     }
 
-    if (catalog)
+    //  A DOS 3.3 or ProDOS catalog arrives as its own listing's lines; any
+    //  other volume's arrives as rows, under columns fitted to them.
+    if (catalog && preview.lines.empty())
     {
         m_previewList->SetShowHeader (true);
         m_previewList->SetColumns (CassqueBrowser::GetCatalogPreviewColumns());
@@ -742,6 +747,8 @@ void CassqueWindow::FillPreview()
     }
 
     m_previewList->SetRows (std::move (rows));
+    m_previewList->ResetAutoFit();
+    m_previewList->UpdateAutoFitFromRows();
 
     //  The hex view reads the preview's own bytes where they lie. The source
     //  is re-pointed rather than refilled, so a file of any size costs the
@@ -2485,11 +2492,7 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
         std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
         Location                      target  = child.location;
 
-        //  A menu label treats an ampersand as a mnemonic; a name's own is doubled.
-        for (wchar_t ch : child.label)
-        {
-            command->label += (ch == L'&') ? L"&&" : std::wstring (1, ch);
-        }
+        command->label = EscapeMnemonics (child.label);
 
         command->dispatch = [this, target]()
         {
@@ -2505,6 +2508,132 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
     {
         DxuiContextMenu::Show (*GetPopupHost(), anchor.left, anchor.bottom, std::move (items));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowAddressOverflowMenu
+//
+//  The segments collapsed behind the address bar's overflow button, nearest
+//  first, as Explorer lists them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowAddressOverflowMenu (const RECT & anchor)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    int                             i = 0;
+
+
+
+    m_menuCommands.clear();
+
+    for (i = (std::min) (m_address->GetFirstShown(), (int) m_addressSegments.size()) - 1; i >= 0; i--)
+    {
+        std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+        Location                      target  = m_addressSegments[(size_t) i].location;
+
+        command->label    = EscapeMnemonics (m_addressSegments[(size_t) i].label);
+        command->dispatch = [this, target]()
+        {
+            m_browser.NavigateToLocation (target);
+            FillList();
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    if (!items.empty())
+    {
+        DxuiContextMenu::Show (*GetPopupHost(), anchor.left, anchor.bottom, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowHistoryMenu
+//
+//  Where Back or Forward would go, nearest first; picking one takes as many
+//  steps as it is away.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowHistoryMenu (bool forward, const RECT & anchor)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    std::vector<Location>           stack;
+    size_t                          i     = 0;
+
+
+
+    if (!m_browser.GetBrowserModel().HasTabs())
+    {
+        return;
+    }
+
+    stack = forward ? m_browser.GetBrowserModel().GetActiveTab().forward
+                    : m_browser.GetBrowserModel().GetActiveTab().back;
+
+    m_menuCommands.clear();
+
+    for (i = 0; i < stack.size(); i++)
+    {
+        std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+        size_t                        steps   = i + 1;
+
+        command->label    = EscapeMnemonics (CassqueBrowser::GetLocationLabel (stack[stack.size() - 1 - i]));
+        command->dispatch = [this, forward, steps]()
+        {
+            if (forward ? m_browser.GoForwardBy (steps) : m_browser.GoBackBy (steps))
+            {
+                FillList();
+            }
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    if (!items.empty())
+    {
+        DxuiContextMenu::Show (*GetPopupHost(), anchor.left, anchor.bottom, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::EscapeMnemonics
+//
+//  A menu label reads an ampersand as a mnemonic marker, so a name's own is
+//  doubled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueWindow::EscapeMnemonics (const std::wstring & text)
+{
+    std::wstring  escaped;
+
+
+
+    for (wchar_t ch : text)
+    {
+        escaped += (ch == L'&') ? L"&&" : std::wstring (1, ch);
+    }
+
+    return escaped;
 }
 
 
@@ -2906,6 +3035,19 @@ bool CassqueWindow::RouteToolbarMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Down:
             took = ev.button == DxuiMouseButton::Left && m_toolbar->OnToolbarLButtonDown (x, y);
 
+            //  A right-click on Back or Forward lists where each would go, as
+            //  Explorer's does.
+            if (ev.button == DxuiMouseButton::Right && m_toolbar->TryGetEntryRect (CassqueCommands::kBack, anchor) && Contains (anchor, ev.positionDip))
+            {
+                ShowHistoryMenu (false, anchor);
+                took = true;
+            }
+            else if (ev.button == DxuiMouseButton::Right && m_toolbar->TryGetEntryRect (CassqueCommands::kForward, anchor) && Contains (anchor, ev.positionDip))
+            {
+                ShowHistoryMenu (true, anchor);
+                took = true;
+            }
+
             if (took)
             {
                 m_tooltip.HideImmediate();
@@ -2949,6 +3091,17 @@ DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
     if (m_tooltip.WantsTick())
     {
         m_tooltip.Tick (GetNowMs());
+    }
+
+    //  Menus slide open and submenus wait out a delay, both on ticks the host
+    //  supplies; Casso supplies them from its frame loop, and this window from
+    //  its timer.
+    if (m_menuBar->WantsTick() || m_toolbar->WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
+    {
+        m_menuBar->TickMenus (GetNowMs());
+        m_toolbar->TickMenus (GetNowMs());
+        GetPopupHost()->GetContextMenu().Tick (GetNowMs());
+        Invalidate();
     }
 
     return DxuiMessageResult::Handled;

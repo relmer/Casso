@@ -5,7 +5,6 @@
 #include "Core/DxuiClipboard.h"
 
 
-static constexpr float     s_kFontDip             = 13.0f;
 static constexpr float     s_kPadLeftDip          = 6.0f;
 static constexpr float     s_kPadRightDip         = 6.0f;
 static constexpr float     s_kCaretWidthPx        = 1.0f;
@@ -367,7 +366,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float        h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
     float        padL      = m_scaler.ToPxf (s_kPadLeftDip);
     float        padR      = m_scaler.ToPxf (s_kPadRightDip);
-    float        fontPx    = m_scaler.ToPxf (s_kFontDip);
+    float        fontPx    = m_scaler.ToPxf (m_fontDip);
     // Floored at zero: a control laid out against a window with no client
     // area yet is zero DIPs wide, and the padding inset would otherwise take
     // that below zero -- a width no clip rect or text box can mean.
@@ -405,9 +404,9 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     }
 
     caretPrefix.assign (m_text, 0, m_caret);
-    hr = text.MeasureString (caretPrefix.c_str(), fontPx, DxuiTheme::kBodyFace, caretX,    textMeasH);
+    hr = text.MeasureString (caretPrefix.c_str(), fontPx, GetFace(), caretX,    textMeasH);
     IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = text.MeasureString (m_text.c_str(),      fontPx, DxuiTheme::kBodyFace, fullTextW, textMeasH);
+    hr = text.MeasureString (m_text.c_str(),      fontPx, GetFace(), fullTextW, textMeasH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (innerW <= 0.0f)
@@ -427,18 +426,22 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (selStart != selEnd)
     {
-        float bx = 0.0f;
-        float sx = 0.0f;
+        float  bx   = 0.0f;
+        float  sx   = 0.0f;
+        float  selH = 0.0f;
 
         before.assign (m_text, 0, selStart);
         sel.assign    (m_text, selStart, selEnd - selStart);
 
-        hr = text.MeasureString (before.c_str(), fontPx, DxuiTheme::kBodyFace, bx, textMeasH);
+        hr = text.MeasureString (before.c_str(), fontPx, GetFace(), bx, textMeasH);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        hr = text.MeasureString (sel.c_str(),    fontPx, DxuiTheme::kBodyFace, sx, textMeasH);
+        hr = text.MeasureString (sel.c_str(),    fontPx, GetFace(), sx, textMeasH);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        text.FillRect (x + padL + bx - m_scrollPx, y + 2.0f, sx, h - 4.0f, selArgb);
+        //  A line of the text tall, centered as the text is, so a field taller
+        //  than its text keeps the selection clear of its edges.
+        selH = (std::min) ((textMeasH > 1.0f) ? textMeasH : fontPx * 1.3f, h);
+        text.FillRect (x + padL + bx - m_scrollPx, y + (h - selH) * 0.5f, sx, selH, selArgb);
     }
 
     hr = text.DrawString (m_text.c_str(),
@@ -448,7 +451,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                           h,
                           fgArgb,
                           fontPx,
-                          DxuiTheme::kBodyFace,
+                          GetFace(),
                           DxuiTextHAlign::Left,
                           DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,
@@ -466,7 +469,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                               h,
                               phArgb,
                               fontPx,
-                              DxuiTheme::kBodyFace,
+                              GetFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center,
                               DxuiFontWeight::Normal,
@@ -600,7 +603,7 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
 {
     HRESULT       hr       = S_OK;
     float         padL     = m_scaler.ToPxf (s_kPadLeftDip);
-    float         fontPx   = m_scaler.ToPxf (s_kFontDip);
+    float         fontPx   = m_scaler.ToPxf (m_fontDip);
     float         target   = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w        = 0.0f;
     float         h        = 0.0f;
@@ -618,7 +621,7 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
             float  dist = 0.0f;
 
             prefix.assign (m_text, 0, i);
-            hr = text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+            hr = text.MeasureString (prefix.c_str(), fontPx, GetFace(), w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             dist = std::abs (w - target);
@@ -1008,4 +1011,21 @@ bool DxuiTextInput::OnKey (const DxuiKeyEvent & ev)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::GetFace
+//
+//  The face set for the field, or the theme's body face.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DxuiTextInput::GetFace() const
+{
+    return (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
 }

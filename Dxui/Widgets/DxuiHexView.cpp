@@ -1417,6 +1417,9 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 
 
 
+    //  The theme's size is in DIPs; the renderer draws in pixels. The cell size
+    //  was measured in DIPs and is scaled with the rest of the geometry.
+    font.sizeDip = m_scaler.ToPxf (font.sizeDip);
     for (int digit = digits - 1; digit >= 0; digit--)
     {
         label.push_back (GetHexDigit ((int) ((address >> (digit * 4)) & 0xF)));

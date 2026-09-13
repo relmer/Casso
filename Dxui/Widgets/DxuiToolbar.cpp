@@ -598,7 +598,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
     int           padX    = m_scaler.ToPx (kBtnPadXDp);
     int           iconGap = m_scaler.ToPx (kIconGapDp);
     float         fontPx  = GetChromeFontPx();
-    int           iconW   = (int) (m_scaler.ToPxf (kIconDip) + 0.5f);
+    int           iconW   = (int) (m_scaler.ToPxf (m_iconDip) + 0.5f);
     int           width   = 0;
     std::wstring  label;
 
@@ -1382,7 +1382,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     float                bw      = (float) (slot.rc.right  - slot.rc.left);
     float                bh      = (float) (slot.rc.bottom - slot.rc.top);
     float                fontDip = GetChromeFontPx();
-    float                iconDip = m_scaler.ToPxf (kIconDip);
+    float                iconDip = m_scaler.ToPxf (m_iconDip);
     int                  padX    = m_scaler.ToPx (kBtnPadXDp);
     int                  iconGap = m_scaler.ToPx (kIconGapDp);
     uint32_t             ink     = m_stripColorsSet ? m_textOverride : theme.ButtonText();
@@ -1552,4 +1552,30 @@ void DxuiToolbar::PaintFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
                              strip);
 
     m_flyoutControl->Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::TryGetEntryRect
+//
+//  Where an entry is laid out, for a host hanging a menu from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbar::TryGetEntryRect (int commandId, RECT & outRect) const
+{
+    const Slot *  slot = FindSlot (commandId);
+
+
+
+    if (slot != nullptr)
+    {
+        outRect = slot->rc;
+    }
+
+    return slot != nullptr;
 }

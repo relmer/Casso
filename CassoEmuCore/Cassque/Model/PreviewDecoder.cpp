@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Cassque/Model/PreviewDecoder.h"
+#include "Cassque/Model/HostFileNaming.h"
+#include "Core/TextEncoding.h"
 #include "Cassque/Model/PicturePreview.h"
 #include "AppleTextCodec.h"
 #include "ApplesoftTokenizer.h"
@@ -230,6 +232,16 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
     outContent.kind = PreviewContent::Kind::Catalog;
 
     CatalogModel::FromListing (listing, kind, outContent.rows);
+
+    //  DOS 3.3 and ProDOS disks read as their own listings do.
+    if (kind == VolumeKind::Dos33)
+    {
+        RenderDos33Catalog (listing, outContent.lines);
+    }
+    else if (kind == VolumeKind::ProDos)
+    {
+        RenderProDosCatalog (listing, outContent.lines);
+    }
 }
 
 
@@ -336,4 +348,124 @@ HRESULT PreviewDecoder::Render (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::RenderDos33Catalog
+//
+//  CATALOG's own lines: the volume, then per file the lock, the type letter,
+//  the sector count and the name, and the free sectors at the foot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::RenderDos33Catalog (const VolumeListing & listing, std::vector<std::wstring> & outLines)
+{
+    wchar_t  line[64] = {};
+
+
+
+    outLines.clear();
+
+    swprintf_s (line, L"DISK VOLUME %u", (unsigned) listing.volumeNumber);
+    outLines.push_back (line);
+    outLines.push_back (std::wstring());
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        swprintf_s (line, L"%lc%lc %03u ",
+                    entry.isLocked ? L'*' : L' ',
+                    (wchar_t) HostFileNaming::GetDos33TypeLetter (entry.type),
+                    (unsigned) (entry.sizeUnits % 1000));
+        outLines.push_back (line + TextEncoding::NarrowToWide (entry.name));
+    }
+
+    outLines.push_back (std::wstring());
+    swprintf_s (line, L"%u sectors free of %u", (unsigned) listing.freeUnits, (unsigned) listing.totalUnits);
+    outLines.push_back (line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::RenderProDosCatalog
+//
+//  CAT's columns: the volume, a header, per file the lock, the name, the type,
+//  the blocks and the date modified, and the blocks free and used at the foot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::RenderProDosCatalog (const VolumeListing & listing, std::vector<std::wstring> & outLines)
+{
+    wchar_t   line[96] = {};
+    uint32_t  used     = (listing.totalUnits > listing.freeUnits) ? listing.totalUnits - listing.freeUnits : 0;
+
+
+
+    outLines.clear();
+
+    outLines.push_back (L"/" + TextEncoding::NarrowToWide (listing.volumeName));
+    outLines.push_back (std::wstring());
+
+    swprintf_s (line, L" %-15ls%4ls%8ls  %ls", L"NAME", L"TYPE", L"BLOCKS", L"MODIFIED");
+    outLines.push_back (line);
+    outLines.push_back (std::wstring());
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        swprintf_s (line, L"%lc%-15ls%4ls%8u  %ls",
+                    entry.isLocked ? L'*' : L' ',
+                    TextEncoding::NarrowToWide (entry.name).c_str(),
+                    CatalogModel::GetTypeText (entry.type, VolumeKind::ProDos).c_str(),
+                    (unsigned) entry.sizeUnits,
+                    FormatProDosDate (entry).c_str());
+        outLines.push_back (line);
+    }
+
+    outLines.push_back (std::wstring());
+    swprintf_s (line, L"BLOCKS FREE:%5u     BLOCKS USED:%5u", (unsigned) listing.freeUnits, (unsigned) used);
+    outLines.push_back (line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::FormatProDosDate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PreviewDecoder::FormatProDosDate (const FileEntry & entry)
+{
+    tm          parts    = {};
+    __time64_t  seconds  = (__time64_t) entry.modifiedUnix;
+    wchar_t     text[16] = {};
+    errno_t     err      = 0;
+
+
+
+    if (!entry.hasModified)
+    {
+        return L"<NO DATE>";
+    }
+
+    err = _gmtime64_s (&parts, &seconds);
+
+    if (err != 0 || parts.tm_mon < 0 || parts.tm_mon > 11)
+    {
+        return L"<NO DATE>";
+    }
+
+    swprintf_s (text, L"%2d-%ls-%02d", parts.tm_mday, s_kMonths[parts.tm_mon], parts.tm_year % 100);
+
+    return text;
 }

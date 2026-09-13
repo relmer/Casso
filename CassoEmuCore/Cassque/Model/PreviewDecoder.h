@@ -81,6 +81,10 @@ public:
     //  A disk image's catalog, for an image selected in the file list.
     static void  RenderCatalog (const VolumeListing & listing, VolumeKind kind, PreviewContent & outContent);
 
+    //  A DOS 3.3 or ProDOS catalog as the guest's own CATALOG or CAT prints it.
+    static void  RenderDos33Catalog  (const VolumeListing & listing, std::vector<std::wstring> & outLines);
+    static void  RenderProDosCatalog (const VolumeListing & listing, std::vector<std::wstring> & outLines);
+
     static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, const Microcode * table, std::vector<std::wstring> & outLines);
 
 private:
@@ -88,6 +92,14 @@ private:
     static bool  IsIntegerType   (Byte type, VolumeKind kind);
     static bool  IsTextType      (Byte type, VolumeKind kind);
     static bool  IsBinaryType    (Byte type, VolumeKind kind);
+
+    //  A ProDOS date as CAT prints it, 17-AUG-84, or <NO DATE>.
+    static std::wstring  FormatProDosDate (const FileEntry & entry);
+
+    static constexpr const wchar_t *  s_kMonths[12] =
+    {
+        L"JAN", L"FEB", L"MAR", L"APR", L"MAY", L"JUN", L"JUL", L"AUG", L"SEP", L"OCT", L"NOV", L"DEC",
+    };
 
     static void  SplitIntoLines (const std::string & text, std::vector<std::wstring> & outLines);
     static const Microcode *  GetNmosTable ();

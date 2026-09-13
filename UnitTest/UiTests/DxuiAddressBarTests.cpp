@@ -179,17 +179,38 @@ public:
     }
 
 
-    TEST_METHOD (NarrowBar_DropsSegmentsFromTheStart)
+    TEST_METHOD (NarrowBar_CollapsesLeadingSegmentsBehindTheOverflowButton)
     {
         Fixture  f;
-        int      clicked = -1;
+        int      clicked  = -1;
+        bool     overflow = false;
+        RECT     anchor   = {};
 
         f.LayOut (120);
-        f.bar.SetOnSegment ([&] (int index) { clicked = index; });
+        f.bar.SetOnSegment  ([&] (int index) { clicked = index; });
+        f.bar.SetOnOverflow ([&] (const RECT & rc) { overflow = true; anchor = rc; });
 
         Assert::AreEqual (2, f.bar.GetFirstShown(), L"Too narrow for all three, the bar keeps the location's own name");
 
         f.Click (20);
-        Assert::AreEqual (2, clicked, L"and shows it first");
+        Assert::IsTrue   (overflow, L"and the others are behind the overflow button at the start");
+        Assert::AreEqual (4L,  anchor.left);
+        Assert::AreEqual (36L, anchor.right);
+
+        f.Click (90);
+        Assert::AreEqual (2, clicked, L"The last segment follows the overflow button and its separator");
+    }
+
+
+    TEST_METHOD (WideBar_HasNoOverflowButton)
+    {
+        Fixture  f;
+        int      clicked = -1;
+
+        f.LayOut (400);
+        f.bar.SetOnSegment ([&] (int index) { clicked = index; });
+
+        f.Click (20);
+        Assert::AreEqual (0, clicked, L"With room for every segment the first starts at the edge");
     }
 };
