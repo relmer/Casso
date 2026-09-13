@@ -267,6 +267,12 @@ void ControllerInputService::SetModelSettings (std::map<std::string, ControllerM
 
 
     m_profiles.models = std::move (models);
+
+    // A controller in use picks the new settings up now rather than at its
+    // next connect, so OK on the Controllers page takes effect at once.
+    m_mapping = ControlMapping();
+    EnsureMappingForActiveLocked();
+    m_rateResetPending = true;
 }
 
 
@@ -351,7 +357,104 @@ void ControllerInputService::RequestRescan()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetInspectedUnit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetInspectedUnit (const std::optional<ControllerUnitKey> & unit)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_inspectedUnit      = unit;
+    m_hasInspectedSample = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetInspectedSample
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<ControllerSample> ControllerInputService::GetInspectedSample (const ControllerUnitKey & unit) const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    if (!m_hasInspectedSample || m_inspectedUnit != unit)
+    {
+        return std::nullopt;
+    }
+
+    return m_inspectedSample;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Tick
+//
+//  Controller thread. The selected controller first, then the one the
+//  Controllers page shows, if the page is open. While the page is open the
+//  thread polls at the measured period regardless of what the selected
+//  controller needs, since the controller being edited may be one that
+//  sends no change events of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerWaitSources ControllerInputService::Tick()
+{
+    ControllerWaitSources             wait      = TickSelected();
+    std::optional<ControllerUnitKey>  inspected;
+    ControllerSample                  sample;
+    HRESULT                           hr        = S_OK;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        inspected = m_inspectedUnit;
+    }
+
+    if (!inspected.has_value())
+    {
+        return wait;
+    }
+
+    hr = m_backend.ReadSample (inspected.value(), sample);
+
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        if (m_inspectedUnit == inspected)
+        {
+            m_inspectedSample    = sample;
+            m_hasInspectedSample = SUCCEEDED (hr) && sample.connected;
+        }
+    }
+
+    wait.timeoutMs = kPollPeriodMs;
+
+    return wait;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TickSelected
 //
 //  Controller thread. Reads the selected controller once and submits what it
 //  asks of the game port, then says how long to wait for the next wake: the
@@ -361,7 +464,7 @@ void ControllerInputService::RequestRescan()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ControllerWaitSources ControllerInputService::Tick()
+ControllerWaitSources ControllerInputService::TickSelected()
 {
     HRESULT                           hr                = S_OK;
     double                            nowSeconds        = 0.0;

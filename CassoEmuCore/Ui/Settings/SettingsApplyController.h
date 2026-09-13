@@ -13,6 +13,8 @@ class IFileSystem;
 class EmulatorShell;
 class SettingsMachineCatalog;
 class SettingsPreviewController;
+class ControllersPageState;
+class ControllerInputService;
 
 
 
@@ -70,6 +72,10 @@ public:
     void  CommitApply         ();
     void  Cancel              (SettingsPreviewController & preview);
 
+    // The Controllers page's state, committed on OK -- into the global prefs
+    // and into the running controller service -- and reverted on Cancel.
+    void  BindControllers     (ControllersPageState * state, ControllerInputService * service);
+
 
 private:
     SettingsPanelState     * m_state    = nullptr;
@@ -112,4 +118,7 @@ private:
     float        m_baselinePrinterAudioVolume      = 0.0f;
     bool         m_baselinePrinterAudioPanOverride = false;
     float        m_baselinePrinterAudioPan         = 0.0f;
+
+    ControllersPageState    * m_controllersState  = nullptr;
+    ControllerInputService  * m_controllerService = nullptr;
 };

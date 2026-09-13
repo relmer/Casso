@@ -77,6 +77,13 @@ public:
     // one with no controller saved counts as a controller connecting (FR-032).
     void  RequestRescan         ();
 
+    // The controller the Settings sheet's Controllers page shows, read on
+    // every tick while it is set whether or not it is the selected one, so
+    // the page can assign, calibrate and show live readings for any attached
+    // controller. Cleared when the page closes, which ends the extra reads.
+    void                             SetInspectedUnit   (const std::optional<ControllerUnitKey> & unit);
+    std::optional<ControllerSample>  GetInspectedSample (const ControllerUnitKey & unit) const;
+
     // Rate bindings' paddles back to center, for a machine switch or a profile
     // change (FR-021a). Takes effect on the controller thread's next reading.
     void  ResetPaddleRate ();
@@ -126,6 +133,7 @@ public:
 private:
 
     void  RefreshDevices          ();
+    ControllerWaitSources  TickSelected ();
     void  ReleaseContribution     ();
     void  EnsureMappingForActive  ();
     bool  IsSelectedDevicePresent () const;
@@ -157,6 +165,10 @@ private:
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;
     std::atomic<bool>                                    m_rateResetPending {false};
+
+    std::optional<ControllerUnitKey>                     m_inspectedUnit;
+    ControllerSample                                     m_inspectedSample;
+    bool                                                 m_hasInspectedSample = false;
 
     ControllerSample                     m_lastSample;
     TickReport                           m_lastTick;

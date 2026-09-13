@@ -50,6 +50,12 @@ SettingsSheet::~SettingsSheet()
     }
 
     m_compositor.Shutdown();
+
+    // The page is gone, so the controller thread stops reading its controller.
+    if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
+    {
+        m_emuShell->GetControllerService()->SetInspectedUnit (std::nullopt);
+    }
 }
 
 
@@ -74,6 +80,7 @@ void SettingsSheet::OnBuildPages()
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
+    m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
 
     // Amber "press OK to reboot" notice that fills the bottom-bar space left of
     // the OK / Cancel buttons whenever committing would power-cycle the machine
@@ -417,6 +424,36 @@ HRESULT SettingsSheet::OpenModeless (
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
+    m_controllersPage->SetPopupHost (GetPopupHost());
+
+    // Controllers page: a copy of what the service holds, edited on the page
+    // and committed or reverted through the apply controller. The service
+    // reads whichever controller the page shows, so it can be assigned and
+    // calibrated without being the selected one.
+    {
+        ControllerInputService *  service = m_emuShell->GetControllerService();
+
+        if (service != nullptr)
+        {
+            m_controllersState.Load (service->GetSnapshot().devices,
+                                     service->GetModelSettings(),
+                                     service->GetCalibrations(),
+                                     !m_emuShell->MachineHasCaseSwitches());
+
+            m_controllersPage->SetSampleSource ([service] (const ControllerUnitKey & unit)
+            {
+                return service->GetInspectedSample (unit);
+            });
+
+            m_controllersPage->SetOnInspect ([service] (const std::optional<ControllerUnitKey> & unit)
+            {
+                service->SetInspectedUnit (unit);
+            });
+        }
+
+        m_controllersPage->SetState (&m_controllersState);
+        m_apply.BindControllers (&m_controllersState, service);
+    }
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist
     // / revert through the apply controller (SnapshotBaselines captures the
@@ -530,6 +567,14 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+
+    // Controllers that came or went while the sheet is open, then the
+    // Controllers page's reading of the one it shows.
+    if (m_controllersPage != nullptr && m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
+    {
+        m_controllersState.UpdateDevices (m_emuShell->GetControllerService()->GetSnapshot().devices);
+        m_controllersPage->Poll();
+    }
 
     // Advance the preview state machine so a keyboard-driven preview idles out;
     // a mouse drag ends explicitly in OnPreview. Either way UpdatePreviewCompose

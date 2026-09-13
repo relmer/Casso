@@ -1,5 +1,9 @@
 #include "Pch.h"
 
+#include "Controllers/ControllerInputService.h"
+#include "Controllers/ControllerProfileStore.h"
+#include "Ui/Settings/ControllersPageState.h"
+
 #include "SettingsApplyController.h"
 
 #include "SettingsApplyAdapter.h"
@@ -35,6 +39,22 @@ void SettingsApplyController::Bind (
     m_emuShell             = emuShell;
     m_onChromeThemeChanged = std::move (onChromeThemeChanged);
     m_catalog              = catalog;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BindControllers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyController::BindControllers (ControllersPageState * state, ControllerInputService * service)
+{
+    m_controllersState  = state;
+    m_controllerService = service;
 }
 
 
@@ -373,6 +393,40 @@ void SettingsApplyController::CommitApply()
         }
     }
 
+    // Controller settings from the Controllers page: into the prefs file, then
+    // into the running service so the controller in use plays with them now.
+    // The page's baseline advances only once the save lands, as the other
+    // baselines do.
+    if (m_controllersState != nullptr && m_controllersState->IsDirty() && m_prefs != nullptr)
+    {
+        ControllerProfileStore  store;
+        HRESULT                 hrSave = S_OK;
+
+        store.models         = m_controllersState->GetModels();
+        store.calibrations   = m_controllersState->GetCalibrations();
+        m_prefs->controllers = store.ToJson (m_prefs->controllers);
+
+        if (m_controllerService != nullptr)
+        {
+            m_controllerService->SetModelSettings (store.models);
+            m_controllerService->SetCalibrations  (store.calibrations);
+        }
+
+        hrSave = (m_ucs != nullptr) ? m_ucs->SaveAll (*m_prefs, *m_fs)
+                                    : m_prefs->Save (m_emuShell->GetAssetBaseDir(), *m_fs);
+
+        if (FAILED (hrSave))
+        {
+            savesRefused = true;
+        }
+        else
+        {
+            m_controllersState->MarkCommitted();
+        }
+
+        IGNORE_RETURN_VALUE (hrSave, S_OK);
+    }
+
     // Every save on this path is fire-and-forget by design, so a refusal would
     // otherwise close the sheet looking like it worked. The file is intact and
     // the startup message already explained why, but that was minutes ago and
@@ -460,6 +514,13 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
 {
     m_pendingMachine.clear();
     m_pendingTheme.clear();
+
+    // Controller edits never reached the service, so undoing them is only
+    // putting the page's copies back.
+    if (m_controllersState != nullptr)
+    {
+        m_controllersState->Revert();
+    }
 
     // Roll back live-preview edits across every monitor block. The
     // shader picks the restored values up on the next frame via the

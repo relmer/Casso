@@ -766,6 +766,10 @@ private:
     // printer this machine emulates and how it connects, or that it has none.
     std::wstring  GetPrinterBannerMessage () const;
 
+    // For the Settings sheet's Controllers page. Null before the shell has
+    // initialized its controller stack and after it has torn it down.
+    ControllerInputService *  GetControllerService () const { return m_controllerService.get(); }
+
     // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
     // text scrape to read the aux half of an 80-column screen.
     const Byte *  GetAuxRamBuffer() const;
