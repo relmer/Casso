@@ -284,6 +284,7 @@
     <ClCompile Include="ControllerTests\CalibrationTests.cpp" />
     <ClCompile Include="ControllerTests\ControlCaptureTests.cpp" />
     <ClCompile Include="ControllerTests\ControlLabelsTests.cpp" />
+    <ClCompile Include="ControllerTests\ControllersPageStateTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerProfileStoreTests.cpp" />
     <ClCompile Include="ControllerTests\ControllerSelectionPolicyTests.cpp" />
     <ClCompile Include="ControllerTests\InputModeRulesTests.cpp" />
