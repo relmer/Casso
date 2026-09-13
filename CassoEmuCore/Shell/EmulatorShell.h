@@ -1530,6 +1530,11 @@ private:
     // with the other chrome tooltips (the hover regions are mutually exclusive).
     DxuiTooltip               m_driveTooltip;
 
+    // Hover tooltip for the caption's minimize, maximize and close buttons.
+    // The stock system tooltip for those is suppressed at the host, so this
+    // is the only one, and it matches every other tooltip in the window.
+    DxuiTooltip               m_captionTooltip;
+
     // Live per-drive user write-protect preference (Settings > Disk
     // checkbox / write-protect menu). Seeded from $cassoUiPrefs at
     // startup and re-applied to each freshly mounted image so the guest

@@ -4,6 +4,7 @@
 #include "DxuiTooltip.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -160,16 +161,57 @@ void DxuiTooltip::Tick (int64_t nowMs)
         m_hideAtMs = nowMs + kMaxVisibleMs;
 
         ShowPopup();
+
     }
 
-    if (m_visible && m_hideAtMs != 0 && nowMs >= m_hideAtMs)
+    // Time up: start the fade rather than vanish on the frame. The tip stays
+    // `m_visible` until the fade finishes, which is what keeps it rendered
+    // and what keeps this loop asking for frames.
+    if (m_visible && m_hideAtMs != 0 && nowMs >= m_hideAtMs && !m_fadingOut)
     {
-        m_visible  = false;
-        m_text.clear();
-        m_hideAtMs = 0;
-
-        ReleaseActivePopup();
+        if (m_activePopup != nullptr && DxuiSystemSettings::Instance().AreMenuAnimationsEnabled())
+        {
+            m_fadingOut = true;
+            m_activePopup->BeginFadeOut (kFadeMs);
+        }
+        else
+        {
+            FinishHide();
+        }
     }
+
+    // Drive whatever animation is running. AdvanceReveal reports false when
+    // nothing is, which is the ordinary case, so the fade-out completion is
+    // read only while one was actually started.
+    if (m_activePopup != nullptr)
+    {
+        bool  more = m_activePopup->AdvanceReveal (nowMs);
+
+        if (!more && m_fadingOut)
+        {
+            FinishHide();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FinishHide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::FinishHide()
+{
+    m_visible   = false;
+    m_fadingOut = false;
+    m_hideAtMs  = 0;
+    m_text.clear();
+
+    ReleaseActivePopup();
 }
 
 
@@ -314,13 +356,19 @@ void DxuiTooltip::ShowPopup()
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
-        showParams.shadow           = false;
+        showParams.shadow           = true;
         // Show scales these back up by the owner DPI, so the trip into DIPs
         // rounds UP -- rounding down here would hand back the pixel the
         // measurement above exists to keep.
         showParams.sizeDip.cx       = (int) std::ceil (boxWPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
         showParams.sizeDip.cy       = (int) std::ceil (boxHPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
         showParams.backgroundArgb   = m_bgArgb;
+
+        // A tip fades in rather than appearing. Same switch the menus read,
+        // so turning menu animation off turns this off with it.
+        showParams.revealMs         = DxuiSystemSettings::Instance().AreMenuAnimationsEnabled()
+                                          ? kFadeMs : 0;
+        showParams.revealFade       = true;
         showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
         showParams.onClosed         = [this] () { m_activePopup = nullptr; };
 
@@ -534,7 +582,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     width  = (float) (placed.right  - placed.left);
     height = (float) (placed.bottom - placed.top);
 
-    painter.OutlineRect (0.0f, 0.0f, width, height, borderPx, m_borderArgb);
+    painter.OutlineRoundedRect (0.0f, 0.0f, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), borderPx, m_borderArgb);
 
     hr = text.DrawString (m_text.c_str(),
                           padX,

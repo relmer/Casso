@@ -510,12 +510,19 @@ public:
 
         dd = bar.GetDropdownRect();
 
-        // The separator occupies the band between New and Exit. Compute roughly:
-        // New row at y=0 of dropdown, separator next (10 dip), Exit after that.
-        // Hit-test in the separator band should not dispatch.
-        newCenterY = dd.top + 13; // ~middle of New (row height ~26 px)
-        sepCenterY = dd.top + 26 + 5; // middle of separator (10 px tall)
-        exitCenterY = dd.top + 26 + 10 + 13;
+        // The separator occupies the band between New and Exit. The bands come
+        // from the metrics the bar was laid out with -- it was laid out at 96
+        // dpi above, so these are the same numbers it used. Hard-coded row and
+        // separator heights here were stale the moment the menu was resized.
+        {
+            DxuiMenuMetrics  m    = DxuiMenuMetrics::FromSystem (96);
+            int              rowH = m.rowHeightPx;
+            int              sepH = m.separatorHeightPx;
+
+            newCenterY  = dd.top + rowH / 2;
+            sepCenterY  = dd.top + rowH + sepH / 2;
+            exitCenterY = dd.top + rowH + sepH + rowH / 2;
+        }
 
         Assert::IsTrue (bar.HandleMouseUp ((dd.left + dd.right) / 2, newCenterY));
         Assert::AreEqual (1, dispatched);

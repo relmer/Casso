@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiIconButton.h"
 
@@ -243,7 +244,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (m_enabled && (m_hover || m_pressed))
     {
-        painter.FillRect (x, y, w, h, theme.HoverBackground());
+        painter.FillRoundedRect (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), theme.HoverBackground());
         glyphArgb = theme.Accent();
     }
 
@@ -261,12 +262,13 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (m_focused)
     {
-        painter.OutlineRect (x + focusInset,
-                             y + focusInset,
-                             w - focusInset * kDoubleInset,
-                             h - focusInset * kDoubleInset,
-                             focusThick,
-                             theme.FocusRing());
+        painter.OutlineRoundedRect (x + focusInset,
+                                    y + focusInset,
+                                    w - focusInset * kDoubleInset,
+                                    h - focusInset * kDoubleInset,
+                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                    focusThick,
+                                    theme.FocusRing());
     }
 
 Error:

@@ -130,6 +130,11 @@ public:
                              UINT                dpi);
 
     // IDxuiControl overrides.
+    //  The open dropdown's submenu delay needs a heartbeat the resting
+    //  pointer does not provide; a host forwards both of these to it.
+    bool  WantsTick () const { return m_dropdown.WantsTick(); }
+    void  TickMenus (int64_t nowMs) { m_dropdown.Tick (nowMs); }
+
     void  Layout          (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnKey           (const DxuiKeyEvent   & ev) override;
@@ -183,8 +188,16 @@ private:
 
     static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
 
+    //  The em size of the system menu font at a DPI, cached because the
+    //  strip asks for it on every layout and every paint. The titles wear
+    //  the same font the dropdowns under them do, which is the font Windows
+    //  gives a menu.
+    float  GetMenuFontPx (UINT eDpi);
+
 
     std::vector<DxuiMenuBarItem>  m_items;
+    DxuiMenuMetrics               m_metrics;
+    UINT                          m_metricsDpi       = 0;
     DxuiHwndSource              * m_popupHost        = nullptr;
     DxuiPopupMenu                 m_dropdown;
     DxuiNullTextRenderer          m_nullText;

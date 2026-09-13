@@ -181,6 +181,7 @@ public:
     // opacity arg of DrawBitmap so a single switch fades all text,
     // filled rects, and the framebuffer preview uniformly.
     void     SetGlobalAlpha   (float alpha) override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
+    void     SetOrigin        (float xPx, float yPx) override;
     float    GetGlobalAlpha   () const      override { return m_globalAlpha; }
 
 private:
@@ -317,9 +318,15 @@ private:
     std::map<LayoutCacheKey,
              ComPtr<IDWriteTextLayout>>     m_layoutCache;
 
+    //  Pushes the stored origin into the D2D transform. Called on BeginDraw
+    //  and on a SetOrigin made while drawing.
+    void  ApplyOrigin ();
+
     bool                              m_targetBound = false;
     bool                              m_drawing     = false;
     float                             m_globalAlpha = 1.0f;
+    float                             m_originXPx   = 0.0f;
+    float                             m_originYPx   = 0.0f;
 
     // See PushMonochromeGlyphs: while set, DrawString leaves color fonts off.
     bool                              m_monochromeGlyphs = false;

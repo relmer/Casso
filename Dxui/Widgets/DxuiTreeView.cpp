@@ -622,8 +622,9 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         if (rowFill != 0)
         {
-            painter.FillRect ((float) m_boundsDip.left, rowY,
-                              (float) (m_boundsDip.right - m_boundsDip.left), rowHeight, rowFill);
+            painter.FillRoundedRect ((float) m_boundsDip.left, rowY,
+                                     (float) (m_boundsDip.right - m_boundsDip.left), rowHeight,
+                                     m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), rowFill);
         }
 
         if (hasChildren)
@@ -674,9 +675,10 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             }
         }
 
-        painter.FillRect (checkboxX,
-                          rowY + (rowHeight - (float) m_checkboxPx) * 0.5f,
-                          (float) m_checkboxPx, (float) m_checkboxPx, boxColor);
+        painter.FillRoundedRect (checkboxX,
+                                 rowY + (rowHeight - (float) m_checkboxPx) * 0.5f,
+                                 (float) m_checkboxPx, (float) m_checkboxPx,
+                                 m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), boxColor);
 
         if (node != nullptr && node->checked)
         {

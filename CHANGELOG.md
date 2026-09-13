@@ -22,9 +22,12 @@ Entries before versioning was introduced use dates only.
   volume. Previously a data disk listed exactly like a bootable one, and the
   first sign was the monitor prompt after a boot.
 - The menu bar, the toolbar and the debug panels' right-click menus now share
-  one command model and one dropdown. Dropdowns fit their content instead of
-  a fixed width, with the check column present only in a menu that has a
-  checkable row, and accelerator hints sit against the right edge.
+  one command model and one dropdown.
+- Menus, dropdowns, tooltips and controls now follow Windows 11 design: rounded
+  corners, soft shadows, modern spacing, slide and fade animations, and Casso's
+  own tooltips on the minimize, maximize and close buttons.
+- Casso follows the Windows settings for access-key underlines, notification
+  duration, mouse-wheel scrolling, menu show delay and menu animations.
 
 ### Fixed
 

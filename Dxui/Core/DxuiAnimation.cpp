@@ -1,6 +1,22 @@
 #include "Pch.h"
 
 #include "DxuiAnimation.h"
+#include "DxuiSystemSettings.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAnimation::DxuiAnimation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiAnimation::DxuiAnimation()
+{
+    m_animationsEnabled = DxuiSystemSettings::Instance().AreAnimationsEnabled();
+}
 
 
 
@@ -9,6 +25,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StartTween
+//
+//  A tween started while the system says animations are unwanted gets a
+//  duration of zero, which `SampleTween` already reports as finished. The
+//  caller still gets a handle and still samples it; it simply reads the end
+//  value from the first frame, which is the state the animation existed to
+//  arrive at. Nothing above here has to branch on the setting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +49,7 @@ DxuiTweenHandle DxuiAnimation::StartTween (
     state.startValue = startValue;
     state.endValue   = endValue;
     state.startTime  = m_currentTimeSec;
-    state.duration   = (durationSec > 0.0f) ? durationSec : 0.0f;
+    state.duration   = (durationSec > 0.0f && m_animationsEnabled) ? durationSec : 0.0f;
     state.ease       = ease;
     state.started    = true;
 
