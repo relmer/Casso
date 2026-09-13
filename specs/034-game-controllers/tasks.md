@@ -131,7 +131,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T050 [US2] Add the `kIdPaddle` drop-down entry to `s_kToolbarRows` with a game-controller glyph, and give its command a `labelText` returning `GetCheckedPaddleSourceLabel()` so the strip wears the source that is driving (FR-008b). The Machine menu keeps its existing per-source toggles: no submenu, no cascade (FR-008)
 - [X] T051 [US2] DONE, and further than planned: with the picker wearing the source on its face the cluster was left toggling one thing, so `InputClusterEntry` is deleted outright and mouse mode is a plain `kIdMouse` toggle beside the picker. Its monoline painters moved to `InputMonoGlyphs`, where the picker reaches them too.
 - [X] T052 [US2] Rebuild the rows and re-lay the strip from `EmulatorShell::SyncPaddleSourceList` in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp` whenever the device list, the selection or the input mode changes, and hand them to the toolbar through `SetDropDownItems (kIdPaddle, ...)`; the picker's width moves with its label, so the strip is laid out again on every change
-- [ ] T053 [US2] Build; run `scripts/RunTests.ps1 -Filter Controller`, `-Filter MachineInputPrefs`, `-Filter Chrome`, `-Filter MenuBar`; run quickstart scenario 1, the selection half of scenario 8, and the controller rows of scenario 11 on hardware
+- [X] T053 [US2] Build; run `scripts/RunTests.ps1 -Filter Controller`, `-Filter MachineInputPrefs`, `-Filter Chrome`, `-Filter MenuBar`; run quickstart scenario 1, the selection half of scenario 8, and the controller rows of scenario 11 on hardware
 - [ ] T054 [US2] Commit: `feat(input): controller selection, persistence, menu and toolbar`
 
 **Checkpoint**: Selection is automatic, manual and persistent.
