@@ -2,6 +2,7 @@
 
 #include "Controllers/ControllerInputService.h"
 
+#include "Controllers/ControllerTokens.h"
 #include "Controllers/XInputSampleDecoder.h"
 #include "FakeControllerBackend.h"
 #include "RecordingGamePortSink.h"
@@ -75,6 +76,27 @@ namespace ControllerTests
             info.controls    = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 },
                                  { ControlKind::Button, 0 }, { ControlKind::Button, 1 } };
             return info;
+        }
+
+
+        // A full-range user calibration for each unit, so the first reading is
+        // taken as it arrives. These tests push a stick hard over on that
+        // first reading, which automatic calibration would take as the rest
+        // position -- right for a real stick, and beside the point here.
+        static void SkipCalibration (ControllerInputService & service, std::initializer_list<ControllerUnitKey> units)
+        {
+            std::map<std::string, ControllerCalibration>  calibrations;
+            ControllerCalibration                         fullRange;
+
+            fullRange.mode = CalibrationMode::User;
+            fullRange.axes.fill ({ 0.0f, -1.0f, 1.0f });
+
+            for (const ControllerUnitKey & unit : units)
+            {
+                calibrations[ControllerTokens::UnitToToken (unit)] = fullRange;
+            }
+
+            service.SetCalibrations (calibrations);
         }
 
 
@@ -312,6 +334,8 @@ namespace ControllerTests
             ControllerDeviceInfo                 later = MakePadDevice ("{BBBB}", L"Later Pad");
             ControllerSelectionPolicy::Decision  decision;
 
+            SkipCalibration (service, { stick.unit, first.unit, later.unit });
+
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
             service.SetSelectionChangedFn ([&decision] (const ControllerSelectionPolicy::Decision & d) { decision = d; });
@@ -351,6 +375,8 @@ namespace ControllerTests
             ControllerInputService               service (backend, mixer);
             ControllerDeviceInfo                 stick = MakeStickDevice();
             ControllerSelectionPolicy::Decision  decision;
+
+            SkipCalibration (service, { stick.unit });
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
@@ -415,6 +441,8 @@ namespace ControllerTests
             ControllerDeviceInfo    pad   = MakePadDevice ("{AAAA}", L"First Pad");
             ControllerSample        left  = MakePushedSample();
 
+            SkipCalibration (service, { stick.unit, pad.unit });
+
             left.axes[0] = -1.0f;
 
             mixer.SetSink (&sink);
@@ -454,6 +482,8 @@ namespace ControllerTests
             ControllerInputService               service (backend, mixer);
             ControllerDeviceInfo                 stick = MakeStickDevice();
             ControllerSelectionPolicy::Decision  decision;
+
+            SkipCalibration (service, { stick.unit });
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
@@ -521,6 +551,8 @@ namespace ControllerTests
             ControllerDeviceInfo    stick   = MakeStickDevice();
             ControllerDeviceInfo    pad     = MakePadDevice ("{AAAA}", L"First Pad");
             int                     changes = 0;
+
+            SkipCalibration (service, { stick.unit, pad.unit });
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);

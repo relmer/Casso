@@ -588,6 +588,7 @@ private:
     // would outlive the row it refers to.
     void    PickPaddleSource       (InputModeRules::PaddleSource source);
     void    SetControllerSelection (const std::optional<ControllerUnitKey> & selection);
+    void    SaveControllerCalibrations ();
     void    SyncPaddleSourceList   ();
 
     // Set the host input mapping mode (Off / Joystick / Paddle): persists

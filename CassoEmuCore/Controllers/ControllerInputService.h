@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Controllers/ControlMapping.h"
+#include "Controllers/ControllerCalibration.h"
 #include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/GamePortInputMixer.h"
 #include "Controllers/MappingEvaluator.h"
@@ -75,6 +76,12 @@ public:
     // one with no controller saved counts as a controller connecting (FR-032).
     void  RequestRescan         ();
 
+    // Every DirectInput unit's calibration, by unit token. Set once from the
+    // saved prefs; read back to save them, including what automatic
+    // calibration has learned since.
+    void                                          SetCalibrations (std::map<std::string, ControllerCalibration> calibrations);
+    std::map<std::string, ControllerCalibration>  GetCalibrations () const;
+
     // Reads the selected controller once and returns what the thread should
     // wait on before reading again.
     ControllerWaitSources  Tick ();
@@ -126,6 +133,8 @@ private:
     // longest, not whichever enumeration happens to list first (FR-008a).
     std::vector<std::pair<ControllerUnitKey, uint64_t>>  m_attachOrder;
     uint64_t                                             m_nextAttachOrder = 0;
+
+    std::map<std::string, ControllerCalibration>         m_calibrations;
 
     ControllerSample                     m_lastSample;
     TickReport                           m_lastTick;

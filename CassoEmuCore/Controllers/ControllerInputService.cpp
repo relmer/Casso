@@ -2,6 +2,7 @@
 
 #include "Controllers/ControllerInputService.h"
 
+#include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
 
 
@@ -219,6 +220,44 @@ void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetCalibrations
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetCalibrations (std::map<std::string, ControllerCalibration> calibrations)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_calibrations = std::move (calibrations);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCalibrations
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, ControllerCalibration> ControllerInputService::GetCalibrations() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_calibrations;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RequestRescan
 //
 //  A selection handed in that did not change -- none, to a machine that had
@@ -253,6 +292,7 @@ ControllerWaitSources ControllerInputService::Tick()
     HRESULT                           hr                = S_OK;
     std::optional<ControllerUnitKey>  active;
     ControllerSample                  sample;
+    ControllerSample                  calibrated;
     ControlMapping                    mapping;
     ControllerWaitSources             wait;
     float                             deadzone          = 0.0f;
@@ -309,6 +349,25 @@ ControllerWaitSources ControllerInputService::Tick()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
 
+        calibrated = sample;
+
+        // A DirectInput unit is read through its own calibration; an
+        // Xbox-class controller is factory-calibrated and never gets one
+        // (FR-018a). The first reading after it is selected or comes back is
+        // where it rests, so that is the center (FR-007).
+        if (isConnected && active.value().model.kind == ControllerKind::DirectInput)
+        {
+            ControllerCalibration &  calibration = m_calibrations[ControllerTokens::UnitToToken (active.value())];
+
+            if (!wasConnected)
+            {
+                calibration.CaptureCenter (sample);
+            }
+
+            calibration.Observe (sample);
+            calibrated = calibration.Apply (sample);
+        }
+
         m_isSelectedConnected = isConnected;
         m_lastSample          = isConnected ? sample : ControllerSample();
         onStateChanged        = m_onStateChanged;
@@ -338,7 +397,7 @@ ControllerWaitSources ControllerInputService::Tick()
     }
     else
     {
-        GamePortContribution  contribution = m_evaluator.Evaluate (sample, mapping, deadzone);
+        GamePortContribution  contribution = m_evaluator.Evaluate (calibrated, mapping, deadzone);
 
         m_mixer.Submit (GamePortSource::Controller, contribution);
         m_hasContribution = true;

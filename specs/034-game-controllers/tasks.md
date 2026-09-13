@@ -171,16 +171,16 @@ description: "Task list for 034 physical game controllers"
 
 ### Tests for User Story 4
 
-- [ ] T062 [P] [US4] Create `UnitTest/ControllerTests/CalibrationTests.cpp`: every transition in the data-model state diagram; center captured at connect; limits widen only outward; user calibration skips connect-time capture (FR-007a); invariant `minimum < center < maximum` rejected on load; Xbox-class units bypass calibration (FR-018a); a unit keyed by `InstanceGuid` with no saved calibration starts automatic and never receives another unit's saved calibration
-- [ ] T063 [P] [US4] Create `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp` (calibration part): calibration JSON per `contracts/prefs-schema.md` round trips through `UnitTest/UiTests/InMemoryFileSystem.h`; an invalid entry is dropped, reported, and the unit falls back to automatic; unknown keys inside `controllers` survive a save
+- [X] T062 [P] [US4] Create `UnitTest/ControllerTests/CalibrationTests.cpp`: every transition in the data-model state diagram; center captured at connect; limits widen only outward; user calibration skips connect-time capture (FR-007a); invariant `minimum < center < maximum` rejected on load; Xbox-class units bypass calibration (FR-018a); a unit keyed by `InstanceGuid` with no saved calibration starts automatic and never receives another unit's saved calibration
+- [X] T063 [P] [US4] Create `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp` (calibration part): calibration JSON per `contracts/prefs-schema.md` round trips through `UnitTest/UiTests/InMemoryFileSystem.h`; an invalid entry is dropped, reported, and the unit falls back to automatic; unknown keys inside `controllers` survive a save
 
 ### Implementation for User Story 4
 
-- [ ] T064 [P] [US4] Create `CassoEmuCore/Controllers/ControllerCalibration.h/.cpp` per data-model.md, applied before `DeadzoneShaper` in `MappingEvaluator`
-- [ ] T065 [US4] Create `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp` holding calibration by unit token with `ToJson`/`FromJson` per the schema, and add the `controllers` section to `CassoEmuCore/Config/GlobalUserPrefs.h/.cpp` following the `monitorTilt` pattern (field, `s_kKnownTopLevel`, `ToJson`, `FromJson`), preserving unknown keys inside `controllers`
-- [ ] T066 [US4] Report unreadable calibration entries once through the transient notice (T048) on load
-- [ ] T067 [US4] Build; run `-Filter Calibration`, `-Filter ControllerProfileStore`, `-Filter GlobalUserPrefs`
-- [ ] T068 [US4] Commit: `feat(input): automatic and saved controller calibration`
+- [X] T064 [P] [US4] Create `CassoEmuCore/Controllers/ControllerCalibration.h/.cpp` per data-model.md, applied before `DeadzoneShaper` in `MappingEvaluator`
+- [X] T065 [US4] Create `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp` holding calibration by unit token with `ToJson`/`FromJson` per the schema, and add the `controllers` section to `CassoEmuCore/Config/GlobalUserPrefs.h/.cpp` following the `monitorTilt` pattern (field, `s_kKnownTopLevel`, `ToJson`, `FromJson`), preserving unknown keys inside `controllers`
+- [X] T066 [US4] Report unreadable calibration entries once through the transient notice (T048) on load
+- [X] T067 [US4] Build; run `-Filter Calibration`, `-Filter ControllerProfileStore`, `-Filter GlobalUserPrefs`
+- [X] T068 [US4] Commit: `feat(input): automatic and saved controller calibration`
 
 **Checkpoint**: Worn sticks read correctly without UI. The Calibrate action's UI lands with the Controllers page.
 

@@ -5,7 +5,9 @@
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
+#include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
+#include "Core/JsonWriter.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -155,6 +157,44 @@ void EmulatorShell::RestoreColorTextPref()
     SetColorMonitorTextArgbLive (
         ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
                                                 m_globalPrefs.colorMonitorTextCustomArgb));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveControllerCalibrations
+//
+//  Writes every controller's calibration into the global prefs, and saves
+//  them only when that changed what they hold: an automatic calibration that
+//  learned nothing new costs no write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveControllerCalibrations()
+{
+    ControllerProfileStore  store;
+    JsonValue               controllers;
+
+
+
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    store.calibrations = m_controllerService->GetCalibrations();
+    controllers        = store.ToJson (m_globalPrefs.controllers);
+
+    if (JsonWriter::Write (controllers) == JsonWriter::Write (m_globalPrefs.controllers))
+    {
+        return;
+    }
+
+    m_globalPrefs.controllers = std::move (controllers);
+    SaveGlobalPrefs();
 }
 
 

@@ -69,6 +69,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "crt",                        // legacy v1 block; consumed by the conversion, no longer emitted
     "crtOverrides",
     "monitorTilt",
+    "controllers",
     "window",
     "printOutputDpi",
     "printDotStyle",
@@ -1103,6 +1104,12 @@ JsonValue GlobalUserPrefs::ToJson() const
         root.emplace_back ("monitorTilt", JsonValue (std::move (tiltObj)));
     }
 
+    // controllers: written back as held, and only once something is in it.
+    if (controllers.GetType() == JsonType::Object)
+    {
+        root.emplace_back ("controllers", controllers);
+    }
+
     // recentDisks: most-recent-first absolute paths, cap enforced by
     // DiskMru itself before we get here.
     root.emplace_back ("recentDisks", RecentDisksToJson (recentDisks));
@@ -1281,6 +1288,15 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
                     monitorTilt[kv.first] = (float) kv.second.GetNumber();
                 }
             }
+        }
+    }
+
+    {
+        const JsonValue *  controllersObj = nullptr;
+
+        if (v.HasObject ("controllers", controllersObj) && controllersObj != nullptr)
+        {
+            controllers = *controllersObj;
         }
     }
 

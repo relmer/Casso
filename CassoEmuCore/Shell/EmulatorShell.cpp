@@ -5,6 +5,7 @@
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
+#include "Controllers/ControllerProfileStore.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -225,6 +226,11 @@ EmulatorShell::~EmulatorShell()
     //  In order: the thread stops and joins first, so nothing is inside the
     //  service when it goes; then the service, then the backend it reads.
     m_controllerThread.reset();
+
+    // What automatic calibration learned this session, while the service that
+    // holds it still exists and nothing is reading into it.
+    SaveControllerCalibrations();
+
     m_controllerService.reset();
     m_controllerBackend.reset();
 
@@ -444,6 +450,23 @@ HRESULT EmulatorShell::Initialize (
     // nothing here touches a device.
     m_controllerBackend = std::make_unique<Win32ControllerBackend>();
     m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
+
+    // Saved calibrations, before the thread starts reading. An entry that
+    // cannot be used is said once: its unit calibrates automatically, and the
+    // next save drops it, so there is nothing to say again.
+    {
+        ControllerProfileStore    store;
+        std::vector<std::string>  rejected;
+
+        store.FromJson (m_globalPrefs.controllers, rejected);
+        m_controllerService->SetCalibrations (store.calibrations);
+
+        if (!rejected.empty())
+        {
+            PostNotice (L"A saved controller calibration couldn't be read, so that controller calibrates automatically.");
+        }
+    }
+
     m_controllerThread  = std::make_unique<ControllerInputThread>();
 
     m_controllerService->SetSelectionChangedFn (
