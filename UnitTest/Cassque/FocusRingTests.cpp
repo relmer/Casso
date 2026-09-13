@@ -12,8 +12,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  FocusRingTests
 //
-//  Cassque's Tab order: the enabled toolbar buttons, the tab strip, the tree,
-//  the list, and the preview when visible; wrapping at either end; and the
+//  Cassque's Tab order: the enabled toolbar buttons, the address bar, the tab
+//  strip, the tree, the list, and the preview when visible; wrapping at either
+//  end; and the
 //  result when the current stop is no longer in the list.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,18 +29,19 @@ public:
     static FocusStop  Pane   (Kind kind)  { return FocusStop { kind }; }
 
 
-    TEST_METHOD (Order_ButtonsThenTabsTreeListPreview)
+    TEST_METHOD (Order_ButtonsThenAddressTabsTreeListPreview)
     {
         std::vector<FocusStop>  stops = FocusRing::BuildStops ({ true, true, true }, true);
 
 
-        Assert::AreEqual ((size_t) 7, stops.size());
+        Assert::AreEqual ((size_t) 8, stops.size());
         Assert::IsTrue (stops[0] == Button (0), L"The walk starts at the leftmost toolbar button");
         Assert::IsTrue (stops[2] == Button (2), L"and crosses the toolbar left to right");
-        Assert::IsTrue (stops[3] == Pane (Kind::Tabs),    L"then the tab strip");
-        Assert::IsTrue (stops[4] == Pane (Kind::Tree),    L"the folder tree");
-        Assert::IsTrue (stops[5] == Pane (Kind::List),    L"the file list");
-        Assert::IsTrue (stops[6] == Pane (Kind::Preview), L"and the preview, as Explorer reads");
+        Assert::IsTrue (stops[3] == Pane (Kind::Address), L"then the address bar");
+        Assert::IsTrue (stops[4] == Pane (Kind::Tabs),    L"the tab strip");
+        Assert::IsTrue (stops[5] == Pane (Kind::Tree),    L"the folder tree");
+        Assert::IsTrue (stops[6] == Pane (Kind::List),    L"the file list");
+        Assert::IsTrue (stops[7] == Pane (Kind::Preview), L"and the preview, as Explorer reads");
     }
 
 
@@ -50,7 +52,7 @@ public:
 
         Assert::IsTrue (stops[0] == Button (2),
             L"With Back and Forward unavailable the walk starts at Up");
-        Assert::AreEqual ((size_t) 6, stops.size());
+        Assert::AreEqual ((size_t) 7, stops.size());
     }
 
 
@@ -82,8 +84,10 @@ public:
 
         Assert::IsTrue (FocusRing::GetNext (stops, Button (0), false) == Pane (Kind::Preview),
             L"Shift+Tab before the first button goes round to the preview");
-        Assert::IsTrue (FocusRing::GetNext (stops, Pane (Kind::Tabs), false) == Button (1),
-            L"and back from the tab strip reaches the last button");
+        Assert::IsTrue (FocusRing::GetNext (stops, Pane (Kind::Tabs), false) == Pane (Kind::Address),
+            L"back from the tab strip reaches the address bar");
+        Assert::IsTrue (FocusRing::GetNext (stops, Pane (Kind::Address), false) == Button (1),
+            L"and back from there, the last button");
     }
 
 

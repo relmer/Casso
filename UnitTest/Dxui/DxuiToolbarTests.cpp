@@ -304,6 +304,33 @@ public:
     }
 
 
+    TEST_METHOD (FreeRect_SpansBetweenLeadingAndTrailingEntries)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+        RECT                             span   = {};
+        int                              width  = f.FullWidth() + 300;
+
+
+        f.alpha.id = 1;
+        f.gamma.id = 3;
+
+        entries[0].command  = &f.alpha;
+        entries[1].command  = &f.gamma;
+        entries[1].group    = 1;
+        entries[1].trailing = true;
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (width);
+        span = f.bar.GetFreeRect();
+
+        Assert::AreEqual ((LONG) (s_kBarPadPx + LabeledPx (L"Alpha") + s_kGroupGap), span.left,
+            L"The free span starts a group gap after the last leading entry");
+        Assert::AreEqual ((LONG) (width - s_kBarPadPx - LabeledPx (L"Gamma") - s_kGroupGap), span.right,
+            L"and ends a group gap before the trailing one");
+    }
+
+
     TEST_METHOD (PlanForWidth_AllLabeledAtFittingWidth)
     {
         Fixture  f;

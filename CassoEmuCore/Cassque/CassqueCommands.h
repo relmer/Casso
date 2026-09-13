@@ -59,6 +59,7 @@ public:
         kGroup2,
         kGroup4,
         kGroup8,
+        kEditAddress,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -77,8 +78,8 @@ public:
 
     std::vector<DxuiMenuBarItem>  BuildMenuItems() const;
 
-    //  The toolbar's entries, in strip order: navigation, refresh, a new tab,
-    //  and the preview pane's toggle.
+    //  The toolbar's entries, in strip order: navigation, refresh, and the
+    //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
 
     //  The toolbar entries' commands in strip order, so a host moving focus
@@ -195,6 +196,9 @@ private:
         { VK_TAB,   true,  false, false, kNextTab       },
         { VK_TAB,   true,  false, true,  kPreviousTab   },
         { 'G',      true,  false, false, kGoToOffset    },
+        { 'L',      true,  false, false, kEditAddress   },
+        { 'D',      false, true,  false, kEditAddress   },
+        { VK_F4,    false, false, false, kEditAddress   },
     };
 
     //  The standard commands are NOT in the key table: DxuiCommandRouter

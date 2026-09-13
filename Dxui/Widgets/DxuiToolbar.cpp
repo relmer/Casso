@@ -708,14 +708,16 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
 void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int   marginY  = 0;
-    int   btnGap   = 0;
-    int   groupGap = 0;
-    int   barPad   = 0;
-    int   x        = 0;
-    int   top      = 0;
-    int   bottom   = 0;
-    int   index    = 0;
+    int  marginY   = 0;
+    int  btnGap    = 0;
+    int  groupGap  = 0;
+    int  barPad    = 0;
+    int  x         = 0;
+    int  top       = 0;
+    int  bottom    = 0;
+    int  index     = 0;
+    int  freeLeft  = 0;
+    int  freeRight = 0;
 
 
 
@@ -755,6 +757,23 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     }
 
     PlaceTrailingEntries (boundsDip.right - barPad);
+
+    freeLeft  = boundsDip.left + barPad;
+    freeRight = boundsDip.right - barPad;
+
+    for (const Slot & slot : m_slots)
+    {
+        if (slot.entry.trailing)
+        {
+            freeRight = (std::min) (freeRight, (int) slot.rc.left - groupGap);
+        }
+        else
+        {
+            freeLeft = (std::max) (freeLeft, (int) slot.rc.right + groupGap);
+        }
+    }
+
+    m_freeRect = (freeRight > freeLeft) ? RECT { freeLeft, top, freeRight, bottom } : RECT {};
 
     for (Slot & slot : m_slots)
     {

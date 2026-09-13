@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Config/IFileSystem.h"
 
 #include "Cassque/Model/CatalogModel.h"
 #include "Cassque/Model/Location.h"
@@ -50,6 +51,13 @@ public:
         VolumeKind                 catalogKind    = VolumeKind {};
     };
 
+    //  One step of the address bar: what it reads and where it goes.
+    struct AddressSegment
+    {
+        std::wstring  label;
+        Location      location;
+    };
+
     size_t  OpenTab   (const Location & location);
     bool    CloseTab  (size_t index);
     bool    MoveTab   (size_t from, size_t to);
@@ -83,8 +91,18 @@ public:
     //  Every open tab's location, for persistence.
     void  GetLocations (std::vector<Location> & outLocations) const;
 
+    //  The address bar's segments for a location, from the drive or share
+    //  down, and the path shown for editing. ParseAddress reads a typed path
+    //  back: a host folder, a disk image, or a directory inside an image,
+    //  which is the image's path followed by the directory's.
+    static std::vector<AddressSegment>  GetAddressSegments (const Location & location);
+    static std::wstring                 FormatAddress      (const Location & location);
+    static bool                         ParseAddress       (IFileSystem & fs, const std::wstring & text, Location & outLocation);
+
 private:
     static bool  IsSameImage (const std::wstring & a, const std::wstring & b);
+    static void  AppendHostSegments (const std::wstring & path, std::vector<AddressSegment> & outSegments);
+    static bool  IsHostFolder       (IFileSystem & fs, const std::wstring & path);
 
     std::vector<Tab>  m_tabs;
     size_t            m_active = 0;

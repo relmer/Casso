@@ -101,6 +101,12 @@ public:
     bool  GoForward ();
     bool  GoUp      ();
 
+    //  Navigates the active tab to a location, as a click on an address bar
+    //  segment does, or to a typed path. False, with nothing changed, for a
+    //  path that is not a folder, an image or a directory inside one.
+    void  NavigateToLocation (const Location & location);
+    bool  NavigateToAddress  (const std::wstring & text);
+
     //  The folder holding a host path, or empty at a drive root.
     static std::wstring  GetParentFolder (const std::wstring & path);
     static std::wstring  JoinPath        (const std::wstring & folder, const std::wstring & name);

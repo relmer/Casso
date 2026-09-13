@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Cassque/Model/BrowserModel.h"
+#include "../UiTests/InMemoryFileSystem.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -74,6 +75,85 @@ public:
         Assert::IsTrue   (model.GetActiveTab().location == Folder (L"C:\\C"));
 
         Assert::IsFalse  (model.MoveTab (0, 3));
+    }
+
+
+
+    TEST_METHOD (Address_SegmentsFromTheDriveDown)
+    {
+        Location                                   inner    = Location::MakeDiskDirectory (L"C:\\Disks\\work.po", "SUB/INNER");
+        std::vector<BrowserModel::AddressSegment>  segments = BrowserModel::GetAddressSegments (inner);
+
+        Assert::AreEqual ((size_t) 5, segments.size());
+        Assert::AreEqual (std::wstring (L"C:"),      segments[0].label);
+        Assert::IsTrue   (segments[0].location == Folder (L"C:\\"));
+        Assert::AreEqual (std::wstring (L"Disks"),   segments[1].label);
+        Assert::IsTrue   (segments[1].location == Folder (L"C:\\Disks"));
+        Assert::AreEqual (std::wstring (L"work.po"), segments[2].label);
+        Assert::IsTrue   (segments[2].location == Image (L"C:\\Disks\\work.po"));
+        Assert::AreEqual (std::wstring (L"SUB"),     segments[3].label);
+        Assert::IsTrue   (segments[3].location == Location::MakeDiskDirectory (L"C:\\Disks\\work.po", "SUB"));
+        Assert::AreEqual (std::wstring (L"INNER"),   segments[4].label);
+        Assert::IsTrue   (segments[4].location == inner, L"The last segment is where the tab is");
+    }
+
+
+
+    TEST_METHOD (Address_HomeAndShareRoots)
+    {
+        std::vector<BrowserModel::AddressSegment>  home  = BrowserModel::GetAddressSegments (Location());
+        std::vector<BrowserModel::AddressSegment>  share = BrowserModel::GetAddressSegments (Folder (L"\\\\server\\share\\Apple"));
+
+        Assert::AreEqual ((size_t) 1, home.size());
+        Assert::AreEqual (std::wstring (L"Home"), home[0].label);
+
+        Assert::AreEqual ((size_t) 2, share.size());
+        Assert::AreEqual (std::wstring (L"\\\\server\\share"), share[0].label, L"A share's root is its server and share together");
+        Assert::IsTrue   (share[1].location == Folder (L"\\\\server\\share\\Apple"));
+    }
+
+
+
+    TEST_METHOD (Address_FormatsAndParsesBackToTheSameLocation)
+    {
+        InMemoryFileSystem  fs;
+        Location            parsed;
+        HRESULT             hr = S_OK;
+        Location            folder = Folder (L"C:\\Disks");
+        Location            image  = Image  (L"C:\\Disks\\work.po");
+        Location            inner  = Location::MakeDiskDirectory (L"C:\\Disks\\work.po", "SUB/INNER");
+
+        hr = fs.WriteAllText (L"C:\\Disks\\work.po", "x");
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\work.po\\SUB\\INNER"), BrowserModel::FormatAddress (inner));
+        Assert::AreEqual (std::wstring(),                                    BrowserModel::FormatAddress (Location()));
+
+        for (const Location & location : { folder, image, inner })
+        {
+            Assert::IsTrue (BrowserModel::ParseAddress (fs, BrowserModel::FormatAddress (location), parsed));
+            Assert::IsTrue (parsed == location, L"A formatted address reads back as the same location");
+        }
+    }
+
+
+
+    TEST_METHOD (Address_ParseRefusesWhatIsNotThere)
+    {
+        InMemoryFileSystem  fs;
+        Location            parsed;
+        HRESULT             hr = S_OK;
+
+        hr = fs.WriteAllText (L"C:\\Disks\\notes.txt", "x");
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        Assert::IsFalse (BrowserModel::ParseAddress (fs, L"C:\\Nowhere",          parsed));
+        Assert::IsFalse (BrowserModel::ParseAddress (fs, L"C:\\Disks\\notes.txt", parsed), L"A file that is not a disk image is no location");
+        Assert::IsFalse (BrowserModel::ParseAddress (fs, L"C:\\Disks\\gone.po",   parsed), L"nor is an image that does not exist");
+        Assert::IsFalse (BrowserModel::ParseAddress (fs, L"   ",                  parsed));
+
+        Assert::IsTrue  (BrowserModel::ParseAddress (fs, L"  \"C:\\Disks\\\"  ", parsed), L"Quotes, spaces and a trailing separator are ignored");
+        Assert::IsTrue  (parsed == Folder (L"C:\\Disks"));
     }
 
 

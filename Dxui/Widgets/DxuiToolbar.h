@@ -167,6 +167,11 @@ public:
     int   GetBandDp        () const;
     bool  IsLabeled        (int commandId) const;
 
+    //  The span between the last leading entry and the first trailing one, a
+    //  group gap from each, for a host control such as an address bar. Empty
+    //  when there is no room.
+    RECT  GetFreeRect      () const                      { return m_freeRect; }
+
     void  Layout           (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint            (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
@@ -287,6 +292,7 @@ private:
     IDxuiTextRenderer      * m_textRenderer   = nullptr;
     const wchar_t          * m_iconFace       = kMdl2IconFace;
     RECT                     m_barRect        = {};
+    RECT                     m_freeRect       = {};
     RECT                     m_hostClient     = {};
     DxuiDpiScaler            m_scaler;
     int                      m_labeledCount   = 0;

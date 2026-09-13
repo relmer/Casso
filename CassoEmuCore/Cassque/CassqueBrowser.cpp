@@ -1523,3 +1523,54 @@ std::shared_ptr<const DxuiIconImage> CassqueBrowser::GetNodeIcon (const TreeNode
         default:                            return icons.GetForPath (node.location.path);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::NavigateToLocation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueBrowser::NavigateToLocation (const Location & location)
+{
+    m_rootId.clear();
+
+    if (!m_model.HasTabs())
+    {
+        m_model.OpenTab (location);
+    }
+    else if (m_model.GetActiveTab().location != location)
+    {
+        m_model.NavigateTo (location);
+    }
+
+    ReloadAfterNavigation();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::NavigateToAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::NavigateToAddress (const std::wstring & text)
+{
+    Location  location;
+    bool      parsed = BrowserModel::ParseAddress (m_fs, text, location);
+
+
+
+    if (parsed)
+    {
+        NavigateToLocation (location);
+    }
+
+    return parsed;
+}

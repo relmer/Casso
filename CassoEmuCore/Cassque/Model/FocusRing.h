@@ -16,7 +16,7 @@
 
 struct FocusStop
 {
-    enum class Kind { ToolbarEntry, Tabs, Tree, List, Preview };
+    enum class Kind { ToolbarEntry, Address, Tabs, Tree, List, Preview };
 
     Kind  kind  = Kind::Tree;
     int   entry = -1;     // the toolbar entry's index; -1 for every other kind
@@ -40,8 +40,8 @@ struct FocusStop
 //  it skips disabled buttons, wraps at the ends, and restarts from an end
 //  when the current stop is no longer in the list.
 //
-//  The order follows Explorer: the toolbar buttons left to right, the tab
-//  strip, the folder tree, the file list, and the preview. The menu bar is
+//  The order follows Explorer: the toolbar buttons left to right, the address
+//  bar, the tab strip, the folder tree, the file list, and the preview. The menu bar is
 //  excluded; Alt or F10 opens a menu, as in any Windows program, and Explorer
 //  has no menu bar.
 //

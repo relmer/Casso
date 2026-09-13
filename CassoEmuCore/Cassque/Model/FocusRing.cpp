@@ -26,6 +26,7 @@ std::vector<FocusStop> FocusRing::BuildStops (const std::vector<bool> & toolbarE
         }
     }
 
+    stops.push_back (FocusStop { FocusStop::Kind::Address });
     stops.push_back (FocusStop { FocusStop::Kind::Tabs });
     stops.push_back (FocusStop { FocusStop::Kind::Tree });
     stops.push_back (FocusStop { FocusStop::Kind::List });

@@ -243,9 +243,11 @@ void CassqueWindow::OnCreate()
     m_status          = CreateChild<DxuiStatusBar>();
     m_tabs            = CreateChild<DxuiTabStrip>();
     m_toolbar         = CreateChild<DxuiToolbar>();
+    m_address         = CreateChild<DxuiAddressBar>();
     m_menuBar         = CreateChild<DxuiMenuBar>();
 
     m_toolbar->SetTextRenderer (GetTextRenderer());
+    m_address->SetTextRenderer (GetTextRenderer());
     m_toolbar->SetPopupHost    (GetPopupHost());
     m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
     m_tooltip.SetPopupHost     (GetPopupHost());
@@ -385,6 +387,16 @@ void CassqueWindow::ConfigureWidgets()
         IGNORE_RETURN_VALUE (moved, true);
     });
     m_tabs->SetOnNewTab ([this]() { Dispatch (CassqueCommands::kNewTab); });
+
+    m_address->SetOnSegment ([this] (int index)
+    {
+        if (index >= 0 && index < (int) m_addressSegments.size())
+        {
+            m_browser.NavigateToLocation (m_addressSegments[(size_t) index].location);
+            FillList();
+        }
+    });
+    m_address->SetOnSubmit ([this] (const std::wstring & text) { SubmitAddress (text); });
 
     m_browser.RestoreTabs (m_prefs.tabs);
 
@@ -540,6 +552,7 @@ void CassqueWindow::RecomputeLayout()
 
     m_toolbar->SetHostClientRect (m_client);
     m_toolbar->Layout (m_toolbarBand.GetBounds(), m_scaler);
+    m_address->Layout (m_toolbar->GetFreeRect(), m_scaler);
 
     m_tooltip.SetDpi (m_scaler.GetDpi());
     m_tooltip.SetViewportSize (m_client.right - m_client.left, m_client.bottom - m_client.top);
@@ -659,6 +672,7 @@ void CassqueWindow::FillList()
     m_list->SetVisible (message.empty());
 
     FillTabs();
+    FillAddress();
     FillPreview();
     FillStatus();
     Invalidate();
@@ -782,6 +796,7 @@ void CassqueWindow::SetFocusPane (Pane pane)
     m_previewList->OnFocusChanged (pane == Pane::Preview);
     m_hexView->OnFocusChanged     (pane == Pane::Preview);
     m_tabs->OnFocusChanged        (pane == Pane::Tabs);
+    m_address->OnFocusChanged     (pane == Pane::Address);
     m_toolbar->SetFocusIndex      (pane == Pane::Toolbar ? m_toolbarFocus : -1);
 
     Invalidate();
@@ -802,6 +817,7 @@ FocusStop CassqueWindow::GetFocusStop() const
     switch (m_focus)
     {
         case Pane::Toolbar: return FocusStop { FocusStop::Kind::ToolbarEntry, m_toolbarFocus };
+        case Pane::Address: return FocusStop { FocusStop::Kind::Address };
         case Pane::Tabs:    return FocusStop { FocusStop::Kind::Tabs };
         case Pane::List:    return FocusStop { FocusStop::Kind::List };
         case Pane::Preview: return FocusStop { FocusStop::Kind::Preview };
@@ -828,6 +844,7 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
             SetFocusPane (Pane::Toolbar);
             break;
 
+        case FocusStop::Kind::Address: SetFocusPane (Pane::Address); break;
         case FocusStop::Kind::Tabs:    SetFocusPane (Pane::Tabs);    break;
         case FocusStop::Kind::List:    SetFocusPane (Pane::List);    break;
         case FocusStop::Kind::Preview: SetFocusPane (Pane::Preview); break;
@@ -994,6 +1011,30 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
     if (m_menuBar->OnMouse (ev))
     {
         return true;
+    }
+
+    //  The address bar sits in the toolbar's row, so it answers first. Moves
+    //  reach it wherever the pointer is, so its hover clears on the way out.
+    if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting() && m_address->OnMouse (ev))
+    {
+        Invalidate();
+    }
+
+    if (ev.kind != DxuiMouseEventKind::Move || m_address->IsInteracting())
+    {
+        if (m_address->IsInteracting() || Contains (m_address->GetBounds(), point))
+        {
+            if (press)
+            {
+                SetFocusPane (Pane::Address);
+            }
+
+            if (m_address->OnMouse (ev))
+            {
+                Invalidate();
+                return true;
+            }
+        }
     }
 
     if (RouteToolbarMouse (ev))
@@ -1191,6 +1232,20 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
 
 
 
+    //  While the address bar is being edited, keys and characters go to its
+    //  text field first; the keys it leaves, Tab and Ctrl+T among them, carry
+    //  on as usual.
+    if (m_focus == Pane::Address && m_address->IsEditing())
+    {
+        handled = m_address->OnKey (ev);
+
+        if (handled || ev.kind != DxuiKeyEventKind::Down)
+        {
+            Invalidate();
+            return handled;
+        }
+    }
+
     if (ev.kind != DxuiKeyEventKind::Down)
     {
         return false;
@@ -1244,8 +1299,9 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  Tab moves through the enabled toolbar buttons, the tab strip, the tree,
-    //  the list and the preview, in the order FocusRing defines.
+    //  Tab moves through the enabled toolbar buttons, the address bar, the tab
+    //  strip, the tree, the list and the preview, in the order FocusRing
+    //  defines.
     if (ev.vk == VK_TAB && !ev.ctrl)
     {
         FocusStop  next = FocusRing::GetNext (BuildFocusStops(), GetFocusStop(), !ev.shift);
@@ -1265,6 +1321,7 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
     switch (m_focus)
     {
         case Pane::Toolbar: handled = RouteToolbarKey (ev);      break;
+        case Pane::Address: handled = m_address->OnKey (ev);     break;
         case Pane::Tabs:    handled = m_tabs->OnKey (ev);        break;
         case Pane::Tree:    handled = m_tree->OnKey (ev);        break;
         case Pane::List:    handled = m_list->OnKey (ev);        break;
@@ -1590,6 +1647,11 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kBack:    refill = m_browser.GoBack();    break;
         case CassqueCommands::kForward: refill = m_browser.GoForward(); break;
         case CassqueCommands::kUp:      refill = m_browser.GoUp();      break;
+
+        case CassqueCommands::kEditAddress:
+            SetFocusPane (Pane::Address);
+            m_address->BeginEdit();
+            break;
 
         case CassqueCommands::kAbout:
             ShowAbout();
@@ -2317,6 +2379,61 @@ DxuiMessageResult CassqueWindow::OnActivateApp (bool active)
     }
 
     return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FillAddress
+//
+//  The segments and the path of where the active tab is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::FillAddress()
+{
+    Location                   location = m_browser.GetLocation();
+    std::vector<std::wstring>  labels;
+
+
+
+    m_addressSegments = BrowserModel::GetAddressSegments (location);
+
+    for (const BrowserModel::AddressSegment & segment : m_addressSegments)
+    {
+        labels.push_back (segment.label);
+    }
+
+    m_address->SetSegments (std::move (labels));
+    m_address->SetPath (BrowserModel::FormatAddress (location));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SubmitAddress
+//
+//  A path that goes nowhere says so and leaves the text as typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SubmitAddress (const std::wstring & text)
+{
+    if (m_browser.NavigateToAddress (text))
+    {
+        SetFocusPane (Pane::List);
+        FillList();
+    }
+    else
+    {
+        ShowMessage (L"Cassque can't find \"" + text + L"\". Check the path and try again.", MB_ICONWARNING);
+    }
 }
 
 

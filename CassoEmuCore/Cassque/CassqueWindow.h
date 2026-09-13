@@ -16,6 +16,7 @@
 #include "Theme/DxuiDarkTheme.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Theme/DxuiLightTheme.h"
+#include "Widgets/DxuiAddressBar.h"
 #include "Widgets/DxuiFramebufferView.h"
 #include "Widgets/DxuiHexView.h"
 #include "Widgets/DxuiLabel.h"
@@ -113,7 +114,7 @@ protected:
 private:
     //  Keyboard focus. The toolbar is one pane, with its focused button in
     //  m_toolbarFocus; FocusRing defines the Tab order.
-    enum class Pane { Toolbar, Tabs, Tree, List, Preview };
+    enum class Pane { Toolbar, Address, Tabs, Tree, List, Preview };
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -161,6 +162,8 @@ private:
     void  RecomputeLayout();
     void  FillList();
     void  FillTabs();
+    void  FillAddress();
+    void  SubmitAddress (const std::wstring & text);
     void  SwitchToTab (size_t index);
     void  FillPreview();
     void  FillStatus();
@@ -239,6 +242,7 @@ private:
     RECT                                         m_client          = {};
     Pane                                         m_focus           = Pane::Tree;
     int                                          m_toolbarFocus    = 0;
+    std::vector<BrowserModel::AddressSegment>    m_addressSegments;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;
@@ -254,6 +258,7 @@ private:
     DxuiStatusBar        * m_status          = nullptr;
     DxuiTabStrip         * m_tabs            = nullptr;
     DxuiToolbar          * m_toolbar         = nullptr;
+    DxuiAddressBar       * m_address         = nullptr;
     DxuiTooltip            m_tooltip;
 
     //  The window's edges, docked. Each band is stamped with the thickness
