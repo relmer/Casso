@@ -5,6 +5,7 @@
 #include "Config/GlobalUserPrefs.h"
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
+#include "Controllers/DeadzoneShaper.h"
 #include "Core/JsonParser.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -173,6 +174,163 @@ namespace ControllerTests
 
             Assert::IsTrue (store.ToJson (JsonValue()).GetType() == JsonType::Null,
                 L"a controller that never moved leaves the prefs file as it was");
+        }
+
+
+        static ControllerModelKey Stick()
+        {
+            return { ControllerKind::DirectInput, 0x231d, 0x0121 };
+        }
+
+
+        static ControlMapping MakeFullMapping()
+        {
+            ControlMapping  mapping;
+            AxisBinding     rate;
+            AxisBinding     pair;
+            ButtonBinding   trigger;
+            ButtonBinding   axisButton;
+
+            rate.analog   = { ControlKind::Axis, 3 };
+            rate.response = AxisResponse::Rate;
+            rate.maxSpeed = 512.0f;
+            rate.inverted = true;
+
+            pair.kind     = AxisBindingKind::DigitalPair;
+            pair.negative = { ControlKind::DpadUp, 0 };
+            pair.positive = { ControlKind::DpadDown, 0 };
+
+            trigger.control   = { ControlKind::Trigger, 1 };
+            trigger.threshold = 0.12f;
+
+            axisButton.control           = { ControlKind::Axis, 2 };
+            axisButton.threshold         = 0.5f;
+            axisButton.negativeDirection = true;
+
+            mapping.pdl0.push_back (rate);
+            mapping.pdl1.push_back (pair);
+            mapping.pb0.push_back  ({ { ControlKind::Button, 0 } });
+            mapping.pb0.push_back  (trigger);
+            mapping.pb1.push_back  (axisButton);
+            mapping.pb2.push_back  ({ { ControlKind::Button, 4 } });
+            return mapping;
+        }
+
+
+        TEST_METHOD (DefaultProfileAndDeadzone_RoundTripThroughTheGlobalPrefsFile)
+        {
+            InMemoryFileSystem        fs;
+            GlobalUserPrefs           saved;
+            GlobalUserPrefs           loaded;
+            ControllerProfileStore    store;
+            ControllerProfileStore    readBack;
+            ControllerModelSettings   settings;
+            std::vector<std::string>  rejected;
+            std::string               token = ControllerTokens::ModelToToken (Stick());
+
+            settings.deadzone = 0.3f;
+            settings.profiles.push_back ({ "Default", true, MakeFullMapping() });
+            store.models[token] = settings;
+
+            saved.controllers = store.ToJson (saved.controllers);
+            AssertSucceeded (saved.Save  (L"C:\\Casso", fs));
+            AssertSucceeded (loaded.Load (L"C:\\Casso", fs));
+
+            readBack.FromJson (loaded.controllers, rejected);
+
+            Assert::IsTrue   (rejected.empty());
+            Assert::AreEqual (0.3f, readBack.models.at (token).deadzone, 0.0001f, L"the model's deadzone comes back");
+            Assert::IsTrue   (readBack.models.at (token).profiles[0].mapping == MakeFullMapping(),
+                L"every binding comes back: rate response and speed, inversion, a D-pad pair, thresholds, a direction and PB2");
+            Assert::IsTrue   (readBack.models.at (token).FindDefaultProfile() != nullptr);
+        }
+
+
+        TEST_METHOD (OutOfRangeValues_AreClamped)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::string               token = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 doc   = Parse (
+                "{\"models\":{\"" + token + "\":{\"deadzone\":2.5,\"profiles\":[{\"name\":\"Default\",\"default\":true,"
+                "\"mapping\":{\"pdl0\":[{\"analog\":\"axis:0\",\"response\":\"rate\",\"maxSpeed\":5000}]}}]}}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::IsTrue   (rejected.empty(), L"a value out of range is clamped, not rejected");
+            Assert::AreEqual (DeadzoneShaper::kMaxDeadzone, store.models.at (token).deadzone, 0.0001f);
+            Assert::AreEqual (ControllerProfileStore::kMaxMaxSpeed, store.models.at (token).profiles[0].mapping.pdl0[0].maxSpeed, 0.0001f);
+        }
+
+
+        TEST_METHOD (AnUnreadableProfile_IsDroppedAndReportedWhileTheRestLoad)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::string               token = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 doc   = Parse (
+                "{\"models\":{\"" + token + "\":{\"deadzone\":0.2,\"profiles\":["
+                  "{\"name\":\"Default\",\"default\":true,\"mapping\":{\"pb0\":[{\"control\":\"button:0\"}]}},"
+                  "{\"name\":\"Broken\",\"mapping\":{\"pdl0\":[{\"analog\":\"axis:0\",\"negative\":\"button:1\",\"positive\":\"button:2\"}]}},"
+                  "{\"name\":\"Nonsense\",\"mapping\":{\"pb0\":[{\"control\":\"lever:9\"}]}}"
+                "]}}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::AreEqual (size_t (2), rejected.size(), L"a binding with both an analog control and a pair, and an unknown control, are each reported");
+            Assert::AreEqual (size_t (1), store.models.at (token).profiles.size(), L"the readable profile still loads");
+            Assert::AreEqual (std::string ("Default"), store.models.at (token).profiles[0].name);
+        }
+
+
+        TEST_METHOD (ADuplicateProfileName_IgnoringCase_IsDropped)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::string               token = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 doc   = Parse (
+                "{\"models\":{\"" + token + "\":{\"profiles\":["
+                  "{\"name\":\"Lode Runner\",\"mapping\":{}},"
+                  "{\"name\":\"LODE RUNNER\",\"mapping\":{}}"
+                "]}}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::AreEqual (size_t (1), rejected.size());
+            Assert::AreEqual (size_t (1), store.models.at (token).profiles.size());
+        }
+
+
+        TEST_METHOD (AMissingDefaultProfile_PlaysWithTheDefaultMapping)
+        {
+            ControllerProfileStore    store;
+            ControllerModelSettings   settings;
+            ControlMapping            mapping;
+            float                     deadzone = 0.0f;
+            std::vector<ControlId>    controls = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 }, { ControlKind::Button, 0 } };
+
+            settings.deadzone = 0.4f;
+            settings.profiles.push_back ({ "Lode Runner", false, ControlMapping() });
+            store.models[ControllerTokens::ModelToToken (Stick())] = settings;
+
+            store.GetDefaultSettings (Stick(), controls, mapping, deadzone);
+
+            Assert::IsTrue   (mapping == DefaultMapping::For (Stick(), controls), L"with no Default profile, the default mapping is the Default");
+            Assert::AreEqual (0.4f, deadzone, 0.0001f, L"but the model's own deadzone still applies");
+        }
+
+
+        TEST_METHOD (AModelNeverEdited_PlaysWithTheBuiltInDefaults)
+        {
+            ControllerProfileStore  store;
+            ControlMapping          mapping;
+            float                   deadzone = 0.0f;
+            std::vector<ControlId>  controls = { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 } };
+
+            store.GetDefaultSettings (Stick(), controls, mapping, deadzone);
+
+            Assert::IsTrue   (mapping == DefaultMapping::For (Stick(), controls));
+            Assert::AreEqual (DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput), deadzone, 0.0001f);
         }
     };
 }

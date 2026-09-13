@@ -167,9 +167,9 @@ void EmulatorShell::RestoreColorTextPref()
 //
 //  SaveControllerCalibrations
 //
-//  Writes every controller's calibration into the global prefs, and saves
-//  them only when that changed what they hold: an automatic calibration that
-//  learned nothing new costs no write.
+//  Writes every controller model's settings and every unit's calibration
+//  into the global prefs, and saves them only when that changed what they
+//  hold: an automatic calibration that learned nothing new costs no write.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,6 +185,7 @@ void EmulatorShell::SaveControllerCalibrations()
         return;
     }
 
+    store.models       = m_controllerService->GetModelSettings();
     store.calibrations = m_controllerService->GetCalibrations();
     controllers        = store.ToJson (m_globalPrefs.controllers);
 

@@ -451,19 +451,21 @@ HRESULT EmulatorShell::Initialize (
     m_controllerBackend = std::make_unique<Win32ControllerBackend>();
     m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
 
-    // Saved calibrations, before the thread starts reading. An entry that
-    // cannot be used is said once: its unit calibrates automatically, and the
-    // next save drops it, so there is nothing to say again.
+    // Saved controller settings and calibrations, before the thread starts
+    // reading. Anything that cannot be used is said once: it falls back to
+    // the default mapping or to automatic calibration, and the next save
+    // drops it, so there is nothing to say again.
     {
         ControllerProfileStore    store;
         std::vector<std::string>  rejected;
 
         store.FromJson (m_globalPrefs.controllers, rejected);
-        m_controllerService->SetCalibrations (store.calibrations);
+        m_controllerService->SetModelSettings (store.models);
+        m_controllerService->SetCalibrations  (store.calibrations);
 
         if (!rejected.empty())
         {
-            PostNotice (L"A saved controller calibration couldn't be read, so that controller calibrates automatically.");
+            PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
         }
     }
 

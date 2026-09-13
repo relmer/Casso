@@ -4,6 +4,7 @@
 
 #include "Controllers/ControlMapping.h"
 #include "Controllers/ControllerCalibration.h"
+#include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/GamePortInputMixer.h"
 #include "Controllers/MappingEvaluator.h"
@@ -86,6 +87,12 @@ public:
 
     void  SetClock (ClockFn clock);
 
+    // Each controller model's saved deadzone and profiles, by model token. A
+    // controller plays with its model's Default profile from the next time it
+    // is selected or connects.
+    void                                            SetModelSettings (std::map<std::string, ControllerModelSettings> models);
+    std::map<std::string, ControllerModelSettings>  GetModelSettings () const;
+
     // Every DirectInput unit's calibration, by unit token. Set once from the
     // saved prefs; read back to save them, including what automatic
     // calibration has learned since.
@@ -145,6 +152,7 @@ private:
     uint64_t                                             m_nextAttachOrder = 0;
 
     std::map<std::string, ControllerCalibration>         m_calibrations;
+    ControllerProfileStore                               m_profiles;
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;

@@ -256,6 +256,44 @@ void ControllerInputService::SetClock (ClockFn clock)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetModelSettings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetModelSettings (std::map<std::string, ControllerModelSettings> models)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_profiles.models = std::move (models);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetModelSettings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, ControllerModelSettings> ControllerInputService::GetModelSettings() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_profiles.models;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetCalibrations
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -769,8 +807,7 @@ void ControllerInputService::EnsureMappingForActiveLocked()
         return;
     }
 
-    m_mapping  = DefaultMapping::For (active->unit.model, active->controls);
-    m_deadzone = DeadzoneShaper::GetDefaultDeadzone (active->unit.model.kind);
+    m_profiles.GetDefaultSettings (active->unit.model, active->controls, m_mapping, m_deadzone);
 }
 
 
