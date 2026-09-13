@@ -208,7 +208,7 @@
 - [x] T097 [P] [US1] Explorer's iconography for Back, Forward, Up and Refresh, through `UnicodeSymbols.h` (FR-033)
 - [x] T098 [US1] The preview toggle moves to the toolbar's trailing end, which `DxuiToolbar` needs a trailing group for (FR-034)
 - [x] T099 [P] [US1] Cut a long name off rather than wrapping it, in tree rows, list cells and tabs (FR-035)
-- [ ] T100 [US5] `DxuiTabStrip`: reach every tab past the point where they stop fitting, and reorder by dragging (FR-036, FR-037, SC-010)
+- [x] T100 [US5] `DxuiTabStrip`: reach every tab past the point where they stop fitting, and reorder by dragging (FR-036, FR-037, SC-010)
 - [ ] T101 [US5] A new tab opens from the strip's own affordance, as a browser opens one, with the toolbar button retired (FR-037)
 - [ ] T102 [US1] `DxuiAddressBar`: the location as navigable segments, editable into a typed path, reaching a directory inside an image as readily as a host folder; `BrowserModel` parses and formats both (FR-038, SC-011)
 - [ ] T103 [US5] Let a window put its tab strip outside the menu bar, toolbar and address bar or inside them, and take the browser's arrangement in Cassque (FR-039)

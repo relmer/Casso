@@ -378,6 +378,12 @@ void CassqueWindow::ConfigureWidgets()
     m_status->SetFields ({ { L"", 0, true }, { L"", 280, false }, { L"", 140, false } });
 
     m_tabs->SetOnChange ([this] (int index) { SwitchToTab ((size_t) index); });
+    m_tabs->SetOnMove   ([this] (int from, int to)
+    {
+        bool  moved = m_browser.MoveTab ((size_t) from, (size_t) to);
+
+        IGNORE_RETURN_VALUE (moved, true);
+    });
 
     m_browser.RestoreTabs (m_prefs.tabs);
 
@@ -997,6 +1003,15 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (m_treeSplitter->OnMouse (ev) || (m_previewSplitter->IsVisible() && m_previewSplitter->OnMouse (ev)))
     {
+        Invalidate();
+        return true;
+    }
+
+    //  A tab being dragged keeps the pointer until the button comes up, so the
+    //  drag can run past the strip's ends and scroll it.
+    if (m_tabs->IsInteracting())
+    {
+        m_tabs->OnMouse (ev);
         Invalidate();
         return true;
     }
@@ -2311,7 +2326,9 @@ DxuiMessageResult CassqueWindow::OnActivateApp (bool active)
 //
 //  CassqueWindow::FillTabs
 //
-//  Fixed-width tabs from the left of the strip, labeled by where each tab is.
+//  Tabs from the left of the strip, labeled by where each tab is. They share
+//  the strip's width, no wider than a full tab and no narrower than the
+//  minimum; past that the strip scrolls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2320,10 +2337,16 @@ void CassqueWindow::FillTabs()
     const BrowserModel &            model  = m_browser.GetBrowserModel();
     RECT                            strip  = m_tabs->GetBounds();
     int                             width  = m_scaler.ToPx (kTabWidthDip);
+    int                             count  = (int) model.GetTabCount();
     std::vector<DxuiTabStrip::Tab>  tabs;
     size_t                          index  = 0;
 
 
+
+    if (count > 0)
+    {
+        width = std::clamp ((int) (strip.right - strip.left) / count, m_scaler.ToPx (kTabMinWidthDip), width);
+    }
 
     for (index = 0; index < model.GetTabCount(); index++)
     {

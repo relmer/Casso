@@ -52,6 +52,7 @@ public:
 
     size_t  OpenTab   (const Location & location);
     bool    CloseTab  (size_t index);
+    bool    MoveTab   (size_t from, size_t to);
     bool    SwitchTo  (size_t index);
 
     size_t       GetTabCount    () const { return m_tabs.size(); }

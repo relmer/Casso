@@ -147,4 +147,145 @@ public:
         Assert::IsTrue  (drawn.size() < wcslen (L"A very long tab label"), L"A label wider than its tab is shortened");
         Assert::AreEqual (s_kchEllipsis, drawn.back(), L"and ends in an ellipsis");
     }
+
+    static std::vector<DxuiTabStrip::Tab>  MakeTenTabs()
+    {
+        std::vector<DxuiTabStrip::Tab>  tabs;
+
+        for (int i = 0; i < 10; i++)
+        {
+            DxuiTabStrip::Tab  tab;
+
+            tab.rect  = { i * 80, 0, (i + 1) * 80, 24 };
+            tab.label = std::to_wstring (i);
+            tabs.push_back (tab);
+        }
+
+        return tabs;
+    }
+
+
+    static void  LayOut (DxuiTabStrip & ts, LONG width)
+    {
+        DxuiDpiScaler  scaler;
+
+        scaler.SetDpi (96);
+        ts.Layout (RECT { 0, 0, width, 24 }, scaler);
+    }
+
+
+    TEST_METHOD (Drag_MovesTheTabAndReportsEachMove)
+    {
+        DxuiTabStrip  ts;
+        int           from = -1;
+        int           to   = -1;
+
+        ts.SetTabs   (MakeThreeTabs());
+        ts.SetOnMove ([&] (int f, int t) { from = f; to = t; });
+
+        Assert::IsTrue   (ts.OnLButtonDown (10, 10));
+        Assert::IsTrue   (ts.OnMouseMove   (100, 10), L"A press carried past the threshold is a drag");
+        Assert::AreEqual (0, from);
+        Assert::AreEqual (1, to);
+        Assert::IsTrue   (ts.OnMouseMove   (200, 10));
+        Assert::IsTrue   (ts.IsInteracting());
+        Assert::IsTrue   (ts.OnLButtonUp   (200, 10));
+        Assert::IsFalse  (ts.IsInteracting());
+
+        Assert::AreEqual (std::wstring (L"Hardware"), ts.GetTabs()[0].label);
+        Assert::AreEqual (std::wstring (L"Display"),  ts.GetTabs()[1].label);
+        Assert::AreEqual (std::wstring (L"Machine"),  ts.GetTabs()[2].label, L"The dragged tab lands at the end");
+        Assert::AreEqual (1, from);
+        Assert::AreEqual (2, to);
+        Assert::AreEqual (2, ts.GetSelected(), L"and stays selected");
+        Assert::AreEqual (160L, ts.GetTabs()[2].rect.left, L"The row is packed again");
+    }
+
+
+    TEST_METHOD (Drag_SelectsTheTabItCarried)
+    {
+        DxuiTabStrip  ts;
+
+        ts.SetTabs     (MakeThreeTabs());
+        ts.SetSelected (1);
+
+        ts.OnLButtonDown (10, 10);
+        ts.OnMouseMove   (200, 10);
+        ts.OnLButtonUp   (200, 10);
+
+        Assert::AreEqual (std::wstring (L"Hardware"), ts.GetTabs()[0].label);
+        Assert::AreEqual (2, ts.GetSelected(), L"Releasing a drag selects the tab it carried");
+    }
+
+
+    TEST_METHOD (SmallMove_IsStillAClick)
+    {
+        DxuiTabStrip  ts;
+
+        ts.SetTabs (MakeThreeTabs());
+
+        ts.OnLButtonDown (100, 10);
+        Assert::IsFalse (ts.OnMouseMove (102, 10), L"A move inside the threshold is not a drag");
+        Assert::IsTrue  (ts.OnLButtonUp (102, 10));
+
+        Assert::AreEqual (1, ts.GetSelected());
+        Assert::AreEqual (std::wstring (L"Machine"), ts.GetTabs()[0].label, L"and nothing moved");
+    }
+
+
+    TEST_METHOD (Overflow_WheelScrollsAndHitTestFollows)
+    {
+        DxuiTabStrip  ts;
+
+        ts.SetTabs (MakeTenTabs());
+        LayOut (ts, 240);
+
+        Assert::AreEqual (-1, ts.HitTest (300, 10), L"Nothing past the strip's edge is under the pointer");
+
+        Assert::IsTrue   (ts.OnWheel (-1.0f));
+        Assert::AreEqual (60, ts.GetScrollPx());
+        Assert::AreEqual (1,  ts.HitTest (30, 10), L"Scrolled, the second tab is under the start of the strip");
+
+        Assert::IsTrue   (ts.OnWheel (-100.0f));
+        Assert::AreEqual (560, ts.GetScrollPx(), L"Scrolling stops with the last tab at the edge");
+        Assert::AreEqual (9,   ts.HitTest (230, 10));
+        Assert::IsFalse  (ts.OnWheel (-1.0f));
+    }
+
+
+    TEST_METHOD (Overflow_SelectingATabScrollsItIntoView)
+    {
+        DxuiTabStrip  ts;
+
+        ts.SetTabs (MakeTenTabs());
+        LayOut (ts, 240);
+
+        ts.SetSelected (9);
+        Assert::AreEqual (560, ts.GetScrollPx());
+
+        ts.SetSelected (0);
+        Assert::AreEqual (0, ts.GetScrollPx());
+    }
+
+
+    TEST_METHOD (Overflow_DragHeldPastTheEndReachesTheLastPlace)
+    {
+        DxuiTabStrip  ts;
+
+        ts.SetTabs (MakeTenTabs());
+        LayOut (ts, 240);
+
+        ts.OnLButtonDown (10, 10);
+
+        for (int i = 0; i < 100; i++)
+        {
+            ts.OnMouseMove (400, 10);
+        }
+
+        ts.OnLButtonUp (400, 10);
+
+        Assert::AreEqual (std::wstring (L"0"), ts.GetTabs()[9].label, L"A drag held past the right end carries its tab to the last place");
+        Assert::AreEqual (9,   ts.GetSelected());
+        Assert::AreEqual (560, ts.GetScrollPx());
+    }
 };

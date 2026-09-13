@@ -85,6 +85,7 @@ public:
     //  makes the first active; an empty list leaves the tabs as they are.
     size_t        NewTab      ();
     bool          CloseTab    (size_t index);
+    bool          MoveTab     (size_t from, size_t to) { return m_model.MoveTab (from, to); }
     bool          SwitchTab   (size_t index);
     void          RestoreTabs (const std::vector<Location> & locations);
     std::wstring  GetTabLabel (size_t index) const;

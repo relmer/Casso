@@ -56,6 +56,28 @@ public:
 
 
 
+    TEST_METHOD (Tabs_MoveKeepsTheActiveTabActive)
+    {
+        BrowserModel  model;
+
+        model.OpenTab (Folder (L"C:\\A"));
+        model.OpenTab (Folder (L"C:\\B"));
+        model.OpenTab (Folder (L"C:\\C"));
+
+        Assert::IsTrue   (model.MoveTab (0, 2));
+        Assert::IsTrue   (model.GetTab (0).location == Folder (L"C:\\B"));
+        Assert::IsTrue   (model.GetTab (2).location == Folder (L"C:\\A"));
+        Assert::AreEqual ((size_t) 1, model.GetActiveIndex(), L"C, the active tab, moved left one place and stays active");
+
+        Assert::IsTrue   (model.MoveTab (1, 0));
+        Assert::AreEqual ((size_t) 0, model.GetActiveIndex(), L"and moving the active tab itself carries the active index with it");
+        Assert::IsTrue   (model.GetActiveTab().location == Folder (L"C:\\C"));
+
+        Assert::IsFalse  (model.MoveTab (0, 3));
+    }
+
+
+
     TEST_METHOD (History_BackAndForwardPerTab)
     {
         BrowserModel  model;

@@ -93,6 +93,7 @@ public:
     //  are the line's height rather than a file listing's roomier row.
     static constexpr int  kPreviewRowHeightDip = 18;
     static constexpr int  kTabWidthDip         = 180;
+    static constexpr int  kTabMinWidthDip      = 100;
     static constexpr int  kMinTreeWidthDip     = 140;
     static constexpr int  kMinListWidthDip     = 220;
     static constexpr int  kMinPreviewWidthDip  = 160;

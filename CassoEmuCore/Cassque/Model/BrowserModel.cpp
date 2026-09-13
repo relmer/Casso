@@ -88,6 +88,50 @@ bool BrowserModel::CloseTab (size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserModel::MoveTab
+//
+//  Moves a tab to another position; the active tab stays active.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserModel::MoveTab (size_t from, size_t to)
+{
+    if (from >= m_tabs.size() || to >= m_tabs.size())
+    {
+        return false;
+    }
+
+    if (from < to)
+    {
+        std::rotate (m_tabs.begin() + (ptrdiff_t) from, m_tabs.begin() + (ptrdiff_t) from + 1, m_tabs.begin() + (ptrdiff_t) to + 1);
+    }
+    else if (to < from)
+    {
+        std::rotate (m_tabs.begin() + (ptrdiff_t) to, m_tabs.begin() + (ptrdiff_t) from, m_tabs.begin() + (ptrdiff_t) from + 1);
+    }
+
+    if (m_active == from)
+    {
+        m_active = to;
+    }
+    else if (from < m_active && m_active <= to)
+    {
+        m_active--;
+    }
+    else if (to <= m_active && m_active < from)
+    {
+        m_active++;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserModel::SwitchTo
 //
 ////////////////////////////////////////////////////////////////////////////////
