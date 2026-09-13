@@ -1030,6 +1030,7 @@ bool EmulatorShell::TryPresentUiFrame()
         m_toolbarTooltip.Tick   (nowMs);
         m_switchBarTooltip.Tick (nowMs);
         m_driveTooltip.Tick     (nowMs);
+        m_captionTooltip.Tick   (nowMs);
 
         // An open menu's submenu waits out the system's show delay before it
         // opens, and the pointer resting on the row produces no messages, so

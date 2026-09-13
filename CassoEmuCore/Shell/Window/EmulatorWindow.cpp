@@ -634,6 +634,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_driveTooltip.SetPopupHost (m_host.get());
     m_driveTooltip.SetTheme     (m_chromeTheme);
 
+    // The caption buttons' tooltip, in place of the stock system one.
+    m_captionTooltip.SetPopupHost (m_host.get());
+    m_captionTooltip.SetTheme     (m_chromeTheme);
+
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
     // thick frame) doesn't materialize until the window is shown,
@@ -1441,6 +1445,7 @@ void EmulatorShell::WaitForFrameOrMessage()
 
     if (m_switchBarTooltip.WantsTick() ||
         m_driveTooltip.WantsTick()     ||
+        m_captionTooltip.WantsTick()   ||
         m_sceneCompass.WantsTick()     ||
         m_mainMenu.WantsTick()         ||
         m_toolbar.WantsTick())
@@ -2181,9 +2186,33 @@ void EmulatorShell::OnDpiChanged (UINT newDpi)
 
 DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, int yScreen)
 {
-    (void) hitTest;
-    (void) xScreen;
-    (void) yScreen;
+    int64_t          nowMs  = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                  std::chrono::steady_clock::now().time_since_epoch()).count();
+    const wchar_t  * tip    = nullptr;
+    RECT             anchor = {};
+
+
+
+    // The caption buttons' tooltip. The host suppresses the stock system
+    // tooltip for these, so a hover over one raises ours; anything else in
+    // the non-client area takes it down.
+    switch (hitTest)
+    {
+        case HTMINBUTTON: tip = L"Minimize";                                     break;
+        case HTMAXBUTTON: tip = (IsZoomed (m_hwnd) != FALSE) ? L"Restore" : L"Maximize"; break;
+        case HTCLOSE:     tip = L"Close";                                        break;
+        default:          break;
+    }
+
+    if (tip != nullptr && m_host != nullptr &&
+        m_host->GetNcSystemButtonRectPx (POINT { xScreen, yScreen }, anchor))
+    {
+        m_captionTooltip.RequestShow (anchor, tip, nowMs);
+    }
+    else
+    {
+        m_captionTooltip.RequestHide (nowMs);
+    }
 
     // The host owns caption / system-button hover now. Our only stake in
     // a non-client move is dropping a latched menu hover: when the
@@ -2206,7 +2235,14 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
 
 DxuiMessageResult EmulatorShell::OnNcMouseLeave()
 {
-    // Caption-button hover teardown is the host's job; nothing to do here.
+    int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                         std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
+    // Caption-button hover teardown is the host's job. The tooltip is ours.
+    m_captionTooltip.RequestHide (nowMs);
+
     return DxuiMessageResult::NotHandled;
 }
 

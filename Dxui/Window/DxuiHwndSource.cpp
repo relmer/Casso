@@ -3785,6 +3785,54 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitForTest (POINT clientDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetNcSystemButtonRectPx
+//
+//  Resolves a screen point to the system button under it and reports that
+//  button's rect in client pixels. The point goes to client DIPs the same
+//  way HandleNcMouse takes it there, so the button found is the one the
+//  host is painting as hovered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::GetNcSystemButtonRectPx (POINT screenPx, RECT & outClientPx) const
+{
+    POINT                client  = screenPx;
+    IDxuiControl       * control = nullptr;
+    RECT                 dip     = {};
+
+
+
+    outClientPx = {};
+
+    if (m_hwnd == nullptr || ScreenToClient (m_hwnd, &client) == FALSE)
+    {
+        return false;
+    }
+
+    client.x = MulDiv (client.x, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+    client.y = MulDiv (client.y, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+    control  = FindNcSystemControlAt (client);
+
+    if (control == nullptr)
+    {
+        return false;
+    }
+
+    dip                = control->GetBounds();
+    outClientPx.left   = m_scaler.ToPx (dip.left);
+    outClientPx.top    = m_scaler.ToPx (dip.top);
+    outClientPx.right  = m_scaler.ToPx (dip.right);
+    outClientPx.bottom = m_scaler.ToPx (dip.bottom);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FindNcSystemControlAt
 //
 //  Finds the min / max / close control under a point, so NC mouse messages can
