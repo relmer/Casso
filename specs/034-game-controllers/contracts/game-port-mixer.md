@@ -55,7 +55,7 @@ public:
 
 | Source | Carries | Submitted by |
 |---|---|---|
-| `ArrowKeys` | Axes | Arrow keys in arrows-to-joystick mode and during the controller disconnect fallback |
+| `ArrowKeys` | Axes | Arrow keys in arrows-to-joystick mode |
 | `FireKeys` | PB0, PB1 | X/Z plus left/right Alt in arrows-to-joystick mode, foreground only |
 | `AppleModifierKeys` | PB0, PB1, PB2 | Left Alt, right Alt and Shift on the //e and //c (PB2 is Shift) |
 | `MousePaddle` | Axes, PB0, PB1 | Captured mouse in paddle mode |

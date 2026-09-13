@@ -184,12 +184,9 @@ Inputs: machine selection, attached devices, connect events, machine has game po
 
 | Event | Selection before | Result |
 |---|---|---|
-| Connect (incl. present at start or machine switch) | none | Select first device in enumeration order, turn off arrows-to-joystick and mouse-to-paddle, notice (FR-032) |
+| Connect (incl. present at start or machine switch) | none, or saved and absent | Select the lone attached unit of a saved DirectInput model if there is exactly one, else the first device in enumeration order, turn off arrows-to-joystick and mouse-to-paddle, notice (FR-032) |
 | Connect | set (any) | No change (FR-032) |
-| Connect matching selection | set, disconnected | Controller resumes; arrow fallback ends (FR-008a, FR-010) |
-| Connect or rescan | DirectInput unit selected and absent; exactly one attached unit of the same model | Adopt that unit as the selection, persist it, resume (FR-032) |
-| Connect or rescan | DirectInput unit selected and absent; two or more attached units of the same model | No change |
-| Disconnect of selected | set, connected | Rest contribution, arrow fallback begins (FR-008a, FR-010) |
+| Disconnect of selected | set | Rest contribution; the longest-attached unassigned controller becomes the selection and is persisted, else selection none; notice (FR-008a, FR-010, FR-013) |
 | User selects arrows or paddle | set | Selection cleared for the machine |
 | Machine has no game port | any | Policy inert (FR-017) |
 
@@ -206,4 +203,4 @@ Xbox-class selection matches any unit of the selected model; with several connec
 
 ### GamePortInputMixer (pure, mutex-guarded)
 
-Sources: `FireKeys`, `AppleModifierKeys` (Open-Apple, Solid-Apple, and on the //e Shift as PB2), `MousePaddle`, `Controller`. Axis owner is held **per axis** (`ArrowKeys`, `MousePaddle`, `Controller`, `None`), chosen from input mode plus the stand-in state, so PDL0 and PDL1 can belong to different controllers (FR-036). Final buttons = OR of all sources; each final axis = that axis's owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.
+Sources: `FireKeys`, `AppleModifierKeys` (Open-Apple, Solid-Apple, and on the //e Shift as PB2), `MousePaddle`, `Controller`. Axis owner is held **per axis** (`ArrowKeys`, `MousePaddle`, `Controller`, `None`), chosen from input mode and the selection, so PDL0 and PDL1 can belong to different controllers (FR-036). Final buttons = OR of all sources; each final axis = that axis's owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.
