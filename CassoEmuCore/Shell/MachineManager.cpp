@@ -275,7 +275,11 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     uiPrefs != nullptr &&
                     uiPrefs->HasString ("colorMode", colorMode))
                 {
-                    if      (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
+                    // A saved "color" has to be named here too, or a machine whose
+                    // monitor is monochrome comes back in its phosphor after the
+                    // user chose color for it.
+                    if      (colorMode == "color")  { colorCmd = IDM_VIEW_COLOR; }
+                    else if (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
                     else if (colorMode == "amber")  { colorCmd = IDM_VIEW_AMBER; }
                     else if (colorMode == "white")  { colorCmd = IDM_VIEW_WHITE; }
                 }
