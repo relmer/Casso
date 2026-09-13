@@ -453,13 +453,8 @@ HRESULT EmulatorShell::Initialize (
                 std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
                 m_controllerPickDescription = decision.description;
-                m_controllerPickIsAdoption  = (decision.reason == SelectionChangeReason::Adoption);
-            }
-
-            {
-                std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
-
-                m_controllerPickHasNotice = true;
+                m_controllerPickReason      = decision.reason;
+                m_controllerPickHasNotice   = decision.isAnnounced;
             }
 
             PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);

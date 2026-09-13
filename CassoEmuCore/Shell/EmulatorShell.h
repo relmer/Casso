@@ -562,7 +562,7 @@ private:
     // Hands PDL0/PDL1 to whichever host input mode currently drives them.
     void    SyncGamePortAxisOwner ();
 
-    // The line the stand-in bar carries while the keys or the mouse drive
+    // The line the input-mode bar carries while the keys or the mouse drive
     // the game port, and empty when neither does, which is what decides
     // whether the bar and its band exist at all.
     std::wstring  GetStandInBannerText () const;
@@ -577,13 +577,9 @@ private:
     // disagree about whether the band is big enough.
     int           GetStandInBarHeightPx (float widthPx) const;
 
-    // Whether the arrow keys are driving the joystick: because the user
-    // turned them on, or because they are standing in for a chosen
-    // controller that is gone with nothing else to take its place
-    // (FR-008a). The fallback is not the user's setting and must not be
-    // written to it, so the key handlers ask this rather than m_arrowsJoystick.
-    bool    IsArrowJoystickActive () const { return m_arrowsJoystick || m_arrowKeyFallback; }
-    void    ApplyAutomaticControllerSelection (const std::wstring & description, bool isAdoption);
+    // The controller thread moved the selection, or a controller came or
+    // went: the axis owner, the picker and the prefs follow on the UI thread.
+    void    ApplyControllerSelectionChange (const std::wstring & description, SelectionChangeReason reason, bool hasNotice);
     // BY VALUE, not by reference. The source arrives from a picker row's
     // dispatch, and picking rebuilds the rows -- turning the arrows and the
     // paddle off each re-syncs the picker -- so a reference into the row
@@ -2040,12 +2036,6 @@ private:
     InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
     bool              m_arrowsJoystick = false;                    // Keys axis
 
-    // The chosen controller is gone and nothing is standing in, so the arrow
-    // keys have the axes whether or not the user asked for them (FR-008a).
-    // Written only by SyncGamePortAxisOwner, which decides the same question
-    // for the mixer.
-    bool              m_arrowKeyFallback = false;
-
     // The single writer of the paddles and pushbuttons. Every host input
     // source submits to the mixer; only the sink touches the machine.
     GamePortInputMixer                    m_gamePortMixer;
@@ -2058,12 +2048,12 @@ private:
     std::unique_ptr<ControllerInputService>  m_controllerService;
     std::unique_ptr<ControllerInputThread>   m_controllerThread;
 
-    // Written by the controller thread when the policy chooses a controller,
+    // Written by the controller thread when the policy moves the selection,
     // read on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting
     // prefs and raising a notice are both UI-thread work.
     std::mutex                               m_controllerPickMutex;
     std::wstring                             m_controllerPickDescription;
-    bool                                     m_controllerPickIsAdoption = false;
+    SelectionChangeReason                    m_controllerPickReason     = SelectionChangeReason::None;
     bool                                     m_controllerPickHasNotice  = false;
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and

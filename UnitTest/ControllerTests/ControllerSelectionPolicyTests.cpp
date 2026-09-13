@@ -14,9 +14,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Every row of the policy table, driven with made-up devices.
 //
-//  THE RULE THAT MATTERS MOST IS THAT AN ABSENT CONTROLLER KEEPS ITS
-//  SELECTION. Discarding it would mean a controller unplugged to move a desk
-//  comes back unselected, and the user has to choose it again every time.
+//  THE RULE THAT MATTERS MOST IS THAT THE SELECTION STAYS ON THE CONTROLLER
+//  IN USE. One arriving never takes it; only the selected one leaving moves
+//  it, and then to a controller that is here or to nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,14 +82,29 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (SelectedAbsent_SelectionIsKept)
+        TEST_METHOD (SelectedAbsent_LongestAttachedTakesOver)
         {
             ControllerDeviceInfo               gone     = MakeStick ("{GONE}");
-            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox() };
+            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox(), MakeStick ("{LATER}", 0x0999) };
             auto                               decision = ControllerSelectionPolicy::Evaluate (gone.unit, devices, true);
 
-            Assert::IsFalse (decision.hasChanged,                    L"an unplugged controller has not been un-chosen");
-            Assert::IsTrue  (decision.selection.value() == gone.unit, L"so its selection is kept, not handed to the attached one");
+            Assert::IsTrue   (decision.hasChanged,                                L"the selection follows the controllers that are here");
+            Assert::IsTrue   (decision.selection.value() == devices.front().unit, L"and the one attached longest, listed first, takes it");
+            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason);
+            Assert::IsFalse  (decision.clearsOtherInputModes,                     L"a controller already had the axes, so nothing else was on");
+        }
+
+
+        TEST_METHOD (SelectedAbsent_NothingAttachedClearsTheSelection)
+        {
+            ControllerDeviceInfo               gone     = MakeStick ("{GONE}");
+            std::vector<ControllerDeviceInfo>  devices;
+            auto                               decision = ControllerSelectionPolicy::Evaluate (gone.unit, devices, true);
+
+            Assert::IsTrue   (decision.hasChanged);
+            Assert::IsFalse  (decision.selection.has_value(), L"nothing drives the axes, and the arrow keys are not turned on for the user");
+            Assert::AreEqual ((int) SelectionChangeReason::Cleared, (int) decision.reason);
+            Assert::IsFalse  (decision.clearsOtherInputModes);
         }
 
 
@@ -97,23 +112,25 @@ namespace ControllerTests
         {
             ControllerDeviceInfo               moved    = MakeStick ("{OLD-PORT}");
             ControllerDeviceInfo               same     = MakeStick ("{NEW-PORT}");
-            std::vector<ControllerDeviceInfo>  devices  = { same };
+            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox(), same };
             auto                               decision = ControllerSelectionPolicy::Evaluate (moved.unit, devices, true);
 
             Assert::IsTrue   (decision.hasChanged,                    L"the same stick on another port is still that stick");
-            Assert::IsTrue   (decision.selection.value() == same.unit, L"so its new identity is adopted");
+            Assert::IsTrue   (decision.selection.value() == same.unit, L"so its new identity is adopted, ahead of a controller attached longer");
             Assert::AreEqual ((int) SelectionChangeReason::Adoption, (int) decision.reason);
         }
 
 
-        TEST_METHOD (SelectedAbsent_TwoOfTheSameModelAdoptsNothing)
+        TEST_METHOD (SelectedAbsent_TwoOfTheSameModelIsNotAnAdoption)
         {
             ControllerDeviceInfo               moved    = MakeStick ("{OLD-PORT}");
             std::vector<ControllerDeviceInfo>  devices  = { MakeStick ("{ONE}"), MakeStick ("{TWO}") };
             auto                               decision = ControllerSelectionPolicy::Evaluate (moved.unit, devices, true);
 
-            Assert::IsFalse (decision.hasChanged,
-                L"with two of the model attached, which one the user meant is a coin flip, so nothing is adopted");
+            // Which of the two moved is a coin flip, so they count as any
+            // other controller would, and the one attached longest takes over.
+            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason);
+            Assert::IsTrue   (decision.selection.value() == devices.front().unit);
         }
 
 
@@ -123,7 +140,8 @@ namespace ControllerTests
             std::vector<ControllerDeviceInfo>  devices  = { MakeStick ("{OTHER}", 0x0999) };
             auto                               decision = ControllerSelectionPolicy::Evaluate (moved.unit, devices, true);
 
-            Assert::IsFalse (decision.hasChanged, L"another model is another controller, whatever port it is on");
+            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason,
+                L"another model is another controller, whatever port it is on");
         }
 
 

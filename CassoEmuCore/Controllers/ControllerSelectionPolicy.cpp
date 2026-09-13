@@ -10,17 +10,22 @@
 //
 //  Evaluate
 //
-//  The whole selection rule in one pass over what is attached.
+//  The whole selection rule in one pass over what is attached, which the
+//  caller lists LONGEST-ATTACHED FIRST.
 //
-//  Three cases, in order. With nothing selected, the first controller found
-//  takes the game port and the arrow keys and paddle give it up, so plugging a
-//  controller in is all a user has to do (FR-032). With the selected
-//  controller attached, nothing changes -- it simply resumes. With the
-//  selected controller absent, the only thing that may change the selection is
-//  adoption: a DirectInput unit that moved to another port comes back with a
-//  different identity, so exactly one attached unit of the same model is taken
-//  to be it. Two of that model attached and nothing is adopted, because
-//  guessing which one the user meant would be a coin flip.
+//  With nothing selected, the first controller listed takes the game port and
+//  the arrow keys and paddle give it up, so plugging a controller in is all a
+//  user has to do (FR-032). With the selected controller attached, nothing
+//  changes: the selection stays on the controller in use, and one arriving
+//  does not take it.
+//
+//  With the selected controller gone, the selection moves (FR-008a). A
+//  DirectInput unit that moved to another port comes back under a different
+//  identity, so exactly one attached unit of its model is taken to be it;
+//  with two of that model, which one moved is a coin flip, and they count as
+//  any other controller. Otherwise the longest-attached controller takes over,
+//  and with none attached the selection is cleared. A controller returning
+//  later is only a controller arriving.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,22 +73,33 @@ ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
     // selection of one already matched above against whichever unit is
     // attached. Only DirectInput units can go missing while their replacement
     // is present under another identity.
-    if (current.value().model.kind != ControllerKind::DirectInput)
+    if (current.value().model.kind == ControllerKind::DirectInput)
     {
+        found = FindSoleSameModel (devices, current.value().model);
+    }
+
+    decision.hasChanged = true;
+
+    if (found != nullptr)
+    {
+        decision.selection   = found->unit;
+        decision.description = found->description;
+        decision.reason      = SelectionChangeReason::Adoption;
+
         return decision;
     }
 
-    found = FindSoleSameModel (devices, current.value().model);
-
-    if (found == nullptr)
+    if (devices.empty())
     {
+        decision.selection = std::nullopt;
+        decision.reason    = SelectionChangeReason::Cleared;
+
         return decision;
     }
 
-    decision.selection   = found->unit;
-    decision.description = found->description;
-    decision.reason      = SelectionChangeReason::Adoption;
-    decision.hasChanged  = true;
+    decision.selection   = devices.front().unit;
+    decision.description = devices.front().description;
+    decision.reason      = SelectionChangeReason::Replacement;
 
     return decision;
 }

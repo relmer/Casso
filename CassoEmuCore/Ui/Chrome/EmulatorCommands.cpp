@@ -213,6 +213,10 @@ EmulatorCommands::EmulatorCommands()
         {
             paddle->shortLabel.clear();
             paddle->labelText = [this] () { return GetCheckedPaddleSourceLabel(); };
+
+            // A labeled slot shows only an explicit tip, so the word for what
+            // the picker is for moves there once the face wears the answer.
+            paddle->tip = paddle->label;
         }
     }
 
@@ -652,11 +656,6 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetMonitorItems() const
 //  so a row is identified by the entry it was built from, which the dispatch
 //  captures.
 //
-//  The picker's tooltip is rewritten from the same rows. Its face wears the
-//  source that is driving, so the tooltip is the only place that can say the
-//  chosen controller is not connected, or that something is standing in for
-//  it (FR-008a, FR-013).
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::PaddleSource> & sources)
@@ -696,14 +695,12 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 
         //  EACH ROW CARRIES ITS OWN SOURCE BY VALUE, rather than an index to
         //  look up when it is clicked. The list is rebuilt whenever a
-        //  controller comes or goes, and that changes its LENGTH -- the
-        //  chosen-but-absent row appears, an attached one leaves -- so an
+        //  controller comes or goes, and that changes its LENGTH, so an
         //  index captured when the row was built names a DIFFERENT source
         //  afterwards. A user picking "Use keys as joystick" off a list built
         //  a moment earlier landed on "Use mouse as paddle", which takes the
         //  pointer. A row now does what it says, whatever the list did since.
         cmd->isChecked = [source] () { return source.isChecked; };
-        cmd->isEnabled = [source] () { return source.isConnected; };
 
         cmd->dispatch  = [this, source] ()
         {
@@ -716,15 +713,6 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
         };
 
         m_paddleSourceRows.push_back (std::move (cmd));
-    }
-
-    {
-        DxuiCommand *  paddle = FindMutable (kIdPaddle);
-
-        if (paddle != nullptr)
-        {
-            paddle->tip = InputModeRules::BuildPaddleTip (m_paddleSources);
-        }
     }
 }
 

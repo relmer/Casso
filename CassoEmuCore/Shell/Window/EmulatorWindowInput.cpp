@@ -2212,7 +2212,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // fire buttons when "Map Arrows to Joystick" is on AND a game-port
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
-    bool  driveJoystick = IsArrowJoystickActive() &&
+    bool  driveJoystick = m_arrowsJoystick &&
                           (m_machine.GetRefs().iieSoftSwitches != nullptr ||
                            m_machine.GetRefs().gamePort != nullptr);
     // The guest owns every key that reaches here either way; with no keyboard
@@ -2330,12 +2330,12 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // releases the physical keys.
         ApplyAppleModifierKeys (vk, false);
 
-        if (IsArrowJoystickActive() && AppleKeyMapping::IsArrowVk (vk))
+        if (m_arrowsJoystick && AppleKeyMapping::IsArrowVk (vk))
         {
             UpdateJoystickAxesFromKeys();
         }
 
-        if (IsArrowJoystickActive())
+        if (m_arrowsJoystick)
         {
             UpdateJoystickButtonsFromKeys();
         }
@@ -2714,9 +2714,6 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 //  three can, so each branch hands the axes over and the setters take them
 //  from whatever had them (FR-008).
 //
-//  A DISCONNECTED CONTROLLER'S ROW IS NOT PICKABLE -- the command reports it
-//  as disabled -- so there is no branch here for choosing one that is gone.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PickPaddleSource (InputModeRules::PaddleSource source)
@@ -2808,11 +2805,9 @@ void EmulatorShell::SyncPaddleSourceList()
     state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
     state.hasController        = snapshot.selection.has_value();
     state.isControllerAttached = snapshot.isSelectedConnected;
-    state.hasStandIn           = snapshot.standIn.has_value();
 
     m_mainMenu.GetCommands().SetPaddleSources (
-        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection,
-                                            snapshot.standIn, snapshot.selectionDescription));
+        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection));
 
     // Straight onto the command bar's Input drop-down rather than a submenu
     // off the Machine menu: this is a list the user picks from while playing,
@@ -2839,12 +2834,16 @@ void EmulatorShell::SyncPaddleSourceList()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyAutomaticControllerSelection
+//  ApplyControllerSelectionChange
 //
-//  UI thread. A controller the policy chose on its own still has to reach the
-//  rest of the shell: the arrow keys and the paddle give up the axes, the
-//  choice is written to the machine's prefs, and the user is told which
-//  controller it was (FR-032).
+//  UI thread. The controller thread moved the selection, or a controller came
+//  or went. The axis owner and the picker follow either way, and the prefs
+//  take the selection as it now stands (FR-011).
+//
+//  ONLY AN AUTOMATIC SELECTION TURNS THE KEYS AND THE MOUSE OFF. A replacement
+//  or a clear starts from a controller that already had the axes, so neither
+//  can find them on, and a controller merely arriving or leaving must not undo
+//  a mode the user picked.
 //
 //  An adoption says nothing. The user did not choose anything -- the same
 //  controller came back on another port -- so announcing it would report a
@@ -2852,24 +2851,19 @@ void EmulatorShell::SyncPaddleSourceList()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyAutomaticControllerSelection (const std::wstring & description, bool isAdoption)
+void EmulatorShell::ApplyControllerSelectionChange (const std::wstring & description, SelectionChangeReason reason, bool hasNotice)
 {
-    InputModeRules::State  state;
-
-
-
-    state.arrowsJoystick = m_arrowsJoystick;
-    state.mousePaddle    = (m_pointerMode == InputMappingMode::Paddle);
-    state               = InputModeRules::AfterSelectingController (state);
-
-    if (m_arrowsJoystick && !state.arrowsJoystick)
+    if (reason == SelectionChangeReason::AutomaticSelection)
     {
-        SetArrowsJoystick (false);
-    }
+        if (m_arrowsJoystick)
+        {
+            SetArrowsJoystick (false);
+        }
 
-    if (!state.mousePaddle && m_pointerMode == InputMappingMode::Paddle)
-    {
-        SetPointerMapping (InputMappingMode::Off);
+        if (m_pointerMode == InputMappingMode::Paddle)
+        {
+            SetPointerMapping (InputMappingMode::Off);
+        }
     }
 
     SyncGamePortAxisOwner();
@@ -2878,9 +2872,22 @@ void EmulatorShell::ApplyAutomaticControllerSelection (const std::wstring & desc
     // Over the picture for a few seconds, never a dialog: the user did not
     // ask about this, so stopping the machine to have it acknowledged would
     // interrupt them to report something they may not care about.
-    if (!isAdoption && !description.empty())
+    if (!hasNotice)
+    {
+        return;
+    }
+
+    if (reason == SelectionChangeReason::AutomaticSelection && !description.empty())
     {
         ShowNotice (L"Controller selected: " + description);
+    }
+    else if (reason == SelectionChangeReason::Replacement)
+    {
+        ShowNotice (L"Controller disconnected. Using " + description + L" instead.");
+    }
+    else if (reason == SelectionChangeReason::Cleared)
+    {
+        ShowNotice (L"Controller disconnected. Nothing is driving the joystick.");
     }
 }
 
@@ -2938,19 +2945,17 @@ void EmulatorShell::TraceControllerState()
     tick     = m_controllerService->GetLastTickReport();
     snapshot = m_controllerService->GetSnapshot();
 
-    state.arrowsJoystick       = IsArrowJoystickActive();
+    state.arrowsJoystick       = m_arrowsJoystick;
     state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
     state.hasController        = snapshot.selection.has_value();
     state.isControllerAttached = snapshot.isSelectedConnected;
-    state.hasStandIn           = snapshot.standIn.has_value();
 
     swprintf_s (line,
-        L"[controller] devices=%zu sel=%d standIn=%d active=%d selIsActive=%d xinput=%d "
+        L"[controller] devices=%zu sel=%d xinput=%d "
         L"read=0x%08X connected=%d mapping=%d appActive=%d submit=%d "
         L"paddle=%d,%d buttons=%d%d%d deadzone=%.2f owner=%d\n",
         snapshot.devices.size(),
-        tick.hasSelection, tick.hasStandIn, tick.hasActiveUnit, tick.isSelectionActive,
-        tick.isActiveXInput, (unsigned int) tick.readResult, tick.isConnected,
+        tick.hasSelection, tick.isActiveXInput, (unsigned int) tick.readResult, tick.isConnected,
         tick.hasMapping, tick.isAppActive, tick.didSubmit,
         tick.submitted.paddle.has_value() ? tick.submitted.paddle.value()[0] : -1,
         tick.submitted.paddle.has_value() ? tick.submitted.paddle.value()[1] : -1,
@@ -2970,7 +2975,7 @@ void EmulatorShell::TraceControllerState()
 //
 //  GetStandInBannerText
 //
-//  The line the stand-in bar carries, or empty when there is no bar. The
+//  The line the input-mode bar carries, or empty when there is no bar. The
 //  rule is in InputModeRules; this only gathers what it asks about.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2981,7 +2986,7 @@ std::wstring EmulatorShell::GetStandInBannerText() const
 
 
 
-    state.arrowsJoystick = IsArrowJoystickActive();
+    state.arrowsJoystick = m_arrowsJoystick;
     state.mousePaddle    = (m_pointerMode == InputMappingMode::Paddle);
 
     return InputModeRules::GetStandInBannerText (state);
@@ -2995,9 +3000,9 @@ std::wstring EmulatorShell::GetStandInBannerText() const
 //
 //  SyncGamePortAxisOwner
 //
-//  Who owns PDL0/PDL1: a connected chosen controller, else paddle mode, else
-//  arrows-to-joystick, else nothing, which rests the axes at center. The rule
-//  itself is in InputModeRules so it can be asserted without a machine.
+//  Who owns PDL0/PDL1: a selected controller once it reads, else paddle mode,
+//  else arrows-to-joystick, else nothing, which rests the axes at center. The
+//  rule itself is in InputModeRules so it can be asserted without a machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3016,13 +3021,7 @@ void EmulatorShell::SyncGamePortAxisOwner()
 
         state.hasController        = snapshot.selection.has_value();
         state.isControllerAttached = snapshot.isSelectedConnected;
-        state.hasStandIn           = snapshot.standIn.has_value();
     }
-
-    // The arrow keys standing in for a controller that is gone is not the
-    // same thing as the user having turned them on, and the key handlers have
-    // to honor it without it reaching the setting the user owns.
-    m_arrowKeyFallback = state.hasController && !state.isControllerAttached && !state.hasStandIn;
 
     m_gamePortMixer.SetAxisOwner (InputModeRules::GetAxisOwner (state));
 }
@@ -3601,7 +3600,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
-    bool  isFireKey = IsArrowJoystickActive() &&
+    bool  isFireKey = m_arrowsJoystick &&
                       (m_machine.GetRefs().iieSoftSwitches != nullptr ||
                        m_machine.GetRefs().gamePort != nullptr) &&
                       (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z');

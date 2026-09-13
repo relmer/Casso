@@ -12,30 +12,25 @@
 //
 //  The picker's entries, in the order they are shown: REAL CONTROLLERS FIRST,
 //  then the keys and the mouse. A physical stick plays these games better than
-//  either stand-in, so it is what the list should offer first; the keys and
-//  the mouse are what a user falls back to, and they are always there to fall
-//  back to. It also puts the checked entry at the top whenever a controller is
-//  driving, which is the common case once one is plugged in.
+//  either, so it is what the list should offer first; the keys and the mouse
+//  are always there to pick. It also puts the checked entry at the top
+//  whenever a controller is driving, which is the common case once one is
+//  plugged in.
 //
-//  A CHOSEN CONTROLLER THAT IS NOT ATTACHED STILL GETS A ROW, marked as not
-//  connected, and stays with the controllers rather than sinking below the
-//  fallbacks. Dropping it would leave the picker showing the keys checked
-//  while the user's actual choice is a controller whose battery died, and
-//  picking the controller again would look like the only way back.
+//  ONLY ATTACHED CONTROLLERS GET A ROW. The selection follows the controllers
+//  that are here (FR-008a), so a row for one that is gone would offer a pick
+//  that drives nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     const State &                             state,
     const std::vector<ControllerDeviceInfo> & devices,
-    const std::optional<ControllerUnitKey> &  selection,
-    const std::optional<ControllerUnitKey> &  standIn,
-    const std::wstring &                      selectionDescription)
+    const std::optional<ControllerUnitKey> &  selection)
 {
     std::vector<PaddleSource>  sources;
     PaddleSource               arrows;
     PaddleSource               paddle;
-    bool                       isSelectionAttached = false;
 
 
 
@@ -44,42 +39,12 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
         PaddleSource  entry;
 
         entry.label      = device.description;
-        entry.deviceName = device.description;
         entry.shortLabel = Shorten (device.description);
         entry.formFactor = device.formFactor;
         entry.controller = device.unit;
-        entry.isChosen   = selection.has_value() && selection.value() == device.unit;
-        entry.isStandIn  = standIn.has_value() && standIn.value() == device.unit;
-
-        // The CHECK MARKS WHAT IS DRIVING, not what was chosen. While a
-        // stand-in has the axes it is the one driving, so the check is on it
-        // and the chosen controller's own row says it is not connected.
-        entry.isChecked  = entry.isChosen || entry.isStandIn;
-
-        if (entry.isChosen)
-        {
-            isSelectionAttached = true;
-        }
+        entry.isChecked  = selection.has_value() && selection.value() == device.unit;
 
         sources.push_back (entry);
-    }
-
-    if (selection.has_value() && !isSelectionAttached)
-    {
-        PaddleSource  missing;
-
-        // The saved description if the controller has been seen this session,
-        // and otherwise the generic word: a selection restored at launch is
-        // only a token until the controller turns up.
-        missing.deviceName  = selectionDescription.empty() ? std::wstring (L"Controller") : selectionDescription;
-        missing.label       = missing.deviceName + L" (not connected)";
-        missing.shortLabel  = L"Not connected";
-        missing.controller  = selection;
-        missing.isChosen    = true;
-        missing.isChecked   = !standIn.has_value();
-        missing.isConnected = false;
-
-        sources.push_back (missing);
     }
 
     // The built-in entries say what they DO to hardware the user already has,
@@ -108,62 +73,14 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BuildPaddleTip
-//
-//  What the picker shows on hover: the control's own purpose, or, when the
-//  chosen controller is not connected, that fact and what is driving the
-//  paddles instead. The picker's face shows only the source that is driving,
-//  so neither of those two can appear there (FR-008a, FR-013).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring InputModeRules::BuildPaddleTip (const std::vector<PaddleSource> & sources)
-{
-    const PaddleSource *  chosen  = nullptr;
-    const PaddleSource *  standIn = nullptr;
-
-
-
-    for (const PaddleSource & source : sources)
-    {
-        if (source.isChosen && !source.isConnected)
-        {
-            chosen = &source;
-        }
-
-        if (source.isStandIn)
-        {
-            standIn = &source;
-        }
-    }
-
-    if (chosen == nullptr)
-    {
-        return L"Joystick and paddle source";
-    }
-
-    if (standIn != nullptr)
-    {
-        return chosen->deviceName + L" is not connected. " + standIn->deviceName + L" is driving the paddles.";
-    }
-
-    return chosen->deviceName + L" is not connected.";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  GetStandInBannerText
 //
-//  The line the persistent banner carries while a stand-in drives the game
-//  port, and nothing while a real controller does.
+//  The line the persistent banner carries while the keys or the mouse drive
+//  the game port, and nothing while a real controller does.
 //
 //  PERSISTENT RATHER THAN A FEW SECONDS, because it answers a question the
 //  user has for as long as the mode lasts, not only at the moment they chose
-//  it. Both stand-ins bind host controls that carry no marking: nothing on
+//  it. Both modes bind host controls that carry no marking: nothing on
 //  screen says X and Z became the buttons, or that Escape is the way out of
 //  paddle mode. A notice that expires leaves a user who looked away with no
 //  way to find out short of trying keys until one fires.
@@ -242,29 +159,21 @@ std::wstring InputModeRules::Shorten (const std::wstring & text)
 //
 //  GetAxisOwner
 //
-//  A chosen controller owns the axes while it is attached, and so does the
-//  controller standing in for it while it is not: which controller the
-//  service reads is its own question, and either way a controller is what
-//  drives the axes (FR-008a).
+//  A selected controller owns the axes once it reads. Until it does -- the
+//  moment after it is chosen, or after a read failed and before the rescan
+//  moves the selection -- NOTHING DOES, and the axes rest at center.
 //
-//  With the chosen controller gone and nothing to stand in, THE ARROW KEYS
-//  TAKE THE AXES WHETHER OR NOT THE USER HAS THEM ON. Choosing a controller
-//  is what turned them off, so leaving them off here would answer a
-//  disconnect by taking the game away entirely; a selection is kept across a
-//  disconnect, so the controller takes the axes back the moment it returns.
+//  THE ARROW KEYS NEVER TAKE THE AXES ON THEIR OWN. Arrows-to-joystick also
+//  turns X and Z into the buttons, which takes them from the guest's
+//  keyboard, so it is on only because the user turned it on (FR-008a).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 AxisOwner InputModeRules::GetAxisOwner (const State & state)
 {
-    if (state.hasController && (state.isControllerAttached || state.hasStandIn))
-    {
-        return AxisOwner::Controller;
-    }
-
     if (state.hasController)
     {
-        return AxisOwner::ArrowKeys;
+        return state.isControllerAttached ? AxisOwner::Controller : AxisOwner::None;
     }
 
     if (state.mousePaddle)

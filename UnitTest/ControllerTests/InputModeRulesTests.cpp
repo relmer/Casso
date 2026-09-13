@@ -13,8 +13,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  InputModeRulesTests
 //
 //  Three sources drive the paddle axes and only one can have them, so these
-//  assert that choosing any one gives up the other two, and that a chosen
-//  controller that is not attached does not hold the axes hostage.
+//  assert that choosing any one gives up the other two, and that the arrow
+//  keys never take the axes on their own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,46 +35,18 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Controller_DetachedLetsTheArrowsStandIn)
-        {
-            InputModeRules::State  state;
-
-            state.hasController        = true;
-            state.isControllerAttached = false;
-            state.arrowsJoystick       = true;
-
-            Assert::AreEqual ((int) AxisOwner::ArrowKeys, (int) InputModeRules::GetAxisOwner (state),
-                L"an unplugged controller must not hold the axes while the arrows are on");
-        }
-
-
-        TEST_METHOD (Controller_DetachedWithNothingElseFallsBackToTheArrows)
+        TEST_METHOD (Controller_NotReadingRestsTheAxes)
         {
             InputModeRules::State  state;
 
             state.hasController        = true;
             state.isControllerAttached = false;
 
-            // The arrows are OFF here: choosing the controller is what turned
-            // them off. Resting the axes at center would answer a disconnect
-            // by taking the game away entirely (FR-008a).
-            Assert::AreEqual ((int) AxisOwner::ArrowKeys, (int) InputModeRules::GetAxisOwner (state),
-                L"the arrow keys stand in whether or not the user has them on");
-        }
-
-
-        TEST_METHOD (Controller_StandingInKeepsTheAxesWithTheControllers)
-        {
-            InputModeRules::State  state;
-
-            state.hasController        = true;
-            state.isControllerAttached = false;
-            state.hasStandIn           = true;
-
-            // Which controller is read is the service's question. Either way
-            // a controller drives the axes, so the arrows do not take them.
-            Assert::AreEqual ((int) AxisOwner::Controller, (int) InputModeRules::GetAxisOwner (state),
-                L"a stand-in is still a controller");
+            // Until the selected controller reads, nothing drives the axes.
+            // The arrow keys never take them on their own: arrows-to-joystick
+            // takes X and Z from the guest's keyboard (FR-008a).
+            Assert::AreEqual ((int) AxisOwner::None, (int) InputModeRules::GetAxisOwner (state),
+                L"the arrow keys are only ever on because the user turned them on");
         }
 
 
@@ -149,7 +121,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (PaddleSources_ListRealControllersAheadOfTheStandIns)
+        TEST_METHOD (PaddleSources_ListRealControllersAheadOfTheKeysAndTheMouse)
         {
             InputModeRules::State              state;
             std::vector<ControllerDeviceInfo>  devices = { MakeStick ("{A}", L"Gladiator"),
@@ -159,10 +131,10 @@ namespace ControllerTests
             state.arrowsJoystick = true;
             sources              = InputModeRules::BuildPaddleSources (state, devices, std::nullopt);
 
-            Assert::AreEqual (size_t (4), sources.size(), L"each attached controller plus the two stand-ins");
+            Assert::AreEqual (size_t (4), sources.size(), L"each attached controller plus the keys and the mouse");
 
-            // A real stick plays these games better than either stand-in, so
-            // it is what the list offers first.
+            // A real stick plays these games better than either, so it is
+            // what the list offers first.
             Assert::AreEqual (std::wstring (L"Gladiator"),            sources[0].label);
             Assert::AreEqual (std::wstring (L"Gamepad"),              sources[1].label);
             Assert::AreEqual (std::wstring (L"Use keys as joystick"), sources[2].label);
@@ -189,7 +161,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (PaddleSources_AChosenControllerThatIsGoneKeepsItsRow)
+        TEST_METHOD (PaddleSources_ASelectionThatIsNotAttachedHasNoRow)
         {
             InputModeRules::State                      state;
             std::vector<ControllerDeviceInfo>          devices;
@@ -199,11 +171,10 @@ namespace ControllerTests
             state.hasController = true;
             sources             = InputModeRules::BuildPaddleSources (state, devices, gone.unit);
 
-            Assert::AreEqual (size_t (3), sources.size(),
-                L"a chosen controller that is unplugged must still appear, or the picker would show the keys checked instead");
-            Assert::IsTrue  (sources[0].isChecked,   L"and it stays with the controllers rather than sinking below the stand-ins");
-            Assert::IsFalse (sources[0].isConnected);
-            Assert::IsTrue  (sources[1].isArrowKeys);
+            Assert::AreEqual (size_t (2), sources.size(),
+                L"a row for a controller that is not there would offer a pick that drives nothing");
+            Assert::IsFalse (sources[0].isChecked, L"and the keys are not checked, because they are not driving");
+            Assert::IsFalse (sources[1].isChecked);
         }
 
 

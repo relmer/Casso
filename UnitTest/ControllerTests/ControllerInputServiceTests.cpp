@@ -301,25 +301,27 @@ namespace ControllerTests
             Assert::AreEqual (static_cast<size_t> (1), service.GetSnapshot().devices.size(), L"the arrival is picked up on the next tick");
         }
 
-        TEST_METHOD (Disconnect_HandsTheAxesToTheLongestAttachedController)
+        TEST_METHOD (Disconnect_TheLongestAttachedControllerBecomesTheSelection)
         {
-            FakeControllerBackend   backend;
-            GamePortInputMixer      mixer;
-            RecordingGamePortSink   sink;
-            ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    stick = MakeStickDevice();
-            ControllerDeviceInfo    first = MakePadDevice ("{AAAA}", L"First Pad");
-            ControllerDeviceInfo    later = MakePadDevice ("{BBBB}", L"Later Pad");
+            FakeControllerBackend                backend;
+            GamePortInputMixer                   mixer;
+            RecordingGamePortSink                sink;
+            ControllerInputService               service (backend, mixer);
+            ControllerDeviceInfo                 stick = MakeStickDevice();
+            ControllerDeviceInfo                 first = MakePadDevice ("{AAAA}", L"First Pad");
+            ControllerDeviceInfo                 later = MakePadDevice ("{BBBB}", L"Later Pad");
+            ControllerSelectionPolicy::Decision  decision;
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
+            service.SetSelectionChangedFn ([&decision] (const ControllerSelectionPolicy::Decision & d) { decision = d; });
             backend.AddDevice (stick);
             backend.AddDevice (first);
             service.SetSelection (stick.unit);
             service.Tick();
 
-            // The later arrival must not take the port from the one that was
-            // already there: a stand-in that changes as unrelated controllers
+            // The later arrival must not take over from the one that was
+            // already there: a successor that changes as unrelated controllers
             // come and go would move the stick out from under the player.
             backend.AddDevice (later);
             backend.SetSample (first.unit, MakePushedSample());
@@ -331,26 +333,28 @@ namespace ControllerTests
             service.OnDevicesChanged();
             service.Tick();
 
-            Assert::IsTrue (service.GetSnapshot().standIn.has_value(), L"something stands in for the controller that left");
-            Assert::IsTrue (service.GetSnapshot().standIn.value() == first.unit,
-                L"and it is the one that has been attached longest");
-            Assert::IsTrue (service.GetSnapshot().selection.value() == stick.unit,
-                L"standing in must not change what the user chose");
+            Assert::IsTrue   (service.GetSnapshot().selection.value() == first.unit,
+                L"the controller attached longest becomes the selection");
+            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason,
+                L"and the shell is told, so it persists it and says so");
+            Assert::IsTrue   (decision.isAnnounced);
             Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0],
-                L"the stand-in drives the axes, under its own default mapping");
+                L"it drives the axes, under its own default mapping");
         }
 
 
-        TEST_METHOD (Disconnect_ReleasesWithinOneTickWhenNothingStandsIn)
+        TEST_METHOD (Disconnect_WithNothingAttachedClearsAndReleasesWithinOneTick)
         {
-            FakeControllerBackend   backend;
-            GamePortInputMixer      mixer;
-            RecordingGamePortSink   sink;
-            ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    stick = MakeStickDevice();
+            FakeControllerBackend                backend;
+            GamePortInputMixer                   mixer;
+            RecordingGamePortSink                sink;
+            ControllerInputService               service (backend, mixer);
+            ControllerDeviceInfo                 stick = MakeStickDevice();
+            ControllerSelectionPolicy::Decision  decision;
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
+            service.SetSelectionChangedFn ([&decision] (const ControllerSelectionPolicy::Decision & d) { decision = d; });
             backend.AddDevice (stick);
             backend.SetSample (stick.unit, MakePushedSample());
             service.SetSelection (stick.unit);
@@ -361,7 +365,9 @@ namespace ControllerTests
             service.OnDevicesChanged();
             service.Tick();
 
-            Assert::IsFalse  (service.GetSnapshot().standIn.has_value(), L"nothing is attached to stand in");
+            Assert::IsFalse  (service.GetSnapshot().selection.has_value(), L"nothing is attached to take over");
+            Assert::AreEqual ((int) SelectionChangeReason::Cleared, (int) decision.reason);
+            Assert::IsTrue   (decision.isAnnounced, L"a controller that was driving has gone, which the user hears about");
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],
                 L"the axes return to center within the tick that saw the disconnect");
             Assert::IsFalse (sink.writes.back().state.buttons.test (0), L"and its buttons are released");
@@ -398,7 +404,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Reconnect_TakesTheAxesBackFromTheStandIn)
+        TEST_METHOD (Reconnect_DoesNotTakeTheAxesBack)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -422,17 +428,52 @@ namespace ControllerTests
             backend.RemoveDevice (stick.unit);
             service.OnDevicesChanged();
             service.Tick();
-            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"the pad stands in");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"the pad took over");
 
             backend.AddDevice (stick);
             backend.SetSample (stick.unit, left);
             service.OnDevicesChanged();
             service.Tick();
 
-            Assert::IsFalse  (service.GetSnapshot().standIn.has_value(), L"the stand-in gives the axes back");
-            Assert::IsTrue   (service.GetSnapshot().isSelectedConnected, L"the chosen controller is driving again");
-            Assert::AreEqual (static_cast<Byte> (0), sink.writes.back().state.paddle[0],
-                L"and it is the chosen controller's own stick that is read");
+            // Handing the axes back would move the stick out from under a
+            // player who carried on with the pad, and picking the pad again
+            // to keep it would mean picking what the picker already checks.
+            Assert::IsTrue   (service.GetSnapshot().selection.value() == pad.unit,
+                L"the controller in use keeps the selection");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0],
+                L"and it is still the pad that is read");
+        }
+
+
+        TEST_METHOD (Reconnect_WithNothingElseAttachedIsSelectedAgain)
+        {
+            FakeControllerBackend                backend;
+            GamePortInputMixer                   mixer;
+            RecordingGamePortSink                sink;
+            ControllerInputService               service (backend, mixer);
+            ControllerDeviceInfo                 stick = MakeStickDevice();
+            ControllerSelectionPolicy::Decision  decision;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            service.SetSelectionChangedFn ([&decision] (const ControllerSelectionPolicy::Decision & d) { decision = d; });
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, MakePushedSample());
+            service.SetSelection (stick.unit);
+            service.Tick();
+
+            backend.RemoveDevice (stick.unit);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, MakePushedSample());
+            service.OnDevicesChanged();
+            service.Tick();
+
+            Assert::IsTrue   (service.GetSnapshot().selection.value() == stick.unit, L"it is the next controller to connect");
+            Assert::AreEqual ((int) SelectionChangeReason::AutomaticSelection, (int) decision.reason);
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"and it drives again");
         }
 
 
@@ -443,25 +484,24 @@ namespace ControllerTests
             ControllerInputService  service (backend, mixer);
             ControllerDeviceInfo    stick         = MakeStickDevice();
             ControllerDeviceInfo    xbox          = MakeXboxDevice();
-            ControllerUnitKey       absent        = MakePadDevice ("{ABSENT}", L"Absent Pad").unit;
             int                     announcements = 0;
 
             service.SetStateChangedFn ([&announcements] () { announcements++; });
             backend.AddDevice (stick);
-            service.SetSelection (absent);
+            service.SetSelection (stick.unit);
             service.Tick();
 
             announcements = 0;
 
-            // The Xbox controller arrives while the stick stands in for a
-            // selection nothing matches. Neither the selection nor the active
-            // controller moves -- but the picker's rows do, and without an
-            // announcement they never learn of it.
+            // The Xbox controller arrives while the stick drives. The
+            // selection does not move -- but the picker's rows do, and
+            // without an announcement they never learn of it.
             backend.AddDevice (xbox, true);
             service.OnDevicesChanged();
             service.Tick();
 
             Assert::IsTrue (announcements > 0, L"an arrival that changes only the device list is still announced");
+            Assert::IsTrue (service.GetSnapshot().selection.value() == stick.unit, L"and it does not take the selection");
 
             announcements = 0;
             service.OnDevicesChanged();
@@ -471,14 +511,15 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Rescan_WhileStandingInIsIdempotent)
+        TEST_METHOD (Rescan_AfterATakeoverIsIdempotent)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
             RecordingGamePortSink   sink;
             ControllerInputService  service (backend, mixer);
-            ControllerDeviceInfo    stick = MakeStickDevice();
-            ControllerDeviceInfo    pad   = MakePadDevice ("{AAAA}", L"First Pad");
+            ControllerDeviceInfo    stick   = MakeStickDevice();
+            ControllerDeviceInfo    pad     = MakePadDevice ("{AAAA}", L"First Pad");
+            int                     changes = 0;
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
@@ -492,22 +533,44 @@ namespace ControllerTests
             service.OnDevicesChanged();
             service.Tick();
 
+            service.SetSelectionChangedFn ([&changes] (const ControllerSelectionPolicy::Decision &) { changes++; });
+
             // The shell rescans after a device notification at +300 ms and
             // +2 s, because arrival and readiness are not the same moment.
-            // Neither rescan may move the stand-in or the selection.
+            // Neither rescan may move the selection again.
             for (int scan = 0; scan < 2; scan++)
             {
                 service.OnDevicesChanged();
                 service.Tick();
             }
 
-            Assert::IsTrue (service.GetSnapshot().standIn.value() == pad.unit,     L"the stand-in survives a rescan");
-            Assert::IsTrue (service.GetSnapshot().selection.value() == stick.unit, L"and so does the selection");
+            Assert::AreEqual (0, changes, L"a rescan moves nothing");
+            Assert::IsTrue   (service.GetSnapshot().selection.value() == pad.unit, L"the controller that took over keeps it");
             Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"and it is still driving");
         }
 
 
-        TEST_METHOD (StandIn_IsOnlyForAnAbsentSelection)
+        TEST_METHOD (SavedSelectionAbsent_IsClearedWithoutANotice)
+        {
+            FakeControllerBackend                backend;
+            GamePortInputMixer                   mixer;
+            ControllerInputService               service (backend, mixer);
+            ControllerDeviceInfo                 stick = MakeStickDevice();
+            ControllerSelectionPolicy::Decision  decision;
+
+            service.SetSelectionChangedFn ([&decision] (const ControllerSelectionPolicy::Decision & d) { decision = d; });
+
+            // A saved controller restored at launch, with nothing plugged in.
+            service.SetSelection (stick.unit);
+            service.Tick();
+
+            Assert::IsFalse  (service.GetSnapshot().selection.has_value(), L"an absent saved controller is not kept");
+            Assert::AreEqual ((int) SelectionChangeReason::Cleared, (int) decision.reason);
+            Assert::IsFalse  (decision.isAnnounced, L"it was never driving anything, so dropping it is not news");
+        }
+
+
+        TEST_METHOD (SavedSelectionAbsent_FirstAttachedTakesOver)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -515,13 +578,13 @@ namespace ControllerTests
             ControllerDeviceInfo    stick = MakeStickDevice();
             ControllerDeviceInfo    pad   = MakePadDevice ("{AAAA}", L"First Pad");
 
-            backend.AddDevice (stick);
             backend.AddDevice (pad);
-            service.SetSelection (stick.unit);
+            service.Tick();
+            service.SetSelection (stick.unit);   // restored for a machine switched to, and not attached
             service.Tick();
 
-            Assert::IsFalse (service.GetSnapshot().standIn.has_value(),
-                L"a second controller does not stand in for one that is right there");
+            Assert::IsTrue (service.GetSnapshot().selection.value() == pad.unit,
+                L"the attached controller replaces it, without waiting for a device to arrive");
         }
     };
 }

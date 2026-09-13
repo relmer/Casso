@@ -43,24 +43,12 @@ public:
     {
         std::vector<ControllerDeviceInfo>  devices;
         std::optional<ControllerUnitKey>   selection;
-
-        // The controller reading the axes while the chosen one is absent
-        // (FR-008a). Absent whenever the chosen controller is doing it
-        // itself, which is the ordinary case.
-        std::optional<ControllerUnitKey>   standIn;
-
-        // What to call each of them. The chosen controller's description is
-        // remembered from the last enumeration that carried it, so a picker
-        // row for a controller that has gone can still name it.
-        std::wstring                       selectionDescription;
-        std::wstring                       standInDescription;
-
         ControllerSample                   lastSample;
         bool                               isSelectedConnected = false;
     };
 
-    // Raised on the controller thread when the policy chooses or adopts a
-    // controller on its own, so the shell can persist the choice and say so.
+    // Raised on the controller thread when the policy moves the selection on
+    // its own, so the shell can persist the choice and say so.
     using SelectionChangedFn = std::function<void (const ControllerSelectionPolicy::Decision &)>;
 
     // Raised when the selected controller connects or disconnects. The axis
@@ -88,9 +76,6 @@ public:
     struct TickReport
     {
         bool                  hasSelection      = false;
-        bool                  hasStandIn        = false;
-        bool                  hasActiveUnit     = false;
-        bool                  isSelectionActive = false;   // the active unit IS the selection
         bool                  isActiveXInput    = false;
         HRESULT               readResult        = S_OK;
         bool                  isConnected       = false;   // the read succeeded and reported connected
@@ -117,12 +102,7 @@ private:
     const ControllerDeviceInfo *  FindActiveDeviceLocked    () const;
     void                          EnsureMappingForActiveLocked ();
     void                          UpdateAttachOrderLocked   ();
-
-    // Recomputes which controller is actually read, and returns whether that
-    // changed. The chosen one while it is there, its stand-in while it is
-    // not, and the chosen one either way when nothing can stand in, so that
-    // the read fails and the disconnect path runs.
-    bool                          UpdateActiveUnitLocked    ();
+    uint64_t                      GetAttachOrderLocked      (const ControllerUnitKey & unit) const;
 
     IControllerBackend                 & m_backend;
     GamePortInputMixer                 & m_mixer;
@@ -130,13 +110,10 @@ private:
     ControlMapping                       m_mapping;
     std::vector<ControllerDeviceInfo>    m_devices;
     std::optional<ControllerUnitKey>     m_selection;
-    std::optional<ControllerUnitKey>     m_standIn;
-    std::optional<ControllerUnitKey>     m_activeUnit;
-    std::wstring                         m_selectionDescription;
 
-    // When each attached controller was first seen, so the stand-in is the
-    // one that has been there longest and does not move as unrelated
-    // controllers come and go (FR-008a).
+    // When each attached controller was first seen, so the one that takes
+    // over from a controller that leaves is the one that has been there
+    // longest, not whichever enumeration happens to list first (FR-008a).
     std::vector<std::pair<ControllerUnitKey, uint64_t>>  m_attachOrder;
     uint64_t                                             m_nextAttachOrder = 0;
 

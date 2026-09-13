@@ -1059,7 +1059,7 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
     //  resize or a DPI change reflows it with everything else.
     LayoutChangeBanner();
 
-    //  AND SO DOES THE STAND-IN BAR. It was laid out only from the present
+    //  AND SO DOES THE INPUT-MODE BAR. It was laid out only from the present
     //  path, which runs on the frame's cadence rather than the resize's, so
     //  while the toolbar and the picture followed the drag the bar arrived
     //  behind them, a step at a time. Everything that rides a band is laid
@@ -1555,7 +1555,7 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 //
 //  EmulatorShell::GetCaptureBandThicknessPx
 //
-//  How tall the stand-in bar's band is.
+//  How tall the input-mode bar's band is.
 //
 //  ZERO WHILE A CONTROLLER OR NOTHING DRIVES THE GAME PORT, so every session
 //  that never falls back to the keys or the mouse is laid out as before.
@@ -1589,7 +1589,7 @@ int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
 //
 //  EmulatorShell::GetStandInBarHeightPx
 //
-//  How tall the stand-in bar is at a given width, and THE ONLY PLACE THAT
+//  How tall the input-mode bar is at a given width, and THE ONLY PLACE THAT
 //  ANSWERS IT. The band reserves the height and the paint checks it, and the
 //  two asking separately is how the bar came to vanish at particular widths:
 //  the reserve measured, the check estimated, and GetPreferredHeightPx is

@@ -2410,26 +2410,28 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    // The controller thread's policy chose or adopted a controller. Saying so
-    // and writing it to the prefs both belong here, not on that thread.
+    // The controller thread's policy moved the selection, or a controller came
+    // or went. Saying so and writing it to the prefs both belong here, not on
+    // that thread.
     if (msg == WM_APP_CONTROLLER_PICK)
     {
-        std::wstring  description;
-        bool          isAdoption = false;
-        bool          hasNotice  = false;
+        std::wstring           description;
+        SelectionChangeReason  reason    = SelectionChangeReason::None;
+        bool                   hasNotice = false;
 
         {
             std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
 
             description               = m_controllerPickDescription;
-            isAdoption                = m_controllerPickIsAdoption;
+            reason                    = m_controllerPickReason;
             hasNotice                 = m_controllerPickHasNotice;
+            m_controllerPickReason    = SelectionChangeReason::None;
             m_controllerPickHasNotice = false;
         }
 
         // A device arriving or leaving changes the rows even when it changes
         // nothing else, so the list is rebuilt on every one of these.
-        ApplyAutomaticControllerSelection (description, isAdoption || !hasNotice);
+        ApplyControllerSelectionChange (description, reason, hasNotice);
         SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;
