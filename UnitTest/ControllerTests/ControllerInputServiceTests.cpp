@@ -436,6 +436,41 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (DeviceListChange_IsAnnouncedEvenWhenNothingElseChanges)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick         = MakeStickDevice();
+            ControllerDeviceInfo    xbox          = MakeXboxDevice();
+            ControllerUnitKey       absent        = MakePadDevice ("{ABSENT}", L"Absent Pad").unit;
+            int                     announcements = 0;
+
+            service.SetStateChangedFn ([&announcements] () { announcements++; });
+            backend.AddDevice (stick);
+            service.SetSelection (absent);
+            service.Tick();
+
+            announcements = 0;
+
+            // The Xbox controller arrives while the stick stands in for a
+            // selection nothing matches. Neither the selection nor the active
+            // controller moves -- but the picker's rows do, and without an
+            // announcement they never learn of it.
+            backend.AddDevice (xbox, true);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            Assert::IsTrue (announcements > 0, L"an arrival that changes only the device list is still announced");
+
+            announcements = 0;
+            service.OnDevicesChanged();
+            service.Tick();
+
+            Assert::AreEqual (0, announcements, L"a rescan that finds the same controllers announces nothing");
+        }
+
+
         TEST_METHOD (Rescan_WhileStandingInIsIdempotent)
         {
             FakeControllerBackend   backend;

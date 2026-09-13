@@ -422,6 +422,8 @@ void ControllerInputService::RefreshDevices()
     SelectionChangedFn                   onSelectionChanged;
     StateChangedFn                       onStateChanged;
     bool                                 hasActiveChanged   = false;
+    bool                                 hasListChanged     = false;
+    size_t                               i                  = 0;
 
 
 
@@ -430,6 +432,18 @@ void ControllerInputService::RefreshDevices()
 
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
+
+        //  WHAT IS ATTACHED, compared on its own. An arrival or removal that
+        //  moves neither the selection nor the active controller -- a second
+        //  controller coming or going while another one drives -- still
+        //  changes the picker's rows, and nothing else would announce it.
+        hasListChanged = m_devices.size() != devices.size();
+
+        for (i = 0; !hasListChanged && i < devices.size(); i++)
+        {
+            hasListChanged = !(m_devices[i].unit == devices[i].unit)
+                             || m_devices[i].description != devices[i].description;
+        }
 
         m_devices = devices;
         decision  = ControllerSelectionPolicy::Evaluate (m_selection, m_devices, m_hasGamePort);
@@ -468,8 +482,9 @@ void ControllerInputService::RefreshDevices()
     }
 
     // A stand-in taking over or handing back changes what the picker says and
-    // who owns the axes, and both of those are decided on the UI thread.
-    if (hasActiveChanged && onStateChanged)
+    // who owns the axes, and both of those are decided on the UI thread. So
+    // does a controller coming or going on its own: the picker lists it.
+    if ((hasActiveChanged || hasListChanged) && onStateChanged)
     {
         onStateChanged();
     }
