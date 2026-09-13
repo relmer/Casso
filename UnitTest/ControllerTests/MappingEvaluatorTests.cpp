@@ -269,5 +269,119 @@ namespace ControllerTests
 
             Assert::AreEqual (static_cast<Byte> (255), result.paddle.value()[1], L"inverted turns full up into full down");
         }
+
+
+        static ControlMapping MakeRateMapping (float maxSpeed)
+        {
+            ControlMapping  mapping;
+            AxisBinding     binding;
+
+            binding.analog   = { ControlKind::Axis, 0 };
+            binding.response = AxisResponse::Rate;
+            binding.maxSpeed = maxSpeed;
+            mapping.pdl0.push_back (binding);
+            return mapping;
+        }
+
+
+        TEST_METHOD (Rate_MovesByDeflectionTimesSpeedTimesTime)
+        {
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping = MakeRateMapping (100.0f);
+            ControllerSample  sample  = MakeSample();
+
+            sample.axes[0] = 0.5f;
+
+            // 0.5 deflection at 100 units a second for 0.04 s is 2 units a step.
+            Assert::AreEqual ((int) 129, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.04f).paddle.value()[0]);
+            Assert::AreEqual ((int) 131, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.04f).paddle.value()[0]);
+            Assert::IsTrue   (evaluator.IsRateMoving(), L"a deflected rate binding is moving");
+        }
+
+
+        TEST_METHOD (Rate_HoldsItsPositionWhenTheStickIsLetGo)
+        {
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping = MakeRateMapping (1000.0f);
+            ControllerSample  pushed  = MakeSample();
+            Byte              moved   = 0;
+
+            pushed.axes[0] = 1.0f;
+            moved = evaluator.Evaluate (pushed, mapping, kNoDeadzone, 0.05f).paddle.value()[0];
+
+            Assert::AreEqual ((int) moved, (int) evaluator.Evaluate (MakeSample(), mapping, kNoDeadzone, 0.05f).paddle.value()[0],
+                L"released, the paddle stays where it was turned rather than springing back to center");
+            Assert::IsFalse  (evaluator.IsRateMoving());
+        }
+
+
+        TEST_METHOD (Rate_StopsAtBothEnds)
+        {
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping = MakeRateMapping (1024.0f);
+            ControllerSample  sample  = MakeSample();
+            int               i       = 0;
+
+            sample.axes[0] = 1.0f;
+
+            for (i = 0; i < 20; i++)
+            {
+                evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f);
+            }
+
+            Assert::AreEqual ((int) 255, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f).paddle.value()[0]);
+
+            sample.axes[0] = -1.0f;
+
+            for (i = 0; i < 20; i++)
+            {
+                evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f);
+            }
+
+            Assert::AreEqual ((int) 0, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f).paddle.value()[0]);
+        }
+
+
+        TEST_METHOD (Rate_ALongGapMovesNoFurtherThanOneStep)
+        {
+            MappingEvaluator  capped;
+            MappingEvaluator  stepped;
+            ControlMapping    mapping = MakeRateMapping (256.0f);
+            ControllerSample  sample  = MakeSample();
+
+            sample.axes[0] = 1.0f;
+
+            Assert::AreEqual ((int) stepped.Evaluate (sample, mapping, kNoDeadzone, MappingEvaluator::kMaxRateStep).paddle.value()[0],
+                              (int) capped.Evaluate  (sample, mapping, kNoDeadzone, 10.0f).paddle.value()[0],
+                L"a reading after ten seconds idle does not throw the paddle across the screen");
+        }
+
+
+        TEST_METHOD (Rate_ResetReturnsToCenter)
+        {
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping = MakeRateMapping (1000.0f);
+            ControllerSample  pushed  = MakeSample();
+
+            pushed.axes[0] = 1.0f;
+            evaluator.Evaluate (pushed, mapping, kNoDeadzone, 0.05f);
+            evaluator.ResetRate();
+
+            Assert::AreEqual ((int) kCenter, (int) evaluator.Evaluate (MakeSample(), mapping, kNoDeadzone, 0.05f).paddle.value()[0]);
+        }
+
+
+        TEST_METHOD (Pb2_BindingsDrivePb2)
+        {
+            MappingEvaluator  evaluator;
+            ControlMapping    mapping;
+            ControllerSample  sample = MakeSample();
+
+            mapping.pb2.push_back (ButtonBinding { { ControlKind::Button, 4 } });
+            sample.buttons.set (4);
+
+            Assert::IsTrue  (evaluator.Evaluate (sample, mapping, kNoDeadzone).buttons.test (2), L"PB2 reads pressed");
+            Assert::IsFalse (evaluator.Evaluate (sample, mapping, kNoDeadzone).buttons.test (0), L"and PB0 does not");
+        }
     };
 }

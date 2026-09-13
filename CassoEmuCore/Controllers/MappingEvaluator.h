@@ -26,7 +26,27 @@ class MappingEvaluator
 {
 public:
 
-    GamePortContribution  Evaluate (const ControllerSample & sample, const ControlMapping & mapping, float deadzone);
+    // Where a rate binding's paddle starts, and returns to on a reset.
+    static constexpr float  kRateCenter  = 127.5f;
+
+    // The longest time one reading may move a rate binding's paddle. A reading
+    // that arrives after a long wait -- the controller was idle, or Casso was
+    // inactive -- would otherwise jump the paddle across the screen at once.
+    static constexpr float  kMaxRateStep = 0.05f;
+
+    GamePortContribution  Evaluate     (const ControllerSample & sample,
+                                        const ControlMapping   & mapping,
+                                        float                    deadzone,
+                                        float                    elapsedSeconds = 0.0f);
+
+    // Rate bindings' paddles back to center: on a change of selection,
+    // profile or machine (FR-021a).
+    void                  ResetRate    ();
+
+    // Whether the last evaluation moved a rate binding's paddle. The
+    // controller thread keeps reading while one is moving, since a stick held
+    // still sends no change events and the paddle must go on moving.
+    bool                  IsRateMoving () const;
 
 private:
 
@@ -35,6 +55,12 @@ private:
     static bool   IsButtonHeld        (const ControllerSample & sample, const ButtonBinding & binding);
     static bool   IsButtonListHeld    (const ControllerSample & sample, const std::vector<ButtonBinding> & bindings);
     static float  EvaluateAxisBinding (const ControllerSample & sample, const AxisBinding & binding);
-    static float  EvaluateAxis        (const ControllerSample & sample, const std::vector<AxisBinding> & bindings);
+    static float  EvaluateAxis        (const ControllerSample & sample, const std::vector<AxisBinding> & bindings, const AxisBinding *& outWinner);
     static bool   IsOneStick          (const std::vector<AxisBinding> & xBindings, const std::vector<AxisBinding> & yBindings);
+
+    Byte          ToAxisPaddle        (size_t axis, float shaped, const AxisBinding * winner, float elapsedSeconds);
+
+    // Each axis's rate-binding paddle, in paddle units.
+    std::array<float, 2>  m_rateValue    = { kRateCenter, kRateCenter };
+    bool                  m_isRateMoving = false;
 };

@@ -76,6 +76,16 @@ public:
     // one with no controller saved counts as a controller connecting (FR-032).
     void  RequestRescan         ();
 
+    // Rate bindings' paddles back to center, for a machine switch or a profile
+    // change (FR-021a). Takes effect on the controller thread's next reading.
+    void  ResetPaddleRate ();
+
+    // Seconds on a monotonic clock. Tests supply their own, so a rate
+    // binding's movement can be checked without waiting.
+    using ClockFn = std::function<double ()>;
+
+    void  SetClock (ClockFn clock);
+
     // Every DirectInput unit's calibration, by unit token. Set once from the
     // saved prefs; read back to save them, including what automatic
     // calibration has learned since.
@@ -135,6 +145,10 @@ private:
     uint64_t                                             m_nextAttachOrder = 0;
 
     std::map<std::string, ControllerCalibration>         m_calibrations;
+
+    ClockFn                                              m_clock;
+    double                                               m_lastTickSeconds  = -1.0;
+    std::atomic<bool>                                    m_rateResetPending {false};
 
     ControllerSample                     m_lastSample;
     TickReport                           m_lastTick;

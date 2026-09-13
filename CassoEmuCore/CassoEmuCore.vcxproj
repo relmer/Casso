@@ -286,6 +286,8 @@
     <ClCompile Include="Controllers\DeadzoneShaper.cpp" />
     <ClCompile Include="Controllers\MappingEvaluator.cpp" />
     <ClCompile Include="Controllers\ControllerInputService.cpp" />
+    <ClCompile Include="Controllers\ControlCapture.cpp" />
+    <ClCompile Include="Controllers\ControlLabels.cpp" />
     <ClCompile Include="Controllers\ControllerCalibration.cpp" />
     <ClCompile Include="Controllers\ControllerProfileStore.cpp" />
     <ClCompile Include="Controllers\ControllerSelectionPolicy.cpp" />
@@ -549,6 +551,8 @@
     <ClInclude Include="Controllers\ControlMapping.h" />
     <ClInclude Include="Controllers\DeadzoneShaper.h" />
     <ClInclude Include="Controllers\MappingEvaluator.h" />
+    <ClInclude Include="Controllers\ControlCapture.h" />
+    <ClInclude Include="Controllers\ControlLabels.h" />
     <ClInclude Include="Controllers\ControllerCalibration.h" />
     <ClInclude Include="Controllers\ControllerProfileStore.h" />
     <ClInclude Include="Controllers\ControllerSelectionPolicy.h" />

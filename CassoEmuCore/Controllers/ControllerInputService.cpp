@@ -107,6 +107,7 @@ void ControllerInputService::SetSelection (const std::optional<ControllerUnitKey
     // controller starts from its own defaults rather than inheriting the last
     // one's bindings.
     m_mapping              = ControlMapping();
+    m_rateResetPending     = true;
     EnsureMappingForActiveLocked();
 
     // A saved controller restored for a machine may not be attached. The
@@ -220,6 +221,41 @@ void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ResetPaddleRate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::ResetPaddleRate()
+{
+    m_rateResetPending = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetClock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetClock (ClockFn clock)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_clock           = std::move (clock);
+    m_lastTickSeconds = -1.0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetCalibrations
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -290,6 +326,8 @@ void ControllerInputService::RequestRescan()
 ControllerWaitSources ControllerInputService::Tick()
 {
     HRESULT                           hr                = S_OK;
+    double                            nowSeconds        = 0.0;
+    float                             elapsedSeconds    = 0.0f;
     std::optional<ControllerUnitKey>  active;
     ControllerSample                  sample;
     ControllerSample                  calibrated;
@@ -304,6 +342,11 @@ ControllerWaitSources ControllerInputService::Tick()
 
 
 
+    if (m_rateResetPending.exchange (false))
+    {
+        m_evaluator.ResetRate();
+    }
+
     if (m_devicesDirty.exchange (false))
     {
         RefreshDevices();
@@ -317,6 +360,14 @@ ControllerWaitSources ControllerInputService::Tick()
         deadzone     = m_deadzone;
         isActive     = m_isActive;
         wasConnected = m_isSelectedConnected;
+
+        // The time since the last reading is what a rate binding moves its
+        // paddle by. The first reading has none to measure from.
+        nowSeconds = m_clock ? m_clock()
+                             : std::chrono::duration<double> (std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        elapsedSeconds    = (m_lastTickSeconds < 0.0) ? 0.0f : (float) (nowSeconds - m_lastTickSeconds);
+        m_lastTickSeconds = nowSeconds;
     }
 
     {
@@ -397,7 +448,7 @@ ControllerWaitSources ControllerInputService::Tick()
     }
     else
     {
-        GamePortContribution  contribution = m_evaluator.Evaluate (calibrated, mapping, deadzone);
+        GamePortContribution  contribution = m_evaluator.Evaluate (calibrated, mapping, deadzone, elapsedSeconds);
 
         m_mixer.Submit (GamePortSource::Controller, contribution);
         m_hasContribution = true;
@@ -415,7 +466,7 @@ ControllerWaitSources ControllerInputService::Tick()
     // the ones that have none.
     m_backend.GetWakeSources (active.value(), wait.events, needsTimedPoll);
 
-    if (needsTimedPoll)
+    if (needsTimedPoll || m_evaluator.IsRateMoving())
     {
         wait.timeoutMs = kPollPeriodMs;
     }
@@ -561,6 +612,7 @@ void ControllerInputService::RefreshDevices()
 
             m_selection           = decision.selection;
             m_mapping             = ControlMapping();
+            m_rateResetPending    = true;
             m_lastSample          = ControllerSample();
             m_isSelectedConnected = false;
         }

@@ -21,13 +21,17 @@
 GamePortContribution MappingEvaluator::Evaluate (
     const ControllerSample  & sample,
     const ControlMapping    & mapping,
-    float                     deadzone)
+    float                     deadzone,
+    float                     elapsedSeconds)
 {
     GamePortContribution  contribution;
-    float                 rawX    = EvaluateAxis (sample, mapping.pdl0);
-    float                 rawY    = EvaluateAxis (sample, mapping.pdl1);
+    const AxisBinding *   winnerX = nullptr;
+    const AxisBinding *   winnerY = nullptr;
+    float                 rawX    = EvaluateAxis (sample, mapping.pdl0, winnerX);
+    float                 rawY    = EvaluateAxis (sample, mapping.pdl1, winnerY);
     float                 shapedX = 0.0f;
     float                 shapedY = 0.0f;
+    float                 step    = std::clamp (elapsedSeconds, 0.0f, kMaxRateStep);
 
 
 
@@ -41,13 +45,86 @@ GamePortContribution MappingEvaluator::Evaluate (
         shapedY = DeadzoneShaper::ShapeAxis (rawY, deadzone);
     }
 
-    contribution.paddle = std::array<Byte, 2> { DeadzoneShaper::ToPaddle (shapedX), DeadzoneShaper::ToPaddle (shapedY) };
+    m_isRateMoving = false;
+
+    contribution.paddle = std::array<Byte, 2> { ToAxisPaddle (0, shapedX, winnerX, step),
+                                                ToAxisPaddle (1, shapedY, winnerY, step) };
 
     contribution.buttons.set (0, IsButtonListHeld (sample, mapping.pb0));
     contribution.buttons.set (1, IsButtonListHeld (sample, mapping.pb1));
     contribution.buttons.set (2, IsButtonListHeld (sample, mapping.pb2));
 
     return contribution;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetRate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MappingEvaluator::ResetRate()
+{
+    m_rateValue    = { kRateCenter, kRateCenter };
+    m_isRateMoving = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsRateMoving
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MappingEvaluator::IsRateMoving() const
+{
+    return m_isRateMoving;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToAxisPaddle
+//
+//  An absolute binding's deflection is the paddle's position. A rate
+//  binding's moves the paddle at a speed proportional to it, up to the
+//  binding's maximum, and leaves the paddle where it is when the stick comes
+//  back to center, the way a paddle knob stays where it is turned (FR-021a).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte MappingEvaluator::ToAxisPaddle (size_t axis, float shaped, const AxisBinding * winner, float elapsedSeconds)
+{
+    constexpr float  kPaddleMax = 255.0f;
+    bool             isRate     = winner != nullptr &&
+                                  winner->kind     == AxisBindingKind::Analog &&
+                                  winner->response == AxisResponse::Rate;
+
+
+
+    if (!isRate)
+    {
+        return DeadzoneShaper::ToPaddle (shaped);
+    }
+
+    if (shaped != 0.0f)
+    {
+        m_isRateMoving = true;
+    }
+
+    m_rateValue[axis] = std::clamp (m_rateValue[axis] + shaped * winner->maxSpeed * elapsedSeconds, 0.0f, kPaddleMax);
+
+    return static_cast<Byte> (m_rateValue[axis]);
 }
 
 
@@ -228,15 +305,19 @@ float MappingEvaluator::EvaluateAxisBinding (const ControllerSample & sample, co
 //  EvaluateAxis
 //
 //  Whichever control is furthest from center wins, so a stick sitting at rest
-//  does not dilute a D-pad press mapped to the same axis.
+//  does not dilute a D-pad press mapped to the same axis. With every control
+//  at center the first binding is the winner, so a rate binding at rest still
+//  holds its paddle rather than handing the axis to an absolute center.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float MappingEvaluator::EvaluateAxis (const ControllerSample & sample, const std::vector<AxisBinding> & bindings)
+float MappingEvaluator::EvaluateAxis (const ControllerSample & sample, const std::vector<AxisBinding> & bindings, const AxisBinding *& outWinner)
 {
     float  winner = 0.0f;
 
 
+
+    outWinner = bindings.empty() ? nullptr : &bindings.front();
 
     for (const AxisBinding & binding : bindings)
     {
@@ -244,7 +325,8 @@ float MappingEvaluator::EvaluateAxis (const ControllerSample & sample, const std
 
         if (std::abs (value) > std::abs (winner))
         {
-            winner = value;
+            winner    = value;
+            outWinner = &binding;
         }
     }
 
@@ -259,8 +341,9 @@ float MappingEvaluator::EvaluateAxis (const ControllerSample & sample, const std
 //
 //  IsOneStick
 //
-//  True when both axes are single analog bindings on the two axes of one
-//  physical stick, which is when a round deadzone is the right shape.
+//  True when both axes are single absolute bindings on the two axes of one
+//  physical stick, which is when a round deadzone is the right shape. A rate
+//  binding moves one paddle on its own, so each is shaped on its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -283,6 +366,11 @@ bool MappingEvaluator::IsOneStick (const std::vector<AxisBinding> & xBindings, c
     }
 
     if (xBindings[0].analog.kind != ControlKind::Axis || yBindings[0].analog.kind != ControlKind::Axis)
+    {
+        return false;
+    }
+
+    if (xBindings[0].response != AxisResponse::Absolute || yBindings[0].response != AxisResponse::Absolute)
     {
         return false;
     }
