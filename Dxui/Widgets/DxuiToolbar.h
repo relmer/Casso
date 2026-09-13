@@ -138,6 +138,11 @@ public:
         //  Never labeled, regardless of available width, like Explorer's Back,
         //  Forward, Up and Refresh buttons. The tooltip text is unchanged.
         bool  iconOnly = false;
+
+        //  Sits at the strip's trailing end rather than after the entry
+        //  before it, like Explorer's Details button. Trailing entries come
+        //  last in the list; with no room to spare they close up normally.
+        bool  trailing = false;
     };
 
     DxuiToolbar  ();
@@ -253,6 +258,7 @@ private:
     int           GetTotalWidthPx      (int labeledCount) const;
     RECT          GetFlyoutKeepAliveRc () const;
     void          LayoutFlyout         ();
+    void          PlaceTrailingEntries (int rightPx);
     void          OpenFlyout           (bool byKeyboard);
     void          CloseFlyout          ();
     void          OpenDropDown         (int commandId);

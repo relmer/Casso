@@ -99,6 +99,8 @@ public:
         Assert::AreEqual ((int) CassqueCommands::kBack, entries[0].command->id);
         Assert::IsTrue   (entries[5].kind == DxuiToolbar::Kind::Toggle);
         Assert::AreEqual ((int) CassqueCommands::kTogglePreview, entries[5].command->id);
+        Assert::IsTrue   (entries[5].trailing, L"The preview toggle sits at the toolbar's far end");
+        Assert::IsFalse  (entries[4].trailing);
 
         for (const DxuiToolbar::Entry & entry : entries)
         {

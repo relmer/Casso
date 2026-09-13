@@ -251,6 +251,59 @@ public:
     }
 
 
+    TEST_METHOD (TrailingEntry_EndsAtTheStripsFarEnd)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+        RECT                             anchor = {};
+        int                              width  = f.FullWidth() + 300;
+
+
+        f.alpha.id = 1;
+        f.gamma.id = 3;
+
+        entries[0].command  = &f.alpha;
+        entries[1].command  = &f.gamma;
+        entries[1].group    = 1;
+        entries[1].trailing = true;
+        entries[1].iconOnly = true;   //  so it has a tooltip to find it by
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (width);
+
+        Assert::IsNotNull (f.bar.GetTooltipAt (width - s_kBarPadPx - 2, s_kBandPx / 2, anchor),
+            L"The trailing entry is under the pointer at the strip's far end");
+        Assert::AreEqual  ((LONG) (width - s_kBarPadPx), anchor.right,
+            L"and ends one pad in from the edge");
+        Assert::IsNotNull (f.bar.GetTooltipAt (s_kBarPadPx + 2, s_kBandPx / 2, anchor),
+            L"while the leading entry stays at the start");
+    }
+
+
+    TEST_METHOD (TrailingEntry_WithNoRoomToSpare_ClosesUp)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+        RECT                             anchor = {};
+
+
+        f.alpha.id = 1;
+        f.gamma.id = 3;
+
+        entries[0].command  = &f.alpha;
+        entries[1].command  = &f.gamma;
+        entries[1].group    = 1;
+        entries[1].trailing = true;
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (40);
+
+        Assert::IsNotNull (f.bar.GetTooltipAt (s_kBarPadPx + CollapsedPx() + s_kGroupGap + 2, s_kBandPx / 2, anchor));
+        Assert::AreEqual  ((LONG) (s_kBarPadPx + CollapsedPx() + s_kGroupGap), anchor.left,
+            L"A strip too narrow for a gap leaves the trailing entry right after the one before it");
+    }
+
+
     TEST_METHOD (PlanForWidth_AllLabeledAtFittingWidth)
     {
         Fixture  f;

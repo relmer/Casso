@@ -266,6 +266,7 @@ std::vector<DxuiToolbar::Entry> CassqueCommands::BuildToolbarEntries() const
         entry.kind     = row.kind;
         entry.group    = row.group;
         entry.iconOnly = row.iconOnly;
+        entry.trailing = row.trailing;
 
         entries.push_back (std::move (entry));
     }

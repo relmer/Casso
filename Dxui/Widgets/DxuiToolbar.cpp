@@ -746,11 +746,6 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
             x += (m_slots[(size_t) index + 1].entry.group != slot.entry.group) ? groupGap : btnGap;
         }
 
-        if (slot.entry.custom != nullptr)
-        {
-            slot.entry.custom->Layout (slot.rc, slot.labeled, m_scaler);
-        }
-
         if (wasLabeled && !slot.labeled && slot.entry.command != nullptr && slot.entry.command->id == m_flyoutId)
         {
             CloseFlyout();
@@ -759,8 +754,54 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         index++;
     }
 
+    PlaceTrailingEntries (boundsDip.right - barPad);
+
+    for (Slot & slot : m_slots)
+    {
+        if (slot.entry.custom != nullptr)
+        {
+            slot.entry.custom->Layout (slot.rc, slot.labeled, m_scaler);
+        }
+    }
+
     LayoutFlyout();
     SetBounds (m_barRect);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::PlaceTrailingEntries
+//
+//  Moves the trailing entries right so the last one ends at `rightPx`. They
+//  never move left, so a strip too narrow for the gap keeps its order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PlaceTrailingEntries (int rightPx)
+{
+    int  shift = 0;
+
+
+
+    if (m_slots.empty() || !m_slots.back().entry.trailing)
+    {
+        return;
+    }
+
+    shift = (std::max) (0, rightPx - (int) m_slots.back().rc.right);
+
+    for (Slot & slot : m_slots)
+    {
+        if (slot.entry.trailing)
+        {
+            slot.rc.left  += shift;
+            slot.rc.right += shift;
+        }
+    }
 }
 
 

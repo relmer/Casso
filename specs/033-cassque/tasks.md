@@ -206,7 +206,7 @@
 - [ ] T095 [US5] Measure Dxui's Windows light and dark themes against File Explorer at 100% and 200%: text faces and sizes, list background and edge grays, header rendering, row hover, tree chevrons. Capture both windows and correct the palettes and metrics in Dxui until a side-by-side names no difference (FR-031, SC-009)
 - [x] T096 [P] [US5] `DxuiSplitter`: a hairline to the eye over a grab band far wider than the line, Explorer's proportions; the grab must not follow the drawn width (FR-032)
 - [x] T097 [P] [US1] Explorer's iconography for Back, Forward, Up and Refresh, through `UnicodeSymbols.h` (FR-033)
-- [ ] T098 [US1] The preview toggle moves to the toolbar's trailing end, which `DxuiToolbar` needs a trailing group for (FR-034)
+- [x] T098 [US1] The preview toggle moves to the toolbar's trailing end, which `DxuiToolbar` needs a trailing group for (FR-034)
 - [x] T099 [P] [US1] Cut a long name off rather than wrapping it, in tree rows, list cells and tabs (FR-035)
 - [ ] T100 [US5] `DxuiTabStrip`: reach every tab past the point where they stop fitting, and reorder by dragging (FR-036, FR-037, SC-010)
 - [ ] T101 [US5] A new tab opens from the strip's own affordance, as a browser opens one, with the toolbar button retired (FR-037)
