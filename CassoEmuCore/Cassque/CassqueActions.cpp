@@ -724,6 +724,132 @@ CassqueActions::Outcome CassqueActions::FormatImage (const DiskOperations::NewDi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueActions::TryParseSearch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::TryParseSearch (const std::wstring & text, std::vector<Byte> & outBytes, bool & outIsText)
+{
+    size_t             first = text.find_first_not_of (L' ');
+    size_t             last  = text.find_last_not_of (L' ');
+    std::vector<Byte>  bytes;
+    std::wstring       digits;
+
+
+
+    if (first == std::wstring::npos)
+    {
+        return false;
+    }
+
+    //  Text in quotes: every character must be one an Apple II can store.
+    if (text[first] == L'"')
+    {
+        if (last <= first || text[last] != L'"')
+        {
+            return false;
+        }
+
+        for (size_t i = first + 1; i < last; i++)
+        {
+            if (text[i] < 0x20 || text[i] > 0x7E)
+            {
+                return false;
+            }
+
+            bytes.push_back ((Byte) text[i]);
+        }
+
+        if (bytes.empty())
+        {
+            return false;
+        }
+
+        outBytes  = std::move (bytes);
+        outIsText = true;
+        return true;
+    }
+
+    for (size_t i = first; i <= last; i++)
+    {
+        if (text[i] != L' ')
+        {
+            digits.push_back (text[i]);
+        }
+    }
+
+    if (digits.empty() || (digits.size() % 2) != 0 || digits.find_first_not_of (L"0123456789ABCDEFabcdef") != std::wstring::npos)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < digits.size(); i += 2)
+    {
+        bytes.push_back ((Byte) std::stoul (digits.substr (i, 2), nullptr, 16));
+    }
+
+    outBytes  = std::move (bytes);
+    outIsText = false;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::FindBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassqueActions::FindBytes (const std::vector<Byte> & haystack, const std::vector<Byte> & pattern, bool isText, size_t start)
+{
+    size_t  count = haystack.size();
+
+
+
+    if (pattern.empty() || pattern.size() > count)
+    {
+        return kNotFound;
+    }
+
+    start = (start > count - pattern.size()) ? 0 : start;
+
+    for (size_t n = 0; n <= count - pattern.size(); n++)
+    {
+        size_t  at    = (start + n) % (count - pattern.size() + 1);
+        bool    match = true;
+
+        for (size_t i = 0; i < pattern.size() && match; i++)
+        {
+            Byte  have = haystack[at + i];
+            Byte  want = pattern[i];
+
+            if (isText)
+            {
+                have = (Byte) towupper (have & 0x7F);
+                want = (Byte) towupper (want & 0x7F);
+            }
+
+            match = (have == want);
+        }
+
+        if (match)
+        {
+            return at;
+        }
+    }
+
+    return kNotFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueActions::TryParseAddress
 //
 ////////////////////////////////////////////////////////////////////////////////

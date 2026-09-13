@@ -12,7 +12,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<FocusStop> FocusRing::BuildStops (const std::vector<bool> & toolbarEnabled, bool previewVisible)
+std::vector<FocusStop> FocusRing::BuildStops (const std::vector<bool> & toolbarEnabled,
+                                              bool                      previewVisible,
+                                              const std::vector<bool> & previewToolbarEnabled)
 {
     std::vector<FocusStop>  stops;
 
@@ -33,6 +35,14 @@ std::vector<FocusStop> FocusRing::BuildStops (const std::vector<bool> & toolbarE
 
     if (previewVisible)
     {
+        for (size_t i = 0; i < previewToolbarEnabled.size(); i++)
+        {
+            if (previewToolbarEnabled[i])
+            {
+                stops.push_back (FocusStop { FocusStop::Kind::PreviewToolbarEntry, (int) i });
+            }
+        }
+
         stops.push_back (FocusStop { FocusStop::Kind::Preview });
     }
 

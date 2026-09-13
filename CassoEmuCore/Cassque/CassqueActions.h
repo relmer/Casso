@@ -140,6 +140,15 @@ public:
     //  Apple II writes addresses; a leading # marks decimal.
     static bool  TryParseAddress (const std::wstring & text, Word & outAddress);
 
+    //  A search as typed: hex digits, with spaces anywhere, are bytes; text in
+    //  double quotes is characters, and `outIsText` is set.
+    static bool  TryParseSearch (const std::wstring & text, std::vector<Byte> & outBytes, bool & outIsText);
+
+    //  The first match at or after `start`, wrapping to the beginning, or
+    //  kNotFound. A text search ignores the high bit and the case of letters.
+    static constexpr size_t  kNotFound = SIZE_MAX;
+    static size_t  FindBytes (const std::vector<Byte> & haystack, const std::vector<Byte> & pattern, bool isText, size_t start);
+
 private:
     void  FinishWrite (const std::wstring & imagePath);
 

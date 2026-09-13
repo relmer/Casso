@@ -235,6 +235,7 @@ JsonValue CassquePrefs::ToJson() const
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
+    root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
@@ -276,6 +277,7 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     }
 
     root.HasBool ("previewVisible", previewVisible);
+    root.HasBool ("lineAddresses",  lineAddresses);
 
     if (root.HasString ("hostNaming", text) && (text == kNamingDescriptive || text == kNamingCiderPress))
     {

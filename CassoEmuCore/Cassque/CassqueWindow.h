@@ -102,7 +102,11 @@ public:
     static constexpr int  kTabMinWidthDip      = 100;
     static constexpr int  kMinTreeWidthDip     = 140;
     static constexpr int  kMinListWidthDip     = 220;
-    static constexpr int  kMinPreviewWidthDip  = 160;
+    static constexpr int  kMinPreviewWidthDip  = 280;   // wide enough for the hex view's toolbar
+
+    //  Where DOS 3.3 on a 48K machine leaves HIMEM, against which Integer BASIC
+    //  keeps its program.
+    static constexpr int  kIntegerBasicHimem   = 0x9600;
 
     //  The private message that carries a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
@@ -119,7 +123,7 @@ protected:
 private:
     //  Keyboard focus. The toolbar is one pane, with its focused button in
     //  m_toolbarFocus; FocusRing defines the Tab order.
-    enum class Pane { Toolbar, Address, Tabs, Tree, List, Preview };
+    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, Preview };
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -184,8 +188,8 @@ private:
     FocusStop               GetFocusStop     () const;
     void                    SetFocusStop     (const FocusStop & stop);
     std::vector<FocusStop>  BuildFocusStops  () const;
-    bool                    RouteToolbarKey  (const DxuiKeyEvent & ev);
-    void                    StepToolbarFocus (bool forward);
+    bool                    RouteToolbarKey  (bool preview, const DxuiKeyEvent & ev);
+    void                    StepToolbarFocus (bool preview, bool forward);
     void  Dispatch     (int id);
     bool  IsEnabled    (int id) const;
     bool  IsChecked    (int id) const;
@@ -213,7 +217,9 @@ private:
     //  The text view's rows for a preview: a BASIC line as its number and its
     //  statement, a detail as its label and value, anything else as one cell.
     static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview, bool lineAddresses);
-    static std::vector<Word>               GetLineAddresses (const std::vector<Byte> & program);
+    static std::vector<Word>               GetLineAddresses (const std::vector<Byte> & program, bool integerBasic);
+    void  AskToFind();
+    void  FindNext();
     static std::vector<std::wstring>       SplitLineNumber (const std::wstring & line);
     bool  RouteToolbarMouse   (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
 
@@ -288,7 +294,12 @@ private:
     //  What the preview toolbar holds: 0 for nothing, 1 for a listing's
     //  toggle, 2 for the hex view's commands.
     int                    m_previewBarMode  = 0;
-    bool                   m_lineAddresses   = false;
+    int                    m_previewBarFocus = 0;
+
+    //  The last search, as typed and as the bytes it matches.
+    std::wstring           m_findTyped;
+    std::vector<Byte>      m_findBytes;
+    bool                   m_findIsText      = false;
     DxuiAddressBar       * m_address         = nullptr;
     DxuiTooltip            m_tooltip;
 

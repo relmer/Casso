@@ -56,6 +56,18 @@ public:
     }
 
 
+    TEST_METHOD (PreviewToolbarButtonsComeJustBeforeThePreview)
+    {
+        std::vector<FocusStop>  stops = FocusRing::BuildStops ({ true }, true, { true, false, true });
+
+
+        Assert::AreEqual ((size_t) 8, stops.size());
+        Assert::IsTrue (stops[5] == FocusStop { Kind::PreviewToolbarEntry, 0 });
+        Assert::IsTrue (stops[6] == FocusStop { Kind::PreviewToolbarEntry, 2 });
+        Assert::IsTrue (stops[7] == Pane (Kind::Preview));
+    }
+
+
     TEST_METHOD (HiddenPreviewIsLeftOut)
     {
         std::vector<FocusStop>  stops = FocusRing::BuildStops ({ true }, false);

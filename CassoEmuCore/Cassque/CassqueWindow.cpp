@@ -274,6 +274,13 @@ void CassqueWindow::OnCreate()
     m_previewToolbar->SetIconDip      (kNavIconDip);
     m_previewToolbar->SetVisible      (false);
 
+    m_previewToolbar->SetDropDownItems (CassqueCommands::kGrouping,
+                                        { DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kGroup1)),
+                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kGroup2)),
+                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kGroup4)),
+                                          DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kGroup8)) });
+    m_previewToolbar->SetDropDownSinks (CassqueCommands::kGrouping, nullptr, [this] (int index) { SetHexGrouping (1 << index); });
+
     m_menuBar->SetPopupHost (GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
 
@@ -897,7 +904,7 @@ void CassqueWindow::FillPreview()
     m_previewList->UpdateAutoFitFromRows();
     m_previewList->SetTopRow (0);
 
-    m_textView->SetRows (BuildTextRows (preview, m_lineAddresses));
+    m_textView->SetRows (BuildTextRows (preview, m_prefs.lineAddresses));
 
     //  A new kind of preview brings its own toolbar, which changes the height
     //  left for the content.
@@ -963,7 +970,7 @@ void CassqueWindow::FillStatus()
 
 void CassqueWindow::SetFocusPane (Pane pane)
 {
-    if (pane == Pane::Preview && !m_prefs.previewVisible)
+    if ((pane == Pane::Preview && !m_prefs.previewVisible) || (pane == Pane::PreviewToolbar && !m_previewToolbar->IsVisible()))
     {
         pane = Pane::Tree;
     }
@@ -977,6 +984,7 @@ void CassqueWindow::SetFocusPane (Pane pane)
     m_tabs->OnFocusChanged        (pane == Pane::Tabs);
     m_address->OnFocusChanged     (pane == Pane::Address);
     m_toolbar->SetFocusIndex      (pane == Pane::Toolbar ? m_toolbarFocus : -1);
+    m_previewToolbar->SetFocusIndex (pane == Pane::PreviewToolbar ? m_previewBarFocus : -1);
 
     Invalidate();
 }
@@ -996,6 +1004,7 @@ FocusStop CassqueWindow::GetFocusStop() const
     switch (m_focus)
     {
         case Pane::Toolbar: return FocusStop { FocusStop::Kind::ToolbarEntry, m_toolbarFocus };
+        case Pane::PreviewToolbar: return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_previewBarFocus };
         case Pane::Address: return FocusStop { FocusStop::Kind::Address };
         case Pane::Tabs:    return FocusStop { FocusStop::Kind::Tabs };
         case Pane::List:    return FocusStop { FocusStop::Kind::List };
@@ -1023,6 +1032,11 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
             SetFocusPane (Pane::Toolbar);
             break;
 
+        case FocusStop::Kind::PreviewToolbarEntry:
+            m_previewBarFocus = stop.entry;
+            SetFocusPane (Pane::PreviewToolbar);
+            break;
+
         case FocusStop::Kind::Address: SetFocusPane (Pane::Address); break;
         case FocusStop::Kind::Tabs:    SetFocusPane (Pane::Tabs);    break;
         case FocusStop::Kind::List:    SetFocusPane (Pane::List);    break;
@@ -1047,6 +1061,7 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
 std::vector<FocusStop> CassqueWindow::BuildFocusStops() const
 {
     std::vector<bool>  enabled;
+    std::vector<bool>  previewEnabled;
 
 
 
@@ -1055,7 +1070,12 @@ std::vector<FocusStop> CassqueWindow::BuildFocusStops() const
         enabled.push_back (IsEnabled (CassqueCommands::GetToolbarCommandId (i)));
     }
 
-    return FocusRing::BuildStops (enabled, m_prefs.previewVisible);
+    for (int id : (m_previewBarMode != 0) ? CassqueCommands::GetPreviewToolbarCommandIds (m_previewBarMode == 2) : std::vector<int>())
+    {
+        previewEnabled.push_back (IsEnabled (id));
+    }
+
+    return FocusRing::BuildStops (enabled, m_prefs.previewVisible, previewEnabled);
 }
 
 
@@ -1072,11 +1092,15 @@ std::vector<FocusStop> CassqueWindow::BuildFocusStops() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassqueWindow::RouteToolbarKey (const DxuiKeyEvent & ev)
+bool CassqueWindow::RouteToolbarKey (bool preview, const DxuiKeyEvent & ev)
 {
-    if (m_toolbar->OwnsKeyboard())
+    DxuiToolbar &  toolbar = preview ? *m_previewToolbar : *m_toolbar;
+
+
+
+    if (toolbar.OwnsKeyboard())
     {
-        return m_toolbar->HandleKey (ev.vk);
+        return toolbar.HandleKey (ev.vk);
     }
 
     switch (ev.vk)
@@ -1084,12 +1108,12 @@ bool CassqueWindow::RouteToolbarKey (const DxuiKeyEvent & ev)
         case VK_RETURN:
         case VK_SPACE:
         case VK_DOWN:
-            m_toolbar->ActivateFocused();
+            toolbar.ActivateFocused();
             return true;
 
         case VK_LEFT:
         case VK_RIGHT:
-            StepToolbarFocus (ev.vk == VK_RIGHT);
+            StepToolbarFocus (preview, ev.vk == VK_RIGHT);
             return true;
 
         default:
@@ -1107,19 +1131,31 @@ bool CassqueWindow::RouteToolbarKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassqueWindow::StepToolbarFocus (bool forward)
+void CassqueWindow::StepToolbarFocus (bool preview, bool forward)
 {
-    int  count = (int) CassqueCommands::GetToolbarEntryCount();
-    int  step  = forward ? 1 : -1;
-    int  at    = m_toolbarFocus + step;
+    std::vector<int>  ids;
+    int               step = forward ? 1 : -1;
+    int               at   = (preview ? m_previewBarFocus : m_toolbarFocus) + step;
 
 
 
-    while (at >= 0 && at < count)
+    if (preview)
     {
-        if (IsEnabled (CassqueCommands::GetToolbarCommandId ((size_t) at)))
+        ids = CassqueCommands::GetPreviewToolbarCommandIds (m_previewBarMode == 2);
+    }
+    else
+    {
+        for (size_t i = 0; i < CassqueCommands::GetToolbarEntryCount(); i++)
         {
-            SetFocusStop (FocusStop { FocusStop::Kind::ToolbarEntry, at });
+            ids.push_back (CassqueCommands::GetToolbarCommandId (i));
+        }
+    }
+
+    while (at >= 0 && at < (int) ids.size())
+    {
+        if (IsEnabled (ids[(size_t) at]))
+        {
+            SetFocusStop (FocusStop { preview ? FocusStop::Kind::PreviewToolbarEntry : FocusStop::Kind::ToolbarEntry, at });
             return;
         }
 
@@ -1550,7 +1586,8 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
 
     switch (m_focus)
     {
-        case Pane::Toolbar: handled = RouteToolbarKey (ev);      break;
+        case Pane::Toolbar: handled = RouteToolbarKey (false, ev); break;
+        case Pane::PreviewToolbar: handled = RouteToolbarKey (true, ev); break;
         case Pane::Address: handled = m_address->OnKey (ev);     break;
         case Pane::Tabs:    handled = m_tabs->OnKey (ev);        break;
         case Pane::Tree:    handled = m_tree->OnKey (ev);        break;
@@ -1604,6 +1641,9 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kUp:                return m_browser.CanGoUp();
         case CassqueCommands::kToggleDisassembly: return model.HasTabs();
         case CassqueCommands::kLineAddresses:     return m_previewBarMode == 1;
+        case CassqueCommands::kFindNext:          return IsHexPreviewShowing() && !m_findBytes.empty();
+        case CassqueCommands::kFind:
+        case CassqueCommands::kGrouping:
         case CassqueCommands::kGoToOffset:
         case CassqueCommands::kGroup1:
         case CassqueCommands::kGroup2:
@@ -1635,7 +1675,7 @@ bool CassqueWindow::IsChecked (int id) const
     switch (id)
     {
         case CassqueCommands::kTogglePreview:     return m_prefs.previewVisible;
-        case CassqueCommands::kLineAddresses:     return m_lineAddresses;
+        case CassqueCommands::kLineAddresses:     return m_prefs.lineAddresses;
         case CassqueCommands::kToggleDisassembly: return model.HasTabs() && model.GetActiveTab().disassemble;
         case CassqueCommands::kThemeLight:        return m_prefs.theme == CassquePrefs::kThemeLight;
         case CassqueCommands::kThemeDark:         return m_prefs.theme == CassquePrefs::kThemeDark;
@@ -1731,7 +1771,7 @@ std::vector<DxuiTextView::Row> CassqueWindow::BuildTextRows (const PreviewConten
 
     if (lineAddresses && preview.kind == PreviewContent::Kind::Listing)
     {
-        addresses = GetLineAddresses (preview.bytes);
+        addresses = GetLineAddresses (preview.bytes, preview.integerBasic);
     }
 
     if (!addresses.empty())
@@ -1780,14 +1820,19 @@ std::vector<DxuiTextView::Row> CassqueWindow::BuildTextRows (const PreviewConten
 //
 //  CassqueWindow::GetLineAddresses
 //
-//  Where each line of an Applesoft program starts in memory. Each line begins
-//  with a pointer to the next one, and a pointer is an absolute address, so the
-//  first line's pointer less the second line's offset in the file is the
-//  address the program loads at.
+//  Where each line of a BASIC program starts in memory.
+//
+//  An Applesoft line begins with a pointer to the next one, and a pointer is
+//  an absolute address, so the first line's pointer less the second line's
+//  offset in the file is the address the program loads at.
+//
+//  An Integer BASIC line begins with its length, and the program sits against
+//  HIMEM, which DOS 3.3 on a 48K machine leaves at $9600. The addresses assume
+//  that HIMEM, since the file does not record one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Word> CassqueWindow::GetLineAddresses (const std::vector<Byte> & program)
+std::vector<Word> CassqueWindow::GetLineAddresses (const std::vector<Byte> & program, bool integerBasic)
 {
     std::vector<size_t>  starts;
     std::vector<Word>    addresses;
@@ -1797,7 +1842,18 @@ std::vector<Word> CassqueWindow::GetLineAddresses (const std::vector<Byte> & pro
 
 
 
-    while (offset + 4 <= program.size())
+    if (integerBasic)
+    {
+        while (offset < program.size() && program[offset] != 0 && offset + program[offset] <= program.size())
+        {
+            starts.push_back (offset);
+            offset += program[offset];
+        }
+
+        base = (Word) (kIntegerBasicHimem - program.size());
+    }
+
+    while (!integerBasic && offset + 4 <= program.size())
     {
         Word    link = (Word) (program[offset] | (program[offset + 1] << 8));
         size_t  end  = offset + 4;
@@ -1955,6 +2011,90 @@ void CassqueWindow::AskForOffset()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::AskToFind
+//
+//  Hex digits find bytes; text in quotes finds characters with or without
+//  the high bit, since Apple II text is stored both ways.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::AskToFind()
+{
+    std::wstring  text = m_findTyped;
+
+
+
+    if (!IsHexPreviewShowing())
+    {
+        return;
+    }
+
+    for (;;)
+    {
+        if (!CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Find",
+                                       L"Hex bytes, or text in quotes:", text, 64, text))
+        {
+            return;
+        }
+
+        if (CassqueActions::TryParseSearch (text, m_findBytes, m_findIsText))
+        {
+            m_findTyped = text;
+            FindNext();
+            return;
+        }
+
+        ShowMessage (L"Type hex bytes, such as A9 00, or text in quotes, such as \"HELLO\".", MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FindNext
+//
+//  Searches forward from just past the selection, wrapping at the end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::FindNext()
+{
+    const std::vector<Byte> &  bytes = m_browser.GetPreview().bytes;
+    size_t                     start = 0;
+    size_t                     found = 0;
+
+
+
+    if (!IsHexPreviewShowing() || m_findBytes.empty())
+    {
+        return;
+    }
+
+    start = m_hexView->HasSelection() ? (size_t) m_hexView->GetSelectionFirst() + 1 : (size_t) m_hexView->GetCaret();
+    found = CassqueActions::FindBytes (bytes, m_findBytes, m_findIsText, start);
+
+    if (found == CassqueActions::kNotFound)
+    {
+        ShowMessage (std::format (L"{} isn't in this file.", m_findTyped).c_str(), MB_ICONINFORMATION);
+        return;
+    }
+
+    m_hexView->SelectByte        ((uint64_t) found, m_findIsText ? DxuiHexView::Column::Text : DxuiHexView::Column::Hex);
+    m_hexView->ExtendSelectionTo ((uint64_t) (found + m_findBytes.size() - 1));
+    m_hexView->EnsureByteVisible ((uint64_t) found);
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::ShowHexContextMenu
 //
 //  Copy, Select all and Go to offset, the commands that apply to a run of
@@ -2083,10 +2223,14 @@ void CassqueWindow::Dispatch (int id)
             break;
 
         case CassqueCommands::kLineAddresses:
-            m_lineAddresses = !m_lineAddresses;
-            m_textView->SetRows (BuildTextRows (m_browser.GetPreview(), m_lineAddresses));
+            m_prefs.lineAddresses = !m_prefs.lineAddresses;
+            m_textView->SetRows (BuildTextRows (m_browser.GetPreview(), m_prefs.lineAddresses));
             Invalidate();
             break;
+
+        case CassqueCommands::kFind:     AskToFind(); break;
+        case CassqueCommands::kFindNext: FindNext();  break;
+        case CassqueCommands::kGrouping:              break;
 
         case CassqueCommands::kGroup1: SetHexGrouping (1); break;
         case CassqueCommands::kGroup2: SetHexGrouping (2); break;
@@ -3591,10 +3735,11 @@ DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
     //  Menus slide open and submenus wait out a delay, both on ticks the host
     //  supplies; Casso supplies them from its frame loop, and this window from
     //  its timer.
-    if (m_menuBar->WantsTick() || m_toolbar->WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
+    if (m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_previewToolbar->WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
     {
         m_menuBar->TickMenus (GetNowMs());
         m_toolbar->TickMenus (GetNowMs());
+        m_previewToolbar->TickMenus (GetNowMs());
         GetPopupHost()->GetContextMenu().Tick (GetNowMs());
         Invalidate();
     }

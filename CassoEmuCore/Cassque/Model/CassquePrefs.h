@@ -45,6 +45,9 @@ struct CassquePrefs
 
     //  Bytes between the spaces in a hex preview: 1, 2, 4 or 8.
     int                    hexGrouping     = kDefaultHexGrouping;
+
+    //  Whether a BASIC listing shows where each line starts in memory.
+    bool                   lineAddresses   = false;
     std::vector<Location>  tabs;
 
     //  Absent file: defaults, with the theme seeded from the emulator's

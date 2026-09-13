@@ -330,6 +330,11 @@ HRESULT PreviewDecoder::Render (
                     outContent.offset  = integerError.offset;
                     hr = S_OK;
                 }
+                else
+                {
+                    outContent.bytes        = payload.bytes;
+                    outContent.integerBasic = true;
+                }
             }
 
             SplitIntoLines (text, outContent.lines);

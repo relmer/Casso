@@ -351,6 +351,41 @@ public:
     }
 
 
+    TEST_METHOD (Search_ParsesHexBytesAndQuotedText)
+    {
+        std::vector<Byte>  bytes;
+        bool               isText = false;
+
+        Assert::IsTrue  (CassqueActions::TryParseSearch (L" A9 00 8d ", bytes, isText));
+        Assert::IsFalse (isText);
+        Assert::IsTrue  (bytes == std::vector<Byte> { 0xA9, 0x00, 0x8D });
+
+        Assert::IsTrue  (CassqueActions::TryParseSearch (L"\"HI\"", bytes, isText));
+        Assert::IsTrue  (isText);
+        Assert::IsTrue  (bytes == std::vector<Byte> { 'H', 'I' });
+
+        Assert::IsFalse (CassqueActions::TryParseSearch (L"A9 0", bytes, isText));
+        Assert::IsFalse (CassqueActions::TryParseSearch (L"ZZ", bytes, isText));
+        Assert::IsFalse (CassqueActions::TryParseSearch (L"\"\"", bytes, isText));
+        Assert::IsFalse (CassqueActions::TryParseSearch (L"", bytes, isText));
+    }
+
+
+    TEST_METHOD (Search_FindsForwardWrapsAndMatchesTextEitherWay)
+    {
+        std::vector<Byte>  haystack = { 0x01, 0xC8, 0xC9, 0x02, 0x48, 0x49 };
+
+        //  "hi" matches high-bit "HI" at 1, then plain "HI" at 4, then wraps.
+        Assert::AreEqual ((size_t) 1, CassqueActions::FindBytes (haystack, { 'h', 'i' }, true, 0));
+        Assert::AreEqual ((size_t) 4, CassqueActions::FindBytes (haystack, { 'h', 'i' }, true, 2));
+        Assert::AreEqual ((size_t) 1, CassqueActions::FindBytes (haystack, { 'h', 'i' }, true, 5));
+
+        //  Bytes match exactly.
+        Assert::AreEqual ((size_t) 4, CassqueActions::FindBytes (haystack, { 0x48 }, false, 0));
+        Assert::AreEqual (CassqueActions::kNotFound, CassqueActions::FindBytes (haystack, { 0x77 }, false, 0));
+    }
+
+
     TEST_METHOD (Numbers_ParseSpacesAndCommas)
     {
         std::vector<int>  numbers;

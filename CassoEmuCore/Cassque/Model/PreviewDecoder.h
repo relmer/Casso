@@ -48,6 +48,10 @@ struct PreviewContent
     //  the rows it draws, rather than as rendered lines of text.
     std::vector<Byte>          bytes;
     Word                       origin = 0;
+
+    //  Set for an Integer BASIC listing, whose lines are laid out differently
+    //  from Applesoft's.
+    bool                       integerBasic = false;
 };
 
 

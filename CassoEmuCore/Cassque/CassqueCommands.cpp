@@ -311,3 +311,32 @@ std::vector<DxuiToolbar::Entry> CassqueCommands::BuildPreviewToolbarEntries (boo
 
     return entries;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::GetPreviewToolbarCommandIds
+//
+//  The preview toolbar's commands in strip order, for the Tab order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> CassqueCommands::GetPreviewToolbarCommandIds (bool hex)
+{
+    std::vector<int>  ids;
+
+
+
+    for (const ToolbarRow & row : kPreviewToolbarRows)
+    {
+        if ((row.id == kLineAddresses) != hex)
+        {
+            ids.push_back (row.id);
+        }
+    }
+
+    return ids;
+}

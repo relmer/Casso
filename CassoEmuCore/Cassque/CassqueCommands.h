@@ -61,6 +61,9 @@ public:
         kGroup8,
         kEditAddress,
         kLineAddresses,
+        kFind,
+        kFindNext,
+        kGrouping,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -86,6 +89,7 @@ public:
     //  The preview pane's toolbar: Go to and the byte grouping over a hex
     //  view, or the line address toggle over a BASIC listing.
     std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (bool hex) const;
+    static std::vector<int>          GetPreviewToolbarCommandIds (bool hex);
 
     //  The toolbar entries' commands in strip order, so a host moving focus
     //  along the strip can check whether each one is enabled.
@@ -151,6 +155,12 @@ private:
         { kSelectAll,         Menu::Edit, L"Select &all",          L"Ctrl+A",  false, DxuiStandardCommand::SelectAll },
         { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
         { kGoToOffset,        Menu::Edit, L"&Go to offset...",     L"Ctrl+G",  false },
+        { kFind,              Menu::Edit, L"&Find...",             L"Ctrl+F",  false },
+        { kFindNext,          Menu::Edit, L"Find &next",           L"F3",      false },
+
+        //  A row under Menu::Count is in no menu; it gives the preview
+        //  toolbar's grouping dropdown a command to hang on.
+        { kGrouping,          Menu::Count, L"Grouping",            nullptr,    false },
         { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
@@ -192,11 +202,9 @@ private:
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kLineAddresses, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Line addresses", L"Show where each line starts in memory" },
-        { kGoToOffset,    DxuiToolbar::Kind::Command, 0, nullptr, L"Go to",          L"Go to offset (Ctrl+G)"  },
-        { kGroup1,        DxuiToolbar::Kind::Toggle,  1, nullptr, L"1 byte",         L"Bytes grouped by one"   },
-        { kGroup2,        DxuiToolbar::Kind::Toggle,  1, nullptr, L"2 bytes",        L"Bytes grouped by two"   },
-        { kGroup4,        DxuiToolbar::Kind::Toggle,  1, nullptr, L"4 bytes",        L"Bytes grouped by four"  },
-        { kGroup8,        DxuiToolbar::Kind::Toggle,  1, nullptr, L"8 bytes",        L"Bytes grouped by eight" },
+        { kFind,          DxuiToolbar::Kind::Command,  0, nullptr, L"Find",          L"Find bytes or text (Ctrl+F)" },
+        { kGoToOffset,    DxuiToolbar::Kind::Command,  0, nullptr, L"Go to",         L"Go to offset (Ctrl+G)"       },
+        { kGrouping,      DxuiToolbar::Kind::DropDown, 1, nullptr, L"Grouping",      L"Bytes between spaces"        },
     };
 
     static constexpr Key  kKeys[] =
@@ -212,6 +220,8 @@ private:
         { VK_TAB,   true,  false, false, kNextTab       },
         { VK_TAB,   true,  false, true,  kPreviousTab   },
         { 'G',      true,  false, false, kGoToOffset    },
+        { 'F',      true,  false, false, kFind          },
+        { VK_F3,    false, false, false, kFindNext      },
         { 'L',      true,  false, false, kEditAddress   },
         { 'D',      false, true,  false, kEditAddress   },
         { VK_F4,    false, false, false, kEditAddress   },

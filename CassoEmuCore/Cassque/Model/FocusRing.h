@@ -16,10 +16,10 @@
 
 struct FocusStop
 {
-    enum class Kind { ToolbarEntry, Address, Tabs, Tree, List, Preview };
+    enum class Kind { ToolbarEntry, Address, Tabs, Tree, List, PreviewToolbarEntry, Preview };
 
     Kind  kind  = Kind::Tree;
-    int   entry = -1;     // the toolbar entry's index; -1 for every other kind
+    int   entry = -1;     // a toolbar entry's index; -1 for every other kind
 
     bool operator== (const FocusStop & other) const { return kind == other.kind && entry == other.entry; }
 };
@@ -51,8 +51,11 @@ class FocusRing
 {
 public:
     //  The stops in Tab order, leaving out a toolbar button that cannot be
-    //  used right now and the preview while it is hidden.
-    static std::vector<FocusStop>  BuildStops (const std::vector<bool> & toolbarEnabled, bool previewVisible);
+    //  used right now and the preview while it is hidden. The preview's own
+    //  toolbar buttons come just before the preview.
+    static std::vector<FocusStop>  BuildStops (const std::vector<bool> & toolbarEnabled,
+                                               bool                      previewVisible,
+                                               const std::vector<bool> & previewToolbarEnabled = {});
 
     //  The stop after `current`, or before it when moving backward, wrapping at
     //  either end. If `current` is not in `stops`, for example a button that was
