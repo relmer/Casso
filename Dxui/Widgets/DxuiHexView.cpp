@@ -81,9 +81,9 @@ void DxuiHexView::SetBytesPerRow (int count)
 //
 //  DxuiHexView::SetGrouping
 //
-//  One, two, four or eight bytes between spaces, and only a grouping the row
-//  divides evenly -- a half group at the end of a row would put the same byte
-//  at two different distances from the left on different rows.
+//  One, two, four or eight bytes between spaces, and only a grouping that
+//  divides the row evenly; a partial group at the end of a row would place the
+//  same byte index at different positions on different rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,9 +112,9 @@ bool DxuiHexView::SetGrouping (int bytesPerGroup)
 //
 //  DxuiHexView::SetCellSizeDip
 //
-//  One character cell of the fixed-width face the host paints with. Every
-//  column position here is a whole number of cells, which is what keeps the
-//  hex digits and their characters in line down the view.
+//  One character cell of the host's fixed-width face. Every column position
+//  is a whole number of cells, so hex digits and characters stay aligned down
+//  the view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -829,9 +829,9 @@ void DxuiHexView::GoToOffset (uint64_t offset)
 //
 //  DxuiHexView::GetSelectionText
 //
-//  The selection as the column the user is working in shows it. One Copy, two
-//  answers, decided by where the caret is rather than by which command was
-//  picked off a menu.
+//  The selection in the active column's format: hex digits or characters. A
+//  single Copy command covers both, based on the active column rather than a
+//  separate menu command for each format.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -911,9 +911,8 @@ uint64_t DxuiHexView::GetLastOffset() const
 //
 //  DxuiHexView::MoveCaretTo
 //
-//  Keyboard movement keeps the column the selection was made in, so walking
-//  the caret out of a run made in the text column does not silently turn it
-//  into a hex one.
+//  Keyboard movement does not change the active column, so moving the caret
+//  out of a run selected in the text column does not switch to the hex column.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -972,8 +971,9 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
             return false;
         }
 
-        //  A right-click keeps a selection it lands inside and starts one
-        //  where it does not, then asks the host for its menu.
+        //  A right-click inside the selection leaves it unchanged; outside
+        //  it, the clicked byte is selected. Then the host's menu callback
+        //  runs.
         if (ev.button == DxuiMouseButton::Right)
         {
             SetActiveColumn (hit.column);
@@ -1062,9 +1062,9 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiHexView::OnKey  (IDxuiControl override)
 //
-//  The arrows walk a byte or a row, Home and End take the row's ends and take
-//  the whole view's ends with Ctrl, the page keys move by what the view shows,
-//  and Shift with any of them extends the run instead of starting a new one.
+//  The arrows move by a byte or a row, Home and End move to the ends of the
+//  row (with Ctrl, of the whole source), Page Up and Page Down move by the
+//  visible row count, and Shift with any of them extends the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1121,14 +1121,14 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
     case 'C':
     case 'X':
     case 'V':
-        //  Copy and select all are standard commands, so the same code
-        //  answers the keystroke and the menu row.
+        //  Copy and select all are standard commands, so the keystroke and
+        //  the menu row run the same code.
         return InvokeCommand (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift));
 
     case VK_TAB:
-        //  Tab moves between the columns while there is one left to move to,
-        //  and declines once there is not, which is what lets the walk carry
-        //  on out of the view rather than being trapped in it.
+        //  Tab moves between the columns while another column remains, and
+        //  returns false after the last one, so focus moves on to the next
+        //  control instead of staying in the view.
         if (ev.ctrl)
         {
             return false;
@@ -1163,9 +1163,9 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
 //
 //  DxuiHexView::QueryCommand  (IDxuiControl override)
 //
-//  Copy and select all are the view's; what either one means -- digits or
-//  characters -- is the active column's. The bytes cannot be written here, so
-//  cut and paste are nobody's and travel on.
+//  The view handles Copy and Select all, in the active column's format. The
+//  bytes are read-only here, so Cut and Paste are not handled and pass to the
+//  containing control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1231,9 +1231,9 @@ bool DxuiHexView::InvokeCommand (DxuiStandardCommand command)
 //
 //  DxuiHexView::OnFocusEntered  (IDxuiControl override)
 //
-//  A walk that arrived forward starts at the first column, one that arrived
-//  backward at the last, so Shift+Tab out of the next control lands on the
-//  characters and one more Shift+Tab reaches the digits.
+//  Focus arriving forward starts at the hex column and backward at the text
+//  column, so Shift+Tab from the next control goes to the text column, and
+//  another Shift+Tab to the hex column.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1325,9 +1325,9 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //
 //  DxuiHexView::EnsureCellSize
 //
-//  The cell the columns are built on, measured once from the face that will
-//  draw them. A host that has already set a size keeps it, which is what lets
-//  the geometry be exercised with no device at all.
+//  Measures the cell size once from the face used to draw the columns. A size
+//  the host has already set is left unchanged, so the geometry can be tested
+//  without a device.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1365,9 +1365,8 @@ void DxuiHexView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & t
 //
 //  DxuiHexView::ReadRow
 //
-//  The one place bytes are read. A row at a time, into buffers the view keeps,
-//  so what a frame costs follows the rows on screen and not the size of what
-//  is being shown.
+//  The only place bytes are read: one row at a time, into reused buffers, so
+//  the cost of a frame depends on the visible rows, not the source size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1465,9 +1464,9 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
 //
 //  DxuiHexView::DrawCell
 //
-//  Everything here is drawn at a cell boundary in a fixed-width face, so a
-//  cell run is always left-aligned, unwrapped, and exactly as wide as the
-//  characters it holds.
+//  All text here starts at a cell boundary in a fixed-width face, so a cell
+//  run is always left-aligned, unwrapped, and exactly as wide as its
+//  characters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,10 +12,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  FocusRingTests
 //
-//  The order Tab walks Cassque's window in: the toolbar's usable buttons,
-//  the tab strip, the tree, the list, the preview when it is shown -- and
-//  where a walk goes when it runs off either end or starts from a stop that
-//  has since dropped out.
+//  Cassque's Tab order: the enabled toolbar buttons, the tab strip, the tree,
+//  the list, and the preview when visible; wrapping at either end; and the
+//  result when the current stop is no longer in the list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

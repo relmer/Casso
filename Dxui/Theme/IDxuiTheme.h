@@ -117,33 +117,31 @@ public:
     virtual uint32_t  BackgroundElevated  () const = 0;  // popup / dropdown / text-input surface
     virtual uint32_t  HoverBackground     () const = 0;  // row / menu-item hover fill
 
-    // The surface a list's rows and a tree's items are drawn on, and the
-    // strip along the bottom of a window. Windows fills each of these
-    // differently from the panel behind them -- a list in Explorer is
-    // darker than the window it sits in, and the status strip darker
-    // again -- so a theme that paints all three alike does not read as
-    // native. Both default to the panel for a theme that has not said.
+    // The background of list rows and tree items, and of the status bar.
+    // Windows fills each differently from the panel behind it (in dark mode,
+    // Explorer's list is darker than its window, and its status bar differs
+    // again), so a theme that paints all three the same does not look
+    // native. Both default to the panel color.
     virtual uint32_t  ContentBackground   () const { return Background(); }
+    virtual uint32_t  StatusBackground    () const { return Background(); }
 
     // Lines drawn INSIDE a content surface: a list header's underline, the
-    // hairlines between its columns, the sash between two panes. Quieter
-    // than Border(), which outlines a panel against what is behind it.
+    // separators between its columns, the sash between two panes. Lower
+    // contrast than Border(), which outlines a panel.
     virtual uint32_t  ContentEdge         () const { return Border(); }
 
-    // A row under the pointer and a row that is selected, inside a content
-    // surface. Both are NEUTRAL in Windows -- Explorer lights a row a few
-    // levels off its list background, not in the accent -- while a menu
-    // item's hover is the accent-tinted one. Separate tokens because the
-    // two surfaces genuinely differ; a theme that has not said falls back
-    // to the menu's.
-    // The lighter of the two lines a splitter draws, which is what gives
-    // the sash its relief. Defaults to the panel's edge for a theme that
-    // wants one flat line instead.
+    // The lighter of a splitter's two lines; with the dark line beside it,
+    // the sash appears in relief. Defaults to the panel edge color.
     virtual uint32_t  SplitterHighlight   () const { return Border(); }
 
+    // Hover and selection fills for rows in a content surface. Both are
+    // neutral in Windows (Explorer's are a few levels off its list
+    // background), while a menu item's hover uses the accent. Separate tokens
+    // because the two surfaces differ; a theme that does not set them falls
+    // back to the menu's colors.
     virtual uint32_t  ContentHover        () const { return HoverBackground(); }
     virtual uint32_t  ContentSelection    () const { return SelectionBackground(); }
-    virtual uint32_t  StatusBackground    () const { return Background(); }
+
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight
 

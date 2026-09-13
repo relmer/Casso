@@ -10,12 +10,12 @@
 //
 //  DxuiClipboard
 //
-//  The Windows clipboard, in the one form Dxui puts on it and takes off it.
+//  Unicode text on the Windows clipboard, the only clipboard format Dxui uses.
 //
-//  FAILURES ARE SILENT BY DESIGN. Another application holding the clipboard
-//  open is routine, and an error dialog for a failed Ctrl+C would be worse
-//  than the failure. An empty string is not put on the clipboard at all, so
-//  a copy with nothing selected leaves what the user copied earlier alone.
+//  FAILURES ARE SILENT BY DESIGN. Another application commonly has the
+//  clipboard open, and an error dialog for a failed Ctrl+C would be worse
+//  than the failure. An empty string is never set, so a copy with nothing
+//  selected leaves the existing clipboard contents unchanged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

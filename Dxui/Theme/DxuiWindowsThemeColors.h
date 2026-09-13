@@ -32,11 +32,11 @@ class DxuiWindowsThemeColors
 public:
     static DxuiWindowsThemeColors & Instance();
 
-    //  What Windows itself publishes for the signed-in user: the accent ramp
-    //  from the registry and the list surface from the visual style. Each half
-    //  has its own flag, since either can be missing -- no visual styles, a
-    //  remote session, an account that never chose an accent -- and a theme
-    //  then keeps its own values for that half.
+    //  Colors Windows provides for the signed-in user: the accent ramp from the
+    //  registry and the list surface from the visual style. Each half has its
+    //  own flag, since either can be unavailable (no visual styles, a remote
+    //  session, no accent ever chosen), and a theme then uses its built-in
+    //  values for that half.
     struct SystemColors
     {
         bool      hasAccent    = false;

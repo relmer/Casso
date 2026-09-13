@@ -49,17 +49,16 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  panelBg                  = 0;
     uint32_t  panelEdge                = 0;
 
-    //  The surface rows are drawn on -- a list's body, a tree's pane -- and
-    //  the strip along the bottom of a window. Windows gives each of these a
-    //  fill of its own: in Explorer they are not the panel's color and not
-    //  each other's. Left at zero they fall back to the panel.
+    //  The background of row surfaces (a list's body, a tree's pane) and of the
+    //  status bar. In Explorer each has its own fill, distinct from the panel
+    //  color and from each other. A zero value falls back to the panel color.
     uint32_t  contentBg                = 0;
     uint32_t  statusBg                 = 0;
 
-    //  The column titles over a list, and the lines drawn inside a content
-    //  surface -- a header's underline, the hairlines between columns. Both
-    //  are far quieter than the panel's own edge: Explorer's are a few levels
-    //  off its list background, not a visible gray.
+    //  List column title text, and lines within a content surface (a header's
+    //  underline, the separators between columns). Both are much lower contrast
+    //  than the panel edge: Explorer's are a few levels off its list
+    //  background.
     uint32_t  headingText              = 0;
     uint32_t  contentEdge              = 0;
     uint32_t  splitterHighlight        = 0;

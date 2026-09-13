@@ -12,14 +12,14 @@ class IDxuiControl;
 //
 //  DxuiStandardCommand
 //
-//  The commands whose meaning belongs to whatever has focus rather than to the
-//  application: what Copy copies is decided by the control the caret is in, not
-//  by the window, and the same goes for the rest of them.
+//  Commands whose behavior depends on the focused control rather than the
+//  application: what Copy copies depends on the control with the caret, not
+//  on the window, and the same applies to the others.
 //
-//  THESE ARE THE ONLY COMMANDS THE LIBRARY NAMES. Everything else an app can do
-//  is the app's own, declared in its own table with its own id. A command
-//  arrives here only when several unrelated controls would each answer it
-//  differently and the answer has to follow the focus.
+//  THESE ARE THE ONLY COMMANDS THE LIBRARY DEFINES. All other commands belong
+//  to the application, in its own table with its own ids. A command belongs
+//  here only when several unrelated controls would each handle it differently
+//  and the handling has to follow focus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,16 +43,16 @@ enum class DxuiStandardCommand
 //
 //  DxuiCommandRouter
 //
-//  Carries a standard command to the control that answers it: the focused one
-//  first, then out through its parents, so a control that does not know the
-//  command lets the one containing it answer.
+//  Routes a standard command to the control that handles it: the focused
+//  control first, then each parent in turn, so a control that does not handle
+//  the command passes it to its container.
 //
-//  ONE KEY TABLE FOR THE WHOLE LIBRARY. Ctrl+C means Copy in a text box, a list
-//  and a hex view, and it is spelled out here once instead of in each of them.
-//  A widget translates the key and asks itself; a menu asks the focused control
-//  what the row should say and does the same thing when the row is picked. The
-//  two paths meet at InvokeCommand, so a menu and its accelerator cannot come
-//  to different conclusions.
+//  ONE KEY TABLE FOR THE WHOLE LIBRARY. Ctrl+C is Copy in a text box, a list
+//  and a hex view, and the mapping is defined here once instead of in each
+//  widget. A widget translates the key and invokes the command on itself; a
+//  menu queries the focused control for a row's state and invokes the same
+//  command when the row is picked. Both paths call InvokeCommand, so a menu
+//  row and its accelerator always behave the same.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,9 +62,9 @@ public:
     //  The standard command a keystroke means, or None.
     static DxuiStandardCommand  TranslateKey (WPARAM vk, bool ctrl, bool alt, bool shift);
 
-    //  Asks `from` and then each control containing it, stopping at the first
-    //  that answers. Query reports whether anything claims the command at all,
-    //  which is what decides between a grayed row and no row.
+    //  Tries `from` and then each control containing it, stopping at the first
+    //  that handles the command. Query returns whether any control handles the
+    //  command at all, which determines whether a menu row is grayed or absent.
     static bool  Invoke (IDxuiControl * from, DxuiStandardCommand command);
     static bool  Query  (const IDxuiControl * from, DxuiStandardCommand command, bool & outEnabled);
 };

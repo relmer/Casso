@@ -209,16 +209,14 @@ void DxuiSplitter::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  DxuiSplitter::Paint
 //
-//  A HAIRLINE OVER A WIDE GRAB BAND. The sash rect is what the pointer can
-//  take hold of; what gets drawn is two one-pixel lines down the middle of
-//  it, a dark one and a lighter one beside it. That pair is what gives
-//  Explorer's sash its slight relief -- measured at 120 dpi, #202020 against
-//  #2B2B2B -- and it is why a splitter that fills its whole grab band with
-//  one flat gray reads as a bar rather than a seam.
+//  A HAIRLINE OVER A WIDE GRAB BAND. The sash rect is the area the pointer can
+//  grab; the drawing is two one-pixel lines down its middle, a dark one and a
+//  lighter one beside it. With that pair, Explorer's sash appears in relief
+//  (measured at 120 dpi: #202020 and #2B2B2B). A splitter that fills its whole grab band
+//  with one flat gray looks like a bar, not a seam.
 //
-//  There is NO hover fill. Explorer says "you can drag this" by changing the
-//  cursor and in no other way, and a sash that lights up under the pointer
-//  is the first thing that gives a window away as not native.
+//  There is NO hover fill. Explorer indicates a draggable sash only by
+//  changing the cursor.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

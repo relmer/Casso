@@ -1486,10 +1486,10 @@ void CassqueBrowser::RestoreTabs (const std::vector<Location> & locations)
 //
 //  CassqueBrowser::GetRowIcon
 //
-//  A host folder's rows are real files and folders, so the shell answers for
-//  each -- a disk image gets whatever its extension is registered to show. A
-//  row inside an image has no path Windows could look at, so it gets the
-//  plain folder or file.
+//  A host folder's rows are real files and folders, so each gets the shell's
+//  icon for its path, and a disk image gets the icon registered for its
+//  extension. A row inside an image has no host path, so it gets the generic
+//  folder or file icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

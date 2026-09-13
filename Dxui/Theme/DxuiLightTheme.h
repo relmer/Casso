@@ -27,9 +27,8 @@ struct DxuiLightTheme : public DxuiTheme
 {
     DxuiLightTheme();
 
-    //  Overwrites the values Windows publishes -- the list surface and the
-    //  accent -- keeping the built-in ones for whatever it does not. Not done
-    //  in the constructor, so a theme built in a test does not depend on the
-    //  machine it runs on.
+    //  Replaces the built-in list surface and accent colors with the values
+    //  Windows provides, where it provides them. Not done in the constructor,
+    //  so a theme created in a test does not depend on the machine.
     void  ApplySystemColors (const DxuiWindowsThemeColors::SystemColors & colors);
 };

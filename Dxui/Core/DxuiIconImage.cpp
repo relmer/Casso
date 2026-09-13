@@ -12,15 +12,15 @@
 //
 //  Into a top-down 32-bit DIB cleared to zero, with DrawIconEx.
 //
-//  THE RESULT IS ALREADY PREMULTIPLIED. GDI composites an alpha icon over
-//  the cleared bitmap, and anything composited over zero comes out as color
-//  times alpha. Measured 2026-09-12 on three icons: of 103 partly transparent
-//  pixels not one had a color channel above its alpha, which straight alpha
-//  would show at every light-colored edge. Casso's caption used to multiply
-//  by alpha a second time, darkening every anti-aliased edge of its icon.
+//  THE RESULT IS ALREADY PREMULTIPLIED. GDI composites an alpha icon over the
+//  cleared bitmap, and compositing over zero produces color times alpha.
+//  Measured 2026-09-12 on three icons: none of 103 partly transparent pixels
+//  had a color channel above its alpha, which straight alpha would produce at
+//  every light-colored edge. Casso's caption used to multiply by alpha a
+//  second time, which darkened the anti-aliased edges of its icon.
 //
-//  An icon with no alpha channel draws its colors and leaves every alpha at
-//  zero; its mask then says which pixels are really there.
+//  An icon with no alpha channel draws its colors with every alpha at zero;
+//  its mask then indicates which pixels are opaque.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,8 +117,8 @@ Error:
 //
 //  DxuiIconImage::ApplyMask
 //
-//  The mask draws black where the icon is and white where it is not. A pixel
-//  it keeps is opaque, so its color already is its premultiplied color.
+//  DI_MASK draws black for opaque pixels and white for transparent ones. An
+//  opaque pixel's color is already its premultiplied color.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

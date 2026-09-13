@@ -69,12 +69,12 @@ DxuiDarkTheme::DxuiDarkTheme()
 //
 //  DxuiDarkTheme::ApplySystemColors
 //
-//  A dark surface takes the accent a step lighter, Light2 with Light3 for
-//  hover, as Fluent does.
+//  On a dark surface the accent is one step lighter, Light2 with Light3 for
+//  hover, as in Fluent.
 //
-//  The text is left alone. The visual style's list text is the classic
-//  style's value, which for light is #000000 where Windows 11 draws #1A1A1A,
-//  and the body text drives every menu and dialog besides the list.
+//  Text color is unchanged. The visual style's list text color is the classic
+//  style's value, #000000 for light where Windows 11 uses #1A1A1A, and body
+//  text is also used for every menu and dialog.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

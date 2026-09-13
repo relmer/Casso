@@ -32,19 +32,18 @@ struct FocusStop
 //
 //  FocusRing
 //
-//  The order Tab walks the browser window in, and the step from one stop to
-//  the next.
+//  The Tab order of the browser window, and the step from one stop to the
+//  next.
 //
-//  HEADLESS, SO THE ORDER IS TESTED RATHER THAN CLICKED THROUGH. The window
-//  says which stops can take focus right now and applies the answer; which
-//  stop comes next -- skipping a button that cannot be used, wrapping at the
-//  ends, where a walk starts when focus is somewhere the ring no longer holds
-//  -- is decided here.
+//  HEADLESS, SO THE ORDER IS UNIT TESTED. The window supplies the stops that
+//  can take focus and applies the result. This class computes the next stop:
+//  it skips disabled buttons, wraps at the ends, and restarts from an end
+//  when the current stop is no longer in the list.
 //
-//  The order is Explorer's reading order: the toolbar's buttons left to right,
-//  the tab strip, the folder tree, the file list, and the preview. The menu
-//  bar is not in it. A menu is reached with Alt or F10, as in any Windows
-//  program, and Explorer has none.
+//  The order follows Explorer: the toolbar buttons left to right, the tab
+//  strip, the folder tree, the file list, and the preview. The menu bar is
+//  excluded; Alt or F10 opens a menu, as in any Windows program, and Explorer
+//  has no menu bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,8 +54,9 @@ public:
     //  used right now and the preview while it is hidden.
     static std::vector<FocusStop>  BuildStops (const std::vector<bool> & toolbarEnabled, bool previewVisible);
 
-    //  The stop after `current`, or before it walking backward, wrapping at
-    //  either end. A current stop the ring no longer holds -- a button that was
-    //  just disabled -- starts the walk from the front, or from the back.
+    //  The stop after `current`, or before it when moving backward, wrapping at
+    //  either end. If `current` is not in `stops`, for example a button that was
+    //  just disabled, the result is the first stop, or the last when moving
+    //  backward.
     static FocusStop  GetNext (const std::vector<FocusStop> & stops, const FocusStop & current, bool forward);
 };

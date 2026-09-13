@@ -13,9 +13,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  RecordingShellIcons
 //
-//  Records what it was asked for and hands back one marker picture for a path
-//  and another for a kind, so a test can tell which question produced the icon
-//  a node or a row ended up with.
+//  Records each request and returns one marker image for a path and another
+//  for a kind, so a test can tell which request produced the icon on a node or
+//  a row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,9 +48,9 @@ public:
 //
 //  CassqueShellIconsTests
 //
-//  A real path gets the shell's icon for that path; anything with no path
-//  Windows could look at -- an entry inside an image, This PC, Casso -- gets
-//  a kind. Only the name column carries one.
+//  A real path gets the shell's icon for that path; anything without a host
+//  path (an entry inside an image, This PC, Casso) gets a kind icon. Only the
+//  name column has an icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

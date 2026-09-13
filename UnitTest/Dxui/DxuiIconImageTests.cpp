@@ -12,14 +12,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiIconImageTests
 //
-//  What an icon becomes once rasterized: premultiplied pixels, whether it
-//  carries an alpha channel or only a mask. The icons are built from known
-//  2x2 pixels with CreateIconIndirect, so no resource and no desktop is
-//  involved.
+//  Rasterized icons are premultiplied, whether the icon has an alpha channel
+//  or only a mask. The icons are built from known 2x2 pixels with
+//  CreateIconIndirect, so no resource or desktop is involved.
 //
-//  The premultiplied case is the one that matters. GDI already writes an
-//  alpha icon premultiplied, and a second multiply -- which Casso's caption
-//  once applied -- darkens every partly transparent edge.
+//  The premultiplied case is the important one. GDI already writes an alpha
+//  icon premultiplied, and a second multiply, as Casso's caption once applied,
+//  darkens every partly transparent edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

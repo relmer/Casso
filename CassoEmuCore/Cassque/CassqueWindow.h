@@ -110,18 +110,18 @@ protected:
     DxuiMessageResult  OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 private:
-    //  Where the keyboard is. The toolbar is one pane whose focused button is
-    //  m_toolbarFocus; FocusRing decides the order Tab walks them in.
+    //  Keyboard focus. The toolbar is one pane, with its focused button in
+    //  m_toolbarFocus; FocusRing defines the Tab order.
     enum class Pane { Toolbar, Tabs, Tree, List, Preview };
 
     ////////////////////////////////////////////////////////////////////////////
     //
     //  PreviewBytes
     //
-    //  The bytes of the previewed file, as the hex view reads them. The
-    //  preview's content is owned by the browser and replaced whole on every
-    //  selection change, so this holds a pointer to it rather than a copy and
-    //  is pointed at the new content each time the preview is refilled.
+    //  The previewed file's bytes, as a source for the hex view. The browser
+    //  owns the preview content and replaces it on every selection change, so
+    //  this stores a pointer rather than a copy, updated each time the preview
+    //  is refilled.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -183,13 +183,13 @@ private:
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;
 
-    //  The control the focused pane stands for, which is where a standard
-    //  command -- Copy, Select all -- is routed from.
+    //  The focused pane's control, where routing of a standard command such as
+    //  Copy or Select all starts.
     IDxuiControl *  GetFocusedControl() const;
 
-    //  Whether the preview pane is currently showing bytes rather than lines,
-    //  a picture or a message -- which is what decides where a key, a copy or
-    //  a Tab inside the pane goes.
+    //  Whether the preview pane currently displays the hex view rather than
+    //  lines, a picture or a message. Key, copy and Tab routing in the pane
+    //  depend on it.
     bool  IsHexPreviewShowing() const;
     bool  RouteToolbarMouse   (const DxuiMouseEvent & ev);
 

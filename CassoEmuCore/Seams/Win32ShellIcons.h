@@ -13,11 +13,11 @@
 //  Win32ShellIcons
 //
 //  IShellIcons through SHGetFileInfo, rasterized once at the row's pixel size
-//  and kept.
+//  and cached.
 //
-//  CACHED BY WHAT DECIDES THE ICON. Every .dsk in a folder shows the same
-//  picture, so an ordinary file is cached by its extension; a folder, a drive
-//  and the few file types that carry an icon of their own are cached by path.
+//  THE CACHE KEY DETERMINES WHICH ICONS ARE SHARED. Every .dsk file has the
+//  same icon, so an ordinary file is cached by extension; folders, drives and
+//  file types with per-file icons (.exe, .lnk, .ico, .url) are cached by path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

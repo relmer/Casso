@@ -250,9 +250,9 @@ void CassqueWindow::OnCreate()
     m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
     m_tooltip.SetPopupHost     (GetPopupHost());
 
-    //  Explorer's navigation glyphs are Windows 11's Fluent icons. A system
-    //  without that font keeps MDL2, which has the same code points, rather
-    //  than drawing every toolbar glyph as nothing.
+    //  Explorer's navigation glyphs are in Windows 11's Segoe Fluent Icons.
+    //  Without that font, use MDL2, which has the same code points; text in a
+    //  missing font renders as nothing.
     m_toolbar->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                             ? DxuiToolbar::kFluentIconFace
                             : DxuiToolbar::kMdl2IconFace);
@@ -836,8 +836,8 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
 //
 //  CassqueWindow::BuildFocusStops
 //
-//  A toolbar button that cannot be used right now -- Back with nothing to go
-//  back to -- is no stop, as a disabled control never is in Windows.
+//  A disabled toolbar button, such as Back with no history, is not a stop,
+//  as disabled controls are not tab stops in Windows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1007,9 +1007,9 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A widget mid-drag keeps the mouse until the button comes up, wherever
-    //  the pointer has wandered to. Without this a scrollbar puck dragged out
-    //  of its own pane is taken over by whatever the pointer crossed into.
+    //  Mouse input goes to a widget mid-drag until the button is released,
+    //  wherever the pointer is. Otherwise a scrollbar thumb dragged out of its
+    //  pane transfers the drag to the pane under the pointer.
     if (m_list->IsInteracting())
     {
         m_list->OnMouse (ToLocal (ev, m_list->GetBounds()));
@@ -1095,9 +1095,9 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  The hex view reads a point in the same space as its bounds, so it is
-    //  handed the event as it stands rather than moved to the widget's own
-    //  origin the way the older list views want.
+    //  DxuiHexView takes points in the same coordinates as its bounds, so the
+    //  event is passed unchanged, not converted to widget-local coordinates as
+    //  the older list views require.
     if (m_hexView->IsVisible() && Contains (m_hexView->GetBounds(), point))
     {
         if (press)
@@ -1228,9 +1228,8 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  Tab walks the whole window -- the toolbar's usable buttons, the tab
-    //  strip, the tree, the list and the preview -- in the order FocusRing
-    //  keeps.
+    //  Tab moves through the enabled toolbar buttons, the tab strip, the tree,
+    //  the list and the preview, in the order FocusRing defines.
     if (ev.vk == VK_TAB && !ev.ctrl)
     {
         FocusStop  next = FocusRing::GetNext (BuildFocusStops(), GetFocusStop(), !ev.shift);
@@ -1287,8 +1286,8 @@ bool CassqueWindow::IsEnabled (int id) const
 
 
 
-    //  A standard row is as enabled as the focused control says, and grayed
-    //  where nothing claims it at all.
+    //  A standard command row is enabled when the focused control reports it
+    //  available, and grayed when no control handles it.
     if (standard != DxuiStandardCommand::None)
     {
         return DxuiCommandRouter::Query (GetFocusedControl(), standard, enabled) && enabled;
@@ -1420,9 +1419,9 @@ void CassqueWindow::SetHexGrouping (int grouping)
 //
 //  CassqueWindow::AskForOffset
 //
-//  Offsets are typed the way the column shows them, in hex, with or without
-//  the dollar sign. What is typed is an ADDRESS when the file records a load
-//  address, since that is what the user is reading down the left-hand column.
+//  Offsets are entered in hex, with or without a dollar sign, as the offset
+//  column displays them. When the file has a load address, the value entered
+//  is an address, matching the left-hand column.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1470,9 +1469,9 @@ void CassqueWindow::AskForOffset()
 //
 //  CassqueWindow::ShowHexContextMenu
 //
-//  Copy, select all and go to offset -- the three that mean anything over a
-//  run of bytes. Each is the same command the Edit menu carries, so what the
-//  right button offers and what the menu offers cannot drift apart.
+//  Copy, Select all and Go to offset, the commands that apply to a run of
+//  bytes. Each item uses the same command object as the Edit menu, so the two
+//  menus stay consistent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

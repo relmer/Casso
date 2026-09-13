@@ -273,8 +273,8 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             consumed = true;
             break;
 
-        //  Cut, copy, paste and select all arrive through InvokeCommand,
-        //  which the menu bar reaches too.
+        //  Cut, copy, paste and select all go through InvokeCommand, which
+        //  menu commands also call.
 
         default:
             break;
@@ -707,8 +707,7 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
 //
 //  DxuiTextInput::QueryCommand  (IDxuiControl override)
 //
-//  A read-only box can be copied from but not written to, and a copy or a cut
-//  needs something selected to act on.
+//  Copy and Cut require a selection; Select all requires text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -759,8 +758,8 @@ bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
 
     if (!QueryCommand (command, enabled) || !enabled)
     {
-        //  A command this control owns but cannot run right now is still its
-        //  own: claiming it keeps the keystroke from reaching past the caret.
+        //  A command this control handles but cannot run now still returns
+        //  true, so the keystroke is not passed to the containing control.
         return QueryCommand (command, enabled);
     }
 

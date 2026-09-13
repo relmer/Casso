@@ -12,9 +12,9 @@
 //
 //  DxuiCommandRouter::TranslateKey
 //
-//  The Windows keystrokes for these commands, including the older second
-//  spellings that some keyboards and habits still use: Ctrl+Insert for Copy
-//  and Shift+Insert for Paste.
+//  The Windows keystrokes for these commands, including the older alternates
+//  still in use: Ctrl+Insert for Copy, Shift+Insert for Paste and Shift+Delete
+//  for Cut.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

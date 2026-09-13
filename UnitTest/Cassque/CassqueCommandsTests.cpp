@@ -36,9 +36,8 @@ public:
     }
 
 
-    //  Copy and select all show their keystrokes but claim none: both mean
-    //  different things in the hex view's two columns, so the pane with focus
-    //  handles them and the window never takes them first.
+    //  Copy and select all display their keystrokes in the menu but are not in
+    //  the key table: DxuiCommandRouter handles them for the focused pane.
     TEST_METHOD (Keys_CopyAndSelectAllAreLeftToTheFocusedPane)
     {
         Assert::AreEqual (0, CassqueCommands::TranslateKey (WPARAM ('C'), true, false, false));
@@ -107,9 +106,9 @@ public:
             Assert::IsFalse   (entry.command->tip.empty());
         }
 
-        //  Back, Forward, Up and Refresh are one group of bare icons, as
-        //  Explorer draws them; the new tab button keeps its label and starts
-        //  a group of its own.
+        //  Back, Forward, Up and Refresh are one group of icon-only buttons,
+        //  as in Explorer; the new tab button is labeled and starts its own
+        //  group.
         for (size_t i = 0; i < 4; i++)
         {
             Assert::IsTrue   (entries[i].iconOnly,              L"The navigation buttons are icons alone");

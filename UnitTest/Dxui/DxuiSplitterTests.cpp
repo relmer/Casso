@@ -168,8 +168,8 @@ public:
     }
 
 
-    //  A hairline over a wide grab band, and no hover fill: Explorer says a
-    //  sash can be dragged by changing the cursor and in no other way.
+    //  A hairline over a wide grab band, and no hover fill: Explorer indicates
+    //  a draggable sash only by changing the cursor.
     TEST_METHOD (Paint_IsAHairlinePairOverTheContentSurface)
     {
         DxuiSplitter          splitter;

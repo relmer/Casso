@@ -135,8 +135,8 @@ public:
         DecorationFn               decoration;
         IDxuiToolbarCustomEntry  * custom     = nullptr;
 
-        //  Never labeled, however much room the strip has -- Explorer's Back,
-        //  Forward, Up and Refresh are bare icons. The tooltip still names it.
+        //  Never labeled, regardless of available width, like Explorer's Back,
+        //  Forward, Up and Refresh buttons. The tooltip text is unchanged.
         bool  iconOnly = false;
     };
 
@@ -146,10 +146,9 @@ public:
     void  SetEntries       (std::vector<Entry> entries);
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
 
-    //  The two icon faces the glyphs in UnicodeSymbols.h render in. They share
-    //  code points; Windows 11 draws its own chrome in the Fluent one, whose
-    //  shapes differ in places -- Refresh most visibly -- and which Windows 10
-    //  does not have.
+    //  The two icon fonts for the glyphs in UnicodeSymbols.h. They use the same
+    //  code points; Windows 11 uses Fluent for its own chrome, which draws some
+    //  glyphs differently (Refresh most visibly) and is not in Windows 10.
     static constexpr const wchar_t *  kMdl2IconFace   = L"Segoe MDL2 Assets";
     static constexpr const wchar_t *  kFluentIconFace = L"Segoe Fluent Icons";
     void  SetTextRenderer  (IDxuiTextRenderer * text)    { m_textRenderer = text; }

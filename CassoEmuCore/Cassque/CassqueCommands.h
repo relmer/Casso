@@ -81,8 +81,8 @@ public:
     //  and the preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
 
-    //  The toolbar entries' commands in strip order, so a host stepping focus
-    //  along the strip can ask whether each one can be used.
+    //  The toolbar entries' commands in strip order, so a host moving focus
+    //  along the strip can check whether each one is enabled.
     static size_t  GetToolbarEntryCount ();
     static int     GetToolbarCommandId  (size_t index);
     const DxuiCommand *           Find (int id) const;
@@ -91,8 +91,8 @@ public:
     //  a caller asks before offering Alt to the menu bar's mnemonics.
     static int  TranslateKey (WPARAM vk, bool ctrl, bool alt, bool shift);
 
-    //  The standard command a row stands for, or None for a row the window
-    //  answers itself.
+    //  The standard command for a row, or None for a row the window handles
+    //  itself.
     static DxuiStandardCommand  GetStandardCommand (int id);
 
     static const wchar_t *  GetMenuTitle (Menu menu);
@@ -196,9 +196,9 @@ private:
         { 'G',      true,  false, false, kGoToOffset    },
     };
 
-    //  The standard commands are NOT in the key table: DxuiCommandRouter owns
-    //  their keystrokes, and the control with focus answers them. The rows
-    //  carry the accelerator text so the menu still shows what to press.
+    //  The standard commands are NOT in the key table: DxuiCommandRouter
+    //  defines their keystrokes, and the focused control handles them. The
+    //  rows still include the accelerator text for the menu.
 
     Handlers                                   m_handlers;
     std::vector<std::unique_ptr<DxuiCommand>>  m_commands;

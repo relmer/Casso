@@ -14,10 +14,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiSystemColorsTests
 //
-//  How the accent ramp Windows publishes is decoded, and what each Windows
-//  theme takes from it. The bytes are the AccentPalette value read off a
-//  machine on its default blue accent, cross-checked against UISettings; no
-//  test reads the machine it runs on.
+//  Decoding the accent ramp Windows provides, and which values each Windows
+//  theme uses. The bytes are the AccentPalette value from a machine with the
+//  default blue accent, checked against UISettings; no test reads the machine
+//  it runs on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

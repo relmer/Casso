@@ -15,8 +15,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CommandAnswerer
 //
-//  A control that answers one standard command and nothing else, so a test can
-//  put it at a chosen depth and watch the router reach it.
+//  A control that handles one standard command and nothing else, so a test can
+//  place it at a chosen depth and check that the router delivers the command.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,8 +58,8 @@ public:
 //
 //  DxuiStandardCommandTests
 //
-//  Which keystroke means which command, how far out the router looks for an
-//  answer, and what the widgets that answer claim.
+//  The keystroke for each command, how far up the parent chain the router
+//  goes, and which commands each widget handles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

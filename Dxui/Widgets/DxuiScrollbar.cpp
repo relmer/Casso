@@ -19,11 +19,11 @@ static constexpr int       s_kArrowCount        = 2;
 static constexpr int       s_kArrowFitSlackPx   = 2;
 static constexpr float     s_kThumbCrossInsetPx = 1.0f;
 
-//  Windows 11 leaves a scrollbar at rest as a thin rounded puck with no
-//  track behind it, and widens it into the familiar bar with arrows only
-//  while the pointer is on it. Measured in Explorer's navigation pane at
-//  120 dpi: three pixels of #959595, no track. The GRAB BAND is the whole
-//  strip either way -- what narrows is only what is drawn.
+//  At rest, a Windows 11 scrollbar is a thin rounded thumb with no track, and
+//  it widens to the full bar with arrows only while the pointer is over it.
+//  Measured in Explorer's navigation pane at 120 dpi: three pixels of #959595,
+//  no track. The GRAB BAND is the full strip in both states; only the drawing
+//  narrows.
 static constexpr int       s_kRestThumbDip      = 3;
 static constexpr uint32_t  s_kRestThumbAlpha    = 0x99000000u;
 
@@ -605,7 +605,7 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
         PaintThumb (painter, m.thumbStart, (float) m.bar.top + inset, m.thumbLength, thumbW, thumbArgb);
     }
 
-    //  Arrows belong to the widened bar only; at rest Windows shows none.
+    //  Arrows are drawn only on the widened bar, as in Windows.
     if (wide && m.arrowLess.right > m.arrowLess.left && m.arrowLess.bottom > m.arrowLess.top)
     {
         PaintArrow (painter, m.arrowLess, true,  arrowArgb);

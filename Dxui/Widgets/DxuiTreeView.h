@@ -105,11 +105,10 @@ public:
     void  SetRect      (const RECT & rect) { SetBounds (rect); }
     void  SetRowHeight (int px) { m_rowHeightPx = px; }
 
-    //  True while the pointer still owns this tree even if it has wandered
-    //  off it -- a scrollbar puck held down. The host keeps routing to the
-    //  widget that started the drag until the button comes up, the way Win32
-    //  capture does, so a drag that strays into the pane beside it goes on
-    //  scrolling this one rather than being taken over by the neighbour.
+    //  True while a scrollbar thumb drag is in progress, even with the pointer
+    //  outside the tree. The host routes mouse input to the widget that started
+    //  the drag until the button is released, as Win32 capture does, so
+    //  dragging into the adjacent pane keeps scrolling this tree.
     bool  IsInteracting () const { return m_vertScroll.IsDragging(); }
 
     //  Explorer's navigation pane, measured at 120 dpi: forty pixels a row.

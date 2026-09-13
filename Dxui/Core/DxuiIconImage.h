@@ -10,13 +10,13 @@
 //
 //  DxuiIconImage
 //
-//  A small picture drawn beside a row's text: premultiplied BGRA, top row
+//  A small image drawn beside a row's text: premultiplied BGRA, top row
 //  first, width by height.
 //
-//  PIXELS, NOT A HANDLE. Where the picture came from -- the shell, a resource,
-//  a test -- is the host's business, so a widget that shows one stays free of
-//  HICONs and can be exercised with no desktop at all. Shared and immutable,
-//  since a folder's worth of rows usually shows a handful of distinct icons.
+//  PIXELS, NOT A HANDLE. The source of the image (the shell, a resource, a
+//  test) is up to the host, so widgets that draw one use no HICONs and can be
+//  tested without a desktop. Shared and immutable, since the rows of a folder
+//  typically use only a few distinct icons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

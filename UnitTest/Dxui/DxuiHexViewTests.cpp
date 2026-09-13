@@ -15,8 +15,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CountingHexSource
 //
-//  A run of bytes whose value is its own offset, counting every byte the view
-//  asks for so a test can prove the view reads only what it draws.
+//  A run of bytes whose values are their own offsets, counting every byte the
+//  view reads so a test can verify it reads only the rows it draws.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -607,8 +607,8 @@ public:
         RECT                  rect  = {};
 
 
-        //  What the emulator's debugger will hand it: a whole address space,
-        //  labeled from where the machine says it starts rather than zero.
+        //  The debugger's use case: a whole address space, labeled from the
+        //  machine's start address rather than zero.
         view.SetSource (&source);
         view.SetOriginAddress (0xC000);
         LayOut (view);

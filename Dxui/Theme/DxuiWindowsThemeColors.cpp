@@ -158,10 +158,10 @@ uint32_t DxuiWindowsThemeColors::ToArgb (COLORREF color)
 //
 //  DxuiWindowsThemeColors::DecodeAccentPalette
 //
-//  Fluent takes the accent a step lighter on a dark surface and a step darker
-//  on a light one, so a dark theme's accent is Light2 and a light theme's is
-//  Dark1, each with the next step out for hover. UISettings reports the same
-//  ramp; the registry is read instead so the library needs no WinRT.
+//  Fluent uses the accent one step lighter on a dark surface and one step
+//  darker on a light one, so a dark theme's accent is Light2 and a light
+//  theme's is Dark1, each with the next step for hover. UISettings returns the
+//  same values; the registry is read instead so the library does not use WinRT.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -252,9 +252,9 @@ void DxuiWindowsThemeColors::ReadAccentPalette (SystemColors & colors)
 //
 //  DxuiWindowsThemeColors::ReadItemsViewColors
 //
-//  Both modes are read whatever mode is active, so a window set to Light while
-//  Windows is dark still gets the system's light surface. Measured 2026-09-12:
-//  the dark class gives #191919, the value read off Explorer by capture.
+//  Both modes are read regardless of the active mode, so a window set to Light
+//  while Windows is dark still gets the system's light surface color. Measured
+//  2026-09-12: the dark class returns #191919, the value measured in Explorer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -53,14 +53,14 @@ struct PreviewContent
 //
 //  Which kind of preview an entry gets, and the rendering of it.
 //
-//  THE KIND FOLLOWS THE TYPE BYTE and, for a binary, the graphics rule; nothing
-//  here sniffs contents, because the catalog already said what the file is
-//  and a type A file that will not detokenize is shown as the error it is
-//  rather than as the hex dump it also is.
+//  THE KIND FOLLOWS THE TYPE BYTE and, for a binary, the graphics rule. File
+//  contents are not inspected, since the catalog type already identifies the
+//  file, and a type A file that will not detokenize is shown as an error, not
+//  as a hex dump.
 //
-//  A hex preview carries the payload's bytes and the address they start at,
-//  which the hex view reads from directly; the disassembly toggle renders the
-//  same bytes through the NMOS table from the same address into lines.
+//  A hex preview contains the payload's bytes and their start address, and
+//  the hex view reads them directly; the disassembly toggle renders the same
+//  bytes through the NMOS table from the same address into lines.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2871,12 +2871,11 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
         fixedTotal += wpx;
     }
 
-    //  The stretch column takes what the others leave, but never less than the
-    //  width it was declared with. A narrow pane used to hand it nothing, and
-    //  since GetContentWidthPx does count that declared width, the scroll range
-    //  made room for a column that was never drawn -- the list opened with its
-    //  first column simply missing. A stretch column declared at zero still
-    //  shrinks to fit, as before.
+    //  The stretch column gets the remaining width, but never less than its
+    //  declared width. A narrow pane used to leave it zero width while
+    //  GetContentWidthPx included the declared width, so the scroll range
+    //  included a column that was never drawn. A stretch column declared at
+    //  zero still shrinks to fit.
     if (stretchIdx >= 0)
     {
         int  rem     = (int) fullW - fixedTotal;
@@ -2902,10 +2901,10 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
 //
 //  DxuiListView::QueryCommand  (IDxuiControl override)
 //
-//  Select all is the list's when it can hold more than one selection at a
-//  time. What Copy would mean over a set of rows is the host's business --
-//  file names, a path, a row of cells -- so the list does not claim it and
-//  the router carries it out to whatever does.
+//  The list handles Select all when multiple selection is enabled. The meaning
+//  of Copy for a set of rows (file names, a path, cell text) depends on the
+//  host, so the list does not handle it and the router passes it to the
+//  containing control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

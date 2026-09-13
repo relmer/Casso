@@ -88,9 +88,9 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
 //
 //  Win32ShellIcons::Remember
 //
-//  Takes ownership of the handle: it is rasterized, destroyed, and the pixels
-//  kept. A failure is remembered too, as no icon, so a path the shell cannot
-//  answer for is not asked again on every repaint.
+//  Takes ownership of the handle: the icon is rasterized, the handle destroyed
+//  and the pixels cached. A failure is cached too, as no icon, so a path with
+//  no shell icon is not looked up again on every repaint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,8 +169,8 @@ std::wstring Win32ShellIcons::GetCacheKey (const std::wstring & path)
 //
 //  Win32ShellIcons::LoadForPath
 //
-//  A path that is not there -- a known folder since removed -- is answered by
-//  what it would look like, which is the only thing the shell can say.
+//  For a path that no longer exists, such as a removed known folder, the icon
+//  comes from its attributes alone (SHGFI_USEFILEATTRIBUTES).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,8 +202,8 @@ HICON Win32ShellIcons::LoadForPath (const std::wstring & path, UINT sizeFlag)
 //
 //  Win32ShellIcons::LoadForKind
 //
-//  The Casso node takes the emulator's own icon from the executable beside
-//  this one, which is where the shell would find it too.
+//  The Casso node uses the icon of Casso.exe in the same directory as this
+//  executable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

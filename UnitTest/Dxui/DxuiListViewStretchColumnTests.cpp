@@ -10,13 +10,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiListViewStretchColumnTests
 //
-//  A stretch column fills what the other columns leave, but never shrinks
-//  below the width it was declared with. Before, a pane narrower than the
-//  fixed columns handed it nothing -- while the horizontal scroll range still
-//  counted its declared width -- so Cassque's file list opened with its Name
-//  column missing and an empty stretch of scrollbar where it should have been.
+//  A stretch column fills the width the other columns leave, but is never
+//  narrower than its declared width. Previously, in a pane narrower than the
+//  fixed columns it got zero width while the horizontal scroll range still
+//  included its declared width, so Cassque's file list opened without its Name
+//  column.
 //
-//  96 DPI, so a DIP is a pixel and the arithmetic reads directly.
+//  96 DPI, so a DIP is a pixel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

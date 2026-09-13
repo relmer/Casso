@@ -10,11 +10,11 @@
 //
 //  DxuiClipboard::SetText
 //
-//  ownsGlobal tracks who is responsible for the memory. The clipboard takes
-//  ownership only when SetClipboardData succeeds: freeing after a successful
-//  set corrupts the clipboard, and not freeing after a failed one leaks. The
-//  flag is raised at allocation and lowered exactly on success, so the single
-//  cleanup block does the right thing from every exit.
+//  ownsGlobal indicates whether this function must free the memory. The
+//  clipboard owns it only after SetClipboardData succeeds: freeing it after a
+//  successful set corrupts the clipboard, and not freeing it after a failed
+//  one leaks. The flag is set at allocation and cleared only on success, so
+//  the single cleanup block is correct on every exit path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,12 +76,12 @@ Error:
 //  DxuiClipboard::GetText
 //
 //  Only CF_UNICODETEXT is requested. Windows synthesizes it from ANSI text,
-//  so asking for the wide format costs no compatibility and avoids a codepage
+//  so requesting the wide format loses no compatibility and avoids a codepage
 //  conversion here.
 //
-//  The text is copied out and the clipboard CLOSED before the caller sees it,
-//  so whatever the caller does with it -- including a callback that copies
-//  again -- cannot deadlock against our own lock.
+//  The text is copied and the clipboard CLOSED before returning, so nothing
+//  the caller does with the text, including a callback that copies again, can
+//  deadlock on the clipboard lock.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

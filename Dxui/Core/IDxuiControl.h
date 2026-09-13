@@ -113,14 +113,13 @@ public:
     // internal stops ignore it; OnFocusChanged still fires either way.
     virtual void  OnFocusEntered  (bool forward)                                { (void) forward; }
 
-    // The standard commands -- Copy, Select all and the rest -- whose meaning
-    // follows the focus rather than the window. A control that answers one
-    // implements both: QueryCommand says whether the command is its to answer
-    // and, if so, whether it can be run right now; InvokeCommand runs it and
-    // reports that it did. Both default to "not mine", and DxuiCommandRouter
-    // then carries the command out to the control containing this one. A menu
-    // row and the accelerator for it both come through here, so what the row
-    // says and what the keystroke does cannot disagree.
+    // The standard commands (Copy, Select all and the rest), whose behavior
+    // depends on the focused control. A control that handles one implements
+    // both: QueryCommand returns whether the control handles the command and,
+    // if so, whether it is available now; InvokeCommand runs it and returns
+    // true. Both return false by default, and DxuiCommandRouter then tries the
+    // containing control. A menu row and its accelerator both go through these
+    // methods, so their behavior is always the same.
     virtual bool  QueryCommand  (DxuiStandardCommand command, bool & outEnabled) const
     {
         (void) command;

@@ -12,15 +12,15 @@
 //
 //  IDxuiHexSource
 //
-//  The bytes a hex view shows, supplied by the host rather than copied into
-//  the widget. A file preview reads from its payload; a debugger reads from
-//  the machine's bus. The view asks only for the rows it draws, so a whole
-//  address space costs what a screenful does.
+//  The bytes a hex view displays, supplied by the host rather than copied
+//  into the widget. A file preview reads from its payload; a debugger reads
+//  from the machine's bus. The view requests only the rows it draws, so a
+//  whole address space costs no more than one screen.
 //
-//  Marks are the host's own: zero means an ordinary byte, and any other value
-//  is something the host paints differently -- a byte that changed since the
-//  last stop, a byte inside a breakpoint's instruction. The view carries the
-//  value through to painting and never interprets it.
+//  Mark values are defined by the host: zero is an ordinary byte, and any
+//  other value is a byte the host colors differently, such as a byte changed
+//  since the last stop or a byte in a breakpoint's instruction. The view
+//  passes the value to painting and never interprets it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,8 +31,8 @@ public:
 
     virtual uint64_t  GetByteCount () const = 0;
 
-    //  Fills `out` with the bytes at `offset`. The view never asks past the
-    //  end, so a source may treat a short read as a programming error.
+    //  Fills `out` with the bytes at `offset`. The view never requests bytes
+    //  past the end, so a source may treat a short read as a programming error.
     virtual void  ReadBytes (uint64_t offset, std::span<uint8_t> out) const = 0;
 
     //  One mark per byte at `offset`, zero for an ordinary byte. A source
@@ -52,32 +52,27 @@ public:
 //
 //  DxuiHexView
 //
-//  A hex dump a user can select in: offsets down the left, the bytes in the
-//  middle grouped one, two, four or eight at a time, and their characters on
-//  the right.
+//  A selectable hex dump: offsets on the left, bytes in the middle grouped
+//  one, two, four or eight at a time, and their characters on the right.
 //
-//  THE TWO COLUMNS ARE TAB STOPS INSIDE THE ONE WIDGET. Tab into the view
-//  lands in the hex column, Tab again moves to the characters, and a third Tab
-//  leaves for the next control; Shift+Tab runs the same three steps backwards.
-//  So a hex view costs two stops on a walk of the window, not one, and the
-//  user never has to reach for the mouse to change which form they are in.
+//  THE TWO COLUMNS ARE TAB STOPS WITHIN THE WIDGET. Tab into the view moves
+//  focus to the hex column, Tab again to the text column, and a third Tab to
+//  the next control; Shift+Tab reverses the order. The active column can be
+//  changed without the mouse.
 //
-//  ONE SELECTION COVERS A RUN OF BYTES, NOT A RUN OF CHARACTERS. Selecting in
-//  either column selects bytes, so the same run lights in both columns at once.
-//  What differs between the columns is the form the user is working in: the
-//  column last clicked is the active one, and it decides what Ctrl+A takes and
-//  whether a copy yields hex digits or characters. There is no copy-as-hex and
-//  copy-as-text pair of commands -- there is one Copy, and the column the user
-//  is in says what it means.
+//  ONE SELECTION COVERS A RUN OF BYTES, NOT OF CHARACTERS. Selecting in either
+//  column selects bytes, and the selection is highlighted in both columns. The
+//  last-clicked column is the active one: it determines whether Copy produces
+//  hex digits or characters. There is a single Copy command, not separate
+//  copy-as-hex and copy-as-text commands.
 //
-//  Offsets are the view's own, counted from the first byte the source holds;
-//  the address shown beside a row adds the origin the host set, so the same
-//  widget labels a file from zero and a machine's memory from $C000.
+//  Offsets count from the first byte of the source; the address displayed for
+//  a row adds the host's origin, so the same widget labels a file from zero
+//  and a machine's memory from $C000.
 //
-//  Everything here is geometry and selection -- no device, no text format, no
-//  measurement of real glyphs. The host measures one cell of the fixed-width
-//  face it paints with and hands the size over, which is what lets the whole
-//  of this be exercised headlessly.
+//  The host sets the character cell size, or the view measures it once from
+//  the theme's fixed-width face, so the geometry and selection logic can be
+//  tested without a device.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,9 +90,9 @@ public:
         Column    column = Column::None;
     };
 
-    //  What the text column makes of a byte. Apple II text carries the high
-    //  bit set for ordinary characters and clear for inverse and flashing
-    //  ones, so both halves decode to the same letter.
+    //  How the text column decodes a byte. Apple II text has the high bit set
+    //  for ordinary characters and clear for inverse and flashing ones, so
+    //  both values decode to the same character.
     enum class TextEncoding { Ascii, AppleHighBit };
 
     //  A color for a marked byte, or false to leave it the ordinary one.
@@ -164,22 +159,22 @@ public:
     //  The window a copy names as the clipboard's owner.
     void  SetOwnerWindow (HWND hwnd) { m_hwnd = hwnd; }
 
-    //  Which column the user is working in. A click sets it, and it decides
-    //  what Ctrl+A takes and what a copy yields.
+    //  The active column. A click sets it, and it determines the format Copy
+    //  produces.
     Column  GetActiveColumn () const { return m_activeColumn; }
     void    SetActiveColumn (Column column);
 
     //  Puts the caret on a byte and scrolls to it.
     void  GoToOffset (uint64_t offset);
 
-    //  The selection in the form the active column shows it, on the
-    //  clipboard. Nothing selected copies nothing.
+    //  Copies the selection to the clipboard in the active column's format.
+    //  With nothing selected, the clipboard is not changed.
     void          CopySelection () const;
     std::wstring  GetSelectionText () const;
 
-    //  The characters the text column shows for a run of bytes, and the hex
-    //  digits the hex column shows for it. Painting and a copy of the
-    //  selection are the same two answers.
+    //  The characters the text column displays for a run of bytes, and the
+    //  hex digits the hex column displays for it. Painting and Copy use the
+    //  same decoding.
     std::wstring  GetTextFor (uint64_t offset, uint64_t count) const;
     std::wstring  GetHexFor  (uint64_t offset, uint64_t count) const;
 

@@ -192,8 +192,8 @@ public:
 
         RenderDos33 ("ODD", false, content);
 
-        //  The bytes are handed over as they are, for a view that draws the
-        //  rows it shows, rather than rendered into lines of text here.
+        //  The bytes are passed unchanged, for a view that draws only the
+        //  visible rows, rather than rendered into lines of text here.
         Assert::AreEqual ((size_t) 777,  content.bytes.size());
         Assert::AreEqual ((int) 0x0803, (int) content.origin,
             L"addressed from the file's load address");
