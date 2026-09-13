@@ -2383,7 +2383,6 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_list.SetShowHeader             (true);
     m_list.SetColumns                (std::move (cols));
     m_list.SetSortIndicator          (m_sortColumn, m_sortDescending);
-    m_list.EnableStickyTail          (false);
     m_list.SetHorizontalScrollEnabled (true);
     m_list.SetKeyboardColumnNav       (true);   // File-Explorer model: body -> header (Left/Right cycle, Space/Enter sort)
     m_list.SetPreciseAutoFit          (true);   // columns fit max(header + sort glyph, widest cell), grown as rows filter
