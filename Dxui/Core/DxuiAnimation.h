@@ -42,7 +42,7 @@ struct DxuiDriveSyncBrokerEvent
 class DxuiAnimation
 {
 public:
-    DxuiAnimation  () = default;
+    DxuiAnimation  ();
     ~DxuiAnimation() = default;
 
     DxuiTweenHandle  StartTween     (float startValue, float endValue, float durationSec, DxuiTweenEase ease);
@@ -54,6 +54,12 @@ public:
     std::vector<DxuiDriveSyncBrokerEvent>  ConsumePendingEvents();
 
     static float ApplyEase      (DxuiTweenEase ease, float t);
+
+    //  Whether tweens actually play. Seeded from the system's animation
+    //  setting; a caller that animates regardless, or a test that needs a
+    //  tween to run whatever the host is configured for, sets it.
+    void  SetAnimationsEnabled (bool on) { m_animationsEnabled = on; }
+    bool  AreAnimationsEnabled () const  { return m_animationsEnabled; }
 
 private:
     struct DxuiTweenState
@@ -70,6 +76,7 @@ private:
 
     std::vector<DxuiTweenState>            m_tweens;
     std::vector<DxuiDriveSyncBrokerEvent>  m_pendingSync;
-    float                                  m_currentTimeSec = 0.0f;
-    uint32_t                               m_nextId         = 1;
+    float                                  m_currentTimeSec    = 0.0f;
+    bool                                   m_animationsEnabled = true;
+    uint32_t                               m_nextId            = 1;
 };

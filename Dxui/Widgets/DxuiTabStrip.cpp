@@ -929,11 +929,12 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
         if (!isSel && (isHover || isArmed))
         {
-            painter.FillRect ((float) r.left,
-                              (float) r.top,
-                              (float) (r.right  - r.left),
-                              (float) (r.bottom - r.top),
-                              isArmed ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
+            painter.FillRoundedRect ((float) r.left,
+                                     (float) r.top,
+                                     (float) (r.right  - r.left),
+                                     (float) (r.bottom - r.top),
+                                     m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                     isArmed ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
         }
 
         if (isSel)
@@ -947,11 +948,11 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
         if (m_focused && isSel)
         {
-            painter.OutlineRect ((float) r.left + focusInset,
-                                 (float) r.top  + focusInset,
-                                 (float) (r.right  - r.left) - focusInset * 2.0f,
-                                 (float) (r.bottom - r.top)  - focusInset * 2.0f,
-                                 focusThick, focusArgb);
+            painter.OutlineRoundedRect ((float) r.left + focusInset,
+                                        (float) r.top  + focusInset,
+                                        (float) (r.right  - r.left) - focusInset * 2.0f,
+                                        (float) (r.bottom - r.top)  - focusInset * 2.0f,
+                                        m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), focusThick, focusArgb);
         }
 
         //  A label wider than its tab is cut off with an ellipsis, never wrapped.

@@ -116,6 +116,32 @@ void MockDxuiPainter::OutlineRoundedRect (float xPx, float yPx, float widthPx, f
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillRoundedRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockDxuiPainter::FillRoundedRect (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, uint32_t argbColor)
+{
+    RecordedPaintCall  call;
+
+
+
+    call.kind   = RecordedPaintKind::FillRoundedRect;
+    call.x      = xPx;
+    call.y      = yPx;
+    call.width  = widthPx;
+    call.height = heightPx;
+    call.radius = radiusPx;
+    call.argb   = argbColor;
+    m_calls.push_back (call);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FillCircleApprox
 //
 ////////////////////////////////////////////////////////////////////////////////

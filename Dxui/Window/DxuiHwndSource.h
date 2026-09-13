@@ -328,6 +328,11 @@ public:
     HWND          GetHwnd          () const { return m_hwnd; }
     DxuiPanel  &  GetRoot          ()       { return *GetRootPanel(); }
     const DxuiDpiScaler &  GetScaler  () const { return m_scaler; }
+
+    //  The rect of the system button (minimize, maximize, close) under a
+    //  screen point, in client pixels -- the space a tooltip anchor takes.
+    //  False when the point is over no system button.
+    bool  GetNcSystemButtonRectPx (POINT screenPx, RECT & outClientPx) const;
     void          SetTheme      (const IDxuiTheme * theme);
     const IDxuiTheme *  GetTheme () const { return m_theme; }
 

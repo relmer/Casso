@@ -116,11 +116,11 @@ namespace MonitorCatalog
     }
 
 
-    // The View command that lights a tube its own color, for the paths that
-    // drive the shell by posted command rather than by direct call.
-    inline WORD  PhosphorCommand (const MonitorSpec & spec)
+    // The View command that shows a color mode, for the paths that drive the
+    // shell by posted command rather than by direct call.
+    inline WORD  GetViewCommand (ColorMode mode)
     {
-        switch (spec.phosphor)
+        switch (mode)
         {
             case ColorMode::GreenMono:  return IDM_VIEW_GREEN;
             case ColorMode::AmberMono:  return IDM_VIEW_AMBER;
@@ -132,14 +132,61 @@ namespace MonitorCatalog
 
     // The same answer as an index into SettingsColorMode (Color=0, Green=1,
     // Amber=2, White=3), for the paths that call SetColorModeLive directly.
-    inline int  PhosphorSettingsIndex (const MonitorSpec & spec)
+    inline int  GetSettingsIndex (ColorMode mode)
     {
-        switch (spec.phosphor)
+        switch (mode)
         {
             case ColorMode::GreenMono:  return 1;
             case ColorMode::AmberMono:  return 2;
             case ColorMode::WhiteMono:  return 3;
             default:                    return 0;
         }
+    }
+
+
+    // The View command that lights a tube its own color.
+    inline WORD  PhosphorCommand (const MonitorSpec & spec)
+    {
+        return GetViewCommand (spec.phosphor);
+    }
+
+
+    inline int  PhosphorSettingsIndex (const MonitorSpec & spec)
+    {
+        return GetSettingsIndex (spec.phosphor);
+    }
+
+
+    // The color mode a machine comes up in: the one the user saved for it,
+    // else the phosphor of the monitor it names.
+    //
+    // ONE ANSWER FOR LAUNCH AND FOR A MACHINE SWITCH. Each used to turn the
+    // saved string into a mode itself, and only launch knew "color" -- so an
+    // //e saved as color came back green on a switch, from its monitor's
+    // phosphor, while a relaunch showed it in color.
+    //
+    // An unrecognized saved value is ignored rather than trusted, the way a
+    // missing one is: the monitor's own phosphor is the answer that is right
+    // for the hardware on screen.
+    inline ColorMode  GetColorModeForMachineJson (const JsonValue & mergedJson)
+    {
+        ColorMode          mode      = ForMachineJson (mergedJson).phosphor;
+        const JsonValue *  uiPrefs   = nullptr;
+        std::string        colorMode;
+
+        if (mergedJson.GetType() != JsonType::Object ||
+            !mergedJson.HasObject ("$cassoUiPrefs", uiPrefs) ||
+            uiPrefs == nullptr ||
+            !uiPrefs->HasString ("colorMode", colorMode))
+        {
+            return mode;
+        }
+
+        if      (colorMode == "color") { mode = ColorMode::Color;     }
+        else if (colorMode == "green") { mode = ColorMode::GreenMono; }
+        else if (colorMode == "amber") { mode = ColorMode::AmberMono; }
+        else if (colorMode == "white") { mode = ColorMode::WhiteMono; }
+
+        return mode;
     }
 }

@@ -71,6 +71,13 @@ public:
                                 float thicknessPx,
                                 uint32_t argbColor) override;
 
+    void    FillRoundedRect  (float xPx,
+                              float yPx,
+                              float widthPx,
+                              float heightPx,
+                              float radiusPx,
+                              uint32_t argbColor) override;
+
     // Approximate filled circle using horizontal slices. Cheap and
     // looks good enough at typical UI sizes (radii 4-12px). Used for
     // round indicators (LEDs, radio dots, toggle thumbs).
@@ -95,6 +102,7 @@ public:
     // the whole UI without touching individual paint call sites. 1.0
     // is opaque (default), 0.0 is fully transparent.
     void    SetGlobalAlpha (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
+    void    SetOrigin      (float xPx, float yPx)   override { m_originXPx = xPx; m_originYPx = yPx; }
     float   GetGlobalAlpha () const                 override { return m_globalAlpha; }
 
     int     GetPendingVertexCount () const { return (int) m_vertices.size(); }
@@ -151,6 +159,8 @@ private:
     int                               m_viewportHeightPx     = 0;
     bool                              m_betweenBeginEnd      = false;
     float                             m_globalAlpha          = 1.0f;
+    float                             m_originXPx            = 0.0f;
+    float                             m_originYPx            = 0.0f;
 
     std::vector<Vertex>               m_vertices;
 };

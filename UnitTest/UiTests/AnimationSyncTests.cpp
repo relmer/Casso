@@ -47,6 +47,10 @@ public:
         DxuiTweenHandle  h;
         float            v    = 0.0f;
 
+        // Pinned on: the tween is sampled mid-flight, and a host with
+        // animations turned off -- a headless CI runner, for one -- would
+        // otherwise start it already finished.
+        anim.SetAnimationsEnabled (true);
         anim.AdvanceTime (0.0f);
         h = anim.StartTween (0.0f, 100.0f, 2.0f, DxuiTweenEase::Linear);
 
@@ -65,6 +69,23 @@ public:
 
         Assert::IsTrue   (anim.SampleTween (h, 5.0f, v));
         Assert::AreEqual (10.0f, v, 0.001f);
+    }
+
+
+    TEST_METHOD (Tween_AnimationsOff_StartsAtItsEnd)
+    {
+        DxuiAnimation    anim;
+        DxuiTweenHandle  h;
+        float            v    = 0.0f;
+
+        // Animations off is an accessibility setting: the tween reports its
+        // end value from its very first sample instead of moving at all.
+        anim.SetAnimationsEnabled (false);
+        anim.AdvanceTime (0.0f);
+        h = anim.StartTween (0.0f, 100.0f, 2.0f, DxuiTweenEase::Linear);
+
+        Assert::IsTrue   (anim.SampleTween (h, 0.0f, v));
+        Assert::AreEqual (100.0f, v, 0.001f);
     }
 
 

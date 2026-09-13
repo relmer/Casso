@@ -1,6 +1,33 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiTimedInfoBanner.h"
+#include "Core/DxuiSystemSettings.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTimedInfoBanner::ResolveDefaultDurationMs
+//
+//  The system's notification duration is an accessibility setting -- Settings
+//  > Accessibility > Visual effects, "Dismiss notifications after this amount
+//  of time" -- set by people who cannot read a banner in the time a default
+//  one is up. It is taken as a FLOOR rather than as the value, because its own
+//  default of five seconds would otherwise quietly retune every banner in the
+//  app away from the duration above.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiTimedInfoBanner::ResolveDefaultDurationMs()
+{
+    int64_t  systemMs = (int64_t) DxuiSystemSettings::Instance().GetMessageDurationMs();
+
+
+
+    return (systemMs > kDefaultDurationMs) ? systemMs : kDefaultDurationMs;
+}
 
 
 

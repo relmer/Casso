@@ -1,6 +1,8 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "DxuiSearchBox.h"
+#include "Core/DxuiSystemSettings.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiColor.h"
 #include "Render/IDxuiPainter.h"
@@ -280,8 +282,8 @@ void DxuiSearchBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
 
 
-    painter.FillRect    (x, y, w, h, frameBg);
-    painter.OutlineRect (x, y, w, h, 1.0f, m_focused ? focusRing : border);
+    painter.FillRoundedRect    (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), frameBg);
+    painter.OutlineRoundedRect (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), 1.0f, m_focused ? focusRing : border);
 
     m_input.Paint (painter, text);
 
@@ -387,7 +389,12 @@ void DxuiSearchBox::Tick (int64_t nowMs)
 
     dt           = nowMs - m_lastTickMs;
     m_lastTickMs = nowMs;
-    step         = (float) dt / (float) s_kSlideDurationMs;
+
+    // Animations off is an accessibility setting, not a preference: cross to
+    // the target in one step rather than sliding to it.
+    step = DxuiSystemSettings::Instance().AreAnimationsEnabled()
+               ? (float) dt / (float) s_kSlideDurationMs
+               : 1.0f;
 
     if (m_glyphShown < target)
     {

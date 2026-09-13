@@ -258,27 +258,14 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
             // from the live shell state.
             if (mergedJson.GetType() == JsonType::Object)
             {
-                const JsonValue *  uiPrefs   = nullptr;
-                std::string        colorMode;
-
-                // THE MONITOR'S OWN PHOSPHOR, not zero and not a fixed
-                // default: a machine with no saved color mode must still be
-                // told what to show. Leaving it unset applied nothing at all,
-                // and what the screen kept was the mode of the machine being
-                // switched AWAY from -- which is how the //c came up green
-                // after an //e and white after an Enhanced //e, with nothing
-                // about the //c deciding either.
-                WORD               colorCmd  = MonitorCatalog::PhosphorCommand (
-                                                   MonitorCatalog::ForMachineJson (mergedJson));
-
-                if (mergedJson.HasObject ("$cassoUiPrefs", uiPrefs) &&
-                    uiPrefs != nullptr &&
-                    uiPrefs->HasString ("colorMode", colorMode))
-                {
-                    if      (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
-                    else if (colorMode == "amber")  { colorCmd = IDM_VIEW_AMBER; }
-                    else if (colorMode == "white")  { colorCmd = IDM_VIEW_WHITE; }
-                }
+                // ALWAYS POSTED, even for a machine with no saved color mode,
+                // which gets its monitor's own phosphor. Applying nothing left
+                // the screen in the mode of the machine being switched AWAY
+                // from -- which is how the //c came up green after an //e and
+                // white after an Enhanced //e, with nothing about the //c
+                // deciding either.
+                WORD  colorCmd = MonitorCatalog::GetViewCommand (
+                                     MonitorCatalog::GetColorModeForMachineJson (mergedJson));
 
                 // SwitchMachine runs on the CPU thread: route through the
                 // message loop, not HandleCommand directly -- the command

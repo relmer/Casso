@@ -293,32 +293,35 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         textColor = (textColor & s_kDisabledMask);
     }
 
-    painter.FillRect ((float) m_boundsDip.left,
-                      (float) m_boundsDip.top,
-                      (float) (m_boundsDip.right  - m_boundsDip.left),
-                      (float) (m_boundsDip.bottom - m_boundsDip.top),
-                      color);
-
-    if (m_emphasis)
-    {
-        painter.OutlineRect ((float) m_boundsDip.left,
+    painter.FillRoundedRect ((float) m_boundsDip.left,
                              (float) m_boundsDip.top,
                              (float) (m_boundsDip.right  - m_boundsDip.left),
                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                             m_scaler.ToPxf (s_kEmphasisPx),
-                             theme.HoverBackground());
+                             m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                             color);
+
+    if (m_emphasis)
+    {
+        painter.OutlineRoundedRect ((float) m_boundsDip.left,
+                                    (float) m_boundsDip.top,
+                                    (float) (m_boundsDip.right  - m_boundsDip.left),
+                                    (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                    m_scaler.ToPxf (s_kEmphasisPx),
+                                    theme.HoverBackground());
     }
     else if (borderColor != 0)
     {
         // Themed buttons always paint a 1dip border so the
         // shape is legible against the panel background even when the
         // button fill is similar to the surface.
-        painter.OutlineRect ((float) m_boundsDip.left,
-                             (float) m_boundsDip.top,
-                             (float) (m_boundsDip.right  - m_boundsDip.left),
-                             (float) (m_boundsDip.bottom - m_boundsDip.top),
-                             autoBorderPx,
-                             borderColor);
+        painter.OutlineRoundedRect ((float) m_boundsDip.left,
+                                    (float) m_boundsDip.top,
+                                    (float) (m_boundsDip.right  - m_boundsDip.left),
+                                    (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                    autoBorderPx,
+                                    borderColor);
     }
 
     {
@@ -344,12 +347,13 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);
 
-        painter.OutlineRect ((float) m_boundsDip.left + focusInset,
-                             (float) m_boundsDip.top  + focusInset,
-                             (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
-                             (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
-                             focusThick,
-                             theme.FocusRing());
+        painter.OutlineRoundedRect ((float) m_boundsDip.left + focusInset,
+                                    (float) m_boundsDip.top  + focusInset,
+                                    (float) (m_boundsDip.right  - m_boundsDip.left) - focusInset * 2.0f,
+                                    (float) (m_boundsDip.bottom - m_boundsDip.top)  - focusInset * 2.0f,
+                                    m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                    focusThick,
+                                    theme.FocusRing());
     }
 
 Error:

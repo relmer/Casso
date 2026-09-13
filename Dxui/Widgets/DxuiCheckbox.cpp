@@ -191,7 +191,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         float  labelX = 0.0f;
         float  labelW = 0.0f;
 
-        painter.FillRect (boxLeft, boxTop, boxSize, boxSize, boxColor);
+        painter.FillRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), boxColor);
 
         if (m_checked)
         {

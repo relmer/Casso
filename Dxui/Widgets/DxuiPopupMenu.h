@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/DxuiCommand.h"
+#include "Theme/DxuiMenuMetrics.h"
 #include "Core/IDxuiControl.h"
 
 
@@ -23,8 +24,7 @@ class DxuiPopupHost;
 //
 //  A row is CHECKABLE when its command supplies an `isChecked` functor, and
 //  a list containing any checkable row reserves a check gutter for every row.
-//  A command that can never be checked leaves the functor absent and the list
-//  stays flush.
+//  A list where nothing can check reserves none and its labels sit flush.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,9 +62,14 @@ struct DxuiPopupMenuItem
 //
 //  Rows come from `DxuiPopupMenuItem` and every label, check, accelerator and
 //  enabled state is read from the row's command AT PAINT TIME, never cached.
-//  Rows are 26 dp, separators 10 dp, the font 14 dp, and the width fits the
-//  widest row with a 140 dp floor; there is no fixed width and no setter for
-//  one.
+//
+//  Row height, font and gutter come from `DxuiMenuMetrics`, which reads the
+//  Windows menu settings, so the menu is the size a real menu is on the same
+//  display at the same font. Width fits the content: the label column is the
+//  widest label and the accelerator column the widest accelerator, and the
+//  two are separate columns, so accelerators line up on their left edges and
+//  no label can reach into them. There is no fixed width and no setter for
+//  one, only a floor.
 //
 //  Up and Down skip separators and disabled rows and wrap. Right on a submenu
 //  row opens its child with the first enabled row highlighted; the pointer
@@ -95,7 +100,7 @@ struct DxuiPopupMenuItem
 //  to commands the widget owns, so there is one paint path and one
 //  navigation path. Both go once the last such caller has moved.
 //
-//  All metrics are DPI-scaled. Every public method runs on the UI thread.
+//  Every public method runs on the UI thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,7 +120,7 @@ public:
     DxuiPopupMenu  ();
     ~DxuiPopupMenu () override;
 
-    void  SetDpi      (UINT dpi)                { m_scaler.SetDpi (dpi); }
+    void  SetDpi      (UINT dpi)                { m_scaler.SetDpi (dpi); RefreshMetrics(); }
     void  SetTheme    (const IDxuiTheme * th)   { m_theme = th; }
     void  SetOnSelect (SelectFn fn)             { m_onSelect = std::move (fn); }
 
@@ -137,6 +142,32 @@ public:
     //  Underline each row's mnemonic letter, as a menu opened from the
     //  keyboard does.
     void  SetShowMnemonicCues (bool show)       { m_showCues = show; }
+
+    //  The dimensions the menu lays out with, read from the Windows menu
+    //  settings and refreshed on every DPI change. A caller that sets them
+    //  explicitly, as a test does to keep its arithmetic off the host's
+    //  display settings, pins them until `ClearMetrics`.
+    void  SetMetrics   (const DxuiMenuMetrics & m)  { m_metrics = m; m_metricsPin = true; }
+    void  ClearMetrics ()                           { m_metricsPin = false; RefreshMetrics(); }
+
+    const DxuiMenuMetrics &  GetMetrics () const    { return m_metrics; }
+
+    //  How long the pointer must rest on a submenu row before its child
+    //  opens. Seeded from the system's menu show delay. Zero opens on
+    //  contact, which is what this widget used to do.
+    void  SetSubmenuDelayMs (int ms)            { m_submenuDelayMs = ms; }
+    int   GetSubmenuDelayMs () const            { return m_submenuDelayMs; }
+
+    //  Skip the open animation for the NEXT show. The menu bar sets this
+    //  while walking from one title to the next: the animation marks entering
+    //  menu mode, and replaying it per title would put a stutter on a sweep
+    //  along the bar.
+    void  SetRevealSuppressed (bool on)         { m_revealSuppressed = on; }
+
+    //  True while a submenu is waiting out its delay. The pointer is not
+    //  moving while it waits, so the host's idle loop has nothing to wake it
+    //  and must keep ticking on its own until this goes false.
+    bool  WantsTick () const;
 
     //  The clock the reopen guard reads. Defaults to the tick count; a test
     //  installs its own so the guard window can be crossed without waiting.
@@ -191,6 +222,7 @@ public:
     //  it would otherwise refuse a legitimate reopen right after a pick.
     void  SetReopenGuard (bool enabled)         { m_reopenGuard = enabled; }
 
+    void  Tick           (int64_t nowMs) override;
     void  OnMouseMove    (int x, int y);
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
@@ -212,19 +244,18 @@ public:
                                 wchar_t            & outLower);
 
 private:
-    static constexpr int       kRowHeightDip           = 26;
-    static constexpr int       kSeparatorHeightDip     = 10;
-    static constexpr int       kSeparatorInsetDip      = 10;
-    static constexpr int       kRowPadDip              = 10;
-    static constexpr int       kRowPadTopDip           = 5;
-    static constexpr int       kCheckGutterDip         = 18;
-    static constexpr int       kAccelGapDip            = 20;
-    static constexpr int       kMinWidthDip            = 140;
     static constexpr int       kBorderDip              = 1;
     static constexpr int       kFallbackGlyphWidthDip  = 8;
-    static constexpr float     kFontDip                = 14.0f;
     static constexpr float     kUnderlineThicknessDip  = 1.0f;
     static constexpr uint64_t  kReopenGuardMs          = 250;
+    static constexpr int       kRevealMs               = 150;
+
+    //  The hover highlight is a rounded card inset from the menu's edges, not
+    //  a full-bleed band: a square band running into the menu's own rounded
+    //  corners reads as a stripe painted across the popup.
+    static constexpr int       kHoverInsetXDip         = 4;
+    static constexpr int       kHoverInsetYDip         = 2;
+    static constexpr float     kHoverRadiusDip         = 4.0f;
 
     struct Palette
     {
@@ -248,6 +279,8 @@ private:
 
     static bool  IsPointInRect (const RECT & rc, int x, int y);
 
+    void  RefreshMetrics     ();
+
     bool  IsSelectable       (int index) const;
     int   FindNextSelectable (int from, int direction) const;
     int   FindFirstSelectable () const;
@@ -270,6 +303,8 @@ private:
                               const RECT                     & hostClient);
     void  AcquirePopup       (const RECT & anchor, Anchoring anchoring);
     void  SetHover           (int index);
+    void  ArmChild           (int index);
+    void  DisarmChild        ();
     void  OpenChild          (int index, bool highlightFirst);
     void  CloseChild         ();
     void  Commit             (int index);
@@ -297,25 +332,33 @@ private:
     SelectFn             m_onHighlight;
     ClosedFn             m_onClosed;
     ClockFn              m_clock;
-    bool                 m_committing   = false;
-    const IDxuiTheme   * m_theme        = nullptr;
-    IDxuiTextRenderer  * m_text         = nullptr;
-    int                  m_hover        = -1;
-    int                  m_pressed      = -1;
-    bool                 m_visible      = false;
-    bool                 m_hasGutter    = false;
-    bool                 m_hasAccel     = false;
-    bool                 m_showCues     = false;
-    RECT                 m_hostClient   = {};
-    RECT                 m_anchor       = {};
-    RECT                 m_lastAnchor   = {};
-    uint64_t             m_closedAtMs   = 0;
-    bool                 m_hasClosed    = false;
+    bool                 m_committing       = false;
+    const IDxuiTheme   * m_theme            = nullptr;
+    IDxuiTextRenderer  * m_text             = nullptr;
+    int                  m_hover            = -1;
+    int                  m_pressed          = -1;
+    bool                 m_visible          = false;
+    bool                 m_revealSuppressed = false;
+    bool                 m_hasGutter        = false;
+    int                  m_labelLeftPx      = 0;
+    int                  m_accelLeftPx      = 0;
+    int                  m_accelWidthPx     = 0;
+    bool                 m_showCues         = false;
+    RECT                 m_hostClient       = {};
+    RECT                 m_anchor           = {};
+    RECT                 m_lastAnchor       = {};
+    int                  m_submenuDelayMs   = 0;
+    int                  m_pendingChild     = -1;
+    uint64_t             m_pendingAtMs      = 0;
+    uint64_t             m_closedAtMs       = 0;
+    bool                 m_hasClosed        = false;
     DxuiDpiScaler        m_scaler;
-    DxuiHwndSource     * m_popupHost    = nullptr;
-    DxuiPopupHost      * m_activePopup  = nullptr;
-    bool                 m_grabsCapture = true;
-    bool                 m_reopenGuard  = true;
+    DxuiMenuMetrics      m_metrics;
+    bool                 m_metricsPin       = false;
+    DxuiHwndSource     * m_popupHost        = nullptr;
+    DxuiPopupHost      * m_activePopup      = nullptr;
+    bool                 m_grabsCapture     = true;
+    bool                 m_reopenGuard      = true;
 
     bool                 m_colorsSet   = false;
     Palette              m_colors;

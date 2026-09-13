@@ -3136,7 +3136,13 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     // not sufficient on its own here -- the host's flip swap chain covers
     // the entire window (caption included), so the DWM has no non-client
     // redirection surface in the maximize-button region to host the flyout.
-    toDefault = (msg == WM_NCMOUSEMOVE);
+    //
+    // Except over minimize and close. DefWindowProc answers a move over
+    // HTMINBUTTON or HTCLOSE with the stock system tooltip -- square, in the
+    // old style, and unlike every other tooltip in the window. Nothing else
+    // depends on that forward: the hover is painted above and the press is
+    // owned, so for those two the move stops here.
+    toDefault = (msg == WM_NCMOUSEMOVE) && wp != (WPARAM) HTMINBUTTON && wp != (WPARAM) HTCLOSE;
 
 Error:
     return toDefault ? DefaultProc (msg, wp, lp) : 0;
@@ -3771,6 +3777,54 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitForTest (POINT clientDip) const
     }
 
     return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNcSystemButtonRectPx
+//
+//  Resolves a screen point to the system button under it and reports that
+//  button's rect in client pixels. The point goes to client DIPs the same
+//  way HandleNcMouse takes it there, so the button found is the one the
+//  host is painting as hovered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::GetNcSystemButtonRectPx (POINT screenPx, RECT & outClientPx) const
+{
+    POINT                client  = screenPx;
+    IDxuiControl       * control = nullptr;
+    RECT                 dip     = {};
+
+
+
+    outClientPx = {};
+
+    if (m_hwnd == nullptr || ScreenToClient (m_hwnd, &client) == FALSE)
+    {
+        return false;
+    }
+
+    client.x = MulDiv (client.x, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+    client.y = MulDiv (client.y, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+    control  = FindNcSystemControlAt (client);
+
+    if (control == nullptr)
+    {
+        return false;
+    }
+
+    dip                = control->GetBounds();
+    outClientPx.left   = m_scaler.ToPx (dip.left);
+    outClientPx.top    = m_scaler.ToPx (dip.top);
+    outClientPx.right  = m_scaler.ToPx (dip.right);
+    outClientPx.bottom = m_scaler.ToPx (dip.bottom);
+
+    return true;
 }
 
 

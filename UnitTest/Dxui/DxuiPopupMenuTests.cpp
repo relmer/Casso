@@ -37,15 +37,33 @@ TEST_CLASS (DxuiPopupMenuTests)
 {
 public:
 
-    static constexpr int  s_kGlyphPx    = 7;      // MockDxuiTextRenderer's fallback
-    static constexpr int  s_kRowPx      = 26;
-    static constexpr int  s_kSepPx      = 10;
-    static constexpr int  s_kPadPx      = 10;
-    static constexpr int  s_kGutterPx   = 18;
-    static constexpr int  s_kAccelGapPx = 20;
-    static constexpr int  s_kMinWidthPx = 140;
+    static constexpr int  s_kGlyphPx = 7;         // MockDxuiTextRenderer's fallback
 
     RECT  MakeHost (int w, int h) { return RECT { 0, 0, w, h }; }
+
+    //
+    //  Geometry read from the widget's own metrics rather than repeated here
+    //  as numbers. The metrics come from the Windows menu settings, so a
+    //  hard-coded row height would assert about the display the suite happens
+    //  to run on; the column model these check is the same at every DPI.
+    //
+    static int  RowPx      (const DxuiPopupMenu & m) { return m.GetMetrics().rowHeightPx;       }
+    static int  SepPx      (const DxuiPopupMenu & m) { return m.GetMetrics().separatorHeightPx; }
+    static int  MinWidthPx (const DxuiPopupMenu & m) { return m.GetMetrics().minWidthPx;        }
+    static int  AccelGapPx (const DxuiPopupMenu & m) { return m.GetMetrics().accelGapPx;        }
+
+    //  The label column's left edge, and everything to the right of the
+    //  accelerator column, which together are the menu's fixed width cost.
+    //  The check gutter counts only for a list that HAS a checkable row.
+    static int  LabelLeftPx (const DxuiPopupMenu & m, bool hasGutter)
+    {
+        return m.GetMetrics().leftPadPx + m.GetMetrics().gutterGapPx
+                   + (hasGutter ? m.GetMetrics().checkGutterPx : 0);
+    }
+
+    static int  GutterPx (const DxuiPopupMenu & m) { return m.GetMetrics().checkGutterPx; }
+
+    static int  RightPadPx  (const DxuiPopupMenu & m) { return m.GetMetrics().rightPadPx; }
 
 
     //
@@ -146,8 +164,8 @@ public:
         Assert::AreEqual (ru.bottom, ra.bottom);
 
         // Same row under the same point, including the separator gap.
-        Assert::AreEqual (under.HitTest (ru.left + 5, ru.top + s_kRowPx + s_kSepPx + 5),
-                          at.HitTest    (ra.left + 5, ra.top + s_kRowPx + s_kSepPx + 5));
+        Assert::AreEqual (under.HitTest (ru.left + 5, ru.top + RowPx (under) + SepPx (under) + 5),
+                          at.HitTest    (ra.left + 5, ra.top + RowPx (at)    + SepPx (at)    + 5));
     }
 
 
@@ -162,16 +180,17 @@ public:
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
         r = menu.GetRect();
 
-        Assert::AreEqual ((LONG) (3 * s_kRowPx + s_kSepPx), r.bottom - r.top);
+        Assert::AreEqual ((LONG) (3 * RowPx (menu) + SepPx (menu)), r.bottom - r.top);
     }
 
 
-    TEST_METHOD (Width_FitsContent_AndGrowsOnlyForAcceleratorAndGutter)
+    TEST_METHOD (Width_IsLabelColumnPlusAcceleratorColumn)
     {
         Fixture               f;
         DxuiPopupMenu         menu;
         MockDxuiTextRenderer  text;
         int                   labelPx = 27 * s_kGlyphPx;
+        int                   fixedPx = 0;
         int                   bare    = 0;
         int                   withAcc = 0;
         int                   withChk = 0;
@@ -185,25 +204,137 @@ public:
         menu.SetClock ([&] () { return now; });
 
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
-        bare = menu.GetRect().right - menu.GetRect().left;
-        Assert::AreEqual (s_kPadPx + labelPx + s_kPadPx, bare);
-        Assert::IsTrue (bare > s_kMinWidthPx);
+        fixedPx = LabelLeftPx (menu, false) + RightPadPx (menu);
+        bare    = menu.GetRect().right - menu.GetRect().left;
+        Assert::AreEqual (fixedPx + labelPx, bare);
+        Assert::IsTrue (bare > MinWidthPx (menu));
 
-        // An accelerator on the widest row adds exactly gap + its text.
+        // An accelerator anywhere opens the accelerator column: the gap plus
+        // the widest accelerator, on top of the unchanged label column.
         f.alpha.accelerator = L"Ctrl+X";                        // 6 glyphs
         menu.Hide();
         now += 1000;
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
         withAcc = menu.GetRect().right - menu.GetRect().left;
-        Assert::AreEqual (bare + s_kAccelGapPx + 6 * s_kGlyphPx, withAcc);
+        Assert::AreEqual (bare + AccelGapPx (menu) + 6 * s_kGlyphPx, withAcc);
 
-        // A checked functor on ANY row reserves the gutter for the list.
+        // A checkable row ANYWHERE opens the check gutter for the list, and
+        // a list where nothing can check never pays for one.
         f.gamma.isChecked = [] () { return true; };
         menu.Hide();
         now += 1000;
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
         withChk = menu.GetRect().right - menu.GetRect().left;
-        Assert::AreEqual (withAcc + s_kGutterPx, withChk);
+        Assert::AreEqual (withAcc + GutterPx (menu), withChk);
+    }
+
+
+    //
+    //  The defect the two-column measurement exists for: sizing the menu to
+    //  the widest label-plus-accelerator row leaves an accelerator-less row
+    //  with a LONGER label free to run under the accelerators above it.
+    //
+    TEST_METHOD (Width_LongLabelWithoutAccelerator_ClearsTheAcceleratorColumn)
+    {
+        DxuiCommand                     shortWithAccel;
+        DxuiCommand                     longNoAccel;
+        DxuiPopupMenu                   menu;
+        MockDxuiTextRenderer            text;
+        std::vector<DxuiPopupMenuItem>  rows;
+        int                             width = 0;
+
+
+        shortWithAccel.label       = L"Eject drive 1";                                    // 13 glyphs
+        shortWithAccel.accelerator = L"Ctrl+Shift+1";                                     // 12 glyphs
+        shortWithAccel.dispatch    = [] () {};
+
+        longNoAccel.label    = L"Set \"JoystickTest.dsk\" internal write-protect flag";    // 50 glyphs
+        longNoAccel.dispatch = [] () {};
+
+        rows.push_back (DxuiPopupMenuItem::ForCommand (&shortWithAccel));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (&longNoAccel));
+
+        menu.ShowAt (0, 0, std::move (rows), text, MakeHost (1600, 600));
+        width = menu.GetRect().right - menu.GetRect().left;
+
+        // The long label sets the label column and the accelerator column
+        // still sits entirely to its right.
+        Assert::AreEqual (LabelLeftPx (menu, false) + 50 * s_kGlyphPx
+                              + AccelGapPx (menu) + 12 * s_kGlyphPx + RightPadPx (menu),
+                          width);
+    }
+
+
+    //
+    //  What the column model is FOR, checked at the paint call rather than
+    //  through the width: accelerators of unequal length share a left edge,
+    //  are drawn left aligned, and every label is clipped short of them.
+    //
+    TEST_METHOD (Paint_AcceleratorsShareALeftEdge_AndLabelsStopShortOfThem)
+    {
+        DxuiCommand                     shortAccel;
+        DxuiCommand                     longAccel;
+        DxuiCommand                     longLabel;
+        DxuiPopupMenu                   menu;
+        MockDxuiPainter                 painter;
+        MockDxuiTextRenderer            text;
+        MockDxuiTheme                   theme;
+        std::vector<DxuiPopupMenuItem>  rows;
+        float                           accelX    = -1.0f;
+        int                             accels    = 0;
+        float                           labelEdge = 0.0f;
+
+
+        shortAccel.label       = L"Insert drive 1...";
+        shortAccel.accelerator = L"Ctrl+1";
+        shortAccel.dispatch    = [] () {};
+
+        longAccel.label       = L"Eject drive 1";
+        longAccel.accelerator = L"Ctrl+Shift+1";
+        longAccel.dispatch    = [] () {};
+
+        longLabel.label    = L"Set \"JoystickTest.dsk\" internal write-protect flag";
+        longLabel.dispatch = [] () {};
+
+        rows.push_back (DxuiPopupMenuItem::ForCommand (&shortAccel));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (&longAccel));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (&longLabel));
+
+        menu.SetTheme (&theme);
+        menu.ShowAt (0, 0, std::move (rows), text, MakeHost (1600, 600));
+        menu.Paint (painter, text);
+
+        for (const RecordedTextCall & c : text.Calls())
+        {
+            if (c.kind != RecordedTextKind::DrawString)
+            {
+                continue;
+            }
+
+            if (c.text == L"Ctrl+1" || c.text == L"Ctrl+Shift+1")
+            {
+                Assert::AreEqual ((int) DxuiTextHAlign::Left, (int) c.hAlign);
+
+                if (accelX < 0.0f)
+                {
+                    accelX = c.x;
+                }
+
+                Assert::AreEqual (accelX, c.x);
+                accels++;
+            }
+            else
+            {
+                labelEdge = c.x + c.width;
+            }
+        }
+
+        Assert::AreEqual (2, accels);
+        Assert::IsTrue (accelX > 0.0f);
+
+        // The last label drawn is the long one; its box ends at the
+        // accelerator column rather than running under it.
+        Assert::AreEqual (accelX, labelEdge);
     }
 
 
@@ -221,7 +352,7 @@ public:
 
         menu.ShowAt (0, 0, std::move (rows), text, MakeHost (800, 600));
 
-        Assert::AreEqual ((LONG) s_kMinWidthPx, menu.GetRect().right - menu.GetRect().left);
+        Assert::AreEqual ((LONG) MinWidthPx (menu), menu.GetRect().right - menu.GetRect().left);
     }
 
 
@@ -294,16 +425,97 @@ public:
         RECT                  r = {};
 
 
+        // Zero delay is the open-on-contact rule; the dwell is covered
+        // separately below.
+        menu.SetSubmenuDelayMs (0);
         menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
         r = menu.GetRect();
 
-        menu.OnMouseMove (r.left + 5, r.top + s_kRowPx + 5);       // the submenu row
+        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);    // the submenu row
         Assert::IsTrue   (menu.HasOpenChild());
         Assert::AreEqual (-1, menu.GetChild()->GetHighlight());
 
-        menu.OnMouseMove (r.left + 5, r.top + 5);                  // back to alpha
+        menu.OnMouseMove (r.left + 5, r.top + 5);                   // back to alpha
         Assert::IsFalse  (menu.HasOpenChild());
         Assert::IsTrue   (menu.IsVisible());
+    }
+
+
+    //
+    //  A submenu opens after the pointer RESTS on its row, which is what
+    //  lets a diagonal move to a row below cross a submenu row without
+    //  opening it. The clock is injected, so the delay is crossed by
+    //  arithmetic rather than by sleeping.
+    //
+    TEST_METHOD (HoverOnSubmenuRow_WaitsOutTheDelay_AndLeavingCancelsIt)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        RECT                  r     = {};
+        uint64_t              now   = 1000;
+        const int             delay = 400;
+
+
+        menu.SetClock ([&] () { return now; });
+        menu.SetSubmenuDelayMs (delay);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+        r = menu.GetRect();
+
+        // Crossing the row arms the open; it does not perform it.
+        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);
+        Assert::IsFalse (menu.HasOpenChild());
+        Assert::IsTrue  (menu.WantsTick());
+
+        // Ticking before the delay is up changes nothing.
+        now += delay - 1;
+        menu.Tick ((int64_t) now);
+        Assert::IsFalse (menu.HasOpenChild());
+
+        now += 1;
+        menu.Tick ((int64_t) now);
+        Assert::IsTrue  (menu.HasOpenChild());
+        Assert::IsFalse (menu.WantsTick());
+
+        // Leaving the row closes the child, and the pointer passing back
+        // across it arms rather than reopens.
+        menu.OnMouseMove (r.left + 5, r.top + 5);
+        Assert::IsFalse (menu.HasOpenChild());
+
+        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);
+        Assert::IsFalse (menu.HasOpenChild());
+
+        // ... and moving away again before the delay cancels it outright:
+        // no amount of ticking opens a submenu the pointer has left.
+        menu.OnMouseMove (r.left + 5, r.top + 5);
+        now += delay * 2;
+        menu.Tick ((int64_t) now);
+        Assert::IsFalse (menu.HasOpenChild());
+        Assert::IsFalse (menu.WantsTick());
+    }
+
+
+    //
+    //  Keyboard and click open a submenu OUTRIGHT. The dwell exists for a
+    //  pointer crossing rows it did not mean to open; a deliberate Right or
+    //  a click is not that.
+    //
+    TEST_METHOD (RightArrow_OpensSubmenuWithoutWaitingOutTheDelay)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        uint64_t              now = 1000;
+
+
+        menu.SetClock ([&] () { return now; });
+        menu.SetSubmenuDelayMs (400);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+
+        menu.OnKey (VK_DOWN);
+        menu.OnKey (VK_DOWN);
+        Assert::IsTrue (menu.OnKey (VK_RIGHT));
+        Assert::IsTrue (menu.HasOpenChild());
     }
 
 
@@ -415,7 +627,7 @@ public:
         r = menu.GetRect();
 
         // Hover CAN rest on a disabled row, as it does in every platform menu.
-        menu.OnMouseMove (r.left + 5, r.top + s_kRowPx + s_kSepPx + 5);      // beta
+        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + SepPx (menu) + 5);      // beta
         Assert::AreEqual (2, menu.GetHighlight());
 
         Assert::IsTrue   (menu.OnKey (VK_RETURN));
@@ -436,7 +648,7 @@ public:
         r = menu.GetRect();
 
         Assert::IsTrue (menu.OnLButtonDown (r.left + 5, r.top + 5));
-        Assert::IsTrue (menu.OnLButtonUp   (r.left + 5, r.top + 3 * s_kRowPx));   // released over gamma
+        Assert::IsTrue (menu.OnLButtonUp   (r.left + 5, r.top + 3 * RowPx (menu)));   // released over gamma
         Assert::AreEqual (0, f.dispatched);
         Assert::IsTrue   (menu.IsVisible());
 
@@ -586,7 +798,7 @@ public:
         // Every legacy row is checkable, so the list keeps its gutter as the
         // old widget always reserved it.
         width = menu.GetRect().right - menu.GetRect().left;
-        Assert::AreEqual (s_kMinWidthPx, width);          // short labels, floor applies
+        Assert::AreEqual (MinWidthPx (menu), width);      // short labels, floor applies
 
         menu.Paint (painter, text);
         for (const RecordedTextCall & c : text.Calls())
@@ -619,8 +831,8 @@ public:
         r = menu.GetRect();
 
         menu.OnKey (VK_DOWN);                                      // 0
-        menu.OnMouseMove (r.left + 5, r.top + 2 * s_kRowPx + s_kSepPx + 5);   // 3
-        menu.OnMouseMove (r.left + 6, r.top + 2 * s_kRowPx + s_kSepPx + 6);   // same row: no fire
+        menu.OnMouseMove (r.left + 5, r.top + 2 * RowPx (menu) + SepPx (menu) + 5);   // 3
+        menu.OnMouseMove (r.left + 6, r.top + 2 * RowPx (menu) + SepPx (menu) + 6);   // same row: no fire
 
         Assert::AreEqual ((size_t) 2, seen.size());
         Assert::AreEqual (0, seen[0]);
