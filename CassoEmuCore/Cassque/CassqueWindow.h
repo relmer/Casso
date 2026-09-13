@@ -212,9 +212,10 @@ private:
 
     //  The text view's rows for a preview: a BASIC line as its number and its
     //  statement, a detail as its label and value, anything else as one cell.
-    static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview);
+    static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview, bool lineAddresses);
+    static std::vector<Word>               GetLineAddresses (const std::vector<Byte> & program);
     static std::vector<std::wstring>       SplitLineNumber (const std::wstring & line);
-    bool  RouteToolbarMouse   (const DxuiMouseEvent & ev);
+    bool  RouteToolbarMouse   (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
 
     static int64_t  GetNowMs();
     void  BeginDragOut();
@@ -282,6 +283,12 @@ private:
     DxuiStatusBar        * m_status          = nullptr;
     DxuiTabStrip         * m_tabs            = nullptr;
     DxuiToolbar          * m_toolbar         = nullptr;
+    DxuiToolbar          * m_previewToolbar  = nullptr;
+
+    //  What the preview toolbar holds: 0 for nothing, 1 for a listing's
+    //  toggle, 2 for the hex view's commands.
+    int                    m_previewBarMode  = 0;
+    bool                   m_lineAddresses   = false;
     DxuiAddressBar       * m_address         = nullptr;
     DxuiTooltip            m_tooltip;
 

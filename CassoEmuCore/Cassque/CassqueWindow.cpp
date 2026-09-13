@@ -268,6 +268,12 @@ void CassqueWindow::OnCreate()
                             : DxuiToolbar::kMdl2IconFace);
     m_toolbar->SetIconDip  (kNavIconDip);
 
+    m_previewToolbar = CreateChild<DxuiToolbar>();
+    m_previewToolbar->SetTextRenderer (GetTextRenderer());
+    m_previewToolbar->SetPopupHost    (GetPopupHost());
+    m_previewToolbar->SetIconDip      (kNavIconDip);
+    m_previewToolbar->SetVisible      (false);
+
     m_menuBar->SetPopupHost (GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
 
@@ -622,6 +628,21 @@ void CassqueWindow::RecomputeLayout()
 
         RECT  listRect    = { right.left, right.top, sashRect.left, right.bottom };
         RECT  previewRect = { sashRect.right, right.top, right.right, right.bottom };
+        int   barPx       = m_scaler.ToPx (m_previewToolbar->GetBandDp());
+
+        m_previewRect = previewRect;
+        m_previewToolbar->SetVisible (m_previewBarMode != 0);
+
+        //  The preview's toolbar sits across its top, and the content below it.
+        if (m_previewBarMode != 0)
+        {
+            m_previewToolbar->PlanForWidth (previewRect.right - previewRect.left, m_scaler);
+            barPx = m_scaler.ToPx (m_previewToolbar->GetBandDp());
+
+            m_previewToolbar->SetHostClientRect (m_client);
+            m_previewToolbar->Layout (RECT { previewRect.left, previewRect.top, previewRect.right, previewRect.top + barPx }, m_scaler);
+            previewRect.top += barPx;
+        }
 
         m_list->Layout           (listRect,    m_scaler);
         m_listMessage->Layout    (listRect,    m_scaler);
@@ -630,10 +651,10 @@ void CassqueWindow::RecomputeLayout()
         m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (previewRect, m_scaler);
         m_previewMessage->Layout (previewRect, m_scaler);
-        m_previewRect = previewRect;
     }
     else
     {
+        m_previewToolbar->SetVisible (false);
         m_list->Layout        (right, m_scaler);
         m_listMessage->Layout (right, m_scaler);
     }
@@ -843,6 +864,8 @@ void CassqueWindow::FillPreview()
     bool                                          catalog = preview.kind == PreviewContent::Kind::Catalog;
     bool                                          hex     = preview.kind == PreviewContent::Kind::Hex && !preview.bytes.empty();
     bool                                          columns = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
+    bool                                          program = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
+    int                                           mode    = !visible ? 0 : hex ? 2 : program ? 1 : 0;
 
 
 
@@ -874,7 +897,21 @@ void CassqueWindow::FillPreview()
     m_previewList->UpdateAutoFitFromRows();
     m_previewList->SetTopRow (0);
 
-    m_textView->SetRows (BuildTextRows (preview));
+    m_textView->SetRows (BuildTextRows (preview, m_lineAddresses));
+
+    //  A new kind of preview brings its own toolbar, which changes the height
+    //  left for the content.
+    if (mode != m_previewBarMode)
+    {
+        m_previewBarMode = mode;
+
+        if (mode != 0)
+        {
+            m_previewToolbar->SetEntries (m_commands.BuildPreviewToolbarEntries (mode == 2));
+        }
+
+        RecomputeLayout();
+    }
 
     //  The hex view reads the preview's own bytes where they lie. The source
     //  is re-pointed rather than refilled, so a file of any size costs the
@@ -1187,7 +1224,15 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    if (RouteToolbarMouse (ev))
+    if (m_previewToolbar->IsVisible()
+        && (Contains (m_previewToolbar->GetBounds(), point) || ev.kind == DxuiMouseEventKind::Up)
+        && RouteToolbarMouse (*m_previewToolbar, ev))
+    {
+        Invalidate();
+        return true;
+    }
+
+    if (RouteToolbarMouse (*m_toolbar, ev))
     {
         Invalidate();
         return true;
@@ -1558,6 +1603,7 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassqueCommands::kUp:                return m_browser.CanGoUp();
         case CassqueCommands::kToggleDisassembly: return model.HasTabs();
+        case CassqueCommands::kLineAddresses:     return m_previewBarMode == 1;
         case CassqueCommands::kGoToOffset:
         case CassqueCommands::kGroup1:
         case CassqueCommands::kGroup2:
@@ -1589,6 +1635,7 @@ bool CassqueWindow::IsChecked (int id) const
     switch (id)
     {
         case CassqueCommands::kTogglePreview:     return m_prefs.previewVisible;
+        case CassqueCommands::kLineAddresses:     return m_lineAddresses;
         case CassqueCommands::kToggleDisassembly: return model.HasTabs() && model.GetActiveTab().disassemble;
         case CassqueCommands::kThemeLight:        return m_prefs.theme == CassquePrefs::kThemeLight;
         case CassqueCommands::kThemeDark:         return m_prefs.theme == CassquePrefs::kThemeDark;
@@ -1674,14 +1721,30 @@ bool CassqueWindow::IsTextPreviewShowing() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTextView::Row> CassqueWindow::BuildTextRows (const PreviewContent & preview)
+std::vector<DxuiTextView::Row> CassqueWindow::BuildTextRows (const PreviewContent & preview, bool lineAddresses)
 {
     std::vector<DxuiTextView::Row>  rows;
     DxuiTextView::Row               warning;
+    std::vector<Word>               addresses;
 
 
 
-    if (preview.kind == PreviewContent::Kind::Details)
+    if (lineAddresses && preview.kind == PreviewContent::Kind::Listing)
+    {
+        addresses = GetLineAddresses (preview.bytes);
+    }
+
+    if (!addresses.empty())
+    {
+        for (size_t i = 0; i < preview.lines.size(); i++)
+        {
+            DxuiTextView::Row  row { SplitLineNumber (preview.lines[i]) };
+
+            row.cells.insert (row.cells.begin(), (i < addresses.size()) ? std::format (L"${:04X}", addresses[i]) : std::wstring());
+            rows.push_back (std::move (row));
+        }
+    }
+    else if (preview.kind == PreviewContent::Kind::Details)
     {
         for (const std::pair<std::wstring, std::wstring> & field : preview.details)
         {
@@ -1707,6 +1770,73 @@ std::vector<DxuiTextView::Row> CassqueWindow::BuildTextRows (const PreviewConten
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetLineAddresses
+//
+//  Where each line of an Applesoft program starts in memory. Each line begins
+//  with a pointer to the next one, and a pointer is an absolute address, so the
+//  first line's pointer less the second line's offset in the file is the
+//  address the program loads at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Word> CassqueWindow::GetLineAddresses (const std::vector<Byte> & program)
+{
+    std::vector<size_t>  starts;
+    std::vector<Word>    addresses;
+    size_t               offset    = 0;
+    Word                 firstLink = 0;
+    Word                 base      = 0;
+
+
+
+    while (offset + 4 <= program.size())
+    {
+        Word    link = (Word) (program[offset] | (program[offset + 1] << 8));
+        size_t  end  = offset + 4;
+
+        if (link == 0)
+        {
+            break;
+        }
+
+        while (end < program.size() && program[end] != 0)
+        {
+            end++;
+        }
+
+        if (end >= program.size())
+        {
+            break;
+        }
+
+        if (starts.empty())
+        {
+            firstLink = link;
+        }
+
+        starts.push_back (offset);
+        offset = end + 1;
+
+        if (starts.size() == 1)
+        {
+            base = (Word) (firstLink - offset);
+        }
+    }
+
+    for (size_t start : starts)
+    {
+        addresses.push_back ((Word) (base + start));
+    }
+
+    return addresses;
 }
 
 
@@ -1950,6 +2080,12 @@ void CassqueWindow::Dispatch (int id)
 
         case CassqueCommands::kGoToOffset:
             AskForOffset();
+            break;
+
+        case CassqueCommands::kLineAddresses:
+            m_lineAddresses = !m_lineAddresses;
+            m_textView->SetRows (BuildTextRows (m_browser.GetPreview(), m_lineAddresses));
+            Invalidate();
             break;
 
         case CassqueCommands::kGroup1: SetHexGrouping (1); break;
@@ -3357,7 +3493,7 @@ int64_t CassqueWindow::GetNowMs()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassqueWindow::RouteToolbarMouse (const DxuiMouseEvent & ev)
+bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEvent & ev)
 {
     int              x      = ev.positionDip.x;
     int              y      = ev.positionDip.y;
@@ -3371,8 +3507,8 @@ bool CassqueWindow::RouteToolbarMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
         case DxuiMouseEventKind::Move:
-            took = m_toolbar->OnToolbarMouseMove (x, y);
-            tip  = took ? m_toolbar->GetTooltipAt (x, y, anchor) : nullptr;
+            took = toolbar.OnToolbarMouseMove (x, y);
+            tip  = took ? toolbar.GetTooltipAt (x, y, anchor) : nullptr;
 
             if (tip != nullptr && *tip != L'\0')
             {
@@ -3386,16 +3522,16 @@ bool CassqueWindow::RouteToolbarMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Down:
-            took = ev.button == DxuiMouseButton::Left && m_toolbar->OnToolbarLButtonDown (x, y);
+            took = ev.button == DxuiMouseButton::Left && toolbar.OnToolbarLButtonDown (x, y);
 
             //  A right-click on Back or Forward lists where each would go, as
             //  Explorer's does.
-            if (ev.button == DxuiMouseButton::Right && m_toolbar->TryGetEntryRect (CassqueCommands::kBack, anchor) && Contains (anchor, ev.positionDip))
+            if (ev.button == DxuiMouseButton::Right && toolbar.TryGetEntryRect (CassqueCommands::kBack, anchor) && Contains (anchor, ev.positionDip))
             {
                 ShowHistoryMenu (false, anchor);
                 took = true;
             }
-            else if (ev.button == DxuiMouseButton::Right && m_toolbar->TryGetEntryRect (CassqueCommands::kForward, anchor) && Contains (anchor, ev.positionDip))
+            else if (ev.button == DxuiMouseButton::Right && toolbar.TryGetEntryRect (CassqueCommands::kForward, anchor) && Contains (anchor, ev.positionDip))
             {
                 ShowHistoryMenu (true, anchor);
                 took = true;
@@ -3409,11 +3545,11 @@ bool CassqueWindow::RouteToolbarMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Up:
-            took = ev.button == DxuiMouseButton::Left && m_toolbar->OnToolbarLButtonUp (x, y);
+            took = ev.button == DxuiMouseButton::Left && toolbar.OnToolbarLButtonUp (x, y);
             break;
 
         case DxuiMouseEventKind::Leave:
-            m_toolbar->OnToolbarMouseLeave();
+            toolbar.OnToolbarMouseLeave();
             m_tooltip.RequestHide (nowMs);
             break;
 

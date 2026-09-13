@@ -60,15 +60,18 @@ CassqueCommands::CassqueCommands (Handlers handlers)
 
     //  The toolbar shows some of the same commands; they carry the glyph,
     //  short label and tip the strip draws.
-    for (const ToolbarRow & row : kToolbarRows)
+    for (const std::span<const ToolbarRow> & rows : { std::span<const ToolbarRow> (kToolbarRows), std::span<const ToolbarRow> (kPreviewToolbarRows) })
     {
-        for (std::unique_ptr<DxuiCommand> & command : m_commands)
+        for (const ToolbarRow & row : rows)
         {
-            if (command->id == row.id)
+            for (std::unique_ptr<DxuiCommand> & command : m_commands)
             {
-                command->glyph      = row.glyph;
-                command->shortLabel = row.shortLabel;
-                command->tip        = row.tip;
+                if (command->id == row.id)
+                {
+                    command->glyph      = row.glyph;
+                    command->shortLabel = row.shortLabel;
+                    command->tip        = row.tip;
+                }
             }
         }
     }
@@ -267,6 +270,41 @@ std::vector<DxuiToolbar::Entry> CassqueCommands::BuildToolbarEntries() const
         entry.group    = row.group;
         entry.iconOnly = row.iconOnly;
         entry.trailing = row.trailing;
+
+        entries.push_back (std::move (entry));
+    }
+
+    return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildPreviewToolbarEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildPreviewToolbarEntries (bool hex) const
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    for (const ToolbarRow & row : kPreviewToolbarRows)
+    {
+        DxuiToolbar::Entry  entry;
+
+        if ((row.id == kLineAddresses) == hex)
+        {
+            continue;
+        }
+
+        entry.command = Find (row.id);
+        entry.kind    = row.kind;
+        entry.group   = row.group;
 
         entries.push_back (std::move (entry));
     }

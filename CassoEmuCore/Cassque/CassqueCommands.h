@@ -60,6 +60,7 @@ public:
         kGroup4,
         kGroup8,
         kEditAddress,
+        kLineAddresses,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -81,6 +82,10 @@ public:
     //  The toolbar's entries, in strip order: navigation, refresh, and the
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
+
+    //  The preview pane's toolbar: Go to and the byte grouping over a hex
+    //  view, or the line address toggle over a BASIC listing.
+    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (bool hex) const;
 
     //  The toolbar entries' commands in strip order, so a host moving focus
     //  along the strip can check whether each one is enabled.
@@ -158,7 +163,8 @@ private:
         { kThemeDarkModern,   Menu::View, L"Casso Dark &Modern",  nullptr,     true  },
         { kThemeRetroTerminal, Menu::View, L"Casso &Retro Terminal", nullptr,  true  },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
-        { kGroup1,            Menu::View, L"Bytes grouped by &one",   nullptr,  true },
+        { kLineAddresses,     Menu::View, L"Line &addresses",         nullptr,  true },
+        { kGroup1,           Menu::View, L"Bytes grouped by &one",   nullptr,  true },
         { kGroup2,            Menu::View, L"Bytes grouped by &two",   nullptr,  true },
         { kGroup4,            Menu::View, L"Bytes grouped by &four",  nullptr,  true },
         { kGroup8,            Menu::View, L"Bytes grouped by &eight", nullptr,  true },
@@ -181,6 +187,16 @@ private:
         { kUp,            DxuiToolbar::Kind::Command, 0, s_kpszMdl2Up,      L"Up",      L"Up one level (Alt+Up)",  true  },
         { kRefresh,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Refresh, L"Refresh", L"Refresh (F5)",           true  },
         { kTogglePreview, DxuiToolbar::Kind::Toggle,  3, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)",   false, true },
+    };
+
+    static constexpr ToolbarRow  kPreviewToolbarRows[] =
+    {
+        { kLineAddresses, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Line addresses", L"Show where each line starts in memory" },
+        { kGoToOffset,    DxuiToolbar::Kind::Command, 0, nullptr, L"Go to",          L"Go to offset (Ctrl+G)"  },
+        { kGroup1,        DxuiToolbar::Kind::Toggle,  1, nullptr, L"1 byte",         L"Bytes grouped by one"   },
+        { kGroup2,        DxuiToolbar::Kind::Toggle,  1, nullptr, L"2 bytes",        L"Bytes grouped by two"   },
+        { kGroup4,        DxuiToolbar::Kind::Toggle,  1, nullptr, L"4 bytes",        L"Bytes grouped by four"  },
+        { kGroup8,        DxuiToolbar::Kind::Toggle,  1, nullptr, L"8 bytes",        L"Bytes grouped by eight" },
     };
 
     static constexpr Key  kKeys[] =

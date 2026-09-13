@@ -309,6 +309,13 @@ HRESULT PreviewDecoder::Render (
                                                       std::wstring (applesoftError.reason.begin(), applesoftError.reason.end()));
                     hr = S_OK;
                 }
+
+                //  The program's bytes stay with its listing, so the window can
+                //  find where each line starts in memory.
+                if (outContent.kind == PreviewContent::Kind::Listing)
+                {
+                    outContent.bytes = payload.bytes;
+                }
             }
             else
             {
