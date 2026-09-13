@@ -552,7 +552,8 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         {
             frameSizePx   = { widthPx, heightPx };
             placedByOwner = TryGetWindowPlacement (anchorHwnd, frameSizePx,
-                                                   params.placement, ownerPlacementPx);
+                                                   params.placement, params.placementAnchorRectPx,
+                                                   ownerPlacementPx);
 
             if (placedByOwner)
             {
@@ -706,8 +707,8 @@ POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & wor
 //  fits inside `work`, else flush against the other side.
 //
 //  Which side is preferred is the caller's call because it is about what
-//  the window is for, not about geometry: the Settings sheet and the disk
-//  picker open to the left, the printer panel to the right, so a user who
+//  the window is for, not about geometry: the Settings sheet opens to the
+//  left, the printer panel to the right, so a user who
 //  opens two of them does not get them stacked on the same edge.
 //
 //  `work` is the OWNER's monitor work area, so neither side placement can
@@ -811,6 +812,42 @@ POINT DxuiHwndSource::CenterOnOwner (const RECT & ownerRect, const SIZE & window
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::PlaceBelowRect
+//
+//  Pure placement geometry (declared in the header). Hangs a window of
+//  `windowSizePx` from the bottom of `anchorRect`, centered on it
+//  left/right -- the disk picker opening under the drive that was clicked.
+//
+//  The clamp does the rest, and it is the minimum-move rule the placement
+//  wants: a window past the bottom of `work` rises only until its bottom
+//  meets the work area's, keeping it centered on the anchor, and a window
+//  past either side slides only until that edge meets the work area's.
+//
+//  `work` is the ANCHOR's monitor work area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiHwndSource::PlaceBelowRect (const RECT & anchorRect, const SIZE & windowSizePx, const RECT & work)
+{
+    LONG  anchorWidth = anchorRect.right - anchorRect.left;
+    RECT  placed      = {};
+
+
+
+    placed.left   = anchorRect.left + (anchorWidth - windowSizePx.cx) / 2;
+    placed.top    = anchorRect.bottom;
+    placed.right  = placed.left + windowSizePx.cx;
+    placed.bottom = placed.top  + windowSizePx.cy;
+
+    return DxuiHwndSource::ClampToWorkArea (placed, work);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHwndSource::TryGetWindowPlacement
 //
 //  The Win32 half of every non-Default placement: reads the owner's frame
@@ -829,7 +866,8 @@ POINT DxuiHwndSource::CenterOnOwner (const RECT & ownerRect, const SIZE & window
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowSizePx,
-                                            DxuiWindowPlacement mode, POINT & outTopLeft)
+                                            DxuiWindowPlacement mode, const RECT & anchorRectPx,
+                                            POINT & outTopLeft)
 {
     HRESULT         hr        = S_OK;
     RECT            ownerRect = {};
@@ -883,6 +921,14 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
         monitor = MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
     }
 
+    // An anchor rect is a control inside the owner, and it is the anchor's
+    // monitor that has to hold the window -- an owner straddling two
+    // monitors can have the control on either.
+    if (mode == DxuiWindowPlacement::BelowAnchorRect)
+    {
+        monitor = MonitorFromRect (&anchorRectPx, MONITOR_DEFAULTTONEAREST);
+    }
+
     CWRA (monitor);
 
     gotInfo = GetMonitorInfoW (monitor, &info);
@@ -904,6 +950,10 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
             // Centering on the work area IS centering the work area on
             // itself, so the owner-centering helper covers this too.
             outTopLeft = DxuiHwndSource::CenterOnOwner (info.rcWork, windowSizePx, info.rcWork);
+            break;
+
+        case DxuiWindowPlacement::BelowAnchorRect:
+            outTopLeft = DxuiHwndSource::PlaceBelowRect (anchorRectPx, windowSizePx, info.rcWork);
             break;
 
         default:

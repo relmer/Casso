@@ -297,8 +297,10 @@ public:
     // UI helper: open the drive door for visual feedback, show the
     // file-open dialog, then close the door again. Mount-on-success
     // is handled by the existing PromptForDiskImage path; this
-    // method just owns the door visual.
-    void    BrowseForDisk (int drive);
+    // method just owns the door visual. `anchorClientPx` is the clicked
+    // drive in client pixels, which the picker opens below; null (the menu
+    // and accelerator path) centers the picker on the window.
+    void    BrowseForDisk (int drive, const RECT * anchorClientPx = nullptr);
 
 private:
 

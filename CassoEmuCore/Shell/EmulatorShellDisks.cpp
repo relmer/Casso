@@ -279,11 +279,13 @@ void EmulatorShell::Eject (int slot, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::BrowseForDisk (int drive)
+void EmulatorShell::BrowseForDisk (int drive, const RECT * anchorClientPx)
 {
     DriveWidgetState *  pSt          = nullptr;
     HRESULT             hrBrowse     = S_OK;
     bool                mountStarted = false;
+    RECT                anchorScreen = {};
+    const RECT *        pAnchor      = nullptr;
 
 
 
@@ -314,9 +316,17 @@ void EmulatorShell::BrowseForDisk (int drive)
     // The keep-alive spans the whole modal picker (including its nested
     // IFileOpenDialog when the user clicks Browse...), animating the door
     // and keeping the printer preview live behind the dialog.
+    // An empty rect (a drive not laid out this frame) is no anchor at all.
+    if (anchorClientPx != nullptr && !IsRectEmpty (anchorClientPx))
+    {
+        anchorScreen = *anchorClientPx;
+        MapWindowPoints (m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchorScreen), 2);
+        pAnchor = &anchorScreen;
+    }
+
     m_host->BeginModalKeepAlive();
 
-    hrBrowse = m_windowCommandManager->PromptInsertDiskMru (drive + 1, mountStarted);
+    hrBrowse = m_windowCommandManager->PromptInsertDiskMru (drive + 1, pAnchor, mountStarted);
     IGNORE_RETURN_VALUE (hrBrowse, S_OK);
 
     m_host->EndModalKeepAlive();
