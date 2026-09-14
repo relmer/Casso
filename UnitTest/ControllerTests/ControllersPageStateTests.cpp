@@ -220,6 +220,31 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (ADpadCaptureOnAnAxis_TakesBothDirections)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick   = MakeStick();
+            ControllerSample      pressed = Rest();
+            AxisBinding           binding;
+
+            stick.controls.push_back ({ ControlKind::DpadLeft,  0 });
+            stick.controls.push_back ({ ControlKind::DpadRight, 0 });
+            page.Load ({ stick }, {}, {}, true);
+            page.BeginCapture (PaddleTarget::Pdl0, Rest(), 0);
+
+            pressed.buttons.set (1);
+            Assert::IsFalse (page.FeedCapture (pressed), L"a plain button has no opposite, so it cannot drive an axis");
+
+            pressed.hats[0] = ControllerSample::kHatRight;
+            Assert::IsTrue  (page.FeedCapture (pressed));
+
+            binding = page.GetMapping().pdl0[0];
+            Assert::IsTrue (binding.kind == AxisBindingKind::DigitalPair);
+            Assert::IsTrue (binding.negative == ControlId { ControlKind::DpadLeft,  0 }, L"pressing right still takes left as the low end");
+            Assert::IsTrue (binding.positive == ControlId { ControlKind::DpadRight, 0 });
+        }
+
+
         TEST_METHOD (AControllerUnpluggedWhileOpen_KeepsItsEditsAndShowsDisconnected)
         {
             ControllersPageState  page;

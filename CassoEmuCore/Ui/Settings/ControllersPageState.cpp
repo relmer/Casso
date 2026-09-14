@@ -624,6 +624,7 @@ std::vector<ControlId> ControllersPageState::GetSharedControls() const
 void ControllersPageState::BeginCapture (PaddleTarget target, const ControllerSample & baseline, std::optional<size_t> replaceIndex)
 {
     const ControllerEntry *  selected = GetSelected();
+    std::vector<ControlId>   controls;
 
 
 
@@ -632,9 +633,20 @@ void ControllersPageState::BeginCapture (PaddleTarget target, const ControllerSa
         return;
     }
 
+    // An axis takes an analog control or a D-pad direction, which brings its
+    // opposite along as a pair. A plain button has no opposite, so it is not
+    // offered.
+    for (const ControlId & control : selected->controls)
+    {
+        if (!IsAxisTarget (target) || control.kind != ControlKind::Button)
+        {
+            controls.push_back (control);
+        }
+    }
+
     m_captureTarget  = target;
     m_captureReplace = replaceIndex;
-    m_capture.Begin (baseline, selected->controls);
+    m_capture.Begin (baseline, controls);
 }
 
 
@@ -676,9 +688,11 @@ bool ControllersPageState::FeedCapture (const ControllerSample & sample)
         }
         else
         {
+            bool  isHorizontal = captured->control.kind == ControlKind::DpadLeft || captured->control.kind == ControlKind::DpadRight;
+
             binding.kind     = AxisBindingKind::DigitalPair;
-            binding.negative = captured->control;
-            binding.positive = captured->control;
+            binding.negative = { isHorizontal ? ControlKind::DpadLeft  : ControlKind::DpadUp,   captured->control.index };
+            binding.positive = { isHorizontal ? ControlKind::DpadRight : ControlKind::DpadDown, captured->control.index };
         }
 
         if (m_captureReplace.has_value() && ReplaceAxisBinding (m_captureTarget, m_captureReplace.value(), binding))
