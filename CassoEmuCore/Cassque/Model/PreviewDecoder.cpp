@@ -341,8 +341,12 @@ HRESULT PreviewDecoder::Render (
             break;
 
         case PreviewContent::Kind::Text:
-            AppleTextCodec::Decode (payload.bytes, AppleTextConvention::HighAscii, text);
-            SplitIntoLines (text, outContent.lines);
+            //  Text shows in the hex view with only its characters, where its
+            //  bytes are one toggle away.
+            outContent.kind     = PreviewContent::Kind::Hex;
+            outContent.bytes    = payload.bytes;
+            outContent.origin   = origin;
+            outContent.textFile = true;
             break;
 
         case PreviewContent::Kind::Picture:

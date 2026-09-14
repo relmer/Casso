@@ -125,9 +125,12 @@ public:
         Assert::IsTrue (content.kind == Kind::Listing);
         Assert::AreEqual (std::wstring (L"15 DSP I"), content.lines[1]);
 
+        //  Text goes to the hex view, showing only its characters.
         RenderDos33 ("NOTES", false, content);
-        Assert::IsTrue (content.kind == Kind::Text);
-        Assert::AreEqual (std::wstring (L"CASSQUE TEST NOTES"), content.lines[0]);
+        Assert::IsTrue (content.kind == Kind::Hex);
+        Assert::IsTrue (content.textFile);
+        Assert::IsTrue (!content.bytes.empty() && (content.bytes[0] & 0x7F) == 'C',
+            L"The bytes are the file's, with the high bit Apple text carries");
 
         RenderDos33 ("PICTURE", false, content);
         Assert::IsTrue (content.kind == Kind::Picture);

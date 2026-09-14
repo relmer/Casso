@@ -49,6 +49,13 @@ struct PreviewContent
     std::vector<Byte>          bytes;
     Word                       origin = 0;
 
+    //  A hex preview of text, which opens showing only its characters.
+    bool                       textFile = false;
+
+    //  A hex preview of a file on the host, which the window reads from the
+    //  file as it draws rather than from `bytes`.
+    std::wstring               hostPath;
+
     //  Set for an Integer BASIC listing, whose lines are laid out differently
     //  from Applesoft's.
     bool                       integerBasic = false;

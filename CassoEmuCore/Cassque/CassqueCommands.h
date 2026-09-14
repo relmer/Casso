@@ -230,6 +230,8 @@ private:
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kLineAddresses, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Show address",   L"Show where each line starts in memory" },
+        { kNoData,        DxuiToolbar::Kind::Toggle,   0, nullptr, L"Text only",     L"Show only the characters, not the bytes" },
+
         //  The Go to and search boxes, which the host supplies as custom entries.
         { kGoToOffset,    DxuiToolbar::Kind::Command,  0, nullptr, L"Go to",         L""                            },
         { kFind,          DxuiToolbar::Kind::Command,  1, nullptr, L"Search",        L"",                           false, true },

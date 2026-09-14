@@ -234,6 +234,9 @@ public:
 
     static constexpr int  kWheelRows = 3;
 
+    //  The most bytes Copy takes.
+    static constexpr uint64_t  kMaxCopyBytes = 16 * 1024 * 1024;
+
 private:
     //  Hex digits the offset column spends, which is eight once the last
     //  address does not fit in four.

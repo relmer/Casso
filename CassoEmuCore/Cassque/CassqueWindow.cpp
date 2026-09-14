@@ -976,16 +976,18 @@ void CassqueWindow::FillList()
 
 void CassqueWindow::FillPreview()
 {
-    const PreviewContent &                        preview = m_browser.GetPreview();
-    std::vector<std::vector<DxuiListView::Cell>>  rows;
-    bool                                          visible = m_prefs.previewVisible;
-    bool                                          picture = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
-    bool                                          error   = preview.kind == PreviewContent::Kind::Error;
-    bool                                          catalog = preview.kind == PreviewContent::Kind::Catalog;
-    bool                                          hex     = preview.kind == PreviewContent::Kind::Hex && !preview.bytes.empty();
-    bool                                          columns = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
-    bool                                          program = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
-    int                                           mode    = !visible ? 0 : hex ? 2 : program ? 1 : 0;
+    const PreviewContent                          & preview  = m_browser.GetPreview();
+    std::vector<std::vector<DxuiListView::Cell>>    rows;
+    bool                                            visible  = m_prefs.previewVisible;
+    bool                                            picture  = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
+    bool                                            hostFile = preview.kind == PreviewContent::Kind::Hex && !preview.hostPath.empty();
+    bool                                            opened   = hostFile && (m_fileBytes.GetPath() == preview.hostPath || m_fileBytes.Open (preview.hostPath));
+    bool                                            error    = preview.kind == PreviewContent::Kind::Error || (hostFile && !opened);
+    bool                                            catalog  = preview.kind == PreviewContent::Kind::Catalog;
+    bool                                            hex      = preview.kind == PreviewContent::Kind::Hex && (!preview.bytes.empty() || opened);
+    bool                                            columns  = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
+    bool                                            program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
+    int                                             mode     = !visible ? 0 : hex ? 2 : program ? 1 : 0;
 
 
 
@@ -1042,11 +1044,26 @@ void CassqueWindow::FillPreview()
     //  The hex view reads the preview's own bytes where they lie. The source
     //  is re-pointed rather than refilled, so a file of any size costs the
     //  same here as a short one.
-    m_previewBytes.SetBytes (hex ? &preview.bytes : nullptr);
-    m_hexView->SetSource (hex ? &m_previewBytes : nullptr);
-    m_hexView->SetOriginAddress (preview.origin);
+    //  A host file is read from the file as the view draws it; an Apple file
+    //  is already in memory. Text opens showing only its characters.
+    if (!opened)
+    {
+        m_fileBytes.Close();
+    }
 
-    m_previewMessage->SetText (error ? FormatPreviewError (preview.message) : std::wstring());
+    m_previewBytes.SetBytes ((hex && !opened) ? &preview.bytes : nullptr);
+    m_hexView->SetSource (!hex ? nullptr : opened ? (const IDxuiHexSource *) &m_fileBytes : (const IDxuiHexSource *) &m_previewBytes);
+    m_hexView->SetOriginAddress (preview.origin);
+    m_hexView->SetTextEncoding (opened ? DxuiHexView::TextEncoding::Ascii : DxuiHexView::TextEncoding::AppleHighBit);
+
+    if (hex)
+    {
+        m_hexView->SetShowValues (!(opened ? m_fileBytes.LooksLikeText() : preview.textFile));
+    }
+
+    m_previewMessage->SetText (!error                  ? std::wstring()
+                               : (hostFile && !opened) ? FormatPreviewError (L"The file could not be read")
+                                                       : FormatPreviewError (preview.message));
     m_previewMessage->SetVisible (visible && error);
     m_picture->SetVisible (visible && picture);
     m_previewList->SetVisible (visible && columns);
@@ -1054,6 +1071,177 @@ void CassqueWindow::FillPreview()
     m_hexView->SetVisible (visible && hex);
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FileBytes::Open
+//
+//  Shared for reading, writing and deletion, so previewing a file never gets
+//  in the way of another program using it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::FileBytes::Open (const std::wstring & path)
+{
+    LARGE_INTEGER  size = {};
+
+
+
+    Close();
+
+    m_file = CreateFileW (path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                          nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+    if (m_file == INVALID_HANDLE_VALUE || !GetFileSizeEx (m_file, &size))
+    {
+        Close();
+        return false;
+    }
+
+    m_path = path;
+    m_size = (uint64_t) size.QuadPart;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FileBytes::Close
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::FileBytes::Close()
+{
+    if (m_file != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (m_file);
+    }
+
+    m_file       = INVALID_HANDLE_VALUE;
+    m_size       = 0;
+    m_windowBase = 0;
+
+    m_path.clear();
+    m_window.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FileBytes::LooksLikeText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::FileBytes::LooksLikeText() const
+{
+    std::vector<uint8_t>  sample ((size_t) (std::min) ((uint64_t) kTextSampleBytes, m_size));
+
+
+
+    if (sample.empty())
+    {
+        return false;
+    }
+
+    ReadAt (0, sample);
+
+    for (uint8_t byte : sample)
+    {
+        if ((byte < 0x20 || byte > 0x7E) && byte != '\t' && byte != '\r' && byte != '\n')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FileBytes::ReadBytes
+//
+//  The window starts a little before the bytes asked for, so scrolling back
+//  a few rows does not move it again straight away.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::FileBytes::ReadBytes (uint64_t offset, std::span<uint8_t> out) const
+{
+    uint64_t  end = offset + out.size();
+
+
+
+    if (out.size() > kWindowBytes / 2)
+    {
+        ReadAt (offset, out);
+        return;
+    }
+
+    if (m_window.empty() || offset < m_windowBase || end > m_windowBase + m_window.size())
+    {
+        m_windowBase = (offset > kWindowBytes / 4) ? (offset - kWindowBytes / 4) : 0;
+        m_window.resize ((size_t) (std::min) ((uint64_t) kWindowBytes, m_size - (std::min) (m_windowBase, m_size)));
+
+        ReadAt (m_windowBase, m_window);
+    }
+
+    if (end > m_windowBase + m_window.size())
+    {
+        ReadAt (offset, out);
+        return;
+    }
+
+    std::copy_n (m_window.begin() + (ptrdiff_t) (offset - m_windowBase), out.size(), out.begin());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::FileBytes::ReadAt
+//
+//  Bytes the file no longer has, because it shrank while shown, read as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::FileBytes::ReadAt (uint64_t offset, std::span<uint8_t> out) const
+{
+    LARGE_INTEGER  position = {};
+    DWORD          got      = 0;
+
+
+
+    std::fill (out.begin(), out.end(), (uint8_t) 0);
+
+    if (m_file == INVALID_HANDLE_VALUE || out.empty())
+    {
+        return;
+    }
+
+    position.QuadPart = (LONGLONG) offset;
+
+    if (SetFilePointerEx (m_file, position, nullptr, FILE_BEGIN))
+    {
+        ReadFile (m_file, out.data(), (DWORD) out.size(), &got, nullptr);
+    }
 }
 
 
@@ -1948,11 +2136,11 @@ bool CassqueWindow::IsChecked (int id) const
         case CassqueCommands::kThemeSkeuomorphic: return m_prefs.theme == CassquePrefs::kThemeSkeuomorphic;
         case CassqueCommands::kThemeDarkModern:   return m_prefs.theme == CassquePrefs::kThemeDarkModern;
         case CassqueCommands::kThemeRetroTerminal: return m_prefs.theme == CassquePrefs::kThemeRetroTerminal;
-        case CassqueCommands::kNoData:            return !m_prefs.hexShowValues;
-        case CassqueCommands::kGroup1:            return m_prefs.hexShowValues && m_prefs.hexGrouping == 1;
-        case CassqueCommands::kGroup2:            return m_prefs.hexShowValues && m_prefs.hexGrouping == 2;
-        case CassqueCommands::kGroup4:            return m_prefs.hexShowValues && m_prefs.hexGrouping == 4;
-        case CassqueCommands::kGroup8:            return m_prefs.hexShowValues && m_prefs.hexGrouping == 8;
+        case CassqueCommands::kNoData:            return !m_hexView->IsShowingValues();
+        case CassqueCommands::kGroup1:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 1;
+        case CassqueCommands::kGroup2:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 2;
+        case CassqueCommands::kGroup4:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 4;
+        case CassqueCommands::kGroup8:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 8;
         case CassqueCommands::kFormatHex:         return m_prefs.hexFormat == CassquePrefs::kHexFormatHex;
         case CassqueCommands::kFormatSigned:      return m_prefs.hexFormat == CassquePrefs::kHexFormatSigned;
         case CassqueCommands::kFormatUnsigned:    return m_prefs.hexFormat == CassquePrefs::kHexFormatUnsigned;
@@ -2503,21 +2691,24 @@ void CassqueWindow::OnSearchChanged (const std::wstring & text)
 
 void CassqueWindow::FindNext (bool incremental)
 {
-    const std::vector<Byte> &  bytes = m_browser.GetPreview().bytes;
-    size_t                     start = 0;
-    size_t                     found = 0;
+    const IDxuiHexSource *  source = m_hexView->GetSource();
+    uint64_t                start  = 0;
+    uint64_t                found  = 0;
 
 
 
-    if (!IsHexPreviewShowing() || m_findBytes.empty())
+    if (!IsHexPreviewShowing() || m_findBytes.empty() || source == nullptr)
     {
         return;
     }
 
-    start = m_hexView->HasSelection() ? (size_t) m_hexView->GetSelectionFirst() + (incremental ? 0 : 1) : (size_t) m_hexView->GetCaret();
-    found = CassqueActions::FindBytes (bytes, m_findBytes, m_findIsText, start);
+    //  The search reads the whole file through the source, not just the part
+    //  the view has drawn.
+    start = m_hexView->HasSelection() ? m_hexView->GetSelectionFirst() + (incremental ? 0 : 1) : m_hexView->GetCaret();
+    found = CassqueActions::FindInSource ([source] (uint64_t offset, std::span<uint8_t> out) { source->ReadBytes (offset, out); },
+                                          source->GetByteCount(), m_findBytes, m_findIsText, start);
 
-    if (found == CassqueActions::kNotFound)
+    if (found == CassqueActions::kNotFoundOffset)
     {
         if (!incremental)
         {
@@ -2720,7 +2911,7 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kZoomOut:        SetPreviewZoom (m_prefs.previewZoom - kPreviewZoomStep); break;
         case CassqueCommands::kZoomReset:      SetPreviewZoom (CassquePrefs::kDefaultPreviewZoom);      break;
         case CassqueCommands::kFindNext:       FindNext();                                      break;
-        case CassqueCommands::kNoData:         SetHexShowValues (false);                        break;
+        case CassqueCommands::kNoData:         SetHexShowValues (!m_hexView->IsShowingValues()); break;
         case CassqueCommands::kFormatHex:      SetHexFormat (CassquePrefs::kHexFormatHex);      break;
         case CassqueCommands::kFormatSigned:   SetHexFormat (CassquePrefs::kHexFormatSigned);   break;
         case CassqueCommands::kFormatUnsigned: SetHexFormat (CassquePrefs::kHexFormatUnsigned); break;

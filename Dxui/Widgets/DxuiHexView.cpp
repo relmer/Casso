@@ -1681,7 +1681,9 @@ bool DxuiHexView::QueryCommand (DxuiStandardCommand command, bool & outEnabled) 
     switch (command)
     {
     case DxuiStandardCommand::Copy:
-        outEnabled = m_hasSelection;
+        //  A copy is built in memory, so a selection past the cap is not
+        //  copied at all rather than exhausting memory on a huge file.
+        outEnabled = m_hasSelection && GetSelectionCount() <= kMaxCopyBytes;
         return true;
 
     case DxuiStandardCommand::SelectAll:

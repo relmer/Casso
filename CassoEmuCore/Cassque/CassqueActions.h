@@ -157,6 +157,15 @@ public:
     static constexpr size_t  kNotFound = SIZE_MAX;
     static size_t  FindBytes (const std::vector<Byte> & haystack, const std::vector<Byte> & pattern, bool isText, size_t start);
 
+    //  The same search over bytes read on demand, a chunk at a time, so a file
+    //  of any size is searched without being held in memory. Chunks overlap by
+    //  the pattern's length less one, so a match across two is not missed.
+    using ReadFn = std::function<void (uint64_t offset, std::span<uint8_t> out)>;
+
+    static constexpr uint64_t  kNotFoundOffset   = UINT64_MAX;
+    static constexpr size_t    kSearchChunkBytes = 1024 * 1024;
+    static uint64_t  FindInSource (const ReadFn & read, uint64_t count, const std::vector<Byte> & pattern, bool isText, uint64_t start);
+
 private:
     void  FinishWrite (const std::wstring & imagePath);
 

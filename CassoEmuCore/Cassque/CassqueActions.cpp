@@ -976,6 +976,80 @@ size_t CassqueActions::FindBytes (const std::vector<Byte> & haystack, const std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueActions::FindInSource
+//
+//  From `start` to the end, then from the beginning back to `start`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t CassqueActions::FindInSource (const ReadFn & read, uint64_t count, const std::vector<Byte> & pattern, bool isText, uint64_t start)
+{
+    uint64_t              length = pattern.size();
+    uint64_t              last   = 0;
+    std::vector<uint8_t>  chunk;
+
+
+
+    if (length == 0 || length > count)
+    {
+        return kNotFoundOffset;
+    }
+
+    last  = count - length;
+    start = (start > last) ? 0 : start;
+
+    for (int pass = 0; pass < 2; pass++)
+    {
+        uint64_t  from = (pass == 0) ? start : 0;
+        uint64_t  to   = (pass == 0) ? last  : (std::min) (start, last + 1);
+
+        //  `to` is the last offset a match may start at on the first pass,
+        //  and one past it on the second.
+        for (uint64_t at = from; (pass == 0) ? (at <= to) : (at < to); )
+        {
+            uint64_t  starts = (std::min) ((uint64_t) kSearchChunkBytes, ((pass == 0) ? (to + 1) : to) - at);
+            uint64_t  span   = starts + length - 1;
+
+            chunk.resize ((size_t) span);
+            read (at, chunk);
+
+            for (uint64_t i = 0; i < starts; i++)
+            {
+                bool  match = true;
+
+                for (uint64_t j = 0; j < length && match; j++)
+                {
+                    Byte  have = chunk[(size_t) (i + j)];
+                    Byte  want = pattern[(size_t) j];
+
+                    if (isText)
+                    {
+                        have = (Byte) towupper (have & 0x7F);
+                        want = (Byte) towupper (want & 0x7F);
+                    }
+
+                    match = (have == want);
+                }
+
+                if (match)
+                {
+                    return at + i;
+                }
+            }
+
+            at += starts;
+        }
+    }
+
+    return kNotFoundOffset;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueActions::TryParseAddress
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -616,8 +616,23 @@ void CassqueBrowser::UpdatePreview()
         return;
     }
 
+    //  Any other file in a host folder shows its bytes, which the window reads
+    //  from the file as it draws them rather than loading them here.
     if (!m_rows[m_selectedRows[0]].isDiskImage)
     {
+        if (!m_rows[m_selectedRows[0]].isDirectory)
+        {
+            m_preview.kind     = PreviewContent::Kind::Hex;
+            m_preview.hostPath = location.path;
+
+            if (!m_preview.hostPath.empty() && m_preview.hostPath.back() != L'\\')
+            {
+                m_preview.hostPath += L'\\';
+            }
+
+            m_preview.hostPath += m_rows[m_selectedRows[0]].name;
+        }
+
         return;
     }
 

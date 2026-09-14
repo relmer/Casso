@@ -426,6 +426,28 @@ public:
     }
 
 
+    TEST_METHOD (Search_InSourceFindsAMatchAcrossTwoChunksAndWraps)
+    {
+        std::vector<Byte>       haystack (CassqueActions::kSearchChunkBytes * 2 + 100, (Byte) 0);
+        uint64_t                across = CassqueActions::kSearchChunkBytes - 2;
+        CassqueActions::ReadFn  read   = [&haystack] (uint64_t offset, std::span<uint8_t> out)
+        {
+            std::copy_n (haystack.begin() + (ptrdiff_t) offset, out.size(), out.begin());
+        };
+
+        haystack[(size_t) across]     = 0xDE;
+        haystack[(size_t) across + 1] = 0xAD;
+        haystack[(size_t) across + 2] = 0xBE;
+        haystack[(size_t) across + 3] = 0xEF;
+
+        Assert::AreEqual (across, CassqueActions::FindInSource (read, haystack.size(), { 0xDE, 0xAD, 0xBE, 0xEF }, false, 0),
+            L"A match that straddles the first chunk's end is found");
+        Assert::AreEqual (across, CassqueActions::FindInSource (read, haystack.size(), { 0xDE, 0xAD, 0xBE, 0xEF }, false, across + 1),
+            L"and a search past it wraps back to it");
+        Assert::AreEqual (CassqueActions::kNotFoundOffset, CassqueActions::FindInSource (read, haystack.size(), { 0x77 }, false, 0));
+    }
+
+
     TEST_METHOD (Numbers_ParseSpacesAndCommas)
     {
         std::vector<int>  numbers;
