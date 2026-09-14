@@ -414,7 +414,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_deadzone.SetStep          (1.0f);
     m_deadzone.SetDecimalPlaces (0);
     m_deadzone.SetSuffix        (L"%");
-    m_deadzone.SetTickInterval  (30.0f);
+    m_deadzone.SetTickInterval  (10.0f);
     y += rowH + sectionGap;
 
     m_calibrationLabel.SetRect  (MakeRect (x, y, labelWidth, rowH));
