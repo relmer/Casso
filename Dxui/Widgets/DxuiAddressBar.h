@@ -77,6 +77,10 @@ public:
     void  EndEdit   ();
 
     bool                 IsEditing     () const { return m_editing; }
+
+    //  Whether focus shows a ring. Focus from the keyboard does; a click gives
+    //  the bar focus without one, as Explorer's does.
+    void                 SetFocusCue   (bool show) { m_focusCue = show; }
     bool                 IsInteracting () const { return m_pressed.part != Part::None || m_clearPressed; }
     bool                 WantsTick     () const { return m_chevronAngle != m_chevronTarget; }
     const std::wstring & GetEditText   () const { return m_input.GetText(); }
@@ -135,6 +139,7 @@ private:
     Hit            m_pressed;
     bool           m_editing       = false;
     bool           m_focused       = false;
+    bool           m_focusCue      = true;
     int            m_chevronIndex  = -1;
     float          m_chevronAngle  = 0.0f;
     float          m_chevronTarget = 0.0f;

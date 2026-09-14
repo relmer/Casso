@@ -283,7 +283,7 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         painter.OutlineRoundedRect (x, y, w, h, radius, 1.0f, (theme.Foreground() & 0x00FFFFFFu) | 0x40000000u);
         painter.FillRect (x + radius, y + h - accent, w - radius * 2.0f, accent, theme.Accent());
     }
-    else if (m_focused)
+    else if (m_focused && m_focusCue)
     {
         painter.OutlineRoundedRect (x, y, w, h, radius, (float) m_scaler.ToPx (2), theme.FocusRing());
     }

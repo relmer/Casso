@@ -1422,7 +1422,7 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
                                                                                              : Pane::PreviewToolbar);
             break;
 
-        case FocusStop::Kind::Address: SetFocusPane (Pane::Address); break;
+        case FocusStop::Kind::Address: m_address->SetFocusCue (true); SetFocusPane (Pane::Address); break;
         case FocusStop::Kind::Tabs:    SetFocusPane (Pane::Tabs);    break;
         case FocusStop::Kind::List:    SetFocusPane (Pane::List);    break;
         case FocusStop::Kind::Preview: SetFocusPane (Pane::Preview); break;
@@ -1669,6 +1669,7 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
             if (press)
             {
                 SetFocusPane (Pane::Address);
+                m_address->SetFocusCue (false);
             }
 
             if (m_address->OnMouse (ev))
