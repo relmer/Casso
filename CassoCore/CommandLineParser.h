@@ -550,7 +550,6 @@ private:
     static HRESULT  ParseBoundedHex (const char * text, long maxValue, long & outValue);
     static HRESULT  ParseAddress    (const char * text, Word & address);
     static HRESULT  ParseDecimal    (const char * text, uint32_t & value);
-    static HRESULT  ParseFillByte   (const char * text, Byte & fillByte);
 
     //  The digits glued to a numeric AS65 flag, and how many characters they
     //  occupied -- which is where the flag ends and the next one in the group

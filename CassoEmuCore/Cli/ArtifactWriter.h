@@ -144,9 +144,6 @@ public:
     static HRESULT  WriteDebugInfo   (const AssemblyResult & result,
                                       const std::string & debugFile);
 
-    //  The `-g` symbol file: NAME=$ADDR, one per line.
-    static HRESULT  WriteSymbolFile  (const std::string & path, const std::unordered_map<std::string, Word> & symbols);
-
 private:
     //  Which of the four formats this invocation asked for, extension included.
     static CommandLineOptions::OutputFormat  ResolveOutputFormat   (const CommandLineOptions & options);

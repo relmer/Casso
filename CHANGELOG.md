@@ -32,6 +32,11 @@ Entries before versioning was introduced use dates only.
   only as far as it must to stay on screen. Opened from the menu or the
   keyboard, it centers on the Casso window.
 
+### Removed
+
+- `CassoCli run` no longer accepts `-o`, `-l`, `-a` or `--fill`. They were
+  dead code and had no effect.
+
 ### Fixed
 
 - The disk picker opens with its list scrolled to the top rather than the
