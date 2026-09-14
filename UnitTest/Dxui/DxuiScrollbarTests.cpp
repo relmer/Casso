@@ -327,7 +327,7 @@ public:
         }
 
         Assert::AreEqual (0, rects, L"The pointer brings no track");
-        Assert::AreEqual (8.0f, widest, L"and the puck fills the strip but for its inset");
+        Assert::AreEqual (5.0f, widest, L"and the puck widens to half the strip");
     }
 
 

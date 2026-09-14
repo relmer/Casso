@@ -10,7 +10,7 @@
 
 
 static constexpr uint32_t  s_kRgbMask           = 0x00FFFFFFu;
-static constexpr uint32_t  s_kThumbAlpha        = 0xDD000000u;
+static constexpr uint32_t  s_kThumbAlpha        = 0xA6000000u;
 
 //  Explorer's scrollbar widens quickly when the pointer arrives and narrows
 //  more slowly when it leaves.
@@ -23,7 +23,8 @@ static constexpr int       s_kArrowGlyphMinPx   = 3;
 static constexpr int       s_kArrowGlyphAspect  = 2;
 static constexpr int       s_kArrowCount        = 2;
 static constexpr int       s_kArrowFitSlackPx   = 2;
-static constexpr float     s_kThumbCrossInsetPx = 1.0f;
+//  Explorer's puck under the pointer is about half the strip's width.
+static constexpr float     s_kHoverThumbRatio   = 0.5f;
 
 //  At rest, a Windows 11 scrollbar is a thin rounded thumb with no track, and
 //  it widens to the full bar with arrows only while the pointer is over it.
@@ -288,9 +289,12 @@ float DxuiScrollbar::GetThumbStart() const
     //  A dragged puck follows the pointer pixel by pixel. The position it
     //  reports moves in whole units, so the view scrolls only when the puck
     //  has gone far enough for one.
+    //  The drag is kept as a distance along the track rather than a point, so
+    //  a host that places the track differently for input and for painting
+    //  draws the puck in the same place in both.
     if (m_dragging)
     {
-        start = std::clamp (m_dragThumb, (float) trackStart, (float) trackStart + (std::max) (travel, 0.0f));
+        start += std::clamp (m_dragOffset, 0.0f, (std::max) (travel, 0.0f));
     }
     else if (maxPos > 0 && travel > 0.0f)
     {
@@ -452,9 +456,9 @@ bool DxuiScrollbar::OnMouseDown (int xPx, int yPx)
     }
     else if (mainPt >= m.thumbStart && mainPt < m.thumbStart + m.thumbLength)
     {
-        m_dragging  = true;
-        m_dragGrab  = mainPt - m.thumbStart;
-        m_dragThumb = m.thumbStart;
+        m_dragging   = true;
+        m_dragGrab   = mainPt - m.thumbStart;
+        m_dragOffset = m.thumbStart - (float) (GetMainTrackStart() + GetArrowExtent());
     }
     else if (PtInRect (&m.track, pt))
     {
@@ -501,10 +505,10 @@ bool DxuiScrollbar::OnMouseMove (int xPx, int yPx)
 
     BAIL_OUT_IF (!m_dragging, S_OK);
 
-    handled     = true;
-    m_dragThumb = std::clamp (mainPt - m_dragGrab, trackStart, trackStart + (std::max) (travel, 0.0f));
-    ratio       = (travel > 0.0f) ? ((m_dragThumb - trackStart) / travel) : 0.0f;
-    newPos      = m_min + (int) std::lround ((double) ratio * (double) maxPos);
+    handled      = true;
+    m_dragOffset = std::clamp (mainPt - m_dragGrab - trackStart, 0.0f, (std::max) (travel, 0.0f));
+    ratio        = (travel > 0.0f) ? (m_dragOffset / travel) : 0.0f;
+    newPos       = m_min + (int) std::lround ((double) ratio * (double) maxPos);
     NotifyPos (SB_THUMBTRACK, newPos);
 
 Error:
@@ -604,7 +608,7 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
     //  The puck floats on whatever the view drew, with no track, and grows
     //  from its resting width toward the bar's as the pointer arrives.
     strip  = vertical ? (float) (m.bar.right - m.bar.left) : (float) (m.bar.bottom - m.bar.top);
-    thumbW = (float) m_restThumbPx + ((strip - s_kThumbCrossInsetPx * 2.0f) - (float) m_restThumbPx) * amount;
+    thumbW = (float) m_restThumbPx + ((std::max) (strip * s_kHoverThumbRatio, (float) m_restThumbPx) - (float) m_restThumbPx) * amount;
     thumbW = (std::min) (thumbW, strip);
     inset  = (strip - thumbW) * 0.5f;
 

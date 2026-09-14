@@ -95,6 +95,11 @@ public:
     bool     OnMouseMove (int xPx, int yPx);
     bool     OnMouseUp();
 
+    //  For a host that runs the thumb drag itself: the puck's distance along
+    //  the track while the drag lasts, or nothing once it ends. The puck is
+    //  drawn there and stays wide, whatever position the host reports.
+    void     SetDragOffset (std::optional<float> offsetPx) { m_dragging = offsetPx.has_value(); m_dragOffset = offsetPx.value_or (0.0f); }
+
     void     Paint (IDxuiPainter & painter, uint32_t foregroundArgb) const;
 
     //  Widened at once, as Windows widens a scrollbar the pointer is over: the
@@ -138,7 +143,7 @@ private:
     int64_t                                m_lastTickMs  = 0;
     int                                    m_restThumbPx = 3;
     float                                  m_dragGrab    = 0.0f;
-    float                                  m_dragThumb   = 0.0f;
+    float                                  m_dragOffset  = 0.0f;
     int                                    m_hoverArrow  = 0;
     std::function<void (int sbCode, int pos)>  m_onScroll;
 };

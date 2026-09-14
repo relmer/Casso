@@ -1684,6 +1684,7 @@ void DxuiListView::BeginThumbDrag (int grabYPx)
 
     m_vertDragging   = true;
     m_vertDragGrab = (float) grabYPx - m.thumbTop;
+    m_vertScroll.SetDragOffset (m.thumbTop - (float) m.trackTop);
 }
 
 
@@ -1709,10 +1710,13 @@ void DxuiListView::UpdateThumbDrag (int yPx)
 
     BAIL_OUT_IF (!m_vertDragging || !m.visible, S_OK);
 
-    travel   = (float) m.trackH - m.thumbH;
-    thumbTop = (float) yPx - m_vertDragGrab;
-    ratio    = (travel > 0.0f) ? ((thumbTop - (float) m.trackTop) / travel) : 0.0f;
+    //  The puck follows the pointer by the pixel; the rows follow in whole
+    //  rows as the puck reaches each one.
+    travel   = (std::max) ((float) m.trackH - m.thumbH, 0.0f);
+    thumbTop = std::clamp ((float) yPx - m_vertDragGrab - (float) m.trackTop, 0.0f, travel);
+    ratio    = (travel > 0.0f) ? (thumbTop / travel) : 0.0f;
 
+    m_vertScroll.SetDragOffset (thumbTop);
     SetTopRow ((int) std::lround (ratio * (float) maxTop));
 
 Error:

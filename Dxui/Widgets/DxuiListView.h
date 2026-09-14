@@ -253,7 +253,7 @@ public:
     void             GetPageFromTrackClick        (int yPx);
     void             BeginThumbDrag            (int grabYPx);
     void             UpdateThumbDrag           (int yPx);
-    void             EndThumbDrag              ()                            { m_vertDragging = false; m_vertDragGrab = 0.0f; }
+    void             EndThumbDrag              ()                            { m_vertDragging = false; m_vertDragGrab = 0.0f; m_vertScroll.SetDragOffset (std::nullopt); }
     bool             IsThumbDragging           () const                      { return m_vertDragging; }
 
     // Horizontal scroll (opt-in via SetHorizontalScrollEnabled; default
