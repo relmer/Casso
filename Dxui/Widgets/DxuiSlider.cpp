@@ -467,13 +467,15 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         return;
     }
 
-    uint32_t  accentArgb     = theme.Accent();
+    // A disabled slider grays out whole: the fill, ticks, puck and readout all
+    // take the disabled colors, so it cannot be mistaken for one that works.
+    uint32_t  accentArgb     = m_enabled ? theme.Accent()          : theme.ForegroundDisabled();
     uint32_t  s_kTrack       = DxuiColor::ComputeTintForContrast (theme.Background(), s_kInactiveTrackContrast);
-    uint32_t  s_kTick        = theme.ForegroundMuted();
-    uint32_t  s_kPuckBody    = 0xFFFFFFFF;
-    uint32_t  s_kPuckRing    = theme.Border();
+    uint32_t  s_kTick        = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+    uint32_t  s_kPuckBody    = m_enabled ? 0xFFFFFFFF              : s_kTrack;
+    uint32_t  s_kPuckRing    = m_enabled ? theme.Border()          : theme.ForegroundDisabled();
     uint32_t  s_kPuckCoreDis = theme.ForegroundDisabled();
-    uint32_t  s_kValueText   = theme.Foreground();
+    uint32_t  s_kValueText   = m_enabled ? theme.Foreground()      : theme.ForegroundDisabled();
 
     // All dimensions stored in dp; scaled to physical pixels via the
     // per-widget DxuiDpiScaler (set by SetDpi). DxuiSlider was previously
@@ -645,13 +647,13 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
 
 
 
-    uint32_t  accentArgb     = theme.Accent();
+    uint32_t  accentArgb     = m_enabled ? theme.Accent()          : theme.ForegroundDisabled();
     uint32_t  s_kTrack       = DxuiColor::ComputeTintForContrast (theme.Background(), s_kInactiveTrackContrast);
-    uint32_t  s_kTick        = theme.ForegroundMuted();
-    uint32_t  s_kPuckBody    = 0xFFFFFFFF;
-    uint32_t  s_kPuckRing    = theme.Border();
+    uint32_t  s_kTick        = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+    uint32_t  s_kPuckBody    = m_enabled ? 0xFFFFFFFF              : s_kTrack;
+    uint32_t  s_kPuckRing    = m_enabled ? theme.Border()          : theme.ForegroundDisabled();
     uint32_t  s_kPuckCoreDis = theme.ForegroundDisabled();
-    uint32_t  s_kValueText   = theme.Foreground();
+    uint32_t  s_kValueText   = m_enabled ? theme.Foreground()      : theme.ForegroundDisabled();
 
     constexpr int              s_kTrackWidthDip    = 4;
     constexpr int              s_kPuckRadiusDip    = 8;

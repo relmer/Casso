@@ -31,9 +31,9 @@ namespace ControllerTests
             Assert::AreEqual (std::wstring (L"B"),  ControlLabels::For (ControllerKind::XInput, { ControlKind::Button, 1 }));
             Assert::AreEqual (std::wstring (L"X"),  ControlLabels::For (ControllerKind::XInput, { ControlKind::Button, 2 }));
             Assert::AreEqual (std::wstring (L"Y"),  ControlLabels::For (ControllerKind::XInput, { ControlKind::Button, 3 }));
-            Assert::AreEqual (std::wstring (L"LB"), ControlLabels::For (ControllerKind::XInput, { ControlKind::Button, 4 }));
-            Assert::AreEqual (std::wstring (L"LT"), ControlLabels::For (ControllerKind::XInput, { ControlKind::Trigger, 0 }));
-            Assert::AreEqual (std::wstring (L"RT"), ControlLabels::For (ControllerKind::XInput, { ControlKind::Trigger, 1 }));
+            Assert::AreEqual (std::wstring (L"Left bumper (LB)"),   ControlLabels::For (ControllerKind::XInput, { ControlKind::Button, 4 }));
+            Assert::AreEqual (std::wstring (L"Left trigger (LT)"),  ControlLabels::For (ControllerKind::XInput, { ControlKind::Trigger, 0 }));
+            Assert::AreEqual (std::wstring (L"Right trigger (RT)"), ControlLabels::For (ControllerKind::XInput, { ControlKind::Trigger, 1 }));
             Assert::AreEqual (std::wstring (L"Right stick X"),
                               ControlLabels::For (ControllerKind::XInput, { ControlKind::Axis, XInputSampleDecoder::kRightStickX }));
             Assert::AreEqual (std::wstring (L"D-pad left"), ControlLabels::For (ControllerKind::XInput, { ControlKind::DpadLeft, 0 }));

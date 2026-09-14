@@ -12,7 +12,8 @@
 // the two stick clicks.
 static constexpr const wchar_t *  s_kXInputButtonNames[] =
 {
-    L"A", L"B", L"X", L"Y", L"LB", L"RB", L"Back", L"Start", L"Left stick click", L"Right stick click",
+    L"A", L"B", L"X", L"Y", L"Left bumper (LB)", L"Right bumper (RB)", L"Back", L"Start",
+    L"Left stick click (LS)", L"Right stick click (RS)",
 };
 
 // DIJOYSTATE2's axis order: X, Y, Z, the three rotations, then two sliders.
@@ -63,8 +64,8 @@ std::wstring ControlLabels::ForXInput (const ControlId & control)
             return Numbered (L"Axis", control.index);
 
         case ControlKind::Trigger:
-            if (control.index == 0) { return L"LT"; }
-            if (control.index == 1) { return L"RT"; }
+            if (control.index == 0) { return L"Left trigger (LT)";  }
+            if (control.index == 1) { return L"Right trigger (RT)"; }
             return Numbered (L"Trigger", control.index);
 
         case ControlKind::Button:
