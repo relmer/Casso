@@ -166,7 +166,7 @@
 **Purpose**: the window over the models and widgets. Nothing here is a decision; every branch in this phase forwards to a model.
 
 - [x] T065 Merge `origin/032-dxui-command-widgets` (or master once it has shipped) into the branch; rebuild with `-Target Rebuild`; run the full suite
-- [ ] T066 [US1] Create `CassoEmuCore/Cassque/CassqueCommands.h/.cpp`: the `DxuiCommand` table for File, Edit, View, Disk, Casso and Help menus and the toolbar placement; `isEnabled` functors read `BrowserModel` selection and image write-protect state
+- [ ] T066 [US1] Create `CassoEmuCore/Cassque/CassqueCommands.h/.cpp`: the `DxuiCommand` table for the command bar, context menus and keyboard; `isEnabled` functors read `BrowserModel` selection and image write-protect state. The menu bar it first fed is retired by T109
 - [x] T067 [US1] In `CassqueShell`, lay out the menu bar, toolbar, tab strip, tree, splitter, list, splitter, preview, status bar with `DxuiDockLayout`; persist splitter positions and preview visibility through `CassquePrefs`
 - [x] T068 [US1] Wire `TreeModel` to the tree widget through the child provider and `OnSelect`; wire `CatalogModel` rows to the list with sort and multi-select; wire `PreviewDecoder` to the preview list or framebuffer view; wire the status bar fields from the selection; invalidate the current tab's catalog cache and refresh on window activation so a second window's edits show on focus
 - [ ] T069 [US2] Wire context menus via `DxuiPopupMenu::Show` for files, images, directories and folders: Get, Put, Delete, Rename (also F2, inline in the list), New Disk, Format, Boot, Advanced submenu with sector and block verbs, Add to Casso, Remove from Casso, Insert into Drive 1 and 2, Open in new Casso; confirmations on delete, format, overwriting put, and sector and block writes; every operation through `DiskOperations`
@@ -211,7 +211,7 @@
 - [x] T100 [US5] `DxuiTabStrip`: reach every tab past the point where they stop fitting, and reorder by dragging (FR-036, FR-037, SC-010)
 - [x] T101 [US5] A new tab opens from the strip's own affordance, as a browser opens one, with the toolbar button retired (FR-037)
 - [x] T102 [US1] `DxuiAddressBar`: the location as navigable segments, editable into a typed path, reaching a directory inside an image as readily as a host folder; `BrowserModel` parses and formats both (FR-038, SC-011)
-- [ ] T103 [US5] Let a window put its tab strip outside the menu bar, toolbar and address bar or inside them, and take the browser's arrangement in Cassque (FR-039)
+- [ ] T103 [US5] Let a window put its tab strip outside the toolbar and address bar or inside them, and take the browser's arrangement in Cassque (FR-039)
 
 **Checkpoint**: the window reads as a native Windows browser, and its tabs and address bar behave as one.
 
@@ -224,6 +224,25 @@
 - [ ] T106 [US2] Get and drag-out in the AppleSingle style: `HostFileNaming` gains it and the Host file names setting offers it (FR-017a, FR-017c)
 - [ ] T107 [US3] A right-drag out of an image opens a menu choosing the style for that drop (FR-017c)
 - [ ] T108 [US6] The preview of an AppleSingle host file shows the name, type, aux type and dates of the file it holds (FR-017c)
+
+---
+
+## Phase 7d: Explorer's command bar (US1, US2, US5)
+
+**Purpose**: the menu bar gives way to File Explorer's command bar, the file list gains Explorer's eight views, and settings move to an Options dialog.
+
+- [ ] T109 [US1] Measure File Explorer's command bar at 100% and 200%: buttons, order, icons, labels, spacing, dropdown arrows, and the overflow when the window narrows; record it in `research.md`
+- [ ] T110 [US1] Retire Cassque's menu bar; the command bar takes its row, built on `DxuiToolbar` with Explorer's metrics from T109, including its overflow (FR-041, SC-012)
+- [ ] T111 [US2] Cut, Copy, Paste and Delete buttons with Explorer's icons over the file list's selection; New tab, Close tab and Exit removed (FR-042)
+- [ ] T112 [P] [US1] `DxuiListView` views beyond details -- Explorer's extra large, large, medium and small icons, list, tiles and content -- each with selection, keyboard navigation, drag and context menus; headless tests for hit testing and arrow-key movement in each (FR-044)
+- [ ] T113 [US1] Sort and View dropdowns over the list, the view choice persisted through `CassquePrefs`; Preview toggle and Theme dropdown at the bar's trailing end (FR-043, FR-044, FR-027)
+- [ ] T114 [US2] Options dialog opened from View > Options, holding Host file names; commands the preview's context menu offers leave the top level (FR-045, FR-017a)
+- [ ] T115 [P] [US5] Typed path history: the model in CassoEmuCore (ten entries, newest first, a repeat moves to the top, added only after a successful navigation, browsing adds nothing) with headless tests, persisted through `CassquePrefs` (FR-040, SC-013)
+- [ ] T116 [US5] `DxuiAddressBar` dropdown offering the typed path history (FR-040)
+- [ ] T117 [P] [US2] ProDOS subdirectory creation in the core writer and the command-line tool, with headless tests; nothing creates one today, and FR-017b's folder drop onto a ProDOS image needs it too
+- [ ] T118 [US2] Context-sensitive New: New folder on host folders and ProDOS locations, a new disk image of each supported container on host folders, disabled on DOS 3.3; an unused default name that opens for renaming (FR-046)
+- [ ] T119 [US2] Rename on the command bar under the holding file system's rules, host names included (FR-042, FR-013a)
+- [ ] T120 [US1] `DxuiToolbar` See more menu: overflow as the window narrows and items pinned there permanently (FR-047)
 
 ---
 

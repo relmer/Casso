@@ -127,6 +127,29 @@ the browser layout needs and the browser itself.
   names setting offers AppleSingle beside Descriptive and CiderPress as the
   default, and a right-drag out of an image opens a menu choosing the
   style for that drop.
+- Q: Does Cassque keep a menu bar? → A: No. File Explorer's command bar
+  replaces it, duplicated as closely as possible. New tab, Close tab and
+  Exit are gone from it, since the tab strip and the window already offer
+  them. Of Edit, only Cut, Copy, Paste and Delete survive, as buttons with
+  Explorer's icons. Cassque adds a Theme dropdown, as Casso's toolbar has,
+  and keeps only its Preview toggle where Explorer offers Details and
+  Preview, because Cassque's file list already shows details.
+- Q: Where do the commands the menus held go? → A: Commands the preview
+  pane's context menu offers leave the top level and stay on that menu.
+  Settings such as Host file names move to an Options dialog, opened from
+  the View dropdown, as Explorer opens its folder options.
+- Q: What do Sort and View act on? → A: The file list, which gains the
+  views a Win32 list view has rather than details alone.
+- Q: What does the address bar remember? → A: Paths typed or pasted into
+  it, not places reached by browsing, the last ten, most recent first; a
+  path entered again moves to the top. A path that fails to navigate is
+  not remembered.
+- Q: Which of Explorer's New, Rename, Share and See more stay? → A: New,
+  offering only what the listed location can hold; Rename, under the
+  holding file system's rules; See more, which takes buttons that do not
+  fit and can hold items permanently. Share is dropped. Help and About go
+  in See more.
+- Q: Which list views? → A: Explorer's eight.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -317,7 +340,7 @@ window with a screen reader.
    list fills.
 3. **Given** the Windows theme set to follow system, **When** the system
    switches to dark, **Then** the window switches without restart.
-4. **Given** the theme menu, **When** opened, **Then** it lists Light,
+4. **Given** the Theme dropdown, **When** opened, **Then** it lists Light,
    Dark, Follow system, and Casso's three themes with the skeuomorphic
    entry marked as colors only.
 5. **Given** any control in the window, **When** it is inspected, **Then**
@@ -449,8 +472,8 @@ bytes, change the grouping, and copy the selection both ways.
 
 **Preview**
 
-- **FR-011**: The preview pane MUST be toggleable from the View menu and
-  Alt+P, and its state MUST persist.
+- **FR-011**: The preview pane MUST be toggleable from the toolbar's
+  Preview button and Alt+P, and its state MUST persist.
 - **FR-012**: The preview MUST show BASIC files as listings, text files as
   text, graphics-sized binaries as pictures, other binaries as a hex dump
   with a disassembly toggle, and disk images as their catalog. The
@@ -478,7 +501,7 @@ bytes, change the grouping, and copy the selection both ways.
 - **FR-012f**: The selection MUST be copyable, as hex digits when the user
   is working in the hex column and as the characters the text column shows
   when they are working in that one. There MUST be one Copy command --
-  reached through Edit, the context menu on the selection, and Ctrl+C --
+  reached through the toolbar, the context menu on the selection, and Ctrl+C --
   and not a pair of copy-as-hex and copy-as-text commands: the column the
   caret is in already says which form is meant. Select all MUST follow the
   same rule, taking every byte and meaning the column the user is in.
@@ -524,7 +547,7 @@ bytes, change the grouping, and copy the selection both ways.
   for other ProDOS types; `NAME.DOS.X.bin` for other DOS 3.3 types.
   Host-illegal characters are substituted and the user told the
   resulting name.
-- **FR-017a**: A setting, Host file names: Descriptive, CiderPress or
+- **FR-017a**: A setting in the Options dialog, Host file names: Descriptive, CiderPress or
   AppleSingle, default Descriptive, MUST switch what Cassque writes for raw
   copies to the CiderPress `NAME#TTAAAA` form or to an AppleSingle file
   `NAME.as`. Reading MUST accept every form and bare names regardless of
@@ -587,7 +610,7 @@ bytes, change the grouping, and copy the selection both ways.
   for the window, not per tab. Open tabs are restored on the next launch.
 - **FR-026**: Every operation MUST be reachable from the keyboard, and
   every context menu MUST open from the application key and Shift+F10.
-- **FR-027**: The theme menu MUST offer Light, Dark, Follow system, and
+- **FR-027**: The toolbar's Theme dropdown MUST offer Light, Dark, Follow system, and
   Casso's three themes, with the skeuomorphic entry marked as colors
   only; Follow system MUST track the Windows setting live.
 - **FR-028**: Theme choice, preview-pane state, host file naming and
@@ -631,9 +654,50 @@ bytes, change the grouping, and copy the selection both ways.
   location inside a disk image as readily as one on the host.
 - **FR-039**: The chrome arrangement MUST be the library's choice, not
   the window's: a window MUST be able to put its tab strip outside the
-  menu bar, toolbar and address bar, as a browser does, or inside them,
-  as a window with one toolbar does. Cassque MUST take the browser's
-  arrangement.
+  toolbar and address bar, as a browser does, or inside them, as a window
+  with one toolbar does. Cassque MUST take the browser's arrangement.
+- **FR-040**: The address bar MUST remember the last ten paths typed or
+  pasted into it, most recent first, and offer them from a dropdown. A
+  path entered again MUST move to the top rather than appear twice.
+  A path MUST be remembered only once it navigates successfully; one that
+  cannot be reached MUST NOT be added. Reaching a place by browsing MUST
+  NOT add it. The list MUST persist.
+
+**Toolbar and options**
+
+- **FR-041**: Cassque MUST have no menu bar. A command bar duplicating
+  File Explorer's MUST take its place: its buttons, their order, icons,
+  labels, spacing and the overflow of buttons that no longer fit, with
+  every departure below and none other.
+- **FR-042**: The command bar MUST offer New, Cut, Copy, Paste, Rename and
+  Delete as buttons with Explorer's icons, acting on the file list's
+  selection, and MUST NOT offer Share, New tab, Close tab or Exit. Rename
+  MUST apply the name rules of the file system holding the item: DOS 3.3's
+  or ProDOS's inside an image, the host's outside one (FR-013a). Help and
+  About MUST live in the See more menu.
+- **FR-046**: New MUST offer only what the listed location can hold. A host
+  folder MUST offer New folder and a new disk image of every container
+  Cassque can create. A ProDOS image or a directory in one MUST offer New
+  folder, making a ProDOS subdirectory. A DOS 3.3 image, which has no
+  folders, MUST show New disabled. A new item MUST take an unused default
+  name and open for renaming at once, as Explorer's does.
+- **FR-047**: The command bar MUST end in a See more menu. Buttons that no
+  longer fit MUST move into it as the window narrows and come back as it
+  widens. An item MUST be able to live in See more permanently, never
+  shown on the bar whatever the room.
+- **FR-043**: The command bar MUST offer Sort and View dropdowns acting
+  on the file list: Sort by any column, ascending or descending; View
+  choosing how the list draws its entries. View MUST end with Options,
+  which opens the Options dialog. Explorer's Details pane button MUST be
+  replaced by Cassque's Preview toggle, and a Theme dropdown MUST follow
+  it.
+- **FR-044**: The file list MUST offer Explorer's eight views: Extra large
+  icons, Large icons, Medium icons, Small icons, List, Details, Tiles and
+  Content, each keeping the selection, keyboard navigation, drag and
+  context menus that Details has. The choice MUST persist.
+- **FR-045**: An Options dialog MUST hold Cassque's settings, Host file
+  names among them. Commands the preview pane's context menu offers MUST
+  NOT also appear at the top level of the window.
 
 **Testability**
 
@@ -665,6 +729,10 @@ bytes, change the grouping, and copy the selection both ways.
   instance, or a new one; with its machine's drive count.
 - **Tab**: a location, its history, selection, sort, and the preview's
   scroll position and disassembly toggle.
+- **Typed path history**: the last ten paths typed or pasted into the
+  address bar, most recent first, with no duplicates; persisted.
+- **List view mode**: how the file list draws its entries, one of the
+  views FR-044 names; persisted.
 
 ## Success Criteria *(mandatory)*
 
@@ -696,6 +764,13 @@ bytes, change the grouping, and copy the selection both ways.
   tab can be reached and every tab can be reordered.
 - **SC-011**: A user can reach any folder on the host, and any directory
   inside an image, by typing its path into the address bar.
+- **SC-012**: Captures of Cassque's command bar and File Explorer's at the
+  same scale, set side by side, differ only in the departures FR-042 and
+  FR-043 name.
+- **SC-013**: After eleven paths are typed, the address bar offers the
+  latest ten, newest first; typing the oldest of them again puts it at the
+  top with ten entries still listed. A path that fails to navigate leaves
+  the list unchanged.
 - **SC-008a**: The hex view shows a 64 KB run, addressed from an origin
   of the host's choosing, with no copy of those bytes held by the widget
   and no pause a user can see when scrolling through it.
@@ -706,7 +781,7 @@ bytes, change the grouping, and copy the selection both ways.
 
 - The command widgets, meaning command, dropdown, toolbar, menu bar and
   context menu, are delivered by the preceding feature and are not
-  re-specified here.
+  re-specified here. Cassque uses all of them but the menu bar.
 - Widgets this feature adds to the UI library: lazy expansion, stable ids
   and hidden checkboxes on the existing tree (which already recurses to
   any depth), multi-select on the list, a splitter, a status bar, a

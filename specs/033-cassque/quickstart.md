@@ -109,7 +109,7 @@ image or file.
 - Complete sections 2 through 5 with the mouse disconnected.
 - Set Cassque to Follow system and toggle Windows dark mode. Expected: the
   window changes within a second, no restart.
-- Open the theme menu. Expected: Light, Dark, Follow system, Skeuomorphic
+- Open the Theme dropdown. Expected: Light, Dark, Follow system, Skeuomorphic
   (colors only), DarkModern, RetroTerminal.
 - Help, About. Expected: the cassowary picture and the explanation of the
   name.
