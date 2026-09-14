@@ -27,6 +27,16 @@ One engine, two command modes, three ways in:
   command-line tool, and a local channel that lets another program attach to a
   running Casso.
 
+## Clarifications
+
+### Session 2026-09-13
+
+- Q: Which prefix reaches debugger commands with no Monitor equivalent from Monitor mode? → A: `/`; the rest of the line is read as an AppleWin-mode command (`/bpl`).
+- Q: Which AppleWin commands does the first version accept? → A: The whole command table, phased. Phase 1 accepts every command that does not only change a display. Window, cursor, view and appearance commands arrive with the window. Commands that need absent hardware or features report that the command is not available (see Assumptions).
+- Q: When does a running Casso listen on the debug channel? → A: Only while its debugger window is open, and only for the current user. Until the window ships, the command-line switch that will open the window opens the channel instead.
+- Q: How does a client choose which running Casso to attach to? → A: The channel is identified by process ID; a list command enumerates live instances with PID, title label, machine and disks.
+- Q: How many clients may attach to one instance at once? → A: Any number; commands run one at a time in arrival order, and every client receives every notification.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1)
@@ -120,11 +130,15 @@ reaches the address.
    structured output contains for that command.
 2. **Given** a connected client and a set breakpoint, **When** the machine
    reaches it, **Then** the client receives a stop notification without polling.
-3. **Given** two Casso instances running at once, **When** a client connects,
-   **Then** it reaches exactly the instance it selected and the other is
-   unaffected.
+3. **Given** two Casso instances running at once with their debugger windows
+   open, **When** a client lists instances and connects to one process ID,
+   **Then** it reaches exactly that instance and the other is unaffected.
 4. **Given** a Casso run by a different user account, **When** a client
    connects, **Then** the connection is refused.
+5. **Given** a Casso whose debugger window is closed, **When** a client tries
+   to connect, **Then** no channel exists and the instance is not listed.
+6. **Given** two connected clients, **When** one sets a breakpoint and the
+   machine reaches it, **Then** both receive the stop notification.
 
 ---
 
@@ -182,6 +196,8 @@ confirm the machine sees the change.
   event; breakpoints survive a reset and are cleared by a machine switch.
 - **Client disconnects while the machine is paused**: the machine stays paused
   until resumed from another way in.
+- **Debugger window closed while clients are attached**: the channel closes and
+  every client is disconnected; breakpoints and the paused state are unchanged.
 - **Lowercase input in Monitor mode**: accepted for commands and hex.
 
 ## Requirements *(mandatory)*
@@ -224,8 +240,11 @@ confirm the machine sees the change.
 
 **AppleWin mode**
 
-- **FR-015**: AppleWin mode MUST accept AppleWin's debugger command syntax for
-  the first-version command subset listed in Assumptions.
+- **FR-015**: AppleWin mode MUST accept every command name and alias in
+  AppleWin's debugger command table, in the phases listed in Assumptions. A
+  command whose phase has not shipped, or that needs hardware or a feature
+  Casso lacks, MUST report that it is not available and change nothing; it
+  MUST NOT be reported as an unknown command.
 
 **Apple II Monitor mode**
 
@@ -254,10 +273,19 @@ confirm the machine sees the change.
   machine and a script of commands, printing each command's output, with an
   option for structured output.
 - **FR-023**: A running Casso MUST accept connections on a local channel
-  restricted to the current user, one channel per running instance.
+  restricted to the current user, one channel per running instance, identified
+  by process ID. The channel MUST exist only while that instance's debugger
+  window is open; closing the window MUST close the channel and disconnect its
+  clients. Until the window ships, the command-line switch that opens the
+  window MUST open the channel instead.
 - **FR-024**: Over the channel, clients MUST be able to send any command,
   receive a structured reply with the same content as batch structured output,
-  and receive notifications for breakpoint hits, stops and resets.
+  and receive notifications for breakpoint hits, stops and resets. Any number
+  of clients MAY be connected at once; their commands MUST run one at a time in
+  arrival order, and every connected client MUST receive every notification.
+- **FR-030**: The command-line tool MUST list the running Casso instances whose
+  channel is open, giving each one's process ID, title label, machine and
+  disks, and MUST connect to the instance whose process ID is given.
 - **FR-025**: The channel's message format MUST be documented well enough for
   an independent client (the planned VS Code debug adapter) to be written from
   the documentation alone.
@@ -317,27 +345,65 @@ confirm the machine sees the change.
 
 ## Assumptions
 
-- **Monitor-mode engine prefix**: `/` (unused by every Monitor command). To be
-  confirmed in clarification.
-- **AppleWin first-version subset** (to be confirmed and fixed against the
-  command table in clarification): execution control, breakpoints and
-  watchpoints, registers and flags, memory view/enter/fill/search/move,
-  disassembly, binary load/save, cycle counting, and help. **Deferred**: symbol
-  tables, bookmarks, video view commands (text/graphics mode display), window
-  layout, source-level views, color/font/configuration, profiling and
-  benchmarking, disk commands, output logging and printing, and AppleWin's own
-  script runner (batch mode covers scripting).
+- **Monitor-mode engine prefix**: `/`, which no Monitor command uses. The text
+  after it is read as an AppleWin-mode command line (`/bpl`).
+- **AppleWin command coverage**, by name from AppleWin's command table:
+  - **Phase 1 (headless)**:
+    - Assembler: `A`.
+    - CPU: `=`, `G`, `GG`, `IN`, `KEY`, `JSR`, `NOP`, `OUT`, `LBR`, `PROFILE`,
+      `R`, `POP`, `PPOP`, `PUSH`, `P`, `RTS`, `T`, `TF`, `TL`, `U`.
+    - Bookmarks: `BM`, `BMA`, `BMC`, `BML`, `BMG`, `BMSAVE`.
+    - Breakpoints: `BRK`, `BRKOP`, `BRKINT`, `BP`, `BPA`, `BPR`, `BPX`, `BPIO`,
+      `BPM`, `BPMR`, `BPMW`, `BPC`, `BPD`, `BPEDIT`, `BPE`, `BPL`, `BPSAVE`,
+      `BPCHANGE`.
+    - Config: `BENCHMARK`, `DISASM`, `LOAD`, `SAVE`, `PWD`, `CD`.
+    - Cycles: `CYCLES`, `RCC`.
+    - Disassembler data: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`,
+      `DW4`, `ASC`, `DF`, `DA`.
+    - Disk: `DISK`.
+    - Flags: `CL`, `CLC`, `CLZ`, `CLI`, `CLD`, `CLB`, `CLR`, `CLV`, `CLN`, `SE`,
+      `SEC`, `SEZ`, `SEI`, `SED`, `SEB`, `SER`, `SEV`, `SEN`.
+    - Help: `?`, `HELP`, `VERSION`, `MOTD`.
+    - Memory: `MC`, `ME`, `MEB`, `MEW`, `BLOAD`, `M`, `BSAVE`, `S`, `@`, `SH`,
+      `F`, `TSAVE`.
+    - Output and scripts: `CALC`, `ECHO`, `LOG`, `PRINT`, `PRINTF`, `RUN`.
+    - Symbols: `SYM`, `SYMMAIN`, `SYMBASIC`, `SYMASM`, `SYMUSER`, `SYMUSER2`,
+      `SYMSRC`, `SYMSRC2`, `SYMDOS33`, `SYMPRODOS`, `SYMINFO`, `SYMLIST`.
+    - Watch: `W`, `WA`, `WC`, `WD`, `WE`, `WL`, `WSAVE`.
+    - Zero page: `ZP`, `ZP0`-`ZP7`, `ZPA`, `ZPC`, `ZPD`, `ZPE`, `ZPL`, `ZPSAVE`.
+    - Startup: `STARTUP`.
+    - Aliases: `INPUT`, `RC` `RZ` `RI` `RD` `RB` `RR` `RV` `RN`, `SC` `SZ` `SI`
+      `SD` `SB` `SR` `SV` `SN`, `D`, `ME8`, `ME16`, `MM`, `MS`, `P0`-`P4`,
+      `REGISTER`, `TRACE`, `SYMDOS`, `SYMPRO`, `ZAP`.
+    - Deprecated: `BENCH`, `EXITBENCH`, `MDB`.
+  - **Phase 3 (with the window)**, commands whose only effect is on a display:
+    - Cursor: `.`, `RET`, `^`, `v` and their Shift forms, `PAGEUP`,
+      `PAGEUP256`, `PAGEUP4K`, `PAGEDN`, `PAGEDOWN256`, `PAGEDOWN4K`, and the
+      `->` cursor aliases.
+    - Window: `WIN`, `WINDOW`, `CODE`, `CODE1`, `CODE2`, `CONSOLE`, `DATA`,
+      `DATA1`, `DATA2`, `SOURCE1`, `SOURCE2`, `\`.
+    - Mini memory panes: `MD1`, `MD2`, `MA1`, `MA2`, `MT1`, `MT2`, `M1`, `M2`.
+    - Views: `TEXT`, `TEXT1`, `TEXT2`, `TEXT80`, `TEXT81`, `TEXT82`, `TEXT40`,
+      `TEXT41`, `TEXT42`, `GR`, `GR1`, `GR2`, `DGR`, `DGR1`, `DGR2`, `HGR`,
+      `HGR0`-`HGR8`, `DHGR`, `DHGR1`, `DHGR2`.
+    - Appearance: `BW`, `COLOR`, `FONT`, `HCOLOR`, `MONO`.
+  - **Not available** (accepted, reported as not available, and tracked as
+    follow-ups): `SHR` (needs a IIgs), `BPV` and `VIDEOINFO` (need a
+    video-scanner position), `SOURCE` and `SYNC` (need an assembler-listing
+    link), `NTSC` (AppleWin's palette file has no Casso equivalent).
+  - The table is consulted for names and behavior only; `RUN` runs a script of
+    commands through the same engine batch mode uses.
 - **No standalone console**: interactive command entry is through the window's
   command line; scripting is through batch mode and the channel.
-- **The window depends on `032-dxui-command-widgets`** merging first; Stories
-  1-3 do not.
+- **The window builds on `032-dxui-command-widgets`**, which has merged; the
+  window is still delivered last.
 - **Casso has no cassette device**, so `R`/`W` use host files. `.wav` is
   reserved for cassette audio in a later feature; this feature does not produce
   audio.
 - **There is no promise to leave guest state untouched**: commands such as `I`,
   `N`, `^K`, `^P` and `:` change guest memory by design.
-- **Local channel**: a Windows named pipe carrying one structured record per
-  line, per the Windows-only platform scope. A per-instance channel is required
+- **Local channel**: a Windows named pipe, named for the process ID, carrying
+  one structured record per line, per the Windows-only platform scope. A per-instance channel is required
   because users run several Casso instances from different worktrees at once.
 - **Out of scope**: cdb/WinDbg syntax (its `.` and `!` command families depend
   on host processes, modules and threads a 6502 lacks, and collide with Monitor
