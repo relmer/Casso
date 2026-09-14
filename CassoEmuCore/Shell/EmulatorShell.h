@@ -249,7 +249,7 @@ public:
     // Disk2AudioSource. On subsequent calls: show + bring to front.
     void OpenDisk2DebugDialog();
     void OpenInputDebugDialog();
-    void OpenSettings();
+    void OpenSettings (bool showControllers = false);
 
     // Spec-006 bug 15. SwitchMachine destroys and recreates the
     // controller + audio source while the modeless debug dialog

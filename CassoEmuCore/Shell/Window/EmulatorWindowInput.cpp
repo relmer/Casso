@@ -2817,7 +2817,7 @@ void EmulatorShell::SyncPaddleSourceList()
     // off the Machine menu: this is a list the user picks from while playing,
     // and a cascade puts two hovers between them and their controller.
     m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
-                                m_mainMenu.GetCommands().GetPaddleSourceItems());
+                                m_mainMenu.GetCommands().GetPaddlePickerItems());
 
     // The picker wears the chosen source, so its width moves with the answer.
     // Without laying the strip out again the new word paints into the rect

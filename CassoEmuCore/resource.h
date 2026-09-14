@@ -49,6 +49,7 @@
 //  action. The payload carries the bay and the chosen answer. It is never
 //  sent as WM_COMMAND, so its value is outside the Disk range OnCommand checks.
 #define IDM_DISK_RESOLVE_CHANGE     40074
+#define IDM_VIEW_CONTROLLER_SETTINGS 40075  // Settings, opened on the Controllers tab
 
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031

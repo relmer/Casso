@@ -75,6 +75,12 @@ public:
                           EmulatorShell   & emuShell,
                           IFileSystem     & fs);
 
+    //
+    //  Brings the Controllers tab to the front, for Controller settings...
+    //  on the menu and the paddle picker.
+    //
+    void    ShowControllersPage ();
+
 protected:
     void     OnBuildPages () override;
 

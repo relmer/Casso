@@ -31,6 +31,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
     { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
     { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
+    { 0,                            MainMenuId::Machine, nullptr,                   nullptr          },
+    { IDM_VIEW_CONTROLLER_SETTINGS, MainMenuId::Machine, L"&Controller settings...", nullptr         },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
     { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
     { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
@@ -838,6 +840,36 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorCommands::GetPaddlePickerItems
+//
+//  What the paddle picker lists: every source, then Controller settings...
+//  below a separator, so the settings for the controller in use are one
+//  click from where it was chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
+{
+    std::vector<DxuiPopupMenuItem>  items    = GetPaddleSourceItems();
+    const DxuiCommand *             settings = Find (IDM_VIEW_CONTROLLER_SETTINGS);
+
+
+
+    if (settings != nullptr)
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        items.push_back (DxuiPopupMenuItem::ForCommand (settings));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorCommands::BuildToolbar
 //
 //  The printer entry follows card presence: no card, no printer button. The
@@ -908,5 +940,5 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
     toolbar.SetFlyoutControl (kIdVolume, &volume, VolumeFlyout::kPanelDp);
     toolbar.SetDropDownItems (kIdTheme, GetThemeItems());
     toolbar.SetDropDownItems (kIdColor, GetMonitorItems());
-    toolbar.SetDropDownItems (kIdPaddle, GetPaddleSourceItems());
+    toolbar.SetDropDownItems (kIdPaddle, GetPaddlePickerItems());
 }

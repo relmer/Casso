@@ -147,6 +147,7 @@ public:
                            std::function<void()> toggle);
 
     std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems        () const;
+    std::vector<DxuiPopupMenuItem>  GetPaddlePickerItems        () const;
     std::wstring                    GetCheckedPaddleSourceLabel () const;
 
     // Which drawing the picker wears: the checked source's own, and a gamepad

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "resource.h"
 #include "Ui/Chrome/EmulatorCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -255,6 +256,25 @@ namespace ControllerTests
             Assert::IsTrue   (commands.Find (EmulatorCommands::kIdPaddle) != nullptr);
             Assert::AreEqual (std::wstring (L"Joystick and paddle source"), commands.Find (EmulatorCommands::kIdPaddle)->tip,
                 L"the face already carries the answer, so the tooltip has nothing to add");
+        }
+
+
+        TEST_METHOD (Picker_EndsWithControllerSettings)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true),
+                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
+
+            items = commands.GetPaddlePickerItems();
+
+            Assert::AreEqual (static_cast<size_t> (4), items.size(), L"the two sources, a separator, then the settings entry");
+            Assert::IsTrue   (items.back().command != nullptr);
+            Assert::AreEqual ((int) IDM_VIEW_CONTROLLER_SETTINGS, items.back().command->id,
+                L"the settings for a controller are one click from where it was chosen");
+            Assert::AreEqual (static_cast<size_t> (2), commands.GetPaddleSourceItems().size(),
+                L"and the source rows alone are unchanged");
         }
     };
 }
