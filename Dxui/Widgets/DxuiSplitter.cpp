@@ -223,10 +223,10 @@ void DxuiSplitter::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 void DxuiSplitter::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     RECT   sash     = GetSashRect();
-    float  line     = (std::max) (m_scaler.ToPxf (1.0f), 1.0f);
+    float  line     = GetLinePx (m_scaler);
     bool   vertical = (m_orientation == Orientation::Vertical);
-    float  midX     = (float) sash.left + (float) (sash.right - sash.left) * 0.5f - line;
-    float  midY     = (float) sash.top  + (float) (sash.bottom - sash.top)  * 0.5f - line;
+    float  midX     = GetSeam (sash.left, sash.right, m_scaler);
+    float  midY     = GetSeam (sash.top, sash.bottom, m_scaler);
 
 
 

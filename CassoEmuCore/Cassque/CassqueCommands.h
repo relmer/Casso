@@ -198,7 +198,7 @@ private:
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kLineAddresses,     Menu::View, L"Show &address",           nullptr,  true },
         { kSeparator,         Menu::View, nullptr,                    nullptr,  false },
-        { kNoData,            Menu::View, L"&No data",                nullptr,  true },
+        { kNoData,            Menu::View, L"Show &text only",         nullptr,  true },
         { kGroup1,            Menu::View, L"&1-byte integer",         nullptr,  true },
         { kGroup2,            Menu::View, L"&2-byte integer",         nullptr,  true },
         { kGroup4,            Menu::View, L"&4-byte integer",         nullptr,  true },

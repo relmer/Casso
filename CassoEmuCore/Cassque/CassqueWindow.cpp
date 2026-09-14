@@ -1317,8 +1317,7 @@ void CassqueWindow::LayoutStatusFields()
     RECT   band    = m_statusBand.GetBounds();
     bool   preview = m_prefs.previewVisible && (m_previewRect.right > m_previewRect.left);
     RECT   sash    = m_previewSplitter->GetSashRect();
-    float  line    = (std::max) (m_scaler.ToPxf (1.0f), 1.0f);
-    int    seam    = (int) ((float) sash.left + (float) (sash.right - sash.left) * 0.5f - line);
+    int    seam    = (int) DxuiSplitter::GetSeam (sash.left, sash.right, m_scaler);
     int    zoomPx  = m_scaler.ToPx (kStatusZoomDip);
     int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_scaler.ToPx (kStatusDetailDip);
 
@@ -1614,6 +1613,24 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
     {
         Dispatch (ev.button == DxuiMouseButton::X1 ? CassqueCommands::kBack : CassqueCommands::kForward);
         return true;
+    }
+
+    //  A scrollbar widens while the pointer is over it, as Explorer's do, and
+    //  narrows again when the pointer moves off it or out of the window.
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        POINT  at      = (ev.kind == DxuiMouseEventKind::Leave) ? POINT { -1, -1 } : point;
+        int    changed = (int) m_hexView->SetScrollbarHover (at)
+                       | (int) m_textView->SetScrollbarHover (at)
+                       | (int) m_list->SetScrollbarHover (at)
+                       | (int) m_previewList->SetScrollbarHover (at)
+                       | (int) m_tree->SetScrollbarHover (at)
+                       | (int) m_picture->SetScrollbarHover (at);
+
+        if (changed != 0)
+        {
+            Invalidate();
+        }
     }
 
     //  A click on the zoom level puts it back to 100%.

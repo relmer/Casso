@@ -138,6 +138,10 @@ public:
 
     virtual DxuiHitTestKind  ClassifyHit  (POINT clientDip) const               { (void) clientDip; return DxuiHitTestKind::Client; }
 
+    //  Whether a point is on one of the control's scrollbars. The window lets
+    //  a scrollbar at its edge keep the pointer instead of its resize edge.
+    virtual bool  IsOverScrollbar (POINT clientDip) const                       { (void) clientDip; return false; }
+
     virtual std::wstring        GetAccessibleName () const                        { return L""; }
     virtual DxuiAccessibleRole  GetAccessibleRole () const                        { return DxuiAccessibleRole::Generic; }
 

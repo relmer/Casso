@@ -215,6 +215,13 @@ public:
     // auto-pins the view to the bottom when new rows arrive while the
     // user is already parked at the tail.
     int   GetScrollbarWidthPx   () const                 { return m_scaler.ToPx (s_kScrollbarWidthDip); }
+
+    //  Whether a point is on a scrollbar, and the hover that widens one. The
+    //  bars' tracks are placed in widget coordinates for input and in client
+    //  coordinates for painting, so either placement counts.
+    bool  IsOverScrollbar   (POINT pt) const override { return IsOverBar (m_vertScroll, pt) || IsOverBar (m_horzScroll, pt); }
+    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (IsOverBar (m_vertScroll, pt)) | (int) m_horzScroll.SetHover (IsOverBar (m_horzScroll, pt))) != 0; }
+    bool  IsOverBar         (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) || bar.HitTest (pt.x - m_boundsDip.left, pt.y - m_boundsDip.top); }
     int   GetTopRow             () const                 { return m_topRow; }
     int   GetVisibleRowCapacity () const;
     int   GetMaxTopRow          () const;

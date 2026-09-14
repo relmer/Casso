@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/DxuiClipboard.h"
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiColor.h"
 
 #include "DxuiListView.h"
 
@@ -2458,16 +2459,16 @@ void DxuiListView::PaintHeader (
         //  column title, pointing up for ascending and down for descending.
         if (hasSort)
         {
-            float  halfW = (float) m_scaler.ToPxf (4.0f);
-            float  halfH = (float) m_scaler.ToPxf (2.0f);
-            float  thick = (float) m_scaler.ToPxf (1.0f);
+            float  halfW = (float) m_scaler.ToPxf (3.0f);
+            float  halfH = (float) m_scaler.ToPxf (1.5f);
+            float  thick = (float) m_scaler.ToPxf (0.75f);
             float  cx    = x + colOff + (float) colXPx[c] + (float) colWPx[c] / 2.0f;
             float  cy    = y + (float) m_scaler.ToPxf (6.0f);
             float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
             float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
 
-            painter.DrawLineApprox (cx - halfW, endY, cx, tipY, thick, pal.hdrFg);
-            painter.DrawLineApprox (cx, tipY, cx + halfW, endY, thick, pal.hdrFg);
+            painter.DrawLineApprox (cx - halfW, endY, cx, tipY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
+            painter.DrawLineApprox (cx, tipY, cx + halfW, endY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
         }
     }
 

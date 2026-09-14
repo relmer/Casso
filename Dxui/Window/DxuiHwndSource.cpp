@@ -3982,6 +3982,26 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
         result  = claimed ? kind : result;
     }
 
+    //  A scrollbar at the window's edge keeps the pointer over a straight
+    //  resize edge, whose band would otherwise cover most of it. The corners
+    //  still resize.
+    if (claimed && (kind == DxuiHitTestKind::ResizeEdgeLeft || kind == DxuiHitTestKind::ResizeEdgeRight
+                 || kind == DxuiHitTestKind::ResizeEdgeTop  || kind == DxuiHitTestKind::ResizeEdgeBottom))
+    {
+        n = (GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
+
+        for (i = 0; claimed && i < n; i++)
+        {
+            child = GetRootPanel()->GetChild (i);
+
+            if (child != nullptr && child->IsVisible() && child->IsOverScrollbar (clientDip))
+            {
+                claimed = false;
+                result  = DxuiHitTestKind::Client;
+            }
+        }
+    }
+
     // Host-owned caption wins over the consumer's root content (it is
     // drawn on top of the top strip). Buttons / caption / nothing.
     //

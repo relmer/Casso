@@ -58,6 +58,12 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Splitter"; }
 
+    //  The seam's lines, a whole number of pixels wide, and where the first of
+    //  them starts across a sash, on a whole pixel, so a divider elsewhere in
+    //  the window can be drawn on exactly the same pixels.
+    static float  GetLinePx (const DxuiDpiScaler & scaler) { return (float) (std::max) (1L, std::lround (scaler.ToPxf (1.0f))); }
+    static float  GetSeam   (int from, int to, const DxuiDpiScaler & scaler) { return std::floor ((float) from + (float) (to - from) * 0.5f - GetLinePx (scaler)); }
+
     static constexpr int  kSashDip    = 4;
     static constexpr int  kKeyStepDip = 8;
 

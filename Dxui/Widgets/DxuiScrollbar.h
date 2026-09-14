@@ -101,6 +101,10 @@ public:
     //  appears, the puck thickens and the arrows come back. The grab band is
     //  the same either way.
     void     SetExpanded (bool expanded)      { m_expanded = expanded; }
+
+    //  Widens the bar while the pointer is over it, reporting whether that
+    //  changed anything to repaint.
+    bool     SetHover    (bool over)          { return std::exchange (m_expanded, over) != over; }
     bool     IsExpanded  () const             { return m_expanded; }
 
     void     SetOnScroll (std::function<void (int sbCode, int pos)> cb)  { m_onScroll = std::move (cb); }

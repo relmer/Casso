@@ -43,6 +43,10 @@ public:
     bool  CanPan        () const;
     bool  IsInteracting () const { return m_panning || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
 
+    //  Whether a point is on a scrollbar, and the hover that widens one.
+    bool  IsOverScrollbar   (POINT pt) const override { return CanPan() && (m_vertScroll.HitTest (pt.x, pt.y) || m_horzScroll.HitTest (pt.x, pt.y)); }
+    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (CanPan() && m_vertScroll.HitTest (pt.x, pt.y)) | (int) m_horzScroll.SetHover (CanPan() && m_horzScroll.HitTest (pt.x, pt.y))) != 0; }
+
     int   GetFramebufferWidth  () const { return m_width;  }
     int   GetFramebufferHeight () const { return m_height; }
     bool  HasFramebuffer       () const { return !m_pixels.empty(); }
