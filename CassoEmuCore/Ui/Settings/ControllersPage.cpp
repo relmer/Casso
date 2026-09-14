@@ -369,7 +369,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_speed[target].SetStep          (16.0f);
         m_speed[target].SetDecimalPlaces (0);
         m_speed[target].SetSuffix        (L"/s");
-        m_speed[target].SetTickInterval  (128.0f);
+        m_speed[target].SetTickInterval  (256.0f);
 
         axesBottom += rowH + sectionGap;
     }
@@ -414,7 +414,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_deadzone.SetStep          (1.0f);
     m_deadzone.SetDecimalPlaces (0);
     m_deadzone.SetSuffix        (L"%");
-    m_deadzone.SetTickInterval  (10.0f);
+    m_deadzone.SetTickInterval  (30.0f);
     y += rowH + sectionGap;
 
     m_calibrationLabel.SetRect  (MakeRect (x, y, labelWidth, rowH));
