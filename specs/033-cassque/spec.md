@@ -114,6 +114,20 @@ the browser layout needs and the browser itself.
   with the reload intent and land in Casso's existing external-change
   policy, which never discards guest writes.
 
+### Session 2026-09-14
+
+- Q: Does Cassque understand AppleSingle files? → A: Yes. An AppleSingle
+  file (magic $00051600) is one Apple II file carrying its data, real
+  name, dates, and ProDOS type and aux type inside it. It is a file, not a
+  disk image, and Cassque never lists or opens one as a volume. Put
+  unwraps it with its type and aux type; Get can write one; its preview
+  shows the file it holds; Casso does nothing with one. The codec is
+  `AppleSingleCodec` in CassoEmuCore, shared with 035-debugger's BLOAD.
+- Q: How is the host-name style chosen on the way out? → A: The Host file
+  names setting offers AppleSingle beside Descriptive and CiderPress as the
+  default, and a right-drag out of an image opens a menu choosing the
+  style for that drop.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -510,14 +524,25 @@ bytes, change the grouping, and copy the selection both ways.
   for other ProDOS types; `NAME.DOS.X.bin` for other DOS 3.3 types.
   Host-illegal characters are substituted and the user told the
   resulting name.
-- **FR-017a**: A setting, Host file names: Descriptive or CiderPress,
-  default Descriptive, MUST switch what Cassque writes to the CiderPress
-  `NAME#TTAAAA` form for raw copies. Reading MUST accept both forms and
-  bare names regardless of the setting.
+- **FR-017a**: A setting, Host file names: Descriptive, CiderPress or
+  AppleSingle, default Descriptive, MUST switch what Cassque writes for raw
+  copies to the CiderPress `NAME#TTAAAA` form or to an AppleSingle file
+  `NAME.as`. Reading MUST accept every form and bare names regardless of
+  the setting.
 - **FR-017b**: A ProDOS directory dragged out MUST become a host folder
   recursively; a host folder dragged onto a ProDOS image MUST become a
   directory recursively; a folder dropped on a DOS 3.3 image MUST be
   refused with a message, since DOS 3.3 is flat.
+- **FR-017c**: A host file that is an AppleSingle container MUST put as
+  the file it holds, with no dialog: the data fork as the contents, the
+  real name as the catalog name (sanitized when it is not legal), and the
+  ProDOS type and aux type, mapped to a DOS 3.3 type and load address on a
+  DOS 3.3 image. It MUST NOT be listed or opened as a disk image. Get and
+  drag-out in the AppleSingle style MUST write `NAME.as` carrying the name,
+  type, aux type and dates. A right-drag out of an image MUST open a menu
+  offering Descriptive, CiderPress and AppleSingle for that drop. The
+  preview of an AppleSingle host file MUST show the name, type, aux type
+  and dates of the file it holds.
 - **FR-018**: A drag from the host into a disk image MUST choose its
   conversion by content: Applesoft when every non-blank line is an
   ascending line number at most 63999 followed by a keyword or an
@@ -689,7 +714,8 @@ bytes, change the grouping, and copy the selection both ways.
   support, a hex view, and light and dark palettes. Each is general, not
   Cassque-only. The tab strip exists already.
 - Supported image formats are the ones the command-line tool supports
-  today. No new container formats.
+  today. The one container added is AppleSingle, which holds a single file
+  rather than a volume.
 - Conversion rules on get, put and drag are the command-line tool's rules,
   plus an Integer BASIC detokenizer this feature adds for preview and Get.
   The tree detokenizes Applesoft only today. No Integer BASIC tokenizer:
