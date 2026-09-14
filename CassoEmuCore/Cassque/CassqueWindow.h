@@ -116,6 +116,12 @@ public:
     //  Each zoom step, in percent of the theme's text size.
     static constexpr int    kPreviewZoomStep     = 10;
 
+    //  Status bar field widths: free space, and the preview's detail and zoom
+    //  when the preview is hidden and they cannot follow its edge.
+    static constexpr int    kStatusFreeDip       = 140;
+    static constexpr int    kStatusDetailDip     = 280;
+    static constexpr int    kStatusZoomDip       = 64;
+
     //  The private message that carries a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
 
@@ -231,6 +237,7 @@ private:
     void  FindNext         (bool incremental = false);
     void  SetHexColumns    (int columns);
     void  SetPreviewZoom   (int percent);
+    void  LayoutStatusFields ();
 
     static std::wstring  FormatPreviewError (const std::wstring & message);
     void  SetHexFormat     (const char * format);

@@ -103,6 +103,9 @@ RECT DxuiFramebufferView::GetDestinationRect() const
         destH = (int) (m_height * scaleY);
     }
 
+    destW = (int) ((float) destW * m_zoom);
+    destH = (int) ((float) destH * m_zoom);
+
     dest.left   = m_boundsDip.left + (boundsW - destW) / 2;
     dest.top    = m_boundsDip.top  + (boundsH - destH) / 2;
     dest.right  = dest.left + destW;
@@ -153,8 +156,16 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         return;
     }
 
+    //  A zoomed picture can be larger than the bounds, and is cut off at them.
+    hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
+                            (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     hr = text.DrawFramebuffer (m_pixels.data(), m_width, m_height,
                                (float) dest.left, (float) dest.top,
                                (float) (dest.right - dest.left), (float) (dest.bottom - dest.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

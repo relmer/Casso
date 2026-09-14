@@ -133,6 +133,10 @@ private:
     void          EnsureCellSize    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void          SelectWordAt      (Position pos);
     void          GetWordBounds     (Position pos, Position & outFirst, Position & outLast) const;
+
+    //  Word characters, spaces and tabs are three kinds; a run of one kind is
+    //  what a double-click selects.
+    static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int column, int flatStart, int count, int trailCells, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int column,
@@ -142,6 +146,11 @@ private:
     std::vector<Line>  m_lines;
     std::vector<int>   m_columnCells;
     int                m_cellWidthPx   = 0;
+
+    //  The face's advance, which is rarely a whole number of pixels. Columns
+    //  are placed by it rather than by the rounded cell width, so a line split
+    //  into selected and unselected runs lands where the whole line would.
+    float              m_cellAdvance   = 0.0f;
     int                m_cellHeightPx  = 0;
     bool               m_cellPinned    = false;
     float              m_zoom          = 1.0f;

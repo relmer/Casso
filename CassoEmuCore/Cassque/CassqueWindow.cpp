@@ -426,6 +426,7 @@ void CassqueWindow::ConfigureWidgets()
     m_hexView->SetZoom         ((float) m_prefs.previewZoom / 100.0f);
     m_textView->SetTextStrength (kPreviewTextStrength);
     m_textView->SetZoom         ((float) m_prefs.previewZoom / 100.0f);
+    m_picture->SetZoom          ((float) m_prefs.previewZoom / 100.0f);
 
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
@@ -454,7 +455,7 @@ void CassqueWindow::ConfigureWidgets()
         RecomputeLayout();
     });
 
-    m_status->SetFields ({ { L"", 0, true }, { L"", 280, false }, { L"", 140, false } });
+    m_status->SetFields ({ { L"", 0, true }, { L"", kStatusFreeDip, false }, { L"", kStatusDetailDip, false }, { L"", kStatusZoomDip, false } });
 
     m_tabs->SetOnChange ([this] (int index) { SwitchToTab ((size_t) index); });
     m_tabs->SetOnMove   ([this] (int from, int to)
@@ -706,6 +707,8 @@ void CassqueWindow::RecomputeLayout()
         m_list->Layout        (right, m_scaler);
         m_listMessage->Layout (right, m_scaler);
     }
+
+    LayoutStatusFields();
 
     m_dropHits.Clear();
     m_dropHits.Register (DxuiHitRect { m_list->GetBounds(), DxuiHitSlot::Custom, 0 });
@@ -1087,9 +1090,55 @@ void CassqueWindow::FillStatus()
                               m_hexView->GetSelectionCount());
     }
 
+    //  Characters selected in a text preview take it the same way.
+    if (IsTextPreviewShowing() && m_textView->HasSelection())
+    {
+        size_t  chars = 0;
+
+        for (wchar_t ch : m_textView->GetSelectionText())
+        {
+            chars += (ch != L'\r' && ch != L'\n') ? 1 : 0;
+        }
+
+        detail = (chars == 1) ? std::wstring (L"1 character selected") : std::format (L"{} characters selected", chars);
+    }
+
     m_status->SetText (0, status.selection);
-    m_status->SetText (1, detail);
-    m_status->SetText (2, status.freeSpace);
+    m_status->SetText (1, status.freeSpace);
+    m_status->SetText (2, detail);
+    m_status->SetText (3, std::format (L"{}%", m_prefs.previewZoom));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::LayoutStatusFields
+//
+//  The item count stretches, and free space follows it. The preview's two
+//  fields together are as wide as the preview pane, so they begin at its
+//  left edge; with the preview hidden they keep a fixed width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::LayoutStatusFields()
+{
+    RECT  band     = m_statusBand.GetBounds();
+    bool  preview  = m_prefs.previewVisible && (m_previewRect.right > m_previewRect.left);
+    int   rightDip = preview ? MulDiv (band.right - m_previewRect.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi())
+                             : (kStatusDetailDip + kStatusZoomDip);
+
+
+
+    m_status->SetFields ({ { L"", 0, true },
+                           { L"", kStatusFreeDip, false },
+                           { L"", (std::max) (rightDip - kStatusZoomDip, 0), false },
+                           { L"", kStatusZoomDip, false } });
+    m_status->Layout (band, m_scaler);
+
+    FillStatus();
 }
 
 
@@ -1552,6 +1601,7 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
     if (m_textView->IsInteracting())
     {
         m_textView->OnMouse (ev);
+        FillStatus();
         Invalidate();
         return true;
     }
@@ -1579,6 +1629,7 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         }
 
         m_textView->OnMouse (ev);
+        FillStatus();
         Invalidate();
         return true;
     }
@@ -1760,6 +1811,7 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         case Pane::Preview: handled = IsHexPreviewShowing() ? m_hexView->OnKey (ev)
                                                             : IsTextPreviewShowing() ? m_textView->OnKey (ev)
                                                                                      : m_previewList->OnKey (ev);
+                            FillStatus();
                             break;
     }
 
@@ -2166,7 +2218,9 @@ void CassqueWindow::SetPreviewZoom (int percent)
 
     m_textView->SetZoom ((float) clamped / 100.0f);
     m_hexView->SetZoom  ((float) clamped / 100.0f);
+    m_picture->SetZoom  ((float) clamped / 100.0f);
 
+    FillStatus();
     Invalidate();
 }
 
@@ -3018,7 +3072,7 @@ void CassqueWindow::ReportOutcome (const CassqueActions::Outcome & outcome, cons
 {
     if (outcome.Succeeded())
     {
-        m_status->SetText (1, std::format (L"{}: {} file(s)", verbName, outcome.written));
+        m_status->SetText (2, std::format (L"{}: {} file(s)", verbName, outcome.written));
         return;
     }
 
@@ -3211,7 +3265,7 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertDone:
-                m_status->SetText (1, L"Inserted into Casso");
+                m_status->SetText (2, L"Inserted into Casso");
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertRefused:

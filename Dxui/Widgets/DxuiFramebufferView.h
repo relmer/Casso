@@ -30,6 +30,11 @@ public:
     void  Clear          ();
     void  SetScaling     (bool integer, bool keepAspect) { m_integer = integer; m_keepAspect = keepAspect; }
 
+    //  A multiple of the fitted size. Past 1 the picture is larger than its
+    //  bounds and is cut off at their edges, still centered.
+    void   SetZoom (float zoom) { m_zoom = (zoom > 0.0f) ? zoom : 1.0f; }
+    float  GetZoom () const     { return m_zoom; }
+
     int   GetFramebufferWidth  () const { return m_width;  }
     int   GetFramebufferHeight () const { return m_height; }
     bool  HasFramebuffer       () const { return !m_pixels.empty(); }
@@ -48,4 +53,5 @@ private:
     int                    m_height     = 0;
     bool                   m_integer    = true;
     bool                   m_keepAspect = true;
+    float                  m_zoom       = 1.0f;
 };

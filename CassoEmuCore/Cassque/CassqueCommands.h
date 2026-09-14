@@ -196,7 +196,7 @@ private:
         { kThemeDarkModern,   Menu::View, L"Casso Dark &Modern",  nullptr,     true  },
         { kThemeRetroTerminal, Menu::View, L"Casso &Retro Terminal", nullptr,  true  },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
-        { kLineAddresses,     Menu::View, L"Line &addresses",         nullptr,  true },
+        { kLineAddresses,     Menu::View, L"Show &address",           nullptr,  true },
         { kSeparator,         Menu::View, nullptr,                    nullptr,  false },
         { kNoData,            Menu::View, L"&No data",                nullptr,  true },
         { kGroup1,            Menu::View, L"&1-byte integer",         nullptr,  true },
@@ -229,7 +229,7 @@ private:
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
-        { kLineAddresses, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Line addresses", L"Show where each line starts in memory" },
+        { kLineAddresses, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Show address",   L"Show where each line starts in memory" },
         //  The Go to and search boxes, which the host supplies as custom entries.
         { kGoToOffset,    DxuiToolbar::Kind::Command,  0, nullptr, L"Go to",         L""                            },
         { kFind,          DxuiToolbar::Kind::Command,  1, nullptr, L"Search",        L"",                           false, true },
