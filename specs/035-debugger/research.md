@@ -211,6 +211,13 @@ format}` for FR-032's formats:
 These are the formats `CassoCli as65` and `merlin` already write (`--dos-bin`,
 `-s`, `-s2`), plus cc65's default Apple II output. `BSAVE` writes raw bytes.
 
+**AppleSingle is a shared codec.** `AppleSingleCodec` in `CassoEmuCore` reads
+and writes the container (data fork, real name, ProDOS type and aux type) and
+knows nothing about memory or disks. `BinaryImageReader` uses it here, and
+033-cassque uses it for put, get, preview and its host naming style. Casso
+itself does nothing with a `.as` file, and a container is never treated as a
+disk image.
+
 **Rationale**: Content detection for the self-describing formats; an explicit
 choice where a 4-byte header is indistinguishable from data.
 
