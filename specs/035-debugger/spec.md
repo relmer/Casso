@@ -24,7 +24,7 @@ One engine, two command modes, three ways in:
 
 - **Command modes**: AppleWin (default) and the Apple II System Monitor.
 - **Ways in**: a GUI debugger window with a command line, a batch mode in the
-  command-line tool, and a local channel that lets another program attach to a
+  command-line tool, and a debug channel that lets another program attach to a
   running Casso.
 
 ## Clarifications
@@ -52,14 +52,16 @@ diagnosis such as the //c VBL spin needed exactly this), it is fully testable
 without a window, and every later story is another way into the same engine.
 
 **Independent Test**: Run the command-line tool in debug mode against a
-fixture disk with a script that sets a breakpoint, runs, prints registers,
+fixture machine with a script that sets a breakpoint, runs, prints registers,
 dumps memory, steps, and exits. Compare output to expected text and to the
 structured form.
 
 **Acceptance Scenarios**:
 
-1. **Given** a script `bp C019`, `run`, `r`, **When** the tool runs it against
-   a disk that reads $C019, **Then** execution stops at the breakpoint and the
+1. **Given** a script that enters a loop at $0300 reading $C019, sets a
+   memory-read breakpoint on $C019 (`bpmr C019`), runs, and prints registers,
+   **When** the tool runs it, **Then** execution stops after the instruction
+   that read $C019, the stop reports that instruction's address, and the
    registers are printed.
 2. **Given** a stopped machine, **When** the script steps three instructions,
    **Then** the program counter advances through exactly those instructions and
@@ -127,7 +129,7 @@ reaches the address.
 **Acceptance Scenarios**:
 
 1. **Given** a running Casso, **When** a client connects and sends
-   `bp C019`, **Then** it receives a reply with the same content batch mode's
+   `bpmr C000`, **Then** it receives a reply with the same content batch mode's
    structured output contains for that command.
 2. **Given** a connected client and a set breakpoint, **When** the machine
    reaches it, **Then** the client receives a stop notification without polling.
@@ -220,7 +222,9 @@ confirm the machine sees the change.
 - **FR-006**: Users MUST be able to view and change memory as the CPU currently
   sees it, including which of ROM, RAM or language-card memory is mapped at an
   address.
-- **FR-007**: Users MUST be able to view soft-switch state and the stack.
+- **FR-007**: Users MUST be able to view soft-switch state and the stack,
+  through the Casso engine commands `SWITCHES` and `STACK` (`/SWITCHES` and
+  `/STACK` in Monitor mode).
 - **FR-008**: Every run started from a script or attached client MUST have a
   cycle budget; reaching it MUST end the run and report the reason.
 - **FR-009**: Given the same machine, disk and commands, a batch run MUST
@@ -273,7 +277,7 @@ confirm the machine sees the change.
 - **FR-022**: The command-line tool MUST provide a debug mode that runs a
   machine and a script of commands, printing each command's output, with an
   option for structured output.
-- **FR-023**: A running Casso MUST accept connections on a local channel
+- **FR-023**: A running Casso MUST accept connections on a debug channel
   restricted to the current user, one channel per running instance, identified
   by process ID. The channel MUST exist only while that instance's debugger
   window is open; closing the window MUST close the channel and disconnect its
@@ -302,7 +306,7 @@ confirm the machine sees the change.
   S-record and AppleSingle MUST be detected from content; raw and DOS 3.3
   binary MUST be selectable explicitly, since their contents cannot be told
   apart reliably. `BSAVE` and Monitor `W` write raw bytes.
-- **FR-033**: `CassoCli merlin` MUST write a symbol file per output object in
+- **FR-033**: `CassoCli merlin` MUST write a debug file (`.dbg`) per output object in
   the `-g` format, and MUST end each `-l` listing with a symbol table in
   Merlin's own listing format. That format MUST be verified against a listing
   produced by Merlin itself, checked in as a fixture.
@@ -422,7 +426,7 @@ confirm the machine sees the change.
   audio.
 - **There is no promise to leave guest state untouched**: commands such as `I`,
   `N`, `^K`, `^P` and `:` change guest memory by design.
-- **Local channel**: a Windows named pipe, named for the process ID, carrying
+- **Debug channel**: a Windows named pipe, named for the process ID, carrying
   one structured record per line, per the Windows-only platform scope. A per-instance channel is required
   because users run several Casso instances from different worktrees at once.
 - **Out of scope**: cdb/WinDbg syntax (its `.` and `!` command families depend

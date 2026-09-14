@@ -31,6 +31,6 @@
 
 ## Notes
 
-- Command syntax (`300L`, `bp C019`) and the command-line debug mode are user-facing contracts, not implementation details, so they appear in requirements.
+- Command syntax (`300L`, `bpmr C019`) and the command-line debug mode are user-facing contracts, not implementation details, so they appear in requirements.
 - The local channel is specified by behavior (per user, per instance, structured replies and notifications) in the requirements; the named-pipe choice is recorded under Assumptions because external clients depend on it.
 - Two decisions are stated as defaults in Assumptions rather than as [NEEDS CLARIFICATION] markers, and must be confirmed in `/speckit-clarify`: the Monitor-mode engine prefix (`/`), and the first-version AppleWin command subset.

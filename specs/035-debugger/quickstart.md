@@ -23,15 +23,28 @@ tests fail, and are not skipped.
    `MonitorListing1979Tests` and `MonitorRomFactsTests`, with non-zero item
    counts in their output. A filtered run is not the suite; the full suite
    runs before merge.
-2. **Break on a soft-switch read (Story 1).** Use a script containing `bp C019`,
-   `g`, `r`, `t`, `t`, `t`:
+2. **Break on a soft-switch read (Story 1).** `stop.txt` enters a loop at
+   $0300 (`LDA $C019`, `JMP $0300`) and stops on the read:
 
-   ```powershell
-   x64\Debug\CassoCli.exe debug --machine apple2e --disk1 UnitTest\Fixtures\dos33.dsk --script stop.txt
+   ```text
+   MEB 300 AD 19 C0 4C 00 03
+   R PC 300
+   BPMR C019
+   G
+   R
+   T
+   T
+   T
    ```
 
-   Expect a breakpoint stop at the instruction that reads $C019, registers,
-   and three step reports with increasing PC.
+   ```powershell
+   x64\Debug\CassoCli.exe debug --machine apple2e --script stop.txt
+   ```
+
+   Expect a stop with reason `watchpoint` whose access PC is $0300, then
+   registers, then three step reports with increasing PC. The exact `MEB` and
+   `R` argument forms follow AppleWin's help pages and are fixed by the parser
+   tests.
 3. **Budget.** Run `bp 0001` then `g` with `--max-cycles 1000000`. Expect a
    stop with reason `budget` and exit status 3.
 4. **Determinism.** Run step 2 twice with `--json` into two files, then
@@ -42,6 +55,9 @@ tests fail, and are not skipped.
    `0301`, and `/bpl` lists breakpoints set earlier in AppleWin mode.
 6. **Host file I/O.** Run `800.9FFW out.bin`, then `800.9FFR out.bin`. Expect a
    512-byte file, and a read that reports no mismatch.
+7. **Time to first stop (SC-001, manual).** Time step 2 from launching the
+   command to seeing registers and memory. Expect under one minute, and record
+   the time in the phase merge commit message.
 
 ## Phase 2: channel
 
@@ -49,8 +65,10 @@ tests fail, and are not skipped.
    `Start-Process x64\Debug\Casso.exe -WindowStyle Minimized -ArgumentList '--title', (Split-Path -Leaf (git rev-parse --show-toplevel)), '--debugger'`.
 2. Run `x64\Debug\CassoCli.exe debug --list`. Expect this instance's PID and
    title.
-3. Run `CassoCli debug --attach <pid> --command "bp C019" --command g`. Expect
-   an `ok` reply, then a `stopped` notification with reason `breakpoint`.
+3. At the `]` prompt, run
+   `CassoCli debug --attach <pid> --command "bpmr C000" --command g`. Expect an
+   `ok` reply, then a `stopped` notification with reason `watchpoint` from the
+   keyboard read.
 4. **Fan-out.** Attach two clients, set a breakpoint from one, and resume.
    Both clients print the stop.
 5. **Other user (manual).** From a different Windows account, run

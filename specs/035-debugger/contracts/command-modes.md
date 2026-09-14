@@ -15,9 +15,11 @@ AppleWin mode directly and in Monitor mode through `/`.
 | `MODE` | report the current mode |
 | `PAUSE` | stop a running machine (reason `pause`) |
 | `BUDGET <n>` | set the default cycle budget for later runs in this session |
+| `SWITCHES` | list the soft switches and memory banking (RAMRD, RAMWRT, ALTZP, 80STORE, INTCXROM, SLOTC3ROM, language-card read, write and bank, video switches) as name/value pairs |
+| `STACK` | show SP and the stack page from $01FF down to SP+1 |
 
-AppleWin has no `MODE`, `PAUSE` or `BUDGET` command, so these names collide
-with nothing in its table.
+AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES` or `STACK` command, so
+these names collide with nothing in its table.
 
 ## AppleWin mode
 

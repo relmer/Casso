@@ -57,7 +57,7 @@ replies with its own `protocol`, and the client decides whether to continue.
 ## Requests
 
 ```json
-{"type":"command","id":7,"line":"bp C019"}
+{"type":"command","id":7,"line":"bp 0300"}
 {"type":"command","id":8,"line":"300.30F","mode":"monitor"}
 {"type":"command","id":9,"line":"g","budget":5000000}
 ```
@@ -79,9 +79,9 @@ replies with its own `protocol`, and the client decides whether to continue.
 ## Replies
 
 ```json
-{"type":"reply","id":7,"status":"ok","command":"bp C019",
- "data":{"kind":"breakpointSet","breakpoint":{"id":0,"kind":"address","address":49177,"enabled":true}},
- "text":["Breakpoint #0 set at $C019"]}
+{"type":"reply","id":7,"status":"ok","command":"bp 0300",
+ "data":{"kind":"breakpointSet","breakpoint":{"id":0,"kind":"address","address":768,"enabled":true}},
+ "text":["Breakpoint #0 set at $0300"]}
 ```
 
 | Field | Meaning |
@@ -125,8 +125,8 @@ New kinds may be added; a client that does not recognize a kind uses `text`.
 Notifications have no `id` and are sent to every connected client.
 
 ```json
-{"type":"stopped","reason":"breakpoint","pc":49177,"breakpointId":0,"cycles":1834211,
- "registers":{"a":0,"x":1,"y":2,"p":48,"s":255,"pc":49177}}
+{"type":"stopped","reason":"breakpoint","pc":768,"breakpointId":0,"cycles":1834211,
+ "registers":{"a":0,"x":1,"y":2,"p":48,"s":255,"pc":768}}
 {"type":"stopped","reason":"watchpoint","pc":2051,"watch":{"id":1,"address":1024,"value":65,"access":"write","accessPc":2048}}
 {"type":"resumed"}
 {"type":"reset","kind":"soft"}
@@ -164,9 +164,9 @@ connection stays open.
 ```text
 > {"type":"hello","id":1,"protocol":1}
 < {"type":"hello","id":1,"protocol":1,"pid":1234,...,"state":"running"}
-> {"type":"command","id":2,"line":"bp C019"}
+> {"type":"command","id":2,"line":"bp 0300"}
 < {"type":"reply","id":2,"status":"ok",...}
-< {"type":"stopped","reason":"breakpoint","pc":49177,"breakpointId":0,...}
+< {"type":"stopped","reason":"breakpoint","pc":768,"breakpointId":0,...}
 > {"type":"command","id":3,"line":"r"}
 < {"type":"reply","id":3,"status":"ok","data":{"kind":"registers",...},"text":["A=00 X=01 ..."]}
 > {"type":"command","id":4,"line":"g"}

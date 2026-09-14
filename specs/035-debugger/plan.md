@@ -28,7 +28,7 @@ The approach turns on three facts from research:
 
 Everything else (both parsers, the disassembler, the line assembler, reply
 formatting, the pipe protocol and the window's state) is data-in/data-out logic
-over an `IDebugTarget` interface, testable against a fake target and against
+over an `IDebugTarget` interface, testable against a mock target and against
 real fixture machines.
 
 ## Technical Context
@@ -48,9 +48,9 @@ the existing `IFileSystem` seam.
 
 **Testing**: Microsoft C++ Unit Test Framework in `UnitTest/`. Real-machine
 tests use `TestMachine` and the fixture ROMs, which must be fetched with
-`scripts/FetchRoms.ps1 -Fixtures` (they are gitignored and absent from this
-worktree today). The pipe server is tested over an in-memory transport; a
-single integration test exercises a real pipe.
+`scripts/FetchRoms.ps1 -Fixtures` (they are gitignored). The pipe server is
+tested over an in-memory transport, and the Win32 transport over a mock
+`INamedPipeApi`. No test opens a real pipe.
 
 **Target Platform**: Windows 10/11, x64 and ARM64.
 
@@ -70,9 +70,10 @@ least one exists. Batch runs execute unthrottled.
 - Clean-room: AppleWin's table and help pages are consulted for names and
   behavior only.
 
-**Scale/Scope**: About 229 AppleWin names (phase 1: ~175; phase 3: ~50; 5 not
-available), 23 Monitor command-table entries plus the Monitor's syntax forms,
-~40 new core source pairs across three phases, and ~30 new test files.
+**Scale/Scope**: Every AppleWin name in spec Assumptions (exact per-phase counts
+are printed by the name-table test and recorded here when it lands), 23 Monitor
+command-table entries plus the Monitor's syntax forms, ~40 new core source pairs
+across three phases, and ~30 new test files.
 
 ## Constitution Check
 
@@ -102,8 +103,11 @@ tests too. **PASS.**
 
 - **Isolation**: file access goes through `IFileSystem`, pipes through
   `IPipeTransport`, and process identity and instance listing through an
-  `IInstanceDirectory` seam. No unit test opens a real pipe or file; the one
-  real-pipe test is marked integration.
+  `IInstanceDirectory` seam. No unit test opens a real pipe or file. Every pipe call
+  goes through `INamedPipeApi`, so `Win32PipeTransport`'s flags, cleanup paths
+  and read handling are tested against a mock, and the security descriptor is
+  built by a data-in/data-out function. Windows enforcing it is a manual
+  quickstart step.
 - **Acceptance tests** required by the user: the ROM command-table coverage
   test (FR-027) and the 1979 Reference Manual listing test (FR-028). Both fail,
   never skip, when fixtures are missing.
@@ -118,8 +122,10 @@ tests too. **PASS.**
 ### III. User Experience Consistency
 
 The new `debug` subcommand follows `--flag` conventions and gets a `--help`
-page. Errors go to stderr in the two-line shape. Existing commands are
-unchanged. **PASS.**
+page covering batch mode, `--list` and `--attach`. The emulator's `--debugger`
+switch is added to its documented-options table, so `Casso --help` lists it.
+Errors go to stderr in the two-line shape. Existing commands are unchanged.
+**PASS.**
 
 ### IV. Performance Requirements
 
@@ -168,7 +174,7 @@ introduce no executable code and no un-seamed system access. **PASS.**
                                           |
  Target seam                        IDebugTarget
                                     /           \
-                    MachineDebugTarget          FakeDebugTarget (tests)
+                    MachineDebugTarget          MockDebugTarget (tests)
                     (MachineHost, DebugMemoryView, per-instruction hook)
 ```
 
@@ -290,7 +296,7 @@ CassoCore/Debugger/                    # pure logic; no machine dependency
 └── BinaryImageReader.h/.cpp           # raw, DOS 3.3, Intel HEX, S-record, AppleSingle
 
 CassoEmuCore/Cli/MerlinMode.cpp        # CHANGE: -g symbol file per output
-CassoCore/ (Merlin listing writer)     # CHANGE: trailing symbol table in Merlin's format
+CassoCore/Assembler.cpp                # CHANGE: FormatListing appends a Merlin-format symbol table, Merlin dialect only
 
 CassoEmuCore/Debugger/
 ├── IDebugTarget.h                     # registers, peek/poke, step/run, soft switches, reset
@@ -302,6 +308,8 @@ CassoEmuCore/Debugger/
 ├── WatchpointTable.h/.cpp             # read/write ranges, bus observer install/remove
 ├── WatchTable.h/.cpp                  # AppleWin display watches, ZP pointers, bookmarks
 ├── SymbolTable.h/.cpp                 # ROM symbols per machine + user/source tables
+├── RomSymbols.cpp                     # ROM entry-point tables from Apple's published names
+├── AppleSingleCodec.h/.cpp            # container codec shared with 033-cassque
 ├── Reply.h                            # status, structured data, text lines (API type)
 ├── AppleWinFormatter.h/.cpp
 ├── MonitorFormatter.h/.cpp
@@ -314,9 +322,12 @@ CassoEmuCore/Debugger/
 │   ├── SymbolHandlers.h/.cpp
 │   ├── DataDirectiveHandlers.h/.cpp
 │   ├── ConfigHandlers.h/.cpp          # PWD, CD, LOAD, SAVE, DISASM, CYCLES, BENCHMARK, PROFILE
-│   └── MonitorHandlers.h/.cpp         # I, N, ^K, ^P, ^B, ^C, ^Y, R, W, search, register edit
+│   ├── MonitorHandlers.h/.cpp         # I, N, ^K, ^P, ^B, ^C, ^Y, R, W, search, register edit
+│   └── ViewHandlers.h/.cpp            # phase 3: cursor, window, view, appearance
 ├── Channel/                           # phase 2
 │   ├── IPipeTransport.h
+│   ├── INamedPipeApi.h                # seam over every pipe, handle and event call
+│   ├── Win32NamedPipeApi.h/.cpp       # pass-through to Win32, no logic
 │   ├── Win32PipeTransport.h/.cpp      # overlapped pipe, user-SID DACL, reject remote
 │   ├── DebugChannelServer.h/.cpp      # clients, request routing, notification fan-out
 │   ├── ChannelProtocol.h/.cpp         # JSON Lines framing, hello, versioning
@@ -356,19 +367,30 @@ UnitTest/DebuggerTests/
 ├── AppleWinCommandTableTests.cpp      # name sweep, both directions
 ├── AppleWinParserTests.cpp
 ├── MonitorParserTests.cpp
-├── DebugSessionTests.cpp              # fake target
+├── DebugSessionTests.cpp              # mock target
 ├── *HandlersTests.cpp                 # one per family, real TestMachine where banking matters
 ├── FormatterTests.cpp                 # AppleWin and Monitor text; JSON parity
 ├── DebugModeTests.cpp                 # scripts, budget, determinism (two runs byte-equal)
 ├── ChannelProtocolTests.cpp           # phase 2
 ├── DebugChannelServerTests.cpp        # in-memory transport: many clients, fan-out, close
 ├── DebuggerControllerTests.cpp
-└── DebuggerViewStateTests.cpp         # phase 3
+├── DebuggerViewStateTests.cpp         # phase 3
+├── PipeSecurityTests.cpp              # DACL built as data
+├── Win32PipeTransportTests.cpp        # flags, cleanup, read handling, over the mock
+├── MockNamedPipeApi.h                 # scripted INamedPipeApi with failure injection
+├── MockDebugTarget.h                  # in-memory IDebugTarget
+└── InMemoryPipeTransport.h
 
 UnitTest/Fixtures/Debugger/
 ├── AppleII-1979-MonitorListing.txt    # transcription of the instruction column
 ├── LICENSE                            # provenance and attribution
 └── Scripts/*.txt + expected/*.txt|.jsonl
+
+UnitTest/Fixtures/Merlin/LABELS.listing.txt      # listing captured from Merlin Pro
+
+docs/Debugger.md                       # user documentation
+docs/DebugChannel.md                   # protocol documentation
+scripts/DebugChannelClient.ps1         # independent client for SC-007
 ```
 
 **Structure Decision**: Parsers, the disassembler, the line assembler and the

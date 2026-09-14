@@ -73,7 +73,7 @@ description: "Task list for 035-debugger"
 
 ### Target seam, memory view and hook (CassoEmuCore)
 
-- [ ] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `Run (const RunRequest &) -> StopEvent`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Add `UnitTest/DebuggerTests/FakeDebugTarget.h`, an in-memory 64 KB implementation for session tests.
+- [ ] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `Run (const RunRequest &) -> StopEvent`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Add `UnitTest/DebuggerTests/MockDebugTarget.h`, an in-memory 64 KB implementation for session tests.
 - [ ] T015 [P] Write `UnitTest/DebuggerTests/DebugMemoryViewTests.cpp` (R-003) against `TestMachine` for Apple ][, ][+, //e, Enhanced //e and //c:
   - **Parity**: for every address outside $C000-$C0FF, and across banking states set through the soft switches (RAMRD/RAMWRT, ALTZP, 80STORE, INTCXROM, SLOTC3ROM, language-card bank 1/2 read and write), `Peek` equals the value a CPU read returns. `UnitTest/EmuTests/MemoryProbeHelpers.h` shows the probing pattern.
   - **No side effects**: a full peek sweep leaves every soft switch and the speaker state unchanged.
@@ -97,7 +97,7 @@ description: "Task list for 035-debugger"
 
 **Goal**: The engine, AppleWin mode for every phase-1 name, symbols and binary formats, and `CassoCli debug` batch mode with text and JSON Lines output
 
-**Independent Test**: `CassoCli debug --machine apple2e --disk1 UnitTest\Fixtures\dos33.dsk --script` with `bp C019`, `g`, `r`, `t`, `t`, `t` stops at the $C019 read, prints registers and three steps, and yields byte-identical output on a second run, in both text and `--json` (quickstart phase 1 steps 2-4)
+**Independent Test**: `CassoCli debug --machine apple2e --script stop.txt`, where the script enters a loop at $0300 reading $C019 and sets `BPMR C019`, stops after the read with the reading instruction's address, prints registers and three steps, and yields byte-identical output on a second run, in both text and `--json` (quickstart phase 1 steps 2-4)
 
 ### Session and tables
 
@@ -115,7 +115,7 @@ description: "Task list for 035-debugger"
   - a hit records `{accessPc, address, value, access}` and sets the pending stop.
 - [ ] T024 [US1] Implement `CassoEmuCore/Debugger/WatchpointTable.h/.cpp` against `MemoryBus`. Makes T023 pass.
 - [ ] T025 [P] [US1] Implement `CassoEmuCore/Debugger/WatchTable.h/.cpp` for AppleWin watches (`W*`), zero-page pointers (`ZP*`, `P0`-`P4`) and bookmarks (`BM*`), with `UnitTest/DebuggerTests/WatchTableTests.cpp`.
-- [ ] T026 [P] [US1] Write `UnitTest/DebuggerTests/DebugSessionTests.cpp` against `FakeDebugTarget`:
+- [ ] T026 [P] [US1] Write `UnitTest/DebuggerTests/DebugSessionTests.cpp` against `MockDebugTarget`:
   - the state transitions in data-model "DebugSession";
   - a run command while running returns `Error` "already running";
   - machine switch clears breakpoints and watchpoints, and reset keeps them;
@@ -130,7 +130,7 @@ description: "Task list for 035-debugger"
   - every phase-1 `DebugVerb` has at least one name;
   - aliases resolve to their target;
   - a name in no list is `Unknown`;
-  - the listed-name count is asserted non-zero.
+  - the listed-name count is asserted non-zero, and the phase-1, phase-3 and not-available counts are printed and recorded in plan.md Scale/Scope.
 - [ ] T029 [US1] Implement `CassoCore/Debugger/AppleWinCommandTable.h/.cpp`, a file-scope `static constexpr` table (`s_kAppleWinCommands`) of `{name, family, phase, availability, reason}`. Makes T028 pass.
 - [ ] T030 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinParserTests.cpp`:
   - case-insensitive names;
@@ -179,18 +179,18 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - search: `S`/`MS`, `SH`, `@`;
   - files: `BLOAD`, `BSAVE`, `TSAVE`;
   - I/O: `IN`/`INPUT`, `OUT`;
-  - also a soft-switch view and a stack view (FR-007) as Casso engine commands `SWITCHES` and `STACK`, added to `contracts/command-modes.md`.
+  - the Casso engine commands `SWITCHES` and `STACK` (FR-007), as defined in `contracts/command-modes.md`.
 - [ ] T040 [P] [US1] `CassoEmuCore/Debugger/Handlers/DataDirectiveHandlers.h/.cpp`: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`, `DW4`, `ASC`, `DF`, `DA`, and `U` disassembly honoring those data ranges. Also `A`, which uses `LineAssembler`.
 - [ ] T041 [P] [US1] `CassoEmuCore/Debugger/Handlers/ConfigHandlers.h/.cpp`: `PWD`, `CD`, `LOAD`, `SAVE`, `DISASM`, `STARTUP`, `RUN` (a script through the same session), `DISK`, `LOG`, `ECHO`, `PRINT`, `PRINTF`, `CALC`, `?`, `HELP`, `VERSION`, `MOTD`, `WSAVE`, `ZPSAVE`, `BMSAVE`.
 
 ### Symbols and binary formats (FR-031, FR-032, FR-033)
 
 - [ ] T042 [US1] Capture the Merlin listing fixture:
-  1. Boot Merlin Pro under Casso, loading `LABELS.S` from the Merlin work disk the way spec 019's research did (`L`, `E`, `ASM`).
+  1. On a copy of `UnitTest/Fixtures/Disks/Merlin-proDos2.23.dsk` (never the pristine image), boot Merlin Pro under Casso and load `LABELS.S` (`L`, `E`, `ASM`), following the capture procedure behind `scripts/CaptureMerlinCorpus.ps1`. Record the Merlin version the menu reports.
   2. Print the assembly listing with the printer output going to a file.
   3. Check it in as `UnitTest/Fixtures/Merlin/LABELS.listing.txt`, and add it to `UnitTest/Fixtures/Merlin/LICENSE` and `README.md`.
   4. Record in research R-009 the symbol-table layout it shows: section headings, column widths, and how `]` variables and local labels appear.
-- [ ] T043 [US1] Change `CassoCore/Assembler.h/.cpp` `FormatListing`, used by the Merlin dialect, to append a symbol table in the layout recorded in T042. Add tests in `UnitTest/MerlinListingSymbolTableTests.cpp` comparing the table section of `CassoCli merlin -l LABELS.S` output against `LABELS.listing.txt`. `as65` listings are unchanged.
+- [ ] T043 [US1] Change `CassoCore/Assembler.h/.cpp` `FormatListing`, used by the Merlin dialect, to append a symbol table in the layout recorded in T042. Add tests in `UnitTest/MerlinListingSymbolTableTests.cpp` comparing the table section of `CassoCli merlin -l LABELS.S` output against `LABELS.listing.txt`. The table is appended only when the dialect profile is Merlin. Add an as65 case to the same test file asserting an as65 listing is unchanged.
 - [ ] T044 [US1] Add `-g` to `CassoCli merlin`:
   - a flag row in `CassoCore/CommandLineParser.cpp` for the Merlin dialect;
   - `CassoEmuCore/Cli/MerlinMode.cpp` writes `<output>.dbg` per `SAV` output through `ArtifactWriter::WriteDebugInfo`, on the per-output rule `As65Mode::WriteExtraArtifacts` uses;
@@ -225,13 +225,14 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - usage errors.
 - [ ] T054 [US1] Add `Subcommand::Debug` and `DebugOptions` to `CassoCore/CommandLineOptions.h`, parsing in `CassoCore/CommandLineParser.cpp`, and the `debug` help page in `CassoEmuCore/Cli/CommandLine.cpp`. Update `UnitTest/CliSwitchCoverageTests.cpp` for the new grammar. Makes T053 pass.
 - [ ] T055 [P] [US1] Write `UnitTest/DebuggerTests/DebugModeTests.cpp` with scripts in `UnitTest/Fixtures/Debugger/Scripts/` and expected output in `expected/*.txt` and `*.jsonl`:
-  - Story 1 scenarios 1-5;
+  - Story 1 scenarios 1-5, using the script in quickstart phase 1 step 2 (a loop at $0300 that reads $C019, no disk);
   - the exit statuses 0, 1, 2 and 3 from the contract;
   - `;` comment lines;
   - a mode switch mid-script;
   - disk writes going to the overlay unless `--write-disks`;
-  - two runs of each script compared byte for byte (SC-004).
-- [ ] T056 [US1] Implement `CassoEmuCore/Cli/DebugMode.h/.cpp` (batch runner on `HeadlessMachineFactory` and `MachineDebugTarget`, no wall clock, R-015) and the `debug` arm in `CassoEmuCore/Cli/CliMain.cpp`. Makes T055 pass.
+  - two runs of each script compared byte for byte (SC-004);
+  - all host file access (scripts, `BLOAD`, `BSAVE`, `R`, `W`, `TF`) through a mock `IFileSystem`, with no real files.
+- [ ] T056 [US1] Implement `CassoEmuCore/Cli/DebugMode.h/.cpp` (batch runner taking an injected `IFileSystem`, on `HeadlessMachineFactory` and `MachineDebugTarget`, no wall clock, R-015) and the `debug` arm in `CassoEmuCore/Cli/CliMain.cpp`. Makes T055 pass.
 
 **Checkpoint**: Quickstart phase 1 steps 2-4 and 6 pass by hand, and the full suite is green. The MVP is usable for bug diagnosis.
 
@@ -292,7 +293,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - `!` and `F666G` enter `LineAssembler` mode.
 
   Tests in `UnitTest/DebuggerTests/MonitorHandlersTests.cpp` cover Story 2 scenarios 1-6, including a breakpoint set in AppleWin mode listed from Monitor mode.
-- [ ] T064 [US2] Add Monitor-mode scripts and expected output to `UnitTest/Fixtures/Debugger/Scripts/` and cases to `UnitTest/DebuggerTests/DebugModeTests.cpp` for quickstart phase 1 steps 5 and 6.
+- [ ] T064 [US2] Add Monitor-mode scripts and expected output to `UnitTest/Fixtures/Debugger/Scripts/` and cases to `UnitTest/DebuggerTests/DebugModeTests.cpp` for quickstart phase 1 steps 5 and 6, with `out.bin` held in the mock `IFileSystem`.
 
 **Checkpoint**: The FR-027, FR-028 and FR-029 tests pass on every fixture ROM, and the full suite is green. Plan phase 1 is complete and mergeable to master.
 
@@ -302,7 +303,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 **Goal**: A per-process, current-user named pipe carrying the JSON Lines protocol, many serialized clients, notifications, `debug --list` and `debug --attach`, and `Casso --debugger`
 
-**Independent Test**: Start Casso with `--debugger`, list it, attach, `bp C019`, `g`, and receive a `stopped` notification. A second client receives it too (quickstart phase 2)
+**Independent Test**: Start Casso with `--debugger`, list it, attach, `bpmr C000` (the keyboard read at the `]` prompt), `g`, and receive a `stopped` notification. A second client receives it too (quickstart phase 2)
 
 - [ ] T065 [P] [US3] Write `UnitTest/DebuggerTests/ChannelProtocolTests.cpp` for `contracts/debug-channel-protocol.md`:
   - framing: LF-terminated lines, CR tolerated on input, lines capped at 1 MiB;
@@ -325,16 +326,24 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
   Tests go in `UnitTest/DebuggerTests/EmulatorDebugWiringTests.cpp`, which drives `EmulatorShell` headless.
 - [ ] T071 [P] [US3] Write `UnitTest/DebuggerTests/DebuggerControllerTests.cpp`: opening starts the server and closing stops it and disconnects clients, leaving breakpoints and pause state alone; `--debugger` opens the controller at machine start without pausing.
-- [ ] T072 [US3] Implement `CassoEmuCore/Debugger/DebuggerController.h/.cpp` and parse `--debugger` in `CommandLineParser::ParseEmulator` (`CassoCore/CommandLineParser.cpp`). Makes T071 pass.
+- [ ] T072 [US3] Implement `CassoEmuCore/Debugger/DebuggerController.h/.cpp` and parse `--debugger` in `CommandLineParser::ParseEmulator` (`CassoCore/CommandLineParser.cpp`). Add `--debugger` to the emulator's documented-options table in the same file so `Casso --help` lists it, with a case in `UnitTest/CliSwitchCoverageTests.cpp`. Makes T071 pass.
 - [ ] T073 [US3] Implement `CassoEmuCore/Debugger/Channel/Win32PipeTransport.h/.cpp`, per research R-008:
   - pipe name `\\.\pipe\Casso.Debug.<pid>`;
   - a DACL granting `GENERIC_READ | GENERIC_WRITE` to the current token's user SID only, built with `GetTokenInformation` and `SetEntriesInAclW`;
   - `PIPE_REJECT_REMOTE_CLIENTS`, `FILE_FLAG_FIRST_PIPE_INSTANCE` on the first instance, and `PIPE_UNLIMITED_INSTANCES`;
   - overlapped I/O with every handle and event released on every path.
 
-  Add one integration test in `UnitTest/DebuggerTests/Win32PipeTransportIntegrationTests.cpp`, marked integration, that connects to a real pipe in-process.
-- [ ] T074 [P] [US3] Write `UnitTest/DebuggerTests/InstanceDirectoryTests.cpp` over a fake `IInstanceDirectory`: listing omits instances that refuse the connection or don't answer `hello`, and the output columns are `pid title machine disk1 disk2`.
-- [ ] T075 [US3] Implement `CassoEmuCore/Debugger/Channel/IInstanceDirectory.h` and `Win32InstanceDirectory.h/.cpp` (enumerate `\\.\pipe\` for `Casso.Debug.`). Add `debug --list` and `debug --attach <pid>` to `CassoEmuCore/Cli/DebugMode.cpp`, with parsing in `CassoCore/CommandLineParser.cpp`. After a run command, attach waits for `stopped` up to the budget, and exits with status 2 when the pipe closes. Makes T074 pass.
+  Build the security descriptor in a data-in/data-out function and test it in `UnitTest/DebuggerTests/PipeSecurityTests.cpp`: a given SID yields a DACL with exactly one allow entry, for that SID. Put every pipe call (`CreateNamedPipeW`, `ConnectNamedPipe`, `ReadFile`, `WriteFile`, `GetOverlappedResult`, `CancelIoEx`, `DisconnectNamedPipe`, `CloseHandle`, event creation and waits) behind `CassoEmuCore/Debugger/Channel/INamedPipeApi.h`. `Win32NamedPipeApi.h/.cpp` is a pass-through with no logic. Test `Win32PipeTransport` in `UnitTest/DebuggerTests/Win32PipeTransportTests.cpp` against `UnitTest/DebuggerTests/MockNamedPipeApi.h`:
+  - the pipe name for a given PID;
+  - `PIPE_REJECT_REMOTE_CLIENTS` on every instance, and `FILE_FLAG_FIRST_PIPE_INSTANCE` on the first instance only;
+  - the security descriptor passed to `CreateNamedPipeW`;
+  - a failure injected at each call releases every handle and event already acquired, and returns that call's error;
+  - pending reads, a disconnect during a read, one line split across reads, and several lines in one read;
+  - a line over 1 MiB.
+
+  No test opens a real pipe. Windows enforcing the access list is checked by quickstart phase 2 step 5, which is manual, and the pipe as a whole by the SC-007 client (T077).
+- [ ] T074 [P] [US3] Write `UnitTest/DebuggerTests/InstanceDirectoryTests.cpp` over a mock `IInstanceDirectory`: listing omits instances that refuse the connection or don't answer `hello`, and the output columns are `pid title machine disk1 disk2`.
+- [ ] T075 [US3] Implement `CassoEmuCore/Debugger/Channel/IInstanceDirectory.h` and `Win32InstanceDirectory.h/.cpp` (enumerate `\\.\pipe\` for `Casso.Debug.`). Add `debug --list` and `debug --attach <pid>` to `CassoEmuCore/Cli/DebugMode.cpp`, with parsing in `CassoCore/CommandLineParser.cpp`. After a run command, attach waits for `stopped` up to the budget, and exits with status 2 when the pipe closes. Add `--list` and `--attach` to the `debug` help page in `CassoEmuCore/Cli/CommandLine.cpp`. Makes T074 pass.
 - [ ] T076 [US3] Write `docs/DebugChannel.md` from `contracts/debug-channel-protocol.md` as user-facing documentation.
 - [ ] T077 [US3] SC-007 validation: write `scripts/DebugChannelClient.ps1`, a client that uses only `System.IO.Pipes.NamedPipeClientStream` and `docs/DebugChannel.md`, and run quickstart phase 2 steps 1-6. Step 5, the other-user connection, is manual; record its result in the commit message.
 
@@ -356,7 +365,8 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - click-to-toggle breakpoint on a line;
   - a memory edit producing a poke;
   - step, step over, run and run-to-cursor producing the matching `RunRequest`;
-  - the command line executing in the selected mode with the same reply as batch (Story 4 scenario 4).
+  - the command line executing in the selected mode with the same reply as batch (Story 4 scenario 4);
+  - a breakpoint set through `DebugChannelServer` over the in-memory transport appearing in the breakpoint pane, and one set by clicking appearing in a client's `bpl` reply (SC-006).
 - [ ] T079 [US4] Implement `CassoEmuCore/Ui/Debugger/DebuggerViewState.h/.cpp`. Makes T078 pass.
 - [ ] T080 [US4] Implement `CassoEmuCore/Ui/Debugger/DebuggerWindow.h/.cpp`, a `DxuiWindow` subclass following `Ui/Disk2DebugPanel`:
   - panes built from `DxuiListView`, `DxuiTextInput`, `DxuiToolbar` and `DxuiCommand` (032 widgets);

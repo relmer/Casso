@@ -42,7 +42,7 @@ CassoCli debug --machine <name> [--disk1 <path>] [--disk2 <path>]
 | 0 | every command returned `ok` or `notAvailable` |
 | 1 | at least one command returned `error` or `unknown` |
 | 2 | usage error, or the machine or a disk could not be loaded |
-| 3 | a run ended at its cycle budget and the script ended without any later command; reported so a CI script can detect a missed stop |
+| 3 | the last run the script started ended with reason `budget`, whether or not other commands followed it; reported so a CI script can detect a missed stop |
 
 ## Instance listing and attach (phase 2)
 
