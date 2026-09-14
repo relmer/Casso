@@ -2,6 +2,7 @@
 
 #include "Controllers/ControlLabels.h"
 #include "Controllers/XInputSampleDecoder.h"
+#include "Core/UnicodeSymbols.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -37,6 +38,18 @@ namespace ControllerTests
             Assert::AreEqual (std::wstring (L"Right stick X"),
                               ControlLabels::For (ControllerKind::XInput, { ControlKind::Axis, XInputSampleDecoder::kRightStickX }));
             Assert::AreEqual (std::wstring (L"D-pad left"), ControlLabels::For (ControllerKind::XInput, { ControlKind::DpadLeft, 0 }));
+        }
+
+
+        TEST_METHOD (XboxControlsHaveGlyphs_OtherControllersDoNot)
+        {
+            Assert::AreEqual (std::wstring (s_kpszMdl2ButtonA),     ControlLabels::GlyphFor (ControllerKind::XInput, { ControlKind::Button,   0 }));
+            Assert::AreEqual (std::wstring (s_kpszMdl2ButtonX),     ControlLabels::GlyphFor (ControllerKind::XInput, { ControlKind::Button,   2 }), L"X is third in the decoder's order, though fourth in the font's");
+            Assert::AreEqual (std::wstring (s_kpszMdl2ButtonView),  ControlLabels::GlyphFor (ControllerKind::XInput, { ControlKind::Button,   6 }));
+            Assert::AreEqual (std::wstring (s_kpszMdl2TriggerLeft), ControlLabels::GlyphFor (ControllerKind::XInput, { ControlKind::Trigger,  0 }));
+            Assert::AreEqual (std::wstring (s_kpszMdl2Dpad),        ControlLabels::GlyphFor (ControllerKind::XInput, { ControlKind::DpadLeft, 0 }));
+            Assert::IsTrue   (ControlLabels::GlyphFor (ControllerKind::XInput,      { ControlKind::Button, 10 }).empty(), L"a button past the named ones has none");
+            Assert::IsTrue   (ControlLabels::GlyphFor (ControllerKind::DirectInput, { ControlKind::Button, 0 }).empty(),  L"and a DirectInput device has none");
         }
 
 

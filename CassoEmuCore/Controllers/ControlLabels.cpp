@@ -3,6 +3,7 @@
 #include "Controllers/ControlLabels.h"
 
 #include "Controllers/XInputSampleDecoder.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -40,6 +41,61 @@ std::wstring ControlLabels::For (ControllerKind kind, const ControlId & control)
     }
 
     return ForDirectInput (control);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlyphFor
+//
+//  In XInputSampleDecoder's button order, as the names above.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControlLabels::GlyphFor (ControllerKind kind, const ControlId & control)
+{
+    static constexpr LPCWSTR  s_kButtonGlyphs[] =
+    {
+        s_kpszMdl2ButtonA, s_kpszMdl2ButtonB, s_kpszMdl2ButtonX, s_kpszMdl2ButtonY,
+        s_kpszMdl2BumperLeft, s_kpszMdl2BumperRight, s_kpszMdl2ButtonView, s_kpszMdl2ButtonMenu,
+        s_kpszMdl2LeftStick, s_kpszMdl2RightStick,
+    };
+
+
+
+    if (kind != ControllerKind::XInput)
+    {
+        return L"";
+    }
+
+    switch (control.kind)
+    {
+        case ControlKind::Axis:
+            if (control.index == XInputSampleDecoder::kLeftStickX  || control.index == XInputSampleDecoder::kLeftStickY)  { return s_kpszMdl2LeftStick;  }
+            if (control.index == XInputSampleDecoder::kRightStickX || control.index == XInputSampleDecoder::kRightStickY) { return s_kpszMdl2RightStick; }
+            return L"";
+
+        case ControlKind::Trigger:
+            if (control.index == 0) { return s_kpszMdl2TriggerLeft;  }
+            if (control.index == 1) { return s_kpszMdl2TriggerRight; }
+            return L"";
+
+        case ControlKind::Button:
+            if (control.index >= 0 && control.index < (int) std::size (s_kButtonGlyphs))
+            {
+                return s_kButtonGlyphs[control.index];
+            }
+
+            return L"";
+
+        default:
+            break;
+    }
+
+    return s_kpszMdl2Dpad;
 }
 
 

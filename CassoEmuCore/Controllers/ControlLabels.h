@@ -27,7 +27,11 @@ class ControlLabels
 {
 public:
 
-    static std::wstring  For (ControllerKind kind, const ControlId & control);
+    static std::wstring  For      (ControllerKind kind, const ControlId & control);
+
+    // The Segoe MDL2 Assets glyph an Xbox controller's control is drawn with,
+    // or empty for a control, or a controller, that has none.
+    static std::wstring  GlyphFor (ControllerKind kind, const ControlId & control);
 
 private:
 

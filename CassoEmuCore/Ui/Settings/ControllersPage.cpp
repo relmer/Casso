@@ -696,16 +696,19 @@ void ControllersPage::RefreshRows()
         for (row = 0; row < kMaxRows; row++)
         {
             std::vector<std::wstring>  items;
+            std::vector<std::wstring>  glyphs;
             bool                       isCapturing = m_capturing.has_value() && m_capturing->first == target && m_capturing->second == row;
             int                        choice      = FindChoice (target, row);
 
             items.push_back (isCapturing ? L"Press a control..." : L"Press to assign...");
             items.push_back (available ? L"None" : L"Not on this machine");
+            glyphs.resize   (items.size());
 
             for (const ControlChoice & entry : m_choices[target])
             {
-                items.push_back (entry.isPair ? ControlLabels::For (kind, entry.control) + L" / " + ControlLabels::For (kind, entry.positive)
-                                              : ControlLabels::For (kind, entry.control));
+                items.push_back  (entry.isPair ? ControlLabels::For (kind, entry.control) + L" / " + ControlLabels::For (kind, entry.positive)
+                                               : ControlLabels::For (kind, entry.control));
+                glyphs.push_back (ControlLabels::GlyphFor (kind, entry.control));
             }
 
             if (row < count && choice < 0)
@@ -717,7 +720,8 @@ void ControllersPage::RefreshRows()
                 choice = (int) items.size() - 1;
             }
 
-            m_rows[target][row].SetItems    (items);
+            m_rows[target][row].SetItems      (items);
+            m_rows[target][row].SetItemGlyphs (glyphs);
             m_rows[target][row].SetSelected (isCapturing ? kPressToAssignItem : (row < count ? choice : kNoneItem));
             m_rows[target][row].SetEnabled  (available);
             m_rows[target][row].SetVisible  (row < shown);

@@ -23,6 +23,11 @@ public:
 
     void  SetRect     (const RECT & rect) { SetBounds (rect); }
     void  SetItems    (const std::vector<std::wstring> & items);
+
+    // An optional Segoe MDL2 Assets glyph drawn before each item, index for
+    // index with the items; an empty string, or an item past the end, has
+    // none. SetItems clears them, so set them after the items.
+    void  SetItemGlyphs (const std::vector<std::wstring> & glyphs);
     void  SetSelected (int index);
     void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
     void  SetFocused  (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
@@ -138,11 +143,14 @@ private:
     void            Commit          (int index);
     void            EnsureHighlightVisible ();
     void            RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    float           GetGlyphIndent  (float fontPx) const;
+    void            PaintItemGlyph  (IDxuiTextRenderer & text, int index, float x, float top, float height, uint32_t color, float fontPx) const;
     void            OnPopupMove     (POINT localPx);
     void            OnPopupClick    (POINT localPx);
     ResolvedColors  ResolveColors   () const;
 
     std::vector<std::wstring>    m_items;
+    std::vector<std::wstring>    m_glyphs;
     SelectFn                     m_select;
     SelectFn                     m_highlightChange;
     bool                         m_open            = false;

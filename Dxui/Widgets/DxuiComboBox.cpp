@@ -13,6 +13,8 @@
 
 static constexpr uint32_t  s_kFocusRingArgb   = 0xFFAACCFF;
 static constexpr float     s_kFocusRingPx     = 1.5f;
+static constexpr wchar_t   s_kGlyphFamily[]   = L"Segoe MDL2 Assets";
+static constexpr float     s_kGlyphColumn     = 1.75f;   // glyph column width, in font sizes
 static constexpr float     s_kFocusInsetPx    = -2.0f;
 static constexpr int       s_kRowHeightDip     = 28;
 static constexpr int       s_kTextInsetDip     = 8;
@@ -62,6 +64,7 @@ bool DxuiComboBox::IsPointInRect (const RECT & rect, int x, int y)
 void DxuiComboBox::SetItems (const std::vector<std::wstring> & items)
 {
     m_items = items;
+    m_glyphs.clear();
 
     if (m_selected >= (int) m_items.size())
     {
@@ -877,10 +880,13 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                 m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
                                 edgePx,
                                 edgeColor);
+    PaintItemGlyph (text, m_selected, (float) (m_boundsDip.left + textInset), (float) m_boundsDip.top,
+                    (float) (m_boundsDip.bottom - m_boundsDip.top), textColor, fontDip);
+
     hr = text.DrawString (label.c_str(),
-                          (float) (m_boundsDip.left + textInset),
+                          (float) (m_boundsDip.left + textInset) + GetGlyphIndent (fontDip),
                           (float) m_boundsDip.top,
-                          (float) textWidth,
+                          (float) textWidth - GetGlyphIndent (fontDip),
                           (float) (m_boundsDip.bottom - m_boundsDip.top),
                           textColor,
                           fontDip,
@@ -917,6 +923,77 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                     focusThick,
                                     c.focus);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetItemGlyphs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiComboBox::SetItemGlyphs (const std::vector<std::wstring> & glyphs)
+{
+    m_glyphs = glyphs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGlyphIndent
+//
+//  How far the text moves right for the glyph column. Every row of a list
+//  with any glyph gets the column, glyph or not, so the names stay aligned.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiComboBox::GetGlyphIndent (float fontPx) const
+{
+    bool  hasGlyph = std::any_of (m_glyphs.begin(), m_glyphs.end(), [] (const std::wstring & glyph) { return !glyph.empty(); });
+
+
+
+    return hasGlyph ? fontPx * s_kGlyphColumn : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintItemGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiComboBox::PaintItemGlyph (IDxuiTextRenderer & text, int index, float x, float top, float height, uint32_t color, float fontPx) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (index < 0 || index >= (int) m_glyphs.size() || m_glyphs[(size_t) index].empty())
+    {
+        return;
+    }
+
+    hr = text.DrawString (m_glyphs[(size_t) index].c_str(),
+                          x,
+                          top,
+                          GetGlyphIndent (fontPx),
+                          height,
+                          color,
+                          fontPx,
+                          s_kGlyphFamily,
+                          DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -966,10 +1043,12 @@ void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                             (float) (row.bottom - row.top),
                             color);
         IGNORE_RETURN_VALUE (hr, S_OK);
+        PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), c.text, fontDip);
+
         hr = text.DrawString (m_items[(size_t) i].c_str(),
-                              (float) (row.left + textInset),
+                              (float) (row.left + textInset) + GetGlyphIndent (fontDip),
                               (float) row.top,
-                              (float) (row.right - row.left - textInset),
+                              (float) (row.right - row.left - textInset) - GetGlyphIndent (fontDip),
                               (float) (row.bottom - row.top),
                               c.text,
                               fontDip,
@@ -1052,10 +1131,12 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
                                      c.menuHover);
         }
 
+        PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), c.text, fontPx);
+
         hr = text.DrawString (m_items[(size_t) i].c_str(),
-                              (float) (row.left + textInset),
+                              (float) (row.left + textInset) + GetGlyphIndent (fontPx),
                               (float) row.top,
-                              (float) (row.right - row.left - textInset),
+                              (float) (row.right - row.left - textInset) - GetGlyphIndent (fontPx),
                               (float) (row.bottom - row.top),
                               c.text,
                               fontPx,
