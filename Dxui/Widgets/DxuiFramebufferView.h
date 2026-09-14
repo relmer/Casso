@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "DxuiScrollbar.h"
 
 
 
@@ -32,8 +33,15 @@ public:
 
     //  A multiple of the fitted size. Past 1 the picture is larger than its
     //  bounds and is cut off at their edges, still centered.
-    void   SetZoom (float zoom) { m_zoom = (zoom > 0.0f) ? zoom : 1.0f; }
+    void   SetZoom (float zoom) { m_zoom = (zoom > 0.0f) ? zoom : 1.0f; ClampPan(); }
     float  GetZoom () const     { return m_zoom; }
+
+    //  A picture larger than its bounds pans: by dragging it, by its
+    //  scrollbars, and by the wheel or a touchpad in either direction. The
+    //  pan is measured from the centered position, so zooming keeps the
+    //  middle of the view where it was.
+    bool  CanPan        () const;
+    bool  IsInteracting () const { return m_panning || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
 
     int   GetFramebufferWidth  () const { return m_width;  }
     int   GetFramebufferHeight () const { return m_height; }
@@ -44,10 +52,28 @@ public:
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Picture"; }
 
 private:
+    void  GetScaledSize  (int & outWidth, int & outHeight) const;
+    void  ClampPan       ();
+    void  SyncScrollbars ();
+
+    static constexpr int  s_kScrollbarWidthDip = 10;
+    static constexpr int  s_kWheelStepDip      = 48;
+
+    int                    m_panX       = 0;
+    int                    m_panY       = 0;
+    bool                   m_panning    = false;
+    POINT                  m_panFrom    = {};
+    int                    m_panFromX   = 0;
+    int                    m_panFromY   = 0;
+    DxuiDpiScaler          m_scaler;
+    DxuiScrollbar          m_vertScroll;
+    DxuiScrollbar          m_horzScroll;
     std::vector<uint32_t>  m_pixels;
     int                    m_width      = 0;
     int                    m_height     = 0;

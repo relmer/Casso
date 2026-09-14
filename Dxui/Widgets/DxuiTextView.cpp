@@ -729,7 +729,6 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     bool          selected  = HasSelection() && from.row <= line.row && line.row <= to.row;
     int           selFrom   = (line.row == from.row) ? from.offset : 0;
     int           selTo     = (line.row == to.row)   ? to.offset   : INT_MAX;
-    bool          finalLine = lineIndex + 1 == (int) m_lines.size() || m_lines[(size_t) lineIndex + 1].row != line.row;
     uint32_t      selArgb   = theme.SelectionBackground();
 
 
@@ -770,7 +769,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         if (selected)
         {
             FillSelectedRange (painter, y, column, GetCellBase (row, last) + line.start, line.length,
-                               (finalLine && line.row < to.row) ? 1 : 0, selFrom, selTo, selArgb);
+                               0, selFrom, selTo, selArgb);
         }
 
         DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo);

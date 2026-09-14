@@ -109,14 +109,14 @@ void DxuiStatusBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
         }
         else
         {
-            fixedPx += m_scaler.ToPx (m_fields[i].widthDip);
+            fixedPx += (m_fields[i].widthPx >= 0) ? m_fields[i].widthPx : m_scaler.ToPx (m_fields[i].widthDip);
         }
     }
 
     for (i = 0; i < m_fields.size(); i++)
     {
         int  widthPx = ((int) i == stretchAt) ? (std::max) (totalPx - fixedPx, 0)
-                                              : m_scaler.ToPx (m_fields[i].widthDip);
+                                              : (m_fields[i].widthPx >= 0) ? m_fields[i].widthPx : m_scaler.ToPx (m_fields[i].widthDip);
 
         m_fieldRects[i] = RECT { x, boundsDip.top, x + widthPx, boundsDip.bottom };
         x += widthPx;

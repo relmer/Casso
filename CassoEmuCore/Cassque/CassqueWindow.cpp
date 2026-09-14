@@ -1125,16 +1125,21 @@ void CassqueWindow::FillStatus()
 
 void CassqueWindow::LayoutStatusFields()
 {
-    RECT  band     = m_statusBand.GetBounds();
-    bool  preview  = m_prefs.previewVisible && (m_previewRect.right > m_previewRect.left);
-    int   rightDip = preview ? MulDiv (band.right - m_previewRect.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi())
-                             : (kStatusDetailDip + kStatusZoomDip);
+    RECT   band    = m_statusBand.GetBounds();
+    bool   preview = m_prefs.previewVisible && (m_previewRect.right > m_previewRect.left);
+    RECT   sash    = m_previewSplitter->GetSashRect();
+    float  line    = (std::max) (m_scaler.ToPxf (1.0f), 1.0f);
+    int    seam    = (int) ((float) sash.left + (float) (sash.right - sash.left) * 0.5f - line);
+    int    zoomPx  = m_scaler.ToPx (kStatusZoomDip);
+    int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_scaler.ToPx (kStatusDetailDip);
 
 
 
+    //  The detail field starts on the splitter's line, which the splitter
+    //  draws in the middle of its sash, so the two dividers meet.
     m_status->SetFields ({ { L"", 0, true },
                            { L"", kStatusFreeDip, false },
-                           { L"", (std::max) (rightDip - kStatusZoomDip, 0), false },
+                           { L"", 0, false, detail },
                            { L"", kStatusZoomDip, false } });
     m_status->Layout (band, m_scaler);
 
@@ -1422,6 +1427,14 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A click on the zoom level puts it back to 100%.
+    if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left
+        && Contains (m_status->GetFieldRect (3), point))
+    {
+        Dispatch (CassqueCommands::kZoomReset);
+        return true;
+    }
+
     //  Ctrl with the wheel over the preview zooms it, as in a browser.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal
         && m_prefs.previewVisible && Contains (m_previewRect, point))
@@ -1598,6 +1611,25 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A zoomed picture pans by dragging, its scrollbars and the wheel, and
+    //  keeps the pointer while a drag is under way.
+    if (m_picture->IsInteracting()
+        || (m_picture->IsVisible() && Contains (m_picture->GetBounds(), point) && m_picture->OnMouse (ev)))
+    {
+        if (m_picture->IsInteracting())
+        {
+            m_picture->OnMouse (ev);
+        }
+
+        if (press)
+        {
+            SetFocusPane (Pane::Preview);
+        }
+
+        Invalidate();
+        return true;
+    }
+
     if (m_textView->IsInteracting())
     {
         m_textView->OnMouse (ev);
@@ -1669,6 +1701,11 @@ LPCWSTR CassqueWindow::GetCursorForPoint (POINT clientPx) const
     if (cursor == nullptr && m_previewSplitter->IsVisible())
     {
         cursor = m_previewSplitter->GetCursorForPoint (clientPx);
+    }
+
+    if (cursor == nullptr && m_picture->IsVisible() && Contains (m_picture->GetBounds(), clientPx))
+    {
+        cursor = m_picture->GetCursorForPoint (clientPx);
     }
 
     if (cursor == nullptr && m_list->IsVisible() && Contains (bounds, clientPx))

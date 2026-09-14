@@ -28,6 +28,10 @@ public:
         std::wstring  text;
         int           widthDip = 0;
         bool          stretch  = false;
+
+        //  A width in pixels, used instead of widthDip when not negative, for
+        //  a field that has to line up with an edge elsewhere in the window.
+        int           widthPx  = -1;
     };
 
     DxuiStatusBar() = default;
