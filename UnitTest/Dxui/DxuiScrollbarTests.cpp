@@ -329,4 +329,29 @@ public:
         Assert::AreEqual (0, rects, L"The pointer brings no track");
         Assert::AreEqual (8.0f, widest, L"and the puck fills the strip but for its inset");
     }
+
+
+    //  A dragged puck follows the pointer one pixel at a time, even though the
+    //  position it reports moves in whole rows. Pressing without moving moves
+    //  nothing.
+    TEST_METHOD (Drag_PuckFollowsThePointerByThePixel)
+    {
+        DxuiScrollbar  bar = MakeVertical();
+        int            y   = 0;
+
+
+        bar.OnMouseDown (105, 20);
+        bar.OnMouseMove (105, 20);
+
+        Assert::AreEqual (10.0f, bar.GetMetrics().thumbStart, L"Pressing leaves the puck where it was");
+        Assert::AreEqual (0,     bar.GetScrollPos(),          L"and the position where it was");
+
+        for (y = 21; y <= 30; y++)
+        {
+            bar.OnMouseMove (105, y);
+            Assert::AreEqual ((float) (y - 10), bar.GetMetrics().thumbStart, L"Each pixel moves the puck one pixel");
+        }
+
+        bar.OnMouseUp();
+    }
 };

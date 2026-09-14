@@ -97,15 +97,15 @@ public:
 
     void     Paint (IDxuiPainter & painter, uint32_t foregroundArgb) const;
 
-    //  Widened, as Windows widens a scrollbar the pointer is over: the track
-    //  appears, the puck thickens and the arrows come back. The grab band is
-    //  the same either way.
+    //  Widened at once, as Windows widens a scrollbar the pointer is over: the
+    //  puck thickens and the arrows come back. The grab band is the same
+    //  either way.
     void     SetExpanded (bool expanded)      { m_expanded = expanded; m_hoverAmount = expanded ? 1.0f : 0.0f; }
 
-    //  Starts the bar widening while the pointer is over it, or narrowing when
-    //  it leaves. Tick carries the change out over a few frames, and reports
+    //  SetHover starts the bar widening or narrowing and notes the arrow under
+    //  the pointer. Tick carries the change out over a few frames, and reports
     //  whether it is still under way.
-    bool     SetHover    (bool over)          { return std::exchange (m_expanded, over) != over; }
+    bool     SetHover    (bool over, POINT pt = { -1, -1 });
     bool     Tick        (int64_t nowMs);
     bool     IsExpanded  () const             { return m_expanded; }
 
@@ -138,5 +138,7 @@ private:
     int64_t                                m_lastTickMs  = 0;
     int                                    m_restThumbPx = 3;
     float                                  m_dragGrab    = 0.0f;
+    float                                  m_dragThumb   = 0.0f;
+    int                                    m_hoverArrow  = 0;
     std::function<void (int sbCode, int pos)>  m_onScroll;
 };

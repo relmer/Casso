@@ -16,7 +16,8 @@ static constexpr uint32_t  s_kThumbAlpha        = 0xDD000000u;
 //  more slowly when it leaves.
 static constexpr float     s_kGrowMs            = 100.0f;
 static constexpr float     s_kShrinkMs          = 400.0f;
-static constexpr uint32_t  s_kArrowAlpha        = 0xC0000000u;
+static constexpr uint32_t  s_kArrowAlpha        = 0xA0000000u;
+static constexpr uint32_t  s_kArrowHotAlpha     = 0xFF000000u;
 static constexpr float     s_kArrowGlyphRatio   = 0.30f;
 static constexpr int       s_kArrowGlyphMinPx   = 3;
 static constexpr int       s_kArrowGlyphAspect  = 2;
@@ -284,7 +285,14 @@ float DxuiScrollbar::GetThumbStart() const
 
 
 
-    if (maxPos > 0 && travel > 0.0f)
+    //  A dragged puck follows the pointer pixel by pixel. The position it
+    //  reports moves in whole units, so the view scrolls only when the puck
+    //  has gone far enough for one.
+    if (m_dragging)
+    {
+        start = std::clamp (m_dragThumb, (float) trackStart, (float) trackStart + (std::max) (travel, 0.0f));
+    }
+    else if (maxPos > 0 && travel > 0.0f)
     {
         start += travel * (float) (m_pos - m_min) / (float) maxPos;
     }
@@ -444,8 +452,9 @@ bool DxuiScrollbar::OnMouseDown (int xPx, int yPx)
     }
     else if (mainPt >= m.thumbStart && mainPt < m.thumbStart + m.thumbLength)
     {
-        m_dragging = true;
-        m_dragGrab = mainPt - m.thumbStart;
+        m_dragging  = true;
+        m_dragGrab  = mainPt - m.thumbStart;
+        m_dragThumb = m.thumbStart;
     }
     else if (PtInRect (&m.track, pt))
     {
@@ -492,9 +501,10 @@ bool DxuiScrollbar::OnMouseMove (int xPx, int yPx)
 
     BAIL_OUT_IF (!m_dragging, S_OK);
 
-    handled = true;
-    ratio   = (travel > 0.0f) ? ((mainPt - m_dragGrab - trackStart) / travel) : 0.0f;
-    newPos  = m_min + (int) std::lround ((double) ratio * (double) maxPos);
+    handled     = true;
+    m_dragThumb = std::clamp (mainPt - m_dragGrab, trackStart, trackStart + (std::max) (travel, 0.0f));
+    ratio       = (travel > 0.0f) ? ((m_dragThumb - trackStart) / travel) : 0.0f;
+    newPos      = m_min + (int) std::lround ((double) ratio * (double) maxPos);
     NotifyPos (SB_THUMBTRACK, newPos);
 
 Error:
@@ -581,6 +591,7 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
     float     wideA     = (float) (s_kThumbAlpha >> 24);
     uint32_t  thumbArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) (restA + (wideA - restA) * amount) << 24);
     uint32_t  arrowArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowAlpha >> 24) * amount) << 24);
+    uint32_t  arrowHot  = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowHotAlpha >> 24) * amount) << 24);
     bool      vertical  = (m_orientation == Orientation::Vertical);
     float     strip     = 0.0f;
     float     thumbW    = 0.0f;
@@ -606,11 +617,12 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
         PaintThumb (painter, m.thumbStart, (float) m.bar.top + inset, m.thumbLength, thumbW, thumbArgb);
     }
 
-    //  Arrows fade in with the widening, as in Windows.
+    //  Arrows fade in with the widening, and the one under the pointer is
+    //  brighter, as in Windows.
     if (amount > 0.0f && m.arrowLess.right > m.arrowLess.left && m.arrowLess.bottom > m.arrowLess.top)
     {
-        PaintArrow (painter, m.arrowLess, true,  arrowArgb);
-        PaintArrow (painter, m.arrowMore, false, arrowArgb);
+        PaintArrow (painter, m.arrowLess, true,  (m_hoverArrow < 0) ? arrowHot : arrowArgb);
+        PaintArrow (painter, m.arrowMore, false, (m_hoverArrow > 0) ? arrowHot : arrowArgb);
     }
 
 Error:
@@ -685,6 +697,44 @@ bool DxuiScrollbar::Tick (int64_t nowMs)
                                              : (std::max) (target, m_hoverAmount - dt / s_kShrinkMs);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::SetHover
+//
+//  Starts the bar widening while the pointer is over it, or narrowing when it
+//  leaves, and notes which arrow the pointer is on. Reports whether anything
+//  changed to repaint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollbar::SetHover (bool over, POINT pt)
+{
+    Metrics  m       = GetMetrics();
+    int      arrow   = 0;
+    bool     changed = false;
+
+
+
+    if (over && PtInRect (&m.arrowLess, pt))
+    {
+        arrow = -1;
+    }
+    else if (over && PtInRect (&m.arrowMore, pt))
+    {
+        arrow = 1;
+    }
+
+    changed      = (m_expanded != over) || (m_hoverArrow != arrow);
+    m_expanded   = over;
+    m_hoverArrow = arrow;
+
+    return changed;
 }
 
 

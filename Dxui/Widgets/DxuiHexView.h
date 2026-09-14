@@ -222,7 +222,7 @@ public:
 
     //  Whether a point is on a scrollbar, and the hover that widens one.
     bool  IsOverScrollbar   (POINT pt) const override { return m_vertScroll.HitTest (pt.x, pt.y) || m_horzScroll.HitTest (pt.x, pt.y); }
-    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (m_vertScroll.HitTest (pt.x, pt.y)) | (int) m_horzScroll.SetHover (m_horzScroll.HitTest (pt.x, pt.y))) != 0; }
+    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (m_vertScroll.HitTest (pt.x, pt.y), pt) | (int) m_horzScroll.SetHover (m_horzScroll.HitTest (pt.x, pt.y), pt)) != 0; }
     bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
     void  SetLeftPx              (int leftPx);
     bool  IsScrollbarVisible () const { return GetRowCount() > (uint64_t) (std::max) (GetRowCap(), 0); }

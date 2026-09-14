@@ -220,9 +220,10 @@ public:
     //  bars' tracks are placed in widget coordinates for input and in client
     //  coordinates for painting, so either placement counts.
     bool  IsOverScrollbar   (POINT pt) const override { return IsOverBar (m_vertScroll, pt) || IsOverBar (m_horzScroll, pt); }
-    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (IsOverBar (m_vertScroll, pt)) | (int) m_horzScroll.SetHover (IsOverBar (m_horzScroll, pt))) != 0; }
+    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (IsOverBar (m_vertScroll, pt), GetBarPoint (m_vertScroll, pt)) | (int) m_horzScroll.SetHover (IsOverBar (m_horzScroll, pt), GetBarPoint (m_horzScroll, pt))) != 0; }
     bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
     bool  IsOverBar         (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) || bar.HitTest (pt.x - m_boundsDip.left, pt.y - m_boundsDip.top); }
+    POINT GetBarPoint       (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) ? pt : POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top }; }
     int   GetTopRow             () const                 { return m_topRow; }
     int   GetVisibleRowCapacity () const;
     int   GetMaxTopRow          () const;
