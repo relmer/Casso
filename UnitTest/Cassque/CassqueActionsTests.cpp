@@ -371,6 +371,18 @@ public:
     }
 
 
+    TEST_METHOD (GoTo_ReachesPastSixteenBitsInALargeFile)
+    {
+        int64_t  first = 0;
+        int64_t  last  = 0;
+
+        Assert::IsTrue   (CassqueActions::TryParseGoTo (L"10000", 0, first, last));
+        Assert::AreEqual ((int64_t) 0x10000, first, L"An offset is not an Apple II address and is not capped at $FFFF");
+        Assert::IsTrue   (CassqueActions::TryParseGoTo (L"+#1000000", 0x10, first, last));
+        Assert::AreEqual ((int64_t) 1000016, first);
+    }
+
+
     TEST_METHOD (GoTo_ParsesARangeByLastAddressOrByLength)
     {
         int64_t  first = 0;

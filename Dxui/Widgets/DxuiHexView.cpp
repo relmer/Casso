@@ -25,6 +25,7 @@ void DxuiHexView::SetSource (const IDxuiHexSource * source)
     m_source = source;
 
     ClearSelection();
+    ResetLineIndex();
     m_topRow = 0;
 
     RecomputeRowWidth();
@@ -193,7 +194,534 @@ void DxuiHexView::SetShowValues (bool show)
 {
     m_showValues = show;
 
+    ResetLineIndex();
     RecomputeRowWidth();
+    ClampTopRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SetBreakLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetBreakLines (bool breakLines)
+{
+    m_breakLines = breakLines;
+
+    ResetLineIndex();
+    ClampTopRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::ResetLineIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::ResetLineIndex() const
+{
+    m_bookmarks.clear();
+    m_scanBuffer.clear();
+
+    m_scanBufferBase = 0;
+    m_scanOffset     = 0;
+    m_scanRows       = 0;
+    m_scanLine       = 1;
+    m_scanStarts     = true;
+    m_scanComplete   = false;
+    m_spanRow        = UINT64_MAX;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetByteAt
+//
+//  One byte for the line scan, from a buffer refilled a piece at a time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t DxuiHexView::GetByteAt (uint64_t offset) const
+{
+    uint64_t  count = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+
+
+
+    if (offset >= count)
+    {
+        return 0;
+    }
+
+    if (offset < m_scanBufferBase || offset >= m_scanBufferBase + m_scanBuffer.size())
+    {
+        m_scanBufferBase = offset;
+        m_scanBuffer.resize ((size_t) (std::min) ((uint64_t) s_kScanBytes, count - offset));
+        m_source->ReadBytes (offset, std::span<uint8_t> (m_scanBuffer.data(), m_scanBuffer.size()));
+    }
+
+    return m_scanBuffer[(size_t) (offset - m_scanBufferBase)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::IsLineBreak
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::IsLineBreak (uint8_t byte) const
+{
+    return (byte == '\r') || (byte == '\n') || ((m_encoding == TextEncoding::AppleHighBit) && (byte == 0x8D));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetNextRowStart
+//
+//  Where the row after the one starting at `start` begins: past the line
+//  break that ends it, or where it reaches the row width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::GetNextRowStart (uint64_t start, bool & outNewLine) const
+{
+    uint64_t  count  = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+    uint64_t  pos    = start;
+    int       column = 0;
+
+
+
+    outNewLine = false;
+
+    while (pos < count)
+    {
+        uint8_t  byte = GetByteAt (pos);
+
+        if (IsLineBreak (byte))
+        {
+            outNewLine = true;
+
+            //  A carriage return and a line feed together are one break.
+            if (byte != '\n' && pos + 1 < count && GetByteAt (pos + 1) == '\n')
+            {
+                return pos + 2;
+            }
+
+            return pos + 1;
+        }
+
+        if (column == m_bytesPerRow)
+        {
+            return pos;
+        }
+
+        column++;
+        pos++;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::StepLineIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::StepLineIndex() const
+{
+    uint64_t  count   = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+    bool      newLine = false;
+
+
+
+    if (m_scanOffset >= count)
+    {
+        m_scanComplete = true;
+        return;
+    }
+
+    if ((m_scanRows % s_kBookmarkRows) == 0)
+    {
+        m_bookmarks.push_back (Bookmark { m_scanOffset, m_scanLine, m_scanStarts });
+    }
+
+    m_scanOffset = GetNextRowStart (m_scanOffset, newLine);
+    m_scanRows++;
+    m_scanLine    += newLine ? 1 : 0;
+    m_scanStarts   = newLine;
+    m_scanComplete = m_scanOffset >= count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::IndexThroughRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::IndexThroughRow (uint64_t row) const
+{
+    while (!m_scanComplete && m_scanRows <= row)
+    {
+        StepLineIndex();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::IndexThroughOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::IndexThroughOffset (uint64_t offset) const
+{
+    while (!m_scanComplete && m_scanOffset <= offset)
+    {
+        StepLineIndex();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetShownLength
+//
+//  The characters a row shows: its bytes less the line break that ends it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::GetShownLength (uint64_t start, uint64_t end) const
+{
+    uint64_t  length = end - start;
+
+
+
+    while (length > 0 && IsLineBreak (GetByteAt (start + length - 1)))
+    {
+        length--;
+    }
+
+    return length;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetRowSpan
+//
+//  A row's first byte, the byte after it, its line number, and whether it
+//  begins that line. The last row asked for is remembered, so painting rows
+//  in order scans one row each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::GetRowSpan (uint64_t row, uint64_t & outStart, uint64_t & outEnd, uint64_t & outLine, bool & outStarts) const
+{
+    uint64_t  at      = 0;
+    bool      newLine = false;
+
+
+
+    IndexThroughRow (row);
+
+    if (row >= m_scanRows)
+    {
+        return false;
+    }
+
+    if (m_spanRow == UINT64_MAX || m_spanRow > row || (row / s_kBookmarkRows) != (m_spanRow / s_kBookmarkRows))
+    {
+        const Bookmark &  mark = m_bookmarks[(size_t) (row / s_kBookmarkRows)];
+
+        m_spanRow    = (row / s_kBookmarkRows) * s_kBookmarkRows;
+        m_spanStart  = mark.offset;
+        m_spanLine   = mark.line;
+        m_spanStarts = mark.starts;
+    }
+
+    for (at = m_spanRow; at < row; at++)
+    {
+        m_spanStart   = GetNextRowStart (m_spanStart, newLine);
+        m_spanLine   += newLine ? 1 : 0;
+        m_spanStarts  = newLine;
+    }
+
+    m_spanRow = row;
+
+    outStart  = m_spanStart;
+    outEnd    = GetNextRowStart (m_spanStart, newLine);
+    outLine   = m_spanLine;
+    outStarts = m_spanStarts;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetRowOfOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::GetRowOfOffset (uint64_t offset) const
+{
+    uint64_t  count   = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+    uint64_t  row     = 0;
+    uint64_t  start   = 0;
+    uint64_t  next    = 0;
+    size_t    mark    = 0;
+    bool      newLine = false;
+
+
+
+    if (!IsLineMode())
+    {
+        return offset / (uint64_t) m_bytesPerRow;
+    }
+
+    IndexThroughOffset (offset);
+
+    if (m_bookmarks.empty())
+    {
+        return 0;
+    }
+
+    while (mark + 1 < m_bookmarks.size() && m_bookmarks[mark + 1].offset <= offset)
+    {
+        mark++;
+    }
+
+    row   = (uint64_t) mark * s_kBookmarkRows;
+    start = m_bookmarks[mark].offset;
+
+    for (;;)
+    {
+        next = GetNextRowStart (start, newLine);
+
+        if (next > offset || next >= count)
+        {
+            return row;
+        }
+
+        start = next;
+        row++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetColumnOfOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetColumnOfOffset (uint64_t offset) const
+{
+    uint64_t  start   = 0;
+    uint64_t  end     = 0;
+    uint64_t  line    = 0;
+    bool      starts  = false;
+
+
+
+    if (!IsLineMode() || !GetRowSpan (GetRowOfOffset (offset), start, end, line, starts))
+    {
+        return (int) (offset % (uint64_t) m_bytesPerRow);
+    }
+
+    return (int) (std::min) (offset - start, GetShownLength (start, end));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetLineDigits
+//
+//  Room for the largest line number the file could have, one line a byte, so
+//  the column does not widen as the scan finds more lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetLineDigits() const
+{
+    uint64_t  count  = (m_source != nullptr) ? m_source->GetByteCount() : 0;
+    int       digits = 0;
+
+
+
+    for (count = (std::max) (count, (uint64_t) 1); count > 0; count /= 10)
+    {
+        digits++;
+    }
+
+    return (std::max) (digits, 4);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetLineModeTarget
+//
+//  Where a movement key takes the caret in line mode: the same column of the
+//  row above or below, clamped to that row's length, or the ends of the row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexView::GetLineModeTarget (WPARAM vk, bool ctrl) const
+{
+    uint64_t  row    = GetRowOfOffset (m_caret);
+    uint64_t  start  = 0;
+    uint64_t  end    = 0;
+    uint64_t  line   = 0;
+    uint64_t  length = 0;
+    uint64_t  column = 0;
+    uint64_t  cap    = (uint64_t) (std::max) (GetRowCap(), 1);
+    uint64_t  last   = GetLastOffset();
+    uint64_t  target = row;
+    bool      starts = false;
+
+
+
+    if (!GetRowSpan (row, start, end, line, starts))
+    {
+        return last;
+    }
+
+    column = m_caret - start;
+    length = GetShownLength (start, end);
+
+    switch (vk)
+    {
+    case VK_HOME:  return ctrl ? 0 : start;
+    case VK_END:   return ctrl ? last : (start + ((length > 0) ? length - 1 : 0));
+    case VK_UP:    target = (row > 0) ? row - 1 : 0;             break;
+    case VK_PRIOR: target = (row > cap) ? row - cap : 0;         break;
+    case VK_DOWN:  target = row + 1;                             break;
+    default:       target = row + cap;                           break;
+    }
+
+    if (!GetRowSpan (target, start, end, line, starts))
+    {
+        return last;
+    }
+
+    length = GetShownLength (start, end);
+
+    return (std::min) (start + (std::min) (column, (length > 0) ? length - 1 : 0), last);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::PaintLineRow
+//
+//  The line number on a line's first row, then the row's characters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row)
+{
+    DxuiFontHandle  font   = theme.MonospaceFont();
+    uint64_t        start  = 0;
+    uint64_t        end    = 0;
+    uint64_t        line   = 0;
+    uint64_t        length = 0;
+    bool            starts = false;
+    int             margin = m_scaler.ToPx (s_kSelectionMarginDip);
+    int             column = GetColumnStartCell (Column::Text);
+    std::wstring    label;
+
+
+
+    font.sizeDip = m_scaler.ToPxf (font.sizeDip * m_zoom);
+
+    if (!GetRowSpan (row, start, end, line, starts))
+    {
+        return;
+    }
+
+    if (starts)
+    {
+        label = std::to_wstring (line);
+        label.insert (0, (size_t) (std::max) (0, GetLineDigits() - (int) label.size()), L' ');
+
+        DrawCell (text, GetRowOffsetRect (row), label.c_str(),
+                  DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
+    }
+
+    length = GetShownLength (start, end);
+
+    for (uint64_t i = 0; i < length; i++)
+    {
+        RECT      cell      = GetCellRect (column + (int) i, row, 1);
+        uint32_t  argb      = GetByteColor (theme, 0);
+        wchar_t   chars[2]  = { GetCharFor (GetByteAt (start + i)), 0 };
+
+        if (IsByteSelected (start + i))
+        {
+            RECT  fill = cell;
+
+            fill.top    -= margin;
+            fill.bottom += margin;
+
+            FillCell (text, fill, theme.SelectionBackground());
+            argb = theme.Foreground();
+        }
+
+        DrawCell (text, cell, chars, argb, font);
+    }
 }
 
 
@@ -233,6 +761,11 @@ void DxuiHexView::RecomputeRowWidth()
         fixed  = GetOffsetDigits() + kGutterCells + (m_showValues ? (kGutterCells - 1) : 0);
         each   = m_grouping + (m_showValues ? (GetValueCells() + 1) : 0);
         values = (std::max) ((cells - fixed) / each, 1);
+    }
+
+    if (m_bytesPerRow != values * m_grouping)
+    {
+        ResetLineIndex();
     }
 
     m_bytesPerRow = values * m_grouping;
@@ -330,7 +863,7 @@ int DxuiHexView::GetViewWidthPx() const
 
 void DxuiHexView::KeepCaretInView()
 {
-    int   index = (int) (m_caret % (uint64_t) m_bytesPerRow);
+    int   index = GetColumnOfOffset (m_caret);
     bool  text  = (m_activeColumn == Column::Text) || !m_showValues;
     int   cell  = text ? (GetColumnStartCell (Column::Text) + index) : (GetColumnStartCell (Column::Hex) + GetByteCellInRow (index));
     int   wide  = text ? 1 : ((m_format == ValueFormat::Hex) ? 2 : GetValueCells());
@@ -574,6 +1107,18 @@ uint64_t DxuiHexView::GetRowCount() const
 
 
 
+    //  In line mode the rows scanned so far, and an estimate for the rest from
+    //  their average length until the scan reaches the end.
+    if (IsLineMode() && bytes > 0)
+    {
+        //  The first megabyte is scanned whole, so a small file's count is
+        //  exact and a large file's estimate rests on a fair sample.
+        IndexThroughOffset ((std::min) (bytes - 1, (uint64_t) 1024 * 1024));
+
+        return m_scanComplete ? m_scanRows
+                              : m_scanRows + ((bytes - m_scanOffset) * m_scanRows) / (std::max) (m_scanOffset, (uint64_t) 1) + 1;
+    }
+
     return (bytes + perRow - 1) / perRow;
 }
 
@@ -680,7 +1225,7 @@ void DxuiHexView::ScrollRows (int64_t delta)
 
 void DxuiHexView::EnsureByteVisible (uint64_t offset)
 {
-    uint64_t  row = offset / (uint64_t) m_bytesPerRow;
+    uint64_t  row = GetRowOfOffset (offset);
     int       cap = GetRowCap();
 
 
@@ -725,6 +1270,11 @@ int DxuiHexView::GetOffsetDigits() const
     uint64_t  last  = (bytes > 0) ? (m_originAddress + bytes - 1) : m_originAddress;
 
 
+
+    if (IsLineMode())
+    {
+        return GetLineDigits();
+    }
 
     return (last > 0xFFFF) ? 8 : 4;
 }
@@ -918,8 +1468,8 @@ RECT DxuiHexView::GetRowOffsetRect (uint64_t row) const
 RECT DxuiHexView::GetByteRect (uint64_t offset, Column column) const
 {
     uint64_t  bytes = (m_source != nullptr) ? m_source->GetByteCount() : 0;
-    uint64_t  row   = offset / (uint64_t) m_bytesPerRow;
-    int       index = (int) (offset % (uint64_t) m_bytesPerRow);
+    uint64_t  row   = GetRowOfOffset (offset);
+    int       index = GetColumnOfOffset (offset);
 
 
 
@@ -996,6 +1546,34 @@ DxuiHexView::HitResult DxuiHexView::HitTestPoint (POINT clientDip) const
 
     if (row >= GetRowCount())
     {
+        return result;
+    }
+
+    //  In line mode a point lands on the character under it, or on the row's
+    //  last character past its end.
+    if (IsLineMode())
+    {
+        uint64_t  start  = 0;
+        uint64_t  end    = 0;
+        uint64_t  line   = 0;
+        uint64_t  length = 0;
+        bool      starts = false;
+
+        if (cellX < txtStart)
+        {
+            return result;
+        }
+
+        result.hit    = true;
+        result.column = Column::Text;
+        result.offset = bytes - 1;
+
+        if (GetRowSpan (row, start, end, line, starts))
+        {
+            length        = GetShownLength (start, end);
+            result.offset = (std::min) (start + (std::min) ((uint64_t) (cellX - txtStart), (length > 0) ? length - 1 : 0), bytes - 1);
+        }
+
         return result;
     }
 
@@ -1586,6 +2164,14 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
         return false;
     }
 
+    //  Line mode's rows are not a fixed number of bytes, so the keys that move
+    //  by rows find the row above or below instead of subtracting a width.
+    if (IsLineMode() && (ev.vk == VK_UP || ev.vk == VK_DOWN || ev.vk == VK_PRIOR || ev.vk == VK_NEXT || ev.vk == VK_HOME || ev.vk == VK_END))
+    {
+        MoveCaretTo (GetLineModeTarget (ev.vk, ev.ctrl), extend);
+        return true;
+    }
+
     switch (ev.vk)
     {
     case VK_LEFT:
@@ -1986,12 +2572,22 @@ int DxuiHexView::ReadRow (uint64_t row)
 void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count)
 {
     DxuiFontHandle  font     = theme.MonospaceFont();
-    RECT            gutter   = GetRowOffsetRect (row);
+    RECT            gutter   = {};
     int             digits   = GetOffsetDigits();
     uint64_t        address  = m_originAddress + (row * (uint64_t) m_bytesPerRow);
     std::wstring    label;
 
 
+
+    if (IsLineMode())
+    {
+        (void) count;
+
+        PaintLineRow (text, theme, row);
+        return;
+    }
+
+    gutter = GetRowOffsetRect (row);
 
     //  The theme's size is in DIPs; the renderer draws in pixels, and the cell
     //  size was measured at this same pixel size.
@@ -2229,9 +2825,20 @@ std::wstring DxuiHexView::GetTextFor (uint64_t offset, uint64_t count) const
     bytes.resize ((size_t) count);
     m_source->ReadBytes (offset, std::span<uint8_t> (bytes.data(), bytes.size()));
 
-    for (uint8_t byte : bytes)
+    for (size_t index = 0; index < bytes.size(); index++)
     {
-        out.push_back (GetCharFor (byte));
+        //  In line mode a copy keeps the line breaks the view shows.
+        if (IsLineMode() && IsLineBreak (bytes[index]))
+        {
+            if (bytes[index] != '\n' || index == 0 || !IsLineBreak (bytes[index - 1]) || bytes[index - 1] == '\n')
+            {
+                out.append (L"\r\n");
+            }
+
+            continue;
+        }
+
+        out.push_back (GetCharFor (bytes[index]));
     }
 
     return out;

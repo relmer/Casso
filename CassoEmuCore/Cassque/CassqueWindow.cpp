@@ -422,6 +422,7 @@ void CassqueWindow::ConfigureWidgets()
     m_hexView->SetColumns      (m_prefs.hexColumns);
     m_hexView->SetValueFormat  (ParseHexFormat (m_prefs.hexFormat));
     m_hexView->SetShowValues   (m_prefs.hexShowValues);
+    m_hexView->SetBreakLines   (true);
     m_hexView->SetTextStrength (kPreviewTextStrength);
     m_hexView->SetZoom         ((float) m_prefs.previewZoom / 100.0f);
     m_textView->SetTextStrength (kPreviewTextStrength);

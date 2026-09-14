@@ -50,6 +50,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VectorHexSource
+//
+//  Bytes given as a string, for tests that need particular contents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class VectorHexSource : public IDxuiHexSource
+{
+public:
+    explicit VectorHexSource (const char * text) : m_bytes (text, text + strlen (text)) {}
+
+    uint64_t  GetByteCount() const override { return m_bytes.size(); }
+
+    void  ReadBytes (uint64_t offset, std::span<uint8_t> out) const override
+    {
+        std::copy_n (m_bytes.begin() + (ptrdiff_t) offset, out.size(), out.begin());
+    }
+
+private:
+    std::vector<uint8_t>  m_bytes;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHexViewTests
 //
 //  Which byte a point selects, where each byte is drawn in either column, what
@@ -230,6 +258,35 @@ public:
             L"Going to the row's last character scrolls sideways");
         Assert::IsTrue (rect.right <= 190,
             L"and brings its cell inside the view, clear of the scrollbar");
+    }
+
+
+    TEST_METHOD (LineMode_BreaksRowsAtLineEndsAndNumbersTheLines)
+    {
+        VectorHexSource         source ("AB\nCDE\r\nF");
+        DxuiHexView             view;
+        DxuiHexView::HitResult  hit;
+        RECT                    rect  = {};
+        int                     start = 4 + DxuiHexView::kGutterCells;
+
+
+        view.SetSource (&source);
+        view.SetShowValues (false);
+        view.SetBreakLines (true);
+        LayOut (view);
+
+        Assert::AreEqual (uint64_t (3), view.GetRowCount(),
+            L"A line feed, a carriage return and line feed, and the unended last line are three rows");
+
+        rect = view.GetByteRect (3, DxuiHexView::Column::Text);
+
+        Assert::AreEqual ((LONG) kCellH, rect.top,        L"C starts the second row");
+        Assert::AreEqual ((LONG) (start * kCellW), rect.left, L"at the text column's first cell");
+
+        hit = view.HitTestPoint (POINT { (start + 5) * kCellW, 2 * kCellH });
+
+        Assert::IsTrue   (hit.hit, L"A point past the end of a row still lands on it");
+        Assert::AreEqual (uint64_t (8), hit.offset, L"on its last character, F");
     }
 
 

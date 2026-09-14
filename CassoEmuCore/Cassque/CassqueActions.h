@@ -140,6 +140,9 @@ public:
     //  Apple II writes addresses; a leading # marks decimal.
     static bool  TryParseAddress (const std::wstring & text, Word & outAddress);
 
+    //  The same forms over the whole 64-bit range, for an offset into a file.
+    static bool  TryParseOffset (const std::wstring & text, uint64_t & outValue);
+
     //  A Go to as typed: an address in TryParseAddress's forms, or one of
     //  them after + or -, which moves that far from `caretAddress`. A range
     //  follows with a hyphen and its last address ($0803-$0810), or with a

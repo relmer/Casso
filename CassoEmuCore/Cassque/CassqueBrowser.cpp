@@ -65,7 +65,9 @@ DxuiTreeNode CassqueBrowser::ToTreeNode (const TreeNode & node, IShellIcons * ic
 
     out.expanded       = false;
     out.childrenLoaded = !node.canExpand;
-    out.dimmed         = node.missing || !node.loadError.empty();
+    //  A known folder that is gone is dimmed. An image that will not open is
+    //  not: the preview says why when it is chosen.
+    out.dimmed         = node.missing;
 
     if (icons != nullptr)
     {

@@ -737,7 +737,7 @@ bool CassqueActions::TryParseGoTo (const std::wstring & text, int64_t caretAddre
     size_t        split  = std::wstring::npos;
     size_t        start  = std::wstring::npos;
     std::wstring  rest;
-    Word          amount = 0;
+    uint64_t      amount = 0;
 
 
 
@@ -770,7 +770,7 @@ bool CassqueActions::TryParseGoTo (const std::wstring & text, int64_t caretAddre
 
     if ((text[split] == L',') && (start != std::wstring::npos) && (rest[start] == L'+'))
     {
-        if (!TryParseAddress (rest.substr (start + 1), amount) || amount == 0)
+        if (!TryParseOffset (rest.substr (start + 1), amount) || amount == 0)
         {
             return false;
         }
@@ -779,7 +779,7 @@ bool CassqueActions::TryParseGoTo (const std::wstring & text, int64_t caretAddre
     }
     else
     {
-        if (!TryParseAddress (rest, amount))
+        if (!TryParseOffset (rest, amount))
         {
             return false;
         }
@@ -804,7 +804,7 @@ bool CassqueActions::TryParseGoToTarget (const std::wstring & text, int64_t care
 {
     size_t   first  = text.find_first_not_of (L' ');
     wchar_t  sign   = 0;
-    Word     amount = 0;
+    uint64_t amount = 0;
 
 
 
@@ -819,7 +819,7 @@ bool CassqueActions::TryParseGoToTarget (const std::wstring & text, int64_t care
         first++;
     }
 
-    if (!TryParseAddress (text.substr (first), amount))
+    if (!TryParseOffset (text.substr (first), amount))
     {
         return false;
     }
@@ -1056,10 +1056,39 @@ uint64_t CassqueActions::FindInSource (const ReadFn & read, uint64_t count, cons
 
 bool CassqueActions::TryParseAddress (const std::wstring & text, Word & outAddress)
 {
-    std::wstring  digits = text;
-    int           base   = 16;
-    wchar_t     * end    = nullptr;
-    unsigned long value  = 0;
+    uint64_t  value = 0;
+
+
+
+    if (!TryParseOffset (text, value) || value > 0xFFFF)
+    {
+        return false;
+    }
+
+    outAddress = (Word) value;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::TryParseOffset
+//
+//  TryParseAddress's forms, over the whole 64-bit range, for an offset into a
+//  file larger than the Apple II's address space.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::TryParseOffset (const std::wstring & text, uint64_t & outValue)
+{
+    std::wstring        digits = text;
+    int                 base   = 16;
+    wchar_t           * end    = nullptr;
+    unsigned long long  value  = 0;
 
 
 
@@ -1092,14 +1121,15 @@ bool CassqueActions::TryParseAddress (const std::wstring & text, Word & outAddre
         return false;
     }
 
-    value = wcstoul (digits.c_str(), &end, base);
+    errno = 0;
+    value = wcstoull (digits.c_str(), &end, base);
 
-    if (end == nullptr || *end != L'\0' || value > 0xFFFF)
+    if (end == nullptr || *end != L'\0' || errno == ERANGE)
     {
         return false;
     }
 
-    outAddress = (Word) value;
+    outValue = (uint64_t) value;
 
     return true;
 }

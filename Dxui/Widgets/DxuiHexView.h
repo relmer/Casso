@@ -133,6 +133,13 @@ public:
     void         SetShowValues   (bool show);
     bool         IsShowingValues () const { return m_showValues; }
 
+    //  With no values shown, rows break where the text's lines do, wrapping at
+    //  the row width, and the offset column numbers the lines instead. A line
+    //  ends at a carriage return, a line feed, or the two together, and in
+    //  Apple text at a carriage return with the high bit set.
+    void  SetBreakLines (bool breakLines);
+    bool  IsLineMode    () const { return !m_showValues && m_breakLines; }
+
     //  The face's size as a multiple of the theme's, and how far the bytes'
     //  color goes from the background toward the theme's foreground.
     void   SetZoom         (float zoom);
@@ -172,7 +179,7 @@ public:
     uint64_t  GetSelectionAnchor () const { return m_anchor; }
     uint64_t  GetCaret           () const { return m_caret; }
 
-    void          SetTextEncoding (TextEncoding encoding) { m_encoding = encoding; }
+    void          SetTextEncoding (TextEncoding encoding) { m_encoding = encoding; ResetLineIndex(); }
     TextEncoding  GetTextEncoding () const                { return m_encoding; }
 
     void  SetMarkColor     (MarkColorFn fn)   { m_markColor = std::move (fn); }
@@ -283,6 +290,37 @@ private:
     //  Recomputes the bytes in a row from the columns, the grouping and, for
     //  automatic columns, the width.
     void  RecomputeRowWidth ();
+
+    //  THE LINE INDEX IS BUILT ONLY AS FAR AS IT HAS BEEN NEEDED, so a huge
+    //  file is not read end to end to show its first screen. A bookmark every
+    //  s_kBookmarkRows rows holds where that row starts, its line number and
+    //  whether it begins a line; a row between bookmarks is found again by
+    //  scanning from the one before. Until the scan reaches the end, the row
+    //  count is estimated from the rows scanned so far.
+    struct Bookmark
+    {
+        uint64_t  offset = 0;
+        uint64_t  line   = 1;
+        bool      starts = true;
+    };
+
+    static constexpr uint64_t  s_kBookmarkRows = 256;
+    static constexpr size_t    s_kScanBytes    = 64 * 1024;
+
+    void      ResetLineIndex     () const;
+    void      StepLineIndex      () const;
+    void      IndexThroughRow    (uint64_t row) const;
+    void      IndexThroughOffset (uint64_t offset) const;
+    uint64_t  GetNextRowStart    (uint64_t start, bool & outNewLine) const;
+    uint8_t   GetByteAt          (uint64_t offset) const;
+    bool      IsLineBreak        (uint8_t byte) const;
+    uint64_t  GetShownLength     (uint64_t start, uint64_t end) const;
+    bool      GetRowSpan         (uint64_t row, uint64_t & outStart, uint64_t & outEnd, uint64_t & outLine, bool & outStarts) const;
+    uint64_t  GetRowOfOffset     (uint64_t offset) const;
+    int       GetColumnOfOffset  (uint64_t offset) const;
+    int       GetLineDigits      () const;
+    uint64_t  GetLineModeTarget  (WPARAM vk, bool ctrl) const;
+    void      PaintLineRow       (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row);
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
     void  SyncScrollbar ();
@@ -308,24 +346,38 @@ private:
     ValueFormat             m_format        = ValueFormat::Hex;
     bool                    m_showValues    = true;
     float                   m_zoom          = 1.0f;
-    float                   m_textStrength  = 1.0f;
-    int                     m_cellWidthDip  = 0;
-    int                     m_cellHeightDip = 0;
-    uint64_t                m_topRow        = 0;
-    bool                    m_hasSelection  = false;
-    uint64_t                m_anchor        = 0;
-    uint64_t                m_caret         = 0;
-    Column                  m_activeColumn  = Column::Hex;
-    HWND                    m_hwnd          = nullptr;
-    int                     m_padDip        = 0;
-    bool                    m_dragging      = false;
-    TextEncoding            m_encoding      = TextEncoding::Ascii;
-    DxuiDpiScaler           m_scaler;
-    DxuiScrollbar           m_vertScroll;
-    DxuiScrollbar           m_horzScroll;
-    int                     m_leftPx        = 0;
-    MarkColorFn             m_markColor;
-    ContextMenuFn           m_onContextMenu;
+    bool                    m_breakLines    = false;
+
+    mutable std::vector<Bookmark>  m_bookmarks;
+    mutable std::vector<uint8_t>   m_scanBuffer;
+    mutable uint64_t               m_scanBufferBase = 0;
+    mutable uint64_t               m_scanOffset     = 0;
+    mutable uint64_t               m_scanRows       = 0;
+    mutable uint64_t               m_scanLine       = 1;
+    mutable bool                   m_scanStarts     = true;
+    mutable bool                   m_scanComplete   = false;
+    mutable uint64_t               m_spanRow        = UINT64_MAX;
+    mutable uint64_t               m_spanStart      = 0;
+    mutable uint64_t               m_spanLine       = 1;
+    mutable bool                   m_spanStarts     = true;
+    float                          m_textStrength   = 1.0f;
+    int                            m_cellWidthDip   = 0;
+    int                            m_cellHeightDip  = 0;
+    uint64_t                       m_topRow         = 0;
+    bool                           m_hasSelection   = false;
+    uint64_t                       m_anchor         = 0;
+    uint64_t                       m_caret          = 0;
+    Column                         m_activeColumn   = Column::Hex;
+    HWND                           m_hwnd           = nullptr;
+    int                            m_padDip         = 0;
+    bool                           m_dragging       = false;
+    TextEncoding                   m_encoding       = TextEncoding::Ascii;
+    DxuiDpiScaler                  m_scaler;
+    DxuiScrollbar                  m_vertScroll;
+    DxuiScrollbar                  m_horzScroll;
+    int                            m_leftPx         = 0;
+    MarkColorFn                    m_markColor;
+    ContextMenuFn                  m_onContextMenu;
     std::function<void ()>  m_onSelectionChanged;
     std::vector<uint8_t>    m_rowBytes;
     std::vector<uint8_t>    m_rowMarks;

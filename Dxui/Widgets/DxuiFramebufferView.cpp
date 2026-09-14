@@ -374,7 +374,7 @@ LPCWSTR DxuiFramebufferView::GetCursorForPoint (POINT clientPx) const
 {
     (void) clientPx;
 
-    return CanPan() ? IDC_SIZEALL : nullptr;
+    return CanPan() ? IDC_HAND : nullptr;
 }
 
 
