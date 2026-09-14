@@ -12,7 +12,7 @@
 // the two stick clicks.
 static constexpr const wchar_t *  s_kXInputButtonNames[] =
 {
-    L"A", L"B", L"X", L"Y", L"Left bumper (LB)", L"Right bumper (RB)", L"Back", L"Start",
+    L"A", L"B", L"X", L"Y", L"Left bumper (LB)", L"Right bumper (RB)", L"View", L"Menu",
     L"Left stick click (LS)", L"Right stick click (RS)",
 };
 
