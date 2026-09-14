@@ -535,7 +535,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         fillWidth = std::fabs (puckCx - trackMid);
     }
 
-    if (m_focused)       { puckR = m_scaler.ToPxf (s_kPuckRadiusFocDip); }
+    if (m_focused && m_focusCueVisible) { puckR = m_scaler.ToPxf (s_kPuckRadiusFocDip); }
     else if (m_hover ||
              m_dragging) { puckR = m_scaler.ToPxf (s_kPuckRadiusHovDip); }
 
@@ -699,7 +699,7 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
     // spans puck to bottom.
     puckCy = trackTop + trackAvailH * (1.0f - t);
 
-    if (m_focused)
+    if (m_focused && m_focusCueVisible)
     {
         puckR = m_scaler.ToPxf (s_kPuckRadiusFocDip);
     }

@@ -904,7 +904,7 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                           textColor);
     }
 
-    if (m_focused)
+    if (m_focused && m_focusCueVisible)
     {
         float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);

@@ -249,15 +249,77 @@ void DxuiFocusManager::Rebuild()
 //
 //  SetFocused
 //
+//  Focus moved by the keyboard or by the program, so the focus rectangle
+//  shows.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiFocusManager::SetFocused (IDxuiControl * ctl)
+{
+    ChangeFocus (ctl, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FocusAtPoint
+//
+//  A press gives focus to the focusable control under it, without its focus
+//  rectangle, so the next Tab moves on from the control the user was just in.
+//  The last control in the order that contains the point wins, since a later
+//  control paints over an earlier one. A press on nothing focusable leaves
+//  focus where it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiFocusManager::FocusAtPoint (POINT pointDip)
+{
+    auto  it = m_tabOrder.rbegin();
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    for ( ; it != m_tabOrder.rend(); ++it)
+    {
+        RECT  bounds = (*it)->GetBounds();
+
+        if (pointDip.x >= bounds.left && pointDip.x < bounds.right &&
+            pointDip.y >= bounds.top  && pointDip.y < bounds.bottom)
+        {
+            ChangeFocus (*it, false);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChangeFocus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFocusManager::ChangeFocus (IDxuiControl * ctl, bool showCue)
 {
     IDxuiControl *  prior = m_focused;
 
 
 
     DXUI_ASSERT_UI_THREAD();
+
+    if (ctl != nullptr)
+    {
+        ctl->SetFocusCueVisible (showCue);
+    }
 
     // Re-focusing the already-focused control must not fire the notifications
     // again -- a control that rebuilds state on focus-in would do it twice.

@@ -73,6 +73,7 @@ public:
 
     IDxuiControl *  GetFocusedControl() const                  { return m_focused; }
     void            SetFocused (IDxuiControl * ctl);
+    bool            FocusAtPoint (POINT pointDip);
 
     float  GetRowEpsilonDip () const;
     void   SetRowEpsilonDip (float epsilonDip)        { m_rowEpsilonOverrideDip = epsilonDip; m_rowEpsilonOverridden = true; }
@@ -91,6 +92,7 @@ private:
     void   CollectFocusables (IDxuiControl * root, std::vector<IDxuiControl *> & out) const;
     bool   MoveFocus         (int direction);   // +1 forward, -1 backward
     bool   MoveFocusSpatial  (DxuiFocusKey arrow);
+    void   ChangeFocus       (IDxuiControl * ctl, bool showCue);
 
     DxuiPanel                    * m_root                  = nullptr;
     const IDxuiTheme             * m_theme                 = nullptr;

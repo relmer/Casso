@@ -233,7 +233,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         //  and the label is most of what the user is looking at, so ringing
         //  the 16 DIP box alone marked something other than the thing that
         //  had focus.
-        if (m_focused)
+        if (m_focused && m_focusCueVisible)
         {
             DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
                                       boxLeft,
