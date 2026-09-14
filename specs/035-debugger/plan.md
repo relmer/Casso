@@ -42,7 +42,8 @@ in-tree `JsonWriter`/`JsonParser` (CassoEmuCore), in-tree `Microcode`/
 third-party dependency.**
 
 **Storage**: Host files only: `R`/`W`, `BLOAD`/`BSAVE`, `BPSAVE`/`WSAVE`/
-`BMSAVE`/`ZPSAVE`, `TF`, `TSAVE`, `RUN` scripts, symbol files. All go through
+`BMSAVE`/`ZPSAVE`, `TF`, `TSAVE`, `RUN` scripts, symbol files (four formats,
+R-009), binaries (five formats, R-016). All go through
 the existing `IFileSystem` seam.
 
 **Testing**: Microsoft C++ Unit Test Framework in `UnitTest/`. Real-machine
@@ -218,15 +219,19 @@ window, and the window's open and close drive the controller.
      lowercase.
    - The results update research.md R-011 and R-012. If either FR-029 check
      fails, the affected Monitor behavior is re-planned before it is built.
-3. **Engine and AppleWin mode (phase 1)**: session, breakpoints and
-   watchpoints, the full phase-1 name table, JSON and text replies.
-4. **Monitor mode (phase 1)**: parser state machine, formatter, every FR-017
+3. **Merlin symbol output (phase 1, FR-033)**: capture the Merlin Pro listing
+   fixture first, then `CassoCli merlin -g` and the listing's trailing symbol
+   table (R-009).
+4. **Engine and AppleWin mode (phase 1)**: session, breakpoints and
+   watchpoints, the full phase-1 name table, JSON and text replies, the four
+   symbol importers (R-009) and `BinaryImageReader` (R-016).
+5. **Monitor mode (phase 1)**: parser state machine, formatter, every FR-017
    form, the `/` prefix.
-5. **Batch mode (phase 1)**: `CassoCli debug`, scripts, `--json`, cycle budget.
-6. **Channel (phase 2)**: protocol, `IPipeTransport`, Win32 transport with the
+6. **Batch mode (phase 1)**: `CassoCli debug`, scripts, `--json`, cycle budget.
+7. **Channel (phase 2)**: protocol, `IPipeTransport`, Win32 transport with the
    DACL, `DebuggerController`, `--debugger`, `debug --list` and
    `debug --attach`, protocol documentation.
-7. **Window (phase 3)**: `DebuggerWindow` and its projection, the phase-3
+8. **Window (phase 3)**: `DebuggerWindow` and its projection, the phase-3
    AppleWin commands, and the `R`/`W` filename prompt.
 
 ## Risks
@@ -235,9 +240,13 @@ window, and the window's open and close drive the controller.
   of its instruction column. It is checked in as a fixture with a `LICENSE`
   note under the constitution's fixture rule. Data regions in the listing are
   marked in the transcription and excluded explicitly, never silently (R-010).
-- **Symbol tables**: AppleWin's `.SYM` files are GPL and cannot be used. ROM
-  symbols are authored from the Reference Manual's published entry-point
-  names (R-009). Coverage is thinner than AppleWin's, but correct.
+- **Symbol tables**: AppleWin's `.SYM` data files are GPL and cannot be used,
+  though their format is read. ROM symbols are authored from the Reference
+  Manual's published entry-point names (R-009). Coverage is thinner than
+  AppleWin's, but correct.
+- **Merlin listing layout** is unknown until the vendor listing is captured.
+  Capturing it comes first in the Merlin step, so neither the importer nor
+  our listing writer is built against a guess.
 - **Banking-aware peeks on the //c** have to model `Apple2cRomBank` and
   INTCXROM without triggering them. `MemoryProbeHelpers` in UnitTest shows the
   probing shape, but the production view is new code with the most room for
@@ -276,7 +285,12 @@ CassoCore/Debugger/                    # pure logic; no machine dependency
 ├── AppleWinCommandTable.h/.cpp        # every AppleWin name -> family, phase, availability
 ├── AppleWinParser.h/.cpp
 ├── MonitorParser.h/.cpp               # Monitor state machine: A1/A2/A3, continuation, ^X, S forms
-└── MonitorState.h
+├── MonitorState.h
+├── SymbolFileReader.h/.cpp            # -g, Merlin listing, AppleWin .SYM, VICE labels
+└── BinaryImageReader.h/.cpp           # raw, DOS 3.3, Intel HEX, S-record, AppleSingle
+
+CassoEmuCore/Cli/MerlinMode.cpp        # CHANGE: -g symbol file per output
+CassoCore/ (Merlin listing writer)     # CHANGE: trailing symbol table in Merlin's format
 
 CassoEmuCore/Debugger/
 ├── IDebugTarget.h                     # registers, peek/poke, step/run, soft switches, reset
@@ -334,6 +348,8 @@ UnitTest/DebuggerTests/
 ├── MonitorCommandTableTests.cpp       # FR-027, every shipped ROM
 ├── MonitorRomFactsTests.cpp           # FR-029: $F666 entry, lowercase input
 ├── LineAssemblerTests.cpp
+├── SymbolFileReaderTests.cpp          # each format; Merlin against the captured listing
+├── BinaryImageReaderTests.cpp
 ├── ExpressionEvaluatorTests.cpp
 ├── DebugMemoryViewTests.cpp           # peek vs bus parity per machine, no side effects
 ├── DebugHookTests.cpp

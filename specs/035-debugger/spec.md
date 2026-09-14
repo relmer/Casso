@@ -36,6 +36,7 @@ One engine, two command modes, three ways in:
 - Q: When does a running Casso listen on the debug channel? → A: Only while its debugger window is open, and only for the current user. Until the window ships, the command-line switch that will open the window opens the channel instead.
 - Q: How does a client choose which running Casso to attach to? → A: The channel is identified by process ID; a list command enumerates live instances with PID, title label, machine and disks.
 - Q: How many clients may attach to one instance at once? → A: Any number; commands run one at a time in arrival order, and every client receives every notification.
+- Q: Which symbol and binary file formats must the debugger load? → A: Symbols: Casso's `-g` debug file, the symbol table in a Merlin assembly listing, AppleWin `.SYM`, and VICE label files. Binaries: raw bytes with an address, DOS 3.3 binary, Intel HEX, Motorola S-record, and AppleSingle. Casso's Merlin mode must first produce symbol output.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -286,6 +287,25 @@ confirm the machine sees the change.
 - **FR-030**: The command-line tool MUST list the running Casso instances whose
   channel is open, giving each one's process ID, title label, machine and
   disks, and MUST connect to the instance whose process ID is given.
+
+**Symbols and binaries**
+
+- **FR-031**: The symbol commands MUST load symbol files in these formats:
+  Casso's `-g` debug file (`NAME=$ADDR`), the symbol table at the end of a
+  Merlin assembly listing, AppleWin `.SYM` (`ADDR NAME`), and VICE label files
+  (`al ADDR .NAME`). The shipped ROM symbol tables MUST be authored from Apple's
+  published entry-point names, never taken from another emulator's symbol
+  files.
+- **FR-032**: Loading a binary (`BLOAD`, and batch mode's load option) MUST
+  accept raw bytes at a given address, DOS 3.3 binary (4-byte address and
+  length header), Intel HEX, Motorola S-record, and AppleSingle. Intel HEX,
+  S-record and AppleSingle MUST be detected from content; raw and DOS 3.3
+  binary MUST be selectable explicitly, since their contents cannot be told
+  apart reliably. `BSAVE` and Monitor `W` write raw bytes.
+- **FR-033**: `CassoCli merlin` MUST write a symbol file per output object in
+  the `-g` format, and MUST end each `-l` listing with a symbol table in
+  Merlin's own listing format. That format MUST be verified against a listing
+  produced by Merlin itself, checked in as a fixture.
 - **FR-025**: The channel's message format MUST be documented well enough for
   an independent client (the planned VS Code debug adapter) to be written from
   the documentation alone.

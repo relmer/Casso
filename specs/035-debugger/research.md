@@ -159,22 +159,64 @@ to the later VS Code adapter feature and would put the adapter inside Casso.
 - Story 3 scenario 4 (another user is refused) is the DACL's test, run as a
   manual quickstart step because unit tests cannot switch accounts.
 
-## R-009: Symbols without AppleWin's symbol files
+## R-009: Symbol file formats and ROM symbols
 
-**Decision**: ROM symbol tables per machine are authored from the entry-point
-names published in Apple's Reference Manuals (for example `COUT $FDED`,
-`GETLN $FD6A`, `MONZ $FF69`), stored as a Casso-format text table in
-`CassoEmuCore`, and loaded by `SYMMAIN`. `SYMDOS33` and `SYMPRODOS` start from
-the published DOS 3.3 and ProDOS entry points. `SYMUSER` and `SYMSRC` load user
-files in the same format, and `SYMSRC` also accepts Casso assembler listing
-symbol output.
+**Decision**: One in-memory `SymbolTable`, filled by four importers selected
+from content (FR-031):
 
-**Rationale**: AppleWin's `.SYM` files ship under GPL and the project's
-clean-room rule forbids using them. The command behavior (lookup, define,
-list, per-table enable) needs no particular data set.
+| Format | Line form | Source |
+|---|---|---|
+| Casso `-g` debug file | `NAME=$ADDR`, `;` comments | `CassoCli as65 -g`, and `CassoCli merlin` after FR-033 |
+| Merlin listing symbol table | `NAME =$ADDR` entries after the listing's symbol table heading | Merlin itself (a listing printed to a file through Casso's printer), and `CassoCli merlin -l` |
+| AppleWin `.SYM` | `ADDR NAME` | users' own files |
+| VICE label file | `al ADDR .NAME` | ld65 `-Ln`, ACME `--vicelabels` |
 
-**Alternatives**: no ROM symbols, which would make `SYMMAIN` an empty command;
-generating symbols from disassembly, which cannot recover names.
+ROM symbol tables per machine are authored in the `-g` format from the
+entry-point names published in Apple's Reference Manuals (for example
+`COUT $FDED`, `GETLN $FD6A`, `MONZ $FF69`) and loaded by `SYMMAIN`. `SYMDOS33`
+and `SYMPRODOS` start from the published DOS 3.3 and ProDOS entry points.
+
+**Merlin prerequisite (FR-033)**: `CassoCli merlin` writes no symbol output
+today. `MerlinMode` gains a `-g` symbol file per `SAV` output, following
+spec 026's rule that each artifact splits per output, and its `-l` listing
+gains a trailing symbol table in Merlin's format. The exact layout (sections,
+column widths, how `]` variables and local labels appear) is fixed from a
+fixture: `LABELS.S` assembled by Merlin Pro running under Casso, its listing
+printed to a file through Casso's printer, checked in under
+`UnitTest/Fixtures/Merlin/` beside the existing `LICENSE`. The importer's tests
+and the listing writer's tests both compare against that fixture.
+
+**Rationale**: AppleWin's `.SYM` data files ship under GPL and the clean-room
+rule forbids using them; reading the file format is not copying them. VICE
+labels cover the cc65 and ACME toolchains. Merlin support is required because
+Casso assembles Merlin source.
+
+**Alternatives**: Merlin 32's output files, left out because their format is
+unverified; ld65 `.dbg` debug info, deferred to source-level debugging with
+`SOURCE`/`SYNC`; no ROM symbols, which would make `SYMMAIN` an empty command.
+
+## R-016: Loadable binary formats
+
+**Decision**: A `BinaryImageReader` returns `{segments: [{address, bytes}],
+format}` for FR-032's formats:
+
+| Format | Detection | Address |
+|---|---|---|
+| Intel HEX | lines start with `:` and checksum | per record |
+| Motorola S-record | lines start with `S0`-`S9` and checksum | per record |
+| AppleSingle | magic `$00051600` | ProDOS aux type entry, else required argument |
+| DOS 3.3 binary | explicit (`BLOAD file,DOS`) | 4-byte header |
+| Raw | explicit or default | required argument |
+
+These are the formats `CassoCli as65` and `merlin` already write (`--dos-bin`,
+`-s`, `-s2`), plus cc65's default Apple II output. `BSAVE` writes raw bytes.
+
+**Rationale**: Content detection for the self-describing formats; an explicit
+choice where a 4-byte header is indistinguishable from data.
+
+**Alternatives**: ca65 `.o` and o65 objects, rejected because unlinked objects
+are the linker's input, not a loadable image; CiderPress `#06xxxx` filename
+suffixes, left as a possible later addition.
 
 ## R-010: The 1979 listing test
 
