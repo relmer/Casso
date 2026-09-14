@@ -46,6 +46,7 @@ public:
     //  Whether a point is on a scrollbar, and the hover that widens one.
     bool  IsOverScrollbar   (POINT pt) const override { return CanPan() && (m_vertScroll.HitTest (pt.x, pt.y) || m_horzScroll.HitTest (pt.x, pt.y)); }
     bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (CanPan() && m_vertScroll.HitTest (pt.x, pt.y)) | (int) m_horzScroll.SetHover (CanPan() && m_horzScroll.HitTest (pt.x, pt.y))) != 0; }
+    bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
 
     int   GetFramebufferWidth  () const { return m_width;  }
     int   GetFramebufferHeight () const { return m_height; }

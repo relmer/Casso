@@ -1317,14 +1317,15 @@ void CassqueWindow::LayoutStatusFields()
     RECT   band    = m_statusBand.GetBounds();
     bool   preview = m_prefs.previewVisible && (m_previewRect.right > m_previewRect.left);
     RECT   sash    = m_previewSplitter->GetSashRect();
-    int    seam    = (int) DxuiSplitter::GetSeam (sash.left, sash.right, m_scaler);
+    int    seam    = (int) (DxuiSplitter::GetSeam (sash.left, sash.right, m_scaler) + DxuiSplitter::GetLinePx (m_scaler));
     int    zoomPx  = m_scaler.ToPx (kStatusZoomDip);
     int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_scaler.ToPx (kStatusDetailDip);
 
 
 
-    //  The detail field starts on the splitter's line, which the splitter
-    //  draws in the middle of its sash, so the two dividers meet.
+    //  The detail field starts on the splitter's visible line: the lighter of
+    //  the two it draws in the middle of its sash, since the darker one is the
+    //  color of the panes beside it. The two dividers then meet.
     m_status->SetFields ({ { L"", 0, true },
                            { L"", kStatusFreeDip, false },
                            { L"", 0, false, detail },
@@ -4450,6 +4451,18 @@ DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
         m_toolbar->TickMenus (GetNowMs());
         m_previewToolbar->TickMenus (GetNowMs());
         GetPopupHost()->GetContextMenu().Tick (GetNowMs());
+        Invalidate();
+    }
+
+    //  Scrollbars widen and narrow over a few frames as the pointer comes and
+    //  goes.
+    if (((int) m_hexView->TickScrollbars (GetNowMs())
+       | (int) m_textView->TickScrollbars (GetNowMs())
+       | (int) m_list->TickScrollbars (GetNowMs())
+       | (int) m_previewList->TickScrollbars (GetNowMs())
+       | (int) m_tree->TickScrollbars (GetNowMs())
+       | (int) m_picture->TickScrollbars (GetNowMs())) != 0)
+    {
         Invalidate();
     }
 

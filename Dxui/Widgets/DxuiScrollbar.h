@@ -100,11 +100,13 @@ public:
     //  Widened, as Windows widens a scrollbar the pointer is over: the track
     //  appears, the puck thickens and the arrows come back. The grab band is
     //  the same either way.
-    void     SetExpanded (bool expanded)      { m_expanded = expanded; }
+    void     SetExpanded (bool expanded)      { m_expanded = expanded; m_hoverAmount = expanded ? 1.0f : 0.0f; }
 
-    //  Widens the bar while the pointer is over it, reporting whether that
-    //  changed anything to repaint.
+    //  Starts the bar widening while the pointer is over it, or narrowing when
+    //  it leaves. Tick carries the change out over a few frames, and reports
+    //  whether it is still under way.
     bool     SetHover    (bool over)          { return std::exchange (m_expanded, over) != over; }
+    bool     Tick        (int64_t nowMs);
     bool     IsExpanded  () const             { return m_expanded; }
 
     void     SetOnScroll (std::function<void (int sbCode, int pos)> cb)  { m_onScroll = std::move (cb); }
@@ -132,6 +134,8 @@ private:
     int                                    m_pos         = 0;
     bool                                   m_dragging    = false;
     bool                                   m_expanded    = false;
+    float                                  m_hoverAmount = 0.0f;
+    int64_t                                m_lastTickMs  = 0;
     int                                    m_restThumbPx = 3;
     float                                  m_dragGrab    = 0.0f;
     std::function<void (int sbCode, int pos)>  m_onScroll;

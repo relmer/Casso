@@ -267,15 +267,15 @@ public:
     }
 
 
-    //  At rest Windows draws a thin rounded puck and no track at all; the
-    //  track, the wider puck and the arrows appear only while the pointer is
-    //  on the bar. The grab band does not change with either.
+    //  Windows draws a rounded puck and never a track. At rest the puck is
+    //  thin; under the pointer it widens and the arrows appear. The grab band
+    //  does not change with either.
     TEST_METHOD (Paint_AtRestIsAThinPuckAndNoTrack)
     {
         DxuiScrollbar    bar      = MakeVertical();
         MockDxuiPainter  painter;
-        bool             sawTrack = false;
-        bool             sawRound = false;
+        int              rects    = 0;
+        int              pucks    = 0;
         float            widest   = 0.0f;
 
 
@@ -283,34 +283,30 @@ public:
 
         for (const RecordedPaintCall & call : painter.Calls())
         {
-            if (call.kind == RecordedPaintKind::FillRect && call.argb == 0x18FFFFFFu)
+            if (call.kind == RecordedPaintKind::FillRect)
             {
-                sawTrack = true;
+                ++rects;
             }
 
-            if (call.kind == RecordedPaintKind::FillRect && call.width > widest)
+            if (call.kind == RecordedPaintKind::FillRoundedRect)
             {
-                widest = call.width;
-            }
-
-            if (call.kind == RecordedPaintKind::FillCircleApprox)
-            {
-                sawRound = true;
+                ++pucks;
+                widest = (std::max) (widest, call.width);
             }
         }
 
-        Assert::IsFalse (sawTrack, L"A bar at rest paints no track");
-        Assert::IsTrue  (sawRound, L"and its puck has rounded ends");
-        Assert::IsTrue  (widest <= 4.0f,
-            L"and is a few pixels wide rather than the whole strip");
+        Assert::AreEqual (0, rects, L"A bar at rest paints no track");
+        Assert::AreEqual (1, pucks, L"and its puck is one rounded shape");
+        Assert::IsTrue   (widest <= 4.0f,
+            L"a few pixels wide rather than the whole strip");
     }
 
 
-    TEST_METHOD (Paint_ExpandedBringsBackTheTrackAndAWiderPuck)
+    TEST_METHOD (Paint_ExpandedWidensThePuckWithoutATrack)
     {
         DxuiScrollbar    bar      = MakeVertical();
         MockDxuiPainter  painter;
-        bool             sawTrack = false;
+        int              rects    = 0;
         float            widest   = 0.0f;
 
 
@@ -319,19 +315,18 @@ public:
 
         for (const RecordedPaintCall & call : painter.Calls())
         {
-            if (call.kind == RecordedPaintKind::FillRect && call.argb == 0x18FFFFFFu &&
-                call.x == 100.0f && call.width == 10.0f)
+            if (call.kind == RecordedPaintKind::FillRect && call.x == 100.0f && call.width == 10.0f)
             {
-                sawTrack = true;
+                ++rects;
             }
 
-            if (call.kind == RecordedPaintKind::FillRect && call.argb == 0x80FFFFFFu && call.width > widest)
+            if (call.kind == RecordedPaintKind::FillRoundedRect)
             {
-                widest = call.width;
+                widest = (std::max) (widest, call.width);
             }
         }
 
-        Assert::IsTrue   (sawTrack, L"The track comes back under the pointer");
+        Assert::AreEqual (0, rects, L"The pointer brings no track");
         Assert::AreEqual (8.0f, widest, L"and the puck fills the strip but for its inset");
     }
 };

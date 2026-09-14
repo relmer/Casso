@@ -3,14 +3,19 @@
 #include "DxuiScrollbar.h"
 
 #include "Render/IDxuiPainter.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
 
 
 static constexpr uint32_t  s_kRgbMask           = 0x00FFFFFFu;
-static constexpr uint32_t  s_kTrackAlpha        = 0x18000000u;
-static constexpr uint32_t  s_kThumbAlpha        = 0x80000000u;
+static constexpr uint32_t  s_kThumbAlpha        = 0xDD000000u;
+
+//  Explorer's scrollbar widens quickly when the pointer arrives and narrows
+//  more slowly when it leaves.
+static constexpr float     s_kGrowMs            = 100.0f;
+static constexpr float     s_kShrinkMs          = 400.0f;
 static constexpr uint32_t  s_kArrowAlpha        = 0xC0000000u;
 static constexpr float     s_kArrowGlyphRatio   = 0.30f;
 static constexpr int       s_kArrowGlyphMinPx   = 3;
@@ -571,10 +576,11 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
 {
     HRESULT   hr        = S_OK;
     Metrics   m         = GetMetrics();
-    bool      wide      = m_expanded || m_dragging;
-    uint32_t  trackArgb = (foregroundArgb & s_kRgbMask) | s_kTrackAlpha;
-    uint32_t  thumbArgb = (foregroundArgb & s_kRgbMask) | (wide ? s_kThumbAlpha : s_kRestThumbAlpha);
-    uint32_t  arrowArgb = (foregroundArgb & s_kRgbMask) | s_kArrowAlpha;
+    float     amount    = m_dragging ? 1.0f : m_hoverAmount;
+    float     restA     = (float) (s_kRestThumbAlpha >> 24);
+    float     wideA     = (float) (s_kThumbAlpha >> 24);
+    uint32_t  thumbArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) (restA + (wideA - restA) * amount) << 24);
+    uint32_t  arrowArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowAlpha >> 24) * amount) << 24);
     bool      vertical  = (m_orientation == Orientation::Vertical);
     float     strip     = 0.0f;
     float     thumbW    = 0.0f;
@@ -584,17 +590,12 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
 
     BAIL_OUT_IF (!m.visible, S_OK);
 
+    //  The puck floats on whatever the view drew, with no track, and grows
+    //  from its resting width toward the bar's as the pointer arrives.
     strip  = vertical ? (float) (m.bar.right - m.bar.left) : (float) (m.bar.bottom - m.bar.top);
-    thumbW = wide ? (strip - s_kThumbCrossInsetPx * 2.0f) : (float) m_restThumbPx;
+    thumbW = (float) m_restThumbPx + ((strip - s_kThumbCrossInsetPx * 2.0f) - (float) m_restThumbPx) * amount;
     thumbW = (std::min) (thumbW, strip);
     inset  = (strip - thumbW) * 0.5f;
-
-    //  At rest there is no track: the puck floats on whatever the view drew.
-    if (wide)
-    {
-        painter.FillRect ((float) m.bar.left, (float) m.bar.top,
-                          (float) (m.bar.right - m.bar.left), (float) (m.bar.bottom - m.bar.top), trackArgb);
-    }
 
     if (vertical)
     {
@@ -605,8 +606,8 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
         PaintThumb (painter, m.thumbStart, (float) m.bar.top + inset, m.thumbLength, thumbW, thumbArgb);
     }
 
-    //  Arrows are drawn only on the widened bar, as in Windows.
-    if (wide && m.arrowLess.right > m.arrowLess.left && m.arrowLess.bottom > m.arrowLess.top)
+    //  Arrows fade in with the widening, as in Windows.
+    if (amount > 0.0f && m.arrowLess.right > m.arrowLess.left && m.arrowLess.bottom > m.arrowLess.top)
     {
         PaintArrow (painter, m.arrowLess, true,  arrowArgb);
         PaintArrow (painter, m.arrowMore, false, arrowArgb);
@@ -624,9 +625,10 @@ Error:
 //
 //  DxuiScrollbar::PaintThumb
 //
-//  A rounded puck: the middle as a rectangle, the two ends as half circles of
-//  the puck's own half-width. Windows has drawn these round since 11, and a
-//  square-ended bar is one of the tells that a window is not native.
+//  A rounded puck, drawn as one shape. Windows has drawn these round since
+//  11, and a square-ended bar is one of the tells that a window is not native.
+//  A rectangle with circles laid over its ends would draw the translucent
+//  overlap twice, leaving darker marks where they meet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -642,18 +644,47 @@ void DxuiScrollbar::PaintThumb (IDxuiPainter & painter, float x, float y, float 
         return;
     }
 
-    if (vertical)
+    painter.FillRoundedRect (x, y, w, h, radius, argb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::Tick
+//
+//  Moves the hover amount toward the pointer's state: quickly toward wide,
+//  slowly back toward rest. With animations off in Windows it goes straight
+//  there. Reports whether it moved, so the host knows to repaint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollbar::Tick (int64_t nowMs)
+{
+    float    target = (m_expanded || m_dragging) ? 1.0f : 0.0f;
+    float    dt     = (m_lastTickMs == 0) ? 0.0f : (float) (nowMs - m_lastTickMs);
+
+
+
+    m_lastTickMs = nowMs;
+
+    if (m_hoverAmount == target)
     {
-        painter.FillRect (x, y + radius, w, (std::max) (h - radius * 2.0f, 0.0f), argb);
-        painter.FillCircleApprox (x + radius, y + radius,         radius, argb);
-        painter.FillCircleApprox (x + radius, y + h - radius,     radius, argb);
+        return false;
     }
-    else
+
+    if (!DxuiSystemSettings::Instance().AreAnimationsEnabled())
     {
-        painter.FillRect (x + radius, y, (std::max) (w - radius * 2.0f, 0.0f), h, argb);
-        painter.FillCircleApprox (x + radius,     y + radius, radius, argb);
-        painter.FillCircleApprox (x + w - radius, y + radius, radius, argb);
+        m_hoverAmount = target;
+        return true;
     }
+
+    m_hoverAmount = (target > m_hoverAmount) ? (std::min) (target, m_hoverAmount + dt / s_kGrowMs)
+                                             : (std::max) (target, m_hoverAmount - dt / s_kShrinkMs);
+
+    return true;
 }
 
 

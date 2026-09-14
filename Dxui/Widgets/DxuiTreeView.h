@@ -118,6 +118,7 @@ public:
     //  Whether a point is on the scrollbar, and the hover that widens it.
     bool  IsOverScrollbar   (POINT pt) const override { return m_vertScroll.HitTest (pt.x, pt.y); }
     bool  SetScrollbarHover (POINT pt)                { return m_vertScroll.SetHover (m_vertScroll.HitTest (pt.x, pt.y)); }
+    bool  TickScrollbars    (int64_t nowMs)           { return m_vertScroll.Tick (nowMs); }
 
     //  Explorer's navigation pane, measured at 120 dpi: forty pixels a row.
     static constexpr int  s_kRowHeightDip = 32;

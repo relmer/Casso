@@ -98,6 +98,7 @@ public:
     //  Whether a point is on the scrollbar, and the hover that widens it.
     bool  IsOverScrollbar   (POINT pt) const override { return IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y); }
     bool  SetScrollbarHover (POINT pt)                { return m_vertScroll.SetHover (IsOverScrollbar (pt)); }
+    bool  TickScrollbars    (int64_t nowMs)           { return m_vertScroll.Tick (nowMs); }
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
