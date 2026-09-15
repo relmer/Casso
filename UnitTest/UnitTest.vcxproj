@@ -235,6 +235,7 @@
     <ClCompile Include="DebuggerTests\BreakpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchTableTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugSessionTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

@@ -122,7 +122,7 @@ description: "Task list for 035-debugger"
   - a sink report inside a watched range with a matching access kind records `{accessPc, address, value, access}` and sets the pending stop; one outside the range, or of the other kind, is ignored.
 - [X] T024 [US1] Implement `CassoEmuCore/Debugger/WatchpointTable.h/.cpp` as the bus's `IWatchSink`, publishing its page mask through `IDebugTarget::SetWatchedPages` (R-004). Makes T023 pass.
 - [X] T025 [P] [US1] Implement `CassoEmuCore/Debugger/WatchTable.h/.cpp` for AppleWin watches (`W*`), zero-page pointers (`ZP*`, `P0`-`P4`) and bookmarks (`BM*`), with `UnitTest/DebuggerTests/WatchTableTests.cpp`.
-- [ ] T026 [P] [US1] Write `UnitTest/DebuggerTests/DebugSessionTests.cpp` against `MockDebugTarget`:
+- [X] T026 [P] [US1] Write `UnitTest/DebuggerTests/DebugSessionTests.cpp` against `MockDebugTarget`:
   - the state transitions in data-model "DebugSession", including `FreeRunning` adopted into a `DebugRun` by `g` with reply `ok`;
   - a run command while `DebugRun` or `Stepping` returns `Error` "already running";
   - the hook is installed when the first enabled stop condition of any kind (address, opcode, register, memory, I/O, `BRK`, `BRKOP`, `BRKINT`, watchpoint) appears or a run starts, and removed when the last one goes and no run is active;
@@ -130,7 +130,7 @@ description: "Task list for 035-debugger"
   - machine switch clears breakpoints and watchpoints, and reset keeps them;
   - mode switch keeps all tables;
   - unknown and malformed commands change no state.
-- [ ] T027 [US1] Implement `CassoEmuCore/Debugger/DebugSession.h/.cpp`: `Execute (const DebugCommand &) -> Reply`, ownership of the tables, dispatch to handler families, `OnStopped` turning a `StopEvent` into the `stopped` notification, and the session budget: unbounded by default, set by `BUDGET <n>`, cleared by `BUDGET 0`, overridden per run by `DebugCommand::budget` (R-005). Makes T026 pass.
+- [X] T027 [US1] Implement `CassoEmuCore/Debugger/DebugSession.h/.cpp`: `Execute (const DebugCommand &) -> Reply`, ownership of the tables, dispatch to handler families, `OnStopped` turning a `StopEvent` into the `stopped` notification, and the session budget: unbounded by default, set by `BUDGET <n>`, cleared by `BUDGET 0`, overridden per run by `DebugCommand::budget` (R-005). Makes T026 pass.
 
 ### AppleWin command table, parser and formatter
 
