@@ -69,6 +69,289 @@ const ControllerProfile * ControllerModelSettings::FindDefaultProfile() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ControllerModelSettings::FindProfile
+//
+//  By name, ignoring case and surrounding whitespace.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ControllerProfile * ControllerModelSettings::FindProfile (const std::string & name) const
+{
+    std::string  trimmed = TrimProfileName (name);
+
+
+
+    for (const ControllerProfile & profile : profiles)
+    {
+        if (_stricmp (profile.name.c_str(), trimmed.c_str()) == 0)
+        {
+            return &profile;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::FindProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerProfile * ControllerModelSettings::FindProfile (const std::string & name)
+{
+    const ControllerModelSettings &  self = *this;
+
+
+
+    return const_cast<ControllerProfile *> (self.FindProfile (name));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::CheckProfileName
+//
+//  Length is counted in characters, not UTF-8 bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllerModelSettings::CheckProfileName (const std::string & name, const ControllerProfile * excluding) const
+{
+    constexpr unsigned char    kUtf8ContinuationMask = 0xC0;
+    constexpr unsigned char    kUtf8ContinuationBits = 0x80;
+    std::string                trimmed               = TrimProfileName (name);
+    size_t                     length                = 0;
+    const ControllerProfile *  existing              = nullptr;
+
+
+
+    for (char ch : trimmed)
+    {
+        if (((unsigned char) ch & kUtf8ContinuationMask) != kUtf8ContinuationBits)
+        {
+            length++;
+        }
+    }
+
+    if (trimmed.empty())
+    {
+        return ProfileEditResult::EmptyName;
+    }
+
+    if (length > kMaxProfileNameLength)
+    {
+        return ProfileEditResult::NameTooLong;
+    }
+
+    existing = FindProfile (trimmed);
+
+    if (existing != nullptr && existing != excluding)
+    {
+        return ProfileEditResult::DuplicateName;
+    }
+
+    return ProfileEditResult::Ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::AddProfile
+//
+//  A profile added here is never the Default; the model already has one, or
+//  gets it from EnsureDefaultProfile.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllerModelSettings::AddProfile (const std::string & name, const ControlMapping & mapping)
+{
+    ProfileEditResult  result = CheckProfileName (name);
+
+
+
+    if (result != ProfileEditResult::Ok)
+    {
+        return result;
+    }
+
+    profiles.push_back ({ TrimProfileName (name), false, mapping });
+    return ProfileEditResult::Ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::RenameProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllerModelSettings::RenameProfile (const std::string & name, const std::string & newName)
+{
+    ControllerProfile *  profile = FindProfile (name);
+    ProfileEditResult    result  = ProfileEditResult::Ok;
+
+
+
+    if (profile == nullptr)
+    {
+        return ProfileEditResult::NotFound;
+    }
+
+    if (profile->isDefault)
+    {
+        return ProfileEditResult::IsDefaultProfile;
+    }
+
+    result = CheckProfileName (newName, profile);
+
+    if (result == ProfileEditResult::Ok)
+    {
+        profile->name = TrimProfileName (newName);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::DeleteProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllerModelSettings::DeleteProfile (const std::string & name)
+{
+    const ControllerProfile *  profile = FindProfile (name);
+
+
+
+    if (profile == nullptr)
+    {
+        return ProfileEditResult::NotFound;
+    }
+
+    if (profile->isDefault)
+    {
+        return ProfileEditResult::IsDefaultProfile;
+    }
+
+    profiles.erase (profiles.begin() + (profile - profiles.data()));
+    return ProfileEditResult::Ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::ResetProfile
+//
+//  Any profile, the Default included, can be reset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllerModelSettings::ResetProfile (const std::string & name, const ControlMapping & defaultMapping)
+{
+    ControllerProfile *  profile = FindProfile (name);
+
+
+
+    if (profile == nullptr)
+    {
+        return ProfileEditResult::NotFound;
+    }
+
+    profile->mapping = defaultMapping;
+    return ProfileEditResult::Ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::EnsureDefaultProfile
+//
+//  A model with no Default -- never edited, or its Default was unreadable and
+//  dropped on load -- gets one from the default mapping. A surviving profile
+//  already called Default becomes the Default rather than gaining a second
+//  profile of the same name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerModelSettings::EnsureDefaultProfile (const ControlMapping & defaultMapping)
+{
+    ControllerProfile *  named = nullptr;
+
+
+
+    if (FindDefaultProfile() != nullptr)
+    {
+        return;
+    }
+
+    named = FindProfile (ControllerProfile::kpszDefaultName);
+
+    if (named != nullptr)
+    {
+        named->isDefault = true;
+        return;
+    }
+
+    profiles.insert (profiles.begin(), { ControllerProfile::kpszDefaultName, true, defaultMapping });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ControllerModelSettings::TrimProfileName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ControllerModelSettings::TrimProfileName (const std::string & name)
+{
+    constexpr const char *  kpszWhitespace = " \t\r\n";
+    size_t                  first          = name.find_first_not_of (kpszWhitespace);
+    size_t                  last           = name.find_last_not_of (kpszWhitespace);
+
+
+
+    if (first == std::string::npos)
+    {
+        return std::string();
+    }
+
+    return name.substr (first, last - first + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FromJson
 //
 //  Replaces what the store holds with the section's models and
@@ -204,12 +487,136 @@ void ControllerProfileStore::GetDefaultSettings (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindProfile
+//
+//  The lookup a disk association uses: a model token and a profile name, both
+//  as saved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ControllerProfile * ControllerProfileStore::FindProfile (const std::string & modelToken, const std::string & name) const
+{
+    auto  found = models.find (modelToken);
+
+
+
+    if (found == models.end())
+    {
+        return nullptr;
+    }
+
+    return found->second.FindProfile (name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetOrCreateModel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerModelSettings & ControllerProfileStore::GetOrCreateModel (const ControllerModelKey & model, const std::vector<ControlId> & controls)
+{
+    std::string  token = ControllerTokens::ModelToToken (model);
+    auto         found = models.find (token);
+
+
+
+    if (found == models.end())
+    {
+        found = models.emplace (token, ControllerModelSettings()).first;
+        found->second.deadzone = DeadzoneShaper::GetDefaultDeadzone (model.kind);
+    }
+
+    found->second.EnsureDefaultProfile (DefaultMapping::For (model, controls));
+    return found->second;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateProfile
+//
+//  The source mapping is copied before the profile is added, since adding one
+//  can move the profile it was copied from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllerProfileStore::CreateProfile (
+    const ControllerModelKey      & model,
+    const std::vector<ControlId>  & controls,
+    const std::string             & name,
+    ProfileSource                   source,
+    const std::string             & sourceName)
+{
+    ControllerModelSettings  & settings = GetOrCreateModel (model, controls);
+    const ControllerProfile  * copied   = nullptr;
+    ControlMapping             mapping  = DefaultMapping::For (model, controls);
+
+
+
+    if (source == ProfileSource::Paddles)
+    {
+        mapping = DefaultMapping::MakePaddles (model, controls);
+    }
+    else if (source == ProfileSource::CopyOfProfile)
+    {
+        copied = settings.FindProfile (sourceName);
+
+        if (copied == nullptr)
+        {
+            return ProfileEditResult::NotFound;
+        }
+
+        mapping = copied->mapping;
+    }
+
+    return settings.AddProfile (name, mapping);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllerProfileStore::ResetProfile (
+    const ControllerModelKey      & model,
+    const std::vector<ControlId>  & controls,
+    const std::string             & name)
+{
+    ControllerModelSettings &  settings = GetOrCreateModel (model, controls);
+
+
+
+    return settings.ResetProfile (name, DefaultMapping::For (model, controls));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadModels
 //
-//  One model at a time. A model whose token cannot be read is dropped whole;
-//  within a readable one, each profile stands or falls on its own, and a
-//  later profile whose name matches an earlier one, ignoring case, is
-//  dropped. Only the first profile marked Default stays the Default.
+//  One model at a time. A model whose token cannot be read is dropped whole,
+//  since there is no model to rebuild. A model whose entry cannot be read is
+//  reported and rebuilt empty, which leaves it the built-in deadzone and a
+//  Default recreated from the default mapping. Within a readable model, each
+//  profile stands or falls on its own, and a later profile whose name matches
+//  an earlier one, ignoring case, is dropped. Only the first profile marked
+//  Default stays the Default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,17 +630,29 @@ void ControllerProfileStore::ReadModels (const JsonValue & modelsObj, std::vecto
         const JsonValue *        profilesArr = nullptr;
         double                   deadzone    = 0.0;
         bool                     hasDefault  = false;
+        bool                     isReadable  = false;
         size_t                   i           = 0;
 
         hr = ControllerTokens::ModelFromToken (entry.first, model);
 
-        if (FAILED (hr) || entry.second.GetType() != JsonType::Object)
+        if (FAILED (hr))
         {
             outRejected.push_back (entry.first);
             continue;
         }
 
         settings.deadzone = DeadzoneShaper::GetDefaultDeadzone (model.kind);
+
+        isReadable = entry.second.GetType() == JsonType::Object &&
+                     (!HasMember (entry.second, s_kpszProfilesKey) ||
+                      (entry.second.HasArray (s_kpszProfilesKey, profilesArr) && profilesArr != nullptr));
+
+        if (!isReadable)
+        {
+            outRejected.push_back (entry.first);
+            models[entry.first] = settings;
+            continue;
+        }
 
         if (entry.second.HasNumber (s_kpszDeadzoneKey, deadzone) && std::isfinite (deadzone))
         {

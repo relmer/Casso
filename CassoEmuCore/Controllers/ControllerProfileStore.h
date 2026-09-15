@@ -22,6 +22,8 @@
 
 struct ControllerProfile
 {
+    static constexpr const char *  kpszDefaultName = "Default";
+
     std::string     name;
     bool            isDefault = false;
     ControlMapping  mapping;
@@ -35,19 +37,78 @@ struct ControllerProfile
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProfileEditResult
+//
+//  The outcome of creating, renaming, deleting or resetting a profile. The
+//  caller turns a refusal into the message the user sees.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ProfileEditResult
+{
+    Ok,
+    EmptyName,
+    NameTooLong,
+    DuplicateName,
+    NotFound,
+    IsDefaultProfile,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileSource
+//
+//  What a new profile's mapping starts from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ProfileSource
+{
+    DefaultMapping,
+    CopyOfProfile,
+    Paddles,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ControllerModelSettings
 //
 //  What is kept for every unit of one controller model: its deadzone and its
-//  profiles.
+//  profiles. Names are compared ignoring case, and a name is trimmed of
+//  surrounding whitespace before it is checked or stored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ControllerModelSettings
 {
+    static constexpr size_t  kMaxProfileNameLength = 40;
+
     float                           deadzone = 0.0f;
     std::vector<ControllerProfile>  profiles;
 
-    const ControllerProfile *  FindDefaultProfile () const;
+    const ControllerProfile *  FindDefaultProfile  () const;
+    const ControllerProfile *  FindProfile         (const std::string & name) const;
+    ControllerProfile       *  FindProfile         (const std::string & name);
+
+    // Excluding, when given, is the profile being renamed, so a rename that
+    // changes only case is not a duplicate of itself.
+    ProfileEditResult          CheckProfileName    (const std::string & name, const ControllerProfile * excluding = nullptr) const;
+
+    ProfileEditResult          AddProfile          (const std::string & name, const ControlMapping & mapping);
+    ProfileEditResult          RenameProfile       (const std::string & name, const std::string & newName);
+    ProfileEditResult          DeleteProfile       (const std::string & name);
+    ProfileEditResult          ResetProfile        (const std::string & name, const ControlMapping & defaultMapping);
+    void                       EnsureDefaultProfile(const ControlMapping & defaultMapping);
+
+    static std::string         TrimProfileName     (const std::string & name);
 
     bool operator== (const ControllerModelSettings &) const = default;
 };
@@ -96,6 +157,23 @@ public:
                                    const std::vector<ControlId>    & controls,
                                    ControlMapping                  & outMapping,
                                    float                           & outDeadzone) const;
+
+    // The profile of that name for the model, or nullptr when either is
+    // missing, in which case the caller plays the model's Default.
+    const ControllerProfile *  FindProfile (const std::string & modelToken, const std::string & name) const;
+
+    // The model's settings, added with the default deadzone when the model
+    // has none, and always holding a Default profile.
+    ControllerModelSettings &  GetOrCreateModel (const ControllerModelKey & model, const std::vector<ControlId> & controls);
+
+    ProfileEditResult  CreateProfile (const ControllerModelKey        & model,
+                                      const std::vector<ControlId>    & controls,
+                                      const std::string               & name,
+                                      ProfileSource                     source,
+                                      const std::string               & sourceName = std::string());
+    ProfileEditResult  ResetProfile  (const ControllerModelKey        & model,
+                                      const std::vector<ControlId>    & controls,
+                                      const std::string               & name);
 
 private:
 

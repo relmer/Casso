@@ -6,6 +6,7 @@
 #include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/DeadzoneShaper.h"
+#include "Controllers/XInputSampleDecoder.h"
 #include "Core/JsonParser.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -298,6 +299,7 @@ namespace ControllerTests
 
             Assert::AreEqual (size_t (1), rejected.size());
             Assert::AreEqual (size_t (1), store.models.at (token).profiles.size());
+            Assert::AreEqual (std::string ("Lode Runner"), store.models.at (token).profiles[0].name, L"the later duplicate is the one dropped");
         }
 
 
@@ -331,6 +333,215 @@ namespace ControllerTests
 
             Assert::IsTrue   (mapping == DefaultMapping::For (Stick(), controls));
             Assert::AreEqual (DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput), deadzone, 0.0001f);
+        }
+
+
+        static ControllerModelKey Xbox()
+        {
+            return { ControllerKind::XInput, 0, 0 };
+        }
+
+
+        TEST_METHOD (DefaultProfile_CanNeitherBeDeletedNorRenamed)
+        {
+            ControllerProfileStore     store;
+            ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls());
+
+            Assert::IsTrue (settings.DeleteProfile ("Default") == ProfileEditResult::IsDefaultProfile);
+            Assert::IsTrue (settings.RenameProfile ("default", "Main") == ProfileEditResult::IsDefaultProfile);
+            Assert::AreEqual (size_t (1), settings.profiles.size());
+            Assert::AreEqual (std::string ("Default"), settings.profiles[0].name);
+            Assert::IsTrue (settings.DeleteProfile ("Missing") == ProfileEditResult::NotFound);
+        }
+
+
+        TEST_METHOD (ProfileNames_AreTrimmedAndOneToFortyCharacters)
+        {
+            ControllerProfileStore     store;
+            ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls());
+            std::string                forty (ControllerModelSettings::kMaxProfileNameLength, 'a');
+            std::string                fortyOne (ControllerModelSettings::kMaxProfileNameLength + 1, 'b');
+
+            Assert::IsTrue   (settings.AddProfile ("", ControlMapping()) == ProfileEditResult::EmptyName);
+            Assert::IsTrue   (settings.AddProfile (" \t ", ControlMapping()) == ProfileEditResult::EmptyName, L"whitespace alone is empty");
+            Assert::IsTrue   (settings.AddProfile (fortyOne, ControlMapping()) == ProfileEditResult::NameTooLong);
+            Assert::IsTrue   (settings.AddProfile ("  " + forty + "  ", ControlMapping()) == ProfileEditResult::Ok, L"length is measured after trimming");
+            Assert::IsTrue   (settings.AddProfile ("  Flight  ", ControlMapping()) == ProfileEditResult::Ok);
+            Assert::IsTrue   (settings.FindProfile ("Flight") != nullptr, L"and the name is stored trimmed");
+            Assert::AreEqual (std::string ("Flight"), settings.FindProfile ("flight")->name);
+            Assert::IsTrue   (settings.RenameProfile ("Flight", "   ") == ProfileEditResult::EmptyName);
+            Assert::IsTrue   (settings.RenameProfile ("Flight", fortyOne) == ProfileEditResult::NameTooLong);
+        }
+
+
+        TEST_METHOD (ProfileNames_AreUniqueIgnoringCase)
+        {
+            ControllerProfileStore     store;
+            ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls());
+
+            Assert::IsTrue   (settings.AddProfile ("Flight", ControlMapping()) == ProfileEditResult::Ok);
+            Assert::IsTrue   (settings.AddProfile ("Lode Runner", ControlMapping()) == ProfileEditResult::Ok);
+            Assert::IsTrue   (settings.AddProfile ("FLIGHT", ControlMapping()) == ProfileEditResult::DuplicateName);
+            Assert::IsTrue   (settings.AddProfile ("default", ControlMapping()) == ProfileEditResult::DuplicateName, L"never a second Default");
+            Assert::IsTrue   (settings.RenameProfile ("Lode Runner", " flight ") == ProfileEditResult::DuplicateName);
+            Assert::IsTrue   (settings.RenameProfile ("Flight", "FLIGHT") == ProfileEditResult::Ok, L"a profile may change the case of its own name");
+            Assert::AreEqual (std::string ("FLIGHT"), settings.FindProfile ("flight")->name);
+            Assert::AreEqual (size_t (3), settings.profiles.size());
+        }
+
+
+        TEST_METHOD (CreateProfile_FromTheDefaultACopyOrPaddles)
+        {
+            ControllerProfileStore         store;
+            std::vector<ControlId>         controls = XInputSampleDecoder::ListControls();
+            ControllerModelSettings      & settings = store.GetOrCreateModel (Xbox(), controls);
+            int                            defaults = 0;
+
+            settings.AddProfile ("Flight", MakeFullMapping());
+
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Plain", ProfileSource::DefaultMapping) == ProfileEditResult::Ok);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Flight 2", ProfileSource::CopyOfProfile, "flight") == ProfileEditResult::Ok);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Pong", ProfileSource::Paddles) == ProfileEditResult::Ok);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "Ghost", ProfileSource::CopyOfProfile, "Missing") == ProfileEditResult::NotFound);
+            Assert::IsTrue (store.CreateProfile (Xbox(), controls, "PONG", ProfileSource::Paddles) == ProfileEditResult::DuplicateName);
+
+            Assert::IsTrue (settings.FindProfile ("Plain")->mapping == DefaultMapping::For (Xbox(), controls));
+            Assert::IsTrue (settings.FindProfile ("Flight 2")->mapping == MakeFullMapping(), L"a copy carries the source's mapping");
+            Assert::IsTrue (settings.FindProfile ("Pong")->mapping == DefaultMapping::MakePaddles (Xbox(), controls));
+            Assert::IsTrue (settings.FindProfile ("Ghost") == nullptr);
+
+            for (const ControllerProfile & profile : settings.profiles)
+            {
+                defaults += profile.isDefault ? 1 : 0;
+            }
+
+            Assert::AreEqual (1, defaults, L"creating profiles never adds a second Default");
+        }
+
+
+        TEST_METHOD (ResetProfile_RestoresTheDefaultMapping)
+        {
+            ControllerProfileStore         store;
+            std::vector<ControlId>         controls = XInputSampleDecoder::ListControls();
+            ControllerModelSettings      & settings = store.GetOrCreateModel (Xbox(), controls);
+
+            settings.AddProfile ("Flight", MakeFullMapping());
+            settings.profiles[0].mapping = MakeFullMapping();
+
+            Assert::IsTrue (store.ResetProfile (Xbox(), controls, "Flight") == ProfileEditResult::Ok);
+            Assert::IsTrue (store.ResetProfile (Xbox(), controls, "Default") == ProfileEditResult::Ok, L"the Default can be reset");
+            Assert::IsTrue (store.ResetProfile (Xbox(), controls, "Missing") == ProfileEditResult::NotFound);
+            Assert::IsTrue (settings.FindProfile ("Flight")->mapping == DefaultMapping::For (Xbox(), controls));
+            Assert::IsTrue (settings.FindDefaultProfile()->mapping == DefaultMapping::For (Xbox(), controls));
+        }
+
+
+        TEST_METHOD (DeleteProfile_RemovesOnlyThatProfile)
+        {
+            ControllerProfileStore     store;
+            ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls());
+
+            settings.AddProfile ("Flight", MakeFullMapping());
+            settings.AddProfile ("Pong", ControlMapping());
+
+            Assert::IsTrue   (settings.DeleteProfile ("FLIGHT") == ProfileEditResult::Ok);
+            Assert::IsTrue   (settings.FindProfile ("Flight") == nullptr);
+            Assert::IsTrue   (settings.FindProfile ("Pong") != nullptr);
+            Assert::AreEqual (size_t (2), settings.profiles.size());
+        }
+
+
+        TEST_METHOD (FindProfile_ByModelTokenAndName)
+        {
+            ControllerProfileStore  store;
+            std::string             token = ControllerTokens::ModelToToken (Xbox());
+
+            store.GetOrCreateModel (Xbox(), XInputSampleDecoder::ListControls()).AddProfile ("Lode Runner", MakeFullMapping());
+
+            Assert::IsTrue (store.FindProfile (token, "lode runner") != nullptr, L"ignoring case");
+            Assert::IsTrue (store.FindProfile (token, "Lode Runner")->mapping == MakeFullMapping());
+            Assert::IsTrue (store.FindProfile (token, "Flight") == nullptr, L"a missing name is not found, so the caller plays Default");
+            Assert::IsTrue (store.FindProfile (ControllerTokens::ModelToToken (Stick()), "Lode Runner") == nullptr, L"profiles belong to their model");
+        }
+
+
+        TEST_METHOD (NamedProfiles_RoundTripThroughTheGlobalPrefsFile)
+        {
+            InMemoryFileSystem        fs;
+            GlobalUserPrefs           saved;
+            GlobalUserPrefs           loaded;
+            ControllerProfileStore    store;
+            ControllerProfileStore    readBack;
+            std::vector<ControlId>    controls = XInputSampleDecoder::ListControls();
+            std::vector<std::string>  rejected;
+            std::string               token    = ControllerTokens::ModelToToken (Xbox());
+
+            store.GetOrCreateModel (Xbox(), controls).AddProfile ("Flight", MakeFullMapping());
+            store.CreateProfile (Xbox(), controls, "Pong", ProfileSource::Paddles);
+
+            saved.controllers = store.ToJson (saved.controllers);
+            AssertSucceeded (saved.Save  (L"C:\\Casso", fs));
+            AssertSucceeded (loaded.Load (L"C:\\Casso", fs));
+
+            readBack.FromJson (loaded.controllers, rejected);
+
+            Assert::IsTrue (rejected.empty());
+            Assert::IsTrue (readBack.models.at (token) == store.models.at (token), L"every profile, its name, order, Default flag and mapping come back");
+        }
+
+
+        TEST_METHOD (AMissingDefaultProfile_IsRecreatedFromTheDefaultMapping)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::vector<ControlId>    controls = XInputSampleDecoder::ListControls();
+            std::string               token    = ControllerTokens::ModelToToken (Xbox());
+            JsonValue                 doc      = Parse (
+                "{\"models\":{\"" + token + "\":{\"profiles\":["
+                  "{\"name\":\"Default\",\"default\":true,\"mapping\":{\"pb0\":[{\"control\":\"lever:9\"}]}},"
+                  "{\"name\":\"Flight\",\"mapping\":{}}"
+                "]}}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::AreEqual (size_t (1), rejected.size(), L"the unreadable Default is reported");
+
+            const ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), controls);
+            const ControllerProfile       *  profile  = settings.FindDefaultProfile();
+
+            Assert::IsTrue   (profile != nullptr, L"and recreated");
+            Assert::AreEqual (std::string ("Default"), profile->name);
+            Assert::IsTrue   (profile->mapping == DefaultMapping::For (Xbox(), controls));
+            Assert::IsTrue   (settings.FindProfile ("Flight") != nullptr, L"the readable profile is kept");
+        }
+
+
+        TEST_METHOD (AModelThatFailsValidation_IsRebuiltWithOnlyItsDefaultAndReported)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::vector<ControlId>    controls = XInputSampleDecoder::ListControls();
+            std::string               xbox     = ControllerTokens::ModelToToken (Xbox());
+            std::string               stick    = ControllerTokens::ModelToToken (Stick());
+            std::string               other    = ControllerTokens::ModelToToken ({ ControllerKind::DirectInput, 1, 2 });
+            JsonValue                 doc      = Parse (
+                "{\"models\":{"
+                  "\"" + xbox  + "\":5,"
+                  "\"" + stick + "\":{\"deadzone\":0.3,\"profiles\":\"nonsense\"},"
+                  "\"" + other + "\":{\"profiles\":[{\"name\":\"Default\",\"default\":true,\"mapping\":{}}]}"
+                "}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::AreEqual (size_t (2), rejected.size(), L"each unreadable model is reported");
+            Assert::IsTrue   (store.models.at (other).FindDefaultProfile() != nullptr, L"other models still load");
+
+            const ControllerModelSettings &  rebuilt = store.GetOrCreateModel (Stick(), controls);
+
+            Assert::AreEqual (size_t (1), rebuilt.profiles.size(), L"the rebuilt model holds only its Default");
+            Assert::IsTrue   (rebuilt.profiles[0].isDefault);
+            Assert::AreEqual (DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput), rebuilt.deadzone, 0.0001f);
+            Assert::AreEqual (size_t (1), store.GetOrCreateModel (Xbox(), controls).profiles.size());
         }
     };
 }

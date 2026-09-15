@@ -65,6 +65,58 @@ ControlMapping DefaultMapping::For (const ControllerModelKey & model, const std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakePaddles
+//
+//  The starting point for two-player paddle games: axis 0 to PDL0 and axis 3
+//  to PDL1, both with Rate response at the default speed, so each paddle holds
+//  where its player leaves it when a self-centering stick is released. On an
+//  Xbox controller that is left stick X and right stick X, one stick per
+//  player. On a DirectInput device axis 3 is Rx; a device that does not report
+//  it leaves PDL1 unassigned rather than borrowing an axis that may have no
+//  hardware behind it.
+//
+//  The buttons are the default mapping's, the first two buttons (Xbox: A and
+//  B), so a profile made from this template differs from the default only in
+//  its paddles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControlMapping DefaultMapping::MakePaddles (const ControllerModelKey & model, const std::vector<ControlId> & controls)
+{
+    ControlMapping  mapping = For (model, controls);
+    ControlId       player1 = { ControlKind::Axis, XInputSampleDecoder::kLeftStickX };
+    ControlId       player2 = { ControlKind::Axis, XInputSampleDecoder::kRightStickX };
+    AxisBinding     binding;
+
+
+
+    binding.response = AxisResponse::Rate;
+    binding.maxSpeed = AxisBinding::kDefaultMaxSpeed;
+
+    mapping.pdl0.clear();
+    mapping.pdl1.clear();
+
+    if (HasControl (controls, player1))
+    {
+        binding.analog = player1;
+        mapping.pdl0.push_back (binding);
+    }
+
+    if (HasControl (controls, player2))
+    {
+        binding.analog = player2;
+        mapping.pdl1.push_back (binding);
+    }
+
+    return mapping;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasControl
 //
 ////////////////////////////////////////////////////////////////////////////////
