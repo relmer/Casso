@@ -14,6 +14,10 @@
 //  text #5D5D5D, stroke #E5E5E5, and the light accent #005FB8. Selection is
 //  the pale accent Explorer draws behind a selected row.
 //
+//  The strip under the tabs takes the layer fill, a step above the caption,
+//  as the dark theme's does, so the selected tab that joins it shows. Unlike
+//  the dark theme's, this one has not yet been measured against Explorer.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiLightTheme::DxuiLightTheme()
@@ -28,7 +32,7 @@ DxuiLightTheme::DxuiLightTheme()
     sysButtonCloseHover      = DxuiWindowsThemeColors::kCloseButtonColor;
     sysButtonCloseHoverGlyph = DxuiWindowsThemeColors::kCloseButtonGlyphHoverColor;
     sysButtonClosePressed    = DxuiWindowsThemeColors::kCloseButtonColor;
-    navStrip                 = 0xFFF3F3F3;
+    navStrip                 = 0xFFFBFBFB;
     navHover                 = 0xFFCCE4F7;
     navItemText              = 0xFF1A1A1A;
     dropdownBg               = 0xFFF9F9F9;

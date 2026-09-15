@@ -562,9 +562,11 @@ void CassqueWindow::ApplyTheme()
         m_tooltip.SetTheme (*m_theme);
     }
 
-    //  The selected tab joins the row below it, the menu bar's strip.
+    //  The tabs sit on the caption's color, as Explorer's do, and the selected
+    //  one joins the row below it, the menu bar's strip.
     if (m_tabs != nullptr)
     {
+        m_tabs->SetStripFill    (m_theme->titleBarTop);
         m_tabs->SetSelectedFill (m_theme->navStrip);
     }
 

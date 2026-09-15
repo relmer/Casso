@@ -19,6 +19,10 @@
 //  are all #191919, and the strip along the bottom is #1C1C1C. Captured at
 //  120 dpi on 2026-09-12 and compared pixel for pixel.
 //
+//  The strip under the tabs, holding navigation and the address bar, is
+//  #2C2C2C, a step above the caption's #202020, so the selected tab that joins
+//  it reads as raised. Measured the same way on 2026-09-14.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiDarkTheme::DxuiDarkTheme()
@@ -33,7 +37,7 @@ DxuiDarkTheme::DxuiDarkTheme()
     sysButtonCloseHover      = DxuiWindowsThemeColors::kCloseButtonColor;
     sysButtonCloseHoverGlyph = DxuiWindowsThemeColors::kCloseButtonGlyphHoverColor;
     sysButtonClosePressed    = DxuiWindowsThemeColors::kCloseButtonColor;
-    navStrip                 = 0xFF202020;
+    navStrip                 = 0xFF2C2C2C;
     navHover                 = 0xFF194A6B;
     navItemText              = 0xFFFFFFFF;
     dropdownBg               = 0xFF2C2C2C;

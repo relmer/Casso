@@ -65,6 +65,10 @@ public:
     void  SetSelectedFill (uint32_t argb)        { m_selectedFill = argb; }
     void  SetIconFace     (const wchar_t * face) { m_iconFace     = face; }
 
+    //  The strip's own fill, painted behind the tabs and cut from the selected
+    //  tab's flared corners; none leaves the host's background showing.
+    void  SetStripFill    (uint32_t argb)        { m_stripFill    = argb; }
+
     const std::vector<Tab> & GetTabs       () const { return m_tabs;    }
     int                      GetSelected   () const { return m_selected; }
     int                      GetHoverIndex () const { return m_hover;   }
@@ -164,6 +168,7 @@ private:
     int               m_hoverClose    = -1;
     int               m_pressedClose  = -1;
     uint32_t          m_selectedFill  = 0;
+    uint32_t          m_stripFill     = 0;
     const wchar_t *   m_iconFace      = L"Segoe MDL2 Assets";
     bool              m_enabled       = true;
     bool              m_focused       = false;

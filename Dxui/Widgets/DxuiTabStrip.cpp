@@ -1161,16 +1161,24 @@ void DxuiTabStrip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     uint32_t  fill  = (m_selectedFill != 0) ? m_selectedFill : theme.BackgroundElevated();
+    uint32_t  strip = (m_stripFill    != 0) ? m_stripFill    : theme.Background();
     uint32_t  hover = (theme.Foreground() & 0x00FFFFFFu) | 0x14000000u;
 
 
+
+    //  The strip's own fill, when the host gives one, goes down first.
+    if (m_stripFill != 0 && HasBounds())
+    {
+        painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
+                          (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top), m_stripFill);
+    }
 
     //  The selected tab takes the color of the row it joins, which the host
     //  names; without one it takes the elevated surface. A hovered tab is a
     //  faint wash of the text color, which reads in either theme, as Explorer's
     //  gray does, where the theme's hover is a saturated selection color.
     PaintInternal (painter, text,
-                   theme.Background(),
+                   strip,
                    hover,
                    fill,
                    theme.Divider(),
