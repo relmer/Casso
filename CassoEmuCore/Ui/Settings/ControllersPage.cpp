@@ -593,8 +593,8 @@ void ControllersPage::Poll()
 
     reading = m_state->ComputeLiveReading (sample.value());
 
-    m_stick.SetValues (reading.paddle.has_value() ? reading.paddle.value()[0] : 127,
-                       reading.paddle.has_value() ? reading.paddle.value()[1] : 127);
+    m_stick.SetValues (reading.paddle[0].value_or (GamePortState::kPaddleCenter),
+                       reading.paddle[1].value_or (GamePortState::kPaddleCenter));
 
     for (light = 0; light < kButtonCount; light++)
     {

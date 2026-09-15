@@ -68,6 +68,10 @@ bool MachineGamePortSink::TryApply (const GamePortState & target, const GamePort
 //
 //  WritePaddles
 //
+//  Only the axes the machine has. The //c's soft-switch bank models all four
+//  one-shots, but its PDL2 and PDL3 lines are the mouse, so a value held for
+//  them is never written there.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineGamePortSink::WritePaddles (
@@ -75,7 +79,11 @@ void MachineGamePortSink::WritePaddles (
     const GamePortState    & target,
     const GamePortState    * lastApplied)
 {
-    for (int axis = 0; axis < static_cast<int> (target.paddle.size()); axis++)
+    int  axisCount = static_cast<int> (std::min (targets.axisCount, target.paddle.size()));
+
+
+
+    for (int axis = 0; axis < axisCount; axis++)
     {
         bool  isChanged = lastApplied == nullptr || lastApplied->paddle[axis] != target.paddle[axis];
 

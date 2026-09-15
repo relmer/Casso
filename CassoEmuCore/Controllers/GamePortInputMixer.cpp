@@ -63,7 +63,7 @@ void GamePortInputMixer::SetApplyThread (std::thread::id applyThread, std::funct
 //
 //  SetAxisOwner
 //
-//  Chooses which source drives PDL0 and PDL1. The new owner's last
+//  Chooses which source drives every axis at once. The new owner's last
 //  contribution takes effect immediately, so a source that has been
 //  submitting all along does not wait for its next change.
 //
@@ -72,17 +72,59 @@ void GamePortInputMixer::SetApplyThread (std::thread::id applyThread, std::funct
 void GamePortInputMixer::SetAxisOwner (AxisOwner owner)
 {
     std::unique_lock<std::mutex>  lock    (m_mutex);
-    bool                          changed = m_owner != owner;
+    bool                          changed = false;
 
 
 
-    m_owner = owner;
+    for (AxisOwner & axisOwner : m_owners)
+    {
+        changed   = changed || axisOwner != owner;
+        axisOwner = owner;
+    }
+
     lock.unlock();
 
     if (changed)
     {
         ScheduleApply();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAxisOwner
+//
+//  Chooses which source drives one axis. Each axis has exactly one owner, so
+//  handing an axis to a source displaces its previous owner for that axis
+//  and no other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GamePortInputMixer::SetAxisOwner (size_t axis, AxisOwner owner)
+{
+    HRESULT                       hr      = S_OK;
+    std::unique_lock<std::mutex>  lock    (m_mutex);
+    bool                          changed = false;
+
+
+
+    CBRA (axis < GamePortContribution::kAxisCount);
+
+    changed        = m_owners[axis] != owner;
+    m_owners[axis] = owner;
+    lock.unlock();
+
+    if (changed)
+    {
+        ScheduleApply();
+    }
+
+Error:
+    return;
 }
 
 
@@ -307,15 +349,15 @@ void GamePortInputMixer::ScheduleApply()
 //  ComputeTargetLocked
 //
 //  Buttons OR across every source, so releasing one never releases a button
-//  another source still holds. The axes come from the owner alone, or rest
-//  at center when the owner has nothing to say.
+//  another source still holds. Each axis comes from its own owner alone, or
+//  rests at center when that owner does not drive it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 GamePortState GamePortInputMixer::ComputeTargetLocked() const
 {
-    GamePortState                   state;
-    const GamePortContribution    * axisSource = GetAxisContributionLocked();
+    GamePortState  state;
+    size_t         axis  = 0;
 
 
 
@@ -324,9 +366,14 @@ GamePortState GamePortInputMixer::ComputeTargetLocked() const
         state.buttons |= contribution.buttons;
     }
 
-    if (axisSource != nullptr && axisSource->paddle.has_value())
+    for (axis = 0; axis < m_owners.size(); axis++)
     {
-        state.paddle = *axisSource->paddle;
+        const GamePortContribution  * axisSource = GetOwnerContributionLocked (m_owners[axis]);
+
+        if (axisSource != nullptr && axisSource->paddle[axis].has_value())
+        {
+            state.paddle[axis] = axisSource->paddle[axis].value();
+        }
     }
 
     return state;
@@ -338,17 +385,17 @@ GamePortState GamePortInputMixer::ComputeTargetLocked() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetAxisContributionLocked
+//  GetOwnerContributionLocked
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const GamePortContribution * GamePortInputMixer::GetAxisContributionLocked() const
+const GamePortContribution * GamePortInputMixer::GetOwnerContributionLocked (AxisOwner owner) const
 {
     const GamePortContribution  * contribution = nullptr;
 
 
 
-    switch (m_owner)
+    switch (owner)
     {
         case AxisOwner::ArrowKeys:
             contribution = &m_contributions[static_cast<size_t> (GamePortSource::ArrowKeys)];

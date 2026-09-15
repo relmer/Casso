@@ -211,17 +211,22 @@ struct ControllerDeviceInfo
 //
 //  GamePortContribution
 //
-//  What one input source asks of the game port. An absent paddle means the
-//  source does not drive the axes; buttons are PB0, PB1 and PB2.
+//  What one input source asks of the game port. Each paddle axis is held on
+//  its own: an absent axis means the source does not drive that axis, so two
+//  sources, or two controllers merged into one source, can hold PDL0 and PDL1
+//  separately. Buttons are PB0, PB1 and PB2.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct GamePortContribution
 {
-    static constexpr int  kButtonCount = 3;
+    static constexpr int     kButtonCount = 3;
 
-    std::optional<std::array<Byte, 2>>  paddle;
-    std::bitset<kButtonCount>           buttons;
+    // PDL0-PDL3. A machine with fewer (the //c has two) never reads the rest.
+    static constexpr size_t  kAxisCount   = 4;
+
+    std::array<std::optional<Byte>, kAxisCount>  paddle;
+    std::bitset<kButtonCount>                    buttons;
 
     bool operator== (const GamePortContribution &) const = default;
 };

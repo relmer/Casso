@@ -44,6 +44,9 @@ struct MachineDefinition
     //  timer and PREAD.
     bool                         hasGamePort = false;
 
+    //  Analog game-port axes: four, or two on the //c.
+    int                          gamePortAxisCount = 0;
+
     //  Presentation facts the shell used to answer by asking whether the
     //  machine was a //c.
     bool                         hasCaseSwitches = false;

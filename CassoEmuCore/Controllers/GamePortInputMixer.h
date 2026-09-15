@@ -37,7 +37,7 @@ enum class AxisOwner
 //
 //  GamePortState
 //
-//  The final values the machine should read: both paddle axes and PB0-PB2.
+//  The final values the machine should read: all four paddle axes and PB0-PB2.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +45,8 @@ struct GamePortState
 {
     static constexpr Byte  kPaddleCenter = 127;
 
-    std::array<Byte, 2>                               paddle  = { kPaddleCenter, kPaddleCenter };
-    std::bitset<GamePortContribution::kButtonCount>   buttons;
+    std::array<Byte, GamePortContribution::kAxisCount>  paddle  = { kPaddleCenter, kPaddleCenter, kPaddleCenter, kPaddleCenter };
+    std::bitset<GamePortContribution::kButtonCount>     buttons;
 
     bool operator== (const GamePortState &) const = default;
 };
@@ -93,6 +93,7 @@ public:
     void           SetSink              (IGamePortSink * sink);
     void           SetApplyThread       (std::thread::id applyThread, std::function<void()> requestFlush);
     void           SetAxisOwner         (AxisOwner owner);
+    void           SetAxisOwner         (size_t axis, AxisOwner owner);
     void           Submit               (GamePortSource source, const GamePortContribution & contribution);
     void           ReleaseSource        (GamePortSource source);
     void           NotifyMachineRebuilt ();
@@ -104,17 +105,17 @@ private:
 
     static constexpr size_t  kSourceCount = 5;
 
-    void                          ScheduleApply             ();
-    GamePortState                 ComputeTargetLocked       () const;
-    const GamePortContribution *  GetAxisContributionLocked () const;
+    void                          ScheduleApply              ();
+    GamePortState                 ComputeTargetLocked        () const;
+    const GamePortContribution *  GetOwnerContributionLocked (AxisOwner owner) const;
 
-    mutable std::mutex                                 m_mutex;
-    std::array<GamePortContribution, kSourceCount>     m_contributions;
-    AxisOwner                                          m_owner          = AxisOwner::None;
-    IGamePortSink                                    * m_sink           = nullptr;
-    std::thread::id                                    m_applyThread;
-    std::function<void()>                              m_requestFlush;
-    GamePortState                                      m_lastApplied;
-    bool                                               m_hasApplied     = false;
-    bool                                               m_flushRequested = false;
+    mutable std::mutex                                         m_mutex;
+    std::array<GamePortContribution, kSourceCount>             m_contributions;
+    std::array<AxisOwner, GamePortContribution::kAxisCount>    m_owners         = { AxisOwner::None, AxisOwner::None, AxisOwner::None, AxisOwner::None };
+    IGamePortSink                                            * m_sink           = nullptr;
+    std::thread::id                                            m_applyThread;
+    std::function<void()>                                      m_requestFlush;
+    GamePortState                                              m_lastApplied;
+    bool                                                       m_hasApplied     = false;
+    bool                                                       m_flushRequested = false;
 };

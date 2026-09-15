@@ -20,6 +20,9 @@ class Apple2eKeyboard;
 //  game port; a //e or //c has the soft-switch bank's paddles and the
 //  keyboard's Apple keys. All null means the machine has no game port.
 //
+//  axisCount is how many paddle axes the machine exposes: four on the ][,
+//  ][+ and //e, two on the //c, whose PDL2 and PDL3 lines carry the mouse.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct GamePortTargets
@@ -27,6 +30,7 @@ struct GamePortTargets
     AppleGamePort          * gamePort    = nullptr;
     Apple2eSoftSwitchBank  * iieSwitches = nullptr;
     Apple2eKeyboard        * iieKeyboard = nullptr;
+    size_t                   axisCount   = GamePortContribution::kAxisCount;
 };
 
 

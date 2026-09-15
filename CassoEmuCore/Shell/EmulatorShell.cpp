@@ -430,11 +430,18 @@ HRESULT EmulatorShell::Initialize (
     // thread posts a flush back to the window.
     m_gamePortSink = std::make_unique<MachineGamePortSink> (m_machine.GetLifetimeLock(), [this]
     {
-        GamePortTargets  targets;
+        GamePortTargets            targets;
+        const MachineDefinition  * definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
 
         targets.gamePort    = m_machine.GetRefs().gamePort;
         targets.iieSwitches = m_machine.GetRefs().iieSoftSwitches;
         targets.iieKeyboard = m_machine.GetRefs().iieKeyboard;
+
+        if (definition != nullptr)
+        {
+            targets.axisCount = static_cast<size_t> (definition->gamePortAxisCount);
+        }
+
         return targets;
     });
 
