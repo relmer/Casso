@@ -204,6 +204,8 @@
     <ClCompile Include="Debugger\WatchpointTable.cpp" />
     <ClCompile Include="Debugger\WatchTable.cpp" />
     <ClCompile Include="Debugger\DebugSession.cpp" />
+    <ClCompile Include="Debugger\AppleWinFormatter.cpp" />
+    <ClCompile Include="Debugger\ReplyJson.cpp" />
     <ClCompile Include="Shell\HeadlessMachineFactory.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
@@ -468,6 +470,8 @@
     <ClInclude Include="Debugger\WatchpointTable.h" />
     <ClInclude Include="Debugger\WatchTable.h" />
     <ClInclude Include="Debugger\DebugSession.h" />
+    <ClInclude Include="Debugger\AppleWinFormatter.h" />
+    <ClInclude Include="Debugger\ReplyJson.h" />
     <ClInclude Include="Debugger\IDebugNotificationSink.h" />
     <ClInclude Include="Debugger\IDebugCommandHandler.h" />
     <ClInclude Include="Shell\HeadlessMachineFactory.h" />

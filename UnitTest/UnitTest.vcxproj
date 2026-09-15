@@ -238,6 +238,8 @@
     <ClCompile Include="DebuggerTests\DebugSessionTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinParserTests.cpp" />
+    <ClCompile Include="DebuggerTests\AppleWinFormatterTests.cpp" />
+    <ClCompile Include="DebuggerTests\ReplyJsonTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

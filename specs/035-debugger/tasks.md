@@ -148,19 +148,19 @@ description: "Task list for 035-debugger"
   - argument forms for each family, taken from AppleWin's help pages `help/dbg-*.html` (names and behavior only, never implementation; R-014);
   - Casso engine commands `MODE`, `MODE APPLEWIN`, `MODE MONITOR`, `PAUSE` and `BUDGET`.
 - [X] T031 [US1] Implement `CassoCore/Debugger/AppleWinParser.h/.cpp` producing `DebugCommand`. Makes T030 pass.
-- [ ] T032 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinFormatterTests.cpp`, pinning text per `contracts/command-modes.md`:
+- [X] T032 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinFormatterTests.cpp`, pinning text per `contracts/command-modes.md`:
   - `R` as `A:00 X:00 Y:00 P:30 S:FF PC:0300` plus a flag string;
   - `D` as eight bytes per row with ASCII;
   - disassembly lines;
   - breakpoint lists;
   - the two-line error for `Error` and for `NotAvailable` (`Error: command not available` / `NAME needs the debugger window.`).
-- [ ] T033 [US1] Implement `CassoEmuCore/Debugger/AppleWinFormatter.h/.cpp` rendering `Reply::data` to `Reply::text`. Makes T032 pass.
-- [ ] T034 [P] [US1] Write `UnitTest/DebuggerTests/ReplyJsonTests.cpp`:
+- [X] T033 [US1] Implement `CassoEmuCore/Debugger/AppleWinFormatter.h/.cpp` rendering `Reply::data` to `Reply::text`. Makes T032 pass.
+- [X] T034 [P] [US1] Write `UnitTest/DebuggerTests/ReplyJsonTests.cpp`:
   - every data kind in `contracts/debug-channel-protocol.md` serializes with integer addresses and bytes, never hex strings;
   - unreadable I/O bytes serialize as `null`;
   - each record is one line with no raw newline;
   - for a sample of commands, the JSON `text` array equals the formatter's text (Story 1 scenario 5).
-- [ ] T035 [US1] Implement `CassoEmuCore/Debugger/ReplyJson.h/.cpp` over `JsonWriter` with pretty printing off. Makes T034 pass.
+- [X] T035 [US1] Implement `CassoEmuCore/Debugger/ReplyJson.h/.cpp` over `JsonWriter` with pretty printing off. Makes T034 pass.
 
 ### Handler families (phase-1 AppleWin names)
 
