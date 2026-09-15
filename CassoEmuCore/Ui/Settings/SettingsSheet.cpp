@@ -439,6 +439,8 @@ HRESULT SettingsSheet::OpenModeless (
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
                                      !m_emuShell->MachineHasCaseSwitches());
+            m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
+                                                             m_emuShell->GetMachine().GetConfig().name.end()));
 
             m_controllersPage->SetSampleSource ([service] (const ControllerUnitKey & unit)
             {

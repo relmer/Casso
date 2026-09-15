@@ -73,6 +73,11 @@ public:
                 const std::map<std::string, ControllerCalibration>   & calibrations,
                 bool                                                  hasPb2);
 
+    // The machine's display name, for saying which machine a target is not
+    // supported on.
+    void                  SetMachineName (const std::wstring & name) { m_machineName = name; }
+    const std::wstring &  GetMachineName () const                    { return m_machineName; }
+
     // Controllers came or went while the page is open. One that left keeps
     // its row and its edits, shown as not connected, so unplugging a cable by
     // accident does not throw away the user's work.
@@ -146,6 +151,7 @@ private:
     std::vector<ControllerEntry>                    m_controllers;
     std::optional<size_t>                           m_selected;
     bool                                            m_hasPb2       = true;
+    std::wstring                                    m_machineName;
 
     std::map<std::string, ControllerModelSettings>  m_models;
     std::map<std::string, ControllerCalibration>    m_calibrations;

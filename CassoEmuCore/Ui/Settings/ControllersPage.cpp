@@ -557,7 +557,8 @@ void ControllersPage::Poll()
 
     for (light = 0; light < kButtonCount; light++)
     {
-        m_lights[light].SetLit (reading.buttons.test (light));
+        // A button the machine lacks stays dark whatever is pressed.
+        m_lights[light].SetLit (reading.buttons.test (light) && m_state->IsTargetAvailable (TargetAt (kAxisCount + light)));
     }
 }
 
@@ -701,7 +702,8 @@ void ControllersPage::RefreshRows()
             int                        choice      = FindChoice (target, row);
 
             items.push_back (isCapturing ? L"Press a control..." : L"Press to assign...");
-            items.push_back (available ? L"None" : L"Not on this machine");
+            items.push_back (available ? L"None"
+                                       : L"Not supported on " + (m_state->GetMachineName().empty() ? std::wstring (L"this machine") : m_state->GetMachineName()));
             glyphs.resize   (items.size());
 
             for (const ControlChoice & entry : m_choices[target])
