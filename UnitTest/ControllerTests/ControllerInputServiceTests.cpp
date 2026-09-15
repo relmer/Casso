@@ -111,10 +111,26 @@ namespace ControllerTests
         }
 
 
-        // Two players: the Xbox controller selected, holding PDL0 by default,
-        // and the stick given PDL1. Each pushes its stick hard over and holds
-        // a button. The Xbox controller's Y is pushed too, so a merge that let
-        // it keep PDL1 would show.
+        // Two players, each on a paddle of their own: the Xbox controller on
+        // PDL0 and the stick on PDL1.
+        static MultiplayerSetup MakeTwoPlayers (const ControllerUnitKey &  first,
+                                                const ControllerUnitKey &  second,
+                                                PlayerAxisTarget           secondTarget = PlayerAxisTarget::Paddle1)
+        {
+            MultiplayerSetup  setup;
+
+            setup.isEnabled         = true;
+            setup.players[0].unit   = first;
+            setup.players[0].target = PlayerAxisTarget::Paddle0;
+            setup.players[1].unit   = second;
+            setup.players[1].target = secondTarget;
+            return setup;
+        }
+
+
+        // Each player pushes their stick hard over and holds their first
+        // button. The Xbox controller's Y is pushed too, so a merge that let
+        // player one reach PDL1 would show.
         static void SetUpTwoPlayers (FakeControllerBackend  & backend,
                                      ControllerInputService & service,
                                      GamePortInputMixer     & mixer,
@@ -131,7 +147,7 @@ namespace ControllerTests
 
             stickSample.connected = true;
             stickSample.axes[0]   = -1.0f;
-            stickSample.buttons.set (1);
+            stickSample.buttons.set (0);
 
             mixer.SetAxisOwner (AxisOwner::Controller);
             backend.AddDevice (xbox, true);
@@ -141,12 +157,12 @@ namespace ControllerTests
             SkipCalibration (service, { stick.unit });
 
             service.SetSelection (xbox.unit);
-            service.AssignAxes (stick.unit, ControllerAxisAssignment::AxisSet (0x2));
+            service.SetMultiplayer (MakeTwoPlayers (xbox.unit, stick.unit));
             service.Tick();
         }
 
 
-        TEST_METHOD (TwoAssigned_EachDrivesItsOwnAxisAtOnce)
+        TEST_METHOD (TwoPlayers_EachDrivesItsOwnPaddleAndButtonLineAtOnce)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -158,15 +174,54 @@ namespace ControllerTests
             mixer.SetSink (&sink);
             SetUpTwoPlayers (backend, service, mixer, xbox, stick);
 
-            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"PDL0 follows the Xbox controller");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"PDL0 follows player one");
             Assert::AreEqual (static_cast<Byte> (0),   sink.writes.back().state.paddle[1],
-                L"PDL1 follows the stick, played through the same default mapping, and not the Xbox controller's Y");
-            Assert::IsTrue   (sink.writes.back().state.buttons.test (0), L"the Xbox controller's button reaches PB0");
-            Assert::IsTrue   (sink.writes.back().state.buttons.test (1), L"while the stick's reaches PB1 at the same time");
+                L"PDL1 follows player two, played through the same default mapping, and not player one's Y");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0), L"player one's button reaches PB0");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (1), L"and player two's reaches PB1 at the same time");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (2), L"PB2 is unused while two people play");
         }
 
 
-        TEST_METHOD (TwoAssigned_AssigningAnAxisDisplacesOnlyThatAxis)
+        TEST_METHOD (TwoPlayers_OnlyAPlayersFirstButtonReachesTheirLine)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox      = MakeXboxDevice();
+            ControllerDeviceInfo    stick     = MakeStickDevice();
+            ControllerSample        xboxOnly;
+            ControllerSample        stickOnly;
+
+            // Each player presses ONLY the control their profile binds to PB1.
+            // Those bindings belong to the other player's line now, so nothing
+            // may reach the game port -- which is exactly what OR-ing every
+            // controller's buttons together used to get wrong.
+            xboxOnly.connected  = true;
+            xboxOnly.buttons.set (1);
+            stickOnly.connected = true;
+            stickOnly.buttons.set (1);
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (xbox, true);
+            backend.AddDevice (stick);
+            backend.SetSample (xbox.unit,  xboxOnly);
+            backend.SetSample (stick.unit, stickOnly);
+            SkipCalibration (service, { stick.unit });
+
+            service.SetMultiplayer (MakeTwoPlayers (xbox.unit, stick.unit));
+            service.Tick();
+
+            Assert::IsFalse (mixer.GetTargetState().buttons.test (0),
+                L"player one's second button is not their line, and never was another player's either");
+            Assert::IsFalse (mixer.GetTargetState().buttons.test (1),
+                L"player two's PB1 binding is ignored while two people play; only their first button drives PB1");
+        }
+
+
+        TEST_METHOD (TwoPlayers_MovingAPlayerFreesThePaddleTheyLeft)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -178,20 +233,40 @@ namespace ControllerTests
             mixer.SetSink (&sink);
             SetUpTwoPlayers (backend, service, mixer, xbox, stick);
 
-            // The stick takes PDL0 instead of PDL1. The Xbox controller holds
-            // PDL0 and PDL1 less what the stick holds, which is now PDL1, and
-            // plays its own first axis there.
-            service.AssignAxes (stick.unit, ControllerAxisAssignment::AxisSet (0x1));
+            service.SetMultiplayerSlot (1, stick.unit, PlayerAxisTarget::Paddle3);
             service.Tick();
 
-            Assert::AreEqual (static_cast<Byte> (0),   sink.writes.back().state.paddle[0], L"the stick displaced the Xbox controller from PDL0");
-            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[1],
-                L"and the Xbox controller plays its own first axis on the axis it holds");
-            Assert::AreEqual (static_cast<size_t> (1), service.GetSnapshot().assignments.size(), L"one controller holds an explicit assignment");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[1], L"the paddle player two left centers");
+            Assert::AreEqual (static_cast<Byte> (0), sink.writes.back().state.paddle[3], L"and they play the one they moved to");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"player one is untouched by it");
         }
 
 
-        TEST_METHOD (TwoAssigned_OneDisconnectingReleasesOnlyItsOwn)
+        TEST_METHOD (TwoPlayers_AnOverlappingSlotIsRefusedRatherThanPlayed)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    stick;
+
+            mixer.SetSink (&sink);
+            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+
+            // Player two asks for the paddle player one is already playing.
+            service.SetMultiplayerSlot (1, stick.unit, PlayerAxisTarget::Paddle0);
+            service.Tick();
+
+            Assert::IsFalse  (service.GetMultiplayer().players[1].unit.has_value(),
+                L"the slot is emptied rather than left claiming a paddle it cannot have (FR-036)");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"player one keeps playing it");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[1], L"and player two's old paddle centers");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (1),   L"with their button line released");
+        }
+
+
+        TEST_METHOD (TwoPlayers_OneDisconnectingReleasesOnlyItsOwn)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -215,18 +290,17 @@ namespace ControllerTests
             for (i = before; i < sink.writes.size(); i++)
             {
                 Assert::AreEqual (static_cast<Byte> (255), sink.writes[i].state.paddle[0],
-                    L"the Xbox controller's axis is never interrupted by the stick leaving (SC-012)");
-                Assert::IsTrue (sink.writes[i].state.buttons.test (0), L"nor is its button");
+                    L"player one's paddle is never interrupted by player two leaving (SC-012)");
+                Assert::IsTrue (sink.writes[i].state.buttons.test (0), L"nor is their button line");
             }
 
             Assert::AreEqual (kCenter, sink.writes.back().state.paddle[1],
-                L"the stick's axis centers, and the Xbox controller does not move onto it");
-            Assert::IsFalse (sink.writes.back().state.buttons.test (1), L"the stick's button is released");
-            Assert::IsTrue  (service.GetSnapshot().selection.value() == xbox.unit, L"the selection stays where it was");
+                L"player two's paddle centers, and player one does not move onto it");
+            Assert::IsFalse (sink.writes.back().state.buttons.test (1), L"player two's button line is released");
         }
 
 
-        TEST_METHOD (TwoAssigned_SelectedDisconnectingLeavesTheOtherDriving)
+        TEST_METHOD (TwoPlayers_AControllerInNeitherSlotPlaysNothing)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -234,32 +308,51 @@ namespace ControllerTests
             ControllerInputService  service (backend, mixer);
             ControllerDeviceInfo    xbox;
             ControllerDeviceInfo    stick;
-            size_t                  before = 0;
-            size_t                  i      = 0;
+            ControllerDeviceInfo    spare = MakePadDevice ("{CCCC}", L"Spare Pad");
 
             mixer.SetSink (&sink);
             SetUpTwoPlayers (backend, service, mixer, xbox, stick);
-            before = sink.writes.size();
 
-            backend.RemoveDevice (xbox.unit);
+            backend.AddDevice (spare);
+            backend.SetSample (spare.unit, MakePushedSample());
             service.OnDevicesChanged();
             service.Tick();
-            service.Tick();
 
-            for (i = before; i < sink.writes.size(); i++)
-            {
-                Assert::AreEqual (static_cast<Byte> (0), sink.writes[i].state.paddle[1],
-                    L"the stick keeps driving PDL1 through the other controller leaving (SC-012)");
-            }
-
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],
-                L"PDL0 centers: the stick taking over the selection keeps its own axis rather than moving onto the freed one");
-            Assert::IsFalse (sink.writes.back().state.buttons.test (0), L"and the departed controller's button is released");
-            Assert::IsTrue  (service.GetSnapshot().isAnyDriverConnected);
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"player one is unaffected");
+            Assert::AreEqual (static_cast<Byte> (0),   sink.writes.back().state.paddle[1], L"and so is player two");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[2],
+                L"a controller no player holds drives no paddle of its own while two people play");
         }
 
 
-        TEST_METHOD (OneController_BothSticksOnAllFourAxes)
+        TEST_METHOD (MultiplayerOff_HandsTheGamePortBackToTheSelection)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox;
+            ControllerDeviceInfo    stick;
+
+            mixer.SetSink (&sink);
+            SetUpTwoPlayers (backend, service, mixer, xbox, stick);
+
+            // What picking a single source from the toolbar picker does.
+            service.SetMultiplayerEnabled (false);
+            service.Tick();
+
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0],
+                L"the selection drives PDL0 and PDL1 on its own again");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[1],
+                L"including the Y that player two was holding a moment ago");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0), L"and it drives PB0-PB2 as it always has");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (1), L"player two is gone, so nothing holds PB1");
+            Assert::IsTrue   (service.GetMultiplayer().players[1].unit.has_value(),
+                L"both players are kept, so turning the mode back on is a click rather than a setup job");
+        }
+
+
+        TEST_METHOD (SingleSource_ClaimsPdl0AndPdl1Only)
         {
             FakeControllerBackend                           backend;
             GamePortInputMixer                              mixer;
@@ -294,15 +387,14 @@ namespace ControllerTests
             service.SetSelection (xbox.unit);
             service.Tick();
 
-            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[2], L"a newly selected controller claims PDL0 and PDL1 only (FR-038)");
-
-            service.AssignAxes (xbox.unit, ControllerAxisAssignment::AxisSet (0xF));
-            service.Tick();
-
             Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"left stick X on PDL0");
             Assert::AreEqual (static_cast<Byte> (0),   sink.writes.back().state.paddle[1], L"left stick Y on PDL1");
-            Assert::AreEqual (static_cast<Byte> (0),   sink.writes.back().state.paddle[2], L"right stick X on PDL2");
-            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[3], L"right stick Y on PDL3");
+
+            // The one source drives the first two axes however many its
+            // profile binds; the rest belong to a second player, and there is
+            // none in single-source mode (FR-038).
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[2], L"PDL2 is left free");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[3], L"as is PDL3");
         }
 
 

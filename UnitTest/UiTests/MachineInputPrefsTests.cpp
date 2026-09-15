@@ -325,66 +325,96 @@ public:
     }
 
 
-    TEST_METHOD (AxisAssignments_AbsentKeyReadsAsNone)
+    TEST_METHOD (Multiplayer_AbsentKeyReadsAsSingleSource)
     {
-        JsonValue  doc = ParseOrFail (R"({"$cassoUiPrefs":{"controller":"xinput"}})");
+        JsonValue         doc   = ParseOrFail (R"({"$cassoUiPrefs":{"controller":"xinput"}})");
+        MultiplayerSetup  setup = MachineInputPrefs::ReadMultiplayer (GetUiPrefsOrFail (doc));
 
-        // A file written before two controllers could play keeps its meaning:
-        // the saved controller holds PDL0 and PDL1.
-        Assert::IsTrue (MachineInputPrefs::ReadAxisAssignments (GetUiPrefsOrFail (doc)).empty());
-        Assert::IsTrue (MachineInputPrefs::ReadAxisAssignments (nullptr).empty());
+        // A file written before two people could play keeps its meaning: the
+        // saved controller drives PDL0 and PDL1 on its own.
+        Assert::IsFalse (setup.isEnabled);
+        Assert::IsFalse (setup.players[0].unit.has_value());
+        Assert::IsFalse (MachineInputPrefs::ReadMultiplayer (nullptr).isEnabled);
     }
 
 
-    TEST_METHOD (AxisAssignments_RoundTripIncludingAxesATwoAxisMachineLacks)
+    TEST_METHOD (Multiplayer_RoundTripIncludingPaddlesATwoAxisMachineLacks)
     {
-        std::vector<ControllerAxisAssignment>  assignments;
-        std::vector<ControllerAxisAssignment>  readBack;
-        ControllerUnitKey                      xbox;
+        MultiplayerSetup  setup;
+        MultiplayerSetup  readBack;
+        ControllerUnitKey xbox;
 
         xbox.model.kind = ControllerKind::XInput;
 
-        ControllerSelectionPolicy::AssignAxes (assignments, xbox,                   ControllerAxisAssignment::AxisSet (0x1));
-        ControllerSelectionPolicy::AssignAxes (assignments, MakeStickUnit ("{B}"), ControllerAxisAssignment::AxisSet (0xC));
+        setup.isEnabled         = true;
+        setup.players[0].unit   = xbox;
+        setup.players[0].target = PlayerAxisTarget::Paddle0;
+        setup.players[1].unit   = MakeStickUnit ("{B}");
+        setup.players[1].target = PlayerAxisTarget::Joystick1;
 
         std::vector<std::pair<std::string, JsonValue>>  entries;
 
-        entries.push_back (MachineInputPrefs::BuildAxisAssignmentEntry (assignments));
+        entries.push_back (MachineInputPrefs::BuildMultiplayerEntry (setup));
 
         JsonValue  uiPrefs (std::move (entries));
 
-        readBack = MachineInputPrefs::ReadAxisAssignments (&uiPrefs);
+        readBack = MachineInputPrefs::ReadMultiplayer (&uiPrefs);
 
-        Assert::IsTrue (readBack == assignments, L"which controller holds which axes comes back, PDL2 and PDL3 included");
+        Assert::IsTrue (readBack == setup, L"both players come back, PDL2 and PDL3 included");
     }
 
 
-    TEST_METHOD (AxisAssignments_EmptyListIsStillWritten)
+    TEST_METHOD (Multiplayer_OffIsStillWrittenWithBothSlots)
     {
-        std::pair<std::string, JsonValue>  entry = MachineInputPrefs::BuildAxisAssignmentEntry ({});
+        std::pair<std::string, JsonValue>    entry   = MachineInputPrefs::BuildMultiplayerEntry ({});
+        const JsonValue                    * players = nullptr;
 
         // The block is spliced key by key, so leaving the key out would leave
-        // a cleared assignment in the file.
-        Assert::AreEqual (std::string (MachineInputPrefs::kpszAxesKey), entry.first);
-        Assert::IsTrue   (entry.second.GetType() == JsonType::Array);
-        Assert::AreEqual (size_t (0), entry.second.GetArraySize());
+        // a setup the user turned off in the file.
+        Assert::AreEqual (std::string (MachineInputPrefs::kpszMultiplayerKey), entry.first);
+        Assert::IsTrue   (entry.second.GetType() == JsonType::Object);
+        Assert::IsTrue   (entry.second.HasArray ("players", players) && players != nullptr);
+        Assert::AreEqual (size_t (2), players->GetArraySize(), L"both slots are written, empty or not");
     }
 
 
-    TEST_METHOD (AxisAssignments_UnreadableEntriesAreSkippedAndALaterClaimWins)
+    TEST_METHOD (Multiplayer_UnreadableSlotsAreLeftEmptyAndAnOverlapIsRefused)
     {
-        JsonValue                              doc = ParseOrFail (R"({"$cassoUiPrefs":{"controllerAxes":[
-            {"controller":"xinput","axes":[0,1]},
-            {"controller":"not a token","axes":[2]},
-            {"controller":"xinput"},
-            "junk",
-            {"controller":"dinput:231d:0121/guid:{01661270}","axes":[1,9,-1,"2"]}
-        ]}})");
-        std::vector<ControllerAxisAssignment>  assignments = MachineInputPrefs::ReadAxisAssignments (GetUiPrefsOrFail (doc));
+        JsonValue         doc   = ParseOrFail (R"({"$cassoUiPrefs":{"multiplayer":{"enabled":true,"players":[
+            {"controller":"xinput","maps":"joystick0"},
+            {"controller":"not a token","maps":"joystick1"}
+        ]}}})");
+        MultiplayerSetup  setup = MachineInputPrefs::ReadMultiplayer (GetUiPrefsOrFail (doc));
 
-        Assert::AreEqual (size_t (2), assignments.size(), L"an unreadable token, a missing axis list and a non-object are skipped");
-        Assert::AreEqual (0x1ul, assignments[0].axes.to_ulong(), L"PDL1 went to the later entry, so the first keeps only PDL0");
-        Assert::AreEqual (0x2ul, assignments[1].axes.to_ulong(), L"an axis index out of range, or not a number, is ignored");
+        Assert::IsTrue  (setup.isEnabled,                     L"the mode itself is still on");
+        Assert::IsTrue  (setup.players[0].unit.has_value(),   L"player one is readable and plays");
+        Assert::IsFalse (setup.players[1].unit.has_value(),   L"an unreadable token leaves that slot empty rather than dropping the block");
+
+        JsonValue  clash = ParseOrFail (R"({"$cassoUiPrefs":{"multiplayer":{"enabled":true,"players":[
+            {"controller":"xinput","maps":"joystick0"},
+            {"controller":"dinput:231d:0121/guid:{01661270}","maps":"paddle1"}
+        ]}}})");
+
+        setup = MachineInputPrefs::ReadMultiplayer (GetUiPrefsOrFail (clash));
+
+        Assert::IsFalse (setup.players[1].unit.has_value(),
+            L"a hand-edited file claiming one paddle for both players is normalized, not played");
+    }
+
+
+    TEST_METHOD (Multiplayer_AnUnknownTargetTokenPlaysJoystick0)
+    {
+        JsonValue         doc   = ParseOrFail (R"({"$cassoUiPrefs":{"multiplayer":{"enabled":true,"players":[
+            {"controller":"xinput","maps":"joystick9"}
+        ]}}})");
+        MultiplayerSetup  setup = MachineInputPrefs::ReadMultiplayer (GetUiPrefsOrFail (doc));
+
+        // Every machine with a game port has PDL0 and PDL1, so a target a
+        // newer build wrote degrades to one this machine can play.
+        Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) setup.players[0].target);
+        Assert::AreEqual (std::string ("paddle2"), std::string (MachineInputPrefs::TargetToToken (PlayerAxisTarget::Paddle2)));
+        Assert::AreEqual ((int) PlayerAxisTarget::Paddle3,
+                          (int) MachineInputPrefs::TargetFromToken ("paddle3", PlayerAxisTarget::Joystick0));
     }
 
 

@@ -49,64 +49,120 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Assignment_TheSelectionHoldsPdl0AndPdl1LessWhatOthersHold)
+        // Two players on the two joysticks, which is the setup every rule
+        // below is stated against.
+        static MultiplayerSetup MakeTwoPlayers (const ControllerUnitKey & first, const ControllerUnitKey & second)
         {
-            std::vector<ControllerAxisAssignment>  assignments;
-            ControllerUnitKey                      xbox  = MakeXbox().unit;
-            ControllerUnitKey                      stick = MakeStick ("{A}").unit;
+            MultiplayerSetup  setup;
 
-            Assert::AreEqual (0x3ul, ControllerSelectionPolicy::GetAxesFor (assignments, xbox, xbox, 4).to_ulong(),
-                L"with nothing assigned, the selection holds PDL0 and PDL1, as it always has");
-            Assert::AreEqual (0x0ul, ControllerSelectionPolicy::GetAxesFor (assignments, stick, xbox, 4).to_ulong(),
-                L"and a controller that is neither selected nor assigned holds nothing");
-
-            ControllerSelectionPolicy::AssignAxes (assignments, stick, ControllerAxisAssignment::AxisSet (0x2));
-
-            Assert::AreEqual (0x1ul, ControllerSelectionPolicy::GetAxesFor (assignments, xbox, xbox, 4).to_ulong(),
-                L"assigning PDL1 away leaves the selection PDL0");
-            Assert::AreEqual (0x2ul, ControllerSelectionPolicy::GetAxesFor (assignments, stick, xbox, 4).to_ulong());
+            setup.isEnabled         = true;
+            setup.players[0].unit   = first;
+            setup.players[0].target = PlayerAxisTarget::Joystick0;
+            setup.players[1].unit   = second;
+            setup.players[1].target = PlayerAxisTarget::Joystick1;
+            return setup;
         }
 
 
-        TEST_METHOD (Assignment_DisplacesThePreviousOwnerForThatAxisOnly)
+        TEST_METHOD (Players_DriveOnlyThePaddlesTheirSlotMapsTo)
         {
-            std::vector<ControllerAxisAssignment>  assignments;
-            ControllerUnitKey                      a = MakeStick ("{A}").unit;
-            ControllerUnitKey                      b = MakeStick ("{B}").unit;
+            ControllerUnitKey  xbox   = MakeXbox().unit;
+            ControllerUnitKey  stick  = MakeStick ("{A}").unit;
+            MultiplayerSetup   setup  = MakeTwoPlayers (xbox, stick);
 
-            ControllerSelectionPolicy::AssignAxes (assignments, a, ControllerAxisAssignment::AxisSet (0x3));
-            ControllerSelectionPolicy::AssignAxes (assignments, b, ControllerAxisAssignment::AxisSet (0x1));
+            Assert::AreEqual (0x3ul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 0, 4).to_ulong(),
+                L"player one plays joystick 0, which is PDL0 and PDL1");
+            Assert::AreEqual (0xCul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 1, 4).to_ulong());
 
-            Assert::AreEqual (0x2ul, ControllerSelectionPolicy::GetAxesFor (assignments, a, std::nullopt, 4).to_ulong(),
-                L"the first controller loses PDL0 and keeps PDL1 (FR-036)");
-            Assert::AreEqual (0x1ul, ControllerSelectionPolicy::GetAxesFor (assignments, b, std::nullopt, 4).to_ulong());
-            Assert::AreEqual (size_t (2), assignments.size(), L"reassigning a unit replaces its entry rather than adding one");
+            Assert::IsTrue   (ControllerSelectionPolicy::FindPlayer (setup, stick).value() == 1);
+            Assert::IsFalse  (ControllerSelectionPolicy::FindPlayer (setup, MakeStick ("{OTHER}").unit).has_value(),
+                L"a controller in neither slot is no player, so it plays nothing");
 
-            ControllerSelectionPolicy::AssignAxes (assignments, b, ControllerAxisAssignment::AxisSet (0x3));
+            setup.isEnabled = false;
 
-            Assert::AreEqual (0x0ul, assignments[0].axes.to_ulong(), L"a controller whose last axis is taken holds none");
-            Assert::AreEqual (size_t (2), assignments.size(), L"and keeps its entry, rather than falling back to a default");
+            Assert::AreEqual (0x0ul, ControllerSelectionPolicy::GetAxesForPlayer (setup, 0, 4).to_ulong(),
+                L"with the mode off the slots drive nothing at all");
+            Assert::IsFalse  (ControllerSelectionPolicy::FindPlayer (setup, stick).has_value());
         }
 
 
-        TEST_METHOD (Replacement_PrefersAControllerWithoutAxesOfItsOwn)
+        TEST_METHOD (Normalize_RefusesARepeatedControllerAndAnOverlap)
         {
-            std::vector<ControllerAxisAssignment>  assignments;
-            ControllerDeviceInfo                   gone     = MakeStick ("{GONE}");
-            ControllerDeviceInfo                   assigned = MakeStick ("{ASSIGNED}");
-            ControllerDeviceInfo                   unassigned = MakeStick ("{FREE}");
-            std::vector<ControllerDeviceInfo>      devices    = { assigned, unassigned };
+            ControllerUnitKey  xbox   = MakeXbox().unit;
+            ControllerUnitKey  stick  = MakeStick ("{A}").unit;
+            MultiplayerSetup   same   = MakeTwoPlayers (xbox, xbox);
+            MultiplayerSetup   shared = MakeTwoPlayers (xbox, stick);
+            MultiplayerSetup   fine   = MakeTwoPlayers (xbox, stick);
 
-            ControllerSelectionPolicy::AssignAxes (assignments, assigned.unit, ControllerAxisAssignment::AxisSet (0x2));
+            same = ControllerSelectionPolicy::Normalize (same);
 
-            ControllerSelectionPolicy::Decision  decision = ControllerSelectionPolicy::Evaluate (gone.unit, devices, true, assignments);
+            Assert::IsFalse (same.players[1].unit.has_value(),
+                L"one controller cannot be both players, so the later slot gives way");
+            Assert::IsTrue  (same.players[0].unit.has_value(), L"and the first player is left alone");
 
-            Assert::IsTrue (decision.selection.value() == unassigned.unit,
-                L"the controller already driving its own axis is left to it, though it was attached longer");
+            // Player two asks for a paddle player one already holds as half of
+            // joystick 0.
+            shared.players[1].target = PlayerAxisTarget::Paddle1;
+            shared                   = ControllerSelectionPolicy::Normalize (shared);
 
-            decision = ControllerSelectionPolicy::Evaluate (gone.unit, { assigned }, true, assignments);
+            Assert::IsFalse (shared.players[1].unit.has_value(), L"two players cannot claim one paddle (FR-036)");
 
-            Assert::IsTrue (decision.selection.value() == assigned.unit, L"with no free controller, an assigned one still takes over");
+            fine.players[1].target = PlayerAxisTarget::Paddle2;
+            fine                   = ControllerSelectionPolicy::Normalize (fine);
+
+            Assert::IsTrue  (fine.players[1].unit.has_value(), L"a paddle nobody else holds is kept");
+        }
+
+
+        TEST_METHOD (TargetChoices_LeaveOutTheOtherPlayersAndWhatTheMachineLacks)
+        {
+            ControllerUnitKey              xbox    = MakeXbox().unit;
+            ControllerUnitKey              stick   = MakeStick ("{A}").unit;
+            MultiplayerSetup               setup   = MakeTwoPlayers (xbox, stick);
+            std::vector<PlayerAxisTarget>  choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 4);
+
+            // Player one holds joystick 0, so PDL0 and PDL1 are gone in every
+            // form they could be offered in.
+            Assert::AreEqual (size_t (3), choices.size(), L"joystick 1, paddle 2 and paddle 3 are what is left");
+            Assert::AreEqual ((int) PlayerAxisTarget::Joystick1, (int) choices[0]);
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddle2,   (int) choices[1]);
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddle3,   (int) choices[2]);
+
+            choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 2);
+
+            Assert::AreEqual (size_t (0), choices.size(),
+                L"on a //c player one's joystick 0 is the whole game port, so player two has nothing to take");
+
+            setup.players[0].unit.reset();
+            choices = ControllerSelectionPolicy::GetTargetChoices (setup, 1, 2);
+
+            Assert::AreEqual (size_t (3), choices.size(), L"with no other player, a //c offers joystick 0, paddle 0 and paddle 1");
+            Assert::AreEqual ((int) PlayerAxisTarget::Joystick0, (int) choices[0]);
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddle0,   (int) choices[1]);
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddle1,   (int) choices[2]);
+        }
+
+
+        TEST_METHOD (Replacement_PrefersAControllerNoPlayerIsHolding)
+        {
+            ControllerDeviceInfo               gone   = MakeStick ("{GONE}");
+            ControllerDeviceInfo               held   = MakeStick ("{HELD}");
+            ControllerDeviceInfo               free   = MakeStick ("{FREE}");
+            std::vector<ControllerDeviceInfo>  devices = { held, free };
+            MultiplayerSetup                   setup;
+
+            setup.isEnabled         = true;
+            setup.players[0].unit   = held.unit;
+            setup.players[0].target = PlayerAxisTarget::Joystick0;
+
+            ControllerSelectionPolicy::Decision  decision = ControllerSelectionPolicy::Evaluate (gone.unit, devices, true, setup);
+
+            Assert::IsTrue (decision.selection.value() == free.unit,
+                L"a controller a player is holding is left to them, though it was attached longer");
+
+            decision = ControllerSelectionPolicy::Evaluate (gone.unit, { held }, true, setup);
+
+            Assert::IsTrue (decision.selection.value() == held.unit, L"with no free controller, a player's still takes the selection");
         }
 
 

@@ -17,14 +17,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  AxisBudgetTests
 //
-//  How many paddle axes a machine has bounds what an assignment can drive:
+//  How many paddle axes a machine has bounds what a player slot can drive:
 //  four on the ][, ][+ and //e, two on the //c (FR-034). The machine's own
 //  count is asserted in MachineModelTests; these drive the controller service
 //  across a change of count.
 //
-//  AN ASSIGNMENT THE MACHINE CANNOT PLAY IS IGNORED, NOT DISCARDED. Switching
-//  to a //c and back to a //e must find a four-axis assignment exactly as it
-//  was (FR-035).
+//  A SLOT THE MACHINE CANNOT PLAY IS IGNORED, NOT DISCARDED. Switching to a
+//  //c and back to a //e must find a four-axis setup exactly as it was
+//  (FR-035).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +77,22 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Pdl2Assignment_IgnoredOnATwoAxisMachineAndRestoredOnFour)
+        // Two players: the Xbox controller on joystick 0 and the stick on
+        // joystick 1, which a //c does not have.
+        static MultiplayerSetup MakeTwoPlayers (const ControllerUnitKey & first, const ControllerUnitKey & second)
+        {
+            MultiplayerSetup  setup;
+
+            setup.isEnabled          = true;
+            setup.players[0].unit    = first;
+            setup.players[0].target  = PlayerAxisTarget::Joystick0;
+            setup.players[1].unit    = second;
+            setup.players[1].target  = PlayerAxisTarget::Joystick1;
+            return setup;
+        }
+
+
+        TEST_METHOD (Joystick1Player_PlaysNothingOnATwoAxisMachineAndAgainOnFour)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
@@ -89,7 +104,7 @@ namespace ControllerTests
 
             pushed.connected = true;
             pushed.axes[0]   = 1.0f;
-            pushed.buttons.set (1);
+            pushed.buttons.set (0);
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
@@ -98,64 +113,73 @@ namespace ControllerTests
             backend.SetSample (stick.unit, pushed);
             SkipCalibration (service, stick.unit);
 
-            service.SetSelection (xbox.unit);
-            service.AssignAxes (stick.unit, ControllerAxisAssignment::AxisSet (0x4));
+            service.SetMultiplayer (MakeTwoPlayers (xbox.unit, stick.unit));
             service.SetAxisCount (2);
             service.Tick();
 
             Assert::AreEqual (kCenter, mixer.GetTargetState().paddle[2], L"PDL2 is not driven on a machine with two axes");
             Assert::IsFalse  (mixer.GetTargetState().buttons.test (1),
-                L"a controller whose only axes the machine lacks does not drive the game port at all");
-            Assert::AreEqual (size_t (1), service.GetSnapshot().assignments.size(), L"the assignment is kept, not discarded");
-            Assert::AreEqual (0x4ul, service.GetSnapshot().assignments[0].axes.to_ulong());
+                L"a player whose paddles the machine lacks does not drive the game port at all, buttons included");
+            Assert::IsTrue   (service.GetMultiplayer().players[1].unit.has_value(), L"the slot is kept, not discarded");
 
             service.SetAxisCount (4);
             service.Tick();
 
             Assert::AreEqual (static_cast<Byte> (255), mixer.GetTargetState().paddle[2], L"a machine with four axes plays it again");
-            Assert::IsTrue   (mixer.GetTargetState().buttons.test (1));
+            Assert::IsTrue   (mixer.GetTargetState().buttons.test (1), L"and player two's button reaches PB1");
         }
 
 
-        TEST_METHOD (FourAxisAssignment_PlaysItsFirstTwoOnATwoAxisMachine)
+        TEST_METHOD (SinglePaddlePlayer_PastTheCountPlaysNothingAndIsKept)
         {
             FakeControllerBackend   backend;
             GamePortInputMixer      mixer;
             RecordingGamePortSink   sink;
             ControllerInputService  service (backend, mixer);
             ControllerDeviceInfo    xbox   = MakeXboxDevice();
+            ControllerDeviceInfo    stick  = MakeStickDevice();
+            MultiplayerSetup        setup  = MakeTwoPlayers (xbox.unit, stick.unit);
             ControllerSample        pushed;
 
             pushed.connected = true;
-            pushed.axes[XInputSampleDecoder::kLeftStickX] = 1.0f;
+            pushed.axes[0]   = 1.0f;
+
+            setup.players[1].target = PlayerAxisTarget::Paddle3;
 
             mixer.SetSink (&sink);
             mixer.SetAxisOwner (AxisOwner::Controller);
             backend.AddDevice (xbox, true);
-            backend.SetSample (xbox.unit, pushed);
+            backend.AddDevice (stick);
+            backend.SetSample (stick.unit, pushed);
+            SkipCalibration (service, stick.unit);
 
-            service.SetSelection (xbox.unit);
-            service.AssignAxes (xbox.unit, ControllerAxisAssignment::AxisSet (0xF));
+            service.SetMultiplayer (setup);
             service.SetAxisCount (2);
             service.Tick();
 
-            Assert::AreEqual (static_cast<Byte> (255), mixer.GetTargetState().paddle[0], L"PDL0 is driven on the //c");
-            Assert::AreEqual (kCenter, mixer.GetTargetState().paddle[1]);
-            Assert::AreEqual (0xFul, service.GetSnapshot().assignments[0].axes.to_ulong(), L"and the four-axis assignment survives the switch");
+            Assert::AreEqual (kCenter, mixer.GetTargetState().paddle[1], L"a //c has no PDL3, and the player does not fall back onto PDL1");
+            Assert::AreEqual ((int) PlayerAxisTarget::Paddle3, (int) service.GetMultiplayer().players[1].target,
+                L"and the slot survives the switch");
+
+            service.SetAxisCount (4);
+            service.Tick();
+
+            Assert::AreEqual (static_cast<Byte> (255), mixer.GetTargetState().paddle[3], L"a //e plays it on PDL3");
         }
 
 
-        TEST_METHOD (GetAxesFor_LeavesOutAxesPastTheMachinesCount)
+        TEST_METHOD (GetTargetAxes_LeavesOutPaddlesPastTheMachinesCount)
         {
-            std::vector<ControllerAxisAssignment>  assignments;
-            ControllerUnitKey                      stick = MakeStickDevice().unit;
+            Assert::AreEqual (0x3ul, ControllerSelectionPolicy::GetTargetAxes (PlayerAxisTarget::Joystick0, 4).to_ulong(),
+                L"joystick 0 is PDL0 and PDL1");
+            Assert::AreEqual (0xCul, ControllerSelectionPolicy::GetTargetAxes (PlayerAxisTarget::Joystick1, 4).to_ulong(),
+                L"and joystick 1 is PDL2 and PDL3");
+            Assert::AreEqual (0x4ul, ControllerSelectionPolicy::GetTargetAxes (PlayerAxisTarget::Paddle2, 4).to_ulong());
 
-            ControllerSelectionPolicy::AssignAxes (assignments, stick, ControllerAxisAssignment::AxisSet (0x6));
-
-            Assert::AreEqual (0x2ul, ControllerSelectionPolicy::GetAxesFor (assignments, stick, std::nullopt, 2).to_ulong(),
-                L"PDL2 is left out on a machine with two axes");
-            Assert::AreEqual (0x6ul, ControllerSelectionPolicy::GetAxesFor (assignments, stick, std::nullopt, 4).to_ulong());
-            Assert::AreEqual (0x6ul, assignments[0].axes.to_ulong(), L"asking does not change the assignment");
+            Assert::AreEqual (0x0ul, ControllerSelectionPolicy::GetTargetAxes (PlayerAxisTarget::Joystick1, 2).to_ulong(),
+                L"a machine with two axes has neither of joystick 1's paddles");
+            Assert::AreEqual (0x3ul, ControllerSelectionPolicy::GetTargetAxes (PlayerAxisTarget::Joystick0, 2).to_ulong());
+            Assert::AreEqual (0x0ul, ControllerSelectionPolicy::GetTargetAxes (PlayerAxisTarget::Paddle2, 2).to_ulong());
         }
     };
 }
