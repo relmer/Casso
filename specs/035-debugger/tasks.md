@@ -32,9 +32,9 @@ description: "Task list for 035-debugger"
 
 **Purpose**: Directories, project entries and fixture scaffolding
 
-- [ ] T001 Create directories `CassoCore/Debugger/`, `CassoEmuCore/Debugger/`, `CassoEmuCore/Debugger/Handlers/`, `CassoEmuCore/Debugger/Channel/`, `CassoEmuCore/Ui/Debugger/`, `UnitTest/DebuggerTests/` and `UnitTest/Fixtures/Debugger/Scripts/`. Add a `DebuggerTests` filter folder to `UnitTest/UnitTest.vcxproj.filters` if that project has a filters file.
-- [ ] T002 [P] Create `UnitTest/Fixtures/Debugger/LICENSE` covering the directory: the transcribed 1979 *Apple II Reference Manual* Monitor listing (Apple Computer, Inc., 1979; archive.org item `Apple_II_Reference_Manual_1979_Apple`), marked read-only to the tests that use it.
-- [ ] T003 [P] Confirm the 11 fixture ROMs are present with `scripts/FetchRoms.ps1 -Fixtures` (whitelisted). Record in `specs/035-debugger/research.md` R-010 the SHA-256 of `UnitTest/Fixtures/Apple2.rom` that the listing test pins.
+- [X] T001 Create directories `CassoCore/Debugger/`, `CassoEmuCore/Debugger/`, `CassoEmuCore/Debugger/Handlers/`, `CassoEmuCore/Debugger/Channel/`, `CassoEmuCore/Ui/Debugger/`, `UnitTest/DebuggerTests/` and `UnitTest/Fixtures/Debugger/Scripts/`. Add a `DebuggerTests` filter folder to `UnitTest/UnitTest.vcxproj.filters` if that project has a filters file.
+- [X] T002 [P] Create `UnitTest/Fixtures/Debugger/LICENSE` covering the directory: the transcribed 1979 *Apple II Reference Manual* Monitor listing (Apple Computer, Inc., 1979; archive.org item `Apple_II_Reference_Manual_1979_Apple`), marked read-only to the tests that use it.
+- [X] T003 [P] Confirm the 11 fixture ROMs are present with `scripts/FetchRoms.ps1 -Fixtures` (whitelisted). Record in `specs/035-debugger/research.md` R-010 the SHA-256 of `UnitTest/Fixtures/Apple2.rom` that the listing test pins.
 
 ---
 
@@ -46,10 +46,10 @@ description: "Task list for 035-debugger"
 
 ### Pure CPU-table tools (CassoCore)
 
-- [ ] T004 [P] Write `UnitTest/DebuggerTests/DisassemblerTests.cpp`: every opcode `$00`-`$FF` for the 6502 table (`Cpu::GetMicrocode`, including the undocumented set from `Cpu::InitializeUndocumented`) and for the 65C02 table produced by `Cpu65C02`. Assert the length, mnemonic, operand text in Monitor form (`#$A0`, `($3E),Y`, `$1234,X`), branch target resolution, and `documented` flag per data-model "disassembly" kind. Assert the swept opcode count is 256 per CPU.
-- [ ] T005 Implement `CassoCore/Debugger/Disassembler.h/.cpp`: `Disassembler (const Microcode * table)`, and `DisassembleOne (Word address, std::span<const Byte> bytes)` returning a `DisassembledInstruction {address, bytes, mnemonic, operand, target (optional Word), documented}`. It is built from `Microcode::instructionName` and `globalAddressingMode` and must not reuse `Cpu::PrintSingleStepInfo`. Makes T004 pass.
-- [ ] T006 [P] Transcribe `UnitTest/Fixtures/Debugger/AppleII-1979-MonitorListing.txt` from the 1979 Reference Manual's listing of the **original** Monitor ROM (the one with `S` and `T`), not the Autostart ROM listing the same manual also carries. Before transcribing, compare the listing's first page of bytes against `Apple2.rom` at $F800 to confirm the fixture is that ROM. Format: one line per instruction as `ADDR BYTES MNEMONIC OPERAND`, and data regions as `DATA start-end` lines. Record the transcription's line count in a header comment line starting with `;`.
-- [ ] T007 Write `UnitTest/DebuggerTests/MonitorListing1979Tests.cpp` (FR-028, SC-003), per research R-010:
+- [X] T004 [P] Write `UnitTest/DebuggerTests/DisassemblerTests.cpp`: every opcode `$00`-`$FF` for the 6502 table (`Cpu::GetMicrocode`, including the undocumented set from `Cpu::InitializeUndocumented`) and for the 65C02 table produced by `Cpu65C02`. Assert the length, mnemonic, operand text in Monitor form (`#$A0`, `($3E),Y`, `$1234,X`), branch target resolution, and `documented` flag per data-model "disassembly" kind. Assert the swept opcode count is 256 per CPU.
+- [X] T005 Implement `CassoCore/Debugger/Disassembler.h/.cpp`: `Disassembler (const Microcode * table)`, and `DisassembleOne (Word address, std::span<const Byte> bytes)` returning a `DisassembledInstruction {address, bytes, mnemonic, operand, target (optional Word), documented}`. It is built from `Microcode::instructionName` and `globalAddressingMode` and must not reuse `Cpu::PrintSingleStepInfo`. Makes T004 pass.
+- [X] T006 [P] Transcribe `UnitTest/Fixtures/Debugger/AppleII-1979-MonitorListing.txt` from the 1979 Reference Manual's listing of the **original** Monitor ROM (the one with `S` and `T`), not the Autostart ROM listing the same manual also carries. Before transcribing, compare the listing's first page of bytes against `Apple2.rom` at $F800 to confirm the fixture is that ROM. Format: one line per instruction as `ADDR BYTES MNEMONIC OPERAND`, and data regions as `DATA start-end` lines. Record the transcription's line count in a header comment line starting with `;`.
+- [X] T007 Write `UnitTest/DebuggerTests/MonitorListing1979Tests.cpp` (FR-028, SC-003), per research R-010:
   1. Load `Apple2.rom` through `FixtureProvider`, and assert its $F800-$FFFF bytes equal the transcription's bytes.
   2. Disassemble from $F800, skipping only declared `DATA` regions.
   3. Assert address, length, mnemonic and operand field by field for every line.

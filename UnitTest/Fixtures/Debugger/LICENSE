@@ -1,0 +1,22 @@
+EVERY FILE IN THIS DIRECTORY that is transcribed from a published document is
+third-party material, used as a test fixture. This note covers all files in
+this directory, not any single one of them. It does NOT extend to the parent
+directory or to any sibling directory.
+
+Work:      Apple II Reference Manual (Monitor ROM listing)
+Author:    Apple Computer, Inc.
+Published: 1979
+Source:    https://archive.org/details/Apple_II_Reference_Manual_1979_Apple
+
+AppleII-1979-MonitorListing.txt is a transcription of the instruction column of
+the original Monitor ROM listing printed in that manual. It records addresses,
+bytes, mnemonics and operands only, and is used to check that Casso's
+disassembler agrees with Apple's own listing. It is not compiled into, linked
+into, or distributed with any Casso binary.
+
+Tests MUST treat it as read-only. A mismatch between the listing and Casso is a
+finding about Casso, never a reason to edit the transcription, unless the
+transcription is shown to differ from the printed page.
+
+Scripts/ holds Casso's own debugger scripts and their expected output. They are
+MIT licensed with the rest of Casso.

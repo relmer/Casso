@@ -315,6 +315,9 @@ file recording source and attribution. Data regions in the listing are marked
 4. Asserts the instruction count equals the transcription's line count and is
    non-zero.
 
+**Pinned ROM**: `UnitTest/Fixtures/Apple2.rom`, 12,288 bytes ($D000-$FFFF),
+SHA-256 `F34E573B9DE203203AC4A8C6CAB7AB0F974FACF13C40BF6E362FBB92197199F9`.
+
 **Rationale**: SC-003 requires a 100% match. Declaring data regions makes the
 exclusions visible and reviewable. Checking the bytes first keeps a wrong ROM
 from producing a confusing mnemonic diff.
