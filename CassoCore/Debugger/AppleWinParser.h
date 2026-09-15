@@ -1,0 +1,82 @@
+#pragma once
+
+#include "Debugger/AppleWinCommandTable.h"
+#include "Debugger/DebugCommand.h"
+
+class IDebugExpressionContext;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseStatus / AppleWinParseResult
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ParseStatus
+{
+    Ok,
+    Empty,
+    Unknown,
+    NotAvailable,
+    WindowOnly,
+    Invalid,
+};
+
+struct AppleWinParseResult
+{
+    ParseStatus    status = ParseStatus::Empty;
+    DebugCommand   command;
+    std::string    error;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser
+//
+//  One AppleWin-mode line to one DebugCommand. Addresses and values are
+//  evaluated when the line is parsed, through the context; a breakpoint
+//  condition is parsed and stored, to be evaluated before each instruction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class AppleWinParser
+{
+public:
+    static AppleWinParseResult  Parse (const std::string & line, const IDebugExpressionContext & context);
+
+private:
+    using Tokens = std::vector<std::string>;
+
+    struct Arguments
+    {
+        const AppleWinCommand         * entry;
+        Tokens                          tokens;
+        std::string                     rest;
+        const IDebugExpressionContext * context;
+    };
+
+    static Tokens  Split              (const std::string & text);
+    static std::string  ToUpper       (const std::string & text);
+    static bool    TryParseShorthand  (const std::string & first, const Arguments & args, AppleWinParseResult & result);
+    static bool    TryParseArguments  (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseRunArguments      (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseRegisterArguments (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseFlagArguments     (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseBreakpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseMemoryArguments   (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseListArguments     (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseSymbolArguments   (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseEngineArguments   (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryEvaluate        (const std::string & text, const IDebugExpressionContext & context, Word & value, std::string & error);
+    static bool    TryParseRange      (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool    TryParseValues     (const Tokens & tokens, size_t first, bool isWords, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool    TryParseIdOrAll    (const Tokens & tokens, DebugCommand & command, std::string & error);
+    static bool    TryParseCondition  (const std::string & subject, const Tokens & tokens, size_t first, DebugCommand & command, std::string & error);
+};

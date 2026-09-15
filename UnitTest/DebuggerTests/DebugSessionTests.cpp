@@ -84,6 +84,27 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (GoWithStopAddress_RunsTo)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            DebugCommand     go = MakeCommand (DebugVerb::Go, "G");
+
+
+
+            go.a1    = 0xC600;
+            go.hasA1 = true;
+            session.Execute (go);
+
+            Assert::AreEqual ((int) RunKind::RunTo, (int) target.runs.at (0).kind);
+            Assert::IsTrue   (target.runs[0].hasUntilPc);
+            Assert::AreEqual ((Word) 0xC600,        target.runs[0].untilPc);
+            Assert::AreEqual ((int) RunState::DebugRun, (int) session.GetRunState());
+        }
+
+
+
         TEST_METHOD (Run_WhileRunning_IsError)
         {
             MockDebugTarget  target;

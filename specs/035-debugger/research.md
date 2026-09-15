@@ -425,6 +425,20 @@ but not precedence or dereference. Casso fills the gaps as follows:
   other name is a symbol. `$` forces hex.
 - `!` complements within 16 bits; comparisons produce 1 or 0.
 
+**Argument forms the help pages do not document**, decided for Casso:
+
+- `ECHO text`, `PRINTF format args`, `LOG file`, `RUN file`, `CD path`,
+  `DISK ...` and the other file and text commands take the rest of the line
+  verbatim. `CALC expr` and `PRINT expr` evaluate one expression.
+- `M dest src,len` and `MC dest src,len` put the destination first; a range
+  is `addr`, `addr,len` or `addr:last` everywhere.
+- Ids for `BPC`, `BPD`, `BPE`, `WC`, `ZPC`, `BMC` and the like are decimal, as
+  AppleWin lists them; `*` means all.
+- `BUDGET n` takes decimal, as `--max-cycles` does.
+- `SYM name = addr` adds, `SYM ! name` removes, and an argument containing a
+  period is a file to load; the table is the one the command's name selects.
+- `addr:bytes` deposits and `addrG` sets PC and goes, as AppleWin accepts.
+
 ## R-015: Determinism
 
 **Decision**: In batch mode:

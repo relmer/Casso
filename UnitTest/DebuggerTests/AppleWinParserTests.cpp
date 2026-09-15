@@ -1,0 +1,275 @@
+#include "Pch.h"
+
+#include "Debugger/AppleWinParser.h"
+#include "MockExpressionContext.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParserTests
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace DebuggerTests
+{
+    TEST_CLASS (AppleWinParserTests)
+    {
+    public:
+
+        static AppleWinParseResult ParseOk (const std::string & line)
+        {
+            MockExpressionContext  context;
+            AppleWinParseResult    result = AppleWinParser::Parse (line, context);
+            std::wstring           where (line.begin(), line.end());
+
+
+
+            Assert::AreEqual ((int) ParseStatus::Ok, (int) result.status, (where + L": " + std::wstring (result.error.begin(), result.error.end())).c_str());
+            return result;
+        }
+
+        static AppleWinParseResult ParseFails (const std::string & line, ParseStatus status)
+        {
+            MockExpressionContext  context;
+            AppleWinParseResult    result = AppleWinParser::Parse (line, context);
+            std::wstring           where (line.begin(), line.end());
+
+
+
+            Assert::AreEqual ((int) status, (int) result.status, where.c_str());
+            Assert::IsFalse  (result.error.empty(), where.c_str());
+            return result;
+        }
+
+
+
+        TEST_METHOD (Names_IgnoreCase_HexWithAndWithoutDollar)
+        {
+            Assert::AreEqual ((int) DebugVerb::SetReadWatchpoint, (int) ParseOk ("bpmr C019").command.verb);
+            Assert::AreEqual ((Word) 0xC019,                      ParseOk ("BPMR $C019").command.a1);
+            Assert::AreEqual ((Word) 0xC019,                      ParseOk ("BpMr c019").command.a1);
+        }
+
+
+
+        TEST_METHOD (Expressions_ThroughEvaluator)
+        {
+            Assert::AreEqual ((Word) 0x0302, ParseOk ("BP PC+2").command.a1);
+            Assert::AreEqual ((Word) 0xFC58, ParseOk ("BP HOME").command.a1);
+            Assert::AreEqual ((Word) 10,     ParseOk ("BP #10").command.a1);
+        }
+
+
+
+        TEST_METHOD (Ranges_LengthAndLast)
+        {
+            AppleWinParseResult  length = ParseOk ("BPM 400,10");
+            AppleWinParseResult  last   = ParseOk ("D 300:30F");
+            AppleWinParseResult  single = ParseOk ("U 300");
+
+
+
+            Assert::AreEqual ((Word) 0x0400, length.command.a1);
+            Assert::AreEqual ((Word) 0x040F, length.command.a2);
+            Assert::AreEqual ((Word) 0x030F, last.command.a2);
+            Assert::IsTrue   (single.command.hasA1);
+            Assert::IsFalse  (single.command.hasA2);
+            ParseFails ("BPM 400,0", ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (Run_StopSkipAndCounts)
+        {
+            AppleWinParseResult  go   = ParseOk ("G C600 D000,3000");
+            AppleWinParseResult  bare = ParseOk ("GG");
+
+
+
+            Assert::AreEqual ((Word) 0xC600, go.command.a1);
+            Assert::AreEqual ((Word) 0xD000, go.command.a2);
+            Assert::AreEqual ((Word) 0xFFFF, go.command.a3);
+            Assert::IsFalse  (bare.command.hasA1);
+            Assert::AreEqual ((int) DebugVerb::GoFullSpeed, (int) bare.command.verb);
+            Assert::AreEqual ((uint32_t) 16, ParseOk ("T 10").command.count);
+            Assert::AreEqual ((uint32_t) 1,  ParseOk ("P").command.count);
+        }
+
+
+
+        TEST_METHOD (Registers_ShowAndSet)
+        {
+            AppleWinParseResult  set  = ParseOk ("R A=41");
+            AppleWinParseResult  pc   = ParseOk ("r pc = FA62");
+            AppleWinParseResult  hash = ParseOk ("R A #10");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::ShowRegisters, (int) ParseOk ("R").command.verb);
+            Assert::AreEqual ((int) DebugVerb::SetRegister,   (int) set.command.verb);
+            Assert::AreEqual (std::string ("A"),  set.command.text);
+            Assert::AreEqual ((Word) 0x41,        set.command.a1);
+            Assert::AreEqual (std::string ("PC"), pc.command.text);
+            Assert::AreEqual ((Word) 0xFA62,      pc.command.a1);
+            Assert::AreEqual ((Word) 10,          hash.command.a1);
+            ParseFails ("R Q 1", ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (Flags_FromNameOrArgument)
+        {
+            Assert::AreEqual (std::string ("C"), ParseOk ("CLC").command.text);
+            Assert::AreEqual (std::string ("Z"), ParseOk ("RZ").command.text);
+            Assert::AreEqual (std::string ("N"), ParseOk ("SN").command.text);
+            Assert::AreEqual (std::string ("D"), ParseOk ("SE d").command.text);
+            ParseFails ("CL Q", ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (Breakpoints_ConditionsIdsAndOpcodes)
+        {
+            AppleWinParseResult  bpr   = ParseOk ("BPR A ! 0");
+            AppleWinParseResult  bprEq = ParseOk ("BPR A 0");
+            AppleWinParseResult  bpx   = ParseOk ("BPX < FA62");
+            AppleWinParseResult  op    = ParseOk ("BRKOP 6C");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::SetRegisterBreakpoint,    (int) bpr.command.verb);
+            Assert::AreEqual (std::string ("A!=0"),  bpr.command.expression.text);
+            Assert::AreEqual (std::string ("A=0"),   bprEq.command.expression.text);
+            Assert::AreEqual ((int) DebugVerb::SetConditionalBreakpoint, (int) bpx.command.verb);
+            Assert::AreEqual (std::string ("PC<FA62"), bpx.command.expression.text);
+            Assert::AreEqual ((Byte) 0x6C,           op.command.values.at (0));
+            Assert::AreEqual ((uint32_t) 3,          ParseOk ("BPC 3").command.count);
+            Assert::AreEqual (std::string ("*"),     ParseOk ("BPC *").command.text);
+            Assert::AreEqual (std::string ("ALL ON"), ParseOk ("brk all on").command.text);
+            ParseFails ("BPC x", ParseStatus::Invalid);
+            ParseFails ("BPM",   ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (Memory_EnterFillSearchMoveAndFiles)
+        {
+            AppleWinParseResult  me   = ParseOk ("ME 300 A9 41 60");
+            AppleWinParseResult  mew  = ParseOk ("MEW 300 1234");
+            AppleWinParseResult  fill = ParseOk ("F 300,10 EA");
+            AppleWinParseResult  move = ParseOk ("M 800 300,10");
+            AppleWinParseResult  load = ParseOk ("BLOAD out.bin 300");
+
+
+
+            Assert::IsTrue   (std::vector<Byte> ({ 0xA9, 0x41, 0x60 }) == me.command.values);
+            Assert::IsTrue   (std::vector<Byte> ({ 0x34, 0x12 })       == mew.command.values);
+            Assert::AreEqual ((Word) 0x030F, fill.command.a2);
+            Assert::AreEqual ((Byte) 0xEA,   fill.command.values.at (0));
+            Assert::AreEqual ((Word) 0x0800, move.command.a3);
+            Assert::AreEqual ((Word) 0x0300, move.command.a1);
+            Assert::AreEqual (std::string ("out.bin"), load.command.text);
+            Assert::AreEqual ((Word) 0x0300, load.command.a1);
+            ParseFails ("ME 300 1234", ParseStatus::Invalid);
+            ParseFails ("BSAVE",       ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (Shorthand_DepositAndGo)
+        {
+            AppleWinParseResult  deposit = ParseOk ("300:60");
+            AppleWinParseResult  spaced  = ParseOk ("300: A9 00");
+            AppleWinParseResult  go      = ParseOk ("300G");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::EnterBytes, (int) deposit.command.verb);
+            Assert::AreEqual ((Word) 0x0300,               deposit.command.a1);
+            Assert::IsTrue   (std::vector<Byte> ({ 0x60 }) == deposit.command.values);
+            Assert::IsTrue   (std::vector<Byte> ({ 0xA9, 0x00 }) == spaced.command.values);
+            Assert::AreEqual ((int) DebugVerb::Go,         (int) go.command.verb);
+            Assert::AreEqual ((Word) 0x0300,               go.command.a3);
+        }
+
+
+
+        TEST_METHOD (Lists_AddressesIdsAndSlots)
+        {
+            AppleWinParseResult  zp = ParseOk ("ZP3 36");
+
+
+
+            Assert::AreEqual ((Word) 0x0036,  ParseOk ("WA 36").command.a1);
+            Assert::AreEqual ((uint32_t) 3,   zp.command.count);
+            Assert::AreEqual ((Word) 0x0036,  zp.command.a1);
+            Assert::AreEqual ((uint32_t) 2,   ParseOk ("BMC 2").command.count);
+            Assert::AreEqual (std::string ("*"), ParseOk ("WC *").command.text);
+        }
+
+
+
+        TEST_METHOD (Symbols_LookupAddRemoveLoad)
+        {
+            AppleWinParseResult  add = ParseOk ("SYM LIFE = 300");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::AddSymbol,    (int) add.command.verb);
+            Assert::AreEqual (std::string ("LIFE"),          add.command.text);
+            Assert::AreEqual ((Word) 0x0300,                 add.command.a1);
+            Assert::AreEqual ((int) DebugVerb::RemoveSymbol, (int) ParseOk ("SYM ! LIFE").command.verb);
+            Assert::AreEqual ((int) DebugVerb::LoadSymbols,  (int) ParseOk ("SYMUSER game.sym").command.verb);
+            Assert::AreEqual ((int) DebugVerb::LookupSymbol, (int) ParseOk ("SYM HOME").command.verb);
+        }
+
+
+
+        TEST_METHOD (Engine_ModePauseBudget)
+        {
+            AppleWinParseResult  mode   = ParseOk ("MODE monitor");
+            AppleWinParseResult  budget = ParseOk ("BUDGET 5000000");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::SetMode,     (int) mode.command.verb);
+            Assert::AreEqual ((int) CommandMode::Monitor,   (int) mode.command.mode);
+            Assert::AreEqual ((int) DebugVerb::ShowMode,    (int) ParseOk ("MODE").command.verb);
+            Assert::AreEqual ((int) DebugVerb::Pause,       (int) ParseOk ("PAUSE").command.verb);
+            Assert::AreEqual ((uint32_t) 5000000,           budget.command.count);
+            Assert::AreEqual ((uint32_t) 0,                 ParseOk ("BUDGET 0").command.count);
+            ParseFails ("MODE sideways", ParseStatus::Invalid);
+            ParseFails ("BUDGET C000",   ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (UnknownWindowOnlyAndNotAvailable)
+        {
+            MockExpressionContext  context;
+
+
+
+            ParseFails ("FROB",  ParseStatus::Unknown);
+            ParseFails ("HGR",   ParseStatus::WindowOnly);
+            ParseFails ("SHR",   ParseStatus::NotAvailable);
+
+            Assert::AreEqual (std::string ("HGR needs the debugger window."), AppleWinParser::Parse ("hgr", context).error);
+            Assert::AreEqual ((int) ParseStatus::Empty, (int) AppleWinParser::Parse ("   ", context).status);
+        }
+
+
+
+        TEST_METHOD (TextArguments_KeepRestOfLine)
+        {
+            Assert::AreEqual (std::string ("hello,  world"), ParseOk ("ECHO hello,  world").command.text);
+            Assert::AreEqual (std::string ("C:\\disks"),     ParseOk ("CD C:\\disks").command.text);
+            Assert::AreEqual (std::string ("script.txt"),    ParseOk ("RUN script.txt").command.text);
+        }
+    };
+}

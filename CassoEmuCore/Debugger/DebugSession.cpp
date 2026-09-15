@@ -413,6 +413,12 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 
     TryGetRunKind (command.verb, request.kind);
 
+    // G with a stop address runs to it.
+    if (request.kind == RunKind::Go && command.hasA1)
+    {
+        request.kind = RunKind::RunTo;
+    }
+
     isStep             = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
     request.fullSpeed  = command.verb == DebugVerb::GoFullSpeed;
     request.hasUntilPc = command.hasA1 && request.kind == RunKind::RunTo;

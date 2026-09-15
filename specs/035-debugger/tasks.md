@@ -141,13 +141,13 @@ description: "Task list for 035-debugger"
   - a name in no list is `Unknown`;
   - the listed-name count is asserted non-zero, and the phase-1, phase-3 and not-available counts are printed and recorded in plan.md Scale/Scope.
 - [X] T029 [US1] Implement `CassoCore/Debugger/AppleWinCommandTable.h/.cpp`, a file-scope `static constexpr` table (`s_kAppleWinCommands`) of `{name, family, phase, availability, reason}`. Makes T028 pass.
-- [ ] T030 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinParserTests.cpp`:
+- [X] T030 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinParserTests.cpp`:
   - case-insensitive names;
   - `$` and bare hex;
   - expressions through `DebugExpressionEvaluator`;
   - argument forms for each family, taken from AppleWin's help pages `help/dbg-*.html` (names and behavior only, never implementation; R-014);
   - Casso engine commands `MODE`, `MODE APPLEWIN`, `MODE MONITOR`, `PAUSE` and `BUDGET`.
-- [ ] T031 [US1] Implement `CassoCore/Debugger/AppleWinParser.h/.cpp` producing `DebugCommand`. Makes T030 pass.
+- [X] T031 [US1] Implement `CassoCore/Debugger/AppleWinParser.h/.cpp` producing `DebugCommand`. Makes T030 pass.
 - [ ] T032 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinFormatterTests.cpp`, pinning text per `contracts/command-modes.md`:
   - `R` as `A:00 X:00 Y:00 P:30 S:FF PC:0300` plus a flag string;
   - `D` as eight bytes per row with ASCII;
