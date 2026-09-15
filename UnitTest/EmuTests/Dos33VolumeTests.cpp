@@ -1573,6 +1573,89 @@ public:
         Assert::AreEqual (before.freeUnits - 2, after.freeUnits);
     }
 
+    TEST_METHOD (FindEntry_ASharedName_IsRefusedUnlessTheIndexPicksOne)
+    {
+        // Heading entries on Merlin's disk share names. A name alone must not
+        // act on whichever comes first; the catalog index selects one entry, and
+        // a rename through it changes that entry and no other.
+        FixtureProvider  fixtures;
+        vector<Byte>     disk;
+        vector<Byte>     result;
+        Dos33Volume      volume (disk);
+        Dos33Volume      written (result);
+        VolumeListing    before;
+        VolumeListing    after;
+        FilePayload      payload;
+        std::string      shared;
+        size_t           first   = 0;
+        size_t           second  = 0;
+        size_t           i       = 0;
+        size_t           j       = 0;
+        bool             found   = false;
+
+        AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proDos2.23.dsk", disk));
+        AssertSucceeded (volume.Enumerate (before));
+
+        for (i = 0; i < before.entries.size() && !found; i++)
+        {
+            for (j = i + 1; j < before.entries.size() && !found; j++)
+            {
+                if (before.entries[i].name == before.entries[j].name)
+                {
+                    first  = i;
+                    second = j;
+                    found  = true;
+                }
+            }
+        }
+
+        Assert::IsTrue (found, L"this disk must carry entries that share a name");
+
+        shared = before.entries[first].name;
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DUP_NAME), volume.Read (FilePath::FromName (shared), payload),
+            L"a shared name alone matches no single entry");
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DUP_NAME), volume.Rename (FilePath::FromName (shared), "HEADING", result),
+            L"and nothing is renamed through it");
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
+                          volume.Read (FilePath::FromName ("HELLO").WithLeafIndex (second), payload),
+            L"an index whose entry has another name is not a match");
+
+        //  Every heading is locked. Unlock the SECOND entry of the name, found by
+        //  walking the catalog chain to its slot, so renaming it through its
+        //  index is not the same act as renaming the first match.
+        {
+            constexpr size_t  kSectorBytes = 256;
+            constexpr size_t  kEntryBase   = 0x0B;
+            constexpr size_t  kEntrySize   = 35;
+            size_t            track        = disk[17 * 16 * kSectorBytes + 1];
+            size_t            sector       = disk[17 * 16 * kSectorBytes + 2];
+            size_t            hops         = second / 7;
+            size_t            slotOffset   = 0;
+
+            for (i = 0; i < hops; i++)
+            {
+                size_t  here = (track * 16 + sector) * kSectorBytes;
+
+                track  = disk[here + 1];
+                sector = disk[here + 2];
+            }
+
+            slotOffset = (track * 16 + sector) * kSectorBytes + kEntryBase + (second % 7) * kEntrySize;
+
+            Assert::AreEqual ((Byte) 0xC1, disk[slotOffset + 3], L"the slot contains the heading's name");
+
+            disk[slotOffset + 2] = (Byte) (disk[slotOffset + 2] & 0x7F);
+        }
+
+        AssertSucceeded (volume.Rename (FilePath::FromName (shared).WithLeafIndex (second), "HEADING", result));
+        AssertSucceeded (written.Enumerate (after));
+
+        Assert::AreEqual (std::string ("HEADING"), after.entries[second].name, L"the entry at the index is renamed");
+        Assert::AreEqual (shared, after.entries[first].name, L"and the first entry of that name is not");
+        Assert::AreEqual (second, after.entries[second].catalogIndex);
+    }
+
     TEST_METHOD (Delete_OnARealDisk_ReturnsExactlyWhatItSaysItReturned)
     {
         FixtureProvider  fixtures;

@@ -84,6 +84,10 @@ struct FileEntry
     //  entry; DOS 3.3 records nothing, and a zero here would read as 1970.
     int64_t      modifiedUnix   = 0;
     bool         hasModified    = false;
+
+    //  Where the entry sits in its directory's catalog, from 0. DOS 3.3 names
+    //  can repeat, and this distinguishes two entries with the same name.
+    size_t       catalogIndex   = 0;
 };
 
 

@@ -58,7 +58,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Get,
         "get | read",
         "Read a file from the disk",
-        "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
+        "CassoCli disk get <image> <name> [%Lindex <n>] [%Lout <file>] [%Ltext | %Lbasic]",
+        "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n"
         "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead\n"
         "  %Ltext                  Convert Apple high-ASCII encoding and line endings to standard ASCII with Windows line endings\n"
         "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
@@ -98,8 +99,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Delete,
         "delete | del | rm",
         "Delete a file from the disk",
-        "CassoCli disk delete <image> <name>",
-        nullptr,
+        "CassoCli disk delete <image> <name> [%Lindex <n>]",
+        "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n",
         nullptr,
         "CassoCli disk delete mydisk.dsk OLDPROG" 
     },
@@ -108,8 +109,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Boot,
         "boot",
         "Set the program that runs when the disk is booted",
-        "CassoCli disk boot <image> <name>",
-        nullptr,
+        "CassoCli disk boot <image> <name> [%Lindex <n>]",
+        "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n",
         "The program has to be on the volume already, and the image must contain the DOS 3.3 or ProDOS operating system; simply"
         " being formatted as DOS 3.3 or ProDOS is not sufficient. On DOS 3.3 disks, the file must be an Applesoft BASIC (type A)"
         " or Integer BASIC (type I) program. On ProDOS disks, the file must be a system file (type SYS), and cannot be the kernel itself.",

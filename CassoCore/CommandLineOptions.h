@@ -147,6 +147,8 @@ struct CommandLineOptions
 
         std::string  imagePath;                        // the disk image
         std::string  path;                             // the file ON the disk
+        size_t       index          = 0;               // --index: which entry in catalog order, from 1
+        bool         hasIndex       = false;
         std::string  hostFile;                         // source for put, --out for get
         std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --load

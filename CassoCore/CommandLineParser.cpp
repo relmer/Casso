@@ -244,6 +244,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "logical",
     "physical",
     "block",
+    "index",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -1019,7 +1020,8 @@ const char * CommandLineParser::GetDiskCommandWord (CommandLineOptions::DiskOpti
 bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
     return arg == "--out"  || arg == "--as"   || arg == "--type"
-        || arg == "--load" || arg == "--exec" || arg == "--on-change";
+        || arg == "--load" || arg == "--exec" || arg == "--on-change"
+        || arg == "--index";
 }
 
 
@@ -1262,6 +1264,31 @@ void CommandLineParser::ParseDiskOptions (
         {
             options.disk.path = argv[i + 1];
             i++;
+            continue;
+        }
+
+        //  The catalog position of one of several entries with the same name,
+        //  counting from 1 as `disk list` prints it.
+        if (arg == "--index" && hasValue)
+        {
+            std::string    value  = argv[++i];
+            char         * end    = nullptr;
+            unsigned long  parsed = strtoul (value.c_str(), &end, 10);
+            bool           valid  = !value.empty() && end != nullptr && *end == '\0' && parsed >= 1;
+
+            if (!valid)
+            {
+                Refusal (options) << "Error: illegal " << FormatLongOption ("--index", options.flagPrefix) << " value\n"
+                                  << "       The index must identify a duplicate name, as shown by the 'disk list' command.\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+            else
+            {
+                options.disk.index    = (size_t) parsed;
+                options.disk.hasIndex = true;
+            }
+
             continue;
         }
 

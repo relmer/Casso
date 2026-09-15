@@ -586,11 +586,12 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
     {
         FileEntry  listed;
 
-        listed.name        = entry.name;
-        listed.type        = (Byte) (entry.typeByte & ~kLockedBit);
-        listed.isLocked    = (entry.typeByte & kLockedBit) != 0;
-        listed.sizeUnits   = entry.sectorCount;
-        listed.isDirectory = false;
+        listed.catalogIndex = outListing.entries.size();
+        listed.name         = entry.name;
+        listed.type         = (Byte) (entry.typeByte & ~kLockedBit);
+        listed.isLocked     = (entry.typeByte & kLockedBit) != 0;
+        listed.sizeUnits    = entry.sectorCount;
+        listed.isDirectory  = false;
 
         //  A binary's load address is in its first two bytes, not the catalog,
         //  so listing it costs a walk to the file's first data sector.
@@ -647,7 +648,6 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
     bool                 single      = path.IsSingleComponent();
-    bool                 found       = false;
     bool                 walked      = false;
     bool                 fullyParsed = true;
     uint16_t             owner       = 0;
@@ -662,8 +662,8 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
     CollectEntries (entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
 
     {
         ChainWalkGuard    guard (kUnitCount);
@@ -854,6 +854,66 @@ bool Dos33Volume::TryFindEntry (
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::FindEntry
+//
+//  DOS USES THE FIRST MATCH; THIS DOES NOT. DOS 3.3 does not enforce unique
+//  names: a catalog editor writes entries directly, and the Merlin disk has ten
+//  identical heading entries. Using the first of several would delete or
+//  rename an entry the caller did not select, so a shared name returns
+//  ERROR_DUP_NAME, and the catalog index selects exactly one entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::FindEntry (
+    const vector<RawEntry>  & entries,
+    const FilePath          & path,
+    uint16_t                & outOwner)
+{
+    HRESULT      hr      = S_OK;
+    std::string  leaf    = path.GetLeaf();
+    size_t       matches = 0;
+    size_t       index   = 0;
+    bool         inRange = false;
+    bool         named   = false;
+
+
+
+    if (path.HasLeafIndex())
+    {
+        index   = path.GetLeafIndex();
+        inRange = index < entries.size();
+        CBREx (inRange, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+        named = _stricmp (entries[index].name.c_str(), leaf.c_str()) == 0;
+        CBREx (named, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+        outOwner = (uint16_t) index;
+    }
+    else
+    {
+        for (index = 0; index < entries.size(); index++)
+        {
+            if (_stricmp (entries[index].name.c_str(), leaf.c_str()) == 0)
+            {
+                outOwner = (matches == 0) ? (uint16_t) index : outOwner;
+                matches++;
+            }
+        }
+
+        CBREx (matches > 0,  HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+        CBREx (matches == 1, HRESULT_FROM_WIN32 (ERROR_DUP_NAME));
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -1417,6 +1477,7 @@ HRESULT Dos33Volume::Write (
     bool                 single      = path.IsSingleComponent();
     bool                 nameOk      = false;
     bool                 exists      = false;
+    bool                 ambiguous   = false;
     bool                 isLocked    = false;
     bool                 fullyParsed = true;
     Byte                 typeByte    = (Byte) (payload.type & ~kLockedBit);
@@ -1443,7 +1504,14 @@ HRESULT Dos33Volume::Write (
 
     CollectEntries (entries, damage, fullyParsed);
 
-    exists = TryFindEntry (entries, path.GetLeaf(), owner);
+    //  Replacing one of several entries with a name would replace whichever
+    //  comes first, so a shared name returns ERROR_DUP_NAME here too.
+    hr        = FindEntry (entries, path, owner);
+    exists    = SUCCEEDED (hr);
+    ambiguous = hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME);
+    CBREx (!ambiguous, hr);
+
+    hr = S_OK;
 
     if (exists)
     {
@@ -1576,7 +1644,6 @@ HRESULT Dos33Volume::Delete (
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
     bool                   single      = path.IsSingleComponent();
-    bool                   found       = false;
     bool                   isLocked    = false;
     bool                   fullyParsed = true;
     uint16_t               owner       = 0;
@@ -1592,8 +1659,8 @@ HRESULT Dos33Volume::Delete (
 
     CollectEntries (entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
 
     isLocked = (entries[owner].typeByte & kLockedBit) != 0;
     CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
@@ -1723,7 +1790,6 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
     size_t                 bufferBytes = m_sectors.size();
     bool                   single      = path.IsSingleComponent();
     bool                   hasDos      = false;
-    bool                   found       = false;
     bool                   fullyParsed = true;
     uint16_t               owner       = 0;
     size_t                 i           = 0;
@@ -1742,8 +1808,8 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
 
     CollectEntries (entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
 
     hr = BuildIntegrityReport (report);
     CHRA (hr);
@@ -1829,7 +1895,6 @@ HRESULT Dos33Volume::Rename (
     size_t                 bufferBytes = m_sectors.size();
     bool                   single      = from.IsSingleComponent();
     bool                   nameOk      = false;
-    bool                   found       = false;
     bool                   taken       = false;
     bool                   isLocked    = false;
     bool                   fullyParsed = true;
@@ -1852,8 +1917,8 @@ HRESULT Dos33Volume::Rename (
 
     CollectEntries (entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, from.GetLeaf(), owner);
-    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    hr = FindEntry (entries, from, owner);
+    CHR (hr);
 
     isLocked = (entries[owner].typeByte & kLockedBit) != 0;
     CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));

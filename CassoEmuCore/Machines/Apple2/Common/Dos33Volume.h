@@ -244,6 +244,13 @@ private:
                                const std::string       & leaf,
                                uint16_t                & outOwner);
 
+    //  One entry by path: at its catalog index when the path includes one, whose
+    //  name must still match, and otherwise by a name only one entry has.
+    //  Returns ERROR_DUP_NAME for a name that several entries share.
+    static HRESULT  FindEntry (const vector<RawEntry>  & entries,
+                               const FilePath          & path,
+                               uint16_t                & outOwner);
+
     //  A catalog slot is reusable only when its track byte says never-used or
     //  deleted. AN ENTRY OCCUPYING NO SECTORS IS STILL AN ENTRY -- twenty of
     //  the sixty-three on Merlin's own disk are exactly that, drawing headings

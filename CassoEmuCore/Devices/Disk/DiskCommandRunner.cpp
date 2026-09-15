@@ -415,6 +415,9 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
           "and free of commas and control characters" },
         { HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
           "is not on this volume" },
+        { HRESULT_FROM_WIN32 (ERROR_DUP_NAME),
+          "does not identify a specific file because the name is not unique. Use 'disk list' to show "
+          "indexes, then specify both <name> and --index to select that file" },
         { HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE),
           "is larger than this filesystem can record for one file" },
         { HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
@@ -500,9 +503,24 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
 
         for (const FileEntry & entry : listing.entries)
         {
+            size_t  sharing = 0;
+
+            for (const FileEntry & other : listing.entries)
+            {
+                sharing += (_stricmp (other.name.c_str(), entry.name.c_str()) == 0) ? 1 : 0;
+            }
+
             result.output += (opened.kind == VolumeKind::Dos33)
                            ? FormatDos33Entry (entry)
                            : FormatProDosEntry (entry);
+
+            //  A name that several entries share cannot select one of them, so
+            //  each such entry is listed with its index. A unique name has none.
+            if (sharing > 1)
+            {
+                snprintf (summary, sizeof (summary), "  (index %u)", (unsigned) (entry.catalogIndex + 1));
+                result.output += summary;
+            }
 
             result.output += "\n";
         }
@@ -664,6 +682,7 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     DiskImageSession::OpenedImage  opened;
     FilePayload                    payload;
     FilePath                       path;
+    std::string                    name;
     char                           note[128] = {};
 
 
@@ -673,7 +692,8 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
 
-    path = FilePath::Parse (options.disk.path);
+    hr = ResolveEntryPath (options, opened, path, name, result);
+    CHR (hr);
 
     {
         Dos33Volume   dos (opened.sectors);
@@ -685,8 +705,11 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
         hr = volume.Read (path, payload);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
-                    "could not be read from this volume"));
+    //  For a name that several entries share, the message explains how to
+    //  select one. Any other read failure keeps the generic message.
+    CHRF (hr, result.Fail (options.disk.imagePath, name,
+                    (hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME)) ? ApplyPrefix (DescribeVolumeRefusal (hr))
+                                                                : std::string ("could not be read from this volume")));
 
     hr = ApplyEncoding (options, payload, result);
     CHR (hr);
@@ -706,7 +729,7 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     if (payload.hasLoadAddress)
     {
         snprintf (note, sizeof (note), "%s: loads at $%04X, %u bytes\n",
-                  options.disk.path.c_str(),
+                  name.c_str(),
                   (unsigned) payload.loadAddress,
                   (unsigned) payload.bytes.size());
 
@@ -722,7 +745,7 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
                   "unreadable sectors were delivered as zeros",
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
-        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, options.disk.path, note) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, name, note) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -1251,6 +1274,7 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
     bool                           named   = !options.disk.path.empty();
     DiskImageSession::OpenedImage  opened;
     FilePath                       path;
+    std::string                    name;
     DeleteOutcome                  outcome;
     vector<Byte>                   edited;
 
@@ -1261,7 +1285,8 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
 
-    path = FilePath::Parse (options.disk.path);
+    hr = ResolveEntryPath (options, opened, path, name, result);
+    CHR (hr);
 
     {
         Dos33Volume   dos (opened.sectors);
@@ -1275,7 +1300,7 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
         hr = volume.Delete (path, edited, outcome);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
+    CHRF (hr, result.Fail (options.disk.imagePath, name,
                     ApplyPrefix (DescribeVolumeRefusal (hr))));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
@@ -1283,12 +1308,96 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
 
     for (const std::string & warning : outcome.warnings)
     {
-        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, options.disk.path, warning) + "\n";
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, name, warning) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ResolveEntryPath
+//
+//  Without --index, the path is the name as typed. With it, the path is the
+//  DOS 3.3 entry at that catalog position, and a name given alongside must
+//  match that entry, so an outdated index fails instead of acting on a
+//  different file.
+//
+//  --INDEX IS VALID ONLY FOR A NAME THAT SEVERAL ENTRIES SHARE. ProDOS names
+//  are unique within a directory, and a DOS 3.3 name that only one entry has
+//  already identifies that entry, so any other use is an error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveEntryPath (
+    const CommandLineOptions             & options,
+    const DiskImageSession::OpenedImage  & opened,
+    FilePath                             & outPath,
+    std::string                          & outName,
+    DiskCommandResult                    & result)
+{
+    HRESULT        hr        = S_OK;
+    std::string    notAllowed = "--index is only allowed when identifying a specific file with a non-unique name";
+    size_t         position  = options.disk.index - 1;
+    size_t         sharing   = 0;
+    bool           isDos     = opened.kind == VolumeKind::Dos33;
+    bool           inRange   = false;
+    bool           matches   = true;
+    bool           shared    = false;
+    VolumeListing  listing;
+    char           note[128] = {};
+
+
+
+    outName = options.disk.path;
+    outPath = FilePath::Parse (options.disk.path);
+
+    BAIL_OUT_IF (!options.disk.hasIndex, S_OK);
+
+    //  A ProDOS disk, an index past the catalog, and an index for a name only
+    //  one entry has are the same mistake, so all three get the same message.
+    CBRFEx (isDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+            result.Fail (options.disk.imagePath, "", ApplyPrefix (notAllowed.c_str())));
+
+    {
+        Dos33Volume  volume (opened.sectors);
+
+        hr = volume.Enumerate (listing);
+    }
+
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "catalog could not be read"));
+
+    inRange = position < listing.entries.size();
+    CBRFEx (inRange, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), result.Fail (options.disk.imagePath, "", ApplyPrefix (notAllowed.c_str())));
+
+    if (!options.disk.path.empty())
+    {
+        matches = _stricmp (options.disk.path.c_str(), listing.entries[position].name.c_str()) == 0;
+    }
+
+    snprintf (note, sizeof (note), "does not match index %u", (unsigned) options.disk.index);
+    CBRFEx (matches, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), result.Fail (options.disk.imagePath, options.disk.path, note));
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        sharing += (_stricmp (entry.name.c_str(), listing.entries[position].name.c_str()) == 0) ? 1 : 0;
+    }
+
+    shared = sharing > 1;
+    CBRFEx (shared, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
+            result.Fail (options.disk.imagePath, "", ApplyPrefix (notAllowed.c_str())));
+
+    outName = listing.entries[position].name;
+    outPath = FilePath::FromName (outName).WithLeafIndex (position);
+
+Error:
+    return hr;
 }
 
 
@@ -1333,6 +1442,7 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     bool                           runnable = true;
     DiskImageSession::OpenedImage  opened;
     FilePath                       path;
+    std::string                    name;
     VolumeListing                  listing;
     vector<Byte>                   edited;
 
@@ -1343,7 +1453,8 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
 
-    path = FilePath::Parse (options.disk.path);
+    hr = ResolveEntryPath (options, opened, path, name, result);
+    CHR (hr);
 
     {
         Dos33Volume   dos (opened.sectors);
@@ -1361,11 +1472,11 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
             listHr = volume.Enumerate (listing);
             IGNORE_RETURN_VALUE (listHr, S_OK);
 
-            runnable = IsRunnableAsDos33Greeting (listing, options.disk.path);
+            runnable = IsRunnableAsDos33Greeting (listing, name);
         }
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
+    CHRF (hr, result.Fail (options.disk.imagePath, name,
                     ApplyPrefix (DescribeVolumeRefusal (hr))));
 
     //  REFUSED BEFORE ANYTHING IS WRITTEN, not reported after.
@@ -1378,7 +1489,7 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     //  start a program that cannot start -- which is what ProDOS refuses
     //  outright, two screens away in the same command.
     CBRFEx (runnable, HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE),
-            result.Fail (options.disk.imagePath, options.disk.path,
+            result.Fail (options.disk.imagePath, name,
                   "is not a program a booting DOS 3.3 can run. Its greeting is RUN, "
                   "which starts an Applesoft BASIC or Integer BASIC program, and "
                   "this file is neither"));

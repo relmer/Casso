@@ -459,6 +459,7 @@ HRESULT ProDosVolume::EnumerateDirectory (const FilePath & directory, VolumeList
     for (const RawEntry & entry : entries)
     {
         outListing.entries.push_back (ToFileEntry (entry));
+        outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
     }
 
 Error:
@@ -515,6 +516,7 @@ HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
     for (const RawEntry & entry : entries)
     {
         outListing.entries.push_back (ToFileEntry (entry));
+        outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
     }
 
     // Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.

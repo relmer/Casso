@@ -154,6 +154,114 @@ public:
             L"the listing states free space against the volume's capacity");
     }
 
+    TEST_METHOD (List_ShowsAnIndexOnlyBesideNamesSeveralEntriesShare)
+    {
+        // Merlin's disk has ten heading entries of one name and two pairs of
+        // another; those fourteen rows are listed with an index, and no other row is.
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        size_t             marks = 0;
+        size_t             at    = 0;
+
+        SeedRealDisk (io);
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
+
+        for (at = result.output.find ("  (index "); at != std::string::npos; at = result.output.find ("  (index ", at + 1))
+        {
+            marks++;
+        }
+
+        Assert::AreEqual ((size_t) 14, marks);
+        Assert::IsTrue   (result.output.find ("HELLO  (index") == std::string::npos, L"a unique name shows no index");
+    }
+
+    TEST_METHOD (Get_ByIndex_ReadsThatEntry_AndASharedNameAloneIsRefused)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedRealDisk (io);
+
+        constexpr const char *  kNotAllowed = "--index is only allowed when identifying a specific file with a non-unique name";
+
+        std::string    heading;
+        vector<Byte>   bytes;
+        VolumeListing  listing;
+
+        //  The third entry is one of ten headings that share a name, read from
+        //  the catalog including its padding.
+        {
+            FixtureProvider  fixtures;
+
+            AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proDos2.23.dsk", bytes));
+
+            Dos33Volume  volume (bytes);
+
+            AssertSucceeded (volume.Enumerate (listing));
+
+            heading = listing.entries[2].name;
+        }
+
+        //  Ten entries share the heading's name, so the name alone selects none
+        //  of them.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path = heading;
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("does not identify a specific file because the name is not unique") != std::string::npos);
+
+        //  The name and the index together select that entry.
+        options.disk.hasIndex = true;
+        options.disk.index    = 3;
+        result                = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("--index is only allowed") == std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("does not identify a specific file because the name is not unique") == std::string::npos,
+            L"the index resolves to the heading, regardless of the read result for an entry with no sectors");
+
+        //  --index requires the name as well, so a wrong index cannot select a
+        //  different file on its own.
+        options.disk.path = "";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("<name>") != std::string::npos);
+
+        //  A name given with the index must match that entry.
+        options.disk.path = "MERLIN";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("MERLIN: does not match index 3") != std::string::npos);
+
+        //  HELLO, the fourth entry, is the only entry with its name, so --index
+        //  for it is an error, as is an index past the end of the catalog.
+        options.disk.path  = "HELLO";
+        options.disk.index = 4;
+        result             = runner.Run (options);
+
+        Assert::IsFalse (result.hasPayload);
+        Assert::IsTrue  (result.diagnostics.find (kNotAllowed) != std::string::npos);
+
+        options.disk.index = 500;
+        result             = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find (kNotAllowed) != std::string::npos);
+
+        //  ProDOS names are unique, so --index is an error on a ProDOS disk.
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk");
+
+        options.disk.path  = "PRODOS";
+        options.disk.index = 1;
+        result             = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find (kNotAllowed) != std::string::npos);
+
+        SeedRealDisk (io);
+    }
+
     TEST_METHOD (List_SaysNotBootable_OnlyWhenTheBootTracksAreEmpty)
     {
         FakeDiskFileIo     io;

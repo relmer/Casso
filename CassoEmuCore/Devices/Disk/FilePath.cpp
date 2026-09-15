@@ -130,3 +130,25 @@ FilePath FilePath::FromName (const std::string & name)
 
     return path;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilePath::WithLeafIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FilePath FilePath::WithLeafIndex (size_t index) const
+{
+    FilePath  path (*this);
+
+
+
+    path.m_leafIndex    = index;
+    path.m_hasLeafIndex = true;
+
+    return path;
+}

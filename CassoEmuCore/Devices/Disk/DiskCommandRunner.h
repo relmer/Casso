@@ -265,6 +265,14 @@ private:
     void  RunDelete (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunBoot   (const CommandLineOptions & options, DiskCommandResult & result);
 
+    //  The path `get`, `delete` and `boot` act on, and the name used in their
+    //  messages: the name as typed, or with --index the entry at that position.
+    HRESULT  ResolveEntryPath (const CommandLineOptions             & options,
+                               const DiskImageSession::OpenedImage  & opened,
+                               FilePath                             & outPath,
+                               std::string                          & outName,
+                               DiskCommandResult                    & result);
+
 
     //  Turns a volume layer's refusal into something a user can act on.
     //
