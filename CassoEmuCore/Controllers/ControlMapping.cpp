@@ -67,45 +67,44 @@ ControlMapping DefaultMapping::For (const ControllerModelKey & model, const std:
 //
 //  MakePaddles
 //
-//  The starting point for two-player paddle games: axis 0 to PDL0 and axis 3
-//  to PDL1, both with Rate response at the default speed, so each paddle holds
-//  where its player leaves it when a self-centering stick is released. On an
-//  Xbox controller that is left stick X and right stick X, one stick per
-//  player. On a DirectInput device axis 3 is Rx; a device that does not report
-//  it leaves PDL1 unassigned rather than borrowing an axis that may have no
-//  hardware behind it.
+//  One player's paddle: axis 0 (an Xbox controller's left stick X) to PDL0
+//  with Rate response at the default speed, so the paddle holds where the
+//  player leaves it when a self-centering stick is released, and the first
+//  button (Xbox: A) to PB0.
 //
-//  The buttons are the default mapping's, the first two buttons (Xbox: A and
-//  B), so a profile made from this template differs from the default only in
-//  its paddles.
+//  ONE CONTROLLER IS ONE PLAYER. Two people cannot share a controller, so a
+//  two-player paddle game takes a controller each, and which paddle each one
+//  drives is that controller's assignment, not its profile. PDL1 and PB1 are
+//  therefore left unassigned rather than put on a second stick nobody holds.
+//
+//  The D-pad is left off: a D-pad pair jumps its axis straight to either end,
+//  which would throw a paddle to the edge of the screen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ControlMapping DefaultMapping::MakePaddles (const ControllerModelKey & model, const std::vector<ControlId> & controls)
 {
-    ControlMapping  mapping = For (model, controls);
-    ControlId       player1 = { ControlKind::Axis, XInputSampleDecoder::kLeftStickX };
-    ControlId       player2 = { ControlKind::Axis, XInputSampleDecoder::kRightStickX };
+    ControlMapping  mapping;
+    ControlId       paddle  = { ControlKind::Axis, XInputSampleDecoder::kLeftStickX };
+    ControlId       button  = { ControlKind::Button, 0 };
     AxisBinding     binding;
 
 
 
+    UNREFERENCED_PARAMETER (model);
+
     binding.response = AxisResponse::Rate;
     binding.maxSpeed = AxisBinding::kDefaultMaxSpeed;
 
-    mapping.pdl0.clear();
-    mapping.pdl1.clear();
-
-    if (HasControl (controls, player1))
+    if (HasControl (controls, paddle))
     {
-        binding.analog = player1;
+        binding.analog = paddle;
         mapping.pdl0.push_back (binding);
     }
 
-    if (HasControl (controls, player2))
+    if (HasControl (controls, button))
     {
-        binding.analog = player2;
-        mapping.pdl1.push_back (binding);
+        mapping.pb0.push_back ({ button });
     }
 
     return mapping;

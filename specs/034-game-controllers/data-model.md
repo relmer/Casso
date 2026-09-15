@@ -144,7 +144,7 @@ Evaluation rules (`MappingEvaluator`, pure, given the elapsed time since the pre
 
 Default mapping (`DefaultMapping::For (ControllerModelKey, controls)`): PDL0/PDL1 = axis 0/1 absolute (Xbox: left stick); PB0/PB1 = button 0/1 (Xbox: A/B); PB2 empty. A device lacking a control leaves that target empty.
 
-Paddles template (`DefaultMapping::MakePaddles`): PDL0 = axis 0 rate, PDL1 = axis 3 rate (Xbox: right stick X; DirectInput: Rx when reported, else empty), PB0/PB1 = button 0/1.
+Paddles template (`DefaultMapping::MakePaddles`): one player's paddle. PDL0 = axis 0 rate (Xbox: left stick X), PB0 = button 0 (Xbox: A); PDL1, PB1 and PB2 unassigned, each bound only when the device reports the control. One controller is one player: a two-player paddle game uses a controller per player, and which paddle each drives is its axis assignment (User Story 7), not its profile. The D-pad is not bound, since a digital pair jumps the axis to either end.
 
 ### ControllerProfile
 

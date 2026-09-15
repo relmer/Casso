@@ -115,35 +115,34 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (Paddles_XboxOneStickPerPlayerWithRateResponse)
+        TEST_METHOD (Paddles_OnePlayersPaddleAndButton)
         {
             ControllerModelKey  model   = { ControllerKind::XInput, 0, 0 };
             ControlMapping      mapping = DefaultMapping::MakePaddles (model, XInputSampleDecoder::ListControls());
 
             Assert::AreEqual (static_cast<size_t> (1), mapping.pdl0.size());
-            Assert::AreEqual (static_cast<size_t> (1), mapping.pdl1.size());
-            Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, XInputSampleDecoder::kLeftStickX },  L"PDL0 is left stick X");
-            Assert::IsTrue   (mapping.pdl1[0].analog == ControlId { ControlKind::Axis, XInputSampleDecoder::kRightStickX }, L"PDL1 is right stick X");
+            Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, XInputSampleDecoder::kLeftStickX }, L"PDL0 is left stick X");
             Assert::IsTrue   (mapping.pdl0[0].response == AxisResponse::Rate, L"so a released stick leaves its paddle where it was");
-            Assert::IsTrue   (mapping.pdl1[0].response == AxisResponse::Rate);
             Assert::AreEqual (AxisBinding::kDefaultMaxSpeed, mapping.pdl0[0].maxSpeed, 0.0001f);
-            Assert::IsTrue   (mapping.pb0 == DefaultMapping::For (model, XInputSampleDecoder::ListControls()).pb0, L"the buttons are the default mapping's");
-            Assert::IsTrue   (mapping.pb1 == DefaultMapping::For (model, XInputSampleDecoder::ListControls()).pb1);
+            Assert::AreEqual (static_cast<size_t> (1), mapping.pb0.size());
+            Assert::IsTrue   (mapping.pb0[0].control == ControlId { ControlKind::Button, 0 }, L"A is the paddle's button");
+            Assert::IsTrue   (mapping.pdl1.empty(), L"one controller is one player, so the second paddle is left for another controller");
+            Assert::IsTrue   (mapping.pb1.empty());
             Assert::IsTrue   (mapping.pb2.empty());
         }
 
 
-        TEST_METHOD (Paddles_DirectInputUsesRxWhenReportedAndNothingOtherwise)
+        TEST_METHOD (Paddles_BindsOnlyControlsTheDeviceReports)
         {
-            ControllerModelKey  model      = { ControllerKind::DirectInput, 1, 2 };
-            ControlMapping      withRx     = DefaultMapping::MakePaddles (model, MakeFlightStickControls());
-            ControlMapping      withoutRx  = DefaultMapping::MakePaddles (model, { { ControlKind::Axis, 0 }, { ControlKind::Axis, 1 }, { ControlKind::Button, 0 } });
+            ControllerModelKey  model = { ControllerKind::DirectInput, 1, 2 };
+            ControlMapping      stick = DefaultMapping::MakePaddles (model, MakeFlightStickControls());
+            ControlMapping      bare  = DefaultMapping::MakePaddles (model, { { ControlKind::Axis, 1 } });
 
-            Assert::IsTrue  (withRx.pdl1[0].analog == ControlId { ControlKind::Axis, 3 }, L"Rx drives PDL1");
-            Assert::IsTrue  (withRx.pdl1[0].response == AxisResponse::Rate);
-            Assert::IsTrue  (withoutRx.pdl0[0].analog == ControlId { ControlKind::Axis, 0 });
-            Assert::IsTrue  (withoutRx.pdl1.empty(), L"a device without Rx leaves PDL1 unassigned");
-            Assert::IsTrue  (withoutRx.pb1.empty(),  L"and binds only buttons it reports");
+            Assert::IsTrue (stick.pdl0[0].analog == ControlId { ControlKind::Axis, 0 }, L"a DirectInput device's X axis drives the paddle");
+            Assert::IsTrue (stick.pdl0[0].response == AxisResponse::Rate);
+            Assert::IsTrue (stick.pdl1.empty());
+            Assert::IsTrue (bare.pdl0.empty(), L"a device with no X axis leaves the paddle unassigned");
+            Assert::IsTrue (bare.pb0.empty(),  L"and binds no button it does not report");
         }
 
 
