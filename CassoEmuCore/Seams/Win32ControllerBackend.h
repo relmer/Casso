@@ -44,14 +44,14 @@ private:
     // One opened DirectInput device and what enumeration found on it.
     struct DirectInputDevice
     {
-        ControllerUnitKey          unit;
-        std::wstring               description;
-        ControllerFormFactor       formFactor = ControllerFormFactor::Joystick;
-        IDirectInputDevice8W     * device     = nullptr;
-        HANDLE                     event      = nullptr;
-        DirectInputObjectLayout    layout;
-        bool                       isPolled   = false;
-        bool                       isAcquired = false;
+        ControllerUnitKey             unit;
+        std::wstring                  description;
+        ControllerFormFactor          formFactor  = ControllerFormFactor::Joystick;
+        ComPtr<IDirectInputDevice8W>  device;
+        HANDLE                        event       = nullptr;
+        DirectInputObjectLayout       layout;
+        bool                          isPolled    = false;
+        bool                          isAcquired  = false;
     };
 
     // One XInput slot that reported a controller.
@@ -91,7 +91,7 @@ private:
     DirectInputDevice *  FindDirectInputDevice (const ControllerUnitKey & unit);
 
     IControllerBackendEvents                  * m_events          = nullptr;
-    IDirectInput8W                            * m_directInput     = nullptr;
+    ComPtr<IDirectInput8W>                      m_directInput;
     HWND                                        m_notifyWindow    = nullptr;
     HDEVNOTIFY                                  m_notifyHandle    = nullptr;
     std::vector<DirectInputDevice>              m_diDevices;

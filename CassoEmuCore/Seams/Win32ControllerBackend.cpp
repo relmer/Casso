@@ -113,11 +113,7 @@ void Win32ControllerBackend::Shutdown()
 {
     CloseDevices();
 
-    if (m_directInput != nullptr)
-    {
-        m_directInput->Release();
-        m_directInput = nullptr;
-    }
+    m_directInput.Reset();
 
     if (m_notifyHandle != nullptr)
     {
@@ -242,7 +238,7 @@ HRESULT Win32ControllerBackend::OpenDirectInput()
 
 
     hr = DirectInput8Create (GetModuleHandleW (nullptr), DIRECTINPUT_VERSION,
-                             IID_IDirectInput8W, (void **) &m_directInput, nullptr);
+                             IID_IDirectInput8W, (void **) m_directInput.ReleaseAndGetAddressOf(), nullptr);
     CHR (hr);
 
 Error:
@@ -403,10 +399,10 @@ HRESULT Win32ControllerBackend::AddDirectInputDevice (const DIDEVICEINSTANCEW & 
 
 
 
-    hr = m_directInput->CreateDevice (instance.guidInstance, &opened.device, nullptr);
+    hr = m_directInput->CreateDevice (instance.guidInstance, opened.device.ReleaseAndGetAddressOf(), nullptr);
     CHR (hr);
 
-    path     = GetDevicePath (*opened.device);
+    path     = GetDevicePath (*opened.device.Get());
     isXInput = IsXInputPath (path);
 
     // An Xbox controller enumerates here as well, and reading it through
@@ -414,7 +410,7 @@ HRESULT Win32ControllerBackend::AddDirectInputDevice (const DIDEVICEINSTANCEW & 
     // through XInput instead, so skipping it is success, not failure.
     BAIL_OUT_IF (isXInput, S_OK);
 
-    opened.unit        = MakeUnitKey (*opened.device, instance);
+    opened.unit        = MakeUnitKey (*opened.device.Get(), instance);
     opened.description = instance.tszInstanceName;
     opened.formFactor  = GetFormFactor (instance);
 
@@ -456,16 +452,10 @@ HRESULT Win32ControllerBackend::AddDirectInputDevice (const DIDEVICEINSTANCEW & 
     opened.isAcquired = SUCCEEDED (hr);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    m_diDevices.push_back (opened);
-    opened.device = nullptr;   // owned by the list now
-    opened.event  = nullptr;
+    m_diDevices.push_back (std::move (opened));
+    opened.event = nullptr;   // owned by the list now
 
 Error:
-    if (opened.device != nullptr)
-    {
-        opened.device->Release();
-    }
-
     if (opened.event != nullptr)
     {
         CloseHandle (opened.event);
@@ -536,7 +526,7 @@ void Win32ControllerBackend::CloseDevices()
         {
             device.device->Unacquire();
             device.device->SetEventNotification (nullptr);
-            device.device->Release();
+            device.device.Reset();
         }
 
         if (device.event != nullptr)
