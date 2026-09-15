@@ -1033,6 +1033,14 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
             break;
 
         case VK_ESCAPE:
+            // The focused control gets Escape first, so an open drop-down
+            // closes rather than the dialog. Only a key nothing claims cancels.
+            if (RouteKeyToFocused (vk, shift))
+            {
+                isHandled = true;
+                break;
+            }
+
             if (!IsTriggerButtonById (IDCANCEL))
             {
                 EndDialog (IDCANCEL);
