@@ -267,6 +267,37 @@ public:
     }
 
 
+    //  The new-disk dialog checks its fields as they are typed: a file name the
+    //  host can hold and that is not taken, and a volume the format can use.
+    TEST_METHOD (NewDiskChoices_ValidateFieldsAsTyped)
+    {
+        auto  noneTaken = [] (const std::wstring &) { return false; };
+        auto  taken     = [] (const std::wstring & name) { return name == L"Games.dsk"; };
+
+        Assert::IsTrue  (CassqueNewDiskChoices::ValidateFileName (L"Games", 1, noneTaken).empty());
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateFileName (L"",      1, noneTaken).empty(), L"A name is required");
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateFileName (L"a:b",   1, noneTaken).empty(), L"A name the host cannot hold is refused");
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateFileName (L"Games", 1, taken).empty(),     L"A taken name is refused, extension added");
+        Assert::IsTrue  (CassqueNewDiskChoices::ValidateFileName (L"Games", 2, taken).empty(),     L"The same name as another image type is free");
+
+        Assert::IsTrue  (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatDos33, L"").empty(), L"Blank takes the default");
+        Assert::IsTrue  (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatDos33, L"254").empty());
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatDos33, L"0").empty());
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatDos33, L"255").empty());
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatDos33, L"12A").empty());
+
+        Assert::IsTrue  (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatProDos, L"Games.2").empty(), L"Case does not matter");
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatProDos, L"2GAMES").empty(), L"A name starts with a letter");
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatProDos, L"MY GAMES").empty());
+        Assert::IsFalse (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatProDos, L"ABCDEFGHIJKLMNOP").empty(), L"At most 15 characters");
+
+        Assert::IsTrue  (CassqueNewDiskChoices::ValidateVolume (CassqueNewDiskChoices::kFormatNone, L"anything").empty(), L"An unformatted image has no volume to check");
+
+        Assert::AreEqual ((size_t) 3,  CassqueNewDiskChoices::GetVolumeMaxLength (CassqueNewDiskChoices::kFormatDos33));
+        Assert::AreEqual ((size_t) 15, CassqueNewDiskChoices::GetVolumeMaxLength (CassqueNewDiskChoices::kFormatProDos));
+    }
+
+
     TEST_METHOD (CreateImage_WritesANewDiskAndRefusesAnExistingName)
     {
         Host                            host;

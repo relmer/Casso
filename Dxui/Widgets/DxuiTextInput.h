@@ -48,6 +48,10 @@ public:
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }
     void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
+
+    //  Selects every character, so a default value is replaced by the first
+    //  keystroke.
+    void  SelectAll     ()                            { m_anchor = 0; m_caret = m_text.size(); }
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } ResetBlink(); }
     void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; } }
     void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }

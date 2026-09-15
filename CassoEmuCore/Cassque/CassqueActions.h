@@ -102,6 +102,10 @@ public:
     //  A new image in a host folder, refused when the file exists already.
     Outcome  CreateImage (const std::wstring & folder, const std::wstring & fileName, const DiskOperations::NewDiskRequest & request);
 
+    //  Whether a file of that name is already in the folder, which CreateImage
+    //  would refuse; asked while the name is being typed.
+    bool     IsNameTaken (const std::wstring & folder, const std::wstring & fileName) const;
+
     //  Formats the selected image in a host folder, or the image the list
     //  shows. Everything on it is lost.
     Outcome  FormatImage (const DiskOperations::NewDiskRequest & request);

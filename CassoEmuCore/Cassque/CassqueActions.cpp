@@ -77,7 +77,9 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
         verbs.push_back (Verb::Format);
     }
 
-    if (!m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder)
+    //  A new image belongs to the folder, not to anything in it, so it is offered
+    //  only when the menu is for the folder's background, as Explorer's New is.
+    if (!m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder && selected == 0)
     {
         verbs.push_back (Verb::NewDisk);
     }
@@ -612,6 +614,21 @@ CassqueActions::Outcome CassqueActions::RenameSelected (const std::wstring & new
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::IsNameTaken
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::IsNameTaken (const std::wstring & folder, const std::wstring & fileName) const
+{
+    return !folder.empty() && !fileName.empty() && m_fs.Exists (CassqueBrowser::JoinPath (folder, fileName));
 }
 
 

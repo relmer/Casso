@@ -3324,7 +3324,10 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
             break;
 
         case CassqueActions::Verb::NewDisk:
-            newDisk = CassqueNewDiskDialog::Ask (GetHwnd(), m_theme, false);
+            newDisk = CassqueNewDiskDialog::Ask (GetHwnd(), m_theme, false, [this] (const std::wstring & fileName)
+            {
+                return m_actions.IsNameTaken (m_browser.GetLocation().path, fileName);
+            });
 
             if (newDisk.confirmed)
             {
