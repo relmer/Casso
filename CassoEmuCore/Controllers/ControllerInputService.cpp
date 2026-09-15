@@ -300,6 +300,66 @@ std::map<std::string, ControllerModelSettings> ControllerInputService::GetModelS
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetActiveProfile
+//
+//  Switching profiles does not reset the machine. The mapping is resolved
+//  again at once, the rate paddles return to center, and the controller's
+//  contribution is released, so a button the new profile does not bind comes
+//  up and an axis it does not drive centers before the next reading submits
+//  what the new profile asks for (FR-030).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetActiveProfile (const std::string & name)
+{
+    std::unique_lock<std::mutex>  lock      (m_mutex);
+    bool                          isSame    = false;
+
+
+
+    isSame = m_activeProfile.size() == name.size()
+             && _stricmp (m_activeProfile.c_str(), name.c_str()) == 0;
+
+    if (isSame)
+    {
+        return;
+    }
+
+    m_activeProfile    = name;
+    m_mapping          = ControlMapping();
+    m_rateResetPending = true;
+    EnsureMappingForActiveLocked();
+
+    lock.unlock();
+
+    ReleaseContribution();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ControllerInputService::GetActiveProfile() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_activeProfile;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetCalibrations
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -637,6 +697,7 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     snapshot.devices             = m_devices;
     snapshot.selection           = m_selection;
     snapshot.saved               = m_saved;
+    snapshot.activeProfile       = m_activeProfile;
     snapshot.lastSample          = m_lastSample;
     snapshot.isSelectedConnected = m_isSelectedConnected;
 
@@ -901,7 +962,8 @@ void ControllerInputService::EnsureMappingForActive()
 
 void ControllerInputService::EnsureMappingForActiveLocked()
 {
-    const ControllerDeviceInfo *  active = FindActiveDeviceLocked();
+    const ControllerDeviceInfo *  active  = FindActiveDeviceLocked();
+    const ControllerProfile    *  profile = nullptr;
 
 
 
@@ -910,7 +972,22 @@ void ControllerInputService::EnsureMappingForActiveLocked()
         return;
     }
 
+    // The deadzone belongs to the model, whichever profile is active.
     m_profiles.GetDefaultSettings (active->unit.model, active->controls, m_mapping, m_deadzone);
+
+    if (m_activeProfile.empty())
+    {
+        return;
+    }
+
+    // A remembered profile the model no longer has plays the Default, which
+    // is already in hand; nothing is recreated for it (FR-029).
+    profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (active->unit.model), m_activeProfile);
+
+    if (profile != nullptr)
+    {
+        m_mapping = profile->mapping;
+    }
 }
 
 

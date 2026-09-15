@@ -276,6 +276,8 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs)
         }
     }
 
+    // The profile first, so the selection resolves its mapping only once.
+    m_controllerService->SetActiveProfile (MachineInputPrefs::ReadProfileName (uiPrefs));
     m_controllerService->SetSelection (selection);
 
     // A rate binding's paddle position belongs to the machine it was moved on.
@@ -332,14 +334,15 @@ void EmulatorShell::PersistInputModeForMachine()
     {
         // The saved controller, not the one in use: a clear is never saved
         // (FR-011).
-        std::optional<ControllerUnitKey>  selection = m_controllerService->GetSnapshot().saved;
+        ControllerInputService::Snapshot  snapshot = m_controllerService->GetSnapshot();
 
-        if (selection.has_value())
+        if (snapshot.saved.has_value())
         {
-            token = ControllerTokens::UnitToToken (selection.value());
+            token = ControllerTokens::UnitToToken (snapshot.saved.value());
         }
 
-        controllerEntries = MachineInputPrefs::BuildControllerEntries (token, std::string());
+        // Empty for Default, which leaves the profile key absent.
+        controllerEntries = MachineInputPrefs::BuildControllerEntries (token, snapshot.activeProfile);
         entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
     }
 

@@ -698,5 +698,204 @@ namespace ControllerTests
             Assert::IsTrue (service.GetSnapshot().selection.value() == stick.unit,
                 L"the machine comes back to its own controller, not the one attached longest");
         }
+
+
+        // A model's settings holding the built-in Default plus one extra
+        // profile with the given mapping.
+        static std::map<std::string, ControllerModelSettings> MakeModelSettings (const ControllerDeviceInfo & device,
+                                                                                 const char                 * pszName,
+                                                                                 const ControlMapping       & mapping)
+        {
+            std::map<std::string, ControllerModelSettings>  models;
+            ControllerProfileStore                          store;
+            ControllerModelSettings                       & settings = store.GetOrCreateModel (device.unit.model, device.controls);
+
+
+
+            settings.AddProfile (pszName, mapping);
+            models[ControllerTokens::ModelToToken (device.unit.model)] = settings;
+            return models;
+        }
+
+
+        static ControlMapping MakeButtonOneToPb1Mapping()
+        {
+            ControlMapping  mapping;
+            ButtonBinding   binding;
+
+            binding.control = { ControlKind::Button, 0 };
+            mapping.pb1.push_back (binding);
+            return mapping;
+        }
+
+
+        TEST_METHOD (ActiveProfile_ItsMappingDrivesTheGamePort)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    device = MakeXboxDevice();
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, MakePushedSample());
+            service.SetModelSettings (MakeModelSettings (device, "Swapped", MakeButtonOneToPb1Mapping()));
+
+            service.SetActiveProfile ("swapped");
+            service.SetSelection (device.unit);
+            service.Tick();
+
+            Assert::AreEqual (std::string ("swapped"), service.GetSnapshot().activeProfile, L"the snapshot carries the active profile");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (1),                   L"the profile's binding drives PB1");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (0),                   L"and PB0, which it does not bind, stays up");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0],                 L"and the stick it does not bind rests");
+        }
+
+
+        TEST_METHOD (ProfileSwitch_ReleasesWhatTheNewProfileDoesNotDrive)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    device = MakeXboxDevice();
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, MakePushedSample());
+            service.SetModelSettings (MakeModelSettings (device, "Swapped", MakeButtonOneToPb1Mapping()));
+
+            service.SetSelection (device.unit);
+            service.Tick();
+
+            Assert::IsTrue (sink.writes.back().state.buttons.test (0), L"Default holds PB0 down");
+
+            service.SetActiveProfile ("Swapped");
+
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (0),   L"the switch releases a button the new profile does not bind");
+            Assert::AreEqual (kCenter, sink.writes.back().state.paddle[0], L"and centers an axis it does not drive, before the next reading");
+
+            service.Tick();
+
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (1),   L"the next reading plays the new profile");
+            Assert::IsFalse  (sink.writes.back().state.buttons.test (0),   L"with PB0 still up");
+        }
+
+
+        TEST_METHOD (ProfileSwitch_ReturnsRatePaddlesToCenter)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo                            device  = MakeXboxDevice();
+            ControlMapping                                  mapping;
+            AxisBinding                                     rate;
+            ControllerSample                                rest;
+            std::map<std::string, ControllerModelSettings>  models;
+            double                                          now     = 0.0;
+            int                                             i       = 0;
+
+            static constexpr int     kTicks    = 10;
+            static constexpr double  kStepSecs = 0.05;
+            static constexpr Byte    kNearEnd  = 140;
+
+
+
+            rate.analog   = { ControlKind::Axis, XInputSampleDecoder::kLeftStickX };
+            rate.response = AxisResponse::Rate;
+            mapping.pdl0.push_back (rate);
+
+            // Two profiles with the same rate binding, both in place before
+            // any reading: only the switch's own reset can bring the paddle
+            // back.
+            models = MakeModelSettings (device, "Rate A", mapping);
+            models.begin()->second.AddProfile ("Rate B", mapping);
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, MakePushedSample());
+            service.SetClock ([&now]() { return now; });
+            service.SetModelSettings (models);
+
+            service.SetActiveProfile ("Rate A");
+            service.SetSelection (device.unit);
+
+            for (i = 0; i < kTicks; i++)
+            {
+                service.Tick();
+                now += kStepSecs;
+            }
+
+            Assert::IsTrue (sink.writes.back().state.paddle[0] > kNearEnd, L"a held stick moves a rate paddle away from center");
+
+            rest.connected = true;
+            backend.SetSample (device.unit, rest);
+            service.SetActiveProfile ("Rate B");
+            service.Tick();
+
+            Assert::IsTrue (sink.writes.back().state.paddle[0] <= kCenter + 1, L"the new profile starts its rate paddle at center");
+        }
+
+
+        TEST_METHOD (ActiveProfileMissing_PlaysDefaultAndSavesNothing)
+        {
+            FakeControllerBackend                           backend;
+            GamePortInputMixer                              mixer;
+            RecordingGamePortSink                           sink;
+            ControllerInputService                          service (backend, mixer);
+            ControllerDeviceInfo                            device = MakeXboxDevice();
+            std::map<std::string, ControllerModelSettings>  models = MakeModelSettings (device, "Swapped", MakeButtonOneToPb1Mapping());
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            backend.AddDevice (device, true);
+            backend.SetSample (device.unit, MakePushedSample());
+            service.SetModelSettings (models);
+
+            service.SetActiveProfile ("Deleted Elsewhere");
+            service.SetSelection (device.unit);
+            service.Tick();
+
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[0], L"a missing profile plays the Default mapping");
+            Assert::IsTrue   (sink.writes.back().state.buttons.test (0),                   L"buttons included");
+            Assert::IsTrue   (service.GetModelSettings() == models,                        L"and nothing is created for the missing name");
+            Assert::AreEqual (std::string ("Deleted Elsewhere"), service.GetActiveProfile(), L"the remembered name is kept as it was");
+        }
+
+
+        TEST_METHOD (UnrecognizedUnit_PlaysItsModelsSavedProfile)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            RecordingGamePortSink   sink;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    known   = MakePadDevice ("{11111111-0000-0000-0000-000000000001}", L"Pad");
+            ControllerDeviceInfo    newUnit = MakePadDevice ("{22222222-0000-0000-0000-000000000002}", L"Pad");
+            ControllerSample        sample;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+
+            // Saved against the model through another unit; this unit has no
+            // calibration or anything else of its own.
+            service.SetModelSettings (MakeModelSettings (known, "Swapped", MakeButtonOneToPb1Mapping()));
+            service.SetActiveProfile ("Swapped");
+
+            sample.connected = true;
+            sample.buttons.set (0);
+            backend.AddDevice (newUnit);
+            backend.SetSample (newUnit.unit, sample);
+
+            service.Tick();
+
+            Assert::IsTrue  (service.GetSnapshot().selection.value() == newUnit.unit, L"the new unit is picked up on first connection");
+            Assert::IsTrue  (sink.writes.back().state.buttons.test (1),                L"and plays its model's saved profile");
+            Assert::IsFalse (sink.writes.back().state.buttons.test (0),                L"not the Default");
+        }
     };
 }

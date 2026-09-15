@@ -50,6 +50,9 @@ public:
         // which is never saved: the machine keeps the controller it last had
         // (FR-011).
         std::optional<ControllerUnitKey>   saved;
+
+        // The machine's active profile by name; empty means Default.
+        std::string                        activeProfile;
         ControllerSample                   lastSample;
         bool                               isSelectedConnected = false;
     };
@@ -99,6 +102,13 @@ public:
     // is selected or connects.
     void                                            SetModelSettings (std::map<std::string, ControllerModelSettings> models);
     std::map<std::string, ControllerModelSettings>  GetModelSettings () const;
+
+    // The profile the machine plays with, by name; empty means Default. A
+    // name the controller's model does not have plays its Default, and
+    // nothing is created or saved for it. A change takes effect on the next
+    // reading, releasing whatever the old profile held.
+    void         SetActiveProfile (const std::string & name);
+    std::string  GetActiveProfile () const;
 
     // Every DirectInput unit's calibration, by unit token. Set once from the
     // saved prefs; read back to save them, including what automatic
@@ -161,6 +171,7 @@ private:
 
     std::map<std::string, ControllerCalibration>         m_calibrations;
     ControllerProfileStore                               m_profiles;
+    std::string                                          m_activeProfile;
 
     ClockFn                                              m_clock;
     double                                               m_lastTickSeconds  = -1.0;
