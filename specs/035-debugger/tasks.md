@@ -134,13 +134,13 @@ description: "Task list for 035-debugger"
 
 ### AppleWin command table, parser and formatter
 
-- [ ] T028 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinCommandTableTests.cpp`. It sweeps the name list in spec Assumptions "AppleWin command coverage" in both directions:
+- [X] T028 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinCommandTableTests.cpp`. It sweeps the name list in spec Assumptions "AppleWin command coverage" in both directions:
   - every listed name resolves to a phase-1 handler, to phase 3, or to not-available with its reason text;
   - every phase-1 `DebugVerb` has at least one name;
   - aliases resolve to their target;
   - a name in no list is `Unknown`;
   - the listed-name count is asserted non-zero, and the phase-1, phase-3 and not-available counts are printed and recorded in plan.md Scale/Scope.
-- [ ] T029 [US1] Implement `CassoCore/Debugger/AppleWinCommandTable.h/.cpp`, a file-scope `static constexpr` table (`s_kAppleWinCommands`) of `{name, family, phase, availability, reason}`. Makes T028 pass.
+- [X] T029 [US1] Implement `CassoCore/Debugger/AppleWinCommandTable.h/.cpp`, a file-scope `static constexpr` table (`s_kAppleWinCommands`) of `{name, family, phase, availability, reason}`. Makes T028 pass.
 - [ ] T030 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinParserTests.cpp`:
   - case-insensitive names;
   - `$` and bare hex;

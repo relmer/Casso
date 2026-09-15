@@ -74,8 +74,10 @@ watched pages down the existing slow path, so unwatched pages pay nothing
 - Clean-room: AppleWin's table and help pages are consulted for names and
   behavior only.
 
-**Scale/Scope**: Every AppleWin name in spec Assumptions (exact per-phase counts
-are printed by the name-table test and recorded here when it lands), 23 Monitor
+**Scale/Scope**: Every AppleWin name in spec Assumptions: 252 names, of which
+184 work headless (phase 1, including aliases and the Casso engine commands),
+64 affect only the window (phase 3) and 4 are not available, as printed by
+`AppleWinCommandTableTests`. 23 Monitor
 command-table entries plus the Monitor's syntax forms, ~40 new core source pairs
 across three phases, and ~30 new test files.
 

@@ -210,6 +210,7 @@
     <ClCompile Include="Debugger\Disassembler.cpp" />
     <ClCompile Include="Debugger\LineAssembler.cpp" />
     <ClCompile Include="Debugger\DebugExpressionEvaluator.cpp" />
+    <ClCompile Include="Debugger\AppleWinCommandTable.cpp" />
     <ClCompile Include="Directive.cpp" />
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="Pch.cpp">
@@ -270,6 +271,7 @@
     <ClInclude Include="Debugger\DebugExpressionEvaluator.h" />
     <ClInclude Include="Debugger\IDebugExpressionContext.h" />
     <ClInclude Include="Debugger\DebugCommand.h" />
+    <ClInclude Include="Debugger\AppleWinCommandTable.h" />
     <ClInclude Include="Directive.h" />
     <ClInclude Include="Parser.h" />
     <ClInclude Include="Pch.h" />
