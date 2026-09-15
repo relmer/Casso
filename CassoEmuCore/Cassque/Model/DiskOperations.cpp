@@ -179,7 +179,7 @@ DiskOperations::Result DiskOperations::CommitEdit (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskOperations::Result DiskOperations::List (const std::string & imagePath, VolumeListing & outListing, VolumeKind & outKind)
+DiskOperations::Result DiskOperations::List (const std::string & imagePath, const std::string & directory, VolumeListing & outListing, VolumeKind & outKind)
 {
     DiskImageSession::OpenedImage  opened;
     Result                         result = OpenVolume (imagePath, opened);
@@ -199,7 +199,7 @@ DiskOperations::Result DiskOperations::List (const std::string & imagePath, Volu
                              : static_cast<IVolume &> (pro);
 
         outKind = opened.kind;
-        hr      = volume.Enumerate (outListing);
+        hr      = volume.EnumerateDirectory (FilePath::Parse (directory), outListing);
 
         if (FAILED (hr))
         {

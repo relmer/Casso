@@ -42,6 +42,8 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
     std::vector<Verb>       verbs;
     std::vector<FileEntry>  entries;
     size_t                  selected = m_browser.GetSelectedRows().size();
+    Location                location = m_browser.GetLocation();
+    bool                    nested   = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
 
 
 
@@ -49,13 +51,19 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
     {
         m_browser.GetSelectedEntries (entries);
 
+        //  Inside a subdirectory files can be copied out. Writing into one is
+        //  not supported yet, so nothing that would change it is offered there.
         if (!entries.empty())
         {
             verbs.push_back (Verb::Get);
-            verbs.push_back (Verb::Delete);
+
+            if (!nested)
+            {
+                verbs.push_back (Verb::Delete);
+            }
         }
 
-        if (entries.size() == 1)
+        if (entries.size() == 1 && !nested)
         {
             verbs.push_back (Verb::Rename);
 
@@ -65,8 +73,11 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
             }
         }
 
-        verbs.push_back (Verb::Put);
-        verbs.push_back (Verb::Format);
+        if (!nested)
+        {
+            verbs.push_back (Verb::Put);
+            verbs.push_back (Verb::Format);
+        }
     }
     else if (m_browser.AreSelectedRowsImages() && selected == 1)
     {
@@ -418,7 +429,7 @@ CassqueActions::Outcome CassqueActions::GetSelected (const std::wstring & hostFo
             continue;
         }
 
-        Append (outcome, m_browser.GetOperations().Get (image, entry.name, GetEncoding (entry, m_browser.GetVolumeKind()),
+        Append (outcome, m_browser.GetOperations().Get (image, m_browser.GetEntryPath (entry), GetEncoding (entry, m_browser.GetVolumeKind()),
                                                         TextEncoding::WideToNarrow (hostPath)));
     }
 

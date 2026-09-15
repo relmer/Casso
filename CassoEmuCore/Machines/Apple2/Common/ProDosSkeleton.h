@@ -138,6 +138,15 @@ public:
                                  Byte               & outFileType,
                                  Word               & outAuxType);
 
+    //  The same, for a file in the directory whose key block is given, which
+    //  may be a subdirectory's.
+    static HRESULT  ExtractFileFromDirectory (const vector<Byte> & volume,
+                                              int                  dirKeyBlock,
+                                              const std::string  & fileName,
+                                              vector<Byte>       & outBytes,
+                                              Byte               & outFileType,
+                                              Word               & outAuxType);
+
     //  A block number the volume could actually hold. Every pointer walked here
     //  comes off the disk, so none of them may be trusted: block numbers index
     //  directly into the sector buffer, and an out-of-range one reads far past

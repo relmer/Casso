@@ -33,9 +33,10 @@
 //  keeps the two from drifting is that files written here are read back through
 //  ProDosReader, which neither of them shares.
 //
-//  Subdirectories are not yet traversed. A path naming one is refused rather
-//  than reduced to its last component, so the capability can be filled in later
-//  without any caller having been silently given the wrong file in the meantime.
+//  Subdirectories are listed and read by path. Writing into one is not yet
+//  supported: a write, delete or rename whose path names a subdirectory is
+//  refused rather than reduced to its last component, so no caller is silently
+//  given the wrong file in the meantime.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +46,7 @@ public:
     explicit ProDosVolume (const vector<Byte> & sectors);
 
     HRESULT  Enumerate (VolumeListing & outListing) const override;
+    HRESULT  EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const override;
     HRESULT  Read      (const FilePath & path, FilePayload & outPayload) const override;
 
     HRESULT  Write     (const FilePath     & path,
@@ -231,11 +233,22 @@ private:
     //  Turns what a delete decided into text a user can act on.
     static void  AppendDeleteWarnings (DeleteOutcome & inOutOutcome);
 
-    //  Walks the volume directory chain under a guard. Damage is appended
-    //  rather than thrown.
-    void  CollectEntries (vector<RawEntry>    & outEntries,
+    //  Walks one directory's chain from its key block, under a guard. Damage
+    //  is appended rather than thrown.
+    void  CollectEntries (int                   keyBlock,
+                          vector<RawEntry>    & outEntries,
                           vector<std::string> & outDamage,
                           bool                & outFullyParsed) const;
+
+    //  The key block of the directory a path names, walked down from the
+    //  volume directory; an empty path is the volume directory itself.
+    HRESULT  ResolveDirectory (const FilePath & directory, int & outKeyBlock) const;
+
+    //  Every component of a path but its last: the directory the leaf is in.
+    static FilePath  GetParentPath (const FilePath & path);
+
+    //  One directory record as a listing reports it.
+    static FileEntry  ToFileEntry (const RawEntry & entry);
 
     //  Every block one entry occupies, index blocks included. False when the
     //  structure could not be walked, which the caller reports as an

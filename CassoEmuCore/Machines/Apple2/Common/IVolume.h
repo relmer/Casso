@@ -42,6 +42,14 @@ public:
     //  catalog is still worth having.
     virtual HRESULT  Enumerate (VolumeListing & outListing) const = 0;
 
+    //  The entries of one directory, addressed by path from the volume
+    //  directory. An empty path is the volume directory, the same as
+    //  Enumerate; a filesystem with no subdirectories has nothing deeper.
+    virtual HRESULT  EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const
+    {
+        return directory.IsEmpty() ? Enumerate (outListing) : HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND);
+    }
+
     //  One file's contents, addressed by path.
     virtual HRESULT  Read (const FilePath & path, FilePayload & outPayload) const = 0;
 

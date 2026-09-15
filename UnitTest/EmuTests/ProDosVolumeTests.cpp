@@ -1759,6 +1759,57 @@ public:
     }
 
 
+    //  A subdirectory lists what it holds, under the volume's own name, and a
+    //  file inside it reads by its path at the length its entry records. A
+    //  directory that is not there is refused.
+    TEST_METHOD (Volume_EnumerateDirectory_ListsAndReadsInsideASubdirectory)
+    {
+        vector<Byte>   disk      = LoadFixture ("Disks/Merlin-proProdos2.33-a.dsk");
+        ProDosVolume   volume (disk);
+        VolumeListing  root;
+        VolumeListing  inside;
+        VolumeListing  missing;
+        FilePayload    payload;
+        std::string    directory;
+        std::string    file;
+        uint32_t       fileBytes = 0;
+        size_t         i         = 0;
+
+        AssertSucceeded (volume.Enumerate (root));
+
+        for (i = 0; i < root.entries.size() && directory.empty(); i++)
+        {
+            if (root.entries[i].isDirectory)
+            {
+                directory = root.entries[i].name;
+            }
+        }
+
+        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+
+        AssertSucceeded  (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
+        Assert::IsFalse  (inside.entries.empty(), L"The subdirectory lists what it holds");
+        Assert::AreEqual (root.volumeName, inside.volumeName, L"under the volume's own name");
+
+        for (i = 0; i < inside.entries.size() && file.empty(); i++)
+        {
+            if (!inside.entries[i].isDirectory)
+            {
+                file      = inside.entries[i].name;
+                fileBytes = inside.entries[i].eofBytes;
+            }
+        }
+
+        if (!file.empty())
+        {
+            AssertSucceeded  (volume.Read (FilePath::Parse (directory + "/" + file), payload));
+            Assert::AreEqual ((size_t) fileBytes, payload.bytes.size(), L"A file inside it reads at its recorded length");
+        }
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND), volume.EnumerateDirectory (FilePath::Parse ("NO.SUCH.DIR"), missing));
+    }
+
+
     TEST_METHOD (Volume_Delete_OnARealDisk_ReturnsExactlyWhatItSaysItReturned)
     {
         vector<Byte>   disk    = LoadFixture ("Disks/Merlin-proProdos2.33-a.dsk");

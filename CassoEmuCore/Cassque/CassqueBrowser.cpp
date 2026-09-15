@@ -240,7 +240,7 @@ HRESULT CassqueBrowser::Refresh()
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
-            hr = LoadImage (location.path);
+            hr = LoadImage (location.path, (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string());
             break;
 
         default:
@@ -362,16 +362,16 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassqueBrowser::LoadImage (const std::wstring & path)
+HRESULT CassqueBrowser::LoadImage (const std::wstring & path, const std::string & directory)
 {
     DiskOperations::Result  result;
-    bool                    cached = m_model.TryGetCachedCatalog (path, m_listing, m_kind);
+    bool                    cached = directory.empty() && m_model.TryGetCachedCatalog (path, m_listing, m_kind);
 
 
 
     if (!cached)
     {
-        result = m_operations.List (TextEncoding::WideToNarrow (path), m_listing, m_kind);
+        result = m_operations.List (TextEncoding::WideToNarrow (path), directory, m_listing, m_kind);
 
         if (!result.Succeeded())
         {
@@ -379,7 +379,12 @@ HRESULT CassqueBrowser::LoadImage (const std::wstring & path)
             return result.hr;
         }
 
-        m_model.CacheCatalog (path, m_listing, m_kind);
+        //  The cache holds an image's catalog, which is its volume directory,
+        //  so a subdirectory's listing is read fresh each time.
+        if (directory.empty())
+        {
+            m_model.CacheCatalog (path, m_listing, m_kind);
+        }
     }
 
     m_isImage = true;
@@ -583,11 +588,11 @@ void CassqueBrowser::UpdatePreview()
         if (entry->isDirectory)
         {
             m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = L"ProDOS subdirectories aren't supported yet.";
+            m_preview.message = L"A folder. Open it to see what it holds.";
             return;
         }
 
-        result = m_operations.Read (TextEncoding::WideToNarrow (location.path), entry->name, payload);
+        result = m_operations.Read (TextEncoding::WideToNarrow (location.path), GetEntryPath (*entry), payload);
 
         if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
         {
@@ -997,6 +1002,30 @@ bool CassqueBrowser::OpenRow (int row)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueBrowser::GetEntryPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassqueBrowser::GetEntryPath (const FileEntry & entry) const
+{
+    Location  location = GetLocation();
+
+
+
+    if (location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty())
+    {
+        return location.innerPath + "/" + entry.name;
+    }
+
+    return entry.name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueBrowser::TryGetRowLocation
 //
 //  A root's child, a folder in a host folder, or a disk image in one that can
@@ -1018,6 +1047,14 @@ bool CassqueBrowser::TryGetRowLocation (int row, Location & outLocation)
     else if (!m_rootChildren.empty() && m_rows[row].sourceIndex < m_rootChildren.size())
     {
         outLocation = m_rootChildren[m_rows[row].sourceIndex].location;
+    }
+    else if ((location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory) && m_rows[row].isDirectory)
+    {
+        //  A directory inside an image opens below the one listed.
+        std::string  inner = (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string();
+
+        inner       += (inner.empty() ? "" : "/") + TextEncoding::WideToNarrow (m_rows[row].name);
+        outLocation  = Location::MakeDiskDirectory (location.path, inner);
     }
     else if (location.kind != Location::Kind::HostFolder)
     {

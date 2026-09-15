@@ -78,22 +78,24 @@ Word ProDosVolume::ReadWord (int block, size_t offset) const
 //
 //  ProDosVolume::CollectEntries
 //
-//  Walks the volume directory chain, collecting every readable entry.
+//  Walks one directory's chain from its key block, collecting every readable
+//  entry.
 //
-//  The first record of the key block is the volume header rather than a file,
-//  so it is skipped. A record whose storage type is zero is an unused slot, not
+//  The first record of the key block is the directory's header rather than a
+//  file, in a subdirectory as in the volume directory, so it is skipped. A record whose storage type is zero is an unused slot, not
 //  the end of the directory -- ProDOS reuses slots in place, so a deleted file
 //  leaves a hole that later entries sit beyond.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProDosVolume::CollectEntries (
+    int                   keyBlock,
     vector<RawEntry>    & outEntries,
     vector<std::string> & outDamage,
     bool                & outFullyParsed) const
 {
     ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
-    int             dirBlock = ProDosSkeleton::kDirKeyBlock;
+    int             dirBlock = keyBlock;
     int             n        = 0;
     size_t          i        = 0;
 
@@ -105,11 +107,11 @@ void ProDosVolume::CollectEntries (
     {
         bool  inRange = dirBlock > 0 && dirBlock < ProDosSkeleton::kTotalBlocks;
         bool  stepOk  = inRange && guard.TryVisit ((uint32_t) dirBlock);
-        int   first   = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
+        int   first   = (dirBlock == keyBlock) ? 1 : 0;
 
         if (!stepOk)
         {
-            outDamage.push_back ("the volume directory chain loops or leaves the volume; "
+            outDamage.push_back ("the directory chain loops or leaves the volume; "
                                  "the entries listed are those reachable before it did");
             outFullyParsed = false;
             break;
@@ -310,6 +312,165 @@ bool ProDosVolume::CollectFileBlocks (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolume::ToFileEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileEntry ProDosVolume::ToFileEntry (const RawEntry & entry)
+{
+    FileEntry  listed;
+
+
+
+    listed.name        = entry.name;
+    listed.type        = entry.fileType;
+    listed.isLocked    = (entry.access & kAccessWriteEnable) == 0;
+    listed.isDirectory = entry.storage == ProDosSkeleton::kStorageSubdir;
+    listed.sizeUnits   = entry.blocksUsed;
+    listed.eofBytes    = entry.eof;
+    listed.hasEofBytes = true;
+    listed.auxType     = entry.auxType;
+    listed.hasAuxType  = true;
+    listed.hasModified = TryToUnixTime (entry.modDate, entry.modTime, listed.modifiedUnix);
+
+    // For a binary, the auxiliary type IS the load address. Naming it as such
+    // saves every caller from knowing that.
+    if (entry.fileType == kTypeBinary)
+    {
+        listed.loadAddress    = entry.auxType;
+        listed.hasLoadAddress = true;
+    }
+
+    return listed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::ResolveDirectory
+//
+//  Each component must name a subdirectory in the directory above it. The
+//  blocks visited on the way down are guarded, so a directory that points back
+//  at one it sits inside cannot walk forever.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::ResolveDirectory (const FilePath & directory, int & outKeyBlock) const
+{
+    HRESULT              hr          = S_OK;
+    int                  keyBlock    = ProDosSkeleton::kDirKeyBlock;
+    vector<RawEntry>     entries;
+    vector<std::string>  damage;
+    bool                 fullyParsed = true;
+    bool                 found       = false;
+    bool                 isDirectory = false;
+    bool                 stepOk      = false;
+    uint16_t             owner       = 0;
+    ChainWalkGuard       guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+
+
+
+    for (const std::string & component : directory.GetComponents())
+    {
+        entries.clear();
+        CollectEntries (keyBlock, entries, damage, fullyParsed);
+
+        found = TryFindEntry (entries, component, owner);
+        CBREx (found, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND));
+
+        isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
+        CBREx (isDirectory, HRESULT_FROM_WIN32 (ERROR_DIRECTORY));
+
+        keyBlock = (int) entries[owner].keyPointer;
+        stepOk   = keyBlock > 0 && keyBlock < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) keyBlock);
+        CBREx (stepOk, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+    }
+
+    outKeyBlock = keyBlock;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::GetParentPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FilePath ProDosVolume::GetParentPath (const FilePath & path)
+{
+    std::string  text;
+    size_t       i    = 0;
+
+
+
+    for (i = 0; i + 1 < path.GetComponents().size(); i++)
+    {
+        text += (text.empty() ? "" : "/") + path.GetComponents()[i];
+    }
+
+    return FilePath::Parse (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::EnumerateDirectory
+//
+//  The volume's name and free space describe the whole volume; only the
+//  entries come from the directory the path names.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const
+{
+    HRESULT           hr          = S_OK;
+    int               keyBlock    = ProDosSkeleton::kDirKeyBlock;
+    vector<RawEntry>  entries;
+    bool              fullyParsed = true;
+
+
+
+    hr = Enumerate (outListing);
+    CHR (hr);
+
+    if (directory.IsEmpty())
+    {
+        return hr;
+    }
+
+    hr = ResolveDirectory (directory, keyBlock);
+    CHR (hr);
+
+    outListing.entries.clear();
+    CollectEntries (keyBlock, entries, outListing.damage, fullyParsed);
+
+    for (const RawEntry & entry : entries)
+    {
+        outListing.entries.push_back (ToFileEntry (entry));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolume::Enumerate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,32 +510,11 @@ HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
 
     outListing.totalUnits = (uint32_t) ProDosSkeleton::kTotalBlocks;
 
-    CollectEntries (entries, outListing.damage, fullyParsed);
+    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, outListing.damage, fullyParsed);
 
     for (const RawEntry & entry : entries)
     {
-        FileEntry  listed;
-
-        listed.name           = entry.name;
-        listed.type           = entry.fileType;
-        listed.isLocked       = (entry.access & kAccessWriteEnable) == 0;
-        listed.isDirectory    = entry.storage == ProDosSkeleton::kStorageSubdir;
-        listed.sizeUnits      = entry.blocksUsed;
-        listed.eofBytes       = entry.eof;
-        listed.hasEofBytes    = true;
-        listed.auxType        = entry.auxType;
-        listed.hasAuxType     = true;
-        listed.hasModified    = TryToUnixTime (entry.modDate, entry.modTime, listed.modifiedUnix);
-
-        // For a binary, the auxiliary type IS the load address. Naming it as
-        // such saves every caller from knowing that.
-        if (entry.fileType == kTypeBinary)
-        {
-            listed.loadAddress    = entry.auxType;
-            listed.hasLoadAddress = true;
-        }
-
-        outListing.entries.push_back (listed);
+        outListing.entries.push_back (ToFileEntry (entry));
     }
 
     // Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
@@ -412,23 +552,24 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
 {
     HRESULT  hr          = S_OK;
     size_t   bufferBytes = m_sectors.size();
-    bool     single      = path.IsSingleComponent();
+    int      dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
+    bool     hasLeaf     = !path.IsEmpty();
     Byte     fileType    = 0;
     Word     auxType     = 0;
 
 
 
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (hasLeaf, E_INVALIDARG);
 
-    // Subdirectory traversal is not built yet. Refusing a deeper path keeps the
-    // capability fillable later without any caller having been handed the wrong
-    // file in the meantime.
-    CBREx (single, E_INVALIDARG);
+    // A file in a subdirectory is found in that directory's own chain.
+    hr = ResolveDirectory (GetParentPath (path), dirKeyBlock);
+    CHR (hr);
 
     outPayload = FilePayload();
 
-    hr = ProDosReader::ExtractFile (m_sectors, path.GetLeaf(), outPayload.bytes,
-                                    fileType, auxType);
+    hr = ProDosReader::ExtractFileFromDirectory (m_sectors, dirKeyBlock, path.GetLeaf(), outPayload.bytes,
+                                                 fileType, auxType);
     CHR (hr);
 
     outPayload.type       = fileType;
@@ -485,7 +626,7 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
 
     outReport.Reset ((uint32_t) ProDosSkeleton::kTotalBlocks);
 
-    CollectEntries (entries, damage, fullyParsed);
+    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
     outReport.SetCatalogFullyParsed (fullyParsed);
 
     for (block = 0; block < kReservedBlocks; block++)
@@ -1417,7 +1558,7 @@ HRESULT ProDosVolume::Write (
     hr = ResolveAuxType (payload, auxType);
     CHR (hr);
 
-    CollectEntries (entries, damage, fullyParsed);
+    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
 
     exists = TryFindEntry (entries, name, owner);
 
@@ -1570,7 +1711,7 @@ HRESULT ProDosVolume::Delete (
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
-    CollectEntries (entries, damage, fullyParsed);
+    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
 
     found = TryFindEntry (entries, path.GetLeaf(), owner);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
@@ -1712,7 +1853,7 @@ HRESULT ProDosVolume::SetStartupProgram (const FilePath & path, vector<Byte> & o
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
-    CollectEntries (entries, damage, fullyParsed);
+    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
 
     found = TryFindEntry (entries, path.GetLeaf(), owner);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
@@ -1892,7 +2033,7 @@ HRESULT ProDosVolume::Rename (
     nameOk = TryEncodeDirectoryName (to, name);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
-    CollectEntries (entries, damage, fullyParsed);
+    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
 
     found = TryFindEntry (entries, from.GetLeaf(), owner);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));

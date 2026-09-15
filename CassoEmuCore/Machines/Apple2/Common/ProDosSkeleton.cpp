@@ -199,7 +199,30 @@ Error:
 //
 //  ProDosReader::ExtractFile
 //
-//  Minimal ProDOS volume reader: walks the volume directory chain for a
+//  A file in the volume directory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosReader::ExtractFile (
+    const vector<Byte> & volume,
+    const std::string  & fileName,
+    vector<Byte>       & outBytes,
+    Byte               & outFileType,
+    Word               & outAuxType)
+{
+    return ExtractFileFromDirectory (volume, ProDosSkeleton::kDirKeyBlock, fileName, outBytes, outFileType, outAuxType);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::ExtractFileFromDirectory
+//
+//  Minimal ProDOS volume reader: walks one directory's chain, from its key
+//  block, for a
 //  case-insensitive name match, then gathers the file's data blocks per its
 //  storage type -- seedling (the key block IS the data), sapling (key is an
 //  index block of up to 256 data pointers), or tree (key is a master index
@@ -213,8 +236,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosReader::ExtractFile (
+HRESULT ProDosReader::ExtractFileFromDirectory (
     const vector<Byte> & volume,
+    int                  dirKeyBlock,
     const std::string  & fileName,
     vector<Byte>       & outBytes,
     Byte               & outFileType,
@@ -241,12 +265,17 @@ HRESULT ProDosReader::ExtractFile (
     CBRAEx (volumeBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
     CBRAEx (nameBytes >= 1 && nameBytes <= ProDosSkeleton::kVolumeNameBytes, E_INVALIDARG);
 
-    // Walk the volume directory chain from the key block.
-    dirBlock = ProDosSkeleton::kDirKeyBlock;
+    keyOk = dirKeyBlock > 0 && IsBlockInRange ((Word) dirKeyBlock);
+    CBRAEx (keyOk, E_INVALIDARG);
+
+    // Walk the directory's chain from its key block. The key block's first
+    // record is the directory's own header, not a file, in a subdirectory as
+    // in the volume directory.
+    dirBlock = dirKeyBlock;
 
     while (!found && dirBlock != 0)
     {
-        int   first   = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
+        int   first   = (dirBlock == dirKeyBlock) ? 1 : 0;
         int   n       = 0;
         bool  stepOk  = ProDosReader::IsBlockInRange ((Word) dirBlock)
                      && guard.TryVisit ((uint32_t) dirBlock);

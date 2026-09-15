@@ -154,6 +154,10 @@ public:
     //  location is an image; empty otherwise.
     void  GetSelectedEntries (std::vector<FileEntry> & outEntries) const;
 
+    //  An entry's path as the volume layer addresses it: its name in the volume
+    //  directory, or the listed subdirectory's path and then its name.
+    std::string  GetEntryPath (const FileEntry & entry) const;
+
     //  The host paths behind the selected rows, when the location is a host
     //  folder; empty otherwise.
     void  GetSelectedHostPaths (std::vector<std::wstring> & outPaths) const;
@@ -184,7 +188,7 @@ private:
     void     ReloadAfterNavigation();
     HRESULT  LoadHostFolder (const std::wstring & path);
     HRESULT  LoadRoot       (const std::wstring & id);
-    HRESULT  LoadImage      (const std::wstring & path);
+    HRESULT  LoadImage      (const std::wstring & path, const std::string & directory);
     bool     CanListImage   (const std::wstring & imagePath);
     void     SortRows();
     void     UpdatePreview();

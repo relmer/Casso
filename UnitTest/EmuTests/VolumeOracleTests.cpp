@@ -497,11 +497,11 @@ public:
         Assert::IsTrue (listing.entries.size() > 0, L"the volume holds files");
     }
 
-    TEST_METHOD (ProDos_RealDisk_HasSubdirectoriesSoDeeperPathsAreRefused)
+    TEST_METHOD (ProDos_RealDisk_ReadsAFileInsideASubdirectory)
     {
-        // /MERLIN carries real subdirectories, so this exercises the refusal
-        // rather than assuming it. Traversal is not built; a deeper path must
-        // be declined, never reduced to its last component.
+        // /MERLIN carries real subdirectories. A deeper path is walked through
+        // them, and a leaf that is not in the named directory is not found
+        // elsewhere by its last component.
         vector<Byte>   disk = Load (kProDosMerlin);
         ProDosVolume   volume (disk);
         VolumeListing  listing;
@@ -520,8 +520,12 @@ public:
 
         hr = volume.Read (FilePath::Parse ("SOURCE/PI.ADD.S"), got);
 
-        Assert::IsTrue (FAILED (hr), L"a path this reader cannot walk must be refused");
-        Assert::AreEqual (size_t (0), got.bytes.size(), L"and must return nothing");
+        Assert::IsTrue (SUCCEEDED (hr), L"a file inside a subdirectory reads by its path");
+        Assert::IsTrue (got.bytes.size() > 0, L"and returns its contents");
+
+        hr = volume.Read (FilePath::Parse ("NO.SUCH.DIR/PI.ADD.S"), got);
+
+        Assert::IsTrue (FAILED (hr), L"a directory that is not there is not found");
     }
 
     TEST_METHOD (ProDos_NearlyFullVolume_ReportsItsFreeSpace)

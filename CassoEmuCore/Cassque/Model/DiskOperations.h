@@ -69,7 +69,11 @@ public:
     void  SetIntentChannel (IIntentChannel * channel) { m_intentChannel = channel; }
 
     //  Reads through the volume layer.
-    Result  List (const std::string & imagePath, VolumeListing & outListing, VolumeKind & outKind);
+    Result  List (const std::string & imagePath, VolumeListing & outListing, VolumeKind & outKind) { return List (imagePath, std::string(), outListing, outKind); }
+
+    //  One directory's entries, by path from the volume directory, with the
+    //  volume's name and free space.
+    Result  List (const std::string & imagePath, const std::string & directory, VolumeListing & outListing, VolumeKind & outKind);
     Result  Read (const std::string & imagePath, const std::string & name, FilePayload & outPayload);
 
     //  Command-line verbs, through the runner.
