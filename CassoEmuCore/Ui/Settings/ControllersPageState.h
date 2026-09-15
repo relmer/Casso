@@ -187,7 +187,8 @@ private:
     const ControllerModelSettings *  FindSelectedModel    () const;
     const ControllerProfile *        FindEditedProfile    () const;
     ControllerProfile *              EnsureEditedProfile  ();
-    void                             CaptureSwitchMapping ();
+    bool                             FindCommittedMapping (ControlMapping & mapping) const;
+    std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
 
     static std::vector<AxisBinding> *    FindAxisList    (ControlMapping & mapping, PaddleTarget target);
     static std::vector<ButtonBinding> *  FindButtonList  (ControlMapping & mapping, PaddleTarget target);
@@ -208,8 +209,10 @@ private:
     std::string                                     m_editedProfile;
     std::string                                     m_baselineProfile;
 
-    // The edited profile's mapping when it was opened or last switched to.
-    ControlMapping                                  m_switchMapping;
+    // Per model token, a profile's name as edited mapped to its name in the
+    // committed settings. An empty committed name marks a profile created on
+    // the page, which the committed settings do not have yet.
+    std::map<std::string, std::map<std::string, std::string>>  m_committedNames;
 
     ControlCapture                                  m_capture;
     PaddleTarget                                    m_captureTarget = PaddleTarget::Pdl0;

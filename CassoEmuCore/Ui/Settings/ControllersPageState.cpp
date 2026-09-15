@@ -38,6 +38,7 @@ void ControllersPageState::Load (
     m_editedProfile        = activeProfile;
     m_baselineProfile      = activeProfile;
 
+    m_committedNames.clear();
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
 
@@ -57,8 +58,6 @@ void ControllersPageState::Load (
             m_selected = i;
         }
     }
-
-    CaptureSwitchMapping();
 }
 
 
@@ -150,7 +149,6 @@ void ControllersPageState::SelectController (size_t index)
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
     m_liveEvaluator.ResetRate();
-    CaptureSwitchMapping();
 }
 
 
@@ -628,7 +626,6 @@ void ControllersPageState::SelectProfile (const std::string & name)
 
     m_capture.Cancel();
     m_liveEvaluator.ResetRate();
-    CaptureSwitchMapping();
 }
 
 
@@ -729,6 +726,7 @@ ProfileEditResult ControllersPageState::CreateProfile (const std::string & name,
 
     if (result == ProfileEditResult::Ok)
     {
+        m_committedNames[ControllerTokens::ModelToToken (selected->unit.model)][ControllerModelSettings::TrimProfileName (name)] = std::string();
         SelectProfile (ControllerModelSettings::TrimProfileName (name));
     }
 
@@ -747,22 +745,32 @@ ProfileEditResult ControllersPageState::CreateProfile (const std::string & name,
 
 ProfileEditResult ControllersPageState::RenameProfile (const std::string & newName)
 {
+    const ControllerEntry *    selected = GetSelected();
     ControllerModelSettings *  settings = nullptr;
     ProfileEditResult          result   = ProfileEditResult::Ok;
+    std::string                oldName;
+    std::string                token;
+    std::string                committedName;
 
 
 
-    if (IsEditingDefaultProfile())
+    if (IsEditingDefaultProfile() || selected == nullptr)
     {
         return ProfileEditResult::IsDefaultProfile;
     }
 
-    settings = EnsureSelectedModel();
-    result   = settings->RenameProfile (GetEditedProfileName(), newName);
+    token         = ControllerTokens::ModelToToken (selected->unit.model);
+    oldName       = FindEditedProfile()->name;
+    committedName = GetCommittedName (token, oldName);
+    settings      = EnsureSelectedModel();
+    result        = settings->RenameProfile (GetEditedProfileName(), newName);
 
     if (result == ProfileEditResult::Ok)
     {
         m_editedProfile = ControllerModelSettings::TrimProfileName (newName);
+
+        m_committedNames[token].erase (oldName);
+        m_committedNames[token][m_editedProfile] = committedName;
     }
 
     return result;
@@ -784,6 +792,7 @@ ProfileEditResult ControllersPageState::DeleteProfile()
 {
     ControllerModelSettings *  settings = nullptr;
     ProfileEditResult          result   = ProfileEditResult::Ok;
+    std::string                name;
 
 
 
@@ -792,11 +801,13 @@ ProfileEditResult ControllersPageState::DeleteProfile()
         return ProfileEditResult::IsDefaultProfile;
     }
 
+    name     = GetEditedProfileName();
     settings = EnsureSelectedModel();
-    result   = settings->DeleteProfile (GetEditedProfileName());
+    result   = settings->DeleteProfile (name);
 
     if (result == ProfileEditResult::Ok)
     {
+        m_committedNames[ControllerTokens::ModelToToken (GetSelected()->unit.model)].erase (name);
         SelectProfile (std::string());
     }
 
@@ -840,11 +851,24 @@ void ControllersPageState::ResetProfile()
 //
 //  HasUnappliedProfileEdits
 //
+//  Judged against the committed settings, not against the profile as it was
+//  when switched to, so edits stay unapplied across controller switches. A
+//  profile created on the page is unapplied until it is saved.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ControllersPageState::HasUnappliedProfileEdits() const
 {
-    return !(GetMapping() == m_switchMapping);
+    ControlMapping  committed;
+
+
+
+    if (!FindCommittedMapping (committed))
+    {
+        return true;
+    }
+
+    return !(GetMapping() == committed);
 }
 
 
@@ -855,8 +879,11 @@ bool ControllersPageState::HasUnappliedProfileEdits() const
 //
 //  DiscardProfileEdits
 //
-//  A model that gained its settings entry only through the edits being
-//  discarded loses it again, so discarding leaves nothing pending.
+//  The edited profile goes back to its committed mapping. A profile created
+//  on the page has none, so discarding removes it and the Default becomes
+//  the edited profile. A model that gained its settings entry only through
+//  the edits being discarded loses it again, so discarding leaves nothing
+//  pending.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -864,7 +891,9 @@ void ControllersPageState::DiscardProfileEdits()
 {
     const ControllerEntry *    selected = GetSelected();
     ControllerProfile *        profile  = nullptr;
+    ControlMapping             committed;
     std::string                token;
+    std::string                name;
 
 
 
@@ -873,9 +902,20 @@ void ControllersPageState::DiscardProfileEdits()
         return;
     }
 
-    profile          = EnsureEditedProfile();
-    profile->mapping = m_switchMapping;
-    token            = ControllerTokens::ModelToToken (selected->unit.model);
+    profile = EnsureEditedProfile();
+    token   = ControllerTokens::ModelToToken (selected->unit.model);
+
+    if (FindCommittedMapping (committed))
+    {
+        profile->mapping = committed;
+    }
+    else
+    {
+        name = profile->name;
+        EnsureSelectedModel()->DeleteProfile (name);
+        m_committedNames[token].erase (name);
+        m_editedProfile.clear();
+    }
 
     if (m_baselineModels.find (token) == m_baselineModels.end())
     {
@@ -937,7 +977,7 @@ HRESULT ControllersPageState::SaveProfileEdits (const CommitFn & commit)
     CHR (hr);
 
     m_baselineModels = std::move (committed);
-    CaptureSwitchMapping();
+    m_committedNames.erase (token);
 
 Error:
     return hr;
@@ -1483,9 +1523,9 @@ void ControllersPageState::Revert()
     m_editedProfile   = m_baselineProfile;
     m_calibrationStep = CalibrationStep::None;
 
+    m_committedNames.clear();
     m_capture.Cancel();
     m_liveEvaluator.ResetRate();
-    CaptureSwitchMapping();
 }
 
 
@@ -1503,6 +1543,8 @@ void ControllersPageState::MarkCommitted()
     m_baselineModels       = m_models;
     m_baselineCalibrations = m_calibrations;
     m_baselineProfile      = m_editedProfile;
+
+    m_committedNames.clear();
 }
 
 
@@ -1708,16 +1750,81 @@ ControllerProfile * ControllersPageState::EnsureEditedProfile()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CaptureSwitchMapping
+//  FindCommittedMapping
 //
-//  What the keep-or-discard prompt compares against: the edited profile's
-//  mapping as it is now.
+//  What the save-or-discard prompt compares against: the edited profile's
+//  mapping in the committed settings, found under the name it was committed
+//  with. A model or Default never committed has the built-in mapping. False
+//  for a profile created on the page, which has no committed mapping.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::CaptureSwitchMapping()
+bool ControllersPageState::FindCommittedMapping (ControlMapping & mapping) const
 {
-    m_switchMapping = GetMapping();
+    const ControllerEntry *          selected  = GetSelected();
+    const ControllerProfile *        edited    = FindEditedProfile();
+    const ControllerModelSettings *  settings  = nullptr;
+    const ControllerProfile *        profile   = nullptr;
+    std::string                      token;
+
+
+
+    if (selected == nullptr)
+    {
+        mapping = ControlMapping();
+        return true;
+    }
+
+    token = ControllerTokens::ModelToToken (selected->unit.model);
+
+    auto  found = m_baselineModels.find (token);
+
+    settings = found != m_baselineModels.end() ? &found->second : nullptr;
+
+    if (edited != nullptr && !edited->isDefault)
+    {
+        profile = settings != nullptr ? settings->FindProfile (GetCommittedName (token, edited->name)) : nullptr;
+
+        if (profile == nullptr)
+        {
+            return false;
+        }
+    }
+    else if (settings != nullptr)
+    {
+        profile = settings->FindDefaultProfile();
+    }
+
+    mapping = profile != nullptr ? profile->mapping : DefaultMapping::For (selected->unit.model, selected->controls);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCommittedName
+//
+//  An empty name, which no profile has, for a profile created on the page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ControllersPageState::GetCommittedName (const std::string & token, const std::string & name) const
+{
+    auto  model = m_committedNames.find (token);
+
+
+
+    if (model == m_committedNames.end())
+    {
+        return name;
+    }
+
+    auto  entry = model->second.find (name);
+
+    return entry != model->second.end() ? entry->second : name;
 }
 
 

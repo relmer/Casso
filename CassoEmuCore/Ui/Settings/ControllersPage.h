@@ -134,6 +134,8 @@ private:
     void                 SwitchProfile      (const std::string & name);
     void                 OnNewProfile       ();
     void                 OpenNewProfileDialog ();
+    void                 SwitchController   (size_t index);
+    void                 AskToSaveProfileEdits (std::function<void ()> proceed);
     void                 OnRenameProfile    ();
     void                 OnDeleteProfile    ();
     void                 ShowDialog         ();

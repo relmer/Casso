@@ -605,7 +605,7 @@ namespace ControllerTests
 
             Assert::IsFalse  (page.HasUnappliedProfileEdits(), L"the Default has none of its own");
             Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb0.size(),
-                L"Discard puts back what Swapped had when it was switched to");
+                L"Discard puts back what Swapped had as committed");
         }
 
 
@@ -620,6 +620,116 @@ namespace ControllerTests
             Assert::AreEqual (std::string ("Swapped"), page.GetEditedProfileName());
             Assert::IsTrue   (page.HasUnappliedProfileEdits());
             Assert::AreEqual (size_t (1), page.GetMapping().pb2.size());
+        }
+
+
+        TEST_METHOD (UnappliedEdits_SurviveAControllerSwitchAndBack)
+        {
+            ControllersPageState  page;
+            std::string           token = ControllerTokens::ModelToToken (MakeStick().unit.model);
+
+            page.Load ({ MakeStick(), MakeXbox() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+            page.RemoveBinding (PaddleTarget::Pb0, 0);
+
+            page.SelectController (1);
+            page.SelectController (0);
+
+            Assert::IsTrue   (page.HasUnappliedProfileEdits(), L"coming back to the controller is not a save");
+
+            page.DiscardProfileEdits();
+
+            Assert::IsFalse  (page.HasUnappliedProfileEdits());
+            Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb0.size(),
+                L"Discard puts back the committed mapping");
+        }
+
+
+        TEST_METHOD (UnappliedEdits_OnAnotherController_DoNotMarkThisOne)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick(), MakeXbox() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+            page.SelectController (1);
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 0 } });
+            Assert::IsTrue  (page.HasUnappliedProfileEdits());
+
+            page.SelectController (0);
+            Assert::IsFalse (page.HasUnappliedProfileEdits());
+        }
+
+
+        TEST_METHOD (SavedEdits_StayAppliedAcrossAControllerSwitch)
+        {
+            ControllersPageState  page;
+            HRESULT               hr = S_OK;
+
+            page.Load ({ MakeStick(), MakeXbox() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+            page.RemoveBinding (PaddleTarget::Pb0, 0);
+
+            hr = page.SaveProfileEdits ([] (const std::map<std::string, ControllerModelSettings> &,
+                                            const std::map<std::string, ControllerCalibration> &)
+            {
+                return S_OK;
+            });
+
+            page.SelectController (1);
+            page.SelectController (0);
+
+            Assert::IsTrue  (SUCCEEDED (hr));
+            Assert::IsFalse (page.HasUnappliedProfileEdits());
+        }
+
+
+        TEST_METHOD (CreatedProfile_IsUnappliedUntilSaved_AndDiscardRemovesIt)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+            page.CreateProfile ("Game", ProfileSource::DefaultMapping, std::string());
+
+            Assert::IsTrue  (page.HasUnappliedProfileEdits(), L"a profile not yet saved is itself the change");
+
+            page.DiscardProfileEdits();
+
+            Assert::IsFalse (page.HasUnappliedProfileEdits());
+            Assert::IsTrue  (page.IsEditingDefaultProfile());
+            Assert::IsTrue  (page.GetModels().empty(), L"nothing is left of it");
+        }
+
+
+        TEST_METHOD (CreatedProfile_ThatIsSaved_HasNoUnappliedEdits)
+        {
+            ControllersPageState  page;
+            HRESULT               hr = S_OK;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+            page.CreateProfile ("Game", ProfileSource::DefaultMapping, std::string());
+
+            hr = page.SaveProfileEdits ([] (const std::map<std::string, ControllerModelSettings> &,
+                                            const std::map<std::string, ControllerCalibration> &)
+            {
+                return S_OK;
+            });
+
+            Assert::IsTrue  (SUCCEEDED (hr));
+            Assert::IsFalse (page.HasUnappliedProfileEdits());
+        }
+
+
+        TEST_METHOD (RenamedProfile_IsJudgedAgainstItsCommittedMapping)
+        {
+            ControllersPageState  page;
+            std::string           token = ControllerTokens::ModelToToken (MakeStick().unit.model);
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+            page.RenameProfile ("Renamed");
+            Assert::IsFalse  (page.HasUnappliedProfileEdits(), L"a rename alone is not a mapping edit");
+
+            page.RemoveBinding (PaddleTarget::Pb0, 0);
+            Assert::IsTrue   (page.HasUnappliedProfileEdits());
+
+            page.DiscardProfileEdits();
+            Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Renamed")->mapping.pb0.size());
         }
 
 
