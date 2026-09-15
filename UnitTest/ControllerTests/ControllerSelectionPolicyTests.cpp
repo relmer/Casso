@@ -49,6 +49,67 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (Assignment_TheSelectionHoldsPdl0AndPdl1LessWhatOthersHold)
+        {
+            std::vector<ControllerAxisAssignment>  assignments;
+            ControllerUnitKey                      xbox  = MakeXbox().unit;
+            ControllerUnitKey                      stick = MakeStick ("{A}").unit;
+
+            Assert::AreEqual (0x3ul, ControllerSelectionPolicy::GetAxesFor (assignments, xbox, xbox, 4).to_ulong(),
+                L"with nothing assigned, the selection holds PDL0 and PDL1, as it always has");
+            Assert::AreEqual (0x0ul, ControllerSelectionPolicy::GetAxesFor (assignments, stick, xbox, 4).to_ulong(),
+                L"and a controller that is neither selected nor assigned holds nothing");
+
+            ControllerSelectionPolicy::AssignAxes (assignments, stick, ControllerAxisAssignment::AxisSet (0x2));
+
+            Assert::AreEqual (0x1ul, ControllerSelectionPolicy::GetAxesFor (assignments, xbox, xbox, 4).to_ulong(),
+                L"assigning PDL1 away leaves the selection PDL0");
+            Assert::AreEqual (0x2ul, ControllerSelectionPolicy::GetAxesFor (assignments, stick, xbox, 4).to_ulong());
+        }
+
+
+        TEST_METHOD (Assignment_DisplacesThePreviousOwnerForThatAxisOnly)
+        {
+            std::vector<ControllerAxisAssignment>  assignments;
+            ControllerUnitKey                      a = MakeStick ("{A}").unit;
+            ControllerUnitKey                      b = MakeStick ("{B}").unit;
+
+            ControllerSelectionPolicy::AssignAxes (assignments, a, ControllerAxisAssignment::AxisSet (0x3));
+            ControllerSelectionPolicy::AssignAxes (assignments, b, ControllerAxisAssignment::AxisSet (0x1));
+
+            Assert::AreEqual (0x2ul, ControllerSelectionPolicy::GetAxesFor (assignments, a, std::nullopt, 4).to_ulong(),
+                L"the first controller loses PDL0 and keeps PDL1 (FR-036)");
+            Assert::AreEqual (0x1ul, ControllerSelectionPolicy::GetAxesFor (assignments, b, std::nullopt, 4).to_ulong());
+            Assert::AreEqual (size_t (2), assignments.size(), L"reassigning a unit replaces its entry rather than adding one");
+
+            ControllerSelectionPolicy::AssignAxes (assignments, b, ControllerAxisAssignment::AxisSet (0x3));
+
+            Assert::AreEqual (0x0ul, assignments[0].axes.to_ulong(), L"a controller whose last axis is taken holds none");
+            Assert::AreEqual (size_t (2), assignments.size(), L"and keeps its entry, rather than falling back to a default");
+        }
+
+
+        TEST_METHOD (Replacement_PrefersAControllerWithoutAxesOfItsOwn)
+        {
+            std::vector<ControllerAxisAssignment>  assignments;
+            ControllerDeviceInfo                   gone     = MakeStick ("{GONE}");
+            ControllerDeviceInfo                   assigned = MakeStick ("{ASSIGNED}");
+            ControllerDeviceInfo                   unassigned = MakeStick ("{FREE}");
+            std::vector<ControllerDeviceInfo>      devices    = { assigned, unassigned };
+
+            ControllerSelectionPolicy::AssignAxes (assignments, assigned.unit, ControllerAxisAssignment::AxisSet (0x2));
+
+            ControllerSelectionPolicy::Decision  decision = ControllerSelectionPolicy::Evaluate (gone.unit, devices, true, assignments);
+
+            Assert::IsTrue (decision.selection.value() == unassigned.unit,
+                L"the controller already driving its own axis is left to it, though it was attached longer");
+
+            decision = ControllerSelectionPolicy::Evaluate (gone.unit, { assigned }, true, assignments);
+
+            Assert::IsTrue (decision.selection.value() == assigned.unit, L"with no free controller, an assigned one still takes over");
+        }
+
+
         TEST_METHOD (NoneSelected_FirstAttachedIsTaken)
         {
             std::vector<ControllerDeviceInfo>          devices  = { MakeStick ("{A}"), MakeXbox() };

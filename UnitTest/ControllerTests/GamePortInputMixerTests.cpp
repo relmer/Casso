@@ -50,7 +50,17 @@ namespace ControllerTests
         {
             GamePortContribution  contribution;
 
-            contribution.paddle = std::array<Byte, 2> { x, y };
+            contribution.paddle[0] = x;
+            contribution.paddle[1] = y;
+            return contribution;
+        }
+
+
+        static GamePortContribution MakeAxis (size_t axis, Byte value)
+        {
+            GamePortContribution  contribution;
+
+            contribution.paddle[axis] = value;
             return contribution;
         }
 
@@ -145,6 +155,89 @@ namespace ControllerTests
 
             Assert::AreEqual (GamePortState::kPaddleCenter, sink.writes.back().state.paddle[0], L"X must rest at center with no owner");
             Assert::AreEqual (GamePortState::kPaddleCenter, sink.writes.back().state.paddle[1], L"Y must rest at center with no owner");
+        }
+
+
+        TEST_METHOD (Axes_EachAxisHasItsOwnOwner)
+        {
+            GamePortInputMixer     mixer;
+            RecordingGamePortSink  sink;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (0, AxisOwner::Controller);
+            mixer.SetAxisOwner (1, AxisOwner::ArrowKeys);
+            mixer.Submit (GamePortSource::Controller, MakePaddle (200, 10));
+            mixer.Submit (GamePortSource::ArrowKeys,  MakePaddle (0, 255));
+
+            Assert::AreEqual (static_cast<Byte> (200), sink.writes.back().state.paddle[0], L"PDL0 follows its owner, the controller");
+            Assert::AreEqual (static_cast<Byte> (255), sink.writes.back().state.paddle[1], L"PDL1 follows its owner, the arrow keys");
+            Assert::AreEqual (GamePortState::kPaddleCenter, sink.writes.back().state.paddle[2], L"an axis nobody owns rests at center");
+        }
+
+
+        TEST_METHOD (Axes_TwoControllersHoldPdl0AndPdl1Independently)
+        {
+            GamePortInputMixer     mixer;
+            RecordingGamePortSink  sink;
+            GamePortContribution   both;
+
+            // Two controllers reach the mixer as one source whose axes are held
+            // separately: the first player's on PDL0, the second's on PDL1.
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            mixer.Submit (GamePortSource::Controller, MakeAxis (0, 30));
+
+            Assert::AreEqual (static_cast<Byte> (30), sink.writes.back().state.paddle[0], L"the first controller drives PDL0");
+            Assert::AreEqual (GamePortState::kPaddleCenter, sink.writes.back().state.paddle[1], L"and leaves PDL1 alone, since it does not hold it");
+
+            both            = MakeAxis (0, 30);
+            both.paddle[1]  = 220;
+            mixer.Submit (GamePortSource::Controller, both);
+
+            Assert::AreEqual (static_cast<Byte> (30),  sink.writes.back().state.paddle[0], L"PDL0 keeps the first controller's value");
+            Assert::AreEqual (static_cast<Byte> (220), sink.writes.back().state.paddle[1], L"while PDL1 takes the second's");
+
+            mixer.Submit (GamePortSource::Controller, MakeAxis (1, 220));
+
+            Assert::AreEqual (GamePortState::kPaddleCenter, sink.writes.back().state.paddle[0], L"the first letting go centers only its own axis");
+            Assert::AreEqual (static_cast<Byte> (220), sink.writes.back().state.paddle[1], L"and the second's reading is untouched");
+        }
+
+
+        TEST_METHOD (Axes_AssigningAnAxisDisplacesOnlyThatAxissOwner)
+        {
+            GamePortInputMixer     mixer;
+            RecordingGamePortSink  sink;
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (AxisOwner::Controller);
+            mixer.Submit (GamePortSource::Controller,  MakePaddle (200, 10));
+            mixer.Submit (GamePortSource::MousePaddle, MakePaddle (50, 60));
+            mixer.SetAxisOwner (1, AxisOwner::MousePaddle);
+
+            Assert::AreEqual (static_cast<Byte> (60),  sink.writes.back().state.paddle[1], L"the new owner takes PDL1 at once");
+            Assert::AreEqual (static_cast<Byte> (200), sink.writes.back().state.paddle[0], L"and the displaced owner keeps PDL0");
+        }
+
+
+        TEST_METHOD (Buttons_OrAcrossTwoControllersOnSeparateAxes)
+        {
+            GamePortInputMixer     mixer;
+            RecordingGamePortSink  sink;
+            GamePortContribution   controllers = MakeAxis (0, 30);
+            GamePortContribution   mouse       = MakeAxis (1, 220);
+
+            controllers.buttons.set (0);
+            mouse.buttons.set (1);
+
+            mixer.SetSink (&sink);
+            mixer.SetAxisOwner (0, AxisOwner::Controller);
+            mixer.SetAxisOwner (1, AxisOwner::MousePaddle);
+            mixer.Submit (GamePortSource::Controller,  controllers);
+            mixer.Submit (GamePortSource::MousePaddle, mouse);
+
+            Assert::IsTrue (sink.writes.back().state.buttons.test (0), L"each axis owner's button reaches its own line");
+            Assert::IsTrue (sink.writes.back().state.buttons.test (1), L"with both held at once");
         }
 
 

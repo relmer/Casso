@@ -79,8 +79,8 @@ namespace ControllerTests
             Assert::AreEqual (static_cast<size_t> (1), mapping.pdl0.size(), L"one binding on PDL0");
             Assert::IsTrue   (mapping.pdl0[0].analog == ControlId { ControlKind::Axis, 0 }, L"PDL0 is the primary X axis");
             Assert::IsTrue   (mapping.pdl1[0].analog == ControlId { ControlKind::Axis, 1 }, L"PDL1 is the primary Y axis");
-            Assert::AreEqual (kCenter, result.paddle.value()[0], L"a centered stick reads center");
-            Assert::AreEqual (kCenter, result.paddle.value()[1], L"and an axis with no hardware behind it must not reach the game port");
+            Assert::AreEqual (kCenter, result.paddle[0].value(), L"a centered stick reads center");
+            Assert::AreEqual (kCenter, result.paddle[1].value(), L"and an axis with no hardware behind it must not reach the game port");
         }
 
 
@@ -98,8 +98,8 @@ namespace ControllerTests
 
             result = evaluator.Evaluate (sample, mapping, kNoDeadzone);
 
-            Assert::AreEqual (static_cast<Byte> (255), result.paddle.value()[0], L"full right is 255");
-            Assert::AreEqual (static_cast<Byte> (0),   result.paddle.value()[1], L"full up is 0");
+            Assert::AreEqual (static_cast<Byte> (255), result.paddle[0].value(), L"full right is 255");
+            Assert::AreEqual (static_cast<Byte> (0),   result.paddle[1].value(), L"full up is 0");
             Assert::IsTrue   (result.buttons.test (0), L"A is PB0");
             Assert::IsFalse  (result.buttons.test (1), L"B is not held");
         }
@@ -146,14 +146,88 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (Default_ClaimsPdl0AndPdl1AndNoMore)
+        {
+            ControllerModelKey  model   = { ControllerKind::XInput, 0, 0 };
+            ControlMapping      mapping = DefaultMapping::For (model, XInputSampleDecoder::ListControls());
+
+            // A controller with a second stick must not take the axes a second
+            // player would use (FR-038).
+            Assert::IsFalse (mapping.pdl0.empty());
+            Assert::IsFalse (mapping.pdl1.empty());
+            Assert::IsTrue  (mapping.pdl2.empty(), L"the right stick is not put on PDL2 by default");
+            Assert::IsTrue  (mapping.pdl3.empty(), L"nor on PDL3");
+        }
+
+
+        TEST_METHOD (FourAxes_BothSticksDriveAllFour)
+        {
+            ControllerSample      sample = MakeSample();
+            ControlMapping        mapping;
+            MappingEvaluator      evaluator;
+            GamePortContribution  result;
+
+            mapping.pdl0.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, XInputSampleDecoder::kLeftStickX } });
+            mapping.pdl1.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, XInputSampleDecoder::kLeftStickY } });
+            mapping.pdl2.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, XInputSampleDecoder::kRightStickX } });
+            mapping.pdl3.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, XInputSampleDecoder::kRightStickY } });
+
+            sample.axes[XInputSampleDecoder::kLeftStickX]  =  1.0f;
+            sample.axes[XInputSampleDecoder::kLeftStickY]  = -1.0f;
+            sample.axes[XInputSampleDecoder::kRightStickX] = -1.0f;
+            sample.axes[XInputSampleDecoder::kRightStickY] =  1.0f;
+
+            result = evaluator.Evaluate (sample, mapping, kNoDeadzone);
+
+            Assert::AreEqual (static_cast<Byte> (255), result.paddle[0].value(), L"left stick X is PDL0");
+            Assert::AreEqual (static_cast<Byte> (0),   result.paddle[1].value(), L"left stick Y is PDL1");
+            Assert::AreEqual (static_cast<Byte> (0),   result.paddle[2].value(), L"right stick X is PDL2");
+            Assert::AreEqual (static_cast<Byte> (255), result.paddle[3].value(), L"right stick Y is PDL3");
+        }
+
+
+        TEST_METHOD (TwoAxisMachine_BindingsOnPdl2AndPdl3AreIgnored)
+        {
+            ControllerSample      sample = MakeSample();
+            ControlMapping        mapping;
+            AxisBinding           rate;
+            MappingEvaluator      evaluator;
+            GamePortContribution  result;
+
+            rate.analog   = { ControlKind::Axis, XInputSampleDecoder::kRightStickX };
+            rate.response = AxisResponse::Rate;
+
+            mapping.pdl0.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, XInputSampleDecoder::kLeftStickX } });
+            mapping.pdl2.push_back (rate);
+            mapping.pdl3.push_back ({ AxisBindingKind::Analog, { ControlKind::Axis, XInputSampleDecoder::kRightStickY } });
+
+            sample.axes[XInputSampleDecoder::kLeftStickX]  = 1.0f;
+            sample.axes[XInputSampleDecoder::kRightStickX] = 1.0f;
+            sample.axes[XInputSampleDecoder::kRightStickY] = 1.0f;
+
+            result = evaluator.Evaluate (sample, mapping, kNoDeadzone, MappingEvaluator::kMaxRateStep, 2);
+
+            Assert::AreEqual (static_cast<Byte> (255), result.paddle[0].value(), L"PDL0 still plays");
+            Assert::IsTrue   (result.paddle[1].has_value(),  L"and PDL1 rests at center, since the machine has it");
+            Assert::IsFalse  (result.paddle[2].has_value(),  L"PDL2 is left absent on a machine with two axes");
+            Assert::IsFalse  (result.paddle[3].has_value(),  L"and so is PDL3");
+            Assert::IsFalse  (evaluator.IsRateMoving(),      L"a rate binding on an axis the machine lacks does not keep the thread polling");
+
+            result = evaluator.Evaluate (sample, mapping, kNoDeadzone, MappingEvaluator::kMaxRateStep);
+
+            Assert::IsTrue (result.paddle[2].value() > kCenter,
+                L"the bindings were kept, not discarded: four axes play them again, from center");
+        }
+
+
         TEST_METHOD (Empty_TargetsRestAtCenterAndReleased)
         {
             ControllerSample      sample = MakeSample();
             MappingEvaluator      evaluator;
             GamePortContribution  result = evaluator.Evaluate (sample, ControlMapping(), kNoDeadzone);
 
-            Assert::AreEqual (kCenter, result.paddle.value()[0], L"no binding is center");
-            Assert::AreEqual (kCenter, result.paddle.value()[1], L"on both axes");
+            Assert::AreEqual (kCenter, result.paddle[0].value(), L"no binding is center");
+            Assert::AreEqual (kCenter, result.paddle[1].value(), L"on both axes");
             Assert::IsTrue   (result.buttons.none(),             L"and no button is pressed");
         }
 
@@ -251,7 +325,7 @@ namespace ControllerTests
 
             result = evaluator.Evaluate (sample, mapping, kNoDeadzone);
 
-            Assert::AreEqual (static_cast<Byte> (0), result.paddle.value()[0],
+            Assert::AreEqual (static_cast<Byte> (0), result.paddle[0].value(),
                 L"the D-pad wins: a stick resting near center must not dilute it");
         }
 
@@ -271,15 +345,15 @@ namespace ControllerTests
 
             sample.hats[0] = ControllerSample::kHatDown;
             result         = evaluator.Evaluate (sample, mapping, kNoDeadzone);
-            Assert::AreEqual (static_cast<Byte> (255), result.paddle.value()[1], L"down drives the far end");
+            Assert::AreEqual (static_cast<Byte> (255), result.paddle[1].value(), L"down drives the far end");
 
             sample.hats[0] = ControllerSample::kHatUp;
             result         = evaluator.Evaluate (sample, mapping, kNoDeadzone);
-            Assert::AreEqual (static_cast<Byte> (0), result.paddle.value()[1], L"up drives the near end");
+            Assert::AreEqual (static_cast<Byte> (0), result.paddle[1].value(), L"up drives the near end");
 
             sample.hats[0] = ControllerSample::kHatUp | ControllerSample::kHatDown;
             result         = evaluator.Evaluate (sample, mapping, kNoDeadzone);
-            Assert::AreEqual (kCenter, result.paddle.value()[1], L"both at once is no direction, as with opposing arrow keys");
+            Assert::AreEqual (kCenter, result.paddle[1].value(), L"both at once is no direction, as with opposing arrow keys");
         }
 
 
@@ -298,7 +372,7 @@ namespace ControllerTests
             sample.axes[1] = -1.0f;
             result         = evaluator.Evaluate (sample, mapping, kNoDeadzone);
 
-            Assert::AreEqual (static_cast<Byte> (255), result.paddle.value()[1], L"inverted turns full up into full down");
+            Assert::AreEqual (static_cast<Byte> (255), result.paddle[1].value(), L"inverted turns full up into full down");
         }
 
 
@@ -324,8 +398,8 @@ namespace ControllerTests
             sample.axes[0] = 0.5f;
 
             // 0.5 deflection at 100 units a second for 0.04 s is 2 units a step.
-            Assert::AreEqual ((int) 129, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.04f).paddle.value()[0]);
-            Assert::AreEqual ((int) 131, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.04f).paddle.value()[0]);
+            Assert::AreEqual ((int) 129, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.04f).paddle[0].value());
+            Assert::AreEqual ((int) 131, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.04f).paddle[0].value());
             Assert::IsTrue   (evaluator.IsRateMoving(), L"a deflected rate binding is moving");
         }
 
@@ -338,9 +412,9 @@ namespace ControllerTests
             Byte              moved   = 0;
 
             pushed.axes[0] = 1.0f;
-            moved = evaluator.Evaluate (pushed, mapping, kNoDeadzone, 0.05f).paddle.value()[0];
+            moved = evaluator.Evaluate (pushed, mapping, kNoDeadzone, 0.05f).paddle[0].value();
 
-            Assert::AreEqual ((int) moved, (int) evaluator.Evaluate (MakeSample(), mapping, kNoDeadzone, 0.05f).paddle.value()[0],
+            Assert::AreEqual ((int) moved, (int) evaluator.Evaluate (MakeSample(), mapping, kNoDeadzone, 0.05f).paddle[0].value(),
                 L"released, the paddle stays where it was turned rather than springing back to center");
             Assert::IsFalse  (evaluator.IsRateMoving());
         }
@@ -360,7 +434,7 @@ namespace ControllerTests
                 evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f);
             }
 
-            Assert::AreEqual ((int) 255, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f).paddle.value()[0]);
+            Assert::AreEqual ((int) 255, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f).paddle[0].value());
 
             sample.axes[0] = -1.0f;
 
@@ -369,7 +443,7 @@ namespace ControllerTests
                 evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f);
             }
 
-            Assert::AreEqual ((int) 0, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f).paddle.value()[0]);
+            Assert::AreEqual ((int) 0, (int) evaluator.Evaluate (sample, mapping, kNoDeadzone, 0.05f).paddle[0].value());
         }
 
 
@@ -382,8 +456,8 @@ namespace ControllerTests
 
             sample.axes[0] = 1.0f;
 
-            Assert::AreEqual ((int) stepped.Evaluate (sample, mapping, kNoDeadzone, MappingEvaluator::kMaxRateStep).paddle.value()[0],
-                              (int) capped.Evaluate  (sample, mapping, kNoDeadzone, 10.0f).paddle.value()[0],
+            Assert::AreEqual ((int) stepped.Evaluate (sample, mapping, kNoDeadzone, MappingEvaluator::kMaxRateStep).paddle[0].value(),
+                              (int) capped.Evaluate  (sample, mapping, kNoDeadzone, 10.0f).paddle[0].value(),
                 L"a reading after ten seconds idle does not throw the paddle across the screen");
         }
 
@@ -398,7 +472,7 @@ namespace ControllerTests
             evaluator.Evaluate (pushed, mapping, kNoDeadzone, 0.05f);
             evaluator.ResetRate();
 
-            Assert::AreEqual ((int) kCenter, (int) evaluator.Evaluate (MakeSample(), mapping, kNoDeadzone, 0.05f).paddle.value()[0]);
+            Assert::AreEqual ((int) kCenter, (int) evaluator.Evaluate (MakeSample(), mapping, kNoDeadzone, 0.05f).paddle[0].value());
         }
 
 

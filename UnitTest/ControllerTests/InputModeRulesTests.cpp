@@ -178,6 +178,57 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (PaddleSources_TwoControllersDrivingAreBothCheckedAndCounted)
+        {
+            InputModeRules::State                      state;
+            std::vector<ControllerDeviceInfo>          devices = { MakeStick ("{A}", L"Gladiator"),
+                                                                   MakeStick ("{B}", L"Gamepad") };
+            std::vector<ControllerAxisAssignment>      assignments;
+            std::vector<InputModeRules::PaddleSource>  sources;
+
+            ControllerSelectionPolicy::AssignAxes (assignments, devices[1].unit, ControllerAxisAssignment::AxisSet (0x2));
+
+            state.hasController = true;
+            sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, assignments);
+
+            Assert::IsTrue (sources[0].isChecked, L"the selection, driving PDL0, is checked");
+            Assert::IsTrue (sources[1].isChecked, L"and so is the second player's controller, driving PDL1");
+            Assert::AreEqual (std::wstring (L"2 controllers"), InputModeRules::GetPaddleSourceLabel (sources),
+                L"the closed picker does not wear one controller's name while two are driving");
+        }
+
+
+        TEST_METHOD (PaddleSources_AnAssignmentTheMachineCannotPlayChecksNothing)
+        {
+            InputModeRules::State                      state;
+            std::vector<ControllerDeviceInfo>          devices = { MakeStick ("{A}", L"Gladiator"),
+                                                                   MakeStick ("{B}", L"Gamepad") };
+            std::vector<ControllerAxisAssignment>      assignments;
+            std::vector<InputModeRules::PaddleSource>  sources;
+
+            ControllerSelectionPolicy::AssignAxes (assignments, devices[1].unit, ControllerAxisAssignment::AxisSet (0x4));
+
+            state.hasController = true;
+            sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, assignments, 2);
+
+            Assert::IsFalse  (sources[1].isChecked, L"a controller holding only PDL2 drives nothing on the //c");
+            Assert::AreEqual (std::wstring (L"Gladiator"), InputModeRules::GetPaddleSourceLabel (sources));
+
+            state.hasController  = false;
+            state.arrowsJoystick = true;
+            sources              = InputModeRules::BuildPaddleSources (state, devices, std::nullopt, assignments);
+
+            Assert::IsFalse  (sources[1].isChecked, L"nor does a kept assignment while the keys drive");
+            Assert::AreEqual (std::wstring (L"Keys"), InputModeRules::GetPaddleSourceLabel (sources));
+        }
+
+
+        TEST_METHOD (PaddleSourceLabel_NothingDrivingReadsController)
+        {
+            Assert::AreEqual (std::wstring (L"Controller"), InputModeRules::GetPaddleSourceLabel ({}));
+        }
+
+
         TEST_METHOD (Shorten_DropsTheVendorParentheticalBeforeCutting)
         {
             // The strip has no room for the ids that tell two units apart, and

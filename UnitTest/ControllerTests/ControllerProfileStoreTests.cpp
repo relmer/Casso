@@ -247,6 +247,94 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (Pdl2AndPdl3_RoundTripThroughTheGlobalPrefsFile)
+        {
+            InMemoryFileSystem        fs;
+            GlobalUserPrefs           saved;
+            GlobalUserPrefs           loaded;
+            ControllerProfileStore    store;
+            ControllerProfileStore    readBack;
+            ControllerModelSettings   settings;
+            ControlMapping            mapping = MakeFullMapping();
+            AxisBinding               rightX;
+            AxisBinding               pair;
+            std::vector<std::string>  rejected;
+            std::string               token   = ControllerTokens::ModelToToken (Stick());
+
+            rightX.analog   = { ControlKind::Axis, XInputSampleDecoder::kRightStickX };
+            pair.kind       = AxisBindingKind::DigitalPair;
+            pair.negative   = { ControlKind::Button, 2 };
+            pair.positive   = { ControlKind::Button, 3 };
+
+            mapping.pdl2.push_back (rightX);
+            mapping.pdl3.push_back (pair);
+
+            settings.profiles.push_back ({ "Default", true, mapping });
+            store.models[token] = settings;
+
+            saved.controllers = store.ToJson (saved.controllers);
+            AssertSucceeded (saved.Save  (L"C:\\Casso", fs));
+            AssertSucceeded (loaded.Load (L"C:\\Casso", fs));
+
+            readBack.FromJson (loaded.controllers, rejected);
+
+            Assert::IsTrue (rejected.empty());
+            Assert::IsTrue (readBack.models.at (token).profiles[0].mapping == mapping, L"bindings on PDL2 and PDL3 come back");
+        }
+
+
+        TEST_METHOD (Pdl2AndPdl3_AbsentReadsEmptyAndEmptyIsNotWritten)
+        {
+            ControllerProfileStore    store;
+            ControllerProfileStore    readBack;
+            ControllerModelSettings   settings;
+            std::vector<std::string>  rejected;
+            std::string               token    = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 written;
+            const JsonValue         * models   = nullptr;
+            const JsonValue         * model    = nullptr;
+            const JsonValue         * profiles = nullptr;
+            const JsonValue         * mapping  = nullptr;
+            const JsonValue         * axes     = nullptr;
+
+            settings.profiles.push_back ({ "Default", true, MakeFullMapping() });
+            store.models[token] = settings;
+
+            written = store.ToJson (JsonValue());
+
+            Assert::IsTrue (written.HasObject ("models", models) && models->HasObject (token, model));
+            Assert::IsTrue (model->HasArray ("profiles", profiles));
+            Assert::IsTrue (profiles->GetArrayElement (0).HasObject ("mapping", mapping));
+            Assert::IsTrue  (mapping->HasArray ("pdl0", axes), L"PDL0 is written as before");
+            Assert::IsFalse (mapping->HasArray ("pdl2", axes), L"an unbound PDL2 is not written, so the file reads as it did before four axes");
+            Assert::IsFalse (mapping->HasArray ("pdl3", axes));
+
+            readBack.FromJson (written, rejected);
+
+            Assert::IsTrue (rejected.empty());
+            Assert::IsTrue (readBack.models.at (token).profiles[0].mapping.pdl2.empty(), L"absent reads back as empty");
+            Assert::IsTrue (readBack.models.at (token).profiles[0].mapping == MakeFullMapping());
+        }
+
+
+        TEST_METHOD (Pdl2_AnUnreadableBindingRejectsItsProfile)
+        {
+            ControllerProfileStore    store;
+            std::vector<std::string>  rejected;
+            std::string               token = ControllerTokens::ModelToToken (Stick());
+            JsonValue                 doc   = Parse (
+                "{\"models\":{\"" + token + "\":{\"profiles\":["
+                  "{\"name\":\"Default\",\"default\":true,\"mapping\":{}},"
+                  "{\"name\":\"Broken\",\"mapping\":{\"pdl3\":[{\"analog\":\"axis:0\",\"negative\":\"button:1\",\"positive\":\"button:2\"}]}}"
+                "]}}}");
+
+            store.FromJson (doc, rejected);
+
+            Assert::AreEqual (size_t (1), rejected.size(), L"a PDL3 binding is held to the same rules as PDL0");
+            Assert::AreEqual (size_t (1), store.models.at (token).profiles.size());
+        }
+
+
         TEST_METHOD (OutOfRangeValues_AreClamped)
         {
             ControllerProfileStore    store;

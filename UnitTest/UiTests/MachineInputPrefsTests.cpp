@@ -314,6 +314,80 @@ public:
     }
 
 
+    static ControllerUnitKey MakeStickUnit (const char * unitId)
+    {
+        ControllerUnitKey  unit;
+
+        unit.model  = { ControllerKind::DirectInput, 0x231d, 0x0121 };
+        unit.unitId = unitId;
+        unit.source = ControllerUnitSource::InstanceGuid;
+        return unit;
+    }
+
+
+    TEST_METHOD (AxisAssignments_AbsentKeyReadsAsNone)
+    {
+        JsonValue  doc = ParseOrFail (R"({"$cassoUiPrefs":{"controller":"xinput"}})");
+
+        // A file written before two controllers could play keeps its meaning:
+        // the saved controller holds PDL0 and PDL1.
+        Assert::IsTrue (MachineInputPrefs::ReadAxisAssignments (GetUiPrefsOrFail (doc)).empty());
+        Assert::IsTrue (MachineInputPrefs::ReadAxisAssignments (nullptr).empty());
+    }
+
+
+    TEST_METHOD (AxisAssignments_RoundTripIncludingAxesATwoAxisMachineLacks)
+    {
+        std::vector<ControllerAxisAssignment>  assignments;
+        std::vector<ControllerAxisAssignment>  readBack;
+        ControllerUnitKey                      xbox;
+
+        xbox.model.kind = ControllerKind::XInput;
+
+        ControllerSelectionPolicy::AssignAxes (assignments, xbox,                   ControllerAxisAssignment::AxisSet (0x1));
+        ControllerSelectionPolicy::AssignAxes (assignments, MakeStickUnit ("{B}"), ControllerAxisAssignment::AxisSet (0xC));
+
+        std::vector<std::pair<std::string, JsonValue>>  entries;
+
+        entries.push_back (MachineInputPrefs::BuildAxisAssignmentEntry (assignments));
+
+        JsonValue  uiPrefs (std::move (entries));
+
+        readBack = MachineInputPrefs::ReadAxisAssignments (&uiPrefs);
+
+        Assert::IsTrue (readBack == assignments, L"which controller holds which axes comes back, PDL2 and PDL3 included");
+    }
+
+
+    TEST_METHOD (AxisAssignments_EmptyListIsStillWritten)
+    {
+        std::pair<std::string, JsonValue>  entry = MachineInputPrefs::BuildAxisAssignmentEntry ({});
+
+        // The block is spliced key by key, so leaving the key out would leave
+        // a cleared assignment in the file.
+        Assert::AreEqual (std::string (MachineInputPrefs::kpszAxesKey), entry.first);
+        Assert::IsTrue   (entry.second.GetType() == JsonType::Array);
+        Assert::AreEqual (size_t (0), entry.second.GetArraySize());
+    }
+
+
+    TEST_METHOD (AxisAssignments_UnreadableEntriesAreSkippedAndALaterClaimWins)
+    {
+        JsonValue                              doc = ParseOrFail (R"({"$cassoUiPrefs":{"controllerAxes":[
+            {"controller":"xinput","axes":[0,1]},
+            {"controller":"not a token","axes":[2]},
+            {"controller":"xinput"},
+            "junk",
+            {"controller":"dinput:231d:0121/guid:{01661270}","axes":[1,9,-1,"2"]}
+        ]}})");
+        std::vector<ControllerAxisAssignment>  assignments = MachineInputPrefs::ReadAxisAssignments (GetUiPrefsOrFail (doc));
+
+        Assert::AreEqual (size_t (2), assignments.size(), L"an unreadable token, a missing axis list and a non-object are skipped");
+        Assert::AreEqual (0x1ul, assignments[0].axes.to_ulong(), L"PDL1 went to the later entry, so the first keeps only PDL0");
+        Assert::AreEqual (0x2ul, assignments[1].axes.to_ulong(), L"an axis index out of range, or not a number, is ignored");
+    }
+
+
     TEST_METHOD (ReadProfileName_AbsentMeansDefault)
     {
         JsonValue  doc = ParseOrFail (R"({"$cassoUiPrefs":{"controller":"xinput"}})");

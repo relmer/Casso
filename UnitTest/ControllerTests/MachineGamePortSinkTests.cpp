@@ -141,6 +141,52 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (Apple2e_WritesAllFourPaddles)
+        {
+            std::shared_mutex      lifetime;
+            Apple2eSoftSwitchBank  bank (nullptr);
+            uint64_t               cycles = 0;
+            GamePortTargets        targets;
+            GamePortState          state  = MakeState (127, 127, false, false, false);
+
+            bank.SetCpuCycleSource (&cycles);
+            targets.iieSwitches = &bank;
+
+            MachineGamePortSink  sink (lifetime, [&targets] { return targets; });
+
+            state.paddle[2] = 10;
+            state.paddle[3] = 200;
+            sink.TryApply (state, nullptr);
+
+            Assert::IsFalse (IsPaddleHolding (bank, cycles, 2, 10 * kCyclesPerUnit + 1),  L"PDL2 must expire just over 10");
+            Assert::IsTrue  (IsPaddleHolding (bank, cycles, 3, 200 * kCyclesPerUnit - 1), L"PDL3 must hold just under 200");
+        }
+
+
+        TEST_METHOD (Apple2c_WritesOnlyItsTwoPaddles)
+        {
+            std::shared_mutex      lifetime;
+            Apple2eSoftSwitchBank  bank (nullptr);
+            uint64_t               cycles = 0;
+            GamePortTargets        targets;
+            GamePortState          state  = MakeState (10, 10, false, false, false);
+
+            bank.SetCpuCycleSource (&cycles);
+            bank.SetPaddle (2, 200);
+            targets.iieSwitches = &bank;
+            targets.axisCount   = 2;
+
+            MachineGamePortSink  sink (lifetime, [&targets] { return targets; });
+
+            state.paddle[2] = 0;
+            sink.TryApply (state, nullptr);
+
+            Assert::IsFalse (IsPaddleHolding (bank, cycles, 0, 10 * kCyclesPerUnit + 1), L"PDL0 is written on the //c");
+            Assert::IsTrue  (IsPaddleHolding (bank, cycles, 2, 200 * kCyclesPerUnit - 1),
+                L"PDL2 is the mouse's line on the //c, so a value held for it must not be written");
+        }
+
+
         TEST_METHOD (IncrementalWrite_TouchesOnlyChangedLines)
         {
             std::shared_mutex    lifetime;
