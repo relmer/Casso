@@ -11,7 +11,7 @@ The debugger's attachment to one machine.
 | Field | Type | Notes |
 |---|---|---|
 | mode | `CommandMode` | `AppleWin` (default) or `Monitor` |
-| state | `RunState` | `Running`, `Paused`, `Stepping` |
+| state | `RunState` | `FreeRunning`, `Paused`, `DebugRun`, `Stepping` |
 | breakpoints | `BreakpointTable` | |
 | watchpoints | `WatchpointTable` | |
 | watches | `WatchTable` | AppleWin display watches, ZP pointers, bookmarks |
@@ -25,17 +25,27 @@ The debugger's attachment to one machine.
 **State transitions**
 
 ```text
-Running --(pause | breakpoint | watchpoint | budget | step done)--> Paused
-Paused  --(G, GG, run-to)--> Running
-Paused  --(T, P, S, RTS)--> Stepping --(done | stop)--> Paused
-any     --(reset)--> same state, notification "reset", tables kept
-any     --(machine switch)--> Paused, breakpoints/watchpoints cleared, notification "machineChanged"
+FreeRunning --(pause | breakpoint | watchpoint | BRK/BRKOP/BRKINT)--> Paused
+FreeRunning --(G, GG, run-to)--> DebugRun          adopts the running machine; ok
+Paused      --(G, GG, run-to)--> DebugRun
+DebugRun    --(pause | breakpoint | watchpoint | budget | run-to reached)--> Paused
+Paused      --(T, P, S, RTS)--> Stepping --(done | stop)--> Paused
+Paused      --(user resumes in Casso)--> FreeRunning
+any         --(reset)--> same state, notification "reset", tables kept
+any         --(machine switch)--> Paused, breakpoints/watchpoints cleared, notification "machineChanged"
 ```
+
+A batch session starts `Paused`; an emulator session starts in whichever of
+`FreeRunning` or `Paused` the machine is in when the debugger opens.
 
 **Rules**
 
-- Only one run request is active at a time. A run command while running
-  returns `Error` "already running".
+- Only one debugger run is active at a time. A run command while `DebugRun`
+  or `Stepping` returns `Error` "already running". While `FreeRunning` it
+  returns `ok` and adopts the machine into a `DebugRun`.
+- The per-instruction hook is installed while any enabled stop condition
+  exists or the state is `DebugRun` or `Stepping`, and removed otherwise
+  (R-004).
 - Commands that change the machine (memory, registers) are accepted while
   paused. While running they are accepted only from the window and the pipe,
   where they are posted to the CPU thread and applied between instructions.
@@ -157,12 +167,27 @@ target.
 | `Peek` / `Poke` / `GetRegion` | via `DebugMemoryView` |
 | `ReadIo` / `WriteIo` | real bus access, for `IN` / `OUT` only |
 | `GetSoftSwitches` | name/value list from MMU, language card, video switches |
-| `StartRun (const RunRequest &)` | begins a run; the `StopEvent` is delivered to the session's `OnStopped`. The batch target completes the run inside the call; the emulator target un-pauses `CpuManager` and delivers the stop from the CPU thread when the hook fires (R-005) |
+| `StartRun (const RunRequest &)` | begins a run through the injected `IRunDriver`; the `StopEvent` is delivered to the `IRunObserver` (the session) through `OnStopped`. `SynchronousRunDriver` completes the run inside the call; `CpuManagerRunDriver` un-pauses `CpuManager` and delivers the stop from the CPU thread when the hook fires (R-005) |
 | `RequestPause` | stops a running machine with reason `pause` |
+| `SetHookInstalled (bool)` | the session installs the hook while any enabled stop condition exists or a run is active |
+| `SetWatchedPages (mask)` | publishes the watch mask to `MemoryBus` (R-004) |
 | `GetVideoPosition` | scanline and cycle within the line from `VideoTiming`, for `BPV` and `VIDEOINFO` |
 | `GetCpuKind` | `M6502`, `M65C02`, which selects the disassembler table |
 | `GetMachineInfo` | machine name, disks, title label |
 | `InjectKey` | `KEY` |
+
+## IRunObserver (interface)
+
+`OnStopped (const StopEvent &)`, implemented by `DebugSession`. The target
+calls it once per run or free-running stop, on the thread that ran the
+machine; the session turns it into the `stopped` notification and the new
+state.
+
+## IRunDriver (interface)
+
+`Start (const RunRequest &)`, `Pause ()`. Two implementations:
+`SynchronousRunDriver` over `MachineHost::RunCycles` for batch, and
+`CpuManagerRunDriver` over `CpuManager` for the emulator (R-005).
 
 ## DebugChannelServer (phase 2)
 

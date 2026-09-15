@@ -73,7 +73,7 @@ description: "Task list for 035-debugger"
 
 ### Target seam, memory view and hook (CassoEmuCore)
 
-- [ ] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `StartRun (const RunRequest &)` with the stop delivered to an `IRunObserver::OnStopped`, `RequestPause`, `GetVideoPosition`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Add `UnitTest/DebuggerTests/MockDebugTarget.h`, an in-memory 64 KB implementation for session tests.
+- [ ] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `StartRun (const RunRequest &)` with the stop delivered to `IRunObserver::OnStopped`, `RequestPause`, `SetHookInstalled`, `SetWatchedPages`, `GetVideoPosition`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Also `IRunObserver.h` and `IRunDriver.h` (`Start`, `Pause`). Add `UnitTest/DebuggerTests/MockDebugTarget.h`, an in-memory 64 KB implementation for session tests that records hook and mask changes.
 - [ ] T015 [P] Write `UnitTest/DebuggerTests/DebugMemoryViewTests.cpp` (R-003) against `TestMachine` for Apple ][, ][+, //e, Enhanced //e and //c:
   - **Parity below $C000 and above $D000**: across banking states set through the soft switches (RAMRD/RAMWRT, ALTZP, 80STORE, language-card bank 1/2 read and write), `Peek` equals the value a CPU read returns; bus reads there have no side effects. `UnitTest/EmuTests/MemoryProbeHelpers.h` shows the probing pattern.
   - **Parity in $C100-$CFFF**: for each INTCXROM/SLOTC3ROM/INTC8ROM state, `Peek` equals the byte of the slot or internal ROM image that state selects, compared without a bus read, because a bus read there latches the router.
@@ -81,14 +81,20 @@ description: "Task list for 035-debugger"
   - **Region labels** match `mainRam|auxRam|lcBank1|lcBank2|rom|slotRom|io`.
   - **Writes**: `Poke` to ROM returns read-only and changes nothing.
   - **Non-zero**: assert that the number of addresses swept is non-zero.
-- [ ] T016 Implement `CassoEmuCore/Debugger/DebugMemoryView.h/.cpp` per research R-003: the bus page tables below $C000; slot and internal ROM images for $C100-$CFFF selected by `IMmu::GetIntCxRom/GetSlotC3Rom` and the `CxxxRomRouter` state; `LanguageCard::IsReadRam/IsWriteRam/IsBank2/ReadRom` and `Apple2cRomBank` for $D000-$FFFF. $C000-$C0FF is never read; `Peek` reports it unreadable. Makes T015 pass.
+- [ ] T016 Implement `CassoEmuCore/Debugger/DebugMemoryView.h/.cpp` per research R-003: the bus's shadow page tables below $C000 (never the published ones, which hold null for a watched page); slot and internal ROM images for $C100-$CFFF selected by `IMmu::GetIntCxRom/GetSlotC3Rom` and the `CxxxRomRouter` state; `LanguageCard::IsReadRam/IsWriteRam/IsBank2/ReadRom` and `Apple2cRomBank` for $D000-$FFFF. $C000-$C0FF is never read; `Peek` reports it unreadable. Makes T015 pass.
 - [ ] T017 [P] Write `UnitTest/DebuggerTests/DebugHookTests.cpp`:
   - with a null hook, `MachineHost::RunCycles` behavior and cycle counts are unchanged;
   - with a hook that stops at an address, `StepOne` and `RunCycles` stop before that instruction executes, including an address in the middle of a slice;
   - a pending-stop flag set during an instruction stops at the next boundary.
-- [ ] T018 Create `CassoEmuCore/Debugger/DebugHook.h` (`ShouldStopBefore (Word pc)`, `HasPendingStop()`). Change `CassoEmuCore/Shell/MachineHost.h/.cpp`: add `SetDebugHook (DebugHook *)` and call it before each instruction in `StepOne` and in the `RunCycles` loop, doing only a null-pointer test when unset (R-004). Microbenchmark instructions per second before and after with no hook; record the numbers in the commit message. Makes T017 pass.
+  Also write `UnitTest/DebuggerTests/MemoryBusWatchMaskTests.cpp`:
+  - with an empty mask, `SetReadPage`/`SetWritePage` publish the pointer and the fast path is unchanged;
+  - marking a page watched publishes null and keeps the MMU pointer in the shadow table; a later `SetReadPage` on that page updates the shadow and leaves the published entry null; unmarking republishes the current shadow pointer;
+  - a read or write of a watched page returns and stores the right value through the slow path, and a changed displayed byte in a video-watched page raises the video-dirty flag;
+  - a watched address in $C000-$FFFF calls the device exactly once;
+  - each access to a watched page reports `{address, value, access}` to the registered `IWatchSink`.
+- [ ] T018 Create `CassoEmuCore/Debugger/DebugHook.h` (`ShouldStopBefore (Word pc)`, `HasPendingStop()`). Change `CassoEmuCore/Shell/MachineHost.h/.cpp`: add `SetDebugHook (DebugHook *)` and call it before each instruction in `StepOne` and in the `RunCycles` loop, doing only a null-pointer test when unset (R-004). Change `CassoEmuCore/Core/MemoryBus.h/.cpp` per R-004: shadow read and write tables, a 256-entry watch mask, `SetWatchedPage (page, bool)`, `SetWatchSink (IWatchSink *)`, and the mask test on the slow path of `ReadByte` and `WriteByte` before `FindDevice`; `GetReadPageTable` keeps returning the published table for the CPU, and `GetShadowReadPage`/`GetShadowWritePage` are added for the memory view. Microbenchmark instructions per second before and after with no hook and an empty mask; record the numbers in the commit message. Makes T017 pass, and every existing `MemoryBus` and MMU test must still pass unchanged.
 - [ ] T019 Promote the machine-building code from `UnitTest/EmuTests/TestMachine.h/.cpp` into `CassoEmuCore/Shell/HeadlessMachineFactory.h/.cpp` with an `IRomSource` seam (R-006). `TestMachine` becomes a user of the factory, backed by a `FixtureProvider` ROM source. All existing `EmuTests` must still pass unchanged.
-- [ ] T020 Implement `CassoEmuCore/Debugger/MachineDebugTarget.h/.cpp`: `IDebugTarget` over `MachineHost`, `DebugMemoryView` and `I6502DebugInfo`, in its synchronous form: `StartRun` installs the hook, calls `RunCycles` in chunks until a stop, `untilPc` or the budget, and delivers `OnStopped` before returning. A run with no budget is unbounded. Add `UnitTest/DebuggerTests/MachineDebugTargetTests.cpp`, covering run-to, budget stop with reason `Budget`, step-over of a recursive subroutine, registers round trip, `GetVideoPosition`, and soft-switch listing on each machine.
+- [ ] T020 Implement `CassoEmuCore/Debugger/MachineDebugTarget.h/.cpp`: `IDebugTarget` over `MachineHost`, `DebugMemoryView` and `I6502DebugInfo`, taking an `IRunDriver`; and `SynchronousRunDriver.h/.cpp`, whose `Start` calls `RunCycles` in chunks until a stop, `untilPc` or the budget, and delivers `OnStopped` before returning. A run with no budget is unbounded. `SetHookInstalled` and `SetWatchedPages` forward to `MachineHost` and `MemoryBus`. Add `UnitTest/DebuggerTests/MachineDebugTargetTests.cpp`, covering run-to, budget stop with reason `Budget`, step-over of a recursive subroutine, registers round trip, `GetVideoPosition`, and soft-switch listing on each machine.
 
 **Checkpoint**: Full suite green. The disassembler matches the 1979 listing, peeks are side-effect free on every machine, and the hook costs nothing when unset.
 
@@ -112,15 +118,15 @@ description: "Task list for 035-debugger"
 - [ ] T023 [P] [US1] Write `UnitTest/DebuggerTests/WatchpointTableTests.cpp`:
   - `Read`, `Write` and `ReadWrite` on inclusive `first`/`last` ranges;
   - ids shared with the breakpoint numbering;
-  - a page's read and write page-table entries are null only while it holds an enabled watchpoint, and are restored when the last one is cleared or disabled;
-  - a watched page's accesses still return and store the right values;
-  - a watchpoint in $C000-$FFFF forwards to the underlying device exactly once;
-  - a hit records `{accessPc, address, value, access}` and sets the pending stop.
-- [ ] T024 [US1] Implement `CassoEmuCore/Debugger/WatchpointTable.h/.cpp` and `WatchpointDevice.h/.cpp` against `MemoryBus`'s page tables and device list (R-004). Makes T023 pass.
+  - the watched-page mask handed to the target covers exactly the pages of enabled watchpoints, and shrinks when one is cleared or disabled;
+  - a sink report inside a watched range with a matching access kind records `{accessPc, address, value, access}` and sets the pending stop; one outside the range, or of the other kind, is ignored.
+- [ ] T024 [US1] Implement `CassoEmuCore/Debugger/WatchpointTable.h/.cpp` as the bus's `IWatchSink`, publishing its page mask through `IDebugTarget::SetWatchedPages` (R-004). Makes T023 pass.
 - [ ] T025 [P] [US1] Implement `CassoEmuCore/Debugger/WatchTable.h/.cpp` for AppleWin watches (`W*`), zero-page pointers (`ZP*`, `P0`-`P4`) and bookmarks (`BM*`), with `UnitTest/DebuggerTests/WatchTableTests.cpp`.
 - [ ] T026 [P] [US1] Write `UnitTest/DebuggerTests/DebugSessionTests.cpp` against `MockDebugTarget`:
-  - the state transitions in data-model "DebugSession";
-  - a run command while running returns `Error` "already running";
+  - the state transitions in data-model "DebugSession", including `FreeRunning` adopted into a `DebugRun` by `g` with reply `ok`;
+  - a run command while `DebugRun` or `Stepping` returns `Error` "already running";
+  - the hook is installed when the first enabled stop condition of any kind (address, opcode, register, memory, I/O, `BRK`, `BRKOP`, `BRKINT`, watchpoint) appears or a run starts, and removed when the last one goes and no run is active;
+  - a stop while `FreeRunning` produces `stopped` and `Paused`;
   - machine switch clears breakpoints and watchpoints, and reset keeps them;
   - mode switch keeps all tables;
   - unknown and malformed commands change no state.
@@ -292,7 +298,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - `I`/`N` set `INVFLG` ($32) to $3F/$FF;
   - `n^K` sets `KSWL/H` ($38/$39) to $Cn00 and `n^P` sets `CSWL/H` ($36/$37) to $Cn00 for slots 1-7; `0^K` restores $FD1B and `0^P` restores $FDF0;
   - `^B`/`^C` run at $E000/$E003, and `^Y` runs at $03F8;
-  - `G` pushes the return address the ROM's `G` handler pushes and sets an internal breakpoint there, and never reloads registers from $45-$49; a test sets A in AppleWin mode, runs Monitor `G`, and sees A unchanged;
+  - `G` pushes the return address the ROM's `G` handler pushes and sets an internal breakpoint there that takes no id, is absent from `BPL`, and is removed when it fires or the run stops otherwise; `G` never reloads registers from $45-$49; a test sets A in AppleWin mode, runs Monitor `G`, and sees A unchanged;
   - `^E` shows registers and arms `:` register edit, which sets the CPU registers and writes $45-$49;
   - search prints matching addresses;
   - `R`/`W` use `IFileSystem`: `R` reads the smaller of file and range and reports a mismatch; with no filename they return an error in batch and pipe;
@@ -327,7 +333,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 - [ ] T069 [US3] Implement `CassoEmuCore/Debugger/Channel/DebugChannelServer.h/.cpp` and a thread-safe `IDebugReplySink`, routing commands through `CpuManager::PostCommand` with a new command id. Makes T068 pass.
 - [ ] T070 [US3] Wire the session into the emulator:
   - `CassoEmuCore/Shell/CpuManager.h/.cpp` and `EmulatorShellCpuThread.cpp`: a debug command id whose payload is the line plus a reply-sink id;
-  - the emulator form of `MachineDebugTarget::StartRun` (R-005): record the run, apply `fullSpeed` to `SpeedMode`, un-pause `CpuManager` and return; the frame loop's `RunCycles` slices run with the hook installed and count the budget across slices; on a hook stop, `RunCycles` returns the short slice, the target pauses `CpuManager`, restores `SpeedMode`, and delivers `OnStopped` from the CPU thread; `RequestPause` does the same with reason `pause`. Tests drive `EmulatorShell` headless and confirm a `pause` request is processed while a run is in progress;
+  - `CassoEmuCore/Debugger/CpuManagerRunDriver.h/.cpp` (R-005): `Start` records the run, applies `fullSpeed` to `SpeedMode`, un-pauses `CpuManager` and returns; the frame loop's `RunCycles` slices run with the hook installed and count the budget across slices; on a hook stop, `RunCycles` returns the short slice, the driver pauses `CpuManager`, restores `SpeedMode`, and delivers `OnStopped` from the CPU thread; `Pause` does the same with reason `pause`. The same stop path serves a breakpoint that fires while the machine is `FreeRunning`. Tests drive `EmulatorShell` headless and confirm that a `pause` request is processed while a run is in progress, that a breakpoint set with no `g` stops a free-running machine, and that `g` on a free-running machine replies `ok`;
   - `MachineManager.cpp`: attach the session beside `AttachDebugSinksIfOpen`, emit `machineChanged` and clear the tables on switch, and emit `reset` on soft reset and power cycle;
   - `EmulatorShell` user pause emits `stopped` with reason `pause`.
 
@@ -416,7 +422,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 ### Phase dependencies
 
 - **Setup (Phase 1)**: no dependencies.
-- **Foundational (Phase 2)**: depends on Setup and blocks every story. T007 needs T005 and T006; T020 needs T016, T018 and T019.
+- **Foundational (Phase 2)**: depends on Setup and blocks every story. T007 needs T005 and T006; T016 needs T018 (the shadow tables); T020 needs T016, T018 and T019.
 - **US1 (Phase 3)**: depends on Foundational. T027 needs T022, T024 and T025. The handler families T036-T041 and T052 need T027 and T033. T043 and T044 need T042. T046 needs T042. T051 needs T049. T056 needs T027, T031, T035 and T054.
 - **US2 (Phase 4)**: depends on Foundational and on the US1 session, AppleWin parser and batch runner (T027, T031, T056), because `/` routes to AppleWin mode and scripts run through `DebugMode`. T057 and T058 come first; T063 needs T060 and T062.
 - **US3 (Phase 5)**: depends on US1. T069 needs T066 and T067; T073 needs T067; T075 needs T073.
@@ -433,7 +439,7 @@ Tests are written first and fail, then the implementation makes them pass. After
 # Foundational, after T001:
 T004 DisassemblerTests       T006 listing transcription    T008 LineAssemblerTests
 T010 DebugExpressionEvaluatorTests  T012 DebugCommand.h    T013 Reply.h
-T015 DebugMemoryViewTests    T017 DebugHookTests
+T015 DebugMemoryViewTests    T017 DebugHookTests + MemoryBusWatchMaskTests
 
 # US1 handler families, after T027 and T033:
 T036 Execution  T037 Breakpoint  T038 Register  T039 Memory  T040 DataDirective  T041 Config

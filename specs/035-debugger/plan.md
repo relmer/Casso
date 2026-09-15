@@ -58,9 +58,10 @@ tested over an in-memory transport, and the Win32 transport over a mock
 
 **Performance Goals**: No measurable emulation cost with no session attached
 (one pointer test per instruction). With address breakpoints only, one bitmap
-test per instruction. Memory watchpoints unmap only the watched pages from
-the bus's page tables, so unwatched pages pay nothing (R-004). Batch runs
-execute unthrottled.
+test per instruction, and the hook is absent when no stop condition exists.
+Memory watchpoints are a per-page mask inside `MemoryBus` that sends only
+watched pages down the existing slow path, so unwatched pages pay nothing
+(R-004). Batch runs execute unthrottled.
 
 **Constraints**:
 
@@ -195,15 +196,18 @@ introduce no executable code and no un-seamed system access. **PASS.**
 
 ### Threading
 
-- **Batch**: single thread. `StartRun` calls `MachineHost::RunCycles` in
-  chunks with the hook installed and delivers the stop before returning.
+- **Batch**: single thread. `SynchronousRunDriver` calls
+  `MachineHost::RunCycles` in chunks with the hook installed and delivers the
+  stop before returning.
 - **Emulator**: the session is owned by the CPU thread. Pipe and window
   commands are posted through `CpuManager::PostCommand` as one new command id
-  whose payload is the command line and a reply-sink id. `StartRun` never
-  blocks that thread: it un-pauses `CpuManager` and returns, the frame loop
-  runs slices with the hook installed, and when the hook stops, `RunCycles`
-  returns a short slice (`ExecuteCpuSlices` already handles one), the target
-  pauses `CpuManager`, and the stop is delivered from the CPU thread (R-005).
+  whose payload is the command line and a reply-sink id. `CpuManagerRunDriver`
+  never blocks that thread: it un-pauses `CpuManager` and returns, the frame
+  loop runs slices with the hook installed, and when the hook stops,
+  `RunCycles` returns a short slice (`ExecuteCpuSlices` already handles one),
+  the driver pauses `CpuManager`, and the stop is delivered from the CPU
+  thread (R-005). The hook is installed whenever a stop condition exists, so a
+  breakpoint set on a free-running machine fires without a `g`.
   Replies and notifications return through a thread-safe `IDebugReplySink`,
   which the pipe server fans out to clients and the window marshals to the UI
   thread.
@@ -315,8 +319,10 @@ CassoEmuCore/Debugger/
 ├── DebugHook.h                        # per-instruction hook interface MachineHost calls
 ├── DebugSession.h/.cpp                # executes DebugCommand -> Reply; owns the tables below
 ├── BreakpointTable.h/.cpp             # address bitmap, opcode, register/memory conditions
-├── WatchpointTable.h/.cpp             # read/write ranges; unmaps watched pages
-├── WatchpointDevice.h/.cpp            # serves a watched page from its backing store, records the hit
+├── WatchpointTable.h/.cpp             # read/write ranges; the bus's IWatchSink, publishes the page mask
+├── IRunDriver.h                       # how a run executes: synchronous (batch) or through CpuManager
+├── SynchronousRunDriver.h/.cpp
+├── CpuManagerRunDriver.h/.cpp         # phase 2, with the emulator wiring
 ├── BinaryImageReader.h/.cpp           # raw, DOS 3.3, Intel HEX, S-record, AppleSingle (needs the codec, so EmuCore)
 ├── WatchTable.h/.cpp                  # AppleWin display watches, ZP pointers, bookmarks
 ├── SymbolTable.h/.cpp                 # ROM symbols per machine + user/source tables
@@ -345,6 +351,8 @@ CassoEmuCore/Debugger/
 │   ├── IInstanceDirectory.h
 │   └── Win32InstanceDirectory.h/.cpp  # enumerate \\.\pipe\Casso.Debug.*
 └── DebuggerController.h/.cpp          # open/closed state -> session + server lifetime
+
+CassoEmuCore/Core/MemoryBus.h/.cpp     # CHANGE: shadow page tables, per-page watch mask on the slow path
 
 CassoEmuCore/Shell/
 ├── MachineHost.h/.cpp                 # CHANGE: debug hook in StepOne/RunCycles
@@ -375,6 +383,7 @@ UnitTest/DebuggerTests/
 ├── DebugExpressionEvaluatorTests.cpp
 ├── DebugMemoryViewTests.cpp           # peek vs bus parity per machine, no side effects
 ├── DebugHookTests.cpp
+├── MemoryBusWatchMaskTests.cpp        # shadow tables, mask, video-dirty on the slow path
 ├── AppleWinCommandTableTests.cpp      # name sweep, both directions
 ├── AppleWinParserTests.cpp
 ├── MonitorParserTests.cpp

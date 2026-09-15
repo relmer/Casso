@@ -38,11 +38,13 @@ Monitor-only forms like `^E` register edit and `I`/`N`.
 backing store and reads or writes that store directly, never through
 `MemoryBus::ReadByte`.
 
-- **$0000-$BFFF**: the bus's read and write page tables
-  (`MemoryBus::GetReadPageTable`, `GetWritePage`) are the truth for banking
-  there, and the view reads them rather than re-deriving main/aux/80STORE
-  state from MMU flags. The region label comes from comparing the page pointer
-  against the RAM devices' buffers.
+- **$0000-$BFFF**: the bus's page tables are the truth for banking there, and
+  the view reads them rather than re-deriving main/aux/80STORE state from MMU
+  flags. It reads the **shadow** tables (`MemoryBus::GetShadowReadPage`,
+  `GetShadowWritePage`), which hold the MMU's real pointers, not the published
+  tables the CPU uses, because a page under a watchpoint is published as null
+  (R-004). The region label comes from comparing the page pointer against the
+  RAM devices' buffers.
 - **$C000-$C0FF**: never read. Examine prints it as unreadable (`--`) unless
   the user explicitly issues `IN`, which is a real bus read by design.
 - **$C100-$CFFF**: read from the slot ROM and internal ROM images directly,
@@ -84,21 +86,42 @@ each instruction, `StepOne` and the `RunCycles` loop call
 from a 64 KB bitmap of enabled address breakpoints first, then from opcode and
 condition breakpoints only if any exist.
 
-**Memory watchpoints** use the page tables. `MemoryBus` has no per-access
-observer, and adding one would put a test on every read and write. Instead,
-while a page holds an enabled watchpoint, its read and write page-table
-entries are set to null, which sends accesses to the device path; a
-`WatchpointDevice` registered for that page serves the access from the real
-backing store, records `{accessPc, address, value, access}`, and sets a
-pending-stop flag that the hook checks at the next instruction boundary.
-Pages without watchpoints pay nothing. For `$C000`-`$FFFF`, which already
-takes the device path, the watch device wraps the existing device for that
-range and forwards the access once, so an I/O read is not performed twice.
+**When the hook is installed.** The session installs it whenever any enabled
+stop condition exists (an address, opcode, register, memory, I/O, `BRK`,
+`BRKOP` or `BRKINT` breakpoint, or a watchpoint) or a debugger run is active,
+and removes it when none remain. A breakpoint set while the emulator runs
+freely therefore fires without a `g`: the hit pauses `CpuManager` and emits
+`stopped`, the same path a debugger run's stop takes.
+
+**Memory watchpoints** live inside `MemoryBus` as a per-page watch mask.
+`MemoryBus` has no per-access observer, and adding one would put a test on
+every read and write. Instead, the bus keeps two page tables: the **shadow**
+table holds whatever the MMU last set through `SetReadPage`/`SetWritePage`,
+and the **published** table, which the CPU's inline read uses, holds the same
+pointer except for watched pages, where it holds null. A watched page's access
+therefore takes the existing slow path, where `ReadByte`/`WriteByte` test the
+mask before `FindDevice`, serve the access from the shadow pointer, raise the
+video-dirty flag on a changed displayed byte exactly as the fast path does,
+record `{accessPc, address, value, access}`, and set a pending-stop flag that
+the hook checks at the next instruction boundary. For `$C000`-`$FFFF`, which
+already takes the slow path, the mask test precedes the device dispatch and
+the device is called once. Pages without watchpoints keep today's fast path
+unchanged; the setters gain one cold branch.
+
+This design was chosen over unmapping pages from outside the bus because the
+MMU, the language card and the machine builder all call the setters on every
+banking change, which would silently re-map a watched page, and because the
+fast write path alone raises the video-dirty flag, so an externally unmapped
+screen page would stop repainting.
 
 **Rationale**: A pointer test per instruction is below measurement noise
 (see the `reference-measure-per-instruction-perf` method: microbenchmark
-before and after). Stopping before the instruction is what AppleWin and the
-Monitor step semantics expect. Watchpoint stops land after the accessing
+before and after). With a session attached but no stop condition, the hook is
+absent, so an idle debugger costs the same as none. Stopping before the
+instruction is what AppleWin and the Monitor step semantics expect.
+`Cpu::PeekForTrace` reads the published table, so the trace ring shows a
+watched page as unreadable; the trace formatter reads the shadow table for
+those pages instead. Watchpoint stops land after the accessing
 instruction completes, which is the only consistent point on a 6502; the stop
 reply reports the accessing PC.
 
@@ -110,19 +133,30 @@ bytes; per-slice checks, which miss addresses inside a slice.
 **Decision**: Run-type commands produce a `RunRequest {kind, untilPc, count,
 budget}`, and `IDebugTarget::StartRun` begins it. The run ends when the hook
 stops, `untilPc` is reached, or the budget is spent, and the target delivers a
-`StopEvent` to the session's `OnStopped`.
+`StopEvent` to the session, which implements `IRunObserver::OnStopped`.
 
-- **Batch**: `MachineDebugTarget::StartRun` runs synchronously, calling
-  `RunCycles` in chunks with the hook installed, and delivers the stop before
-  returning.
-- **Emulator**: `StartRun` must not block the CPU thread, which also drives
-  frames, audio and the command queue (a blocked queue could never process
-  `pause`). It records the run, un-pauses `CpuManager`, and returns. The
-  existing frame loop runs slices with the hook installed; when the hook
-  stops, `RunCycles` returns a short slice, which `ExecuteCpuSlices` already
-  tolerates, the target pauses `CpuManager` and delivers the stop from the CPU
-  thread. Budgets are counted across slices. `RequestPause` stops a run the
-  same way with reason `pause`.
+`MachineDebugTarget` is one class; how a run executes comes from an injected
+`IRunDriver`:
+
+- **`SynchronousRunDriver`** (batch): `StartRun` calls `RunCycles` in chunks
+  with the hook installed and delivers the stop before returning.
+- **`CpuManagerRunDriver`** (emulator): `StartRun` must not block the CPU
+  thread, which also drives frames, audio and the command queue (a blocked
+  queue could never process `pause`). It records the run, un-pauses
+  `CpuManager`, and returns. The existing frame loop runs slices with the hook
+  installed; when the hook stops, `RunCycles` returns a short slice, which
+  `ExecuteCpuSlices` already tolerates, the driver pauses `CpuManager` and
+  delivers the stop from the CPU thread. Budgets are counted across slices.
+  `RequestPause` stops a run the same way with reason `pause`.
+
+**Session states**: `FreeRunning` (the emulator is running and no debugger
+run is active, which is how an emulator session starts), `Paused`, `DebugRun`
+(a run the debugger started, with its budget and stop conditions) and
+`Stepping`. A run command while `FreeRunning` returns `ok` and adopts the
+machine into a `DebugRun`, applying any budget, so "continue" from an attached
+tool works on a game that is already playing. "Already running" is an error
+only while a `DebugRun` or a step is active. A stop condition that fires while
+`FreeRunning` pauses the machine like any other stop.
 - **Budgets**: batch runs default to 100,000,000 cycles, about 98 seconds of
   emulated time at 1.023 MHz, overridable with `--max-cycles`. `--attach` runs
   are unattended and get the same default, sent as `budget` on each run. Runs
@@ -346,7 +380,7 @@ is implemented directly (FR-018), never by jumping into ROM:
 | `^K` / `^P` | `n^K` sets `KSWL/H` ($38/$39) to $Cn00 and `n^P` sets `CSWL/H` ($36/$37) to $Cn00 for slots 1-7; `0^K` restores `KEYIN` ($FD1B) and `0^P` restores `COUT1` ($FDF0) |
 | `^B` / `^C` | Run at the machine's BASIC cold / warm entry ($E000 / $E003) |
 | `^Y` | Run at $03F8 |
-| `G` | Push the return address the ROM's own `G` handler pushes, set an internal breakpoint there so an `RTS` from the program stops the debugger, and run at the address. Registers are not reloaded from $45-$49 |
+| `G` | Push the return address the ROM's own `G` handler pushes, set an internal breakpoint there so an `RTS` from the program stops the debugger, and run at the address. The internal breakpoint takes no id, is absent from `BPL`, and is removed when it fires or when the run stops for any other reason. Registers are not reloaded from $45-$49 |
 | `^E` | Show A, X, Y, P and S in Monitor format, and arm register edit, so the next `: bytes` sets the CPU registers and writes the same bytes to $45-$49 |
 | `S` / `T` | Step or trace with Monitor-format register display. Trace runs until a stop or the budget |
 | `R` / `W` | Host file I/O via `IFileSystem` |
