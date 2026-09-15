@@ -1,0 +1,111 @@
+#include "Pch.h"
+
+#include "Debugger/WatchTable.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchTable::Add
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int WatchTable::Add (Word address)
+{
+    WatchItem  item;
+
+
+
+    item.id      = m_nextId++;
+    item.address = address;
+    m_items.push_back (item);
+    return item.id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchTable::TryClear
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchTable::TryClear (int id)
+{
+    size_t  removed = std::erase_if (m_items, [id] (const WatchItem & item) { return item.id == id; });
+
+
+
+    return removed > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchTable::ClearAll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchTable::ClearAll()
+{
+    m_items.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchTable::TrySetEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchTable::TrySetEnabled (int id, bool enabled)
+{
+    bool  isFound = false;
+
+
+
+    for (WatchItem & item : m_items)
+    {
+        if (item.id == id)
+        {
+            item.enabled = enabled;
+            isFound      = true;
+        }
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchTable::TryFind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchTable::TryFind (int id, WatchItem & item) const
+{
+    for (const WatchItem & candidate : m_items)
+    {
+        if (candidate.id == id)
+        {
+            item = candidate;
+            return true;
+        }
+    }
+
+    return false;
+}

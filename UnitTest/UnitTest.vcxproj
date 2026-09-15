@@ -232,6 +232,9 @@
     <ClCompile Include="DebuggerTests\MemoryBusWatchMaskTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugMemoryViewTests.cpp" />
     <ClCompile Include="DebuggerTests\MachineDebugTargetTests.cpp" />
+    <ClCompile Include="DebuggerTests\BreakpointTableTests.cpp" />
+    <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />
+    <ClCompile Include="DebuggerTests\WatchTableTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

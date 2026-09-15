@@ -108,20 +108,20 @@ description: "Task list for 035-debugger"
 
 ### Session and tables
 
-- [ ] T021 [P] [US1] Write `UnitTest/DebuggerTests/BreakpointTableTests.cpp` over data-model "Breakpoint":
+- [X] T021 [P] [US1] Write `UnitTest/DebuggerTests/BreakpointTableTests.cpp` over data-model "Breakpoint":
   - kinds `Address`, `Opcode`, `Register`, `Memory`, `Io`, `Brk`, `Interrupt`;
   - enable and disable;
   - stable ids until cleared;
   - `hitCount`;
   - the 64 KB bitmap rebuilt on every change, and consulted before opcode and condition breakpoints.
-- [ ] T022 [US1] Implement `CassoEmuCore/Debugger/BreakpointTable.h/.cpp`. Makes T021 pass.
-- [ ] T023 [P] [US1] Write `UnitTest/DebuggerTests/WatchpointTableTests.cpp`:
+- [X] T022 [US1] Implement `CassoEmuCore/Debugger/BreakpointTable.h/.cpp`. Makes T021 pass.
+- [X] T023 [P] [US1] Write `UnitTest/DebuggerTests/WatchpointTableTests.cpp`:
   - `Read`, `Write` and `ReadWrite` on inclusive `first`/`last` ranges;
   - ids shared with the breakpoint numbering;
   - the watched-page mask handed to the target covers exactly the pages of enabled watchpoints, and shrinks when one is cleared or disabled;
   - a sink report inside a watched range with a matching access kind records `{accessPc, address, value, access}` and sets the pending stop; one outside the range, or of the other kind, is ignored.
-- [ ] T024 [US1] Implement `CassoEmuCore/Debugger/WatchpointTable.h/.cpp` as the bus's `IWatchSink`, publishing its page mask through `IDebugTarget::SetWatchedPages` (R-004). Makes T023 pass.
-- [ ] T025 [P] [US1] Implement `CassoEmuCore/Debugger/WatchTable.h/.cpp` for AppleWin watches (`W*`), zero-page pointers (`ZP*`, `P0`-`P4`) and bookmarks (`BM*`), with `UnitTest/DebuggerTests/WatchTableTests.cpp`.
+- [X] T024 [US1] Implement `CassoEmuCore/Debugger/WatchpointTable.h/.cpp` as the bus's `IWatchSink`, publishing its page mask through `IDebugTarget::SetWatchedPages` (R-004). Makes T023 pass.
+- [X] T025 [P] [US1] Implement `CassoEmuCore/Debugger/WatchTable.h/.cpp` for AppleWin watches (`W*`), zero-page pointers (`ZP*`, `P0`-`P4`) and bookmarks (`BM*`), with `UnitTest/DebuggerTests/WatchTableTests.cpp`.
 - [ ] T026 [P] [US1] Write `UnitTest/DebuggerTests/DebugSessionTests.cpp` against `MockDebugTarget`:
   - the state transitions in data-model "DebugSession", including `FreeRunning` adopted into a `DebugRun` by `g` with reply `ok`;
   - a run command while `DebugRun` or `Stepping` returns `Error` "already running";
