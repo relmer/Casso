@@ -43,6 +43,19 @@ these names collide with nothing in its table.
   the channel feed it lines.
 - **`GG`** runs at full speed in the emulator and restores the previous speed
   when the run stops.
+- **Watchpoint mode**: `BPM`, `BPMR` and `BPMW` take an optional trailing
+  `BEFORE` or `AFTER`, defaulting to `AFTER`.
+  - `BPMW 0400 BEFORE` stops before the instruction that would write, with
+    memory unchanged.
+  - `BPM C030` stops after the access and reports the value, the value a write
+    replaced where it is known, and the instruction that made the access.
+  - The keyword is a Casso addition; AppleWin has only the after-stop form.
+- **Argument forms** follow AppleWin's own behavior, recorded in research
+  R-014: `M dest range`, `F range value` (also `F start end value`), the
+  `S`/`SH` item syntax with `?` wildcards and `@n` results, `PRINT` and
+  `PRINTF` formats, `CALC`'s four-column line, `LOG` as a console verbosity
+  setting, the `[name] [range]` data directives with `Z` as `DB` and `B` as
+  the block list, and `SYM<table> CLEAR | LOAD "file" | ON | OFF`.
 
 ## Apple II Monitor mode
 

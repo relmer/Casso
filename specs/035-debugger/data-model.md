@@ -94,10 +94,20 @@ each change.
 | id | `int` | shared numbering with breakpoints, as in AppleWin `BPM*` |
 | access | `Read`, `Write`, `ReadWrite` | `BPMR`, `BPMW`, `BPM` |
 | first, last | `Word` | inclusive |
+| mode | `After`, `Before` | `After` is the default; `BEFORE` selects the other |
 | enabled | `bool` | |
 
-A hit records `{accessPc, address, value, access}` and requests a stop at the
-next instruction boundary.
+An `After` watchpoint is reported by the bus: a hit records
+`{accessPc, address, value, previous, access}` and requests a stop at the next
+instruction boundary. `previous` is the byte the write replaced and is absent
+on a read, and on any address served by a device, where reading it back would
+disturb the machine (R-017). Within one instruction a write to an address
+replaces a pending read of it, and a later write replaces an earlier one.
+
+A `Before` watchpoint puts no page in the bus mask. The session decodes the
+instruction at the program counter, computes the addresses its operand would
+touch from the current registers and memory, and stops before executing when
+one falls in the range, with `{accessPc, address, access}` and no value.
 
 ## Watch, ZeroPagePointer, Bookmark
 

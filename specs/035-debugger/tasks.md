@@ -164,7 +164,7 @@ description: "Task list for 035-debugger"
 
 ### Handler families (phase-1 AppleWin names)
 
-Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>HandlersTests.cpp`, using `TestMachine` wherever banking or devices matter. Expected outputs come from AppleWin's documented examples.
+Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>HandlersTests.cpp`, using `TestMachine` wherever banking or devices matter. Expected outputs come from AppleWin's documented examples, and argument forms and behavior from research R-014, R-018 and R-019, which were checked against AppleWin's own behavior: `Z` is `DB` and `B` lists data blocks; `BPIO` is an alias of `BPM`; `BPA` sets a program-counter breakpoint and a watchpoint; `BRK` takes `[0|1|2|3|ALL] [ON|OFF]`; `BPCHANGE` takes `E`/`T`/`S` flags; `F` also takes `start end value`; `MEB` writes a value above `$FF` as two bytes; `S`/`SH` share the item syntax with `?` wildcards and `@n` results; `PRINT`, `PRINTF`, `CALC` and `LOG` have the forms in R-014 and R-019; the data directives take `[name] [range]` and name their blocks; `SYM<table>` takes `CLEAR | LOAD | ON | OFF`; and `LBR`, `PROFILE` and `TF` record only during debugger-driven runs.
 
 - [ ] T036 [P] [US1] `CassoEmuCore/Debugger/Handlers/ExecutionHandlers.h/.cpp`:
   - `G`, `GG` (both unthrottled in batch; in the emulator `GG` sets full speed and restores the previous `SpeedMode` on stop), `P` (step over: run until PC is at the instruction after the `JSR` with SP restored, so recursion is one call), `T`, `TL`, `RTS` (step out) and `=`;
@@ -418,6 +418,21 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   1. Confirm it is real: time a longer window (50M cycles) with 10 or more runs per build, on the commit before `9f12ea90` and on the current head.
   2. If it is real, attribute it by reverting one change at a time: the `m_debugHook` tests in `MachineHost::StepOne` and `RunCycles`; the `m_debugWatched` test and `ReadFromDevice` split on the `MemoryBus::ReadByte` slow path; `StoreToPage` on the write fast path; the placement of the shadow tables inside `MemoryBus`.
   3. Fix what is found (for example, a separate `RunCycles` loop taken only while a hook is set) and record before and after numbers in the commit message. With no session attached the cost must not be measurable, as plan.md Performance Goals require.
+
+---
+
+## Phase 8: Watchpoint modes and corrected command behavior
+
+**Purpose**: FR-004's two watchpoint modes, the value a write replaced, and the
+command behavior research R-014, R-018 and R-019 corrected against AppleWin's
+own behavior. These run inside US1, before batch mode (T056).
+
+- [ ] T088 Report the value a write replaced (FR-004a, R-017): `CassoEmuCore/Core/IWatchSink.h` gains the previous byte on the write path, which `MemoryBus::WriteWatchedPage` already reads for the video-dirty test; it is absent where the page is device-served. `WatchHit` (`Debugger/Reply.h`) gains `previous`, `WatchpointTable` records it, `AppleWinFormatter` prints `Write $41 to $0400 by $0803 (was $A0)`, and `ReplyJson` adds `previous`. Tests in `MemoryBusWatchMaskTests.cpp` (a RAM page reports it, a device page does not) and `WatchpointTableTests.cpp`.
+- [ ] T089 Implement `CassoCore/Debugger/EffectiveAddress.h/.cpp`: from an instruction's `Microcode` addressing mode, the bytes at the program counter and the current registers, the addresses the instruction would read and write, with the byte fetches taken through a peek seam so nothing is disturbed. Covers indexed, indirect and indexed-indirect modes with their wrapping, and reports read, write, or both for a read-modify-write. Tests in `UnitTest/DebuggerTests/EffectiveAddressTests.cpp` sweep every addressing mode on both CPU tables against hand-computed addresses.
+- [ ] T090 Add `Before` mode to `WatchpointTable` and `DebugSession` (FR-004): `BPM`, `BPMR` and `BPMW` accept a trailing `BEFORE` or `AFTER` in `AppleWinParser` (default `AFTER`), a `Before` watchpoint puts no page in the bus mask, and the session's `ShouldStopBefore` consults `EffectiveAddress` only while one is enabled. A stop reports `{accessPc, address, access}` and no value. Tests cover a before-stop leaving memory unchanged, an after-stop reporting the value, and the mask holding only after-mode pages.
+- [ ] T091 Add the `addrL` and `dest<start.endM` shorthands to `AppleWinParser`, and the `BEFORE`/`AFTER` keyword and the corrected argument forms listed in the handler-family note above, with cases in `AppleWinParserTests.cpp`. The behavior itself lands with each handler family (T036-T041, T052).
+- [ ] T092 Implement the commands AppleWin leaves as stubs (R-018): `MC` listing each difference; `BPEDIT # <definition>` replacing the entry under the same id and resetting its hit count; `WSAVE`, `ZPSAVE`, `BMSAVE`, `BPSAVE`, `SAVE` and `LOAD` writing and replaying command scripts; and `SYM<table> SAVE`. `ME` stays window-only. Tests write through the mock `IFileSystem` and replay each script through the session.
+- [ ] T093 Watchpoint hit rule and one-stop rule (R-017): `WatchpointTable` lets a write replace a pending read of the same address within one instruction, and a later write replace an earlier one; `DebugSession` suppresses an after-mode stop for the instruction that just caused a before-mode stop on the same range. Tests use an indexed store on a watched page and a range watched in both modes.
 
 ---
 

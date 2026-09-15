@@ -217,7 +217,30 @@ confirm the machine sees the change.
 - **FR-003**: Users MUST be able to set, list, enable, disable and clear
   breakpoints by address, by opcode, and by condition on registers or memory.
 - **FR-004**: Users MUST be able to set watchpoints that stop execution on a
-  read of, or a write to, an address or range.
+  read of, or a write to, an address or range. A watchpoint stops in one of
+  two modes, chosen per watchpoint:
+  - **After the access (the default)**: the machine stops at the next
+    instruction boundary, and the stop reports the address, the value read or
+    written, the value a write replaced where that value is known, and the
+    address of the instruction that made the access. This mode sees every
+    access, including stack pushes and pulls, interrupt vector reads and DMA,
+    and tells a read-modify-write's read from its write.
+  - **Before the access**: the machine stops before executing an instruction
+    whose operand addresses fall in the range, leaving the memory unchanged so
+    the user can change registers or memory, or move the program counter, so
+    the access never happens. This mode sees only what an instruction's own
+    operand addresses predict: it does not see stack, interrupt or DMA
+    accesses, and it stops once for a read-modify-write without telling the
+    read from the write.
+  An instruction that stops a before-mode watchpoint does not stop an
+  after-mode watchpoint on the same range when the run resumes: one
+  instruction produces one stop.
+- **FR-004a**: A write reported after the access MUST carry the value it
+  replaced, except where reading it would disturb the machine: the value is
+  absent for any address not backed by memory the debugger can read without
+  side effects, such as the soft switches at $C000-$C0FF. When one
+  instruction reads and then writes the same address, the stop reports the
+  write.
 - **FR-005**: Users MUST be able to view and change the registers and flags.
 - **FR-006**: Users MUST be able to view and change memory as the CPU currently
   sees it, including which of ROM, RAM or language-card memory is mapped at an
@@ -342,7 +365,9 @@ confirm the machine sees the change.
   breakpoints, watchpoints, the selected mode and the paused/running state.
 - **Breakpoint**: A stop condition by address, by opcode, or by an expression
   over registers and memory; can be enabled or disabled.
-- **Watchpoint**: A stop condition on a read or write of an address or range.
+- **Watchpoint**: A stop condition on a read or write of an address or range,
+  stopping either after the access (the default, which reports the value and
+  the value a write replaced) or before the instruction that would make it.
 - **Command mode**: AppleWin or Apple II Monitor; determines how a command line
   is read and how output is written.
 - **Command**: One line of input in a mode; produces a reply.

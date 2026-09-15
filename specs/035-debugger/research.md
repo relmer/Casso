@@ -425,19 +425,162 @@ but not precedence or dereference. Casso fills the gaps as follows:
   other name is a symbol. `$` forces hex.
 - `!` complements within 16 bits; comparisons produce 1 or 0.
 
-**Argument forms the help pages do not document**, decided for Casso:
+**Argument forms the help pages do not document** were read from AppleWin's
+source (the owner authorized reading it for behavior; no code was copied), and
+several earlier guesses here were wrong. The forms Casso accepts:
 
-- `ECHO text`, `PRINTF format args`, `LOG file`, `RUN file`, `CD path`,
-  `DISK ...` and the other file and text commands take the rest of the line
-  verbatim. `CALC expr` and `PRINT expr` evaluate one expression.
-- `M dest src,len` and `MC dest src,len` put the destination first; a range
-  is `addr`, `addr,len` or `addr:last` everywhere.
+- `ECHO text` prints a quoted string or the rest of the line verbatim.
+- `PRINT item[,item]` prints comma-separated items; a quoted string prints
+  as itself and an expression as four hex digits.
+- `PRINTF "format"[,expr]` supports `%x`/`%X` (four hex digits), `%d`/`%D`
+  (decimal), `%z`/`%Z` (eight binary digits), `%c`, `%%`, and `\n`.
+- `CALC expr` prints one line holding hex, binary, decimal and the character:
+  `$0041  0z01000001     65  'A'`, with `(High)`, `(Ctrl)` or `(High Ctrl)`
+  where the byte has the high bit set or is a control character.
+- `LOG [NONE|ERROR|WARN|INFO|DEFAULT|ALL|OFF|ON]` sets how much the console
+  prints. It writes no file; `TF` is what writes a trace file.
+- `M dest range` and `MC dest range` put the destination first; a range is
+  `addr`, `addr,len` or `addr:last` everywhere. `F` also accepts
+  `F start end value`.
+- `MEB`/`ME8` writes a value above `$FF` as two bytes, low byte first;
+  `MEW`/`ME16` always writes words.
+- `S` and `SH` share one syntax: `"text"` (high bit clear), `'text'` (high bit
+  set), a byte, a 16-bit value matched low byte first, and the wildcards `?`
+  (any byte), `?n` (any high nibble), `n?` (any low nibble). Results are
+  numbered and reusable as `@1`, `@2` and so on, which `@` reprints.
 - Ids for `BPC`, `BPD`, `BPE`, `WC`, `ZPC`, `BMC` and the like are decimal, as
   AppleWin lists them; `*` means all.
+- `BPCHANGE # <flags>` toggles a breakpoint's enabled (`E`/`e`), temporary
+  (`T`/`t`) and stop (`S`/`s`) settings.
+- `BRK [0|1|2|3|ALL] [ON|OFF]` selects the BRK opcode (0) or invalid opcodes
+  of one, two or three bytes, and reports the setting when given no value.
+- `BPIO` is `BPM` under another name in AppleWin, and stays an alias here.
+- `BPA addr` sets a breakpoint on the program counter and a memory watchpoint
+  at the same address, or an I/O watchpoint for `$C000-$C0FF`.
+- The data directives take `[name] [addr | range]` or `name = addr`, and
+  name each new block automatically (`B_0300`, `W_03F0`, `T_0800`, `A_03F2`).
+  `Z` is `DB`; `B` lists the blocks; `X` removes, trims or splits one.
+- `SYM<table>` takes `CLEAR`, `LOAD "file"[,offset]`, `ON`, `OFF`,
+  `name = addr`, `! name` and a lookup. A file is loaded only by `LOAD`.
 - `BUDGET n` takes decimal, as `--max-cycles` does.
-- `SYM name = addr` adds, `SYM ! name` removes, and an argument containing a
-  period is a file to load; the table is the one the command's name selects.
-- `addr:bytes` deposits and `addrG` sets PC and goes, as AppleWin accepts.
+- `addr:bytes` deposits, `addrG` sets PC and goes, `addrL` disassembles, and
+  `dest<start.endM` moves, as AppleWin accepts.
+
+## R-017: Watchpoint timing and the value a write replaced (FR-004)
+
+**Decision**: A watchpoint stops **after** the access by default, reported by
+the bus through `IWatchSink`, and a write carries the value it replaced.
+`BEFORE` on a watchpoint selects a stop before the instruction whose operand
+addresses fall in the range, which the session predicts by decoding the
+instruction at the program counter.
+
+**Rationale**: the question a memory watchpoint answers is "who touched this
+address, and with what". Stopping after is the only way to report the value,
+to tell a read-modify-write's read from its write, and to see accesses no
+decode predicts: stack pushes and pulls, interrupt vector reads and DMA.
+AppleWin stops before, and therefore reports no value and deliberately skips
+`JSR` operands and `RTS`/`RTI`/`BRK` vectors.
+
+Stopping before is still worth having for `$C000-$C0FF`, where the access has
+a side effect that has already happened by the time an after-stop reports it:
+a write to `$C030` has clicked the speaker, a read of `$C0EC` has advanced the
+disk sequencer. Before-mode is the only way to prevent one.
+
+**Previous value**: the bus already reads the target byte on the write path to
+decide whether to raise the video-dirty flag, so keeping it costs one byte
+copy on a watched page. Where the page is served by a device rather than
+memory, no previous value is reported: reading it back would disturb the
+machine, which is exactly what the debugger must not do.
+
+**Several accesses in one instruction**: the CPU's indexed fetches read the
+target byte before a store writes it, so `STA $0400,X` reaches the bus as a
+read of `$0400+X` followed by a write of it. Within one instruction, a write
+to an address replaces a read of that address in the pending hit, and a later
+write replaces an earlier one, so the stop reports the write and its value.
+This rule holds whatever the CPU's bus behavior: a faithful 6502 makes more
+such accesses (dummy reads on indexed stores and page crossings, the NMOS
+old-then-new read-modify-write write), not fewer. The pre-read on indexed
+stores is itself an emulation fidelity gap outside this feature: real hardware
+reads the un-carried address, never the final one, and the Harte runner
+compares only final state and cycle counts, so it cannot see the difference.
+
+**What before-mode predicts**: the instruction's final effective address,
+classified by its operation as a read (loads, compares, `BIT`), a write
+(stores) or both (read-modify-write). The pre-read on indexed stores is not
+predicted, so `BPMR` in before-mode does not stop on a store.
+
+**One instruction, one stop**: an instruction that caused a before-stop does
+not cause an after-stop for the same watchpoint range when the run resumes.
+
+## R-018: What AppleWin's unimplemented commands were meant to do
+
+**Decision**: AppleWin ships several commands that parse and then do nothing.
+Casso implements the behavior their own help text and command table describe:
+
+- `MC` compares two ranges and lists each difference.
+- `BPEDIT # <definition>` replaces breakpoint `#` with the definition that
+  follows, written as it would be for `BP`, `BPR`, `BPM` and the rest, keeping
+  the id and resetting the hit count. It saves clearing the old entry and
+  setting a new one. AppleWin's record is the table text "Edit breakpoint"
+  and a SoftICE reference, where `BPE` re-opens the original line for editing;
+  the window may offer that form later.
+- `WSAVE`, `ZPSAVE`, `BMSAVE` and `BPSAVE` write a replayable command script,
+  the form `BMSAVE` and `BPSAVE` already use: a clear line followed by one
+  command per entry.
+- `SAVE "file"` writes all four scripts as one file and `LOAD "file"` runs it.
+- `SYM<table> SAVE "file"` writes the table in the format `LOAD` reads.
+- `ME` is a full-screen memory editor, so it stays window-only.
+
+**Rationale**: the names are in the table AppleWin users know, and a command
+that accepts a line and does nothing is the "degraded state that reads as a
+healthy one" the constitution forbids. Casso either performs the documented
+effect or reports that the command needs the window.
+
+## R-019: The tracing and timing commands
+
+**Decision**, from AppleWin's behavior:
+
+- **Recording scope**: `LBR`, `PROFILE` and `TF` record only during a
+  debugger-driven run (`G`, `GG`, `T`, `P`, `RTS`), never while the machine
+  runs freely. AppleWin's per-instruction work runs only while its debugger
+  steps the CPU, which is also the only mode where its breakpoints fire.
+  Casso's hook is installed whenever a stop condition exists, including while
+  the user runs the machine normally, so a breakpoint fires without a `G`;
+  without this scope, a game running with one breakpoint set would pay for
+  profile counters and trace lines it never asked for.
+- `LBR` reports the address of the last instruction that transferred control
+  (a taken branch, `JSR`, `JMP`, `RTS`, `RTI`, `BRK`), not its destination.
+- `PROFILE [RESET|SAVE|LIST]` counts each instruction the debugger runs, by
+  opcode and by addressing mode, and reports percent, count and the cycles
+  since the last reset, sorted by count. `SAVE` writes a tab-separated
+  `Profile.txt`. Casso does not write that file automatically on close, as
+  AppleWin does: a batch run must not produce a file nobody asked for.
+- `TF ["file"] [v]` toggles a trace file, writing one line per instruction
+  before it executes: cycles, `A`, `X`, `Y`, `SP`, the eight flag characters
+  and the disassembly. With `v`, the video scanline, horizontal position,
+  scanner address and data replace the cycle count. AppleWin runs `G` by
+  stepping, so a trace covers every instruction a run executes, not only
+  manual steps; Casso installs the hook for the same effect.
+- `TL` is an alias of `T`: AppleWin's own cycle-count flag is never read.
+- `CYCLES abs|rel|part` selects the cycle counter's reading, and `RCC`
+  ("reset cycles counter") sets the point `part` counts from.
+- `BENCHMARK` in AppleWin loads a loop of common opcodes at `$0300`, resumes
+  the machine, and reports host seconds when the speaker next clicks. That
+  measures the emulator, not the guest: in a throttled emulator host seconds
+  for a guest routine are its cycle count over 1.023 MHz, which `CYCLES rel`
+  already reports with no clock. Casso's `BENCHMARK` is therefore a throughput
+  benchmark: it loads the same kind of loop, runs a fixed number of emulated
+  cycles at full speed, reports emulated cycles per host second and the
+  multiple of a real Apple II's speed, and restores the throttle. It is
+  available in the window and over the channel, and `notAvailable` in batch
+  mode, where a host clock would break determinism (FR-009). `EXITBENCH` ends
+  a benchmark early; it has done nothing in AppleWin since 2014, when its
+  handler was removed to stop `E` matching it.
+- `LOG [level]` in AppleWin sets console verbosity. Casso has no console
+  levels, so `LOG` selects which notifications batch mode and the channel
+  print: `ERROR` prints only stops, `INFO` (the default) adds `resumed`,
+  `reset`, `machineChanged` and `modeChanged`, and `ALL` adds every reply's
+  text. It writes no file.
 
 ## R-015: Determinism
 

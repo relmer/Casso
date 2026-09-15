@@ -107,7 +107,7 @@ Clients format them.
 | `registers` | `a`, `x`, `y`, `p`, `s`, `pc`, `flags` (`{"n":bool,"v":…,"b":…,"d":…,"i":…,"z":…,"c":…}`) |
 | `memory` | `rows`: `[{"address":int,"bytes":[int],"region":"mainRam"|"auxRam"|"lcBank1"|"lcBank2"|"rom"|"slotRom"|"io"}]`; an unreadable I/O byte is `null` |
 | `disassembly` | `lines`: `[{"address":int,"bytes":[int],"mnemonic":str,"operand":str,"target":int|null,"symbol":str|null,"documented":bool}]` |
-| `breakpointSet`, `breakpointList` | `breakpoint` / `breakpoints`: `{"id","kind","address","last","opcode","condition","access","enabled","hits"}` (absent fields omitted) |
+| `breakpointSet`, `breakpointList` | `breakpoint` / `breakpoints`: `{"id","kind","address","last","opcode","condition","access","mode","enabled","hits"}` (absent fields omitted). `mode` is `after` or `before` on a memory watchpoint |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `[{"id","address","enabled","value"}]` |
 | `searchHits` | `addresses`: `[int]` |
 | `stack` | `sp`, `entries`: `[{"address":int,"value":int}]` |
@@ -127,7 +127,7 @@ Notifications have no `id` and are sent to every connected client.
 ```json
 {"type":"stopped","reason":"breakpoint","pc":768,"breakpointId":0,"cycles":1834211,
  "registers":{"a":0,"x":1,"y":2,"p":48,"s":255,"pc":768}}
-{"type":"stopped","reason":"watchpoint","pc":2051,"watch":{"id":1,"address":1024,"value":65,"access":"write","accessPc":2048}}
+{"type":"stopped","reason":"watchpoint","pc":2051,"watch":{"id":1,"address":1024,"value":65,"previous":160,"access":"write","accessPc":2048,"mode":"after"}}
 {"type":"resumed"}
 {"type":"reset","kind":"soft"}
 {"type":"machineChanged","machine":"Apple //c"}
@@ -137,7 +137,7 @@ Notifications have no `id` and are sent to every connected client.
 
 | `stopped.reason` | Cause |
 |---|---|
-| `breakpoint`, `watchpoint` | a table entry fired |
+| `breakpoint`, `watchpoint` | a table entry fired. A `watchpoint` stop carries `watch`: `mode` says whether it stopped `after` the access or `before` the instruction that would make it; `value` is the byte read or written, and `previous` the byte a write replaced, absent where the address is served by a device or the mode is `before` |
 | `step` | a step, step-over or step-out completed |
 | `runTo` | the run-to address was reached |
 | `budget` | the run's cycle budget was spent |
