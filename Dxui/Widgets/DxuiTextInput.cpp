@@ -395,6 +395,15 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         selArgb   = m_theme->SelectionBackground();
         edgeArgb  = (fgArgb & 0x00FFFFFFu) | 0x30000000u;
         focusArgb = m_theme->FocusRing();
+
+        //  A disabled field reads as out of use: its text and edge are the
+        //  disabled color and its fill drops back toward the surface behind it.
+        if (!m_enabled)
+        {
+            fgArgb   = m_theme->ForegroundDisabled();
+            edgeArgb = (fgArgb & 0x00FFFFFFu) | 0x20000000u;
+            bgArgb   = m_theme->Background();
+        }
     }
 
     if (!m_chromeless)

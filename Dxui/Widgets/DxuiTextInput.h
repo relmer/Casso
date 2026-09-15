@@ -53,7 +53,7 @@ public:
     //  keystroke.
     void  SelectAll     ()                            { m_anchor = 0; m_caret = m_text.size(); }
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } ResetBlink(); }
-    void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; } }
+    void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; m_anchor = m_caret; } }
     void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }
     void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }

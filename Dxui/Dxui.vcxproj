@@ -197,6 +197,7 @@
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
+    <ClCompile Include="Widgets\DxuiFieldError.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
     <ClCompile Include="Widgets\DxuiSplitter.cpp" />
     <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
@@ -291,6 +292,8 @@
     <ClInclude Include="Widgets\DxuiTextInput.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />
     <ClInclude Include="Widgets\DxuiTooltip.h" />
+    <ClInclude Include="Widgets\DxuiFieldError.h" />
+    <ClInclude Include="Render\DxuiStroke.h" />
     <ClInclude Include="Widgets\DxuiTreeView.h" />
     <ClInclude Include="Widgets\DxuiSplitter.h" />
     <ClInclude Include="Widgets\DxuiStatusBar.h" />
