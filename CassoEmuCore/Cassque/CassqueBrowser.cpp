@@ -971,42 +971,117 @@ std::wstring CassqueBrowser::GetParentFolder (const std::wstring & path)
 
 bool CassqueBrowser::OpenRow (int row)
 {
-    Location  location = GetLocation();
     Location  target;
 
 
 
-    if (row < 0 || row >= (int) m_rows.size())
+    if (!TryGetRowLocation (row, target))
     {
         return false;
     }
 
-    if (!m_rootChildren.empty() && m_rows[row].sourceIndex < m_rootChildren.size())
+    if (!m_rootChildren.empty())
     {
-        target = m_rootChildren[m_rows[row].sourceIndex].location;
         m_rootId.clear();
-    }
-    else if (location.kind != Location::Kind::HostFolder)
-    {
-        return false;
-    }
-    else if (m_rows[row].isDirectory)
-    {
-        target = Location::MakeHostFolder (JoinPath (location.path, m_rows[row].name));
-    }
-    else if (m_rows[row].isDiskImage && CanListImage (JoinPath (location.path, m_rows[row].name)))
-    {
-        target = Location::MakeDiskImage (JoinPath (location.path, m_rows[row].name));
-    }
-    else
-    {
-        return false;
     }
 
     m_model.NavigateTo (target);
     ReloadAfterNavigation();
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::TryGetRowLocation
+//
+//  A root's child, a folder in a host folder, or a disk image in one that can
+//  be listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::TryGetRowLocation (int row, Location & outLocation)
+{
+    Location  location = GetLocation();
+    bool      found    = true;
+
+
+
+    if (row < 0 || row >= (int) m_rows.size())
+    {
+        found = false;
+    }
+    else if (!m_rootChildren.empty() && m_rows[row].sourceIndex < m_rootChildren.size())
+    {
+        outLocation = m_rootChildren[m_rows[row].sourceIndex].location;
+    }
+    else if (location.kind != Location::Kind::HostFolder)
+    {
+        found = false;
+    }
+    else if (m_rows[row].isDirectory)
+    {
+        outLocation = Location::MakeHostFolder (JoinPath (location.path, m_rows[row].name));
+    }
+    else if (m_rows[row].isDiskImage && CanListImage (JoinPath (location.path, m_rows[row].name)))
+    {
+        outLocation = Location::MakeDiskImage (JoinPath (location.path, m_rows[row].name));
+    }
+    else
+    {
+        found = false;
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::TryGetRowPath
+//
+//  A host item's full path; an entry inside an image after the image's
+//  address, as the address bar writes a directory inside one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::TryGetRowPath (int row, std::wstring & outPath) const
+{
+    Location  location = GetLocation();
+    bool      found    = row >= 0 && row < (int) m_rows.size();
+
+
+
+    if (!found)
+    {
+        return false;
+    }
+
+    if (!m_rootChildren.empty() && m_rows[row].sourceIndex < m_rootChildren.size())
+    {
+        outPath = BrowserModel::FormatAddress (m_rootChildren[m_rows[row].sourceIndex].location);
+    }
+    else if (location.kind == Location::Kind::HostFolder)
+    {
+        outPath = JoinPath (location.path, m_rows[row].name);
+    }
+    else if (location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory)
+    {
+        outPath = JoinPath (BrowserModel::FormatAddress (location), m_rows[row].name);
+    }
+    else
+    {
+        found = false;
+    }
+
+    return found && !outPath.empty();
 }
 
 
@@ -1286,6 +1361,31 @@ bool CassqueBrowser::TryGetNodePath (const std::wstring & id, std::wstring & out
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueBrowser::TryGetNodeLocation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::TryGetNodeLocation (const std::wstring & id, Location & outLocation) const
+{
+    auto  found = m_nodes.find (id);
+    bool  has   = found != m_nodes.end() && found->second.location.kind != Location::Kind::None;
+
+
+
+    if (has)
+    {
+        outLocation = found->second.location;
+    }
+
+    return has;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueBrowser::CanAddToCasso
 //
 //  Any host folder that is not already known, wherever it shows in the tree.
@@ -1474,6 +1574,123 @@ bool CassqueBrowser::CloseTab (size_t index)
     }
 
     return SwitchTab (m_model.GetActiveIndex());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::OpenInNewTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassqueBrowser::OpenInNewTab (const Location & location)
+{
+    size_t  index = m_model.OpenTab (location);
+
+
+
+    m_rootId.clear();
+    ReloadAfterNavigation();
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::DuplicateTab
+//
+//  A new tab at the same location; its history starts fresh.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassqueBrowser::DuplicateTab (size_t index)
+{
+    if (index >= m_model.GetTabCount())
+    {
+        return m_model.GetActiveIndex();
+    }
+
+    return OpenInNewTab (m_model.GetTab (index).location);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::CloseOtherTabs
+//
+//  Closed from the end, so the indices still to close do not move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::CloseOtherTabs (size_t index)
+{
+    size_t  i      = m_model.GetTabCount();
+    bool    closed = false;
+
+
+
+    if (index >= m_model.GetTabCount())
+    {
+        return false;
+    }
+
+    while (i-- > 0)
+    {
+        if (i != index && m_model.CloseTab (i))
+        {
+            closed = true;
+        }
+    }
+
+    if (closed)
+    {
+        SwitchTab (0);
+    }
+
+    return closed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::CloseTabsToRight
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::CloseTabsToRight (size_t index)
+{
+    size_t  i      = m_model.GetTabCount();
+    bool    closed = false;
+
+
+
+    while (i-- > index + 1)
+    {
+        if (m_model.CloseTab (i))
+        {
+            closed = true;
+        }
+    }
+
+    if (closed)
+    {
+        SwitchTab (m_model.GetActiveIndex());
+    }
+
+    return closed;
 }
 
 

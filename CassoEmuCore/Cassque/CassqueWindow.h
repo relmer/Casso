@@ -34,6 +34,7 @@
 #include "Core/DxuiDockLayout.h"
 #include "Core/DxuiHitTester.h"
 #include "Core/DxuiLayoutBand.h"
+#include "Widgets/DxuiPopupMenu.h"
 #include "Window/DxuiDragDropTarget.h"
 #include "Window/DxuiWindow.h"
 
@@ -296,6 +297,16 @@ private:
     void  OnDropFile (const std::wstring & path);
     CassqueActions::AddressFn  MakeAddressPrompt();
     void  ShowTreeContextMenu (int x, int y, const std::wstring & id);
+
+    //  The tab strip's menu, and the pieces the menus share: one command row,
+    //  Copy as path over the selection, and Properties, which is Windows' own
+    //  sheet for a host item and the catalog details for an entry in an image.
+    void  ShowTabContextMenu     (int x, int y, int index);
+    void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"");
+    void  CopySelectedPaths      ();
+    void  ShowRowProperties      (int row);
+    void  ShowLocationProperties (const Location & location);
+    void  ShowHostProperties     (const std::wstring & path);
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
     void  RebuildTree();
     void  RunVerb             (CassqueActions::Verb verb);

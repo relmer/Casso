@@ -79,6 +79,15 @@ public:
     bool  CanRemoveFromCasso (const std::wstring & id) const;
     bool  TryGetNodePath     (const std::wstring & id, std::wstring & outPath) const;
 
+    //  Where a tree node or a list row leads, without going there: a folder, a
+    //  disk image, or a directory inside one. False for anything else.
+    bool  TryGetNodeLocation (const std::wstring & id, Location & outLocation) const;
+    bool  TryGetRowLocation  (int row, Location & outLocation);
+
+    //  The path a row stands for, as Copy as path gives it: a host item's full
+    //  path, or an entry inside an image after the image's address.
+    bool  TryGetRowPath      (int row, std::wstring & outPath) const;
+
     //  Tabs. A new tab opens where the active one is. The last tab does not
     //  close, since the window always shows somewhere. Switching restores
     //  the tab's selection by name. Restoring opens one tab per location and
@@ -89,6 +98,14 @@ public:
     bool          SwitchTab   (size_t index);
     void          RestoreTabs (const std::vector<Location> & locations);
     std::wstring  GetTabLabel (size_t index) const;
+
+    //  Opens a location in a new tab and switches to it. The tab menu's other
+    //  commands: a copy of a tab where it is, and closing every tab but one or
+    //  every tab after one. The last tab still never closes.
+    size_t        OpenInNewTab     (const Location & location);
+    size_t        DuplicateTab     (size_t index);
+    bool          CloseOtherTabs   (size_t index);
+    bool          CloseTabsToRight (size_t index);
 
     static std::wstring  GetLocationLabel (const Location & location);
 

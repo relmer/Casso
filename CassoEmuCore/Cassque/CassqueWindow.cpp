@@ -10,6 +10,7 @@
 #include "Cassque/Model/LaunchCommand.h"
 #include "Core/TextEncoding.h"
 #include "Widgets/DxuiContextMenu.h"
+#include "Core/DxuiClipboard.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiWindowsThemeColors.h"
 #include "Window/DxuiMessageBox.h"
@@ -1731,6 +1732,14 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A right-click on a tab opens its menu, as Explorer's does.
+    if (press && ev.button == DxuiMouseButton::Right && Contains (m_tabs->GetBounds(), point)
+        && m_tabs->HitTest (point.x, point.y) >= 0)
+    {
+        ShowTabContextMenu (point.x, point.y, m_tabs->HitTest (point.x, point.y));
+        return true;
+    }
+
     if (Contains (m_tabs->GetBounds(), point) && m_tabs->OnMouse (ev))
     {
         Invalidate();
@@ -1747,9 +1756,11 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The tree takes points in the window's coordinates, as its press did, so
+    //  a drag that started there keeps the same origin.
     if (m_tree->IsInteracting())
     {
-        m_tree->OnMouse (ToLocal (ev, m_tree->GetBounds()));
+        m_tree->OnMouse (ev);
         Invalidate();
         return true;
     }
@@ -3106,11 +3117,23 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
 void CassqueWindow::ShowListContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>  items;
+    Location                        location;
 
 
 
     m_menuCommands.clear();
     AskCassoToDescribe();
+
+    //  A folder or a disk image opens in a new tab, as Explorer's items do.
+    if (m_browser.GetSelectedRows().size() == 1 && m_browser.TryGetRowLocation (m_browser.GetSelectedRows()[0], location))
+    {
+        AddMenuCommand (items, L"Open in new &tab", [this, location]()
+        {
+            m_browser.OpenInNewTab (location);
+            FillList();
+        });
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
 
     for (CassqueActions::Verb verb : m_actions.GetListVerbs())
     {
@@ -3157,6 +3180,23 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
             parent->label = L"&Advanced";
             items.push_back (DxuiPopupMenuItem::ForSubmenu (parent.get(), std::move (advanced)));
             m_menuCommands.push_back (std::move (parent));
+        }
+    }
+
+    if (!m_browser.GetSelectedRows().empty())
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddMenuCommand (items, L"Copy as &path", [this]() { CopySelectedPaths(); });
+
+        if (m_browser.GetSelectedRows().size() == 1)
+        {
+            AddMenuCommand (items, L"P&roperties", [this]()
+            {
+                if (!m_browser.GetSelectedRows().empty())
+                {
+                    ShowRowProperties (m_browser.GetSelectedRows()[0]);
+                }
+            });
         }
     }
 
@@ -3571,38 +3611,261 @@ void CassqueWindow::ShowTreeContextMenu (int x, int y, const std::wstring & id)
 {
     std::vector<DxuiPopupMenuItem>  items;
     std::wstring                    folder;
-    std::unique_ptr<DxuiCommand>    command;
+    Location                        location;
+    bool                            hasFolder   = m_browser.TryGetNodePath (id, folder);
+    bool                            hasLocation = m_browser.TryGetNodeLocation (id, location);
 
 
 
     m_menuCommands.clear();
 
-    if (!m_browser.TryGetNodePath (id, folder))
+    if (hasLocation)
     {
-        return;
+        AddMenuCommand (items, L"Open in new &tab", [this, location]()
+        {
+            m_browser.OpenInNewTab (location);
+            FillList();
+        });
     }
 
-    command = std::make_unique<DxuiCommand>();
+    if (hasFolder && m_browser.CanRemoveFromCasso (id))
+    {
+        AddMenuCommand (items, L"&Remove from Casso", [this, folder]() { ChangeKnownFolder (folder, false); });
+    }
+    else if (hasFolder && m_browser.CanAddToCasso (id))
+    {
+        AddMenuCommand (items, L"&Add to Casso", [this, folder]() { ChangeKnownFolder (folder, true); });
+    }
 
-    if (m_browser.CanRemoveFromCasso (id))
+    if (hasLocation)
     {
-        command->label    = L"&Remove from Casso";
-        command->dispatch = [this, folder]() { ChangeKnownFolder (folder, false); };
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddMenuCommand (items, L"Copy as &path", [this, location]()
+        {
+            DxuiClipboard::SetText (GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
+        });
+        AddMenuCommand (items, L"P&roperties", [this, location]() { ShowLocationProperties (location); });
     }
-    else if (m_browser.CanAddToCasso (id))
+
+    if (!items.empty())
     {
-        command->label    = L"&Add to Casso";
-        command->dispatch = [this, folder]() { ChangeKnownFolder (folder, true); };
+        DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
     }
-    else
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowTabContextMenu
+//
+//  Explorer's tab menu. The last tab never closes, and the last tab has no
+//  tabs to its right, so those rows are disabled rather than doing nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowTabContextMenu (int x, int y, int index)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    size_t                          tab   = (size_t) index;
+    size_t                          count = m_browser.GetBrowserModel().GetTabCount();
+
+
+
+    m_menuCommands.clear();
+
+    AddMenuCommand (items, L"&Close tab", [this, tab]()
     {
-        return;
-    }
+        if (m_browser.CloseTab (tab))
+        {
+            FillList();
+        }
+    }, L"Ctrl+W");
+
+    AddMenuCommand (items, L"Close &other tabs", [this, tab]()
+    {
+        if (m_browser.CloseOtherTabs (tab))
+        {
+            FillList();
+        }
+    });
+
+    AddMenuCommand (items, L"Close tabs to the &right", [this, tab]()
+    {
+        if (m_browser.CloseTabsToRight (tab))
+        {
+            FillList();
+        }
+    });
+
+    AddMenuCommand (items, L"&Duplicate tab", [this, tab]()
+    {
+        m_browser.DuplicateTab (tab);
+        FillList();
+    });
+
+    m_menuCommands[0]->isEnabled = [count]() { return count > 1; };
+    m_menuCommands[1]->isEnabled = [count]() { return count > 1; };
+    m_menuCommands[2]->isEnabled = [tab, count]() { return tab + 1 < count; };
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::AddMenuCommand
+//
+//  One row of a context menu, its command kept alive until the next menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator)
+{
+    std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+
+
+
+    command->label       = label;
+    command->accelerator = accelerator;
+    command->dispatch    = std::move (dispatch);
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
     m_menuCommands.push_back (std::move (command));
+}
 
-    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::CopySelectedPaths
+//
+//  Each path in quotes on its own line, as Explorer's Copy as path gives them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::CopySelectedPaths()
+{
+    std::wstring  text;
+    std::wstring  path;
+
+
+
+    for (int row : m_browser.GetSelectedRows())
+    {
+        if (!m_browser.TryGetRowPath (row, path))
+        {
+            continue;
+        }
+
+        if (!text.empty())
+        {
+            text += L"\r\n";
+        }
+
+        text += L"\"" + path + L"\"";
+    }
+
+    if (!text.empty())
+    {
+        DxuiClipboard::SetText (GetHwnd(), text);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowRowProperties
+//
+//  A host item, a drive among them, has Windows' own Properties sheet. An
+//  entry inside an image has none, so its catalog details are shown instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowRowProperties (int row)
+{
+    Location                           location = m_browser.GetLocation();
+    std::vector<DxuiListView::Column>  columns  = CassqueBrowser::GetColumns();
+    std::vector<DxuiListView::Cell>    cells;
+    std::wstring                       path;
+    std::wstring                       text;
+    size_t                             i        = 0;
+
+
+
+    if (!m_browser.TryGetRowPath (row, path))
+    {
+        return;
+    }
+
+    if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::None)
+    {
+        ShowHostProperties (path);
+        return;
+    }
+
+    cells = CassqueBrowser::ToCells (m_browser.GetRows()[(size_t) row], location);
+    text  = path + L"\n\n";
+
+    for (i = 0; i < columns.size() && i < cells.size(); i++)
+    {
+        if (!cells[i].text.empty() && !columns[i].title.empty())
+        {
+            text += columns[i].title + L": " + cells[i].text + L"\n";
+        }
+    }
+
+    ShowMessage (text, MB_ICONINFORMATION);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowLocationProperties
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowLocationProperties (const Location & location)
+{
+    if (location.kind == Location::Kind::DiskDirectory)
+    {
+        ShowMessage (BrowserModel::FormatAddress (location), MB_ICONINFORMATION);
+        return;
+    }
+
+    ShowHostProperties (location.path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowHostProperties
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowHostProperties (const std::wstring & path)
+{
+    BOOL  shown = SHObjectProperties (GetHwnd(), SHOP_FILEPATH, path.c_str(), nullptr);
+
+
+
+    IGNORE_RETURN_VALUE (shown, TRUE);
 }
 
 
