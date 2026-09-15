@@ -14,7 +14,7 @@ AppleWin mode directly and in Monitor mode through `/`.
 | `MODE APPLEWIN` / `MODE MONITOR` | switch the session's mode |
 | `MODE` | report the current mode |
 | `PAUSE` | stop a running machine (reason `pause`) |
-| `BUDGET <n>` | set the default cycle budget for later runs in this session |
+| `BUDGET <n>` | set the cycle budget for later runs in this session; `BUDGET 0` makes them unbounded, which is the default outside batch and `--attach` |
 | `SWITCHES` | list the soft switches and memory banking (RAMRD, RAMWRT, ALTZP, 80STORE, INTCXROM, SLOTC3ROM, language-card read, write and bank, video switches) as name/value pairs |
 | `STACK` | show SP and the stack page from $01FF down to SP+1 |
 
@@ -37,6 +37,12 @@ these names collide with nothing in its table.
   registers as `A:00 X:00 Y:00 P:30 S:FF PC:0300` plus a flag string, and `D`
   prints eight bytes per row with ASCII. Exact formats are fixed per command in
   the formatter tests from the help pages.
+- **`A addr`** enters line-assembly mode, the same one Monitor `!` uses: each
+  following line is assembled at the current address, and a blank line ends
+  the mode. AppleWin's `A` is interactive in its window; this is how batch and
+  the channel feed it lines.
+- **`GG`** runs at full speed in the emulator and restores the previous speed
+  when the run stops.
 
 ## Apple II Monitor mode
 
@@ -56,9 +62,9 @@ Casso rules on top:
 | `T`, `addrT` | trace until a stop or the budget |
 | `addrG` | go; `F666G` opens the line assembler instead |
 | `!` | line assembler: `addr:MNE operand`, ` MNE operand` continues, `$cmd` runs a Monitor command, empty line exits |
-| `a+b`, `a-b` | hex arithmetic, printed as `=result` |
+| `a+b`, `a-b` | 8-bit hex arithmetic on the low bytes, as the Monitor's is; `FF+FF` prints `=FE` |
 | `I`, `N` | inverse, normal |
-| `n^K`, `n^P` | input and output hooks to slot n |
+| `n^K`, `n^P` | input and output hooks to slot 1-7; `0^K` and `0^P` restore the keyboard and screen |
 | `^B`, `^C`, `^Y` | BASIC cold, BASIC warm, user vector |
 | `^E` then `: b b b b b` | show registers, then set A X Y P S |
 | `start.endR [file]`, `start.endW [file]` | read / write a host file |
@@ -72,11 +78,14 @@ Casso rules on top:
 
 **Output** matches the Monitor:
 
-- Examine: `0300- A9 00 8D 00 03 60 ...`, eight bytes per row on 40-column
-  machines. There is no 80-column variant, so batch output is identical on
-  every machine.
+- Examine: `0300- A9 00 8D 00 03 60 ...`, with rows aligned to 8-byte
+  boundaries: `303.30F` prints `0303-` with five bytes, then `0308-` with
+  eight. The layout is the same on every machine, so batch output is
+  identical on all of them.
 - List: `0300-   A9 00       LDA   #$00`.
+- Verify: one line per difference, `0303-41 (42)`, the source byte in
+  parentheses, as the Monitor prints it.
 - Registers: `A=00 X=00 Y=00 P=30 S=FF`.
-- Arithmetic: `=1234`.
+- Arithmetic: `=FE`.
 - Errors print as the Monitor's `ERR` line, followed by the Casso two-line
   error in `text`, so scripts can tell which error occurred.

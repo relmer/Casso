@@ -48,7 +48,7 @@ description: "Task list for 035-debugger"
 
 - [ ] T004 [P] Write `UnitTest/DebuggerTests/DisassemblerTests.cpp`: every opcode `$00`-`$FF` for the 6502 table (`Cpu::GetMicrocode`, including the undocumented set from `Cpu::InitializeUndocumented`) and for the 65C02 table produced by `Cpu65C02`. Assert the length, mnemonic, operand text in Monitor form (`#$A0`, `($3E),Y`, `$1234,X`), branch target resolution, and `documented` flag per data-model "disassembly" kind. Assert the swept opcode count is 256 per CPU.
 - [ ] T005 Implement `CassoCore/Debugger/Disassembler.h/.cpp`: `Disassembler (const Microcode * table)`, and `DisassembleOne (Word address, std::span<const Byte> bytes)` returning a `DisassembledInstruction {address, bytes, mnemonic, operand, target (optional Word), documented}`. It is built from `Microcode::instructionName` and `globalAddressingMode` and must not reuse `Cpu::PrintSingleStepInfo`. Makes T004 pass.
-- [ ] T006 [P] Transcribe `UnitTest/Fixtures/Debugger/AppleII-1979-MonitorListing.txt` from the 1979 Reference Manual Monitor listing: one line per instruction as `ADDR BYTES MNEMONIC OPERAND`, and data regions as `DATA start-end` lines. Record the transcription's line count in a header comment line starting with `;`.
+- [ ] T006 [P] Transcribe `UnitTest/Fixtures/Debugger/AppleII-1979-MonitorListing.txt` from the 1979 Reference Manual's listing of the **original** Monitor ROM (the one with `S` and `T`), not the Autostart ROM listing the same manual also carries. Before transcribing, compare the listing's first page of bytes against `Apple2.rom` at $F800 to confirm the fixture is that ROM. Format: one line per instruction as `ADDR BYTES MNEMONIC OPERAND`, and data regions as `DATA start-end` lines. Record the transcription's line count in a header comment line starting with `;`.
 - [ ] T007 Write `UnitTest/DebuggerTests/MonitorListing1979Tests.cpp` (FR-028, SC-003), per research R-010:
   1. Load `Apple2.rom` through `FixtureProvider`, and assert its $F800-$FFFF bytes equal the transcription's bytes.
   2. Disassemble from $F800, skipping only declared `DATA` regions.
@@ -57,9 +57,9 @@ description: "Task list for 035-debugger"
 
   Depends on T005 and T006.
 - [ ] T008 [P] Write `UnitTest/DebuggerTests/LineAssemblerTests.cpp`: one line in Monitor mini-assembler syntax (`LDA #$41`, `JMP ($0036)`, branches to absolute targets turned into relative offsets, out-of-range branch errors) for the 6502 and 65C02 tables. It round-trips through `Disassembler`.
-- [ ] T009 Implement `CassoCore/Debugger/LineAssembler.h/.cpp` over `OpcodeTable::TryLookup` and `OpcodeTable::GetOperandSize`. `TryAssemble (Word address, const std::string & line, std::vector<Byte> & outBytes, std::string & outError)` returns a status enum, not a bool. Makes T008 pass.
-- [ ] T010 [P] Write `UnitTest/DebuggerTests/ExpressionEvaluatorTests.cpp`: hex with and without `$`, decimal with `#` per AppleWin, `+ - * / & | ^ ! < >`, parentheses, register names `A X Y P S PC`, memory dereference, and symbol lookup through an injected resolver. Also cover errors for unknown symbols and malformed input.
-- [ ] T011 Implement `CassoCore/Debugger/ExpressionEvaluator.h/.cpp` with an `IExpressionContext` seam (`TryGetRegister`, `TryPeek`, `TryResolveSymbol`) and a parsed `Expression` API type that breakpoint conditions store. Makes T010 pass.
+- [ ] T009 Implement `CassoCore/Debugger/LineAssembler.h/.cpp` over an `InstructionSetProvider` (base and 65C02 extended tables) and `OpcodeTable::TryLookup` / `GetOperandSize`. `TryAssemble (Word address, const std::string & line, std::vector<Byte> & outBytes, std::string & outError)` returns a status enum, not a bool. Makes T008 pass.
+- [ ] T010 [P] Write `UnitTest/DebuggerTests/DebugExpressionEvaluatorTests.cpp`: hex with and without `$`, decimal with `#` per AppleWin, `+ - * / & | ^ ! < >`, parentheses, register names `A X Y P S PC`, memory dereference, and symbol lookup through an injected resolver. Also cover errors for unknown symbols and malformed input.
+- [ ] T011 Implement `CassoCore/Debugger/DebugExpressionEvaluator.h/.cpp` (the assembler already owns `class ExpressionEvaluator` in `CassoCore/ExpressionEvaluator.h`, so the name must differ) with an `IDebugExpressionContext` seam (`TryGetRegister`, `TryPeek`, `TryResolveSymbol`) and a parsed `Expression` API type that breakpoint conditions store. Makes T010 pass.
 
 ### API types
 
@@ -73,21 +73,22 @@ description: "Task list for 035-debugger"
 
 ### Target seam, memory view and hook (CassoEmuCore)
 
-- [ ] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `Run (const RunRequest &) -> StopEvent`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Add `UnitTest/DebuggerTests/MockDebugTarget.h`, an in-memory 64 KB implementation for session tests.
+- [ ] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `StartRun (const RunRequest &)` with the stop delivered to an `IRunObserver::OnStopped`, `RequestPause`, `GetVideoPosition`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Add `UnitTest/DebuggerTests/MockDebugTarget.h`, an in-memory 64 KB implementation for session tests.
 - [ ] T015 [P] Write `UnitTest/DebuggerTests/DebugMemoryViewTests.cpp` (R-003) against `TestMachine` for Apple ][, ][+, //e, Enhanced //e and //c:
-  - **Parity**: for every address outside $C000-$C0FF, and across banking states set through the soft switches (RAMRD/RAMWRT, ALTZP, 80STORE, INTCXROM, SLOTC3ROM, language-card bank 1/2 read and write), `Peek` equals the value a CPU read returns. `UnitTest/EmuTests/MemoryProbeHelpers.h` shows the probing pattern.
-  - **No side effects**: a full peek sweep leaves every soft switch and the speaker state unchanged.
+  - **Parity below $C000 and above $D000**: across banking states set through the soft switches (RAMRD/RAMWRT, ALTZP, 80STORE, language-card bank 1/2 read and write), `Peek` equals the value a CPU read returns; bus reads there have no side effects. `UnitTest/EmuTests/MemoryProbeHelpers.h` shows the probing pattern.
+  - **Parity in $C100-$CFFF**: for each INTCXROM/SLOTC3ROM/INTC8ROM state, `Peek` equals the byte of the slot or internal ROM image that state selects, compared without a bus read, because a bus read there latches the router.
+  - **No side effects**: a full peek sweep leaves every soft switch, the `CxxxRomRouter` latches and the speaker state unchanged.
   - **Region labels** match `mainRam|auxRam|lcBank1|lcBank2|rom|slotRom|io`.
   - **Writes**: `Poke` to ROM returns read-only and changes nothing.
   - **Non-zero**: assert that the number of addresses swept is non-zero.
-- [ ] T016 Implement `CassoEmuCore/Debugger/DebugMemoryView.h/.cpp` from the state accessors in research R-003: `IMmu::GetRamRd/GetRamWrt/GetAltZp/Get80Store/GetIntCxRom/GetSlotC3Rom`, `LanguageCard::IsReadRam/IsWriteRam/IsBank2/ReadRom`, and `Apple2cRomBank`. $C000-$C0FF is never read through a device; `Peek` reports it unreadable. Makes T015 pass.
+- [ ] T016 Implement `CassoEmuCore/Debugger/DebugMemoryView.h/.cpp` per research R-003: the bus page tables below $C000; slot and internal ROM images for $C100-$CFFF selected by `IMmu::GetIntCxRom/GetSlotC3Rom` and the `CxxxRomRouter` state; `LanguageCard::IsReadRam/IsWriteRam/IsBank2/ReadRom` and `Apple2cRomBank` for $D000-$FFFF. $C000-$C0FF is never read; `Peek` reports it unreadable. Makes T015 pass.
 - [ ] T017 [P] Write `UnitTest/DebuggerTests/DebugHookTests.cpp`:
   - with a null hook, `MachineHost::RunCycles` behavior and cycle counts are unchanged;
   - with a hook that stops at an address, `StepOne` and `RunCycles` stop before that instruction executes, including an address in the middle of a slice;
   - a pending-stop flag set during an instruction stops at the next boundary.
 - [ ] T018 Create `CassoEmuCore/Debugger/DebugHook.h` (`ShouldStopBefore (Word pc)`, `HasPendingStop()`). Change `CassoEmuCore/Shell/MachineHost.h/.cpp`: add `SetDebugHook (DebugHook *)` and call it before each instruction in `StepOne` and in the `RunCycles` loop, doing only a null-pointer test when unset (R-004). Microbenchmark instructions per second before and after with no hook; record the numbers in the commit message. Makes T017 pass.
 - [ ] T019 Promote the machine-building code from `UnitTest/EmuTests/TestMachine.h/.cpp` into `CassoEmuCore/Shell/HeadlessMachineFactory.h/.cpp` with an `IRomSource` seam (R-006). `TestMachine` becomes a user of the factory, backed by a `FixtureProvider` ROM source. All existing `EmuTests` must still pass unchanged.
-- [ ] T020 Implement `CassoEmuCore/Debugger/MachineDebugTarget.h/.cpp`: `IDebugTarget` over `MachineHost`, `DebugMemoryView` and `I6502DebugInfo`. `Run` installs the hook and calls `RunCycles` in chunks until a stop, `untilPc` or the budget. Add `UnitTest/DebuggerTests/MachineDebugTargetTests.cpp`, covering run-to, budget stop with reason `Budget`, registers round trip, and soft-switch listing on each machine.
+- [ ] T020 Implement `CassoEmuCore/Debugger/MachineDebugTarget.h/.cpp`: `IDebugTarget` over `MachineHost`, `DebugMemoryView` and `I6502DebugInfo`, in its synchronous form: `StartRun` installs the hook, calls `RunCycles` in chunks until a stop, `untilPc` or the budget, and delivers `OnStopped` before returning. A run with no budget is unbounded. Add `UnitTest/DebuggerTests/MachineDebugTargetTests.cpp`, covering run-to, budget stop with reason `Budget`, step-over of a recursive subroutine, registers round trip, `GetVideoPosition`, and soft-switch listing on each machine.
 
 **Checkpoint**: Full suite green. The disassembler matches the 1979 listing, peeks are side-effect free on every machine, and the hook costs nothing when unset.
 
@@ -111,9 +112,11 @@ description: "Task list for 035-debugger"
 - [ ] T023 [P] [US1] Write `UnitTest/DebuggerTests/WatchpointTableTests.cpp`:
   - `Read`, `Write` and `ReadWrite` on inclusive `first`/`last` ranges;
   - ids shared with the breakpoint numbering;
-  - the bus observer is installed only while at least one enabled watchpoint exists;
+  - a page's read and write page-table entries are null only while it holds an enabled watchpoint, and are restored when the last one is cleared or disabled;
+  - a watched page's accesses still return and store the right values;
+  - a watchpoint in $C000-$FFFF forwards to the underlying device exactly once;
   - a hit records `{accessPc, address, value, access}` and sets the pending stop.
-- [ ] T024 [US1] Implement `CassoEmuCore/Debugger/WatchpointTable.h/.cpp` against `MemoryBus`. Makes T023 pass.
+- [ ] T024 [US1] Implement `CassoEmuCore/Debugger/WatchpointTable.h/.cpp` and `WatchpointDevice.h/.cpp` against `MemoryBus`'s page tables and device list (R-004). Makes T023 pass.
 - [ ] T025 [P] [US1] Implement `CassoEmuCore/Debugger/WatchTable.h/.cpp` for AppleWin watches (`W*`), zero-page pointers (`ZP*`, `P0`-`P4`) and bookmarks (`BM*`), with `UnitTest/DebuggerTests/WatchTableTests.cpp`.
 - [ ] T026 [P] [US1] Write `UnitTest/DebuggerTests/DebugSessionTests.cpp` against `MockDebugTarget`:
   - the state transitions in data-model "DebugSession";
@@ -121,7 +124,7 @@ description: "Task list for 035-debugger"
   - machine switch clears breakpoints and watchpoints, and reset keeps them;
   - mode switch keeps all tables;
   - unknown and malformed commands change no state.
-- [ ] T027 [US1] Implement `CassoEmuCore/Debugger/DebugSession.h/.cpp`: `Execute (const DebugCommand &) -> Reply`, ownership of the tables, dispatch to handler families, the default budget of 100000000 cycles (R-005), and `BUDGET <n>`. Makes T026 pass.
+- [ ] T027 [US1] Implement `CassoEmuCore/Debugger/DebugSession.h/.cpp`: `Execute (const DebugCommand &) -> Reply`, ownership of the tables, dispatch to handler families, `OnStopped` turning a `StopEvent` into the `stopped` notification, and the session budget: unbounded by default, set by `BUDGET <n>`, cleared by `BUDGET 0`, overridden per run by `DebugCommand::budget` (R-005). Makes T026 pass.
 
 ### AppleWin command table, parser and formatter
 
@@ -135,7 +138,7 @@ description: "Task list for 035-debugger"
 - [ ] T030 [P] [US1] Write `UnitTest/DebuggerTests/AppleWinParserTests.cpp`:
   - case-insensitive names;
   - `$` and bare hex;
-  - expressions through `ExpressionEvaluator`;
+  - expressions through `DebugExpressionEvaluator`;
   - argument forms for each family, taken from AppleWin's help pages `help/dbg-*.html` (names and behavior only, never implementation; R-014);
   - Casso engine commands `MODE`, `MODE APPLEWIN`, `MODE MONITOR`, `PAUSE` and `BUDGET`.
 - [ ] T031 [US1] Implement `CassoCore/Debugger/AppleWinParser.h/.cpp` producing `DebugCommand`. Makes T030 pass.
@@ -158,7 +161,8 @@ description: "Task list for 035-debugger"
 Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>HandlersTests.cpp`, using `TestMachine` wherever banking or devices matter. Expected outputs come from AppleWin's documented examples.
 
 - [ ] T036 [P] [US1] `CassoEmuCore/Debugger/Handlers/ExecutionHandlers.h/.cpp`:
-  - `G`, `GG` (both run unthrottled in batch), `P` (step over, via a temporary stop after a `JSR`), `T`, `TL`, `RTS` (step out) and `=`;
+  - `G`, `GG` (both unthrottled in batch; in the emulator `GG` sets full speed and restores the previous `SpeedMode` on stop), `P` (step over: run until PC is at the instruction after the `JSR` with SP restored, so recursion is one call), `T`, `TL`, `RTS` (step out) and `=`;
+  - `BPV` and `VIDEOINFO` from `GetVideoPosition`;
   - `JSR`, `NOP`/`ZAP`, and `KEY` (queued by cycle, R-015);
   - `LBR`;
   - `TF` (trace to a file through `IFileSystem`);
@@ -180,7 +184,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - files: `BLOAD`, `BSAVE`, `TSAVE`;
   - I/O: `IN`/`INPUT`, `OUT`;
   - the Casso engine commands `SWITCHES` and `STACK` (FR-007), as defined in `contracts/command-modes.md`.
-- [ ] T040 [P] [US1] `CassoEmuCore/Debugger/Handlers/DataDirectiveHandlers.h/.cpp`: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`, `DW4`, `ASC`, `DF`, `DA`, and `U` disassembly honoring those data ranges. Also `A`, which uses `LineAssembler`.
+- [ ] T040 [P] [US1] `CassoEmuCore/Debugger/Handlers/DataDirectiveHandlers.h/.cpp`: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`, `DW4`, `ASC`, `DF`, `DA`, and `U` disassembly honoring those data ranges. Also `A addr`, which enters the line-assembly mode Monitor `!` uses (each following line assembled through `LineAssembler`, a blank line ends it), as `contracts/command-modes.md` defines.
 - [ ] T041 [P] [US1] `CassoEmuCore/Debugger/Handlers/ConfigHandlers.h/.cpp`: `PWD`, `CD`, `LOAD`, `SAVE`, `DISASM`, `STARTUP`, `RUN` (a script through the same session), `DISK`, `LOG`, `ECHO`, `PRINT`, `PRINTF`, `CALC`, `?`, `HELP`, `VERSION`, `MOTD`, `WSAVE`, `ZPSAVE`, `BMSAVE`.
 
 ### Symbols and binary formats (FR-031, FR-032, FR-033)
@@ -207,20 +211,20 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 - [ ] T046 [US1] Implement `CassoCore/Debugger/SymbolFileReader.h/.cpp` and `CassoEmuCore/Debugger/SymbolTable.h/.cpp` (tables `Main`, `Basic`, `Asm`, `User`, `User2`, `Src`, `Src2`, `Dos33`, `ProDos`; case-insensitive lookup). Makes T045 pass.
 - [ ] T047 [P] [US1] Author ROM symbol tables in `-g` format as file-scope tables in `CassoEmuCore/Debugger/RomSymbols.cpp`, one per machine plus DOS 3.3 and ProDOS entry points. Take names and addresses only from Apple's published Reference Manuals and DOS/ProDOS technical references, never from another emulator's symbol files (FR-031), and record the source of each table in a comment. `UnitTest/DebuggerTests/RomSymbolsTests.cpp` checks spot entries (`COUT $FDED`, `GETLN $FD6A`, `MONZ $FF69`) and that each table is non-empty.
 - [ ] T048 [P] [US1] Write `UnitTest/DebuggerTests/AppleSingleCodecTests.cpp`: read and write round trip of the data fork, real name, and ProDOS file info (type, aux type); magic `$00051600` detection; errors for truncated and unknown-version input. First check with the 033-cassque session whether it has already added `AppleSingleCodec`; if so, reuse it and skip T049.
-- [ ] T049 [US1] Implement `CassoEmuCore/Debugger/AppleSingleCodec.h/.cpp` if 033 has not: no knowledge of memory or disks (research R-016). Makes T048 pass.
+- [ ] T049 [US1] Implement `CassoEmuCore/Core/AppleSingleCodec.h/.cpp` if 033 has not: no knowledge of memory, disks or the debugger (research R-016). Makes T048 pass.
 - [ ] T050 [P] [US1] Write `UnitTest/DebuggerTests/BinaryImageReaderTests.cpp`:
   - Intel HEX and S-record, with checksums and multiple segments;
   - AppleSingle, taking its address from the aux type;
   - DOS 3.3 binary and raw, each selected explicitly;
   - an error for a raw load with no address;
   - content detection never guessing DOS 3.3 binary.
-- [ ] T051 [US1] Implement `CassoCore/Debugger/BinaryImageReader.h/.cpp` returning `{segments, format}`. `BLOAD` in T039 uses it. Makes T050 pass.
+- [ ] T051 [US1] Implement `CassoEmuCore/Debugger/BinaryImageReader.h/.cpp` (in EmuCore because it uses the codec there; CassoCore cannot reference CassoEmuCore) returning `{segments, format}`. `BLOAD` in T039 uses it. Makes T050 pass.
 - [ ] T052 [P] [US1] `CassoEmuCore/Debugger/Handlers/SymbolHandlers.h/.cpp`: `SYM`, `SYMMAIN`, `SYMBASIC`, `SYMASM`, `SYMUSER`, `SYMUSER2`, `SYMSRC`, `SYMSRC2`, `SYMDOS33`/`SYMDOS`, `SYMPRODOS`/`SYMPRO`, `SYMINFO`, `SYMLIST`, and bookmark commands `BM`, `BMA`, `BMC`, `BML`, `BMG`. Tests in `UnitTest/DebuggerTests/SymbolHandlersTests.cpp`.
 
 ### Batch mode
 
 - [ ] T053 [P] [US1] Write `UnitTest/DebuggerTests/DebugOptionsParseTests.cpp` for `contracts/cli-debug.md` batch options:
-  - `--machine`, `--disk1`, `--disk2`, `--script` (including `-`), repeatable `--command`, `--mode`, `--json`, `--max-cycles`, `--write-disks`;
+  - `--machine`, `--disk1`, `--disk2`, `--script` (including `-`), repeatable `--command`, `--mode`, `--json`, `--max-cycles`, `--seed`, `--write-disks`;
   - `debug --help`;
   - usage errors.
 - [ ] T054 [US1] Add `Subcommand::Debug` and `DebugOptions` to `CassoCore/CommandLineOptions.h`, parsing in `CassoCore/CommandLineParser.cpp`, and the `debug` help page in `CassoEmuCore/Cli/CommandLine.cpp`. Update `UnitTest/CliSwitchCoverageTests.cpp` for the new grammar. Makes T053 pass.
@@ -230,9 +234,10 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - `;` comment lines;
   - a mode switch mid-script;
   - disk writes going to the overlay unless `--write-disks`;
-  - two runs of each script compared byte for byte (SC-004);
+  - two runs of each script compared byte for byte (SC-004), including a script that power-cycles, which only passes if the DRAM seed is pinned;
+  - exit status 1 taking precedence over 3;
   - all host file access (scripts, `BLOAD`, `BSAVE`, `R`, `W`, `TF`) through a mock `IFileSystem`, with no real files.
-- [ ] T056 [US1] Implement `CassoEmuCore/Cli/DebugMode.h/.cpp` (batch runner taking an injected `IFileSystem`, on `HeadlessMachineFactory` and `MachineDebugTarget`, no wall clock, R-015) and the `debug` arm in `CassoEmuCore/Cli/CliMain.cpp`. Makes T055 pass.
+- [ ] T056 [US1] Implement `CassoEmuCore/Cli/DebugMode.h/.cpp` (batch runner taking an injected `IFileSystem`, on `HeadlessMachineFactory` and `MachineDebugTarget`, no wall clock, the `Prng` seeded from `--seed` with default `0xCA550001`, every run carrying the `--max-cycles` budget, R-015) and the `debug` arm in `CassoEmuCore/Cli/CliMain.cpp`. Makes T055 pass.
 
 **Checkpoint**: Quickstart phase 1 steps 2-4 and 6 pass by hand, and the full suite is green. The MVP is usable for bug diagnosis.
 
@@ -255,7 +260,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
   Until T060 exists, the test compiles against an empty command set and fails; that is expected.
 - [ ] T058 [US2] Write `UnitTest/DebuggerTests/MonitorRomFactsTests.cpp` (FR-029), per research R-012:
-  - on `Apple2eEnhanced.rom` and `Apple2c.rom`, assert that disassembly at $F666 is the mini-assembler entry (its `!` prompt output and its call into the input routine), and record what ][+ and //e hold there;
+  - on `Apple2eEnhanced.rom` and `Apple2c.rom`, decode the `!` entry of the $FFCC/$FFE3 command table, follow its handler, and assert it prints the `!` prompt and calls the input routine; assert on `Apple2.rom` that $F666 is that ROM's mini-assembler entry; record what the ][+, //e, Enhanced //e and //c hold at $F666 (Applesoft), which is why `F666G` is an alias, not a jump;
   - boot each of those two machines to the `*` prompt in `TestMachine`, type `300l` with `UnitTest/EmuTests/KeystrokeInjector.h`, and assert with `UnitTest/EmuTests/TextScreenScraper.h` that a listing appears.
 
   If either assertion fails against the ROM, stop and update spec FR-017/FR-021 and research R-012 with what the ROM does before continuing.
@@ -275,19 +280,20 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - a malformed line produces an error and no command.
 - [ ] T060 [US2] Implement `CassoCore/Debugger/MonitorState.h` (`a1`-`a4`, `lastExamined`, `storeAddress`, `registerEditPending`, `assemblerActive`) and `CassoCore/Debugger/MonitorParser.h/.cpp`, following the Monitor's line scan (R-013). Makes T059 pass and, with T057, the ROM coverage test.
 - [ ] T061 [P] [US2] Write `UnitTest/DebuggerTests/MonitorFormatterTests.cpp`:
-  - examine `0300- A9 00 8D 00 03 60 ...`, eight bytes per row on every machine;
+  - examine `0300- A9 00 8D 00 03 60 ...`, rows aligned to 8-byte boundaries (`303.30F` gives `0303-` with five bytes then `0308-` with eight), identical on every machine;
   - list `0300-   A9 00       LDA   #$00`;
+  - verify `0303-41 (42)` per difference;
   - registers `A=00 X=00 Y=00 P=30 S=FF`;
-  - arithmetic `=1234`;
+  - arithmetic, 8-bit: `FF+FF` gives `=FE`;
   - step and trace display in the original ]['s step output layout;
   - `ERR` followed by the two-line error.
 - [ ] T062 [US2] Implement `CassoEmuCore/Debugger/MonitorFormatter.h/.cpp`. Makes T061 pass.
 - [ ] T063 [US2] Implement `CassoEmuCore/Debugger/Handlers/MonitorHandlers.h/.cpp` with the effects in research R-013, applied directly, never by jumping into ROM:
   - `I`/`N` set `INVFLG` ($32) to $3F/$FF;
-  - `n^K` sets `KSWL/H` ($38/$39) to $Cn00, and `n^P` sets `CSWL/H` ($36/$37) to $Cn00;
+  - `n^K` sets `KSWL/H` ($38/$39) to $Cn00 and `n^P` sets `CSWL/H` ($36/$37) to $Cn00 for slots 1-7; `0^K` restores $FD1B and `0^P` restores $FDF0;
   - `^B`/`^C` run at $E000/$E003, and `^Y` runs at $03F8;
-  - `G` pushes a return to the session's stop address;
-  - `^E` shows registers and arms `:` register edit;
+  - `G` pushes the return address the ROM's `G` handler pushes and sets an internal breakpoint there, and never reloads registers from $45-$49; a test sets A in AppleWin mode, runs Monitor `G`, and sees A unchanged;
+  - `^E` shows registers and arms `:` register edit, which sets the CPU registers and writes $45-$49;
   - search prints matching addresses;
   - `R`/`W` use `IFileSystem`: `R` reads the smaller of file and range and reports a mismatch; with no filename they return an error in batch and pipe;
   - `!` and `F666G` enter `LineAssembler` mode.
@@ -321,6 +327,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 - [ ] T069 [US3] Implement `CassoEmuCore/Debugger/Channel/DebugChannelServer.h/.cpp` and a thread-safe `IDebugReplySink`, routing commands through `CpuManager::PostCommand` with a new command id. Makes T068 pass.
 - [ ] T070 [US3] Wire the session into the emulator:
   - `CassoEmuCore/Shell/CpuManager.h/.cpp` and `EmulatorShellCpuThread.cpp`: a debug command id whose payload is the line plus a reply-sink id;
+  - the emulator form of `MachineDebugTarget::StartRun` (R-005): record the run, apply `fullSpeed` to `SpeedMode`, un-pause `CpuManager` and return; the frame loop's `RunCycles` slices run with the hook installed and count the budget across slices; on a hook stop, `RunCycles` returns the short slice, the target pauses `CpuManager`, restores `SpeedMode`, and delivers `OnStopped` from the CPU thread; `RequestPause` does the same with reason `pause`. Tests drive `EmulatorShell` headless and confirm a `pause` request is processed while a run is in progress;
   - `MachineManager.cpp`: attach the session beside `AttachDebugSinksIfOpen`, emit `machineChanged` and clear the tables on switch, and emit `reset` on soft reset and power cycle;
   - `EmulatorShell` user pause emits `stopped` with reason `pause`.
 
@@ -343,7 +350,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
   No test opens a real pipe. Windows enforcing the access list is checked by quickstart phase 2 step 5, which is manual, and the pipe as a whole by the SC-007 client (T077).
 - [ ] T074 [P] [US3] Write `UnitTest/DebuggerTests/InstanceDirectoryTests.cpp` over a mock `IInstanceDirectory`: listing omits instances that refuse the connection or don't answer `hello`, and the output columns are `pid title machine disk1 disk2`.
-- [ ] T075 [US3] Implement `CassoEmuCore/Debugger/Channel/IInstanceDirectory.h` and `Win32InstanceDirectory.h/.cpp` (enumerate `\\.\pipe\` for `Casso.Debug.`). Add `debug --list` and `debug --attach <pid>` to `CassoEmuCore/Cli/DebugMode.cpp`, with parsing in `CassoCore/CommandLineParser.cpp`. After a run command, attach waits for `stopped` up to the budget, and exits with status 2 when the pipe closes. Add `--list` and `--attach` to the `debug` help page in `CassoEmuCore/Cli/CommandLine.cpp`. Makes T074 pass.
+- [ ] T075 [US3] Implement `CassoEmuCore/Debugger/Channel/IInstanceDirectory.h` and `Win32InstanceDirectory.h/.cpp` (enumerate `\\.\pipe\` for `Casso.Debug.`). Add `debug --list` and `debug --attach <pid>` to `CassoEmuCore/Cli/DebugMode.cpp`, with parsing in `CassoCore/CommandLineParser.cpp`. Every run it starts carries `budget` from `--max-cycles` (default 100000000); after a run command it waits for `stopped` for at most `--timeout` seconds (default 120), then sends `pause` and exits with status 3; it exits with status 2 when the pipe closes. Add `--list` and `--attach` to the `debug` help page in `CassoEmuCore/Cli/CommandLine.cpp`. Makes T074 pass.
 - [ ] T076 [US3] Write `docs/DebugChannel.md` from `contracts/debug-channel-protocol.md` as user-facing documentation.
 - [ ] T077 [US3] SC-007 validation: write `scripts/DebugChannelClient.ps1`, a client that uses only `System.IO.Pipes.NamedPipeClientStream` and `docs/DebugChannel.md`, and run quickstart phase 2 steps 1-6. Step 5, the other-user connection, is manual; record its result in the commit message.
 
@@ -425,7 +432,7 @@ Tests are written first and fail, then the implementation makes them pass. After
 ```text
 # Foundational, after T001:
 T004 DisassemblerTests       T006 listing transcription    T008 LineAssemblerTests
-T010 ExpressionEvaluatorTests  T012 DebugCommand.h         T013 Reply.h
+T010 DebugExpressionEvaluatorTests  T012 DebugCommand.h    T013 Reply.h
 T015 DebugMemoryViewTests    T017 DebugHookTests
 
 # US1 handler families, after T027 and T033:

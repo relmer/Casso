@@ -57,7 +57,7 @@ command, listed in [contracts/command-modes.md](contracts/command-modes.md).
 | expression | `Expression` | breakpoint conditions, `R` assignments |
 | text | `std::string` | file names, ECHO text, symbol names |
 | count | `uint32_t` | step count, trace count |
-| budget | `std::optional<uint64_t>` | overrides the default run budget |
+| budget | `std::optional<uint64_t>` | a per-run budget; absent uses the session's, which is unbounded unless `BUDGET` set one |
 
 **Validation**: the parser guarantees shape (required operands present, hex in
 range). The session validates state (paused, address writable).
@@ -142,8 +142,12 @@ It becomes a `stopped` notification over the channel (see protocol).
 
 ## RunRequest
 
-`{kind: Go | StepInto | StepOver | StepOut | RunTo | Trace, untilPc, count,
-budget}`. It is produced by the session and consumed by the host loop.
+`{kind: Go | StepInto | StepOver | StepOut | RunTo | Trace, fullSpeed,
+untilPc, count, budget}`. `budget` is optional; absent means unbounded.
+`StepOver` completes when PC reaches the instruction after the `JSR` with the
+stack pointer back at its value before the call, so a recursive subroutine is
+stepped over as one call. It is produced by the session and consumed by the
+target.
 
 ## IDebugTarget (interface)
 
@@ -153,7 +157,9 @@ budget}`. It is produced by the session and consumed by the host loop.
 | `Peek` / `Poke` / `GetRegion` | via `DebugMemoryView` |
 | `ReadIo` / `WriteIo` | real bus access, for `IN` / `OUT` only |
 | `GetSoftSwitches` | name/value list from MMU, language card, video switches |
-| `Run (RunRequest) -> StopEvent` | installs the hook, runs `RunCycles` in chunks |
+| `StartRun (const RunRequest &)` | begins a run; the `StopEvent` is delivered to the session's `OnStopped`. The batch target completes the run inside the call; the emulator target un-pauses `CpuManager` and delivers the stop from the CPU thread when the hook fires (R-005) |
+| `RequestPause` | stops a running machine with reason `pause` |
+| `GetVideoPosition` | scanline and cycle within the line from `VideoTiming`, for `BPV` and `VIDEOINFO` |
 | `GetCpuKind` | `M6502`, `M65C02`, which selects the disassembler table |
 | `GetMachineInfo` | machine name, disks, title label |
 | `InjectKey` | `KEY` |

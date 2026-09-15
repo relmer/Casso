@@ -35,19 +35,30 @@ Monitor-only forms like `^E` register edit and `I`/`N`.
 ## R-003: Side-effect-free memory view
 
 **Decision**: A new `DebugMemoryView` resolves an address to its current
-backing store (main RAM, aux RAM, language-card RAM bank 1 or 2, a ROM
-region, slot ROM, internal //c ROM bank, or I/O) using the existing state
-accessors: `IMmu::GetRamRd/GetRamWrt/GetAltZp/Get80Store/GetIntCxRom/
-GetSlotC3Rom`, `LanguageCard::IsReadRam/IsBank2/ReadRom`, and
-`Apple2cRomBank`. It reads and writes that store directly. The I/O page
-$C000-$C0FF is never read through a device. Examine prints it as unreadable
-(`--`) unless the user explicitly issues `IN`, which is a real bus read by
-design.
+backing store and reads or writes that store directly, never through
+`MemoryBus::ReadByte`.
+
+- **$0000-$BFFF**: the bus's read and write page tables
+  (`MemoryBus::GetReadPageTable`, `GetWritePage`) are the truth for banking
+  there, and the view reads them rather than re-deriving main/aux/80STORE
+  state from MMU flags. The region label comes from comparing the page pointer
+  against the RAM devices' buffers.
+- **$C000-$C0FF**: never read. Examine prints it as unreadable (`--`) unless
+  the user explicitly issues `IN`, which is a real bus read by design.
+- **$C100-$CFFF**: read from the slot ROM and internal ROM images directly,
+  selected by `IMmu::GetIntCxRom/GetSlotC3Rom` and the `CxxxRomRouter`'s
+  INTC8ROM state. Reads through the bus here have side effects too: a `$C3xx`
+  read latches INTC8ROM, a `$Cn00` read selects that slot's expansion ROM, and
+  `$CFFF` deselects it.
+- **$D000-$FFFF**: `LanguageCard::IsReadRam/IsWriteRam/IsBank2/ReadRom` and
+  `Apple2cRomBank` select RAM bank 1 or 2 or the ROM image.
 
 **Rationale**: `MemoryBus::ReadByte` has side effects (`AppleSpeaker::Read`
-toggles the speaker, and soft switches flip on read). `Cpu::PeekByte` reads
-the raw array and misses banking. `Cpu::PeekForTrace` uses the read-page
-table but cannot serve I/O pages. FR-006 requires "which of ROM, RAM or
+toggles the speaker, soft switches flip on read, and the `$Cxxx` router
+latches on read). `Cpu::PeekByte` reads the raw array and misses banking.
+`Cpu::PeekForTrace` uses the read-page table but cannot serve `$C000` and up.
+Using the page tables below `$C000` removes a second copy of the banking
+rules that could drift from the first. FR-006 requires "which of ROM, RAM or
 language-card memory is mapped", so the view also returns a region label per
 address.
 
@@ -55,9 +66,11 @@ address.
 ROM region reports that the address is read-only and changes nothing. A write
 that lands in I/O is a real bus write, since the user asked for it.
 
-**Test**: for each machine, over every non-I/O address and a set of banking
-configurations, the peek equals what a bus read would return, and device state
-is unchanged after a full peek sweep.
+**Test**: for each machine and a set of banking configurations, the view's
+result equals the bus's over `$0000`-`$BFFF` and `$D000`-`$FFFF`, where bus
+reads have no side effects; over `$C100`-`$CFFF` it equals the ROM image the
+router's state selects, compared without a bus read. A full peek sweep leaves
+every soft switch, the router's latches and the speaker unchanged.
 
 **Alternatives**: a `Peek` method on every `MemoryDevice`, which touches
 dozens of device classes to serve one consumer; snapshotting the bus, which
@@ -69,9 +82,18 @@ cannot capture device-backed ROM banking.
 each instruction, `StepOne` and the `RunCycles` loop call
 `hook->ShouldStopBefore(pc)` when the pointer is non-null. The session answers
 from a 64 KB bitmap of enabled address breakpoints first, then from opcode and
-condition breakpoints only if any exist. Memory watchpoints are served by a bus
-observer that is installed only while at least one watchpoint exists; a hit
-sets a pending-stop flag that the hook checks at the next instruction boundary.
+condition breakpoints only if any exist.
+
+**Memory watchpoints** use the page tables. `MemoryBus` has no per-access
+observer, and adding one would put a test on every read and write. Instead,
+while a page holds an enabled watchpoint, its read and write page-table
+entries are set to null, which sends accesses to the device path; a
+`WatchpointDevice` registered for that page serves the access from the real
+backing store, records `{accessPc, address, value, access}`, and sets a
+pending-stop flag that the hook checks at the next instruction boundary.
+Pages without watchpoints pay nothing. For `$C000`-`$FFFF`, which already
+takes the device path, the watch device wraps the existing device for that
+range and forwards the access once, so an I/O read is not performed twice.
 
 **Rationale**: A pointer test per instruction is below measurement noise
 (see the `reference-measure-per-instruction-perf` method: microbenchmark
@@ -85,20 +107,35 @@ bytes; per-slice checks, which miss addresses inside a slice.
 
 ## R-005: Run requests and cycle budgets
 
-**Decision**: Run-type commands produce a `RunRequest {kind, untilPc, budget}`.
-Batch mode and the emulator satisfy it by calling `RunCycles` in chunks until
-the hook stops, `untilPc` is reached, or the budget is spent.
+**Decision**: Run-type commands produce a `RunRequest {kind, untilPc, count,
+budget}`, and `IDebugTarget::StartRun` begins it. The run ends when the hook
+stops, `untilPc` is reached, or the budget is spent, and the target delivers a
+`StopEvent` to the session's `OnStopped`.
 
-- The default budget for batch and pipe runs is 100,000,000 cycles, about 98
-  seconds of emulated time at 1.023 MHz. It can be overridden per run
-  (`--max-cycles`, or a `budget` field in a pipe request).
-- A run started from the window has no budget (FR-008 covers scripts and
-  clients only).
-- Reaching the budget stops the machine with reason `budget`.
+- **Batch**: `MachineDebugTarget::StartRun` runs synchronously, calling
+  `RunCycles` in chunks with the hook installed, and delivers the stop before
+  returning.
+- **Emulator**: `StartRun` must not block the CPU thread, which also drives
+  frames, audio and the command queue (a blocked queue could never process
+  `pause`). It records the run, un-pauses `CpuManager`, and returns. The
+  existing frame loop runs slices with the hook installed; when the hook
+  stops, `RunCycles` returns a short slice, which `ExecuteCpuSlices` already
+  tolerates, the target pauses `CpuManager` and delivers the stop from the CPU
+  thread. Budgets are counted across slices. `RequestPause` stops a run the
+  same way with reason `pause`.
+- **Budgets**: batch runs default to 100,000,000 cycles, about 98 seconds of
+  emulated time at 1.023 MHz, overridable with `--max-cycles`. `--attach` runs
+  are unattended and get the same default, sent as `budget` on each run. Runs
+  from the window or from any other channel client are unbounded unless the
+  client sets `budget` on the request or `BUDGET <n>` for the session;
+  `BUDGET 0` restores unbounded. Reaching a budget stops with reason `budget`.
+- **`GG`** in the emulator sets full speed for the run and restores the
+  previous `SpeedMode` when it stops.
 
-**Rationale**: FR-008 and SC-005. The default is long enough to boot DOS or
-ProDOS and reach a program, and short enough that a mistaken script ends within
-a couple of minutes.
+**Rationale**: FR-008 and SC-005 exist so an unattended script cannot hang.
+A person using the machine while VS Code is attached must not have it stop by
+itself after 98 seconds, so the bound applies only where nobody is watching.
+The batch default is long enough to boot DOS or ProDOS and reach a program.
 
 ## R-006: Headless machine for batch mode
 
@@ -211,9 +248,12 @@ format}` for FR-032's formats:
 These are the formats `CassoCli as65` and `merlin` already write (`--dos-bin`,
 `-s`, `-s2`), plus cc65's default Apple II output. `BSAVE` writes raw bytes.
 
-**AppleSingle is a shared codec.** `AppleSingleCodec` in `CassoEmuCore` reads
-and writes the container (data fork, real name, ProDOS type and aux type) and
-knows nothing about memory or disks. `BinaryImageReader` uses it here, and
+**AppleSingle is a shared codec.** `AppleSingleCodec` in `CassoEmuCore/Core/`
+reads and writes the container (data fork, real name, ProDOS type and aux
+type) and knows nothing about memory, disks or the debugger, which is why it
+is not under `Debugger/`. `BinaryImageReader` therefore lives in
+`CassoEmuCore/Debugger/`, not `CassoCore`, since `CassoCore` cannot reference
+`CassoEmuCore`. `BinaryImageReader` uses the codec here, and
 033-cassque uses it for put, get, preview and its host naming style. Casso
 itself does nothing with a `.as` file, and a container is never treated as a
 disk image.
@@ -272,11 +312,15 @@ runs.
 **Decision**: These are tests that run before Monitor-mode work depends on
 them, not assumptions:
 
-- **$F666 mini-assembler entry**: on the Enhanced //e and //c fixture ROMs,
-  disassembly at $F666 lands on the mini-assembler entry, identified by its
-  prompt output (`!`) and the call into the input routine. On ROMs without a
-  mini-assembler (][+, //e), `F666G` still opens Casso's line assembler, per
-  the spec, and the test documents what the ROM holds there.
+- **Where the `!` mini-assembler lives**: $F666 is the mini-assembler entry
+  only in the original ]['s Integer BASIC ROM. On Applesoft machines $F666 is
+  inside Applesoft, and the Enhanced //e and //c mini-assembler is in the
+  internal `$Cxxx` ROM, reached through `!`. The test therefore locates it
+  from the command table: decode the `!` entry at $FFCC and its handler at
+  $FFE3 on `Apple2eEnhanced.rom` and `Apple2c.rom`, follow the handler, and
+  assert it prints the `!` prompt and calls the input routine. It also records
+  what each ROM holds at $F666, which is why `F666G` is a Casso alias for `!`
+  rather than a jump.
 - **Lowercase input**: on the Enhanced //e and //c ROMs, the Monitor's input
   path upshifts lowercase. The test drives the ROM itself: boot to the `*`
   prompt in a `TestMachine`, type `300l` through `KeystrokeInjector`, and
@@ -299,16 +343,21 @@ is implemented directly (FR-018), never by jumping into ROM:
 | Command | Effect |
 |---|---|
 | `I` / `N` | Set `INVFLG` ($32) to $3F / $FF |
-| `^K` / `^P` | `n^K` sets `KSWL/H` ($38/$39) to $Cn00; `n^P` sets `CSWL/H` ($36/$37) to $Cn00 |
+| `^K` / `^P` | `n^K` sets `KSWL/H` ($38/$39) to $Cn00 and `n^P` sets `CSWL/H` ($36/$37) to $Cn00 for slots 1-7; `0^K` restores `KEYIN` ($FD1B) and `0^P` restores `COUT1` ($FDF0) |
 | `^B` / `^C` | Run at the machine's BASIC cold / warm entry ($E000 / $E003) |
 | `^Y` | Run at $03F8 |
-| `G` | Push a return to the session's stop address, then run at the address |
-| `^E` | Show A, X, Y, P and S in Monitor format, and set the Monitor's `:` target to the register save area, so the next `: bytes` edits the registers |
+| `G` | Push the return address the ROM's own `G` handler pushes, set an internal breakpoint there so an `RTS` from the program stops the debugger, and run at the address. Registers are not reloaded from $45-$49 |
+| `^E` | Show A, X, Y, P and S in Monitor format, and arm register edit, so the next `: bytes` sets the CPU registers and writes the same bytes to $45-$49 |
 | `S` / `T` | Step or trace with Monitor-format register display. Trace runs until a stop or the budget |
 | `R` / `W` | Host file I/O via `IFileSystem` |
 | `value<start.endS` | Search, printing each matching address in Monitor format |
 
-The step and trace display follows the original ][ step output.
+The step and trace display follows the original ][ step output. The CPU's
+registers are the single truth: the ROM's `G`, `S` and `T` reload them from
+$45-$49, and Casso's do not, so a register set in AppleWin mode survives a
+Monitor `G`. Arithmetic is 8-bit, as the Monitor's is: `FF+FF` prints `=FE`.
+Examine rows align to 8-byte boundaries: `303.30F` prints `0303-` with five
+bytes, then `0308-` with eight.
 
 **Filename syntax**: `R` and `W` take an optional filename after a space; a
 filename containing spaces is quoted. Without one, batch and pipe return an
@@ -335,8 +384,12 @@ AppleWin's code.
 - Disk writes go to a copy-on-write overlay unless `--write-disks` is passed,
   so a run cannot change the next run's input.
 - `KEY` input is queued by cycle.
+- The DRAM power-on pattern comes from the shared `Prng` that `PowerCycleAll`
+  threads through every device. The emulator seeds it from host time; batch
+  mode pins it (`--seed <n>`, default `0xCA550001`, the value the test
+  harness already uses) and prints the seed in verbose output.
 
 The test runs each fixture script twice and compares output bytes.
 
-**Rationale**: FR-009, SC-004. Persisted disk writes are the one input that
-would otherwise drift between runs.
+**Rationale**: FR-009, SC-004. Persisted disk writes and the DRAM seed are the
+two inputs that would otherwise drift between runs.

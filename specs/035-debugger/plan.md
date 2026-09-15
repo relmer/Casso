@@ -58,14 +58,17 @@ tested over an in-memory transport, and the Win32 transport over a mock
 
 **Performance Goals**: No measurable emulation cost with no session attached
 (one pointer test per instruction). With address breakpoints only, one bitmap
-test per instruction. Memory watchpoints install a bus observer only while at
-least one exists. Batch runs execute unthrottled.
+test per instruction. Memory watchpoints unmap only the watched pages from
+the bus's page tables, so unwatched pages pay nothing (R-004). Batch runs
+execute unthrottled.
 
 **Constraints**:
 
 - Determinism (FR-009, SC-004): batch mode reads no wall clock, performs no
   audio or video pacing, and orders all output by emulated cycle.
-- Every scripted or client-started run has a cycle budget (FR-008).
+- Every batch and `--attach` run has a cycle budget (FR-008); other channel
+  runs are unbounded unless the client asks.
+- Batch pins the DRAM seed (R-015).
 - The pipe accepts only the current user's SID and rejects remote clients.
 - Clean-room: AppleWin's table and help pages are consulted for names and
   behavior only.
@@ -186,20 +189,24 @@ introduce no executable code and no un-seamed system access. **PASS.**
 - **Formatters** (`AppleWinFormatter`, `MonitorFormatter`) render a reply's
   structured data as that mode's text (FR-013). The JSON form is rendered from
   the same data, so text and JSON cannot diverge (Story 1 scenario 5).
-- **Run commands** (`G`, `GG`, `P`, `T`, `RTS`, Monitor `G`/`S`/`T`) return a
-  `RunRequest` that the host loop satisfies: batch mode on its own thread, the
-  emulator on the CPU thread. A `StopEvent` comes back and becomes a
-  notification.
+- **Run commands** (`G`, `GG`, `P`, `T`, `RTS`, Monitor `G`/`S`/`T`) produce a
+  `RunRequest` that the session hands to `IDebugTarget::StartRun`. The
+  `StopEvent` comes back through `OnStopped` and becomes a notification.
 
 ### Threading
 
-- **Batch**: single thread. The session calls `MachineHost::RunCycles`
-  directly with the hook installed.
+- **Batch**: single thread. `StartRun` calls `MachineHost::RunCycles` in
+  chunks with the hook installed and delivers the stop before returning.
 - **Emulator**: the session is owned by the CPU thread. Pipe and window
   commands are posted through `CpuManager::PostCommand` as one new command id
-  whose payload is the command line and a reply-sink id. Replies and
-  notifications return through a thread-safe `IDebugReplySink`, which the pipe
-  server fans out to clients and the window marshals to the UI thread.
+  whose payload is the command line and a reply-sink id. `StartRun` never
+  blocks that thread: it un-pauses `CpuManager` and returns, the frame loop
+  runs slices with the hook installed, and when the hook stops, `RunCycles`
+  returns a short slice (`ExecuteCpuSlices` already handles one), the target
+  pauses `CpuManager`, and the stop is delivered from the CPU thread (R-005).
+  Replies and notifications return through a thread-safe `IDebugReplySink`,
+  which the pipe server fans out to clients and the window marshals to the UI
+  thread.
 - **Serialization** (FR-024): the CPU thread's command queue already runs
   commands one at a time in arrival order.
 
@@ -216,13 +223,15 @@ window, and the window's open and close drive the controller.
 
 1. **Foundation (phase 1)**: `DebugMemoryView`, the per-instruction hook,
    `IDebugTarget` and `MachineDebugTarget`, the promoted headless machine
-   factory, `Disassembler`, `LineAssembler`, `ExpressionEvaluator`.
+   factory, `Disassembler`, `LineAssembler`, `DebugExpressionEvaluator`
+   (the assembler already owns the name `ExpressionEvaluator` in the same
+   library).
 2. **Verification gates (phase 1, before any Monitor command work)**:
    - FR-027 ROM command-table test.
    - FR-028 listing test.
-   - FR-029 checks against the fixture ROMs: `$F666` is the mini-assembler
-     entry on the Enhanced //e and //c, and those ROMs' input path accepts
-     lowercase.
+   - FR-029 checks against the fixture ROMs: where the `!` mini-assembler
+     lives on the Enhanced //e and //c, found through the command table, and
+     that those ROMs' input path accepts lowercase.
    - The results update research.md R-011 and R-012. If either FR-029 check
      fails, the affected Monitor behavior is re-planned before it is built.
 3. **Merlin symbol output (phase 1, FR-033)**: capture the Merlin Pro listing
@@ -286,14 +295,15 @@ specs/035-debugger/
 CassoCore/Debugger/                    # pure logic; no machine dependency
 ├── Disassembler.h/.cpp                # one instruction at an address, from a Microcode table
 ├── LineAssembler.h/.cpp               # one line -> bytes, over OpcodeTable (A and !)
-├── ExpressionEvaluator.h/.cpp         # AppleWin expressions: hex, symbols, registers, operators
+├── DebugExpressionEvaluator.h/.cpp    # AppleWin expressions; not ExpressionEvaluator, which the assembler owns
 ├── DebugCommand.h                     # intermediate command form (API type)
 ├── AppleWinCommandTable.h/.cpp        # every AppleWin name -> family, phase, availability
 ├── AppleWinParser.h/.cpp
 ├── MonitorParser.h/.cpp               # Monitor state machine: A1/A2/A3, continuation, ^X, S forms
 ├── MonitorState.h
-├── SymbolFileReader.h/.cpp            # -g, Merlin listing, AppleWin .SYM, VICE labels
-└── BinaryImageReader.h/.cpp           # raw, DOS 3.3, Intel HEX, S-record, AppleSingle
+└── SymbolFileReader.h/.cpp            # -g, Merlin listing, AppleWin .SYM, VICE labels
+
+CassoEmuCore/Core/AppleSingleCodec.h/.cpp  # container codec shared with 033-cassque; not debugger-specific
 
 CassoEmuCore/Cli/MerlinMode.cpp        # CHANGE: -g symbol file per output
 CassoCore/Assembler.cpp                # CHANGE: FormatListing appends a Merlin-format symbol table, Merlin dialect only
@@ -305,11 +315,12 @@ CassoEmuCore/Debugger/
 ├── DebugHook.h                        # per-instruction hook interface MachineHost calls
 ├── DebugSession.h/.cpp                # executes DebugCommand -> Reply; owns the tables below
 ├── BreakpointTable.h/.cpp             # address bitmap, opcode, register/memory conditions
-├── WatchpointTable.h/.cpp             # read/write ranges, bus observer install/remove
+├── WatchpointTable.h/.cpp             # read/write ranges; unmaps watched pages
+├── WatchpointDevice.h/.cpp            # serves a watched page from its backing store, records the hit
+├── BinaryImageReader.h/.cpp           # raw, DOS 3.3, Intel HEX, S-record, AppleSingle (needs the codec, so EmuCore)
 ├── WatchTable.h/.cpp                  # AppleWin display watches, ZP pointers, bookmarks
 ├── SymbolTable.h/.cpp                 # ROM symbols per machine + user/source tables
 ├── RomSymbols.cpp                     # ROM entry-point tables from Apple's published names
-├── AppleSingleCodec.h/.cpp            # container codec shared with 033-cassque
 ├── Reply.h                            # status, structured data, text lines (API type)
 ├── AppleWinFormatter.h/.cpp
 ├── MonitorFormatter.h/.cpp
@@ -357,11 +368,11 @@ UnitTest/DebuggerTests/
 ├── DisassemblerTests.cpp              # both CPUs, undocumented set
 ├── MonitorListing1979Tests.cpp        # FR-028
 ├── MonitorCommandTableTests.cpp       # FR-027, every shipped ROM
-├── MonitorRomFactsTests.cpp           # FR-029: $F666 entry, lowercase input
+├── MonitorRomFactsTests.cpp           # FR-029: where ! lives, lowercase input
 ├── LineAssemblerTests.cpp
 ├── SymbolFileReaderTests.cpp          # each format; Merlin against the captured listing
 ├── BinaryImageReaderTests.cpp
-├── ExpressionEvaluatorTests.cpp
+├── DebugExpressionEvaluatorTests.cpp
 ├── DebugMemoryViewTests.cpp           # peek vs bus parity per machine, no side effects
 ├── DebugHookTests.cpp
 ├── AppleWinCommandTableTests.cpp      # name sweep, both directions

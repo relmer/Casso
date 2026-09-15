@@ -225,8 +225,11 @@ confirm the machine sees the change.
 - **FR-007**: Users MUST be able to view soft-switch state and the stack,
   through the Casso engine commands `SWITCHES` and `STACK` (`/SWITCHES` and
   `/STACK` in Monitor mode).
-- **FR-008**: Every run started from a script or attached client MUST have a
-  cycle budget; reaching it MUST end the run and report the reason.
+- **FR-008**: Every run started by a batch script or by `CassoCli debug
+  --attach` MUST have a cycle budget; reaching it MUST end the run and report
+  the reason. A run started from the window or by another channel client has
+  no budget unless the client sets one, per run or for the session, because a
+  person may be using the machine while a tool is attached.
 - **FR-009**: Given the same machine, disk and commands, a batch run MUST
   produce identical results every time.
 - **FR-010**: The debugger MUST render any single instruction at any address as
@@ -327,9 +330,11 @@ confirm the machine sees the change.
 - **FR-028**: A test MUST confirm that disassembling the original Apple ][
   Monitor ROM matches the Monitor listing published in the 1979 *Apple II
   Reference Manual*.
-- **FR-029**: The mini-assembler entry address for `F666G` and lowercase
-  acceptance on the Enhanced //e and //c MUST be verified against the fixture
-  ROMs before being relied on.
+- **FR-029**: Where the `!` mini-assembler lives in the Enhanced //e and //c
+  ROMs, and lowercase acceptance on those machines, MUST be verified against
+  the fixture ROMs before being relied on. `F666G` is Casso's alias for `!` on
+  every machine; $F666 is the mini-assembler only in the original Apple ]['s
+  Integer BASIC ROM.
 
 ### Key Entities
 
@@ -344,8 +349,8 @@ confirm the machine sees the change.
 - **Reply**: The result of a command, in text and in structured form.
 - **Notification**: An unsolicited message to an attached client: breakpoint
   hit, stop, reset.
-- **Cycle budget**: The maximum number of emulated CPU cycles a scripted or
-  client-started run may execute.
+- **Cycle budget**: The maximum number of emulated CPU cycles a run may
+  execute. Always set for batch and `--attach` runs; optional otherwise.
 
 ## Success Criteria *(mandatory)*
 
@@ -360,8 +365,8 @@ confirm the machine sees the change.
   published listing for 100% of instructions.
 - **SC-004**: Repeated batch runs of the same script produce byte-identical
   output in 100% of runs.
-- **SC-005**: No batch script or client-started run can run indefinitely: every
-  run ends within its cycle budget.
+- **SC-005**: No batch script or `--attach` run can run indefinitely: every
+  such run ends within its cycle budget.
 - **SC-006**: A breakpoint set through any way in stops the machine at the
   correct instruction in 100% of test cases, and is visible from the other two.
 - **SC-007**: An independent client written only from the channel
@@ -412,9 +417,10 @@ confirm the machine sees the change.
       `HGR0`-`HGR8`, `DHGR`, `DHGR1`, `DHGR2`.
     - Appearance: `BW`, `COLOR`, `FONT`, `HCOLOR`, `MONO`.
   - **Not available** (accepted, reported as not available, and tracked as
-    follow-ups): `SHR` (needs a IIgs), `BPV` and `VIDEOINFO` (need a
-    video-scanner position), `SOURCE` and `SYNC` (need an assembler-listing
-    link), `NTSC` (AppleWin's palette file has no Casso equivalent).
+    follow-ups): `SHR` (needs a IIgs), `SOURCE` and `SYNC` (need an
+    assembler-listing link), `NTSC` (AppleWin's palette file has no Casso
+    equivalent). `BPV` and `VIDEOINFO` are phase 1, served from the machine's
+    video timing.
   - The table is consulted for names and behavior only; `RUN` runs a script of
     commands through the same engine batch mode uses.
 - **No standalone console**: interactive command entry is through the window's
@@ -426,6 +432,14 @@ confirm the machine sees the change.
   audio.
 - **There is no promise to leave guest state untouched**: commands such as `I`,
   `N`, `^K`, `^P` and `:` change guest memory by design.
+- **The CPU's registers are the single truth in both modes.** The real
+  Monitor keeps a copy at $45-$49 and reloads it on `G`; Casso's `^E` and `:`
+  write both the registers and $45-$49, and `G`, `S` and `T` never reload from
+  memory, so a register set in AppleWin mode survives a Monitor `G`.
+- **The command mode is session state**: it starts as AppleWin each time Casso
+  or the batch tool starts, and is not saved in preferences.
+- **`GG` in the emulator** runs at full speed and restores the previous speed
+  setting when the run stops. In batch, every run is unthrottled.
 - **Debug channel**: a Windows named pipe, named for the process ID, carrying
   one structured record per line, per the Windows-only platform scope. A per-instance channel is required
   because users run several Casso instances from different worktrees at once.
