@@ -24,7 +24,7 @@
 // old width did not have. Every page is left-aligned, so the extra width falls
 // on the right margin and no existing page moves.
 static constexpr int    s_kSheetWidthDip     = 720;
-static constexpr int    s_kSheetHeightDip    = 760;
+static constexpr int    s_kSheetHeightDip    = 776;   // the Controllers page, the tallest, ends a section gap above OK / Cancel
 
 
 
@@ -161,7 +161,7 @@ HRESULT SettingsSheet::OpenModeless (
     params.ownerHwnd                = ownerHwnd;
     params.initialSizeDip           = { s_kSheetWidthDip, s_kSheetHeightDip };
     params.minSizeDip               = { s_kSheetWidthDip, s_kSheetHeightDip };
-    params.resizable                = true;
+    params.resizable                = false;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 

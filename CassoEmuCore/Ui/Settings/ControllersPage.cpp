@@ -358,7 +358,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_newProfile.Layout      (MakeRect (x + labelWidth + rowWidth + gap, y, profileBtnW, rowH));
     m_renameProfile.SetLabel (L"Rename...");
     m_renameProfile.Layout   (MakeRect (x + labelWidth + rowWidth + gap + (profileBtnW + gap), y, profileBtnW, rowH));
-    m_deleteProfile.SetLabel (L"Delete");
+    m_deleteProfile.SetLabel (L"Delete...");
     m_deleteProfile.Layout   (MakeRect (x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2, y, profileBtnW, rowH));
     y += rowH + sectionGap;
 
@@ -1133,7 +1133,7 @@ void ControllersPage::RefreshCalibration()
     }
     else
     {
-        m_calibrationStatus.SetText (hasUser ? L"Calibrated." : L"Automatic.");
+        m_calibrationStatus.SetText (hasUser ? L"Calibrated" : L"Automatic");
         m_calibrate.SetLabel (L"Calibrate");
     }
 }
