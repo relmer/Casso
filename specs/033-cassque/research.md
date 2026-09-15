@@ -219,3 +219,33 @@ tabs, selection), `CatalogModel`, `PreviewDecoder`, `HostFileNaming`,
 `ContentSniffer`, `KnownFolderStore`, `CassoTargeting`, `DragPayload`.
 `CassqueShell` is a thin window over them. New Dxui widgets get headless
 tests on the mocks.
+
+## R13. File Explorer's tabs
+
+**Finding**: measured 2026-09-14 from two Explorer windows on Windows 11 at
+120 dpi in the dark theme, one with a single tab and one with eight, whose
+tabs had shrunk until the scroll arrows showed. Figures are pixels at 1.25x
+and the DIP they come to.
+
+- A lone tab is 303 px, 240 DIP, wide. Crowded tabs repeat every 125 px, so
+  100 DIP is the minimum before the strip scrolls.
+- Tabs begin 11 px, 9 DIP, below the top of the strip and run 41 px, 33 DIP,
+  down to the row below, which starts at 52 px.
+- The selected tab is filled with the row below's color (`#2C2C2C` against a
+  `#202020` strip) and joins it: its top corners are rounded, and its bottom
+  corners curve outward into the row below. Unselected tabs have no fill and
+  a 1 px divider (`#323232`) between neighbors.
+- The icon is 16 DIP, 10 DIP in from the tab's left edge. The label starts
+  38 DIP in, left-aligned: `#FFFFFF` and semibold on the selected tab,
+  `#CCCCCC` and regular on the rest.
+- The close glyph is about 8 DIP wide, centered 22 DIP from the tab's right
+  edge, on every tab.
+- Scroll arrows are solid triangles at each end of the tabs; the + glyph,
+  about 9 DIP wide, follows the last tab, or the right arrow when they
+  overflow.
+- The row below, holding navigation and the address bar, is 59 px, 47 DIP,
+  tall, with a 40 px, 32 DIP, address box. A 1 px line then separates the
+  46 DIP command bar.
+
+**Decision**: `DxuiTabStrip` takes these metrics and shape, the selected
+tab's fill supplied by the host as the color of the row it joins.

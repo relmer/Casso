@@ -377,4 +377,33 @@ public:
         Assert::AreEqual (648, ts.GetScrollPx(), L"Scrolled to the end, the last tab stops at the right arrow");
         Assert::AreEqual (9,   ts.HitTest (170, 10));
     }
+
+
+    //  Explorer's close button sits toward each tab's right end. Clicking it
+    //  closes that tab and selects nothing; the rest of the tab still selects.
+    TEST_METHOD (CloseButton_ClosesItsTabWithoutSelectingIt)
+    {
+        DxuiTabStrip  ts;
+        int           closed = -1;
+
+        ts.SetTabs     (MakeThreeTabs());
+        ts.SetOnClose  ([&] (int index) { closed = index; });
+        ts.SetSelected (1);
+        LayOut (ts, 300);
+
+        Assert::IsTrue   (ts.OnLButtonDown (138, 12));
+        Assert::IsTrue   (ts.OnLButtonUp   (138, 12));
+        Assert::AreEqual (1, closed, L"The second tab's close button closes the second tab");
+        Assert::AreEqual (1, ts.GetSelected(), L"and selects nothing");
+
+        closed = -1;
+        ts.OnLButtonDown (90, 12);
+        ts.OnLButtonUp   (90, 12);
+        Assert::AreEqual (-1, closed, L"The rest of a tab closes nothing");
+        Assert::AreEqual (1,  ts.GetSelected(), L"and selects it");
+
+        ts.OnLButtonDown (20, 12);
+        ts.OnLButtonUp   (20, 12);
+        Assert::AreEqual (0, ts.GetSelected());
+    }
 };

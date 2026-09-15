@@ -87,7 +87,8 @@ public:
     static constexpr int       kMaxCatalogName     = 30;
     static constexpr UINT_PTR  kTooltipTimerId     = 0x5153;
     static constexpr UINT      kTooltipTickMs      = 16;   // the menus' reveal runs on it too, so display rate
-    static constexpr int       kTabHeightDip       = 32;
+    static constexpr int       kTabHeightDip       = 42;   // Explorer's strip: tabs 33 dip tall, 9 below its top
+    static constexpr int       kTabTopDip          = 9;
 
     //  Explorer's navigation glyphs are smaller than Casso's toolbar icons:
     //  15 pixels of ink at 120 DPI.
@@ -99,7 +100,7 @@ public:
     //  The preview's rows carry one line of fixed-width text each, so they
     //  are the line's height rather than a file listing's roomier row.
     static constexpr int  kPreviewRowHeightDip = 18;
-    static constexpr int  kTabWidthDip         = 180;
+    static constexpr int  kTabWidthDip         = 240;
     static constexpr int  kTabMinWidthDip      = 100;
     static constexpr int  kMinTreeWidthDip     = 140;
     static constexpr int  kMinListWidthDip     = 220;
@@ -378,6 +379,7 @@ private:
     //  into; the body band takes what the edges leave, and the panes and
     //  their splitters divide it.
     DxuiDockLayout         m_dock;
+    DxuiLayoutBand         m_tabBand;
     DxuiLayoutBand         m_menuBand;
     DxuiLayoutBand         m_toolbarBand;
     DxuiLayoutBand         m_statusBand;

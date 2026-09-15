@@ -80,7 +80,10 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
 
     m_theme = &CassqueShell::ChooseTheme (m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
 
-    //  Before the first layout, which the window's creation can bring on.
+    //  Before the first layout, which the window's creation can bring on. The
+    //  tabs run across the top, above the bars each tab's location drives, as
+    //  a browser's do.
+    m_dock.SetDock (m_tabBand,     DxuiDock::Top);
     m_dock.SetDock (m_menuBand,    DxuiDock::Top);
     m_dock.SetDock (m_toolbarBand, DxuiDock::Top);
     m_dock.SetDock (m_statusBand,  DxuiDock::Bottom);
@@ -466,6 +469,17 @@ void CassqueWindow::ConfigureWidgets()
         IGNORE_RETURN_VALUE (moved, true);
     });
     m_tabs->SetOnNewTab ([this]() { Dispatch (CassqueCommands::kNewTab); });
+    m_tabs->SetOnClose  ([this] (int index)
+    {
+        //  The last tab stays, as the close command leaves it.
+        if (m_browser.GetBrowserModel().GetTabCount() > 1 && m_browser.CloseTab ((size_t) index))
+        {
+            FillList();
+        }
+    });
+    m_tabs->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
+                         ? DxuiToolbar::kFluentIconFace
+                         : DxuiToolbar::kMdl2IconFace);
 
     m_address->SetOnSegment ([this] (int index)
     {
@@ -548,6 +562,12 @@ void CassqueWindow::ApplyTheme()
         m_tooltip.SetTheme (*m_theme);
     }
 
+    //  The selected tab joins the row below it, the menu bar's strip.
+    if (m_tabs != nullptr)
+    {
+        m_tabs->SetSelectedFill (m_theme->navStrip);
+    }
+
     if (GetHwnd() != nullptr)
     {
         uint32_t  background = m_theme->Background();
@@ -597,7 +617,7 @@ void CassqueWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 
 void CassqueWindow::RecomputeLayout()
 {
-    IDxuiControl *  bands[]  = { &m_menuBand, &m_toolbarBand, &m_statusBand, &m_bodyBand };
+    IDxuiControl *  bands[]  = { &m_tabBand, &m_menuBand, &m_toolbarBand, &m_statusBand, &m_bodyBand };
     RECT            body     = {};
     RECT            right    = {};
     RECT            sashRect = {};
@@ -615,6 +635,7 @@ void CassqueWindow::RecomputeLayout()
     //  the width, so plan it before the bands are docked.
     m_toolbar->PlanForWidth (m_client.right - m_client.left, m_scaler);
 
+    m_tabBand.SetThickness     (m_scaler.ToPx (kTabHeightDip));
     m_menuBand.SetThickness    (DxuiMenuBar::GetStripHeightPx (m_scaler.GetDpi()));
     m_toolbarBand.SetThickness (m_scaler.ToPx (m_toolbar->GetBandDp()));
     m_statusBand.SetThickness  (m_scaler.ToPx (DxuiStatusBar::GetBandDp()));
@@ -627,6 +648,9 @@ void CassqueWindow::RecomputeLayout()
     {
         return;
     }
+
+    m_tabs->Layout (m_tabBand.GetBounds(), m_scaler);
+    FillTabs();
 
     m_menuBar->SetHostClientRect (m_client);
     m_menuBar->Layout (m_menuBand.GetBounds(), m_scaler);
@@ -655,10 +679,6 @@ void CassqueWindow::RecomputeLayout()
     }
 
     right    = RECT { sashRect.right, body.top, body.right, body.bottom };
-
-    m_tabs->Layout (RECT { right.left, right.top, right.right, right.top + m_scaler.ToPx (kTabHeightDip) }, m_scaler);
-    FillTabs();
-    right.top += m_scaler.ToPx (kTabHeightDip);
     rightDip = MulDiv (right.right - right.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi());
 
     m_previewSplitter->SetVisible (preview);
@@ -4013,9 +4033,19 @@ void CassqueWindow::FillTabs()
     for (index = 0; index < model.GetTabCount(); index++)
     {
         DxuiTabStrip::Tab  tab;
+        const Location &   location = model.GetTab (index).location;
 
+        //  Tabs start below the strip's top, as Explorer's do, and reach its
+        //  bottom, where the selected one joins the row below.
         tab.label = m_browser.GetTabLabel (index);
-        tab.rect  = RECT { strip.left + (int) index * width, strip.top, strip.left + (int) (index + 1) * width, strip.bottom };
+        tab.rect  = RECT { strip.left + (int) index * width, strip.top + m_scaler.ToPx (kTabTopDip), strip.left + (int) (index + 1) * width, strip.bottom };
+
+        switch (location.kind)
+        {
+            case Location::Kind::None:          tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::ThisPc); break;
+            case Location::Kind::DiskDirectory: tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
+            default:                            tab.icon = m_shellIcons.GetForPath (location.path);           break;
+        }
 
         tabs.push_back (tab);
     }

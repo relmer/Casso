@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiIconImage.h"
 
 
 
@@ -23,6 +24,10 @@
 //  With a new-tab handler set, a + button follows the last tab, or holds the
 //  strip's right end when the tabs overflow.
 //
+//  Tabs are drawn as File Explorer draws them: an icon, a left-aligned label
+//  and, with a close handler set, a close button, the selected tab filled
+//  with the color of the row below so that it joins it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiTabStrip : public IDxuiControl
@@ -31,13 +36,15 @@ public:
     using ChangeFn = std::function<void (int newIndex)>;
     using MoveFn   = std::function<void (int from, int to)>;
     using NewTabFn = std::function<void ()>;
+    using CloseFn  = std::function<void (int index)>;
 
     DxuiTabStrip() { m_focusable = true; }
 
     struct Tab
     {
-        RECT          rect = {};
-        std::wstring  label;
+        RECT                                  rect = {};
+        std::wstring                          label;
+        std::shared_ptr<const DxuiIconImage>  icon;    // drawn before the label; none draws none
     };
 
     ~DxuiTabStrip() override = default;
@@ -49,6 +56,14 @@ public:
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
     void  SetOnMove   (MoveFn fn)   { m_move   = std::move (fn); }
     void  SetOnNewTab (NewTabFn fn) { m_newTab = std::move (fn); }
+
+    //  With a close handler set, every tab carries a close button.
+    void  SetOnClose  (CloseFn fn)  { m_close  = std::move (fn); }
+
+    //  The color of the row the selected tab joins, which it is filled with,
+    //  and the icon face its close glyph is drawn in.
+    void  SetSelectedFill (uint32_t argb)        { m_selectedFill = argb; }
+    void  SetIconFace     (const wchar_t * face) { m_iconFace     = face; }
 
     const std::vector<Tab> & GetTabs       () const { return m_tabs;    }
     int                      GetSelected   () const { return m_selected; }
@@ -95,6 +110,15 @@ private:
     static constexpr int  s_kWheelStepDip     = 60;   // scroll per wheel notch
     static constexpr int  s_kArrowWidthDip    = 28;   // each scroll arrow
 
+    //  File Explorer's tab, measured at 120 dpi (research R13).
+    static constexpr int  s_kIconInsetDip     = 10;   // icon from the tab's left edge
+    static constexpr int  s_kIconDip          = 16;
+    static constexpr int  s_kLabelInsetDip    = 38;   // label from the tab's left edge
+    static constexpr int  s_kCloseCenterDip   = 22;   // close button's center from the tab's right edge
+    static constexpr int  s_kCloseBoxDip      = 24;
+    static constexpr int  s_kCloseGlyphDip    = 10;
+    static constexpr int  s_kCornerDip        = 6;    // the selected tab's rounded and flared corners
+
     void  Commit         (int newIndex);
     bool  HasBounds      () const { return m_boundsDip.right > m_boundsDip.left; }
     int   GetMaxScrollPx () const;
@@ -114,8 +138,11 @@ private:
     RECT  GetNewTabRect  () const;
     bool  IsOverNewTab   (int x, int y) const;
     void  PaintNewTab    (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const;
+    RECT  GetTabScreenRect (int index) const;
+    RECT  GetCloseRect   (int index) const;
+    int   GetCloseAt     (int x, int y) const;
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text,
-                         uint32_t idleArgb, uint32_t hoverArgb, uint32_t selectedArgb,
+                         uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t dividerArgb,
                          uint32_t textArgb, uint32_t focusArgb) const;
 
 
@@ -133,6 +160,11 @@ private:
     NewTabFn          m_newTab;
     bool              m_hoverNewTab   = false;
     bool              m_pressedNewTab = false;
+    CloseFn           m_close;
+    int               m_hoverClose    = -1;
+    int               m_pressedClose  = -1;
+    uint32_t          m_selectedFill  = 0;
+    const wchar_t *   m_iconFace      = L"Segoe MDL2 Assets";
     bool              m_enabled       = true;
     bool              m_focused       = false;
     DxuiDpiScaler     m_scaler;
