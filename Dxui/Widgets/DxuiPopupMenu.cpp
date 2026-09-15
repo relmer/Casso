@@ -8,6 +8,7 @@
 
 #include "Core/UnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
+#include "Render/DxuiStroke.h"
 
 
 
@@ -1780,10 +1781,13 @@ void DxuiPopupMenu::PaintRow (
         float  depth = m_scaler.ToPxf (s_kSubmenuChevronDepthDip);
         float  thick = (std::max) (1.0f, m_scaler.ToPxf (s_kSubmenuChevronStrokeDip));
         float  tipX  = right - m_scaler.ToPxf (s_kSubmenuChevronInsetDip);
-        float  midY  = y + (float) padTop + (float) rowH * 0.5f;
+        float  midY  = y + (float) rowH * 0.5f;
 
-        painter.DrawLineApprox (tipX - depth, midY - half, tipX, midY, thick, accelArgb);
-        painter.DrawLineApprox (tipX - depth, midY + half, tipX, midY, thick, accelArgb);
+        //  Centered on the row itself, not on the text line's offset within it,
+        //  and drawn as filled quads, whose edges are smoothed where a stroked
+        //  line's are not.
+        DxuiStroke::Segment (painter, tipX - depth, midY - half, tipX, midY, thick, accelArgb);
+        DxuiStroke::Segment (painter, tipX - depth, midY + half, tipX, midY, thick, accelArgb);
     }
     else if (!row.command->accelerator.empty())
     {
