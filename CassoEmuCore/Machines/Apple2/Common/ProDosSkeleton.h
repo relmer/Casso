@@ -93,6 +93,24 @@ private:
     static constexpr Byte    kStorageTree     = 0x30;
     static constexpr Byte    kStorageSubdir   = 0xD0;
 
+    //  The first record of a subdirectory's key block is its own header, which
+    //  carries this storage nibble rather than the 0xD0 of the record that
+    //  points at it from the parent.
+    static constexpr Byte    kStorageSubdirHdr = 0xE0;
+
+    //  Subdirectory header fields that the volume header does not have, all
+    //  relative to the header record. ProDOS reads the last three to walk back
+    //  up: which block holds the parent's record, which record it is, and how
+    //  long one record is.
+    static constexpr size_t  kHdrOffSubdirMarker      = 0x10;
+    static constexpr size_t  kHdrOffParentPointer     = 0x23;
+    static constexpr size_t  kHdrOffParentEntryNumber = 0x25;
+    static constexpr size_t  kHdrOffParentEntryLength = 0x26;
+
+    //  ProDOS stores 0x75 at the marker offset of every subdirectory header,
+    //  and its own file manager checks for it before trusting the block.
+    static constexpr Byte    kSubdirMarker = 0x75;
+
     //  Block pointers in an index block: 256 low bytes, then the 256 matching
     //  high bytes. Numerically the same as a sector's byte count, which is a
     //  coincidence worth not relying on.

@@ -224,7 +224,9 @@ private:
                                       uint32_t             eof,
                                       Word                 auxType);
 
-    static void  AdjustFileCount (vector<Byte> & buffer, int delta);
+    //  The tally of active entries in one directory's header. Every directory
+    //  keeps its own, at the same offset in its key block.
+    static void  AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock, int delta);
 
     //  A binary's auxiliary type IS its load address, and this filesystem
     //  stores no header inside the file to hold one instead.
@@ -239,6 +241,32 @@ private:
                           vector<RawEntry>    & outEntries,
                           vector<std::string> & outDamage,
                           bool                & outFullyParsed) const;
+
+    //  Every entry on the volume, depth first: the volume directory's records
+    //  in order, and the records inside a subdirectory right after the record
+    //  that points at it. THE CLAIM MAP AND EVERY OWNER INDEX ARE IN THIS
+    //  ORDER, so a caller holding an owner index and the report agree.
+    void  CollectAllEntries (vector<RawEntry>    & outEntries,
+                             vector<std::string> & outDamage,
+                             bool                & outFullyParsed) const;
+
+    void  CollectEntriesBelow (int                   keyBlock,
+                               ChainWalkGuard      & guard,
+                               vector<RawEntry>    & outEntries,
+                               vector<std::string> & outDamage,
+                               bool                & outFullyParsed) const;
+
+    //  Every block of one directory's chain, from its key block. A
+    //  subdirectory's blocks are as allocated as any file's.
+    void  CollectDirectoryBlocks (int                keyBlock,
+                                  vector<uint32_t> & outBlocks,
+                                  ChainWalkGuard   & guard) const;
+
+    //  Where an entry sits in the order CollectAllEntries produces, which is
+    //  the owner index the integrity report speaks in.
+    static bool  TryFindOwnerIndex (const vector<RawEntry>  & all,
+                                    const RawEntry          & entry,
+                                    uint16_t                & outOwner);
 
     //  The key block of the directory a path names, walked down from the
     //  volume directory; an empty path is the volume directory itself.

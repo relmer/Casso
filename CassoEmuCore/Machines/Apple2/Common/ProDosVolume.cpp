@@ -595,6 +595,146 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolume::CollectDirectoryBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::CollectDirectoryBlocks (
+    int                keyBlock,
+    vector<uint32_t> & outBlocks,
+    ChainWalkGuard   & guard) const
+{
+    int  block = keyBlock;
+
+
+
+    while (block != 0)
+    {
+        bool  inRange = block > 0 && block < ProDosSkeleton::kTotalBlocks;
+        bool  stepOk  = inRange && guard.TryVisit ((uint32_t) block);
+
+        if (!stepOk)
+        {
+            break;
+        }
+
+        outBlocks.push_back ((uint32_t) block);
+
+        block = ReadWord (block, ProDosSkeleton::kOffNextBlock);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::CollectEntriesBelow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::CollectEntriesBelow (
+    int                   keyBlock,
+    ChainWalkGuard      & guard,
+    vector<RawEntry>    & outEntries,
+    vector<std::string> & outDamage,
+    bool                & outFullyParsed) const
+{
+    vector<RawEntry>  here;
+    bool              parsed  = true;
+    bool              visitOk = false;
+    size_t            i       = 0;
+
+
+
+    visitOk = keyBlock > 0 && keyBlock < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) keyBlock);
+
+    if (!visitOk)
+    {
+        outFullyParsed = false;
+
+        return;
+    }
+
+    CollectEntries (keyBlock, here, outDamage, parsed);
+
+    outFullyParsed = outFullyParsed && parsed;
+
+    for (i = 0; i < here.size(); i++)
+    {
+        outEntries.push_back (here[i]);
+
+        if (here[i].storage == ProDosSkeleton::kStorageSubdir)
+        {
+            CollectEntriesBelow ((int) here[i].keyPointer, guard, outEntries, outDamage, outFullyParsed);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::CollectAllEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::CollectAllEntries (
+    vector<RawEntry>    & outEntries,
+    vector<std::string> & outDamage,
+    bool                & outFullyParsed) const
+{
+    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+
+
+
+    outEntries.clear();
+    outFullyParsed = true;
+
+    CollectEntriesBelow (ProDosSkeleton::kDirKeyBlock, guard, outEntries, outDamage, outFullyParsed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::TryFindOwnerIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosVolume::TryFindOwnerIndex (
+    const vector<RawEntry>  & all,
+    const RawEntry          & entry,
+    uint16_t                & outOwner)
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < all.size(); i++)
+    {
+        if (all[i].dirBlock == entry.dirBlock && all[i].entryOffset == entry.entryOffset)
+        {
+            outOwner = (uint16_t) i;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolume::BuildIntegrityReport
 //
 //  Every entry's blocks walked into the claim map, then compared against the
@@ -628,7 +768,7 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
 
     outReport.Reset ((uint32_t) ProDosSkeleton::kTotalBlocks);
 
-    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
+    CollectAllEntries (entries, damage, fullyParsed);
     outReport.SetCatalogFullyParsed (fullyParsed);
 
     for (block = 0; block < kReservedBlocks; block++)
@@ -640,7 +780,20 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
     {
         ChainWalkGuard    guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
         vector<uint32_t>  blocks;
-        bool              walked = CollectFileBlocks (entries[owner], blocks, guard);
+        bool              isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
+        bool              walked      = true;
+
+        //  A subdirectory owns its whole chain of directory blocks, not only
+        //  the key block the record points at. Leaving the rest unclaimed is
+        //  what let the allocator hand out a live directory block.
+        if (isDirectory)
+        {
+            CollectDirectoryBlocks ((int) entries[owner].keyPointer, blocks, guard);
+        }
+        else
+        {
+            walked = CollectFileBlocks (entries[owner], blocks, guard);
+        }
 
         for (uint32_t claimed : blocks)
         {
@@ -1269,17 +1422,19 @@ void ProDosVolume::WriteDirectoryEntry (
 //
 //  ProDosVolume::AdjustFileCount
 //
-//  The volume header's own tally of active entries. It is not what enumeration
-//  reads -- that walks the records -- but ProDOS itself reads it, so a volume
-//  whose tally disagrees with its directory is one the guest mounts oddly.
+//  A directory header's own tally of active entries. It is not what enumeration
+//  reads -- that walks the records -- but ProDOS itself reads it, so a directory
+//  whose tally disagrees with its records is one the guest mounts oddly. A
+//  subdirectory keeps its count at the same offset in its own key block as the
+//  volume directory keeps its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolume::AdjustFileCount (vector<Byte> & buffer, int delta)
+void ProDosVolume::AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock, int delta)
 {
     size_t  countAt = ProDosSkeleton::kOffFirstEntry + ProDosSkeleton::kHdrOffFileCount;
-    size_t  at      = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt);
-    size_t  atHigh  = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, countAt + 1);
+    size_t  at      = ProDosSkeleton::GetBlockByteOffset (dirKeyBlock, countAt);
+    size_t  atHigh  = ProDosSkeleton::GetBlockByteOffset (dirKeyBlock, countAt + 1);
     int     count   = 0;
 
 
@@ -1297,7 +1452,7 @@ void ProDosVolume::AdjustFileCount (vector<Byte> & buffer, int delta)
         count = 0;
     }
 
-    WriteWordAt (buffer, ProDosSkeleton::kDirKeyBlock, countAt, (Word) count);
+    WriteWordAt (buffer, dirKeyBlock, countAt, (Word) count);
 }
 
 
@@ -1486,7 +1641,7 @@ HRESULT ProDosVolume::AddFile (
                          (uint32_t) payloadSize,
                          auxType);
 
-    AdjustFileCount (result, 1);
+    AdjustFileCount (result, ProDosSkeleton::kDirKeyBlock, 1);
 
     hr = HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
@@ -1704,6 +1859,7 @@ HRESULT ProDosVolume::Delete (
     uint16_t               owner       = 0;
     Byte                   typeLen     = 0;
     vector<RawEntry>       entries;
+    vector<RawEntry>       all;
     vector<std::string>    damage;
     vector<Byte>           result;
     VolumeIntegrityReport  report;
@@ -1713,9 +1869,16 @@ HRESULT ProDosVolume::Delete (
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
+    //  The record is found in the volume directory, and its owner index comes
+    //  from the whole-volume order the report speaks in.
     CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
 
     found = TryFindEntry (entries, path.GetLeaf(), owner);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    CollectAllEntries (all, damage, fullyParsed);
+
+    found = TryFindOwnerIndex (all, entries[owner], owner);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     // ProDOS gates removal on destroy-enable, not on write-enable, and the
@@ -1773,7 +1936,7 @@ HRESULT ProDosVolume::Delete (
                  entries[owner].entryOffset + ProDosSkeleton::kEntOffTypeName,
                  (Byte) (typeLen & 0x0F));
 
-    AdjustFileCount (result, -1);
+    AdjustFileCount (result, ProDosSkeleton::kDirKeyBlock, -1);
     AppendDeleteWarnings (outOutcome);
 
     hr = HandBackVerifiedResult (report, result, outBuffer);
