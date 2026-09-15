@@ -177,6 +177,44 @@ public:
 
 
 
+    //  A directory inside an image expands to the directories inside it, each
+    //  addressed by its full path from the volume directory, and can expand
+    //  only when it has subdirectories.
+    TEST_METHOD (ProDosDirectory_ChildrenAreTheDirectoriesInsideIt)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  folder;
+        std::vector<TreeNode>  image;
+        std::vector<TreeNode>  inside;
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\merlin.dsk", FixtureContent ("Disks/Merlin-proProdos2.33-a.dsk")));
+        Configure (model);
+
+        AssertSucceeded (model.GetChildren (TreeModel::MakeFolderId (true, kDisks), folder));
+        AssertSucceeded (model.GetChildren (FindNode (folder, L"merlin.dsk").id, image));
+
+        Assert::IsFalse (image.empty(), L"this disk must carry subdirectories");
+
+        for (const TreeNode & directory : image)
+        {
+            AssertSucceeded  (model.GetChildren (directory.id, inside));
+            Assert::AreEqual (!inside.empty(), directory.canExpand, L"a directory can expand only when it contains subdirectories");
+
+            for (const TreeNode & child : inside)
+            {
+                const std::string &  parent   = directory.location.innerPath;
+                const std::string &  actual   = child.location.innerPath;
+                std::wstring         expected = std::wstring (parent.begin(), parent.end()) + L"/" + child.label;
+
+                Assert::IsTrue   (child.kind == TreeNode::Kind::DiskDirectory);
+                Assert::AreEqual (expected, std::wstring (actual.begin(), actual.end()));
+            }
+        }
+    }
+
+
+
     TEST_METHOD (Children_AreFetchedOnceUntilInvalidated)
     {
         InMemoryFileSystem     fs;

@@ -385,7 +385,6 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     std::vector<Byte>      sectors;
     SectorDecodeReport     report;
     VolumeKind             kind       = VolumeKind::Unknown;
-    VolumeListing          listing;
     std::vector<TreeNode>  children;
     std::string            narrowPath = TextEncoding::WideToNarrow (path);
 
@@ -424,34 +423,117 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
 
     if (kind == VolumeKind::ProDos)
     {
-        ProDosVolume  volume (sectors);
-        HRESULT       hrList = volume.Enumerate (listing);
-
-        IGNORE_RETURN_VALUE (hrList, S_OK);
-
-        for (const FileEntry & entry : listing.entries)
-        {
-            TreeNode  child;
-
-            if (!entry.isDirectory)
-            {
-                continue;
-            }
-
-            child.id        = MakeDirectoryId (underCasso, path, entry.name);
-            child.kind      = TreeNode::Kind::DiskDirectory;
-            child.label     = std::wstring (entry.name.begin(), entry.name.end());
-            child.location  = Location::MakeDiskDirectory (path, entry.name);
-            child.canExpand = false;
-
-            children.push_back (child);
-        }
+        ListDirectories (underCasso, path, sectors, std::string(), children);
     }
 
     inOutNode.canExpand      = !children.empty();
     m_children[inOutNode.id] = children;
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListDirectories
+//
+//  The subdirectories of one directory inside a ProDOS image. Each is listed
+//  one level deeper, so only a directory that contains subdirectories can
+//  expand. A directory whose listing fails has no children.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::ListDirectories (
+    bool                      underCasso,
+    const std::wstring      & path,
+    const std::vector<Byte> & sectors,
+    const std::string       & inner,
+    std::vector<TreeNode>   & outNodes)
+{
+    ProDosVolume   volume (sectors);
+    VolumeListing  listing;
+    VolumeListing  below;
+    HRESULT        hr     = volume.EnumerateDirectory (FilePath::Parse (inner), listing);
+
+
+
+    outNodes.clear();
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        TreeNode     child;
+        std::string  childInner = inner.empty() ? entry.name : inner + "/" + entry.name;
+        bool         hasSubdir  = false;
+
+        if (!entry.isDirectory)
+        {
+            continue;
+        }
+
+        below = VolumeListing();
+        hr    = volume.EnumerateDirectory (FilePath::Parse (childInner), below);
+
+        for (const FileEntry & grandchild : below.entries)
+        {
+            hasSubdir = hasSubdir || (SUCCEEDED (hr) && grandchild.isDirectory);
+        }
+
+        child.id        = MakeDirectoryId (underCasso, path, childInner);
+        child.kind      = TreeNode::Kind::DiskDirectory;
+        child.label     = std::wstring (entry.name.begin(), entry.name.end());
+        child.location  = Location::MakeDiskDirectory (path, childInner);
+        child.canExpand = hasSubdir;
+
+        outNodes.push_back (child);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListImageDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes)
+{
+    HRESULT             hr        = S_OK;
+    std::string         content;
+    std::vector<Byte>   fileBytes;
+    std::vector<Byte>   sectors;
+    SectorDecodeReport  report;
+    bool                isProDos  = false;
+
+
+
+    outNodes.clear();
+
+    hr = m_fs.ReadAllText (path, content);
+    CHR (hr);
+
+    fileBytes.assign (content.begin(), content.end());
+
+    hr = VolumeImage::Load (fileBytes, TextEncoding::WideToNarrow (path), sectors, report);
+    CHR (hr);
+
+    isProDos = VolumeImage::DetectFilesystem (sectors) == VolumeKind::ProDos;
+    CBREx (isProDos, HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME));
+
+    ListDirectories (underCasso, path, sectors, inner, outNodes);
+
+Error:
+    return hr;
 }
 
 
@@ -607,11 +689,15 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     }
     else if (TryParseImageOrDirectoryId (id, underCasso, path, inner))
     {
-        //  A directory inside an image has no children this layer can walk;
-        //  an image's children are its directories.
+        //  An image's children are its directories, and a directory's are the
+        //  directories inside it.
         if (inner.empty())
         {
             hr = ListImage (underCasso, path, outNodes);
+        }
+        else
+        {
+            hr = ListImageDirectory (underCasso, path, inner, outNodes);
         }
     }
     else

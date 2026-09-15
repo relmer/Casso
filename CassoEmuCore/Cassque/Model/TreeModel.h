@@ -95,6 +95,10 @@ private:
     HRESULT  ListRoot       (bool underCasso, std::vector<TreeNode> & outNodes);
     HRESULT  ListHostFolder (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     HRESULT  ListImage      (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
+    HRESULT  ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes);
+
+    static void  ListDirectories (bool underCasso, const std::wstring & path, const std::vector<Byte> & sectors,
+                                  const std::string & inner, std::vector<TreeNode> & outNodes);
 
     //  Reads and parses one image, producing either its directory children
     //  or the error the node carries.
