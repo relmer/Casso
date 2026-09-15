@@ -1586,7 +1586,7 @@ public:
     }
 
 
-    TEST_METHOD (Volume_Delete_AMissingFileOrADeeperPath_IsRefused)
+    TEST_METHOD (Volume_Delete_AMissingFileOrAMissingDirectory_IsRefused)
     {
         vector<Byte>  vol = MakeVolume();
         vector<Byte>  missing;
@@ -1597,9 +1597,10 @@ public:
                           volume.Delete (FilePath::Parse ("NOPE"), missing));
         Assert::AreEqual (size_t (0), missing.size());
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_NAME),
-                          volume.Delete (FilePath::Parse ("UTIL/PROG"), deeper),
-                          L"subdirectory traversal is not built, so a deeper path must be refused");
+        //  The path walks its directories, and this volume has no UTIL, so the
+        //  refusal is about the directory rather than about the name.
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND),
+                          volume.Delete (FilePath::Parse ("UTIL/PROG"), deeper));
         Assert::AreEqual (size_t (0), deeper.size());
     }
 

@@ -33,10 +33,8 @@
 //  keeps the two from drifting is that files written here are read back through
 //  ProDosReader, which neither of them shares.
 //
-//  Subdirectories are listed and read by path. Writing into one is not yet
-//  supported: a write, delete or rename whose path names a subdirectory is
-//  refused rather than reduced to its last component, so no caller is silently
-//  given the wrong file in the meantime.
+//  Subdirectories are listed, read and written by path. Every file operation
+//  walks the path's directories and acts in the directory the leaf sits in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +180,7 @@ private:
     //  A directory record is reusable exactly when its storage-type nibble is
     //  zero. Unlike the DOS 3.3 catalog there is no decorative-entry practice
     //  here to work around: ProDOS states occupancy in a field of its own.
-    bool  TryFindFreeDirectorySlot (int & outBlock, size_t & outOffset) const;
+    bool  TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset) const;
 
     //  Hands out `count` blocks, or none at all. A block must be free in the
     //  bitmap AND unclaimed by the directory -- a bitmap calling a block free
@@ -198,7 +196,8 @@ private:
     //  the buffer this volume was constructed with. Replacement stages the
     //  removal into a working buffer and calls this on a volume over that, so
     //  one code path places every file and a replacement cannot half-happen.
-    HRESULT  AddFile (const std::string   & name,
+    HRESULT  AddFile (int                   dirKeyBlock,
+                      const std::string   & name,
                       Byte                  fileType,
                       Word                  auxType,
                       const vector<Byte>  & bytes,
@@ -222,7 +221,8 @@ private:
                                       Word                 keyBlock,
                                       Word                 blocksUsed,
                                       uint32_t             eof,
-                                      Word                 auxType);
+                                      Word                 auxType,
+                                      int                  headerPointer);
 
     //  The tally of active entries in one directory's header. Every directory
     //  keeps its own, at the same offset in its key block.

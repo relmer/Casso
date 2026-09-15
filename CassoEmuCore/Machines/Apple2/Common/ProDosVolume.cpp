@@ -1134,10 +1134,10 @@ bool ProDosVolume::TryFindEntry (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProDosVolume::TryFindFreeDirectorySlot (int & outBlock, size_t & outOffset) const
+bool ProDosVolume::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset) const
 {
     ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
-    int             dirBlock = ProDosSkeleton::kDirKeyBlock;
+    int             dirBlock = dirKeyBlock;
     int             n        = 0;
 
 
@@ -1146,7 +1146,7 @@ bool ProDosVolume::TryFindFreeDirectorySlot (int & outBlock, size_t & outOffset)
     {
         bool  inRange = dirBlock > 0 && dirBlock < ProDosSkeleton::kTotalBlocks;
         bool  stepOk  = inRange && guard.TryVisit ((uint32_t) dirBlock);
-        int   first   = (dirBlock == ProDosSkeleton::kDirKeyBlock) ? 1 : 0;
+        int   first   = (dirBlock == dirKeyBlock) ? 1 : 0;
 
         if (!stepOk)
         {
@@ -1375,7 +1375,8 @@ void ProDosVolume::WriteDirectoryEntry (
     Word                 keyBlock,
     Word                 blocksUsed,
     uint32_t             eof,
-    Word                 auxType)
+    Word                 auxType,
+    int                  headerPointer)
 {
     size_t  nameBytes = name.size();
     size_t  i         = 0;
@@ -1410,8 +1411,9 @@ void ProDosVolume::WriteDirectoryEntry (
     WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffAccess,
                  ProDosSkeleton::kAccessDefault);
     WriteWordAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffAuxType, auxType);
-    WriteByteAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffHeaderPointer,
-                 (Byte) ProDosSkeleton::kDirKeyBlock);
+    //  A word, not a byte: a directory's key block can sit past block 255.
+    WriteWordAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffHeaderPointer,
+                 (Word) headerPointer);
 }
 
 
@@ -1573,6 +1575,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosVolume::AddFile (
+    int                   dirKeyBlock,
     const std::string   & name,
     Byte                  fileType,
     Word                  auxType,
@@ -1594,7 +1597,7 @@ HRESULT ProDosVolume::AddFile (
 
 
 
-    slotOk = TryFindFreeDirectorySlot (slotBlock, slotOffset);
+    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
     CBREx (slotOk, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
     hr = BuildIntegrityReport (report);
@@ -1639,9 +1642,10 @@ HRESULT ProDosVolume::AddFile (
                          (Word) blocks[0],
                          (Word) blocks.size(),
                          (uint32_t) payloadSize,
-                         auxType);
+                         auxType,
+                         dirKeyBlock);
 
-    AdjustFileCount (result, ProDosSkeleton::kDirKeyBlock, 1);
+    AdjustFileCount (result, dirKeyBlock, 1);
 
     hr = HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
@@ -1684,8 +1688,8 @@ HRESULT ProDosVolume::Write (
     HRESULT                hr           = S_OK;
     size_t                 bufferBytes  = m_sectors.size();
     size_t                 payloadSize  = payload.bytes.size();
-    bool                   single       = path.IsSingleComponent();
     bool                   fits         = payloadSize <= kMaxFileBytes;
+    int                    dirKeyBlock  = ProDosSkeleton::kDirKeyBlock;
     bool                   nameOk       = false;
     bool                   exists       = false;
     bool                   isLocked     = false;
@@ -1707,7 +1711,7 @@ HRESULT ProDosVolume::Write (
 
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
 
-    nameOk = single && TryEncodeDirectoryName (path.GetLeaf(), name);
+    nameOk = TryEncodeDirectoryName (path.GetLeaf(), name);
 
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
     CBREx (fits,   HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
@@ -1715,7 +1719,12 @@ HRESULT ProDosVolume::Write (
     hr = ResolveAuxType (payload, auxType);
     CHR (hr);
 
-    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
+    //  The file lands in the directory the path walks to, which is the volume
+    //  directory for a path of one name.
+    hr = ResolveDirectory (GetParentPath (path), dirKeyBlock);
+    CHR (hr);
+
+    CollectEntries (dirKeyBlock, entries, damage, fullyParsed);
 
     exists = TryFindEntry (entries, name, owner);
 
@@ -1728,7 +1737,7 @@ HRESULT ProDosVolume::Write (
 
     if (!exists)
     {
-        hr = AddFile (name, payload.type, auxType, payload.bytes, outBuffer);
+        hr = AddFile (dirKeyBlock, name, payload.type, auxType, payload.bytes, outBuffer);
         CHR (hr);
     }
     else
@@ -1739,7 +1748,7 @@ HRESULT ProDosVolume::Write (
         hr = Delete (path, staged, removal);
         CHR (hr);
 
-        hr = stagedVolume.AddFile (name, payload.type, auxType, payload.bytes, outBuffer);
+        hr = stagedVolume.AddFile (dirKeyBlock, name, payload.type, auxType, payload.bytes, outBuffer);
         CHR (hr);
     }
 
@@ -1851,12 +1860,12 @@ HRESULT ProDosVolume::Delete (
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
-    bool                   single      = path.IsSingleComponent();
     bool                   found       = false;
     bool                   isLocked    = false;
     bool                   isDirectory = false;
     bool                   fullyParsed = true;
     uint16_t               owner       = 0;
+    int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
     Byte                   typeLen     = 0;
     vector<RawEntry>       entries;
     vector<RawEntry>       all;
@@ -1867,11 +1876,13 @@ HRESULT ProDosVolume::Delete (
 
 
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
-    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
-    //  The record is found in the volume directory, and its owner index comes
-    //  from the whole-volume order the report speaks in.
-    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
+    hr = ResolveDirectory (GetParentPath (path), dirKeyBlock);
+    CHR (hr);
+
+    //  The record is found in the directory the path walks to, and its owner
+    //  index comes from the whole-volume order the report speaks in.
+    CollectEntries (dirKeyBlock, entries, damage, fullyParsed);
 
     found = TryFindEntry (entries, path.GetLeaf(), owner);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
@@ -1936,7 +1947,7 @@ HRESULT ProDosVolume::Delete (
                  entries[owner].entryOffset + ProDosSkeleton::kEntOffTypeName,
                  (Byte) (typeLen & 0x0F));
 
-    AdjustFileCount (result, ProDosSkeleton::kDirKeyBlock, -1);
+    AdjustFileCount (result, dirKeyBlock, -1);
     AppendDeleteWarnings (outOutcome);
 
     hr = HandBackVerifiedResult (report, result, outBuffer);
@@ -2174,7 +2185,6 @@ HRESULT ProDosVolume::Rename (
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
-    bool                   single      = from.IsSingleComponent();
     bool                   nameOk      = false;
     bool                   found       = false;
     bool                   taken       = false;
@@ -2184,6 +2194,7 @@ HRESULT ProDosVolume::Rename (
     uint16_t               owner       = 0;
     uint16_t               holder      = 0;
     size_t                 i           = 0;
+    int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
     std::string            name;
     vector<RawEntry>       entries;
     vector<std::string>    damage;
@@ -2193,12 +2204,14 @@ HRESULT ProDosVolume::Rename (
 
 
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
-    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     nameOk = TryEncodeDirectoryName (to, name);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
-    CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
+    hr = ResolveDirectory (GetParentPath (from), dirKeyBlock);
+    CHR (hr);
+
+    CollectEntries (dirKeyBlock, entries, damage, fullyParsed);
 
     found = TryFindEntry (entries, from.GetLeaf(), owner);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));

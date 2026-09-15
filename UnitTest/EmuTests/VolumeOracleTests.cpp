@@ -624,6 +624,65 @@ public:
     }
 
 
+    //  A file written to a path inside a subdirectory lands in that directory:
+    //  its record goes in that directory's own chain, its header tally moves,
+    //  and the volume directory gains nothing.
+    TEST_METHOD (ProDos_WriteIntoASubdirectory_PutsTheFileThereAndNotAtTheRoot)
+    {
+        vector<Byte>   disk = Load (kProDosMerlin);
+        ProDosVolume   volume (disk);
+        vector<Byte>   result;
+        FilePayload    payload;
+        FilePayload    read;
+        VolumeListing  root;
+        VolumeListing  rootAfter;
+        VolumeListing  inside;
+        std::string    directory;
+        size_t         before = 0;
+        size_t         i      = 0;
+        bool           found  = false;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (600, 'A');
+
+        AssertSucceeded (volume.Enumerate (root));
+
+        for (i = 0; i < root.entries.size() && directory.empty(); i++)
+        {
+            if (root.entries[i].isDirectory)
+            {
+                directory = root.entries[i].name;
+            }
+        }
+
+        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+
+        AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
+
+        before = inside.entries.size();
+
+        AssertSucceeded (volume.Write (FilePath::Parse (directory + "/CASSOTEST"), payload, result));
+
+        ProDosVolume  written (result);
+
+        AssertSucceeded (written.EnumerateDirectory (FilePath::Parse (directory), inside));
+        AssertSucceeded (written.Enumerate (rootAfter));
+
+        for (const FileEntry & entry : inside.entries)
+        {
+            found = found || entry.name == "CASSOTEST";
+        }
+
+        Assert::IsTrue   (found, L"the file is in the subdirectory it was written to");
+        Assert::AreEqual (before + 1, inside.entries.size());
+        Assert::AreEqual (root.entries.size(), rootAfter.entries.size(), L"and the volume directory gained nothing");
+
+        AssertSucceeded (written.Read (FilePath::Parse (directory + "/CASSOTEST"), read));
+        Assert::AreEqual (payload.bytes.size(), read.bytes.size());
+        Assert::IsTrue   (payload.bytes == read.bytes);
+    }
+
+
     TEST_METHOD (ProDos_NearlyFullVolume_ReportsItsFreeSpace)
     {
         // /APPLESOFT is nearly full, which is where a free-space count is worth
