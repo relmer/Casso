@@ -46,6 +46,7 @@ public:
         InsertDrive2,
         OpenInNewCasso,
         NewDisk,
+        NewFolder,
         Format,
         ReadSectors,
         WriteSectors,
@@ -98,6 +99,15 @@ public:
     Outcome  DeleteSelected ();
     Outcome  BootSelected   ();
     Outcome  RenameSelected (const std::wstring & newName);
+
+    //  A new directory in the ProDOS location the list shows. The name is the
+    //  volume's to accept, so an illegal one comes back as a refusal.
+    Outcome  CreateFolder (const std::wstring & name);
+
+    //  What deleting the selection would remove, as lines a confirmation shows:
+    //  one row per entry with the locked ones marked, then the totals. Empty
+    //  when nothing selected is a directory, since a file needs no such list.
+    std::vector<std::wstring>  DescribeDeletePlan() const;
 
     //  A new image in a host folder, refused when the file exists already.
     Outcome  CreateImage (const std::wstring & folder, const std::wstring & fileName, const DiskOperations::NewDiskRequest & request);

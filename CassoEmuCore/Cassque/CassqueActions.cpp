@@ -95,6 +95,13 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
         verbs.push_back (Verb::NewDisk);
     }
 
+    //  New folder where the file system has folders, which is ProDOS and the
+    //  host. DOS 3.3 has none, so it is not offered there.
+    if (selected == 0 && m_browser.GetVolumeKind() == VolumeKind::ProDos && m_browser.IsImageLocation())
+    {
+        verbs.push_back (Verb::NewFolder);
+    }
+
     verbs.push_back (Verb::Refresh);
 
     return verbs;
@@ -532,8 +539,121 @@ CassqueActions::Outcome CassqueActions::DeleteSelected()
 
     for (const FileEntry & entry : entries)
     {
-        Append (outcome, m_browser.GetOperations().Delete (TextEncoding::WideToNarrow (imagePath), entry.name, entry.catalogIndex));
+        std::string  image = TextEncoding::WideToNarrow (imagePath);
+
+        //  A directory goes with everything below it, through the plan the
+        //  window has already shown and been answered on. A file goes by name.
+        if (entry.isDirectory)
+        {
+            Append (outcome, m_browser.GetOperations().Rmdir (image, m_browser.GetEntryPath (entry), true));
+        }
+        else
+        {
+            Append (outcome, m_browser.GetOperations().Delete (image, entry.name, entry.catalogIndex));
+        }
     }
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (imagePath);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::DescribeDeletePlan
+//
+//  A DIRECTORY'S EXTENT IS THE ONE THING THE WINDOW CANNOT SHOW BY ITSELF. The
+//  list shows a row; what goes with it may be hundreds of entries in
+//  directories below. So the lines a confirmation needs are built here, from
+//  the same plan the removal applies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassqueActions::DescribeDeletePlan() const
+{
+    std::vector<std::wstring>  lines;
+    std::vector<FileEntry>     entries;
+    std::wstring               imagePath = m_browser.GetLocation().path;
+    uint32_t                   blocks    = 0;
+    size_t                     rows      = 0;
+
+
+
+    m_browser.GetSelectedEntries (entries);
+
+    for (const FileEntry & entry : entries)
+    {
+        DirectoryRemovalPlan    plan;
+        DiskOperations::Result  built;
+
+        if (!entry.isDirectory)
+        {
+            continue;
+        }
+
+        built = m_browser.GetOperations().BuildRemovalPlan (TextEncoding::WideToNarrow (imagePath),
+                                                            m_browser.GetEntryPath (entry), plan);
+
+        if (!built.Succeeded())
+        {
+            continue;
+        }
+
+        for (const DirectoryRemovalEntry & listed : plan.entries)
+        {
+            lines.push_back (TextEncoding::NarrowToWide (listed.path)
+                             + (listed.isLocked ? L"   (locked)" : L""));
+        }
+
+        blocks += plan.blocksFreed;
+        rows   += plan.entries.size();
+    }
+
+    if (!lines.empty())
+    {
+        lines.push_back (std::format (L"{} entries, {} blocks", rows, blocks));
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::CreateFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::CreateFolder (const std::wstring & name)
+{
+    Outcome       outcome;
+    Location      location  = m_browser.GetLocation();
+    std::wstring  imagePath = location.path;
+    std::string   inner     = location.innerPath;
+    std::string   leaf      = TextEncoding::WideToNarrow (name);
+
+
+
+    if (leaf.empty() || !m_browser.IsImageLocation())
+    {
+        outcome.hr      = E_INVALIDARG;
+        outcome.message = L"Open a ProDOS disk image to make a folder on it.";
+
+        return outcome;
+    }
+
+    Append (outcome, m_browser.GetOperations().Mkdir (TextEncoding::WideToNarrow (imagePath),
+                                                      inner.empty() ? leaf : inner + "/" + leaf));
 
     if (outcome.written > 0)
     {

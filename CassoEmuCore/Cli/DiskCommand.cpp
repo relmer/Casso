@@ -69,9 +69,9 @@ int DiskCommand::Run (const CommandLineOptions & options)
     //  behind it, so it answers no rather than blocking a script forever.
     runner.SetConfirmAsker ([] (const std::string & question)
     {
-        DWORD   mode    = 0;
-        HANDLE  in      = GetStdHandle (STD_INPUT_HANDLE);
-        bool    console = in != nullptr && in != INVALID_HANDLE_VALUE && GetConsoleMode (in, &mode);
+        DWORD   mode      = 0;
+        HANDLE  in        = GetStdHandle (STD_INPUT_HANDLE);
+        bool    console   = in != nullptr && in != INVALID_HANDLE_VALUE && GetConsoleMode (in, &mode);
         char    answer[8] = {};
 
         if (!console)

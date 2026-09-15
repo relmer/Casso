@@ -3098,6 +3098,7 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
         case CassqueActions::Verb::InsertDrive2:   return L"Insert into drive &2";
         case CassqueActions::Verb::OpenInNewCasso: return L"Open in &new Casso";
         case CassqueActions::Verb::NewDisk:        return L"New disk &image...";
+        case CassqueActions::Verb::NewFolder:      return L"New &folder...";
         case CassqueActions::Verb::Format:         return L"&Format disk image...";
         case CassqueActions::Verb::ReadSectors:    return L"Read &sectors to file...";
         case CassqueActions::Verb::WriteSectors:   return L"&Write sectors from file...";
@@ -3289,10 +3290,19 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
             break;
 
         case CassqueActions::Verb::Delete:
-            answer = DxuiMessageBox (GetHwnd(), m_theme,
-                                     std::format (L"Delete {} selected file(s) from this disk image? This cannot be undone.",
-                                                  m_browser.GetSelectedRows().size()).c_str(),
-                                     L"Delete", MB_YESNO | MB_ICONWARNING);
+        {
+            std::vector<std::wstring>  plan    = m_actions.DescribeDeletePlan();
+            std::wstring               message = std::format (L"Delete {} selected item(s) from this disk image? This cannot be undone.",
+                                                              m_browser.GetSelectedRows().size());
+
+            //  A folder goes with everything below it, which the list cannot
+            //  show, so the plan's own rows and totals go into the question.
+            for (const std::wstring & line : plan)
+            {
+                message += L"\n" + line;
+            }
+
+            answer = DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Delete", MB_YESNO | MB_ICONWARNING);
 
             if (answer == IDYES)
             {
@@ -3301,6 +3311,7 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
             }
 
             break;
+        }
 
         case CassqueActions::Verb::Boot:
             ReportOutcome (m_actions.BootSelected(), L"Set startup program");
@@ -3338,6 +3349,16 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
             if (newDisk.confirmed)
             {
                 ReportOutcome (m_actions.CreateImage (m_browser.GetLocation().path, newDisk.fileName, newDisk.request), L"New disk");
+                FillList();
+            }
+
+            break;
+
+        case CassqueActions::Verb::NewFolder:
+            if (CassquePromptDialog::Ask (GetHwnd(), m_theme, L"New folder", L"Folder name:",
+                                          L"", kMaxCatalogName, newName))
+            {
+                ReportOutcome (m_actions.CreateFolder (newName), L"New folder");
                 FillList();
             }
 
