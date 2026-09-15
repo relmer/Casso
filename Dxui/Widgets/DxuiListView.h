@@ -423,6 +423,7 @@ private:
         uint32_t  bgRow    = 0;
         uint32_t  bgHover  = 0;
         uint32_t  bgSel    = 0;
+        uint32_t  edgeSel  = 0;   // outline on the focused selected row; zero draws none
         uint32_t  bgHeader = 0;
         uint32_t  border   = 0;
         uint32_t  matchBg  = 0;

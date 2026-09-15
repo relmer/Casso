@@ -68,6 +68,10 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  splitterHighlight        = 0;
     uint32_t  contentHover             = 0;
     uint32_t  contentSelection         = 0;
+
+    //  The outline around a selected row while its list has focus. A zero value
+    //  draws none.
+    uint32_t  contentSelectionEdge     = 0;
     uint32_t  buttonIdle               = 0;
     uint32_t  buttonHover              = 0;
     uint32_t  buttonPressed            = 0;
@@ -86,6 +90,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  SplitterHighlight   () const override { return (splitterHighlight != 0) ? splitterHighlight : panelEdge; }
     uint32_t  ContentHover        () const override { return (contentHover != 0) ? contentHover : navHover; }
     uint32_t  ContentSelection    () const override { return (contentSelection != 0) ? contentSelection : navHover; }
+    uint32_t  ContentSelectionEdge () const override { return contentSelectionEdge; }
     uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
     uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
     uint32_t  HoverBackground     () const override { return navHover;           }

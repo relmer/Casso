@@ -24,6 +24,9 @@
 //  it reads as raised. The address box set into that strip is #383838.
 //  Measured the same way on 2026-09-14.
 //
+//  In the list, a row under the pointer is #4D4D4D and a selected row #505050,
+//  outlined in #C3C3C3 while the list has focus. Measured on 2026-09-15.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiDarkTheme::DxuiDarkTheme()
@@ -54,8 +57,9 @@ DxuiDarkTheme::DxuiDarkTheme()
     headingText              = 0xFFDEDEDE;
     contentEdge              = 0xFF1D1D1D;
     splitterHighlight        = 0xFF2B2B2B;
-    contentHover             = 0xFF232323;
-    contentSelection         = 0xFF2D2D2D;
+    contentHover             = 0xFF4D4D4D;
+    contentSelection         = 0xFF505050;
+    contentSelectionEdge     = 0xFFC3C3C3;
     panelEdge                = 0xFF3A3A3A;
     buttonIdle               = 0xFF2D2D2D;
     buttonHover              = 0xFF323232;

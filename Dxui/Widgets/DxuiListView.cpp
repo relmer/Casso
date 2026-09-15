@@ -2390,6 +2390,7 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.bgRow    = m_theme->ContentBackground();
     pal.bgHover  = m_theme->ContentHover();
     pal.bgSel    = m_textSelectionColors ? m_theme->SelectionBackground() : m_theme->ContentSelection();
+    pal.edgeSel  = m_textSelectionColors ? 0u : m_theme->ContentSelectionEdge();
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
     pal.border   = m_theme->ContentEdge();
     pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
@@ -2658,6 +2659,14 @@ void DxuiListView::PaintDataRows (
         if (isSel)
         {
             painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgSel);
+
+            //  Explorer outlines the selected row the keyboard is on while the
+            //  list has focus.
+            if (m_listFocused && r == m_selectedRow && pal.edgeSel != 0)
+            {
+                painter.OutlineRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                            (std::max) (1.0f, m_scaler.ToPxf (1.0f)), pal.edgeSel);
+            }
         }
 
         if (isHov && !isSel)

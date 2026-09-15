@@ -151,6 +151,10 @@ public:
     virtual uint32_t  ContentHover        () const { return HoverBackground(); }
     virtual uint32_t  ContentSelection    () const { return SelectionBackground(); }
 
+    // The outline Explorer draws around a selected row while the list has
+    // focus. Zero, the default, draws none.
+    virtual uint32_t  ContentSelectionEdge () const { return 0; }
+
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight
 
