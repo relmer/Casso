@@ -243,9 +243,9 @@ description: "Task list for 034 physical game controllers"
 
 ## Phase 9: User Story 7 - Two people play at once (Priority: P2)
 
-**Goal**: Controllers are assigned to analog axes rather than to one joystick slot, so two people play at once, one controller can drive four axes, and the //c offers only the two it has.
+**Goal**: A machine is either in single-source mode or in a two-player multiplayer mode, so two people play at once, each on their own paddles and their own button line, and the //c offers only the targets it has the paddles for.
 
-**Independent Test**: Two fake controllers assigned to PDL0 and PDL1 each move only their own axis with both moving at once; both buttons register together; on a //c only PDL0 and PDL1 are offered.
+**Independent Test**: Two fake controllers in the two player slots each move only their own paddles with both moving at once; player one's button reaches PB0 and player two's reaches PB1; on a //c only joystick 0, paddle 0 and paddle 1 are offered.
 
 ### Tests for User Story 7
 
@@ -259,8 +259,12 @@ description: "Task list for 034 physical game controllers"
 - [X] T095 [US7] Widen `GamePortContribution::paddle` to four per-axis optionals and `GamePortState::paddle` to four bytes in `CassoEmuCore/Controllers/ControllerTypes.h` and `GamePortInputMixer.h`; make `SetAxisOwner` take an axis index (FR-036)
 - [X] T096 [US7] Write PDL2/PDL3 through `CassoEmuCore/Shell/MachineGamePortSink.cpp`, and report the machine's axis count from the machine config so the //c reports two (FR-034)
 - [X] T097 [US7] Widen `ControlMapping` to four axis targets and update `MappingEvaluator` accordingly; keep the default mapping claiming PDL0/PDL1 only (FR-038)
-- [X] T098 [US7] Hold the assignment as controller-to-axes in `ControllerSelectionPolicy`, persist it per machine, and displace the previous owner on reassignment (FR-036, FR-037)
-- [ ] T099 [US7] Add the axis assignment UI to the Controllers page: which controller holds which axis, axes the machine lacks not offered (FR-035, FR-037)
+- [X] T098 [US7] Hold the assignment as controller-to-axes in `ControllerSelectionPolicy`, persist it per machine, and displace the previous owner on reassignment (FR-036, FR-037) -- SUPERSEDED by T098a-T098d, which replace the free-form per-axis assignment with the two-player mode the owner approved after reviewing it
+- [X] T098a [US7] Replace `ControllerAxisAssignment` with `MultiplayerSetup` in `ControllerSelectionPolicy`: two slots, the six targets, `Normalize`, `GetTargetAxes`, `GetAxesForPlayer`, `FindPlayer` and `GetTargetChoices` (FR-036, FR-037)
+- [X] T098b [US7] Drive the mode from `ControllerInputService`: the players are the drivers, each playing its slot's paddles, and one button line per player (FR-038, FR-039)
+- [X] T098c [US7] Persist it as the per-machine `multiplayer` block in `MachineInputPrefs`, normalized on load; drop the short-lived `controllerAxes` key, which never shipped
+- [X] T098d [US7] Rework the Phase 9 tests onto the mode, and add the button rule, the single-paddle slots, the refusal of an overlapping setup, and turning the mode off
+- [ ] T099 [US7] Add the multiplayer UI to the Controllers page: the mode switch, the two player slots, each offering `GetTargetChoices` for this machine less what the other player holds (FR-035, FR-037)
 - [X] T100 [US7] Build a four-axis readout disk from `Disks/Casso/JoystickTest.bas` showing PDL(0)-PDL(3) and PB0-PB2, for validating two-controller play without a commercial two-player disk
 - [ ] T101 [US7] Build; run `-Filter Controller`; validate two controllers at once on hardware against the readout disk, and on a two-player game disk if one is available
 - [ ] T102 [US7] Commit: `feat(input): assign controllers to game-port axes`

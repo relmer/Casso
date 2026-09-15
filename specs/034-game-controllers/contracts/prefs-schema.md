@@ -66,21 +66,27 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 |---|---|---|
 | `controller` | Unit token, e.g. `xinput:045e:0b13` or `dinput:044f:b10a/{8E8A...}` | No controller selected |
 | `controllerProfile` | Profile name | Default |
-| `controllerAxes` | Array of `{ "controller": <unit token>, "axes": [<axis index 0-3>, ...] }` | No assignment: the selected controller holds PDL0 and PDL1, exactly as before this key existed |
+| `multiplayer` | `{ "enabled": <bool>, "players": [ <slot>, <slot> ] }` | Single-source mode: the selected controller drives PDL0/PDL1 and PB0-PB2, exactly as before this key existed |
 
 ```json
-"controllerAxes": [
-  { "controller": "xinput",                          "axes": [0] },
-  { "controller": "dinput:231d:0121/guid:{01661270}", "axes": [1] }
-]
+"multiplayer": {
+  "enabled": true,
+  "players": [
+    { "controller": "xinput",                           "maps": "joystick0" },
+    { "controller": "dinput:231d:0121/guid:{01661270}", "maps": "joystick1" }
+  ]
+}
 ```
 
 - A selection is written as the unit token for DirectInput and the model token for XInput (FR-018a).
-- `controllerAxes` is always written, as `[]` when there is no assignment, because the block is spliced key by key and an omitted key would leave a cleared assignment in the file. Absent and `[]` read the same.
-- An empty array is the default: a machine with only `controller` saved behaves exactly as before (FR-038). The selected controller needs no entry; an entry for it replaces its PDL0/PDL1 default.
-- Entries are applied in order with displacement (FR-036): an axis listed for two controllers goes to the later one. An entry with an unreadable token, no `axes` array, or a non-object is skipped; an axis index that is not a number in 0-3 is ignored.
-- Axis indexes past the machine's count are kept on load and save and ignored when played, so a //c keeps a //e's four-axis assignment (FR-035).
-- A pick from the command-bar paddle picker clears the assignment.
+- `maps` is one of `joystick0` (PDL0/PDL1), `joystick1` (PDL2/PDL3), `paddle0`, `paddle1`, `paddle2`, `paddle3`. An unknown token reads as `joystick0`, which every machine with a game port can play.
+- The block is always written, with both slots and with `enabled` false when the mode is off, because the block is spliced key by key and an omitted key would leave a setup the user turned off in the file. Absent and `"enabled": false` read the same.
+- An absent block is the default: a machine with only `controller` saved behaves exactly as before (FR-037, FR-038).
+- A slot with an unreadable or empty controller token, or a non-object slot, is left EMPTY rather than dropping the block: the other player keeps playing, and an empty slot is what the settings page shows for the one that could not be restored.
+- The setup is normalized on load (FR-036): a second slot repeating the first slot's controller, or claiming a paddle it already holds, is emptied rather than played. A hand-edited file cannot put two players on one paddle.
+- Targets naming paddles past the machine's count are kept on load and save and play nothing, so a //c keeps a //e's four-axis setup (FR-035).
+- A pick from the command-bar paddle picker turns the mode off, keeping both slots.
+- **`controllerAxes`, the short-lived per-axis assignment key, is gone.** It never shipped in a release, so it is neither read nor migrated; a file still carrying it keeps it as an unknown key and it has no effect.
 - Selecting arrows-to-joystick or mouse-to-paddle removes `controller` (FR-008), which lets automatic selection apply at the next connect (FR-032).
 
 ## Unit-test obligations
