@@ -2,6 +2,7 @@
 
 #include "Cassque/CassqueShell.h"
 #include "AssetBootstrap.h"
+#include "BuildInfo.h"
 #include "Cassque/Model/KnownFolderStore.h"
 
 
@@ -223,14 +224,27 @@ const DxuiTheme & CassqueShell::ChooseTheme (const std::string   & theme,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassqueShell::ComposeTitle (const std::wstring & titlePrefix)
+std::wstring CassqueShell::ComposeTitle (const std::wstring & titlePrefix, const std::wstring & buildInfo)
 {
-    if (titlePrefix.empty())
+    std::wstring  title;
+
+
+
+    if (!titlePrefix.empty())
     {
-        return kAppName;
+        title = titlePrefix + L" - ";
     }
 
-    return titlePrefix + L" - " + kAppName;
+    title += kAppName;
+
+    //  Stated outright, since a version and a timestamp do not say "debug" to
+    //  anyone reading them, and a debug build is several times slower.
+    if (!buildInfo.empty())
+    {
+        title += L" [Debug] - " + buildInfo;
+    }
+
+    return title;
 }
 
 
@@ -396,7 +410,11 @@ HRESULT CassqueShell::Initialize (HINSTANCE instance, const CassqueLaunchOptions
         m_window = std::make_unique<CassqueWindow> (m_browser, m_actions, m_prefs, context);
     }
 
-    hr = m_window->Open (instance, ComposeTitle (m_options.titlePrefix), showCommand);
+#if defined (_DEBUG)
+    hr = m_window->Open (instance, ComposeTitle (m_options.titlePrefix, GetCassoBuildInfo()), showCommand);
+#else
+    hr = m_window->Open (instance, ComposeTitle (m_options.titlePrefix, L""), showCommand);
+#endif
     CHR (hr);
 
     //  A reload a write asks for names this window, so a conflict or a

@@ -81,8 +81,9 @@ public:
                                            const DxuiDarkTheme  & dark);
 
     //  The caption: the launcher's label first, as the emulator composes its
-    //  own, so the two windows from one session read alike.
-    static std::wstring  ComposeTitle (const std::wstring & titlePrefix);
+    //  own, so the two windows from one session read alike. A debug build
+    //  passes its build identity, which follows a [Debug] tag as in Casso's.
+    static std::wstring  ComposeTitle (const std::wstring & titlePrefix, const std::wstring & buildInfo);
 
     //  The host's drive roots, such as C:\, in drive-letter order.
     static std::vector<std::wstring>  GetDriveRoots();

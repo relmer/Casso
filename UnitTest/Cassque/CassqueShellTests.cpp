@@ -115,8 +115,17 @@ public:
 
     TEST_METHOD (ComposeTitle_PutsTheLabelFirst)
     {
-        Assert::AreEqual (std::wstring (L"Cassque"),               CassqueShell::ComposeTitle (L""));
-        Assert::AreEqual (std::wstring (L"worktree - Cassque"),    CassqueShell::ComposeTitle (L"worktree"));
+        Assert::AreEqual (std::wstring (L"Cassque"),               CassqueShell::ComposeTitle (L"", L""));
+        Assert::AreEqual (std::wstring (L"worktree - Cassque"),    CassqueShell::ComposeTitle (L"worktree", L""));
+    }
+
+
+    TEST_METHOD (ComposeTitle_DebugBuildAppendsItsIdentity)
+    {
+        Assert::AreEqual (std::wstring (L"Cassque [Debug] - v1.0.0 x64 (Sep 14 2026 12:00:00)"),
+                          CassqueShell::ComposeTitle (L"", L"v1.0.0 x64 (Sep 14 2026 12:00:00)"));
+        Assert::AreEqual (std::wstring (L"worktree - Cassque [Debug] - v1.0.0 x64 (Sep 14 2026 12:00:00)"),
+                          CassqueShell::ComposeTitle (L"worktree", L"v1.0.0 x64 (Sep 14 2026 12:00:00)"));
     }
 
 
