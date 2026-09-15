@@ -34,10 +34,13 @@ public:
     // inactive -- would otherwise jump the paddle across the screen at once.
     static constexpr float  kMaxRateStep = 0.05f;
 
+    // axisCount limits which axis targets are evaluated: the ones past it are
+    // left absent in the result (FR-035).
     GamePortContribution  Evaluate     (const ControllerSample & sample,
                                         const ControlMapping   & mapping,
                                         float                    deadzone,
-                                        float                    elapsedSeconds = 0.0f);
+                                        float                    elapsedSeconds = 0.0f,
+                                        size_t                   axisCount      = GamePortContribution::kAxisCount);
 
     // Rate bindings' paddles back to center: on a change of selection,
     // profile or machine (FR-021a).
@@ -58,9 +61,17 @@ private:
     static float  EvaluateAxis        (const ControllerSample & sample, const std::vector<AxisBinding> & bindings, const AxisBinding *& outWinner);
     static bool   IsOneStick          (const std::vector<AxisBinding> & xBindings, const std::vector<AxisBinding> & yBindings);
 
+    void          EvaluatePair        (const ControllerSample         & sample,
+                                       const std::vector<AxisBinding> & xBindings,
+                                       const std::vector<AxisBinding> & yBindings,
+                                       size_t                           firstAxis,
+                                       size_t                           axisCount,
+                                       float                            deadzone,
+                                       float                            step,
+                                       GamePortContribution           & contribution);
     Byte          ToAxisPaddle        (size_t axis, float shaped, const AxisBinding * winner, float elapsedSeconds);
 
     // Each axis's rate-binding paddle, in paddle units.
-    std::array<float, 2>  m_rateValue    = { kRateCenter, kRateCenter };
-    bool                  m_isRateMoving = false;
+    std::array<float, GamePortContribution::kAxisCount>  m_rateValue    = { kRateCenter, kRateCenter, kRateCenter, kRateCenter };
+    bool                                                 m_isRateMoving = false;
 };

@@ -13,8 +13,12 @@
 //
 //  Evaluate
 //
-//  Axes first, so a pair driven by one stick can be shaped together, then the
-//  three buttons.
+//  Axes first, a pair at a time, so a pair driven by one stick can be shaped
+//  together, then the three buttons.
+//
+//  Only the first axisCount axes are evaluated; the rest are left absent,
+//  which is how a mapping that binds PDL2 and PDL3 plays on a machine with two
+//  axes without faulting and without moving a rate paddle nobody can read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,33 +26,19 @@ GamePortContribution MappingEvaluator::Evaluate (
     const ControllerSample  & sample,
     const ControlMapping    & mapping,
     float                     deadzone,
-    float                     elapsedSeconds)
+    float                     elapsedSeconds,
+    size_t                    axisCount)
 {
     GamePortContribution  contribution;
-    const AxisBinding *   winnerX = nullptr;
-    const AxisBinding *   winnerY = nullptr;
-    float                 rawX    = EvaluateAxis (sample, mapping.pdl0, winnerX);
-    float                 rawY    = EvaluateAxis (sample, mapping.pdl1, winnerY);
-    float                 shapedX = 0.0f;
-    float                 shapedY = 0.0f;
-    float                 step    = std::clamp (elapsedSeconds, 0.0f, kMaxRateStep);
+    float                 step  = std::clamp (elapsedSeconds, 0.0f, kMaxRateStep);
+    size_t                count = std::min (axisCount, GamePortContribution::kAxisCount);
 
 
-
-    if (IsOneStick (mapping.pdl0, mapping.pdl1))
-    {
-        DeadzoneShaper::ShapeStick (rawX, rawY, deadzone, shapedX, shapedY);
-    }
-    else
-    {
-        shapedX = DeadzoneShaper::ShapeAxis (rawX, deadzone);
-        shapedY = DeadzoneShaper::ShapeAxis (rawY, deadzone);
-    }
 
     m_isRateMoving = false;
 
-    contribution.paddle = std::array<Byte, 2> { ToAxisPaddle (0, shapedX, winnerX, step),
-                                                ToAxisPaddle (1, shapedY, winnerY, step) };
+    EvaluatePair (sample, mapping.pdl0, mapping.pdl1, 0, count, deadzone, step, contribution);
+    EvaluatePair (sample, mapping.pdl2, mapping.pdl3, 2, count, deadzone, step, contribution);
 
     contribution.buttons.set (0, IsButtonListHeld (sample, mapping.pb0));
     contribution.buttons.set (1, IsButtonListHeld (sample, mapping.pb1));
@@ -63,13 +53,71 @@ GamePortContribution MappingEvaluator::Evaluate (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EvaluatePair
+//
+//  One pair of axis targets, PDL0/PDL1 or PDL2/PDL3, into the contribution.
+//  A pair on the two axes of one stick is shaped with a round deadzone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MappingEvaluator::EvaluatePair (
+    const ControllerSample          & sample,
+    const std::vector<AxisBinding>  & xBindings,
+    const std::vector<AxisBinding>  & yBindings,
+    size_t                            firstAxis,
+    size_t                            axisCount,
+    float                             deadzone,
+    float                             step,
+    GamePortContribution            & contribution)
+{
+    const AxisBinding *  winnerX = nullptr;
+    const AxisBinding *  winnerY = nullptr;
+    float                rawX    = 0.0f;
+    float                rawY    = 0.0f;
+    float                shapedX = 0.0f;
+    float                shapedY = 0.0f;
+
+
+
+    if (firstAxis >= axisCount)
+    {
+        return;
+    }
+
+    rawX = EvaluateAxis (sample, xBindings, winnerX);
+    rawY = EvaluateAxis (sample, yBindings, winnerY);
+
+    if (IsOneStick (xBindings, yBindings))
+    {
+        DeadzoneShaper::ShapeStick (rawX, rawY, deadzone, shapedX, shapedY);
+    }
+    else
+    {
+        shapedX = DeadzoneShaper::ShapeAxis (rawX, deadzone);
+        shapedY = DeadzoneShaper::ShapeAxis (rawY, deadzone);
+    }
+
+    contribution.paddle[firstAxis] = ToAxisPaddle (firstAxis, shapedX, winnerX, step);
+
+    if (firstAxis + 1 < axisCount)
+    {
+        contribution.paddle[firstAxis + 1] = ToAxisPaddle (firstAxis + 1, shapedY, winnerY, step);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResetRate
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MappingEvaluator::ResetRate()
 {
-    m_rateValue    = { kRateCenter, kRateCenter };
+    m_rateValue.fill (kRateCenter);
     m_isRateMoving = false;
 }
 

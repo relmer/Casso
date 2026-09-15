@@ -90,12 +90,19 @@ struct ButtonBinding
 //  What each game-port target is driven by. A target with nothing assigned
 //  rests: an axis at center, a button released.
 //
+//  The axis targets are the controller's own PDL0-PDL3. Which machine axes
+//  they land on is the controller's axis assignment: a controller holding
+//  PDL1 alone plays its pdl0 bindings there, so two players can share one
+//  profile (see ControllerAxisAssignment).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ControlMapping
 {
     std::vector<AxisBinding>    pdl0;
     std::vector<AxisBinding>    pdl1;
+    std::vector<AxisBinding>    pdl2;
+    std::vector<AxisBinding>    pdl3;
     std::vector<ButtonBinding>  pb0;
     std::vector<ButtonBinding>  pb1;
     std::vector<ButtonBinding>  pb2;

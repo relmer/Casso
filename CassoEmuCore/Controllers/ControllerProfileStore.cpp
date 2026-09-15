@@ -27,6 +27,8 @@ static constexpr const char *  s_kpszRateResponse   = "rate";
 static constexpr const char *  s_kpszAbsoluteResp   = "absolute";
 static constexpr const char *  s_kpszPdl0Key        = "pdl0";
 static constexpr const char *  s_kpszPdl1Key        = "pdl1";
+static constexpr const char *  s_kpszPdl2Key        = "pdl2";
+static constexpr const char *  s_kpszPdl3Key        = "pdl3";
 static constexpr const char *  s_kpszPb0Key         = "pb0";
 static constexpr const char *  s_kpszPb1Key         = "pb1";
 static constexpr const char *  s_kpszPb2Key         = "pb2";
@@ -771,6 +773,8 @@ bool ControllerProfileStore::ReadMapping (const JsonValue & mappingObj, ControlM
 {
     return ReadAxisBindings   (mappingObj, s_kpszPdl0Key, outMapping.pdl0) &&
            ReadAxisBindings   (mappingObj, s_kpszPdl1Key, outMapping.pdl1) &&
+           ReadAxisBindings   (mappingObj, s_kpszPdl2Key, outMapping.pdl2) &&
+           ReadAxisBindings   (mappingObj, s_kpszPdl3Key, outMapping.pdl3) &&
            ReadButtonBindings (mappingObj, s_kpszPb0Key,  outMapping.pb0)  &&
            ReadButtonBindings (mappingObj, s_kpszPb1Key,  outMapping.pb1)  &&
            ReadButtonBindings (mappingObj, s_kpszPb2Key,  outMapping.pb2);
@@ -1173,6 +1177,20 @@ JsonValue ControllerProfileStore::WriteMapping (const ControlMapping & mapping)
 
     mappingObj.emplace_back (s_kpszPdl0Key, writeAxes    (mapping.pdl0));
     mappingObj.emplace_back (s_kpszPdl1Key, writeAxes    (mapping.pdl1));
+
+    // PDL2 and PDL3 only when bound, so a two-axis mapping is written exactly
+    // as it was before the game port had four axes, and an older build reads
+    // it unchanged. Absent reads back as empty.
+    if (!mapping.pdl2.empty())
+    {
+        mappingObj.emplace_back (s_kpszPdl2Key, writeAxes (mapping.pdl2));
+    }
+
+    if (!mapping.pdl3.empty())
+    {
+        mappingObj.emplace_back (s_kpszPdl3Key, writeAxes (mapping.pdl3));
+    }
+
     mappingObj.emplace_back (s_kpszPb0Key,  writeButtons (mapping.pb0));
     mappingObj.emplace_back (s_kpszPb1Key,  writeButtons (mapping.pb1));
     mappingObj.emplace_back (s_kpszPb2Key,  writeButtons (mapping.pb2));
