@@ -801,20 +801,71 @@ void ControllersPage::SwitchProfile (const std::string & name)
 //
 //  OnNewProfile
 //
+//  A new profile becomes the one being edited, so leaving a profile with
+//  unapplied edits asks first, exactly as switching profiles does. The New
+//  dialog opens only once the answer is Save (and the save went through) or
+//  Discard; Cancel leaves the page as it was.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPage::OnNewProfile()
 {
-    std::string  current;
-
-
-
     if (m_state == nullptr || !m_state->GetSelectedIndex().has_value())
     {
         return;
     }
 
-    current = m_state->GetEditedProfileName();
+    if (!m_state->HasUnappliedProfileEdits())
+    {
+        OpenNewProfileDialog();
+        return;
+    }
+
+    m_profileDialog.OpenSaveOrDiscard (Utf8ToWide (m_state->GetEditedProfileName()),
+        [this] (const std::wstring &, ProfileSource)
+        {
+            HRESULT  hr = m_onCommitProfile ? m_state->SaveProfileEdits (m_onCommitProfile) : E_FAIL;
+
+            if (SUCCEEDED (hr))
+            {
+                OpenNewProfileDialog();
+            }
+            else
+            {
+                Refresh();
+            }
+
+            return ProfileEditResult::Ok;
+        },
+        [this] ()
+        {
+            m_state->DiscardProfileEdits();
+            AfterEdit();
+            OpenNewProfileDialog();
+        },
+        [this] ()
+        {
+            Refresh();
+        });
+
+    ShowDialog();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenNewProfileDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OpenNewProfileDialog()
+{
+    std::string  current = m_state->GetEditedProfileName();
+
+
 
     m_profileDialog.OpenNew (Utf8ToWide (current),
         [this, current] (const std::wstring & name, ProfileSource source)

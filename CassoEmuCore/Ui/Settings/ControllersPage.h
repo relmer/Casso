@@ -133,6 +133,7 @@ private:
     void                 OnProfileSelect    (int index);
     void                 SwitchProfile      (const std::string & name);
     void                 OnNewProfile       ();
+    void                 OpenNewProfileDialog ();
     void                 OnRenameProfile    ();
     void                 OnDeleteProfile    ();
     void                 ShowDialog         ();
