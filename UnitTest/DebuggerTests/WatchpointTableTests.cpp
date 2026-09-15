@@ -80,7 +80,7 @@ namespace DebuggerTests
 
 
             table.SetAccessPc (0x0303);
-            table.OnWatchedAccess (0xC019, 0x80, BusAccess::Read);
+            table.OnWatchedAccess (0xC019, 0x80, BusAccess::Read, std::nullopt);
 
             Assert::IsTrue   (table.HasPendingStop());
             Assert::AreEqual (id,              table.GetPendingHit()->id);
@@ -104,32 +104,75 @@ namespace DebuggerTests
 
 
 
-            table.OnWatchedAccess (0x0305, 0x01, BusAccess::Write);
-            table.OnWatchedAccess (0x0310, 0x01, BusAccess::Read);
+            table.OnWatchedAccess (0x0305, 0x01, BusAccess::Write, std::nullopt);
+            table.OnWatchedAccess (0x0310, 0x01, BusAccess::Read,  std::nullopt);
             Assert::IsFalse (table.HasPendingStop());
 
             table.TrySetEnabled (id, false);
-            table.OnWatchedAccess (0x0305, 0x01, BusAccess::Read);
+            table.OnWatchedAccess (0x0305, 0x01, BusAccess::Read, std::nullopt);
             Assert::IsFalse (table.HasPendingStop());
         }
 
 
 
-        TEST_METHOD (ReadWrite_MatchesBoth_FirstHitKept)
+        TEST_METHOD (ReadWrite_FirstHitKept_UnlessAWriteFollowsToTheSameAddress)
         {
             int              nextId = 0;
             WatchpointTable  table (nextId);
 
 
 
-            table.Add (WatchAccess::ReadWrite, 0x0300, 0x0300);
+            table.Add (WatchAccess::ReadWrite, 0x0300, 0x030F);
 
-            table.OnWatchedAccess (0x0300, 0x11, BusAccess::Write);
-            table.OnWatchedAccess (0x0300, 0x22, BusAccess::Read);
+            // A write, then a read elsewhere: the write stays.
+            table.OnWatchedAccess (0x0300, 0x11, BusAccess::Write, (Byte) 0x00);
+            table.OnWatchedAccess (0x0301, 0x22, BusAccess::Read,  std::nullopt);
 
             Assert::IsTrue   (table.GetPendingHit()->access == WatchAccess::Write);
             Assert::AreEqual ((Byte) 0x11,  table.GetPendingHit()->value);
             Assert::AreEqual ((uint32_t) 2, table.GetAll()[0].hits);
+
+            // An indexed store: the pre-read of the target, then the write of
+            // it. The stop must report the write and the replaced byte.
+            table.ClearPending();
+            table.OnWatchedAccess (0x0305, 0xA0, BusAccess::Read,  std::nullopt);
+            table.OnWatchedAccess (0x0305, 0x41, BusAccess::Write, (Byte) 0xA0);
+
+            Assert::IsTrue   (table.GetPendingHit()->access == WatchAccess::Write);
+            Assert::AreEqual ((Byte) 0x41,  table.GetPendingHit()->value);
+            Assert::AreEqual ((Byte) 0xA0,  table.GetPendingHit()->previous.value_or (0xFF));
+
+            // A write to a different address does not replace a pending hit.
+            table.ClearPending();
+            table.OnWatchedAccess (0x0306, 0x01, BusAccess::Write, (Byte) 0x00);
+            table.OnWatchedAccess (0x0307, 0x02, BusAccess::Write, (Byte) 0x00);
+
+            Assert::AreEqual ((Word) 0x0306, table.GetPendingHit()->address);
+        }
+
+
+
+        TEST_METHOD (BeforeMode_NotInMask_NotReportedByBus)
+        {
+            int              nextId = 0;
+            WatchpointTable  table (nextId);
+            MockDebugTarget  target;
+            int              before = 0;
+
+
+
+            table.SetTarget (&target);
+            before = table.Add (WatchAccess::Write, 0x0400, 0x0400, WatchMode::Before);
+            table.Add (WatchAccess::Read, 0xC019, 0xC019);
+
+            Assert::IsFalse  (target.watchedPages[0x04]);
+            Assert::IsTrue   (target.watchedPages[0xC0]);
+            Assert::IsTrue   (table.GetAll()[0].mode == WatchMode::Before);
+
+            table.OnWatchedAccess (0x0400, 0x01, BusAccess::Write, (Byte) 0x00);
+            Assert::IsFalse  (table.HasPendingStop());
+            Assert::AreEqual ((uint32_t) 0, table.GetAll()[0].hits);
+            Assert::AreEqual (0, before);
         }
     };
 }

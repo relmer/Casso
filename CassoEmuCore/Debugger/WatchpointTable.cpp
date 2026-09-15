@@ -43,7 +43,7 @@ void WatchpointTable::SetTarget (IDebugTarget * target)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int WatchpointTable::Add (WatchAccess access, Word first, Word last)
+int WatchpointTable::Add (WatchAccess access, Word first, Word last, WatchMode mode)
 {
     Watchpoint  entry;
 
@@ -53,6 +53,7 @@ int WatchpointTable::Add (WatchAccess access, Word first, Word last)
     entry.access = access;
     entry.first  = first;
     entry.last   = last;
+    entry.mode   = mode;
 
     m_entries.push_back (entry);
     Publish();
@@ -148,7 +149,7 @@ bool WatchpointTable::HasEnabled() const
 //
 //  WatchpointTable::GetWatchedPages
 //
-//  Every page an enabled watchpoint's range touches, and no other.
+//  Every page an enabled after-mode watchpoint's range touches, and no other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,7 +161,7 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 
     for (const Watchpoint & entry : m_entries)
     {
-        if (!entry.enabled)
+        if (!entry.enabled || entry.mode != WatchMode::After)
         {
             continue;
         }
@@ -182,33 +183,54 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 //
 //  WatchpointTable::OnWatchedAccess
 //
-//  The first matching hit since the last ClearPending is kept; a later access
-//  during the same instruction does not replace it.
+//  The first matching hit since the last ClearPending is kept, except that a
+//  write to the pending hit's address replaces it (see ShouldReplace).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess access)
+void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess access, std::optional<Byte> previous)
 {
     for (Watchpoint & entry : m_entries)
     {
-        if (!entry.enabled || address < entry.first || address > entry.last || !IsAccessMatch (entry.access, access))
+        if (!entry.enabled || entry.mode != WatchMode::After || address < entry.first || address > entry.last || !IsAccessMatch (entry.access, access))
         {
             continue;
         }
 
         ++entry.hits;
 
-        if (!m_pendingHit.has_value())
+        if (!m_pendingHit.has_value() || ShouldReplace (address, access))
         {
             m_pendingHit = WatchHit { entry.id,
                                       address,
                                       value,
+                                      access == BusAccess::Write ? previous : std::nullopt,
                                       access == BusAccess::Read ? WatchAccess::Read : WatchAccess::Write,
-                                      m_accessPc };
+                                      m_accessPc,
+                                      WatchMode::After };
         }
 
         return;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::ShouldReplace
+//
+//  A write to the address already pending replaces the pending hit, whether
+//  that hit was the pre-read of a store or an earlier write; a read never
+//  replaces anything.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::ShouldReplace (Word address, BusAccess access) const
+{
+    return access == BusAccess::Write && m_pendingHit.has_value() && m_pendingHit->address == address;
 }
 
 

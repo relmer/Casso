@@ -36,6 +36,7 @@ public:
     static const char * GetStopReasonName   (StopReason reason);
     static const char * GetSymbolTableName  (SymbolTableId table);
     static const char * GetModeName         (CommandMode mode);
+    static const char * GetWatchModeName    (WatchMode mode);
 
 private:
     using Members = std::vector<std::pair<std::string, JsonValue>>;

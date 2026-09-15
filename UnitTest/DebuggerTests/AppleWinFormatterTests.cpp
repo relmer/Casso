@@ -135,6 +135,42 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Stops)
+        {
+            StopEvent  write;
+            StopEvent  read;
+            StopEvent  before;
+            StopEvent  breakpoint;
+            StopEvent  budget;
+
+
+
+            write.reason  = StopReason::Watchpoint;
+            write.pc      = 0x0806;
+            write.watch   = WatchHit { 1, 0x0400, 0x41, (Byte) 0xA0, WatchAccess::Write, 0x0803, WatchMode::After };
+
+            read          = write;
+            read.watch    = WatchHit { 2, 0xC019, 0x80, std::nullopt, WatchAccess::Read, 0x0303, WatchMode::After };
+
+            before        = write;
+            before.watch  = WatchHit { 3, 0xC030, 0x00, std::nullopt, WatchAccess::Write, 0x0810, WatchMode::Before };
+
+            breakpoint.reason       = StopReason::Breakpoint;
+            breakpoint.pc           = 0x0300;
+            breakpoint.breakpointId = 0;
+
+            budget.reason = StopReason::Budget;
+            budget.pc     = 0xFCA8;
+
+            Assert::AreEqual (std::string ("Watchpoint #1: Write $41 to $0400 by $0803 (was $A0)"),     AppleWinFormatter::FormatStop (write));
+            Assert::AreEqual (std::string ("Watchpoint #2: Read $80 from $C019 by $0303"),             AppleWinFormatter::FormatStop (read));
+            Assert::AreEqual (std::string ("Watchpoint #3: write of $C030 by $0810, before the access"), AppleWinFormatter::FormatStop (before));
+            Assert::AreEqual (std::string ("Breakpoint #0 at $0300"),                                    AppleWinFormatter::FormatStop (breakpoint));
+            Assert::AreEqual (std::string ("Budget at $FCA8"),                                           AppleWinFormatter::FormatStop (budget));
+        }
+
+
+
         TEST_METHOD (Errors_TwoLines)
         {
             Reply  unavailable;

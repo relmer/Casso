@@ -28,9 +28,10 @@ namespace DebuggerTests
 
         struct Access
         {
-            Word       address;
-            Byte       value;
-            BusAccess  access;
+            Word                 address;
+            Byte                 value;
+            BusAccess            access;
+            std::optional<Byte>  previous;
         };
 
         class RecordingSink : public IWatchSink
@@ -38,9 +39,9 @@ namespace DebuggerTests
         public:
             std::vector<Access> accesses;
 
-            void OnWatchedAccess (Word address, Byte value, BusAccess access) override
+            void OnWatchedAccess (Word address, Byte value, BusAccess access, std::optional<Byte> previous) override
             {
-                accesses.push_back ({ address, value, access });
+                accesses.push_back ({ address, value, access, previous });
             }
         };
 
@@ -134,6 +135,37 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0311,     sink.accesses[1].address);
             Assert::AreEqual ((Byte) 0x99,       sink.accesses[1].value);
             Assert::IsTrue   (sink.accesses[1].access == BusAccess::Write);
+        }
+
+
+
+        TEST_METHOD (WatchedWrite_ReportsReplacedByte_MemoryOnly)
+        {
+            MemoryBus          bus;
+            RecordingSink      sink;
+            CountingDevice     device;
+            std::vector<Byte>  page (kPageSize, 0);
+
+
+
+            page[0x20] = 0xA0;
+            bus.SetReadPage    (0x03, page.data());
+            bus.SetWritePage   (0x03, page.data());
+            bus.AddDevice      (&device);
+            bus.SetWatchSink   (&sink);
+            bus.SetWatchedPage (0x03, true);
+            bus.SetWatchedPage (0xC0, true);
+
+            bus.WriteByte (0x0320, 0x41);
+            bus.ReadByte  (0x0320);
+            bus.WriteByte (0xC010, 0x01);
+
+            Assert::AreEqual ((size_t) 3, sink.accesses.size());
+            Assert::IsTrue   (sink.accesses[0].previous.has_value());
+            Assert::AreEqual ((Byte) 0xA0, *sink.accesses[0].previous);
+            Assert::AreEqual ((Byte) 0x41, sink.accesses[0].value);
+            Assert::IsFalse  (sink.accesses[1].previous.has_value());
+            Assert::IsFalse  (sink.accesses[2].previous.has_value());
         }
 
 

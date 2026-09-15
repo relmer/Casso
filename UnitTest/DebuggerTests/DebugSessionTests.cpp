@@ -345,7 +345,7 @@ namespace DebuggerTests
 
             session.GetWatchpoints().Add (WatchAccess::Read, 0xC019, 0xC019);
             session.ShouldStopBefore (0x0303);
-            session.GetWatchpoints().OnWatchedAccess (0xC019, 0x80, BusAccess::Read);
+            session.GetWatchpoints().OnWatchedAccess (0xC019, 0x80, BusAccess::Read, std::nullopt);
 
             Assert::IsTrue (session.HasPendingStop());
             target.Stop (MakeStop (StopReason::Watchpoint, 0x0306));

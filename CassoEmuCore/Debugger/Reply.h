@@ -61,6 +61,14 @@ enum class WatchListKind
     Bookmark,
 };
 
+// When a watchpoint stops: after the access has happened, reported by the
+// bus, or before the instruction whose operand would make it.
+enum class WatchMode
+{
+    After,
+    Before,
+};
+
 enum class SymbolTableId
 {
     Main,
@@ -115,6 +123,7 @@ struct BreakpointInfo
     Byte            opcode    = 0;
     std::string     condition;
     WatchAccess     access    = WatchAccess::ReadWrite;
+    WatchMode       mode      = WatchMode::After;
     bool            enabled   = true;
     uint32_t        hits      = 0;
 };
@@ -268,11 +277,13 @@ enum class StopReason
 
 struct WatchHit
 {
-    int          id       = 0;
-    Word         address  = 0;
-    Byte         value    = 0;
-    WatchAccess  access   = WatchAccess::Read;
-    Word         accessPc = 0;
+    int                  id       = 0;
+    Word                 address  = 0;
+    Byte                 value    = 0;
+    std::optional<Byte>  previous;             // a memory write's replaced byte
+    WatchAccess          access   = WatchAccess::Read;
+    Word                 accessPc = 0;
+    WatchMode            mode     = WatchMode::After;
 };
 
 struct StopEvent

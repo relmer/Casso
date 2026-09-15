@@ -80,11 +80,23 @@ std::string ReplyJson::WriteStopped (const StopEvent & stop, std::optional<int64
 
     if (stop.watch.has_value())
     {
-        members.emplace_back ("watch", JsonValue (Members { { "id",       MakeNumber (stop.watch->id) },
-                                                            { "address",  MakeNumber (stop.watch->address) },
-                                                            { "value",    MakeNumber (stop.watch->value) },
-                                                            { "access",   MakeString (GetAccessName (stop.watch->access)) },
-                                                            { "accessPc", MakeNumber (stop.watch->accessPc) } }));
+        Members  watch;
+
+
+
+        watch.emplace_back ("id",      MakeNumber (stop.watch->id));
+        watch.emplace_back ("address", MakeNumber (stop.watch->address));
+        watch.emplace_back ("value",   MakeNumber (stop.watch->value));
+
+        if (stop.watch->previous.has_value())
+        {
+            watch.emplace_back ("previous", MakeNumber (*stop.watch->previous));
+        }
+
+        watch.emplace_back ("access",   MakeString (GetAccessName (stop.watch->access)));
+        watch.emplace_back ("accessPc", MakeNumber (stop.watch->accessPc));
+        watch.emplace_back ("mode",     MakeString (GetWatchModeName (stop.watch->mode)));
+        members.emplace_back ("watch", JsonValue (std::move (watch)));
     }
 
     members.emplace_back ("cycles",    MakeNumber ((int64_t) stop.cycles));
@@ -297,6 +309,21 @@ const char * ReplyJson::GetSymbolTableName (SymbolTableId table)
 const char * ReplyJson::GetModeName (CommandMode mode)
 {
     return mode == CommandMode::Monitor ? "monitor" : "applewin";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::GetWatchModeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ReplyJson::GetWatchModeName (WatchMode mode)
+{
+    return mode == WatchMode::Before ? "before" : "after";
 }
 
 
@@ -591,6 +618,7 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
     if (breakpoint.kind == BreakpointKind::Memory)
     {
         members.emplace_back ("access", MakeString (GetAccessName (breakpoint.access)));
+        members.emplace_back ("mode",   MakeString (GetWatchModeName (breakpoint.mode)));
     }
 
     members.emplace_back ("enabled", JsonValue (breakpoint.enabled));

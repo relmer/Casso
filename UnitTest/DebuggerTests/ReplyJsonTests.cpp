@@ -214,7 +214,7 @@ namespace DebuggerTests
 
             stop.reason = StopReason::Watchpoint;
             stop.pc     = 0x0803;
-            stop.watch  = WatchHit { 1, 0x0400, 0x41, WatchAccess::Write, 0x0800 };
+            stop.watch  = WatchHit { 1, 0x0400, 0x41, (Byte) 0xA0, WatchAccess::Write, 0x0800, WatchMode::After };
             root        = ParseRecord (ReplyJson::WriteStopped (stop, 9));
 
             Assert::AreEqual (S_OK, root.GetString ("reason", reason));
@@ -223,6 +223,14 @@ namespace DebuggerTests
             Assert::AreEqual (0x0803, pc);
             Assert::AreEqual (S_OK, GetObjectMember (root, "watch").GetString ("access", access));
             Assert::AreEqual (std::string ("write"), access);
+            Assert::AreEqual (S_OK, GetObjectMember (root, "watch").GetInt ("previous", pc));
+            Assert::AreEqual (0xA0, pc);
+            Assert::AreEqual (S_OK, GetObjectMember (root, "watch").GetString ("mode", access));
+            Assert::AreEqual (std::string ("after"), access);
+
+            stop.watch->previous.reset();
+            root = ParseRecord (ReplyJson::WriteStopped (stop, 9));
+            Assert::IsFalse (GetObjectMember (root, "watch").HasInt ("previous", pc));
 
             ParseRecord (ReplyJson::WriteResumed());
             ParseRecord (ReplyJson::WriteReset (true));

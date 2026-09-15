@@ -21,6 +21,9 @@ class AppleWinFormatter
 public:
     static void         Format          (Reply & reply);
 
+    // The line batch mode and the window print for a stop.
+    static std::string  FormatStop      (const StopEvent & stop);
+
     static std::string  FormatFlags     (Byte p);
     static std::string  FormatAddress   (const BreakpointInfo & breakpoint);
 

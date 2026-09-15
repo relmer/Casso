@@ -33,6 +33,67 @@ void AppleWinFormatter::Format (Reply & reply)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinFormatter::FormatStop
+//
+//  A watchpoint stop says who touched what: the access, the value, the byte
+//  a write replaced when it is known, and the instruction that did it. A
+//  before-mode stop has no value yet. Other stops give the reason and PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
+{
+    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Run to", "Budget", "Pause", "BRK", "Invalid opcode", "Reset" };
+    std::string                   text;
+
+
+
+    if (stop.reason == StopReason::Watchpoint && stop.watch.has_value())
+    {
+        const WatchHit & hit = *stop.watch;
+
+
+
+        if (hit.mode == WatchMode::Before)
+        {
+            text = std::format ("Watchpoint #{}: {} of ${:04X} by ${:04X}, before the access",
+                                hit.id, hit.access == WatchAccess::Read ? "read" : "write", hit.address, hit.accessPc);
+        }
+        else
+        {
+            text = std::format ("Watchpoint #{}: {} ${:02X} {} ${:04X} by ${:04X}",
+                                hit.id,
+                                hit.access == WatchAccess::Read ? "Read" : "Write",
+                                hit.value,
+                                hit.access == WatchAccess::Read ? "from" : "to",
+                                hit.address,
+                                hit.accessPc);
+
+            if (hit.previous.has_value())
+            {
+                text += std::format (" (was ${:02X})", *hit.previous);
+            }
+        }
+
+        return text;
+    }
+
+    text = std::format ("{} at ${:04X}", kReasons[(int) stop.reason], stop.pc);
+
+    if (stop.breakpointId.has_value())
+    {
+        text = std::format ("Breakpoint #{} at ${:04X}", *stop.breakpointId, stop.pc);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinFormatter::FormatFlags
 //
 //  NVRBDIZC, most significant first, with a letter for a set flag and a
@@ -458,7 +519,8 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     {
     case BreakpointKind::Opcode:    return std::format ("on opcode ${:02X}", breakpoint.opcode);
     case BreakpointKind::Register:  return "when " + breakpoint.condition;
-    case BreakpointKind::Memory:    return std::format ("on {} of {}", kAccess[(int) breakpoint.access], FormatAddress (breakpoint));
+    case BreakpointKind::Memory:    return std::format ("on {} of {}{}", kAccess[(int) breakpoint.access], FormatAddress (breakpoint),
+                                                        breakpoint.mode == WatchMode::Before ? ", before the access" : "");
     case BreakpointKind::Io:        return "on I/O at " + FormatAddress (breakpoint);
     case BreakpointKind::Brk:       return "on BRK";
     case BreakpointKind::Interrupt: return "on interrupt";

@@ -157,7 +157,7 @@ Byte MemoryBus::ReadWatchedPage (Word address)
 
     if (m_watchSink != nullptr)
     {
-        m_watchSink->OnWatchedAccess (address, value, BusAccess::Read);
+        m_watchSink->OnWatchedAccess (address, value, BusAccess::Read, std::nullopt);
     }
 
     return value;
@@ -278,19 +278,23 @@ void MemoryBus::StoreToPage (Byte * page, Word address, Byte value)
 //
 //  A write to a watched page: stored through the shadow page when the MMU
 //  mapped one, with the same video-dirty rule as the fast path, otherwise
-//  dispatched to the device once; then reported to the watch sink.
+//  dispatched to the device once; then reported to the watch sink. The byte a
+//  memory write replaces is read before the store and reported with it; a
+//  device write reports none, since reading a device back has side effects.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryBus::WriteWatchedPage (Word address, Byte value)
 {
-    Byte *          page   = m_shadowWritePage[address >> 8];
-    MemoryDevice *  device = nullptr;
+    Byte *               page     = m_shadowWritePage[address >> 8];
+    MemoryDevice *       device   = nullptr;
+    std::optional<Byte>  previous;
 
 
 
     if (page != nullptr)
     {
+        previous = page[address & 0xFF];
         StoreToPage (page, address, value);
     }
     else
@@ -307,7 +311,7 @@ void MemoryBus::WriteWatchedPage (Word address, Byte value)
 
     if (m_watchSink != nullptr)
     {
-        m_watchSink->OnWatchedAccess (address, value, BusAccess::Write);
+        m_watchSink->OnWatchedAccess (address, value, BusAccess::Write, previous);
     }
 }
 
