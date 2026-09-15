@@ -262,6 +262,163 @@ public:
         SeedRealDisk (io);
     }
 
+    //  A ProDOS image with room to make directories on.
+    void SeedProDosDisk (FakeDiskFileIo & io)
+    {
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk");
+    }
+
+
+    TEST_METHOD (Mkdir_MakesEveryDirectoryAlongThePath_AndARepeatIsRefused)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedProDosDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO/DEEP";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, L"both directories are made");
+
+        //  The image the runner wrote is what the next command reads.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.path = "CASSO";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue   (result.output.find ("DEEP") != std::string::npos,
+            L"and the deeper one is inside the first");
+
+        //  Asking again for something that is there in full is an error.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO/DEEP";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("is already on this volume") != std::string::npos);
+    }
+
+
+    TEST_METHOD (Mkdir_OnADos33Disk_SaysTheFilesystemHasNoDirectories)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedRealDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("DOS 3.3, which has none") != std::string::npos);
+    }
+
+
+    TEST_METHOD (Rmdir_ADirectoryHoldingThings_NeedsRecurse_ThenListsAndAsks)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+        std::string         asked;
+
+        SeedProDosDisk (io);
+
+        //  A directory with something in it.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO/DEEP";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        //  Without --recurse it is turned down, and the flag is named.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Rmdir);
+        options.disk.path = "CASSO";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("--recurse") != std::string::npos);
+
+        //  With nobody to ask, it is turned down as well, and the list is shown.
+        options.disk.recurse = true;
+        result               = runner.Run (options);
+
+        Assert::IsTrue (result.output.find ("CASSO/DEEP")   != std::string::npos, L"the list names what would go");
+        Assert::IsTrue (result.output.find ("entries, ")    != std::string::npos, L"and totals it");
+        Assert::IsTrue (result.diagnostics.find ("--yes")   != std::string::npos);
+
+        //  An asker that says no leaves the directory where it is.
+        runner.SetConfirmAsker ([&asked] (const std::string & question) { asked = question; return false; });
+
+        result = runner.Run (options);
+
+        Assert::IsTrue (asked.find ("CASSO") != std::string::npos, L"the question names the directory");
+        Assert::IsTrue (result.diagnostics.find ("was not removed") != std::string::npos);
+
+        //  One that says yes removes the subtree.
+        runner.SetConfirmAsker ([] (const std::string &) { return true; });
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.path = "CASSO";
+        result            = runner.Run (options);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus,
+            L"the directory is gone, so listing it fails");
+    }
+
+
+    TEST_METHOD (Rmdir_WithYes_NeedsNobodyToAsk)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedProDosDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO/DEEP";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::Rmdir);
+        options.disk.path    = "CASSO";
+        options.disk.recurse = true;
+        options.disk.yes     = true;
+        result               = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+    }
+
+
+    TEST_METHOD (List_WithRecurse_WritesAFullPathPerRow)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedProDosDisk (io);
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.recurse = true;
+        result               = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue   (result.output.find ('/') != std::string::npos,
+            L"a row below the volume directory carries the path that reaches it");
+    }
+
+
     TEST_METHOD (List_SaysNotBootable_OnlyWhenTheBootTracksAreEmpty)
     {
         FakeDiskFileIo     io;
