@@ -208,6 +208,7 @@
     <ClCompile Include="DiagnosticFormatter.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
     <ClCompile Include="Debugger\Disassembler.cpp" />
+    <ClCompile Include="Debugger\LineAssembler.cpp" />
     <ClCompile Include="Directive.cpp" />
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="Pch.cpp">
@@ -264,6 +265,7 @@
     <ClInclude Include="DiagnosticFormatter.h" />
     <ClInclude Include="InstructionSetProvider.h" />
     <ClInclude Include="Debugger\Disassembler.h" />
+    <ClInclude Include="Debugger\LineAssembler.h" />
     <ClInclude Include="Directive.h" />
     <ClInclude Include="Parser.h" />
     <ClInclude Include="Pch.h" />
