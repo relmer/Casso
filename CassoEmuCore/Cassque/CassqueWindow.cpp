@@ -1808,6 +1808,12 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
             {
                 m_list->ClickRow (row, false, false);
             }
+            else if (row < 0)
+            {
+                //  The empty space's menu is the folder's, so nothing stays
+                //  selected for it to act on.
+                m_list->ClearSelection();
+            }
 
             ShowListContextMenu (point.x, point.y);
             return true;

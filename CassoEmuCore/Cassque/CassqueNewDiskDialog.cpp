@@ -260,45 +260,127 @@ void CassqueNewDiskPanel::Init (const Children & children, bool showNameRows)
 
 void CassqueNewDiskPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  row    = scaler.ToPx (kRowHeightDip);
-    int  gap    = scaler.ToPx (kRowGapDip);
-    int  label  = scaler.ToPx (kLabelWidthDip);
-    int  err    = scaler.ToPx (kErrorLineDip);
-    int  indent = scaler.ToPx (kErrorMarkDip + kErrorGapDip);
-    int  y      = boundsDip.top;
-    int  fieldX = boundsDip.left + label;
+    int  used = 0;
 
 
 
     SetBounds (boundsDip);
     m_scaler = scaler;
 
-    //  A field that can be wrong keeps a line under it for its error, empty or
-    //  not, so the form does not jump as errors come and go.
+    used = ArrangeRows (boundsDip, scaler, true);
+    IGNORE_RETURN_VALUE (used, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueNewDiskPanel::ArrangeRows
+//
+//  An error sits under its field and pushes the rows below down by its own
+//  height; with no error it takes no room, so a cleared error gives the space
+//  back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassqueNewDiskPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const
+{
+    int  row    = scaler.ToPx (kRowHeightDip);
+    int  gap    = scaler.ToPx (kRowGapDip);
+    int  label  = scaler.ToPx (kLabelWidthDip);
+    int  y      = bounds.top;
+    int  fieldX = bounds.left + label;
+    int  fieldW = (std::max) ((int) bounds.right - fieldX, 1);
+    int  err    = 0;
+
+
+
     if (m_showNameRows)
     {
-        m_kids.nameLabel->Layout      (RECT { boundsDip.left, y, fieldX, y + row }, scaler);
-        m_kids.name->Layout           (RECT { fieldX, y, boundsDip.right, y + row }, scaler);
-        m_nameErrorLine = RECT { fieldX, y + row, boundsDip.right, y + row + err };
-        m_kids.nameError->Layout      (RECT { fieldX + indent, y + row, boundsDip.right, y + row + err }, scaler);
-        y += row + err + gap;
+        if (place)
+        {
+            m_kids.nameLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
+            m_kids.name->Layout      (RECT { fieldX, y, bounds.right, y + row }, scaler);
+        }
 
-        m_kids.containerLabel->Layout (RECT { boundsDip.left, y, fieldX, y + row }, scaler);
-        m_kids.container->Layout      (RECT { fieldX, y, boundsDip.right, y + row }, scaler);
+        y  += row;
+        err = GetErrorHeightPx (*m_kids.nameError, fieldW, scaler);
+
+        if (place)
+        {
+            m_kids.nameError->Layout (RECT { fieldX, y, bounds.right, y + err }, scaler);
+        }
+
+        y += err + gap;
+
+        if (place)
+        {
+            m_kids.containerLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
+            m_kids.container->Layout      (RECT { fieldX, y, bounds.right, y + row }, scaler);
+        }
+
         y += row + gap;
     }
 
-    m_kids.formatLabel->Layout (RECT { boundsDip.left, y, fieldX, y + row }, scaler);
-    m_kids.format->Layout      (RECT { fieldX, y, boundsDip.right, y + row }, scaler);
+    if (place)
+    {
+        m_kids.formatLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
+        m_kids.format->Layout      (RECT { fieldX, y, bounds.right, y + row }, scaler);
+    }
+
     y += row + gap;
 
-    m_kids.volumeLabel->Layout (RECT { boundsDip.left, y, fieldX, y + row }, scaler);
-    m_kids.volume->Layout      (RECT { fieldX, y, boundsDip.right, y + row }, scaler);
-    m_volumeErrorLine = RECT { fieldX, y + row, boundsDip.right, y + row + err };
-    m_kids.volumeError->Layout (RECT { fieldX + indent, y + row, boundsDip.right, y + row + err }, scaler);
-    y += row + err + gap;
+    if (place)
+    {
+        m_kids.volumeLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
+        m_kids.volume->Layout      (RECT { fieldX, y, bounds.right, y + row }, scaler);
+    }
 
-    m_kids.bootable->Layout (RECT { fieldX, y, boundsDip.right, y + row }, scaler);
+    y  += row;
+    err = GetErrorHeightPx (*m_kids.volumeError, fieldW, scaler);
+
+    if (place)
+    {
+        m_kids.volumeError->Layout (RECT { fieldX, y, bounds.right, y + err }, scaler);
+    }
+
+    y += err + gap;
+
+    if (place)
+    {
+        m_kids.bootable->Layout (RECT { fieldX, y, bounds.right, y + row }, scaler);
+    }
+
+    y += row;
+
+    return y - bounds.top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueNewDiskPanel::GetErrorHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassqueNewDiskPanel::GetErrorHeightPx (const DxuiFieldError & error, int widthPx, const DxuiDpiScaler & scaler) const
+{
+    if (!error.HasError())
+    {
+        return 0;
+    }
+
+    if (m_text == nullptr || m_theme == nullptr)
+    {
+        return scaler.ToPx (kFallbackErrorDip);
+    }
+
+    return error.GetHeightPx (*m_text, *m_theme, scaler, widthPx);
 }
 
 
@@ -400,60 +482,6 @@ void CassqueNewDiskPanel::UpdateTooltip (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassqueNewDiskPanel::Paint
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassqueNewDiskPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    DxuiPanel::Paint (painter, text, theme);
-
-    if (m_showNameRows && m_nameBad)
-    {
-        PaintErrorMark (painter, m_nameErrorLine, theme);
-    }
-
-    if (m_volumeBad)
-    {
-        PaintErrorMark (painter, m_volumeErrorLine, theme);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassqueNewDiskPanel::PaintErrorMark
-//
-//  A red disc with a white cross at the start of the error line, as Windows
-//  marks a field in error. Drawn rather than taken from a font, so it needs
-//  none installed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassqueNewDiskPanel::PaintErrorMark (IDxuiPainter & painter, const RECT & line, const IDxuiTheme & theme) const
-{
-    float  radius = m_scaler.ToPxf ((float) kErrorMarkDip) * 0.5f;
-    float  cx     = (float) line.left + radius;
-    float  cy     = (float) (line.top + line.bottom) * 0.5f;
-    float  arm    = radius * 0.4f;
-    float  thick  = (std::max) (1.0f, m_scaler.ToPxf (1.5f));
-
-
-
-    painter.FillCircleApprox (cx, cy, radius, theme.ErrorForeground());
-    painter.DrawLineApprox   (cx - arm, cy - arm, cx + arm, cy + arm, thick, 0xFFFFFFFFu);
-    painter.DrawLineApprox   (cx - arm, cy + arm, cx + arm, cy - arm, thick, 0xFFFFFFFFu);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassqueNewDiskDialog::OnCreate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -467,12 +495,6 @@ void CassqueNewDiskDialog::OnCreate()
     for (DxuiLabel * label : { &m_nameLabel, &m_containerLabel, &m_formatLabel, &m_volumeLabel })
     {
         label->SetTextRole  (DxuiTextRole::Body);
-        label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    }
-
-    for (DxuiLabel * label : { &m_nameError, &m_volumeError })
-    {
-        label->SetTextRole  (DxuiTextRole::Error);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
@@ -535,6 +557,7 @@ void CassqueNewDiskDialog::OnCreate()
 
     m_body = CreateDialogContent<CassqueNewDiskPanel>();
     m_body->Init (kids, !m_formatMode);
+    m_body->SetMeasure (GetTextRenderer(), m_theme);
     m_body->SetOnChildPressed ([this] (IDxuiControl * child) { FocusControl (child); });
 
     m_tooltip.SetPopupHost (GetPopupHost());
@@ -572,7 +595,23 @@ void CassqueNewDiskDialog::OnCreate()
         EndDialog (IDOK);
     });
 
-    //  The tooltip opens and closes on a timer the dialog keeps.
+    //  The rules are the core's; the checking, the messages under the fields
+    //  and the held-back button are the library's.
+    m_validator.AddField ([this]()
+    {
+        return m_formatMode ? std::wstring()
+                            : CassqueNewDiskChoices::ValidateFileName (m_name.GetText(), m_container.GetSelectedIndex(), m_exists);
+    }, &m_nameError);
+
+    m_validator.AddField ([this]()
+    {
+        return CassqueNewDiskChoices::ValidateVolume (m_format.GetSelectedIndex(), m_volume.GetText());
+    }, &m_volumeError);
+
+    m_validator.SetConfirmButton (m_ok);
+
+    //  The tooltip opens and closes on a timer the dialog keeps, which also
+    //  fits the window to its rows once they are first laid out.
     SetDialogTickIntervalMs (50);
 
     Revalidate();
@@ -592,11 +631,10 @@ void CassqueNewDiskDialog::OnCreate()
 
 CassqueNewDiskDialog::Outcome CassqueNewDiskDialog::Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists)
 {
-    HRESULT                   hr         = S_OK;
+    HRESULT                   hr     = S_OK;
     CassqueNewDiskDialog      dialog;
     DxuiWindow::CreateParams  params;
-    int                       rows       = formatMode ? 3 : 5;
-    int                       errorLines = formatMode ? 1 : 2;
+    int                       rows   = formatMode ? 3 : 5;
 
 
 
@@ -607,8 +645,7 @@ CassqueNewDiskDialog::Outcome CassqueNewDiskDialog::Ask (HWND owner, const IDxui
     params.title                    = formatMode ? L"Format Disk Image" : L"New Disk Image";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 460, 130 + rows * (CassqueNewDiskPanel::kRowHeightDip + CassqueNewDiskPanel::kRowGapDip)
-                                                 + errorLines * CassqueNewDiskPanel::kErrorLineDip };
+    params.initialSizeDip           = { 460, 130 + rows * (CassqueNewDiskPanel::kRowHeightDip + CassqueNewDiskPanel::kRowGapDip) };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
@@ -639,37 +676,72 @@ CassqueNewDiskDialog::Outcome CassqueNewDiskDialog::Ask (HWND owner, const IDxui
 //  CassqueNewDiskDialog::Revalidate
 //
 //  Run on every change to any field. A format with no volume takes the volume
-//  field out of use rather than checking it.
+//  row out of use, and it looks it, rather than checking what it holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassqueNewDiskDialog::Revalidate()
 {
-    int           format      = m_format.GetSelectedIndex();
-    std::wstring  nameError   = m_formatMode ? std::wstring() : CassqueNewDiskChoices::ValidateFileName (m_name.GetText(), m_container.GetSelectedIndex(), m_exists);
-    std::wstring  volumeError = CassqueNewDiskChoices::ValidateVolume (format, m_volume.GetText());
+    int   format    = m_format.GetSelectedIndex();
+    bool  hasVolume = format != CassqueNewDiskChoices::kFormatNone;
+    bool  valid     = false;
 
 
 
-    m_nameError.SetText   (nameError);
-    m_volumeError.SetText (volumeError);
+    m_volumeLabel.SetEnabled (hasVolume);
+    m_volume.SetEnabled      (hasVolume);
+    m_volume.SetPlaceholder  ((format == CassqueNewDiskChoices::kFormatProDos) ? L"NEWDISK"
+                            : (format == CassqueNewDiskChoices::kFormatDos33)  ? L"254"
+                                                                                : L"");
 
-    m_volume.SetEnabled     (format != CassqueNewDiskChoices::kFormatNone);
-    m_volume.SetPlaceholder ((format == CassqueNewDiskChoices::kFormatProDos) ? L"NEWDISK"
-                           : (format == CassqueNewDiskChoices::kFormatDos33)  ? L"254"
-                                                                               : L"");
+    valid = m_validator.Revalidate();
+    IGNORE_RETURN_VALUE (valid, true);
 
-    if (m_body != nullptr)
-    {
-        m_body->SetErrorMarks (!nameError.empty(), !volumeError.empty());
-    }
-
-    if (m_ok != nullptr)
-    {
-        m_ok->SetEnabled (nameError.empty() && volumeError.empty());
-    }
-
+    FitToContent();
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueNewDiskDialog::FitToContent
+//
+//  The buttons are anchored to the window's bottom, so the window itself grows
+//  or shrinks to keep them just under the rows. Nothing happens before the rows
+//  have been laid out once, since until then there is nothing to measure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueNewDiskDialog::FitToContent()
+{
+    RECT  content = {};
+    RECT  window  = {};
+    int   delta   = 0;
+
+
+
+    if (m_body == nullptr || GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    content = m_body->GetBounds();
+
+    if (content.bottom <= content.top || content.right <= content.left)
+    {
+        return;
+    }
+
+    delta = m_body->GetRequiredHeightPx() - (int) (content.bottom - content.top);
+
+    if (delta != 0 && GetWindowRect (GetHwnd(), &window))
+    {
+        SetWindowPos (GetHwnd(), nullptr, 0, 0, window.right - window.left, window.bottom - window.top + delta,
+                      SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 }
 
 
@@ -685,4 +757,10 @@ void CassqueNewDiskDialog::Revalidate()
 void CassqueNewDiskDialog::OnDialogTick()
 {
     m_tooltip.Tick ((int64_t) GetTickCount64());
+
+    if (!m_fitted && m_body != nullptr && m_body->GetBounds().bottom > m_body->GetBounds().top)
+    {
+        m_fitted = true;
+        FitToContent();
+    }
 }

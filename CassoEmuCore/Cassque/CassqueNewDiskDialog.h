@@ -6,6 +6,7 @@
 #include "Core/DxuiPanel.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiComboBox.h"
+#include "Widgets/DxuiFieldError.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Widgets/DxuiTooltip.h"
@@ -20,9 +21,9 @@
 //
 //  CassqueNewDiskChoices
 //
-//  The choices the new-disk and format dialogs offer, and the runner request
-//  a set of them becomes. Kept apart from the dialog so the mapping is
-//  testable without a window.
+//  The choices the new-disk and format dialogs offer, the runner request a
+//  set of them becomes, and the rules each field's value must meet. Kept apart
+//  from the dialog so the mapping and the rules are testable without a window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,10 +61,9 @@ public:
     //  The file name with the container's extension, added when it has none.
     static std::wstring  ApplyExtension (const std::wstring & name, int containerIndex);
 
-    //  Why a field's value cannot be used, or empty when it can. Checked as the
-    //  user types, so the dialog never closes on a value the runner would
-    //  refuse. The file name is also refused when `exists` reports the name,
-    //  extension added, as taken.
+    //  Why a field's value cannot be used, or empty when it can. The file name
+    //  is also refused when `exists` reports the name, extension added, as
+    //  taken.
     static std::wstring  ValidateFileName  (const std::wstring & name, int containerIndex, const std::function<bool (const std::wstring &)> & exists);
     static std::wstring  ValidateVolume    (int formatIndex, const std::wstring & volume);
 
@@ -87,9 +87,10 @@ public:
 //
 //  CassqueNewDiskPanel
 //
-//  The form's rows, laid out one under another, each a label beside its
-//  field. The name and container rows are hidden when formatting an image
-//  that already exists.
+//  The form's rows, laid out one under another, each a label beside its field.
+//  A field's error takes the room its message needs under that field and
+//  pushes the rows below it down. The name and container rows are hidden when
+//  formatting an image that already exists.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,17 +99,17 @@ class CassqueNewDiskPanel : public DxuiPanel
 public:
     struct Children
     {
-        DxuiLabel      * nameLabel      = nullptr;
-        DxuiTextInput  * name           = nullptr;
-        DxuiLabel      * nameError      = nullptr;
-        DxuiLabel      * containerLabel = nullptr;
-        DxuiComboBox   * container      = nullptr;
-        DxuiLabel      * formatLabel    = nullptr;
-        DxuiComboBox   * format         = nullptr;
-        DxuiLabel      * volumeLabel    = nullptr;
-        DxuiTextInput  * volume         = nullptr;
-        DxuiLabel      * volumeError    = nullptr;
-        DxuiCheckbox   * bootable       = nullptr;
+        DxuiLabel       * nameLabel      = nullptr;
+        DxuiTextInput   * name           = nullptr;
+        DxuiFieldError  * nameError      = nullptr;
+        DxuiLabel       * containerLabel = nullptr;
+        DxuiComboBox    * container      = nullptr;
+        DxuiLabel       * formatLabel    = nullptr;
+        DxuiComboBox    * format         = nullptr;
+        DxuiLabel       * volumeLabel    = nullptr;
+        DxuiTextInput   * volume         = nullptr;
+        DxuiFieldError  * volumeError    = nullptr;
+        DxuiCheckbox    * bootable       = nullptr;
     };
 
     using TipFn = std::function<std::wstring (IDxuiControl * field)>;
@@ -120,33 +121,35 @@ public:
     //  with no text shows none.
     void  SetTooltip (DxuiTooltip * tooltip, TipFn tipFor) { m_tooltip = tooltip; m_tipFor = std::move (tipFor); }
 
-    //  Which fields carry an error, marked beside the message under them.
-    void  SetErrorMarks (bool name, bool volume) { m_nameBad = name; m_volumeBad = volume; }
+    //  What the panel measures its errors with. Without both, an error is taken
+    //  to need a single line.
+    void  SetMeasure (IDxuiTextRenderer * text, const IDxuiTheme * theme) { m_text = text; m_theme = theme; }
+
+    //  The height the rows need at the panel's width, errors included.
+    int   GetRequiredHeightPx () const { return ArrangeRows (m_boundsDip, m_scaler, false); }
 
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kRowHeightDip   = 30;
-    static constexpr int  kRowGapDip      = 8;
-    static constexpr int  kLabelWidthDip  = 110;
-    static constexpr int  kErrorLineDip   = 20;   // the line under a field that holds its error
-    static constexpr int  kErrorMarkDip   = 14;   // the error mark's diameter
-    static constexpr int  kErrorGapDip    = 6;    // between the mark and the message
+    static constexpr int  kRowHeightDip      = 30;
+    static constexpr int  kRowGapDip         = 8;
+    static constexpr int  kLabelWidthDip     = 110;
+    static constexpr int  kFallbackErrorDip  = 20;
 
 private:
-    void  UpdateTooltip  (int x, int y);
-    void  PaintErrorMark (IDxuiPainter & painter, const RECT & line, const IDxuiTheme & theme) const;
+    //  Places the rows down from the top of `bounds`, or only measures them,
+    //  and returns how tall they come to.
+    int   ArrangeRows      (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const;
+    int   GetErrorHeightPx (const DxuiFieldError & error, int widthPx, const DxuiDpiScaler & scaler) const;
+    void  UpdateTooltip    (int x, int y);
 
     Children                               m_kids;
-    bool                                   m_showNameRows    = true;
+    bool                                   m_showNameRows = true;
     std::function<void (IDxuiControl *)>   m_onPressed;
-    DxuiTooltip                          * m_tooltip         = nullptr;
+    DxuiTooltip                          * m_tooltip      = nullptr;
     TipFn                                  m_tipFor;
-    bool                                   m_nameBad         = false;
-    bool                                   m_volumeBad       = false;
-    RECT                                   m_nameErrorLine   = {};
-    RECT                                   m_volumeErrorLine = {};
+    IDxuiTextRenderer                    * m_text         = nullptr;
+    const IDxuiTheme                     * m_theme        = nullptr;
     DxuiDpiScaler                          m_scaler;
 };
 
@@ -158,8 +161,9 @@ private:
 //
 //  CassqueNewDiskDialog
 //
-//  Collects what a new disk image or a format needs. In format mode there is
-//  no file to name, so only the format, volume and bootable rows show.
+//  Collects what a new disk image or a format needs, checking each field as it
+//  changes and confirming only when every field passes. In format mode there
+//  is no file to name, so only the format, volume and bootable rows show.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,26 +189,32 @@ protected:
     void  OnDialogTick () override;
 
 private:
-    //  Checks every field, shows each one's error under it, and enables the
-    //  confirming button only when none has one.
-    void  Revalidate ();
+    //  Checks every field, shows each one's error under it, and fits the window
+    //  to the rows the errors leave.
+    void  Revalidate   ();
+
+    //  Grows or shrinks the window by the difference between the room the rows
+    //  have and the room they need.
+    void  FitToContent ();
 
     const IDxuiTheme       * m_theme      = nullptr;
     bool                     m_formatMode = false;
+    bool                     m_fitted     = false;
     ExistsFn                 m_exists;
     DxuiButton             * m_ok         = nullptr;
+    DxuiFieldValidator       m_validator;
     DxuiTooltip              m_tooltip;
     Outcome                  m_outcome;
     DxuiLabel                m_nameLabel;
     DxuiTextInput            m_name;
-    DxuiLabel                m_nameError;
+    DxuiFieldError           m_nameError;
     DxuiLabel                m_containerLabel;
     DxuiComboBox             m_container;
     DxuiLabel                m_formatLabel;
     DxuiComboBox             m_format;
     DxuiLabel                m_volumeLabel;
     DxuiTextInput            m_volume;
-    DxuiLabel                m_volumeError;
+    DxuiFieldError           m_volumeError;
     DxuiCheckbox             m_bootable { L"Bootable (copies the stock system files)" };
     CassqueNewDiskPanel    * m_body       = nullptr;
 };
