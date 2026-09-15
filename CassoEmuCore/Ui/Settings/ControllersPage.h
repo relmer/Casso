@@ -4,6 +4,7 @@
 
 #include "Ui/Settings/ControllerReadoutViews.h"
 #include "Ui/Settings/ControllersPageState.h"
+#include "Ui/Settings/ProfileDialogOverlay.h"
 
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
@@ -29,10 +30,12 @@ class DxuiHwndSource;
 //  OK and reverts it on Cancel.
 //
 //      * Controller         (DxuiComboBox: every attached controller)
+//      * Profile            (DxuiComboBox: the model's profiles, with New,
+//                            Rename and Delete)
 //      * Joystick           (a circle with a dot where the stick is, PDL0 and
 //                            PDL1 labeled, beside a row per mapping for each)
 //      * Buttons            (PB0 .. PB2: a light, and a row per mapping)
-//      * Deadzone, Calibration, Restore defaults
+//      * Deadzone, Calibration, Reset profile
 //
 //  ONE DROP-DOWN PER MAPPING. It shows the control assigned, and lists "Press
 //  to assign...", "None" and the controller's controls. A target takes more
@@ -83,6 +86,11 @@ public:
     // The page's rows came or went, which changes what Tab reaches.
     void          SetOnLayoutChanged (std::function<void ()> onLayoutChanged);
 
+    // The profile dialog, for the sheet to show over the page and route input
+    // to while it is open.
+    bool                    IsProfileDialogOpen () const { return m_profileDialog.IsOpen(); }
+    ProfileDialogOverlay &  GetProfileDialog    ()       { return m_profileDialog; }
+
 private:
 
     // One control a row's drop-down offers, after "Press to assign..." and
@@ -102,6 +110,8 @@ private:
     static PaddleTarget  TargetAt           (size_t index);
     static std::wstring  DescribeAxis       (ControllerKind kind, const AxisBinding & binding);
     static std::wstring  DescribeButton     (ControllerKind kind, const ButtonBinding & binding);
+    static std::wstring  Utf8ToWide         (const std::string & text);
+    static std::string   WideToUtf8         (const std::wstring & text);
 
     size_t               GetBindingCount    (size_t target) const;
     size_t               GetShownRows       (size_t target) const;
@@ -116,6 +126,13 @@ private:
     void                 SetAxisInverted    (size_t axis, bool inverted);
     void                 SetAxisResponse    (size_t axis, AxisResponse response, float maxSpeed);
     void                 OnCalibrateClick   ();
+    void                 RefreshProfiles    ();
+    void                 OnProfileSelect    (int index);
+    void                 SwitchProfile      (const std::string & name);
+    void                 OnNewProfile       ();
+    void                 OnRenameProfile    ();
+    void                 OnDeleteProfile    ();
+    void                 ShowDialog         ();
     void                 AfterEdit          ();
     void                 Relayout           ();
     ControllerKind       GetSelectedKind    () const;
@@ -135,6 +152,14 @@ private:
 
     DxuiLabel          m_controllerLabel;
     DxuiComboBox       m_controller;
+
+    DxuiLabel                 m_profileLabel;
+    DxuiComboBox              m_profile;
+    DxuiButton                m_newProfile;
+    DxuiButton                m_renameProfile;
+    DxuiButton                m_deleteProfile;
+    std::vector<std::string>  m_profileNames;
+    ProfileDialogOverlay      m_profileDialog;
 
     DxuiLabel          m_joystickHeading;
     StickPositionView  m_stick;

@@ -102,6 +102,7 @@ static constexpr ToolbarRow  s_kToolbarRows[] =
     { IDM_PRINTER_PREVIEW,         DxuiToolbar::Kind::Command,  0, s_kGlyphPrint,      L"Printer",     nullptr          },
     { EmulatorCommands::kIdVolume, DxuiToolbar::Kind::Flyout,   1, s_kGlyphVolume,     L"Volume",      L"Mute"          },
     { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Controller",  L"Joystick and paddle source" },
+    { EmulatorCommands::kIdProfile, DxuiToolbar::Kind::DropDown, 2, nullptr,           L"Default",     L"Controller profile" },
     { EmulatorCommands::kIdMouse,  DxuiToolbar::Kind::Toggle,   2, s_kGlyphMouse,      L"Mouse",       L"Mouse" },
     { IDM_VIEW_FULLSCREEN,         DxuiToolbar::Kind::Command,  3, s_kGlyphFullscreen, L"Full screen", nullptr          },
     { IDM_EDIT_COPY_SCREENSHOT,    DxuiToolbar::Kind::Command,  3, s_kGlyphScreenshot, L"Screenshot",  nullptr          },
@@ -219,6 +220,20 @@ EmulatorCommands::EmulatorCommands()
             // A labeled slot shows only an explicit tip, so the word for what
             // the picker is for moves there once the face wears the answer.
             paddle->tip = paddle->label;
+        }
+    }
+
+    // The profile picker wears the active profile's name the same way, and
+    // is disabled rather than removed while no controller is selected.
+    {
+        std::shared_ptr<DxuiCommand>  profile = FindMutable (kIdProfile);
+
+        if (profile != nullptr)
+        {
+            profile->shortLabel.clear();
+            profile->labelText = [this] () { return GetActiveProfileLabel(); };
+            profile->isEnabled = [this] () { return m_isProfileOffered; };
+            profile->tip       = profile->label;
         }
     }
 
@@ -716,6 +731,151 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorCommands::SetProfiles
+//
+//  Default always leads, whether or not the list handed in carries it or
+//  where: the service plays Default for any name its model lacks, so it is
+//  always a real choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::SetProfiles (const std::vector<std::string> & names,
+                                    const std::string              & activeProfile,
+                                    bool                             isOffered)
+{
+    const char *  pszDefault = ControllerProfile::kpszDefaultName;
+
+
+
+    m_isProfileOffered = isOffered;
+    m_activeProfile    = activeProfile;
+
+    m_profileNames.clear();
+    m_profileNames.push_back (pszDefault);
+
+    if (isOffered)
+    {
+        for (const std::string & name : names)
+        {
+            if (_stricmp (name.c_str(), pszDefault) != 0)
+            {
+                m_profileNames.push_back (name);
+            }
+        }
+    }
+
+    // A menu on screen shares ownership of its rows, so dropping ours frees
+    // only the rows nothing else still holds.
+    m_profileRows.clear();
+
+    if (!isOffered)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < m_profileNames.size(); i++)
+    {
+        std::shared_ptr<DxuiCommand>  cmd       = std::make_shared<DxuiCommand>();
+        std::string                   name      = m_profileNames[i];
+        bool                          isDefault = (i == 0);
+        bool                          isChecked = false;
+
+        // An empty active name is Default, and so is a name the model does not
+        // have, which is what the service plays in that case.
+        isChecked = (_stricmp (name.c_str(), GetActiveProfileName().c_str()) == 0);
+
+        cmd->id        = (int) i;
+        cmd->label     = TextEncoding::NarrowToWide (name);
+        cmd->isChecked = [isChecked] () { return isChecked; };
+
+        // The row carries its own name by value rather than an index, so a
+        // row from a list rebuilt since still picks the profile it shows.
+        cmd->dispatch  = [this, name, isDefault] ()
+        {
+            if (m_onProfilePicked)
+            {
+                m_onProfilePicked (isDefault ? std::string() : name);
+            }
+        };
+
+        m_profileRows.push_back (std::move (cmd));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetActiveProfileName
+//
+//  The listed name the active profile resolves to, in the list's own case:
+//  Default when the active name is empty or the model has no such profile.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string EmulatorCommands::GetActiveProfileName() const
+{
+    if (m_isProfileOffered && !m_activeProfile.empty())
+    {
+        for (const std::string & name : m_profileNames)
+        {
+            if (_stricmp (name.c_str(), m_activeProfile.c_str()) == 0)
+            {
+                return name;
+            }
+        }
+    }
+
+    return ControllerProfile::kpszDefaultName;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetActiveProfileLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetActiveProfileLabel() const
+{
+    return TextEncoding::NarrowToWide (GetActiveProfileName());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetProfileItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> EmulatorCommands::GetProfileItems() const
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_profileRows)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorCommands::SetMouseModeFns
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -933,4 +1093,5 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
     toolbar.SetDropDownItems (kIdTheme, GetThemeItems());
     toolbar.SetDropDownItems (kIdColor, GetMonitorItems());
     toolbar.SetDropDownItems (kIdPaddle, GetPaddlePickerItems());
+    toolbar.SetDropDownItems (kIdProfile, GetProfileItems());
 }

@@ -435,10 +435,14 @@ HRESULT SettingsSheet::OpenModeless (
 
         if (service != nullptr)
         {
-            m_controllersState.Load (service->GetSnapshot().devices,
+            ControllerInputService::Snapshot  snapshot = service->GetSnapshot();
+
+            // The page opens on the machine's active profile.
+            m_controllersState.Load (snapshot.devices,
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
-                                     !m_emuShell->MachineHasCaseSwitches());
+                                     !m_emuShell->MachineHasCaseSwitches(),
+                                     snapshot.activeProfile);
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
                                                              m_emuShell->GetMachine().GetConfig().name.end()));
 
@@ -454,6 +458,7 @@ HRESULT SettingsSheet::OpenModeless (
         }
 
         m_controllersPage->SetState (&m_controllersState);
+        m_controllersPage->GetProfileDialog().SetHwnd (GetHwnd());
 
         // Rows added or removed on the page change what Tab reaches.
         m_controllersPage->SetOnLayoutChanged ([this] ()
@@ -925,6 +930,11 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     DxuiPropertySheet::Layout (boundsPx, scaler);
     m_colorPicker.Layout (boundsPx, scaler);
 
+    if (m_controllersPage != nullptr)
+    {
+        m_controllersPage->GetProfileDialog().Layout (boundsPx, scaler);
+    }
+
     // Restart notice fills the bottom bar from the left edge to just short of
     // the OK / Cancel group (reserve the widest OK, "OK (reboot)").
     if (m_restartNotice != nullptr)
@@ -1030,7 +1040,22 @@ void SettingsSheet::UpdateDiskTabVisibility()
 
 bool SettingsSheet::HasModalOverlay() const
 {
-    return m_colorPicker.IsOpen() || (m_controllersPage != nullptr && m_controllersPage->IsCapturing());
+    return m_colorPicker.IsOpen() || IsProfileDialogOpen() || (m_controllersPage != nullptr && m_controllersPage->IsCapturing());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsProfileDialogOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::IsProfileDialogOpen() const
+{
+    return m_controllersPage != nullptr && m_controllersPage->IsProfileDialogOpen();
 }
 
 
@@ -1048,6 +1073,10 @@ void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer
     if (m_colorPicker.IsOpen())
     {
         m_colorPicker.Paint (painter, text, theme);
+    }
+    else if (IsProfileDialogOpen())
+    {
+        m_controllersPage->GetProfileDialog().Paint (painter, text, theme);
     }
     else if (m_controllersPage != nullptr && m_controllersPage->IsCapturing())
     {
@@ -1130,8 +1159,26 @@ bool SettingsSheet::OnOverlayMouse (const DxuiMouseEvent & ev)
     // controls behind it.
     bool  isOpen      = m_colorPicker.IsOpen();
     bool  isCapturing = m_controllersPage != nullptr && m_controllersPage->IsCapturing();
+    bool  isDialog    = !isOpen && IsProfileDialogOpen();
 
 
+
+    // A profile dialog is modal over the sheet in the same way.
+    if (isDialog)
+    {
+        ProfileDialogOverlay &  dialog = m_controllersPage->GetProfileDialog();
+
+        switch (ev.kind)
+        {
+        case DxuiMouseEventKind::Down:  dialog.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Up:    dialog.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Move:  dialog.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
+        default:                        break;
+        }
+
+        Invalidate();
+        return true;
+    }
 
     // While the Controllers page waits for a control, the prompt is modal
     // too: a click anywhere calls the wait off, and nothing reaches the page.
@@ -1179,6 +1226,13 @@ bool SettingsSheet::OnOverlayChar (wchar_t ch)
 
 
 
+    if (!m_colorPicker.IsOpen() && IsProfileDialogOpen())
+    {
+        m_controllersPage->GetProfileDialog().OnChar (ch);
+        Invalidate();
+        return true;
+    }
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
@@ -1202,6 +1256,14 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
     bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnKey (vk);
 
 
+
+    // A profile dialog takes every key.
+    if (!m_colorPicker.IsOpen() && IsProfileDialogOpen())
+    {
+        m_controllersPage->GetProfileDialog().OnKey (vk);
+        Invalidate();
+        return true;
+    }
 
     // The capture prompt takes every key; Escape calls the wait off.
     if (!m_colorPicker.IsOpen() && m_controllersPage != nullptr && m_controllersPage->IsCapturing())

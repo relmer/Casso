@@ -9,12 +9,6 @@
 
 
 
-static constexpr const char *  s_kpszDefaultProfileName = "Default";
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Load
@@ -25,7 +19,8 @@ void ControllersPageState::Load (
     const std::vector<ControllerDeviceInfo>              & devices,
     const std::map<std::string, ControllerModelSettings> & models,
     const std::map<std::string, ControllerCalibration>   & calibrations,
-    bool                                                   hasPb2)
+    bool                                                   hasPb2,
+    const std::string                                    & activeProfile)
 {
     m_controllers.clear();
     m_selected.reset();
@@ -35,6 +30,8 @@ void ControllersPageState::Load (
     m_calibrations         = calibrations;
     m_baselineModels       = models;
     m_baselineCalibrations = calibrations;
+    m_editedProfile        = activeProfile;
+    m_baselineProfile      = activeProfile;
 
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
@@ -45,6 +42,8 @@ void ControllersPageState::Load (
     {
         m_selected = 0;
     }
+
+    CaptureSwitchMapping();
 }
 
 
@@ -136,6 +135,7 @@ void ControllersPageState::SelectController (size_t index)
     m_capture.Cancel();
     m_calibrationStep = CalibrationStep::None;
     m_liveEvaluator.ResetRate();
+    CaptureSwitchMapping();
 }
 
 
@@ -168,16 +168,15 @@ bool ControllersPageState::IsCalibratable() const
 //
 //  GetMapping
 //
-//  The selected model's Default mapping as edited, or the built-in default
-//  for a model nothing has been saved or edited for.
+//  The edited profile's mapping as edited, or the built-in default for a
+//  model nothing has been saved or edited for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const ControlMapping & ControllersPageState::GetMapping() const
 {
-    const ControllerModelSettings *  settings = FindSelectedModel();
-    const ControllerProfile *        profile  = settings != nullptr ? settings->FindDefaultProfile() : nullptr;
-    const ControllerEntry *          selected = GetSelected();
+    const ControllerProfile *  profile  = FindEditedProfile();
+    const ControllerEntry *    selected = GetSelected();
 
 
 
@@ -284,7 +283,7 @@ bool ControllersPageState::AddAxisBinding (PaddleTarget target, const AxisBindin
         return false;
     }
 
-    profile = EnsureDefaultProfile();
+    profile = EnsureEditedProfile();
 
     if (profile == nullptr)
     {
@@ -319,7 +318,7 @@ bool ControllersPageState::AddButtonBinding (PaddleTarget target, const ButtonBi
         return false;
     }
 
-    profile = EnsureDefaultProfile();
+    profile = EnsureEditedProfile();
 
     if (profile == nullptr)
     {
@@ -343,7 +342,7 @@ bool ControllersPageState::AddButtonBinding (PaddleTarget target, const ButtonBi
 
 bool ControllersPageState::ReplaceAxisBinding (PaddleTarget target, size_t index, const AxisBinding & binding)
 {
-    ControllerProfile *         profile = IsAxisTarget (target) ? EnsureDefaultProfile() : nullptr;
+    ControllerProfile *         profile = IsAxisTarget (target) ? EnsureEditedProfile() : nullptr;
     std::vector<AxisBinding> *  list    = profile != nullptr ? FindAxisList (profile->mapping, target) : nullptr;
 
 
@@ -372,7 +371,7 @@ bool ControllersPageState::ReplaceAxisBinding (PaddleTarget target, size_t index
 
 bool ControllersPageState::ReplaceButtonBinding (PaddleTarget target, size_t index, const ButtonBinding & binding)
 {
-    ControllerProfile *           profile = (IsAxisTarget (target) || !IsTargetAvailable (target)) ? nullptr : EnsureDefaultProfile();
+    ControllerProfile *           profile = (IsAxisTarget (target) || !IsTargetAvailable (target)) ? nullptr : EnsureEditedProfile();
     std::vector<ButtonBinding> *  list    = profile != nullptr ? FindButtonList (profile->mapping, target) : nullptr;
 
 
@@ -399,7 +398,7 @@ bool ControllersPageState::ReplaceButtonBinding (PaddleTarget target, size_t ind
 
 bool ControllersPageState::RemoveBinding (PaddleTarget target, size_t index)
 {
-    ControllerProfile *  profile = EnsureDefaultProfile();
+    ControllerProfile *  profile = EnsureEditedProfile();
 
 
 
@@ -444,7 +443,7 @@ bool ControllersPageState::RemoveBinding (PaddleTarget target, size_t index)
 
 bool ControllersPageState::SetInverted (PaddleTarget target, size_t index, bool inverted)
 {
-    ControllerProfile *         profile = IsAxisTarget (target) ? EnsureDefaultProfile() : nullptr;
+    ControllerProfile *         profile = IsAxisTarget (target) ? EnsureEditedProfile() : nullptr;
     std::vector<AxisBinding> *  list    = profile != nullptr ? FindAxisList (profile->mapping, target) : nullptr;
 
 
@@ -470,7 +469,7 @@ bool ControllersPageState::SetInverted (PaddleTarget target, size_t index, bool 
 
 bool ControllersPageState::SetResponse (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed)
 {
-    ControllerProfile *         profile = IsAxisTarget (target) ? EnsureDefaultProfile() : nullptr;
+    ControllerProfile *         profile = IsAxisTarget (target) ? EnsureEditedProfile() : nullptr;
     std::vector<AxisBinding> *  list    = profile != nullptr ? FindAxisList (profile->mapping, target) : nullptr;
 
 
@@ -499,7 +498,7 @@ bool ControllersPageState::SetResponse (PaddleTarget target, size_t index, AxisR
 
 bool ControllersPageState::SetThreshold (PaddleTarget target, size_t index, float threshold)
 {
-    ControllerProfile *           profile = IsAxisTarget (target) ? nullptr : EnsureDefaultProfile();
+    ControllerProfile *           profile = IsAxisTarget (target) ? nullptr : EnsureEditedProfile();
     std::vector<ButtonBinding> *  list    = profile != nullptr ? FindButtonList (profile->mapping, target) : nullptr;
 
 
@@ -519,29 +518,436 @@ bool ControllersPageState::SetThreshold (PaddleTarget target, size_t index, floa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ResetToDefaults
+//  GetProfileNames
 //
-//  The selected model's Default profile back to the built-in mapping and its
-//  deadzone back to the published default (FR-024).
+//  A model with nothing saved still lists its Default, which is what it
+//  plays with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllersPageState::ResetToDefaults()
+std::vector<std::string> ControllersPageState::GetProfileNames() const
 {
-    const ControllerEntry *    selected = GetSelected();
-    ControllerModelSettings *  settings = EnsureSelectedModel();
-    ControllerProfile *        profile  = EnsureDefaultProfile();
+    const ControllerModelSettings *  settings    = FindSelectedModel();
+    const ControllerProfile *        defaultProf = settings != nullptr ? settings->FindDefaultProfile() : nullptr;
+    std::vector<std::string>         names;
 
 
 
-    if (selected == nullptr || settings == nullptr || profile == nullptr)
+    names.push_back (defaultProf != nullptr ? defaultProf->name : std::string (ControllerProfile::kpszDefaultName));
+
+    if (settings == nullptr)
+    {
+        return names;
+    }
+
+    for (const ControllerProfile & profile : settings->profiles)
+    {
+        if (&profile != defaultProf)
+        {
+            names.push_back (profile.name);
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetEditedProfileName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ControllersPageState::GetEditedProfileName() const
+{
+    const ControllerProfile *  profile = FindEditedProfile();
+
+
+
+    return profile != nullptr ? profile->name : std::string (ControllerProfile::kpszDefaultName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsEditingDefaultProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsEditingDefaultProfile() const
+{
+    const ControllerProfile *  profile = FindEditedProfile();
+
+
+
+    return profile == nullptr || profile->isDefault;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectProfile
+//
+//  A name the model has no profile for selects the Default. A capture in
+//  progress belongs to the profile it was started on, so it is called off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SelectProfile (const std::string & name)
+{
+    const ControllerModelSettings *  settings = FindSelectedModel();
+    const ControllerProfile *        profile  = settings != nullptr ? settings->FindProfile (name) : nullptr;
+
+
+
+    m_editedProfile = (profile == nullptr || profile->isDefault) ? std::string() : profile->name;
+
+    m_capture.Cancel();
+    m_liveEvaluator.ResetRate();
+    CaptureSwitchMapping();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CheckProfileName
+//
+//  Checked against the model's profiles as edited, with the Default counted
+//  even before the model has one saved. A rename is not a duplicate of the
+//  profile being renamed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllersPageState::CheckProfileName (const std::string & name, bool isRename) const
+{
+    const ControllerModelSettings *  settings  = FindSelectedModel();
+    ControllerModelSettings          check     = settings != nullptr ? *settings : ControllerModelSettings();
+    const ControllerProfile *        excluding = nullptr;
+
+
+
+    check.EnsureDefaultProfile (ControlMapping());
+
+    if (isRename)
+    {
+        excluding = check.FindProfile (GetEditedProfileName());
+    }
+
+    return check.CheckProfileName (name, excluding);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateProfile
+//
+//  The new profile becomes the edited one. Edits on the profile it was
+//  created from stay pending there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllersPageState::CreateProfile (const std::string & name, ProfileSource source, const std::string & sourceName)
+{
+    const ControllerEntry *          selected = GetSelected();
+    const ControllerModelSettings *  settings = FindSelectedModel();
+    const ControllerProfile *        copied   = nullptr;
+    ProfileEditResult                result   = CheckProfileName (name, false);
+    ControlMapping                   mapping;
+    ControllerModelSettings *        target   = nullptr;
+
+
+
+    if (result != ProfileEditResult::Ok)
+    {
+        return result;
+    }
+
+    if (selected == nullptr)
+    {
+        return ProfileEditResult::NotFound;
+    }
+
+    if (source == ProfileSource::Paddles)
+    {
+        mapping = DefaultMapping::MakePaddles (selected->unit.model, selected->controls);
+    }
+    else if (source == ProfileSource::CopyOfProfile)
+    {
+        copied = settings != nullptr ? settings->FindProfile (sourceName) : nullptr;
+
+        if (copied != nullptr)
+        {
+            mapping = copied->mapping;
+        }
+        else if (sourceName == GetEditedProfileName())
+        {
+            mapping = GetMapping();
+        }
+        else
+        {
+            return ProfileEditResult::NotFound;
+        }
+    }
+    else
+    {
+        mapping = DefaultMapping::For (selected->unit.model, selected->controls);
+    }
+
+    EnsureEditedProfile();
+    target = EnsureSelectedModel();
+    result = target->AddProfile (name, mapping);
+
+    if (result == ProfileEditResult::Ok)
+    {
+        SelectProfile (ControllerModelSettings::TrimProfileName (name));
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenameProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllersPageState::RenameProfile (const std::string & newName)
+{
+    ControllerModelSettings *  settings = nullptr;
+    ProfileEditResult          result   = ProfileEditResult::Ok;
+
+
+
+    if (IsEditingDefaultProfile())
+    {
+        return ProfileEditResult::IsDefaultProfile;
+    }
+
+    settings = EnsureSelectedModel();
+    result   = settings->RenameProfile (GetEditedProfileName(), newName);
+
+    if (result == ProfileEditResult::Ok)
+    {
+        m_editedProfile = ControllerModelSettings::TrimProfileName (newName);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeleteProfile
+//
+//  Deleting the edited profile selects the Default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileEditResult ControllersPageState::DeleteProfile()
+{
+    ControllerModelSettings *  settings = nullptr;
+    ProfileEditResult          result   = ProfileEditResult::Ok;
+
+
+
+    if (IsEditingDefaultProfile())
+    {
+        return ProfileEditResult::IsDefaultProfile;
+    }
+
+    settings = EnsureSelectedModel();
+    result   = settings->DeleteProfile (GetEditedProfileName());
+
+    if (result == ProfileEditResult::Ok)
+    {
+        SelectProfile (std::string());
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetProfile
+//
+//  The edited profile back to the built-in mapping (FR-024). Other profiles
+//  and the model's deadzone are left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::ResetProfile()
+{
+    const ControllerEntry *  selected = GetSelected();
+    ControllerProfile *      profile  = EnsureEditedProfile();
+
+
+
+    if (selected == nullptr || profile == nullptr)
     {
         return;
     }
 
-    profile->mapping   = DefaultMapping::For (selected->unit.model, selected->controls);
-    settings->deadzone = DeadzoneShaper::GetDefaultDeadzone (selected->unit.model.kind);
+    profile->mapping = DefaultMapping::For (selected->unit.model, selected->controls);
     m_liveEvaluator.ResetRate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasUnappliedProfileEdits
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::HasUnappliedProfileEdits() const
+{
+    return !(GetMapping() == m_switchMapping);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiscardProfileEdits
+//
+//  A model that gained its settings entry only through the edits being
+//  discarded loses it again, so discarding leaves nothing pending.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::DiscardProfileEdits()
+{
+    const ControllerEntry *    selected = GetSelected();
+    ControllerProfile *        profile  = nullptr;
+    std::string                token;
+
+
+
+    if (selected == nullptr || !HasUnappliedProfileEdits())
+    {
+        return;
+    }
+
+    profile          = EnsureEditedProfile();
+    profile->mapping = m_switchMapping;
+    token            = ControllerTokens::ModelToToken (selected->unit.model);
+
+    if (m_baselineModels.find (token) == m_baselineModels.end())
+    {
+        ControllerModelSettings  fresh;
+
+        fresh.deadzone = DeadzoneShaper::GetDefaultDeadzone (selected->unit.model.kind);
+        fresh.EnsureDefaultProfile (DefaultMapping::For (selected->unit.model, selected->controls));
+
+        if (m_models[token] == fresh)
+        {
+            m_models.erase (token);
+        }
+    }
+
+    m_liveEvaluator.ResetRate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasActiveProfileChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::HasActiveProfileChanged() const
+{
+    return m_editedProfile != m_baselineProfile;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetActiveProfileName
+//
+//  The name as chosen rather than as resolved against the selected model, so
+//  a profile chosen for one controller stays active after the page moves on
+//  to a controller that has no profile of that name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string & ControllersPageState::GetActiveProfileName() const
+{
+    return m_editedProfile;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryDescribeNameError
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::TryDescribeNameError (ProfileEditResult result, std::wstring & outLabel, std::wstring & outRule)
+{
+    constexpr const wchar_t *  kpszLengthRule = L"Profile names are 1-40 characters.";
+
+
+
+    switch (result)
+    {
+        case ProfileEditResult::EmptyName:
+            outLabel = L"Error: profile name is empty";
+            outRule  = kpszLengthRule;
+            return true;
+
+        case ProfileEditResult::NameTooLong:
+            outLabel = L"Error: profile name is too long";
+            outRule  = kpszLengthRule;
+            return true;
+
+        case ProfileEditResult::DuplicateName:
+            outLabel = L"Error: profile name is in use";
+            outRule  = L"Each profile name for a controller must be different, ignoring capitalization.";
+            return true;
+
+        default:
+            return false;
+    }
 }
 
 
@@ -992,7 +1398,7 @@ GamePortContribution ControllersPageState::ComputeLiveReading (const ControllerS
 
 bool ControllersPageState::IsDirty() const
 {
-    return m_models != m_baselineModels || m_calibrations != m_baselineCalibrations;
+    return m_models != m_baselineModels || m_calibrations != m_baselineCalibrations || HasActiveProfileChanged();
 }
 
 
@@ -1009,10 +1415,12 @@ void ControllersPageState::Revert()
 {
     m_models          = m_baselineModels;
     m_calibrations    = m_baselineCalibrations;
+    m_editedProfile   = m_baselineProfile;
     m_calibrationStep = CalibrationStep::None;
 
     m_capture.Cancel();
     m_liveEvaluator.ResetRate();
+    CaptureSwitchMapping();
 }
 
 
@@ -1029,6 +1437,7 @@ void ControllersPageState::MarkCommitted()
 {
     m_baselineModels       = m_models;
     m_baselineCalibrations = m_calibrations;
+    m_baselineProfile      = m_editedProfile;
 }
 
 
@@ -1151,17 +1560,52 @@ ControllerModelSettings * ControllersPageState::EnsureSelectedModel()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EnsureDefaultProfile
+//  FindEditedProfile
 //
-//  The Default profile the edits go to, created from the built-in default
-//  mapping when the model has none.
+//  The profile the chosen name resolves to on the selected model, or its
+//  Default when it has none of that name. Null when the model has no saved
+//  Default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ControllerProfile * ControllersPageState::EnsureDefaultProfile()
+const ControllerProfile * ControllersPageState::FindEditedProfile() const
+{
+    const ControllerModelSettings *  settings = FindSelectedModel();
+    const ControllerProfile *        profile  = nullptr;
+
+
+
+    if (settings == nullptr)
+    {
+        return nullptr;
+    }
+
+    if (!m_editedProfile.empty())
+    {
+        profile = settings->FindProfile (m_editedProfile);
+    }
+
+    return profile != nullptr ? profile : settings->FindDefaultProfile();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureEditedProfile
+//
+//  The profile the edits go to, with the model's Default created from the
+//  built-in default mapping when the model has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerProfile * ControllersPageState::EnsureEditedProfile()
 {
     const ControllerEntry *    selected = GetSelected();
     ControllerModelSettings *  settings = EnsureSelectedModel();
+    ControllerProfile *        profile  = nullptr;
 
 
 
@@ -1170,18 +1614,45 @@ ControllerProfile * ControllersPageState::EnsureDefaultProfile()
         return nullptr;
     }
 
-    for (ControllerProfile & profile : settings->profiles)
+    settings->EnsureDefaultProfile (DefaultMapping::For (selected->unit.model, selected->controls));
+
+    if (!m_editedProfile.empty())
     {
-        if (profile.isDefault)
+        profile = settings->FindProfile (m_editedProfile);
+    }
+
+    if (profile != nullptr)
+    {
+        return profile;
+    }
+
+    for (ControllerProfile & candidate : settings->profiles)
+    {
+        if (candidate.isDefault)
         {
-            return &profile;
+            return &candidate;
         }
     }
 
-    settings->profiles.insert (settings->profiles.begin(),
-        ControllerProfile { s_kpszDefaultProfileName, true, DefaultMapping::For (selected->unit.model, selected->controls) });
+    return nullptr;
+}
 
-    return &settings->profiles.front();
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureSwitchMapping
+//
+//  What the keep-or-discard prompt compares against: the edited profile's
+//  mapping as it is now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::CaptureSwitchMapping()
+{
+    m_switchMapping = GetMapping();
 }
 
 

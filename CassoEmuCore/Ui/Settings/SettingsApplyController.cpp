@@ -397,10 +397,15 @@ void SettingsApplyController::CommitApply()
     // into the running service so the controller in use plays with them now.
     // The page's baseline advances only once the save lands, as the other
     // baselines do.
+    //
+    // The profile chosen on the page becomes the machine's active profile,
+    // after the settings that hold it so a new profile resolves at once, and
+    // is written to the machine's prefs beside the controller selection.
     if (m_controllersState != nullptr && m_controllersState->IsDirty() && m_prefs != nullptr)
     {
         ControllerProfileStore  store;
-        HRESULT                 hrSave = S_OK;
+        HRESULT                 hrSave        = S_OK;
+        bool                    profileChange = m_controllersState->HasActiveProfileChanged();
 
         store.models         = m_controllersState->GetModels();
         store.calibrations   = m_controllersState->GetCalibrations();
@@ -410,6 +415,12 @@ void SettingsApplyController::CommitApply()
         {
             m_controllerService->SetModelSettings (store.models);
             m_controllerService->SetCalibrations  (store.calibrations);
+
+            if (profileChange)
+            {
+                m_controllerService->SetActiveProfile (m_controllersState->GetActiveProfileName());
+                m_emuShell->PersistInputModeForMachine();
+            }
         }
 
         hrSave = (m_ucs != nullptr) ? m_ucs->SaveAll (*m_prefs, *m_fs)

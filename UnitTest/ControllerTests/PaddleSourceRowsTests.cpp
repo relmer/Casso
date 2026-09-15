@@ -300,5 +300,107 @@ namespace ControllerTests
             Assert::AreEqual (static_cast<size_t> (2), commands.GetPaddleSourceItems().size(),
                 L"and the source rows alone are unchanged");
         }
+
+
+        TEST_METHOD (ProfileRows_AreOnePerProfileDefaultFirst)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetProfiles ({ "Paddles", "Default", "Swapped" }, "", true);
+
+            items = commands.GetProfileItems();
+
+            Assert::AreEqual (static_cast<size_t> (3), items.size());
+            Assert::AreEqual (std::wstring (L"Default"), items[0].command->label, L"Default leads wherever the store keeps it");
+            Assert::AreEqual (std::wstring (L"Paddles"), items[1].command->label);
+            Assert::AreEqual (std::wstring (L"Swapped"), items[2].command->label);
+        }
+
+
+        TEST_METHOD (ProfileRows_CheckedIsTheActiveIgnoringCase)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  items;
+
+            commands.SetProfiles ({ "Default", "Paddles" }, "PADDLES", true);
+
+            items = commands.GetProfileItems();
+
+            Assert::IsFalse  (items[0].command->IsChecked());
+            Assert::IsTrue   (items[1].command->IsChecked());
+            Assert::AreEqual (std::wstring (L"Paddles"), commands.GetActiveProfileLabel(),
+                L"the face wears the name as the store writes it");
+
+            commands.SetProfiles ({ "Default", "Paddles" }, "", true);
+
+            Assert::IsTrue   (commands.GetProfileItems()[0].command->IsChecked(), L"empty means Default");
+            Assert::AreEqual (std::wstring (L"Default"), commands.GetActiveProfileLabel());
+        }
+
+
+        TEST_METHOD (ProfileRows_RebuiltOnCreateRenameDelete)
+        {
+            EmulatorCommands  commands;
+
+            commands.SetProfiles ({ "Default" }, "", true);
+            Assert::AreEqual (static_cast<size_t> (1), commands.GetProfileItems().size());
+
+            commands.SetProfiles ({ "Default", "Paddles" }, "", true);
+            Assert::AreEqual (static_cast<size_t> (2), commands.GetProfileItems().size(), L"created");
+
+            commands.SetProfiles ({ "Default", "Racing" }, "Racing", true);
+            Assert::AreEqual (std::wstring (L"Racing"), commands.GetProfileItems()[1].command->label, L"renamed");
+            Assert::AreEqual (std::wstring (L"Racing"), commands.GetActiveProfileLabel());
+
+            commands.SetProfiles ({ "Default" }, "Racing", true);
+            Assert::AreEqual (static_cast<size_t> (1), commands.GetProfileItems().size(), L"deleted");
+            Assert::AreEqual (std::wstring (L"Default"), commands.GetActiveProfileLabel(),
+                L"a deleted active profile plays Default, so the face says so");
+            Assert::IsTrue   (commands.GetProfileItems()[0].command->IsChecked());
+        }
+
+
+        TEST_METHOD (ProfileRows_AStaleRowPicksTheProfileItWasBuiltFrom)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  stale;
+            std::string                     picked  = "unset";
+
+            commands.SetProfilePickedFn ([&] (const std::string & name) { picked = name; });
+
+            commands.SetProfiles ({ "Default", "Paddles", "Swapped" }, "", true);
+            stale = commands.GetProfileItems();
+
+            // Paddles deleted while the menu is open: Swapped now sits where
+            // Paddles was.
+            commands.SetProfiles ({ "Default", "Swapped" }, "", true);
+
+            stale[1].command->dispatch();
+            Assert::AreEqual (std::string ("Paddles"), picked);
+
+            stale[0].command->dispatch();
+            Assert::AreEqual (std::string(), picked, L"Default is picked as the empty name");
+        }
+
+
+        TEST_METHOD (ProfilePicker_DisabledWithoutAController)
+        {
+            EmulatorCommands                    commands;
+            std::shared_ptr<const DxuiCommand>  profile = commands.Find (EmulatorCommands::kIdProfile);
+
+            commands.SetProfiles ({ "Default", "Paddles" }, "Paddles", false);
+
+            Assert::IsNotNull (profile.get(), L"disabled, not removed, so the strip does not reflow");
+            Assert::IsFalse   (profile->IsEnabled());
+            Assert::AreEqual  (std::wstring (L"Default"), profile->GetLabelText());
+            Assert::AreEqual  (std::wstring (L"Controller profile"), profile->tip);
+            Assert::AreEqual  (static_cast<size_t> (0), commands.GetProfileItems().size());
+
+            commands.SetProfiles ({ "Default", "Paddles" }, "Paddles", true);
+
+            Assert::IsTrue    (profile->IsEnabled());
+            Assert::AreEqual  (std::wstring (L"Paddles"), profile->GetLabelText());
+        }
     };
 }

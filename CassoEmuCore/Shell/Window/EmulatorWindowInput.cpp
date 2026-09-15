@@ -6,6 +6,8 @@
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
 #include "Controllers/InputModeRules.h"
+#include "Controllers/ControllerProfileStore.h"
+#include "Controllers/ControllerTokens.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -2819,6 +2821,9 @@ void EmulatorShell::SyncPaddleSourceList()
     m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
                                 m_mainMenu.GetCommands().GetPaddlePickerItems());
 
+    // The profile list follows the same selection, so it is rebuilt with it.
+    SyncProfileList (snapshot);
+
     // The picker wears the chosen source, so its width moves with the answer.
     // Without laying the strip out again the new word paints into the rect
     // the old one left behind.
@@ -2830,6 +2835,87 @@ void EmulatorShell::SyncPaddleSourceList()
             m_toolbar.Layout (bounds, m_scaler);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncProfileList
+//
+//  The profile picker's rows: the selected controller model's profiles. A
+//  selected controller whose model has nothing saved yet still has its
+//  Default while attached; with no controller, or one absent with nothing
+//  saved, the picker is disabled and reads Default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncProfileList (const ControllerInputService::Snapshot & snapshot)
+{
+    std::vector<std::string>  names;
+    bool                      isOffered = false;
+
+
+
+    if (snapshot.selection.has_value())
+    {
+        std::map<std::string, ControllerModelSettings>  models = m_controllerService->GetModelSettings();
+        auto                                            found  = models.find (ControllerTokens::ModelToToken (snapshot.selection.value().model));
+
+        if (found != models.end())
+        {
+            for (const ControllerProfile & profile : found->second.profiles)
+            {
+                names.push_back (profile.name);
+            }
+
+            isOffered = true;
+        }
+        else
+        {
+            isOffered = snapshot.isSelectedConnected;
+        }
+    }
+
+    m_mainMenu.GetCommands().SetProfiles (names, snapshot.activeProfile, isOffered);
+
+    m_toolbar.SetDropDownItems (EmulatorCommands::kIdProfile,
+                                m_mainMenu.GetCommands().GetProfileItems());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickControllerProfile
+//
+//  UI thread. The user chose the profile the machine plays with. The rate
+//  paddles return to center, since the old profile's position means nothing
+//  to the new one, and the choice is saved with the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PickControllerProfile (std::string profileName)
+{
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    m_controllerService->SetActiveProfile (profileName);
+    m_controllerService->ResetPaddleRate();
+
+    if (m_controllerThread != nullptr)
+    {
+        m_controllerThread->Wake();
+    }
+
+    PersistInputModeForMachine();
+    SyncPaddleSourceList();
 }
 
 

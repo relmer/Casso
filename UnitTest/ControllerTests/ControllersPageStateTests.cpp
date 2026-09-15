@@ -262,17 +262,25 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (ResetToDefaults_RestoresTheBuiltInMappingAndDeadzone)
+        TEST_METHOD (ResetProfile_RestoresTheBuiltInMappingOfOnlyTheEditedProfile)
         {
             ControllersPageState  page;
 
             page.Load ({ MakeStick() }, {}, {}, true);
+            page.CreateProfile ("Game", ProfileSource::Paddles, std::string());
             page.RemoveBinding (PaddleTarget::Pb0, 0);
             page.SetDeadzone (0.6f);
-            page.ResetToDefaults();
+            page.ResetProfile();
 
-            Assert::IsTrue   (page.GetMapping() == DefaultMapping::For (MakeStick().unit.model, MakeStick().controls));
-            Assert::AreEqual (DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput), page.GetDeadzone(), 0.0001f);
+            Assert::IsTrue   (page.GetMapping() == DefaultMapping::For (MakeStick().unit.model, MakeStick().controls), L"the edited profile is back to the default mapping");
+            Assert::AreEqual (0.6f, page.GetDeadzone(), 0.0001f, L"the deadzone belongs to the model, not the profile");
+
+            page.RemoveBinding (PaddleTarget::Pb1, 0);
+            page.SelectProfile ("Default");
+            page.ResetProfile();
+            page.SelectProfile ("Game");
+
+            Assert::AreEqual (size_t (0), page.GetMapping().pb1.size(), L"resetting the Default leaves Game as it was");
         }
 
 
@@ -363,6 +371,267 @@ namespace ControllerTests
 
             Assert::IsTrue (page.ReplaceAxisBinding (PaddleTarget::Pdl0, 0, pair));
             Assert::IsTrue (page.GetMapping().pdl0[0] == pair);
+        }
+
+
+        static std::map<std::string, ControllerModelSettings> MakeSavedWithSwapped()
+        {
+            std::map<std::string, ControllerModelSettings>  models;
+            ControllerModelSettings                         settings;
+            ControlMapping                                  swapped = DefaultMapping::For (MakeStick().unit.model, MakeStick().controls);
+
+            swapped.pb0 = { { { ControlKind::Button, 1 } } };
+            swapped.pb1 = { { { ControlKind::Button, 0 } } };
+
+            settings.deadzone = DeadzoneShaper::GetDefaultDeadzone (ControllerKind::DirectInput);
+            settings.profiles.push_back ({ ControllerProfile::kpszDefaultName, true, DefaultMapping::For (MakeStick().unit.model, MakeStick().controls) });
+            settings.profiles.push_back ({ "Swapped", false, swapped });
+
+            models[ControllerTokens::ModelToToken (MakeStick().unit.model)] = settings;
+            return models;
+        }
+
+
+        TEST_METHOD (OpeningOnAnActiveProfile_EditsThatProfile)
+        {
+            ControllersPageState  page;
+            std::string           token = ControllerTokens::ModelToToken (MakeStick().unit.model);
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true, "swapped");
+
+            Assert::AreEqual (std::string ("Swapped"), page.GetEditedProfileName(), L"the machine's active profile is the one shown, matched ignoring case");
+            Assert::IsTrue   (page.GetMapping().pb0[0].control == ControlId { ControlKind::Button, 1 });
+            Assert::IsFalse  (page.IsDirty(), L"opening on it is not an edit");
+
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+
+            Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb2.size(), L"the edit lands on Swapped");
+            Assert::IsTrue   (page.GetModels().at (token).FindProfile ("Default")->mapping == DefaultMapping::For (MakeStick().unit.model, MakeStick().controls),
+                L"and the Default is untouched");
+        }
+
+
+        TEST_METHOD (AnActiveProfileTheModelLacks_EditsTheDefault)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true, "Swapped");
+
+            Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
+            Assert::IsTrue   (page.IsEditingDefaultProfile());
+            Assert::AreEqual (std::string ("Swapped"), page.GetActiveProfileName(), L"the machine's choice is kept for a controller that has it");
+        }
+
+
+        TEST_METHOD (CreateProfile_FromEachSource_IsPendingAndRevertedByCancel)
+        {
+            ControllersPageState                            page;
+            std::map<std::string, ControllerModelSettings>  models;
+            ControllerModelKey                              model    = MakeStick().unit.model;
+            std::vector<ControlId>                          controls = MakeStick().controls;
+
+            page.Load ({ MakeStick() }, models, {}, true);
+
+            Assert::IsTrue  (page.CreateProfile ("From default", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::Ok);
+            Assert::IsTrue  (page.GetMapping() == DefaultMapping::For (model, controls));
+            Assert::AreEqual (std::string ("From default"), page.GetEditedProfileName(), L"a new profile is the one edited");
+
+            Assert::IsTrue  (page.CreateProfile ("Paddles", ProfileSource::Paddles, std::string()) == ProfileEditResult::Ok);
+            Assert::IsTrue  (page.GetMapping() == DefaultMapping::MakePaddles (model, controls));
+
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+            Assert::IsTrue  (page.CreateProfile ("Copy", ProfileSource::CopyOfProfile, "Paddles") == ProfileEditResult::Ok);
+            Assert::AreEqual (size_t (1), page.GetMapping().pb2.size(), L"a copy takes the source's pending edits");
+
+            Assert::AreEqual (size_t (4), page.GetProfileNames().size());
+            Assert::AreEqual (std::string ("Default"), page.GetProfileNames()[0], L"Default is listed first");
+            Assert::IsTrue   (page.IsDirty());
+            Assert::IsTrue   (models.empty(), L"nothing reaches the settings the page was opened with");
+
+            page.Revert();
+
+            Assert::AreEqual (size_t (1), page.GetProfileNames().size(), L"Cancel takes the new profiles away");
+            Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
+            Assert::IsFalse  (page.IsDirty());
+        }
+
+
+        TEST_METHOD (RenameAndDelete_AreRefusedForTheDefault)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true);
+
+            Assert::IsTrue  (page.RenameProfile ("Other") == ProfileEditResult::IsDefaultProfile);
+            Assert::IsTrue  (page.DeleteProfile() == ProfileEditResult::IsDefaultProfile);
+            Assert::IsFalse (page.IsDirty());
+        }
+
+
+        TEST_METHOD (DeletingTheEditedProfile_SelectsTheDefault)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+
+            Assert::IsTrue   (page.DeleteProfile() == ProfileEditResult::Ok);
+            Assert::AreEqual (std::string ("Default"), page.GetEditedProfileName());
+            Assert::AreEqual (size_t (1), page.GetProfileNames().size());
+            Assert::IsTrue   (page.HasActiveProfileChanged(), L"the machine's active profile was deleted");
+            Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"so the Default becomes active on OK");
+        }
+
+
+        TEST_METHOD (NameErrors_MapFromTheEditResult)
+        {
+            ControllersPageState  page;
+            std::wstring          label;
+            std::wstring          rule;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true);
+
+            Assert::IsTrue (page.CreateProfile ("   ", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::EmptyName);
+            Assert::IsTrue (page.CreateProfile (std::string (41, 'x'), ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::NameTooLong);
+            Assert::IsTrue (page.CreateProfile ("default", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::DuplicateName,
+                L"a model with a saved Default refuses its name ignoring case");
+            Assert::IsFalse (page.IsDirty(), L"a refused name changes nothing");
+
+            Assert::IsTrue   (ControllersPageState::TryDescribeNameError (ProfileEditResult::EmptyName, label, rule));
+            Assert::AreEqual (std::wstring (L"Error: profile name is empty"), label);
+            Assert::AreEqual (std::wstring (L"Profile names are 1-40 characters."), rule);
+
+            Assert::IsTrue   (ControllersPageState::TryDescribeNameError (ProfileEditResult::NameTooLong, label, rule));
+            Assert::AreEqual (std::wstring (L"Error: profile name is too long"), label);
+            Assert::AreEqual (std::wstring (L"Profile names are 1-40 characters."), rule);
+
+            Assert::IsTrue   (ControllersPageState::TryDescribeNameError (ProfileEditResult::DuplicateName, label, rule));
+            Assert::AreEqual (std::wstring (L"Error: profile name is in use"), label);
+            Assert::AreEqual (std::wstring (L"Each profile name for a controller must be different, ignoring capitalization."), rule);
+
+            Assert::IsFalse  (ControllersPageState::TryDescribeNameError (ProfileEditResult::Ok, label, rule));
+            Assert::IsFalse  (ControllersPageState::TryDescribeNameError (ProfileEditResult::IsDefaultProfile, label, rule));
+        }
+
+
+        TEST_METHOD (TheDefaultsNameIsTaken_EvenBeforeTheModelHasOneSaved)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+
+            Assert::IsTrue (page.CreateProfile ("DEFAULT", ProfileSource::DefaultMapping, std::string()) == ProfileEditResult::DuplicateName);
+        }
+
+
+        TEST_METHOD (Rename_ToADifferentCaseOfItsOwnName_IsAllowed)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+
+            Assert::IsTrue   (page.RenameProfile ("SWAPPED") == ProfileEditResult::Ok);
+            Assert::AreEqual (std::string ("SWAPPED"), page.GetEditedProfileName());
+            Assert::AreEqual (std::string ("SWAPPED"), page.GetActiveProfileName(), L"renaming the active profile keeps it active under its new name");
+            Assert::IsTrue   (page.IsDirty());
+        }
+
+
+        TEST_METHOD (EditsOnOneProfile_DoNotLeakIntoAnother)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+            page.CreateProfile ("Game", ProfileSource::DefaultMapping, std::string());
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+
+            page.SelectProfile ("Default");
+            Assert::AreEqual (size_t (0), page.GetMapping().pb2.size(), L"the Default does not have Game's edit");
+
+            page.SelectProfile ("game");
+            Assert::AreEqual (std::string ("Game"), page.GetEditedProfileName());
+            Assert::AreEqual (size_t (1), page.GetMapping().pb2.size(), L"and Game still has it");
+        }
+
+
+        TEST_METHOD (SwitchingWithUnappliedEdits_DiscardRestoresAndKeepKeeps)
+        {
+            ControllersPageState  page;
+            std::string           token = ControllerTokens::ModelToToken (MakeStick().unit.model);
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+
+            Assert::IsFalse (page.HasUnappliedProfileEdits());
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+            Assert::IsTrue  (page.HasUnappliedProfileEdits(), L"an edit is what the prompt asks about");
+
+            page.SelectProfile ("Default");
+            Assert::IsFalse  (page.HasUnappliedProfileEdits(), L"the Default has none of its own");
+            Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb2.size(), L"Keep leaves the edit pending on Swapped");
+
+            page.SelectProfile ("Swapped");
+            page.RemoveBinding (PaddleTarget::Pb0, 0);
+            page.DiscardProfileEdits();
+            page.SelectProfile ("Default");
+
+            Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb0.size(),
+                L"Discard puts back what Swapped had when it was switched to");
+            Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb2.size(),
+                L"which still includes the edit kept earlier");
+        }
+
+
+        TEST_METHOD (DiscardOnAModelNeverSaved_LeavesNothingPending)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+            page.DiscardProfileEdits();
+
+            Assert::IsFalse (page.IsDirty());
+            Assert::IsTrue  (page.GetModels().empty());
+        }
+
+
+        TEST_METHOD (IsDirty_CoversCreateRenameAndDelete)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true);
+            page.CreateProfile ("Game", ProfileSource::DefaultMapping, std::string());
+            Assert::IsTrue (page.IsDirty(), L"create");
+            page.MarkCommitted();
+            Assert::IsFalse (page.IsDirty());
+
+            page.RenameProfile ("Game 2");
+            Assert::IsTrue (page.IsDirty(), L"rename");
+            page.Revert();
+            Assert::AreEqual (std::string ("Game"), page.GetEditedProfileName(), L"Cancel puts the name back");
+
+            page.DeleteProfile();
+            Assert::IsTrue (page.IsDirty(), L"delete");
+            page.Revert();
+            Assert::AreEqual (size_t (3), page.GetProfileNames().size(), L"and Cancel brings a deleted profile back");
+        }
+
+
+        TEST_METHOD (TheChosenProfile_IsTheActiveProfileCommitted)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true);
+            Assert::IsFalse (page.HasActiveProfileChanged());
+
+            page.SelectProfile ("Swapped");
+            Assert::IsTrue   (page.HasActiveProfileChanged(), L"choosing a profile is a change OK commits");
+            Assert::IsTrue   (page.IsDirty());
+            Assert::AreEqual (std::string ("Swapped"), page.GetActiveProfileName());
+
+            page.MarkCommitted();
+            Assert::IsFalse  (page.HasActiveProfileChanged());
+
+            page.SelectProfile ("Default");
+            Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"the Default is committed as no profile name");
         }
     };
 }

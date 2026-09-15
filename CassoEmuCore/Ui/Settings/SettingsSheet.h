@@ -118,6 +118,9 @@ private:
     //  control to be pressed.
     void  PaintCapturePrompt  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
+    //  A profile dialog from the Controllers page is open over the sheet.
+    bool  IsProfileDialogOpen () const;
+
     // Drive-sound audition for the Machine page's play (>) buttons. Ported
     // verbatim from SettingsPanel: push the current volumes / pan / mechanism
     // to the engine and post the one-shot test command. Self-contained (needs

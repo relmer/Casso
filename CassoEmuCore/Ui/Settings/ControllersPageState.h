@@ -48,9 +48,12 @@ enum class CalibrationStep
 //  press OK, and Cancel puts every copy back as it was, calibrations
 //  included.
 //
-//  Edits go to the Default profile of the selected controller's model. A
-//  model with nothing saved starts from its built-in default mapping and
-//  deadzone, which becomes its Default profile the moment it is edited.
+//  Edits go to the chosen profile of the selected controller's model, which
+//  starts as the machine's active profile. A name the model has no profile
+//  for edits its Default. A model with nothing saved starts from its built-in
+//  default mapping and deadzone, which becomes its Default profile the moment
+//  it is edited. Creating, renaming and deleting profiles is pending too, and
+//  the chosen profile becomes the machine's active profile on OK.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,10 +71,12 @@ public:
 
     // The page opens. `hasPb2` is false on a machine whose $C063 is not a
     // pushbutton, the //c, where the PB2 target is unavailable.
-    void  Load (const std::vector<ControllerDeviceInfo>          & devices,
+    // `activeProfile` is the machine's active profile, empty for Default.
+    void  Load (const std::vector<ControllerDeviceInfo>              & devices,
                 const std::map<std::string, ControllerModelSettings> & models,
                 const std::map<std::string, ControllerCalibration>   & calibrations,
-                bool                                                  hasPb2);
+                bool                                                   hasPb2,
+                const std::string                                    & activeProfile = std::string());
 
     // The machine's display name, for saying which machine a target is not
     // supported on.
@@ -104,7 +109,31 @@ public:
     bool                                  SetInverted        (PaddleTarget target, size_t index, bool inverted);
     bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
     bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
-    void                                  ResetToDefaults    ();
+
+    // The selected model's profiles, Default first, and the one being edited.
+    std::vector<std::string>              GetProfileNames          () const;
+    std::string                           GetEditedProfileName     () const;
+    bool                                  IsEditingDefaultProfile  () const;
+    void                                  SelectProfile            (const std::string & name);
+    ProfileEditResult                     CheckProfileName         (const std::string & name, bool isRename) const;
+    ProfileEditResult                     CreateProfile            (const std::string & name, ProfileSource source, const std::string & sourceName);
+    ProfileEditResult                     RenameProfile            (const std::string & newName);
+    ProfileEditResult                     DeleteProfile            ();
+    void                                  ResetProfile             ();
+
+    // Whether the edited profile's mapping differs from when it was opened or
+    // last switched to, and a way to put it back.
+    bool                                  HasUnappliedProfileEdits () const;
+    void                                  DiscardProfileEdits      ();
+
+    // The profile that becomes the machine's active one on OK, empty for
+    // Default, and whether it differs from the one the page opened on.
+    bool                                  HasActiveProfileChanged  () const;
+    const std::string &                   GetActiveProfileName     () const;
+
+    // The two lines shown for a refused name; false when the result is not a
+    // name error.
+    static bool                           TryDescribeNameError     (ProfileEditResult result, std::wstring & outLabel, std::wstring & outRule);
 
     // Every control assigned to more than one target (FR-025).
     std::vector<ControlId>                GetSharedControls  () const;
@@ -142,7 +171,9 @@ private:
     const ControllerEntry *          GetSelected          () const;
     ControllerModelSettings *        EnsureSelectedModel  ();
     const ControllerModelSettings *  FindSelectedModel    () const;
-    ControllerProfile *              EnsureDefaultProfile ();
+    const ControllerProfile *        FindEditedProfile    () const;
+    ControllerProfile *              EnsureEditedProfile  ();
+    void                             CaptureSwitchMapping ();
 
     static std::vector<AxisBinding> *    FindAxisList    (ControlMapping & mapping, PaddleTarget target);
     static std::vector<ButtonBinding> *  FindButtonList  (ControlMapping & mapping, PaddleTarget target);
@@ -157,6 +188,14 @@ private:
     std::map<std::string, ControllerCalibration>    m_calibrations;
     std::map<std::string, ControllerModelSettings>  m_baselineModels;
     std::map<std::string, ControllerCalibration>    m_baselineCalibrations;
+
+    // The edited profile's name as chosen, empty for Default, and as it was
+    // when the page opened or last committed.
+    std::string                                     m_editedProfile;
+    std::string                                     m_baselineProfile;
+
+    // The edited profile's mapping when it was opened or last switched to.
+    ControlMapping                                  m_switchMapping;
 
     ControlCapture                                  m_capture;
     PaddleTarget                                    m_captureTarget = PaddleTarget::Pdl0;

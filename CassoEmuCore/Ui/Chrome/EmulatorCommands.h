@@ -7,6 +7,8 @@
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Controllers/InputModeRules.h"
+#include "Controllers/ControllerProfileStore.h"
+#include "Core/TextEncoding.h"
 #include "InputMonoGlyphs.h"
 
 
@@ -76,13 +78,17 @@ public:
     // Raised when the user picks a row of the paddle-source list.
     using PaddleSourcePickedFn = std::function<void (const InputModeRules::PaddleSource &)>;
 
+    // Raised when the user picks a row of the profile list. Empty for Default.
+    using ProfilePickedFn = std::function<void (const std::string & profileName)>;
+
     // Ids for the toolbar entries that are not menu commands. Menu command
     // ids start at 40001, so nothing collides.
-    static constexpr int  kIdTheme  = 1;
-    static constexpr int  kIdColor  = 2;
-    static constexpr int  kIdVolume = 3;
-    static constexpr int  kIdPaddle = 5;
-    static constexpr int  kIdMouse  = 6;
+    static constexpr int  kIdTheme   = 1;
+    static constexpr int  kIdColor   = 2;
+    static constexpr int  kIdVolume  = 3;
+    static constexpr int  kIdPaddle  = 5;
+    static constexpr int  kIdMouse   = 6;
+    static constexpr int  kIdProfile = 7;
 
     static constexpr int  kMenuCount = 7;
 
@@ -157,7 +163,22 @@ public:
     // and the disabled ink already says it is not there (FR-008b).
     InputMonoGlyphKind              GetCheckedPaddleSourceGlyph () const;
 
-    // Fills the toolbar: ten entries in strip order, the LED as the printer
+    // The selected controller model's profiles, Default first, the active one
+    // checked (empty means Default; names match ignoring case). Not offered
+    // while no controller is selected: the entry is disabled rather than
+    // removed, so the strip does not reflow, and its face reads Default. Like
+    // the paddle rows, each row carries the name it shows, so a row from a
+    // list rebuilt since still picks what it says.
+    void  SetProfiles        (const std::vector<std::string> & names,
+                              const std::string              & activeProfile,
+                              bool                             isOffered);
+    void  SetProfilePickedFn (ProfilePickedFn fn) { m_onProfilePicked = std::move (fn); }
+
+    std::vector<DxuiPopupMenuItem>  GetProfileItems        () const;
+    std::wstring                    GetActiveProfileLabel  () const;
+    bool                            IsProfilePickerOffered () const { return m_isProfileOffered; }
+
+    // Fills the toolbar: eleven entries in strip order, the LED as the printer
     // entry's decoration and
     // the flyout as the volume entry's panel, with the pickers' rows
     // installed as drop-down lists.
@@ -166,8 +187,9 @@ public:
                         VolumeFlyout      & volume);
 
 private:
-    std::shared_ptr<DxuiCommand>  FindMutable       (int commandId);
-    void                          RebuildActionTips ();
+    std::shared_ptr<DxuiCommand>  FindMutable          (int commandId);
+    void                          RebuildActionTips    ();
+    std::string                   GetActiveProfileName () const;
 
 
     DispatchFn  m_dispatch;
@@ -184,6 +206,12 @@ private:
 
     std::vector<InputModeRules::PaddleSource>  m_paddleSources;
     PaddleSourcePickedFn                       m_onPaddleSourcePicked;
+
+    std::vector<std::shared_ptr<DxuiCommand>>  m_profileRows;
+    std::vector<std::string>                   m_profileNames;
+    std::string                                m_activeProfile;
+    bool                                       m_isProfileOffered = false;
+    ProfilePickedFn                            m_onProfilePicked;
 
     std::wstring  m_machineName;
     int           m_themeIndex = -1;

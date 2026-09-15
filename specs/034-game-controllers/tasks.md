@@ -226,14 +226,14 @@ description: "Task list for 034 physical game controllers"
 
 - [X] T082 [P] [US6] Extend `UnitTest/ControllerTests/ControllerProfileStoreTests.cpp`: Default never deletable or renamable; names unique case-insensitively, trimmed, 1-40 characters (FR-027); create from default, from a copy, and from the Paddles template; reset; `FindProfile (model, name)`; every remaining rejection rule in `contracts/prefs-schema.md`, including duplicate names
 - [X] T083 [P] [US6] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: a controller of a known model but an unrecognized unit drives the port with that model's profiles available on its first connection (SC-009); switching profiles releases buttons and centers axes no longer driven (FR-030) and resets rate accumulators; a remembered missing profile uses Default without recreating it (FR-029)
-- [ ] T084 [P] [US6] Extend `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp` with profile rows: one per profile of the selected model, checked equals active, rows rebuilt on create/rename/delete
+- [X] T084 [P] [US6] Extend `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp` with profile rows: one per profile of the selected model, checked equals active, rows rebuilt on create/rename/delete
 
 ### Implementation for User Story 6
 
 - [X] T085 [US6] Add named profiles to `CassoEmuCore/Controllers/ControllerProfileStore.h/.cpp` with JSON per the schema, and `DefaultMapping::MakePaddles` in `CassoEmuCore/Controllers/ControlMapping.cpp`
 - [X] T086 [US6] Active profile per machine: read and write `controllerProfile` (T046), apply it in `ControllerInputService`, release on switch (FR-030)
-- [ ] T087 [US6] Add profile management to `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp` and `ControllersPage.h/.cpp`: profile list, New (Default, copy of current, Paddles), Rename, Delete, Reset; name validation messages in the fixed error format from `.github/copilot-instructions.md`; keep-or-discard prompt when switching profiles with unapplied edits; edits apply to the profile they were made on
-- [ ] T088 [US6] Add profile rows to `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp` beside the paddle-source rows, as their OWN command-bar drop-down rather than a Machine-menu submenu (FR-008, FR-031: no cascades, and the Machine menu keeps its existing entries), rebuilt and re-laid the way `SyncPaddleSourceList` does it (T052)
+- [X] T087 [US6] Add profile management to `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp` and `ControllersPage.h/.cpp`: profile list, New (Default, copy of current, Paddles), Rename, Delete, Reset; name validation messages in the fixed error format from `.github/copilot-instructions.md`; keep-or-discard prompt when switching profiles with unapplied edits; edits apply to the profile they were made on
+- [X] T088 [US6] Add profile rows to `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp` beside the paddle-source rows, as their OWN command-bar drop-down rather than a Machine-menu submenu (FR-008, FR-031: no cascades, and the Machine menu keeps its existing entries), rebuilt and re-laid the way `SyncPaddleSourceList` does it (T052)
 - [ ] T089 [US6] Build; run `-Filter Controller`, `-Filter Chrome`; run quickstart scenarios 8, 10a (Paddles template) and 11 (profile rows) on hardware
 - [ ] T090 [US6] Commit: `feat(input): named controller profiles`
 

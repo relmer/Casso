@@ -748,6 +748,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             PickPaddleSource (source);
         });
 
+    m_mainMenu.GetCommands().SetProfilePickedFn (
+        [this] (const std::string & profileName)
+        {
+            PickControllerProfile (profileName);
+        });
+
     m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -1329,6 +1335,10 @@ int EmulatorShell::RunMessageLoop()
         {
             m_settingsSheet.reset();
             m_settingsSheetClosePending = false;
+
+            // The sheet may have created, renamed or deleted profiles, and
+            // the command bar's profile list is built from them.
+            SyncPaddleSourceList();
         }
 
         // Process pending messages, bounded by the drain deadline (see banner):

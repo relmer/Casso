@@ -10,19 +10,20 @@
 
 
 // Layout metrics (DIP), matching the other settings pages.
-static constexpr int  s_kRowHeightDp    = 28;
-static constexpr int  s_kLabelWidthDp   = 90;
-static constexpr int  s_kRowWidthDp     = 220;
-static constexpr int  s_kAddWidthDp     = 28;
-static constexpr int  s_kStickSizeDp    = 190;
-static constexpr int  s_kLightSizeDp    = 14;
-static constexpr int  s_kWideWidthDp    = 340;
-static constexpr int  s_kButtonWidthDp  = 130;
-static constexpr int  s_kOptionWidthDp  = 110;
-static constexpr int  s_kChildIndentDp  = 18;
-static constexpr int  s_kGapDp          = 6;
-static constexpr int  s_kSectionGapDp   = 14;
-static constexpr int  s_kPagePadDp      = 16;
+static constexpr int  s_kRowHeightDp           = 28;
+static constexpr int  s_kLabelWidthDp          = 90;
+static constexpr int  s_kRowWidthDp            = 220;
+static constexpr int  s_kAddWidthDp            = 28;
+static constexpr int  s_kStickSizeDp           = 190;
+static constexpr int  s_kLightSizeDp           = 14;
+static constexpr int  s_kWideWidthDp           = 340;
+static constexpr int  s_kButtonWidthDp         = 130;
+static constexpr int  s_kProfileButtonWidthDp  = 90;
+static constexpr int  s_kOptionWidthDp         = 110;
+static constexpr int  s_kChildIndentDp         = 18;
+static constexpr int  s_kGapDp                 = 6;
+static constexpr int  s_kSectionGapDp          = 14;
+static constexpr int  s_kPagePadDp             = 16;
 
 static constexpr const wchar_t *  s_kTargetNames[ControllersPage::kTargetCount] =
 {
@@ -52,6 +53,11 @@ ControllersPage::ControllersPage (std::wstring title)
 
     Adopt (m_controllerLabel);
     Adopt (m_controller);
+    Adopt (m_profileLabel);
+    Adopt (m_profile);
+    Adopt (m_newProfile);
+    Adopt (m_renameProfile);
+    Adopt (m_deleteProfile);
     Adopt (m_joystickHeading);
     Adopt (m_stick);
     Adopt (m_buttonsHeading);
@@ -126,6 +132,18 @@ void ControllersPage::SetState (ControllersPageState * state)
         RebuildChoices();
         AfterEdit();
     });
+
+    m_profile.SetSelect ([this] (int index)
+    {
+        if (!m_isSyncing)
+        {
+            OnProfileSelect (index);
+        }
+    });
+
+    m_newProfile.SetOnClick    ([this] () { OnNewProfile(); });
+    m_renameProfile.SetOnClick ([this] () { OnRenameProfile(); });
+    m_deleteProfile.SetOnClick ([this] () { OnDeleteProfile(); });
 
     for (target = 0; target < kTargetCount; target++)
     {
@@ -203,7 +221,7 @@ void ControllersPage::SetState (ControllersPageState * state)
     {
         if (m_state != nullptr)
         {
-            m_state->ResetToDefaults();
+            m_state->ResetProfile();
             m_hasExtraRow = {};
             AfterEdit();
         }
@@ -261,6 +279,7 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 
 
     m_controller.SetPopupHost (host);
+    m_profile.SetPopupHost    (host);
 
     for (target = 0; target < kTargetCount; target++)
     {
@@ -284,10 +303,11 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
 //
 //  Layout
 //
-//  The controller picker across the top. Below it the joystick: the stick
+//  The controller picker across the top, and under it the profile picker
+//  with New, Rename and Delete. Below them the joystick: the stick
 //  circle on the left, and to its right each paddle axis's rows followed by
 //  its options. Then the buttons, each with its light, then the deadzone,
-//  calibration and Restore defaults.
+//  calibration and Reset profile.
 //
 //  Row counts change as mappings are added and removed, so everything below
 //  a target's rows moves with them; Relayout reruns this with the last
@@ -307,6 +327,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     lightSize   = scaler.ToPx (s_kLightSizeDp);
     int     wideWidth   = scaler.ToPx (s_kWideWidthDp);
     int     buttonWidth = scaler.ToPx (s_kButtonWidthDp);
+    int     profileBtnW = scaler.ToPx (s_kProfileButtonWidthDp);
     int     optionWidth = scaler.ToPx (s_kOptionWidthDp);
     int     indent      = scaler.ToPx (s_kChildIndentDp);
     int     gap         = scaler.ToPx (s_kGapDp);
@@ -328,6 +349,17 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_controllerLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
     m_controllerLabel.SetText (L"Controller:");
     m_controller.SetRect      (MakeRect (x + labelWidth, y, wideWidth, rowH));
+    y += rowH + gap;
+
+    m_profileLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
+    m_profileLabel.SetText (L"Profile:");
+    m_profile.SetRect      (MakeRect (x + labelWidth, y, rowWidth, rowH));
+    m_newProfile.SetLabel    (L"New...");
+    m_newProfile.Layout      (MakeRect (x + labelWidth + rowWidth + gap, y, profileBtnW, rowH));
+    m_renameProfile.SetLabel (L"Rename...");
+    m_renameProfile.Layout   (MakeRect (x + labelWidth + rowWidth + gap + (profileBtnW + gap), y, profileBtnW, rowH));
+    m_deleteProfile.SetLabel (L"Delete");
+    m_deleteProfile.Layout   (MakeRect (x + labelWidth + rowWidth + gap + (profileBtnW + gap) * 2, y, profileBtnW, rowH));
     y += rowH + sectionGap;
 
     m_joystickHeading.SetRect (MakeRect (x, y, wideWidth, rowH));
@@ -429,11 +461,16 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_useAutomatic.Layout (MakeRect (x + labelWidth + (buttonWidth + gap) * 2, y, buttonWidth, rowH));
     y += rowH + sectionGap;
 
-    m_reset.SetLabel (L"Restore defaults");
+    m_reset.SetLabel (L"Reset profile");
     m_reset.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
 
     m_controllerLabel.SetDpi (dpi);
     m_controller.SetDpi      (dpi);
+    m_profileLabel.SetDpi    (dpi);
+    m_profile.SetDpi         (dpi);
+    m_newProfile.SetDpi      (dpi);
+    m_renameProfile.SetDpi   (dpi);
+    m_deleteProfile.SetDpi   (dpi);
     m_joystickHeading.SetDpi (dpi);
     m_buttonsHeading.SetDpi  (dpi);
 
@@ -602,6 +639,7 @@ void ControllersPage::Refresh()
     m_controller.SetSelected (selected.has_value() ? (int) selected.value() : 0);
     m_controller.SetEnabled  (selected.has_value());
 
+    RefreshProfiles();
     RefreshRows();
     RefreshAxisOptions();
     RefreshCalibration();
@@ -611,6 +649,251 @@ void ControllersPage::Refresh()
     m_reset.SetEnabled    (selected.has_value());
 
     m_isSyncing = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshProfiles
+//
+//  The Default can be edited and reset but not renamed or deleted, so those
+//  two are unavailable while it is the profile shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::RefreshProfiles()
+{
+    std::vector<std::wstring>  items;
+    std::string                edited   = m_state->GetEditedProfileName();
+    bool                       hasUnit  = m_state->GetSelectedIndex().has_value();
+    bool                       canEdit  = hasUnit && !m_state->IsEditingDefaultProfile();
+    size_t                     i        = 0;
+    int                        selected = 0;
+
+
+
+    m_profileNames = m_state->GetProfileNames();
+
+    for (i = 0; i < m_profileNames.size(); i++)
+    {
+        items.push_back (Utf8ToWide (m_profileNames[i]));
+
+        if (m_profileNames[i] == edited)
+        {
+            selected = (int) i;
+        }
+    }
+
+    m_profile.SetItems    (items);
+    m_profile.SetSelected (selected);
+    m_profile.SetEnabled  (hasUnit);
+
+    m_newProfile.SetEnabled    (hasUnit);
+    m_renameProfile.SetEnabled (canEdit);
+    m_deleteProfile.SetEnabled (canEdit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnProfileSelect
+//
+//  Leaving a profile with unapplied edits asks first. Keep leaves the edits
+//  pending on that profile; Discard puts it back as it was when it was opened
+//  or last switched to. Until the user answers, the drop-down goes on
+//  showing the profile being left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnProfileSelect (int index)
+{
+    std::string  name;
+
+
+
+    if (m_state == nullptr || index < 0 || (size_t) index >= m_profileNames.size())
+    {
+        return;
+    }
+
+    name = m_profileNames[(size_t) index];
+
+    if (name == m_state->GetEditedProfileName())
+    {
+        return;
+    }
+
+    if (!m_state->HasUnappliedProfileEdits())
+    {
+        SwitchProfile (name);
+        return;
+    }
+
+    Refresh();
+
+    m_profileDialog.OpenKeepOrDiscard (Utf8ToWide (m_state->GetEditedProfileName()),
+        [this, name] (const std::wstring &, ProfileSource)
+        {
+            SwitchProfile (name);
+            return ProfileEditResult::Ok;
+        },
+        [this, name] ()
+        {
+            m_state->DiscardProfileEdits();
+            SwitchProfile (name);
+        });
+
+    ShowDialog();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SwitchProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::SwitchProfile (const std::string & name)
+{
+    m_state->SelectProfile (name);
+    m_capturing.reset();
+    m_hasExtraRow = {};
+    AfterEdit();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNewProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnNewProfile()
+{
+    std::string  current;
+
+
+
+    if (m_state == nullptr || !m_state->GetSelectedIndex().has_value())
+    {
+        return;
+    }
+
+    current = m_state->GetEditedProfileName();
+
+    m_profileDialog.OpenNew (Utf8ToWide (current),
+        [this, current] (const std::wstring & name, ProfileSource source)
+        {
+            ProfileEditResult  result = m_state->CreateProfile (WideToUtf8 (name), source, current);
+
+            if (result == ProfileEditResult::Ok)
+            {
+                m_capturing.reset();
+                m_hasExtraRow = {};
+                AfterEdit();
+            }
+
+            return result;
+        });
+
+    ShowDialog();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnRenameProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnRenameProfile()
+{
+    if (m_state == nullptr || m_state->IsEditingDefaultProfile())
+    {
+        return;
+    }
+
+    m_profileDialog.OpenRename (Utf8ToWide (m_state->GetEditedProfileName()),
+        [this] (const std::wstring & name, ProfileSource)
+        {
+            ProfileEditResult  result = m_state->RenameProfile (WideToUtf8 (name));
+
+            if (result == ProfileEditResult::Ok)
+            {
+                AfterEdit();
+            }
+
+            return result;
+        });
+
+    ShowDialog();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDeleteProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnDeleteProfile()
+{
+    if (m_state == nullptr || m_state->IsEditingDefaultProfile())
+    {
+        return;
+    }
+
+    m_profileDialog.OpenConfirmDelete (Utf8ToWide (m_state->GetEditedProfileName()),
+        [this] (const std::wstring &, ProfileSource)
+        {
+            ProfileEditResult  result = m_state->DeleteProfile();
+
+            m_capturing.reset();
+            m_hasExtraRow = {};
+            AfterEdit();
+
+            return result;
+        });
+
+    ShowDialog();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowDialog
+//
+//  The sheet repaints so the dialog appears at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::ShowDialog()
+{
+    if (m_onLayoutChanged)
+    {
+        m_onLayoutChanged();
+    }
 }
 
 
@@ -1452,4 +1735,76 @@ std::wstring ControllersPage::DescribeButton (ControllerKind kind, const ButtonB
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Utf8ToWide
+//
+//  Profile names are kept as UTF-8, as the prefs file stores them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPage::Utf8ToWide (const std::string & text)
+{
+    int           length = 0;
+    std::wstring  wide;
+
+
+
+    if (text.empty())
+    {
+        return wide;
+    }
+
+    length = MultiByteToWideChar (CP_UTF8, 0, text.data(), (int) text.size(), nullptr, 0);
+
+    if (length <= 0)
+    {
+        return wide;
+    }
+
+    wide.resize ((size_t) length);
+    MultiByteToWideChar (CP_UTF8, 0, text.data(), (int) text.size(), wide.data(), length);
+
+    return wide;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WideToUtf8
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ControllersPage::WideToUtf8 (const std::wstring & text)
+{
+    int          length = 0;
+    std::string  narrow;
+
+
+
+    if (text.empty())
+    {
+        return narrow;
+    }
+
+    length = WideCharToMultiByte (CP_UTF8, 0, text.data(), (int) text.size(), nullptr, 0, nullptr, nullptr);
+
+    if (length <= 0)
+    {
+        return narrow;
+    }
+
+    narrow.resize ((size_t) length);
+    WideCharToMultiByte (CP_UTF8, 0, text.data(), (int) text.size(), narrow.data(), length, nullptr, nullptr);
+
+    return narrow;
 }
