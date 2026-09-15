@@ -63,6 +63,33 @@ int DiskCommand::Run (const CommandLineOptions & options)
     //  the runner talks through, and the runner decides everything else.
     runner.SetIntentChannel (&intentChannel);
 
+    //  How a command asks. A read of the console and nothing else: whether a
+    //  question is worth asking, what it says, and what an unanswered one means
+    //  are the runner's to decide. A redirected or absent input has nobody
+    //  behind it, so it answers no rather than blocking a script forever.
+    runner.SetConfirmAsker ([] (const std::string & question)
+    {
+        DWORD   mode    = 0;
+        HANDLE  in      = GetStdHandle (STD_INPUT_HANDLE);
+        bool    console = in != nullptr && in != INVALID_HANDLE_VALUE && GetConsoleMode (in, &mode);
+        char    answer[8] = {};
+
+        if (!console)
+        {
+            return false;
+        }
+
+        printf ("%s [y/N] ", question.c_str());
+        fflush (stdout);
+
+        if (fgets (answer, sizeof (answer), stdin) == nullptr)
+        {
+            return false;
+        }
+
+        return answer[0] == 'y' || answer[0] == 'Y';
+    });
+
     result   = runner.Run (options);
     exitCode = result.exitStatus;
 

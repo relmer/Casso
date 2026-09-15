@@ -257,6 +257,93 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskOperations::Mkdir
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Mkdir (const std::string & imagePath, const std::string & path)
+{
+    CommandLineOptions  options = MakeOptions (Command::Mkdir, imagePath);
+
+
+
+    options.disk.path = path;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Rmdir
+//
+//  The window has already shown the plan and been answered, so the question the
+//  command line asks is answered here in advance.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Rmdir (const std::string & imagePath, const std::string & path, bool force)
+{
+    CommandLineOptions  options = MakeOptions (Command::Rmdir, imagePath);
+
+
+
+    options.disk.path    = path;
+    options.disk.recurse = true;
+    options.disk.force   = force;
+    options.disk.yes     = true;
+
+    return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::BuildRemovalPlan
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::BuildRemovalPlan (
+    const std::string     & imagePath,
+    const std::string     & path,
+    DirectoryRemovalPlan  & outPlan)
+{
+    DiskImageSession::OpenedImage  opened;
+    Result                         result = OpenVolume (imagePath, opened);
+    HRESULT                        hr     = S_OK;
+
+
+
+    outPlan = DirectoryRemovalPlan();
+
+    if (result.Succeeded())
+    {
+        ProDosVolume  volume (opened.sectors);
+
+        hr = volume.BuildRemovalPlan (FilePath::Parse (path), outPlan);
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, path, DescribeVolumeRefusal (hr));
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskOperations::MakeEntryPath
 //
 //  A DOS 3.3 name is one component even when it contains a slash, and the path

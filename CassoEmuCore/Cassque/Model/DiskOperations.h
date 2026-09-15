@@ -90,6 +90,15 @@ public:
     Result  Delete   (const std::string & imagePath, const std::string & name, size_t catalogIndex = kNoIndex);
     Result  Boot     (const std::string & imagePath, const std::string & name, size_t catalogIndex = kNoIndex);
     Result  Create   (const std::string & imagePath, const NewDiskRequest & request);
+
+    //  Directories, on the volumes that have them. Mkdir makes the directories
+    //  along the path that are not there yet; Rmdir takes the whole subtree,
+    //  and a locked entry within it only with `force`.
+    Result  Mkdir    (const std::string & imagePath, const std::string & path);
+    Result  Rmdir    (const std::string & imagePath, const std::string & path, bool force);
+
+    //  What a removal would remove, for a confirmation to show before one.
+    Result  BuildRemovalPlan (const std::string & imagePath, const std::string & path, DirectoryRemovalPlan & outPlan);
     Result  Init     (const std::string & imagePath, const NewDiskRequest & request);
 
     Result  SectorRead  (const std::string & imagePath, Numbering numbering, int track, int sector, int count, const std::string & hostPath);
