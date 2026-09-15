@@ -209,8 +209,8 @@ description: "Task list for 034 physical game controllers"
 - [X] T077 [US5] Create `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp` as a `DxuiPropertyPage` following `CassoEmuCore/Ui/Settings/PrintingPage.h`: controller list, per-target binding lists with add/remove and capture buttons, invert/response/speed/threshold controls, deadzone slider, Calibrate and Use Automatic buttons (hidden for Xbox-class), live readout of controls and PDL0/PDL1/PB0-PB2, PB2 shown unavailable on the //c; register it in `OnBuildPages` in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`
 - [X] T078 [US5] Extend `CassoEmuCore/Ui/Settings/SettingsApplyController.h/.cpp` with the controllers baseline, dirty comparison, commit and revert following the printer fields; commit writes to `ControllerProfileStore` and saves global prefs
 - [X] T079 [US5] Add an optional page argument to `OpenSettings` in `CassoEmuCore/Shell/EmulatorShellDialogs.cpp`, threaded to `DxuiPropertySheet::SetActivePage`; add a static `Controller Settings...` command with an id in a new range in `CassoEmuCore/resource.h`, an `OnCommand` branch in `CassoEmuCore/Shell/WindowCommandManager.cpp`, and its row in the Machine menu (`s_kMenuEntries` in `EmulatorCommands.cpp`) and in `InputClusterEntry::GetPickerItems`
-- [ ] T080 [US5] Build; run `-Filter Controller`, `-Filter Settings`; run quickstart scenarios 7, 9 and 10b on hardware, plus scenario 10a using a rate binding built by hand on the Default profile
-- [ ] T081 [US5] Commit: `feat(input): Controllers settings page with remapping and calibration`
+- [X] T080 [US5] Build; run `-Filter Controller`, `-Filter Settings`; run quickstart scenarios 7, 9 and 10b on hardware, plus scenario 10a using a rate binding built by hand on the Default profile
+- [X] T081 [US5] Commit: `feat(input): Controllers settings page with remapping and calibration`
 
 **Checkpoint**: Any controller can be remapped and calibrated, and the mapping persists.
 
