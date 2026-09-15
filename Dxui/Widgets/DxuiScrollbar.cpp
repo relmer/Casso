@@ -757,7 +757,6 @@ void DxuiScrollbar::PaintArrow (IDxuiPainter & painter, const RECT & rect, bool 
     int   rectMain  = vertical ? (rect.bottom - rect.top) : (rect.right - rect.left);
     int   rectCross = vertical ? (rect.right - rect.left) : (rect.bottom - rect.top);
     int   depth     = std::max (s_kArrowGlyphMinPx, (int) std::lround ((double) rectMain * (double) s_kArrowGlyphRatio));
-    int   width     = depth * s_kArrowGlyphAspect;
     int   i         = 0;
 
 
@@ -768,11 +767,14 @@ void DxuiScrollbar::PaintArrow (IDxuiPainter & painter, const RECT & rect, bool 
         float  mainOff  = 0.0f;
         float  crossOff = 0.0f;
 
-        float  frac     = less ? (float) (i + 1) / (float) depth
-                               : (float) (depth - i) / (float) depth;
-        sliceLen = (float) width * frac;
-        mainOff = (float) ((rectMain - depth) / 2 + i);
-        crossOff = ((float) rectCross - sliceLen) / 2.0f;
+        //  Every slice shares the strip's parity, so it sits a whole number of
+        //  pixels from each edge. A half-pixel offset would be rounded to one
+        //  side, drawing the arrow off center from the puck.
+        int    slice    = (less ? i + 1 : depth - i) * s_kArrowGlyphAspect - (rectCross % 2);
+
+        sliceLen = (float) (std::max) (slice, 1);
+        mainOff  = (float) ((rectMain - depth) / 2 + i);
+        crossOff = (float) ((rectCross - (int) sliceLen) / 2);
 
         if (vertical)
         {

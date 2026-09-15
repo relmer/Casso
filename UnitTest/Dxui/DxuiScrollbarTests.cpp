@@ -331,6 +331,42 @@ public:
     }
 
 
+    //  The arrows sit on the strip's center line with the puck, on whole
+    //  pixels, whether the strip is an even or an odd number of pixels wide.
+    TEST_METHOD (Paint_ArrowsAreCenteredOnWholePixels)
+    {
+        for (int thickness : { 10, 11 })
+        {
+            DxuiScrollbar    bar;
+            DxuiScrollInfo   info;
+            MockDxuiPainter  painter;
+            int              slices = 0;
+
+            bar.Configure (DxuiScrollbar::Orientation::Vertical, thickness, 16, 1);
+            bar.SetTrack (RECT{ 100, 0, 100 + thickness, 200 });
+
+            info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+            info.nMax  = 100;
+            info.nPage = 20;
+            bar.SetScrollInfo (info);
+            bar.SetExpanded (true);
+            bar.Paint (painter, 0xFFFFFFFFu);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                if (call.kind == RecordedPaintKind::FillRect && call.height == 1.0f)
+                {
+                    ++slices;
+                    Assert::AreEqual (std::floor (call.x), call.x, L"Each arrow slice starts on a whole pixel");
+                    Assert::AreEqual (100.0f + (float) thickness * 0.5f, call.x + call.width * 0.5f, L"and is centered on the strip");
+                }
+            }
+
+            Assert::IsTrue (slices > 0, L"Arrows are drawn on the widened bar");
+        }
+    }
+
+
     //  A dragged puck follows the pointer one pixel at a time, even though the
     //  position it reports moves in whole rows. Pressing without moving moves
     //  nothing.
