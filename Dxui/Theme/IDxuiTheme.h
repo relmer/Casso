@@ -129,6 +129,11 @@ public:
     virtual uint32_t  ContentBackground   () const { return Background(); }
     virtual uint32_t  StatusBackground    () const { return Background(); }
 
+    // The fill of a control set into a bar, such as an address box. Explorer
+    // draws it a step above the bar it sits in, which is a different color
+    // from the popup surface. Defaults to the popup surface.
+    virtual uint32_t  ControlBackground   () const { return BackgroundElevated(); }
+
     // Lines drawn INSIDE a content surface: a list header's underline, the
     // separators between its columns, the sash between two panes. Lower
     // contrast than Border(), which outlines a panel.

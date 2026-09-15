@@ -55,6 +55,10 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  contentBg                = 0;
     uint32_t  statusBg                 = 0;
 
+    //  A control set into a bar, such as an address box. A zero value falls
+    //  back to the dropdown surface.
+    uint32_t  controlBg                = 0;
+
     //  List column title text, and lines within a content surface (a header's
     //  underline, the separators between columns). Both are much lower contrast
     //  than the panel edge: Explorer's are a few levels off its list
@@ -83,6 +87,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  ContentHover        () const override { return (contentHover != 0) ? contentHover : navHover; }
     uint32_t  ContentSelection    () const override { return (contentSelection != 0) ? contentSelection : navHover; }
     uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
+    uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
     uint32_t  HoverBackground     () const override { return navHover;           }
     uint32_t  PressedBackground   () const override { return buttonPressed;      }
     uint32_t  SelectionBackground () const override { return navHover;           }

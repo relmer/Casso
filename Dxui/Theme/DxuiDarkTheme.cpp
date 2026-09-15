@@ -21,7 +21,8 @@
 //
 //  The strip under the tabs, holding navigation and the address bar, is
 //  #2C2C2C, a step above the caption's #202020, so the selected tab that joins
-//  it reads as raised. Measured the same way on 2026-09-14.
+//  it reads as raised. The address box set into that strip is #383838.
+//  Measured the same way on 2026-09-14.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +50,7 @@ DxuiDarkTheme::DxuiDarkTheme()
     panelBg                  = 0xFF272727;
     contentBg                = 0xFF191919;
     statusBg                 = 0xFF1C1C1C;
+    controlBg                = 0xFF383838;
     headingText              = 0xFFDEDEDE;
     contentEdge              = 0xFF1D1D1D;
     splitterHighlight        = 0xFF2B2B2B;

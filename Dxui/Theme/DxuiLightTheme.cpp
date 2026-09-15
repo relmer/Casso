@@ -15,8 +15,9 @@
 //  the pale accent Explorer draws behind a selected row.
 //
 //  The strip under the tabs takes the layer fill, a step above the caption,
-//  as the dark theme's does, so the selected tab that joins it shows. Unlike
-//  the dark theme's, this one has not yet been measured against Explorer.
+//  as the dark theme's does, so the selected tab that joins it shows, and the
+//  address box set into it is white, a step above again. Unlike the dark
+//  theme's, these have not yet been measured against Explorer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,7 @@ DxuiLightTheme::DxuiLightTheme()
     linkHover                = 0xFF003E92;
     panelBg                  = 0xFFFBFBFB;
     panelEdge                = 0xFFE5E5E5;
+    controlBg                = 0xFFFFFFFF;
     buttonIdle               = 0xFFFBFBFB;
     buttonHover              = 0xFFF6F6F6;
     buttonPressed            = 0xFFF0F0F0;
