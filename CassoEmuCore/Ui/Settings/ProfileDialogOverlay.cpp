@@ -97,13 +97,14 @@ void ProfileDialogOverlay::OpenConfirmDelete (const std::wstring & name, AcceptF
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OpenKeepOrDiscard
+//  OpenSaveOrDiscard
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfileDialogOverlay::OpenKeepOrDiscard (const std::wstring & name, AcceptFn onKeep, DeclineFn onDiscard)
+void ProfileDialogOverlay::OpenSaveOrDiscard (const std::wstring & name, AcceptFn onSave, DeclineFn onDiscard, DeclineFn onCancel)
 {
-    Open (Kind::KeepOrDiscard, name, std::move (onKeep), std::move (onDiscard));
+    Open (Kind::SaveOrDiscard, name, std::move (onSave), std::move (onDiscard));
+    m_onCancel = std::move (onCancel);
 }
 
 
@@ -125,6 +126,7 @@ void ProfileDialogOverlay::Open (Kind kind, const std::wstring & name, AcceptFn 
     m_subject   = name;
     m_onAccept  = std::move (onAccept);
     m_onDecline = std::move (onDecline);
+    m_onCancel  = nullptr;
     m_open      = true;
     m_focus     = HasNameField() ? Focus::Name : Focus::Primary;
 
@@ -162,9 +164,9 @@ bool ProfileDialogOverlay::HasNameField() const
 //
 //  Layout
 //
-//  Centered in the sheet. From the top: the title, then either the name field
-//  (with Start from for New) and room for a two-line error, or the prompt's
-//  second line; the buttons along the bottom right.
+//  Centered in the sheet. From the top: the title, then for New and Rename the
+//  name field (with Start from for New) and room for a two-line error; the
+//  buttons along the bottom right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,10 +208,6 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
             contentH += rowGap + rowH * s_kSourceCount;
         }
     }
-    else if (m_kind == Kind::KeepOrDiscard)
-    {
-        contentH = lineH;
-    }
 
     dialogH = pad + rowH + rowGap + contentH + rowGap + rowH + pad;
     left    = panelRect.left + (panelRect.right  - panelRect.left - dialogW) / 2;
@@ -226,7 +224,7 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
         case Kind::NewProfile:    m_title.SetText (L"New profile");                                break;
         case Kind::RenameProfile: m_title.SetText (L"Rename profile");                             break;
         case Kind::ConfirmDelete: m_title.SetText (L"Delete the profile \"" + m_subject + L"\"?");  break;
-        default:                  m_title.SetText (L"Keep your changes to \"" + m_subject + L"\"?"); break;
+        default:                  m_title.SetText (L"Save changes to \"" + m_subject + L"\"?");     break;
     }
 
     m_title.SetRect        (MakeRect (x, y, innerW, rowH));
@@ -234,10 +232,6 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
     m_title.SetFontWeight  (DxuiFontWeight::SemiBold);
     m_title.SetTextRole    (DxuiTextRole::Heading);
     y += rowH + rowGap;
-
-    m_message.SetRect     (MakeRect (x, y, innerW, lineH));
-    m_message.SetText     (L"Your changes will be saved when you click OK in Settings.");
-    m_message.SetTextRole (DxuiTextRole::Body);
 
     m_nameLabel.SetRect     (MakeRect (x, y, labelW, rowH));
     m_nameLabel.SetText     (L"Name:");
@@ -266,6 +260,12 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
     m_source.SetOptions (std::move (options));
     m_source.Layout     (MakeRect (x + labelW, y, innerW - labelW, rowH * s_kSourceCount), scaler);
 
+    if (HasCancel())
+    {
+        m_tertiary.Layout (MakeRect (bx, by, btnW, rowH));
+        bx -= btnGap + btnW;
+    }
+
     m_secondary.Layout   (MakeRect (bx, by, btnW, rowH));
     m_primary.Layout     (MakeRect (bx - btnGap - btnW, by, btnW, rowH));
     m_primary.SetVariant (DxuiButton::Variant::Primary);
@@ -273,15 +273,18 @@ void ProfileDialogOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler &
     switch (m_kind)
     {
         case Kind::ConfirmDelete: m_primary.SetLabel (L"Delete"); m_secondary.SetLabel (L"Cancel");  break;
-        case Kind::KeepOrDiscard: m_primary.SetLabel (L"Keep");   m_secondary.SetLabel (L"Discard"); break;
+        case Kind::SaveOrDiscard: m_primary.SetLabel (L"Save");   m_secondary.SetLabel (L"Discard"); break;
         default:                  m_primary.SetLabel (L"OK");     m_secondary.SetLabel (L"Cancel");  break;
     }
 
+    m_tertiary.SetLabel (L"Cancel");
+
     m_primary.SetOnClick   ([this] { Accept(); });
     m_secondary.SetOnClick ([this] { Decline(); });
+    m_tertiary.SetOnClick  ([this] { Dismiss(); });
 
     m_title.SetDpi       (dpi);
-    m_message.SetDpi     (dpi);
+    m_tertiary.SetDpi    (dpi);
     m_nameLabel.SetDpi   (dpi);
     m_name.SetDpi        (dpi);
     m_sourceLabel.SetDpi (dpi);
@@ -379,6 +382,37 @@ void ProfileDialogOverlay::Decline()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Dismiss
+//
+//  The save-or-discard prompt's Cancel: neither saves nor discards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileDialogOverlay::Dismiss()
+{
+    DeclineFn  onCancel = m_onCancel;
+
+
+
+    if (!m_open)
+    {
+        return;
+    }
+
+    m_open = false;
+
+    if (onCancel)
+    {
+        onCancel();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetFocusOrder
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -401,6 +435,11 @@ std::vector<ProfileDialogOverlay::Focus> ProfileDialogOverlay::GetFocusOrder() c
 
     order.push_back (Focus::Primary);
     order.push_back (Focus::Secondary);
+
+    if (HasCancel())
+    {
+        order.push_back (Focus::Tertiary);
+    }
 
     return order;
 }
@@ -452,6 +491,7 @@ void ProfileDialogOverlay::ApplyFocus()
     m_source.SetFocused    (m_focus == Focus::Source);
     m_primary.SetFocused   (m_focus == Focus::Primary);
     m_secondary.SetFocused (m_focus == Focus::Secondary);
+    m_tertiary.SetFocused  (m_focus == Focus::Tertiary);
 }
 
 
@@ -483,6 +523,11 @@ void ProfileDialogOverlay::OnLButtonDown (int x, int y)
     {
         m_focus = Focus::Secondary;
         m_secondary.SetMouse (x, y, true);
+    }
+    else if (HasCancel() && m_tertiary.HitTest (x, y))
+    {
+        m_focus = Focus::Tertiary;
+        m_tertiary.SetMouse (x, y, true);
     }
 
     ApplyFocus();
@@ -518,6 +563,10 @@ void ProfileDialogOverlay::OnLButtonUp (int x, int y)
     {
         m_secondary.Click();
     }
+    else if (HasCancel() && m_tertiary.HitTest (x, y))
+    {
+        m_tertiary.Click();
+    }
 }
 
 
@@ -541,6 +590,7 @@ void ProfileDialogOverlay::OnMouseMove (int x, int y)
     m_source.SetMouseHover (x, y);
     m_primary.SetMouse     (x, y, false);
     m_secondary.SetMouse   (x, y, false);
+    m_tertiary.SetMouse    (x, y, false);
 }
 
 
@@ -578,8 +628,9 @@ LPCWSTR ProfileDialogOverlay::GetCursorForPoint (POINT clientPx) const
 //  OnKey
 //
 //  Tab and Shift+Tab move through the controls. Enter runs the focused
-//  button, or the primary one from anywhere else. Escape cancels, except on
-//  the keep-or-discard prompt, where it keeps: the choice that loses nothing.
+//  button, or the primary one from anywhere else. Escape cancels: on the
+//  save-or-discard prompt that is its Cancel, which neither saves nor
+//  discards.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -591,9 +642,9 @@ bool ProfileDialogOverlay::OnKey (WPARAM vk)
 
     if (vk == VK_ESCAPE)
     {
-        if (m_kind == Kind::KeepOrDiscard)
+        if (HasCancel())
         {
-            Accept();
+            Dismiss();
         }
         else
         {
@@ -605,6 +656,10 @@ bool ProfileDialogOverlay::OnKey (WPARAM vk)
         if (m_focus == Focus::Secondary)
         {
             Decline();
+        }
+        else if (m_focus == Focus::Tertiary)
+        {
+            Dismiss();
         }
         else
         {
@@ -623,6 +678,7 @@ bool ProfileDialogOverlay::OnKey (WPARAM vk)
             case Focus::Source:    (void) m_source.OnKey (vk);    break;
             case Focus::Primary:   (void) m_primary.OnKey (vk);   break;
             case Focus::Secondary: (void) m_secondary.OnKey (vk); break;
+            case Focus::Tertiary:  (void) m_tertiary.OnKey (vk);  break;
         }
     }
 
@@ -685,11 +741,6 @@ void ProfileDialogOverlay::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     m_title.Paint (painter, text, theme);
 
-    if (m_kind == Kind::KeepOrDiscard)
-    {
-        m_message.Paint (painter, text, theme);
-    }
-
     if (HasNameField())
     {
         m_nameLabel.Paint (painter, text, theme);
@@ -710,6 +761,11 @@ void ProfileDialogOverlay::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     m_primary.Paint   (painter, text, theme);
     m_secondary.Paint (painter, text, theme);
+
+    if (HasCancel())
+    {
+        m_tertiary.Paint (painter, text, theme);
+    }
 }
 
 

@@ -712,10 +712,11 @@ void ControllersPage::RefreshProfiles()
 //
 //  OnProfileSelect
 //
-//  Leaving a profile with unapplied edits asks first. Keep leaves the edits
-//  pending on that profile; Discard puts it back as it was when it was opened
-//  or last switched to. Until the user answers, the drop-down goes on
-//  showing the profile being left.
+//  Leaving a profile with unapplied edits asks first. Save commits the model
+//  now, so Cancel on the sheet no longer undoes it; Discard puts the profile
+//  back as it was when it was opened or last switched to; Cancel stays on it
+//  with its edits pending. Until the user answers, the drop-down goes on
+//  showing the profile being left, and a save that fails stays there too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -745,16 +746,30 @@ void ControllersPage::OnProfileSelect (int index)
 
     Refresh();
 
-    m_profileDialog.OpenKeepOrDiscard (Utf8ToWide (m_state->GetEditedProfileName()),
+    m_profileDialog.OpenSaveOrDiscard (Utf8ToWide (m_state->GetEditedProfileName()),
         [this, name] (const std::wstring &, ProfileSource)
         {
-            SwitchProfile (name);
+            HRESULT  hr = m_onCommitProfile ? m_state->SaveProfileEdits (m_onCommitProfile) : E_FAIL;
+
+            if (SUCCEEDED (hr))
+            {
+                SwitchProfile (name);
+            }
+            else
+            {
+                Refresh();
+            }
+
             return ProfileEditResult::Ok;
         },
         [this, name] ()
         {
             m_state->DiscardProfileEdits();
             SwitchProfile (name);
+        },
+        [this] ()
+        {
+            Refresh();
         });
 
     ShowDialog();

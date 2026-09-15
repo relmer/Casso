@@ -68,6 +68,9 @@ public:
     void  SetOnInspect     (InspectFn onInspect);
     void  SetPopupHost     (DxuiHwndSource * host);
 
+    // Where Save on the profile-switch prompt commits the edited model.
+    void  SetOnCommitProfile (ControllersPageState::CommitFn onCommit) { m_onCommitProfile = std::move (onCommit); }
+
     void  Layout           (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
     // Each dialog tick: feed the controller's latest reading to the capture,
@@ -140,6 +143,7 @@ private:
     ControllersPageState                      * m_state               = nullptr;
     SampleSource                                m_sampleSource;
     InspectFn                                   m_onInspect;
+    ControllersPageState::CommitFn              m_onCommitProfile;
     std::optional<ControllerUnitKey>            m_inspected;
     size_t                                      m_lastControllerCount = 0;
     std::optional<std::pair<size_t, size_t>>    m_capturing;

@@ -469,6 +469,14 @@ HRESULT SettingsSheet::OpenModeless (
             Invalidate();
         });
         m_apply.BindControllers (&m_controllersState, service);
+
+        // Save on the profile-switch prompt commits through the same prefs
+        // and service the sheet's OK does.
+        m_controllersPage->SetOnCommitProfile ([this] (const std::map<std::string, ControllerModelSettings> & models,
+                                                       const std::map<std::string, ControllerCalibration>   & calibrations)
+        {
+            return m_apply.CommitControllerSettings (models, calibrations);
+        });
     }
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist

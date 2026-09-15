@@ -589,7 +589,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (SwitchingWithUnappliedEdits_DiscardRestoresAndKeepKeeps)
+        TEST_METHOD (SwitchingWithUnappliedEdits_DiscardRestores)
         {
             ControllersPageState  page;
             std::string           token = ControllerTokens::ModelToToken (MakeStick().unit.model);
@@ -597,22 +597,123 @@ namespace ControllerTests
             page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true, "Swapped");
 
             Assert::IsFalse (page.HasUnappliedProfileEdits());
-            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+            page.RemoveBinding (PaddleTarget::Pb0, 0);
             Assert::IsTrue  (page.HasUnappliedProfileEdits(), L"an edit is what the prompt asks about");
 
-            page.SelectProfile ("Default");
-            Assert::IsFalse  (page.HasUnappliedProfileEdits(), L"the Default has none of its own");
-            Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb2.size(), L"Keep leaves the edit pending on Swapped");
-
-            page.SelectProfile ("Swapped");
-            page.RemoveBinding (PaddleTarget::Pb0, 0);
             page.DiscardProfileEdits();
             page.SelectProfile ("Default");
 
+            Assert::IsFalse  (page.HasUnappliedProfileEdits(), L"the Default has none of its own");
             Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb0.size(),
                 L"Discard puts back what Swapped had when it was switched to");
-            Assert::AreEqual (size_t (1), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb2.size(),
-                L"which still includes the edit kept earlier");
+        }
+
+
+        TEST_METHOD (SwitchingWithUnappliedEdits_CancelKeepsTheProfileAndItsEdits)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 2 } });
+
+            // Cancel on the prompt makes no call on the state at all.
+            Assert::AreEqual (std::string ("Swapped"), page.GetEditedProfileName());
+            Assert::IsTrue   (page.HasUnappliedProfileEdits());
+            Assert::AreEqual (size_t (1), page.GetMapping().pb2.size());
+        }
+
+
+        TEST_METHOD (SaveProfileEdits_CommitsTheModelAndSurvivesRevert)
+        {
+            ControllersPageState                            page;
+            ControllerDeviceInfo                            xbox       = MakeXbox();
+            std::string                                     token      = ControllerTokens::ModelToToken (MakeStick().unit.model);
+            std::string                                     xboxToken  = ControllerTokens::ModelToToken (xbox.unit.model);
+            std::map<std::string, ControllerModelSettings>  committed;
+            std::map<std::string, ControllerCalibration>    calibrated;
+            int                                             calls      = 0;
+            HRESULT                                         hr         = S_OK;
+
+            page.Load ({ MakeStick(), xbox }, MakeSavedWithSwapped(), {}, true);
+            page.SelectController (1);
+            page.AddButtonBinding (PaddleTarget::Pb2, { { ControlKind::Button, 0 } });
+            page.SelectController (0);
+            page.SelectProfile ("Swapped");
+            page.RemoveBinding (PaddleTarget::Pb0, 0);
+            page.BeginCalibration();
+            page.AdvanceCalibration();
+            page.AdvanceCalibration();
+
+            hr = page.SaveProfileEdits ([&] (const std::map<std::string, ControllerModelSettings> & models,
+                                             const std::map<std::string, ControllerCalibration>   & calibrations)
+            {
+                committed  = models;
+                calibrated = calibrations;
+                calls++;
+                return S_OK;
+            });
+
+            Assert::IsTrue   (SUCCEEDED (hr));
+            Assert::AreEqual (1, calls);
+            Assert::AreEqual (size_t (0), committed.at (token).FindProfile ("Swapped")->mapping.pb0.size(), L"the saved edit is committed");
+            Assert::IsTrue   (committed.find (xboxToken) == committed.end(), L"another model's pending edits are not");
+            Assert::IsTrue   (calibrated.empty(), L"nor is a pending calibration");
+            Assert::IsFalse  (page.HasUnappliedProfileEdits(), L"nothing left to ask about");
+            Assert::IsTrue   (page.HasActiveProfileChanged(), L"saving did not make Swapped the active profile; OK does that");
+
+            page.SelectProfile ("Default");
+            Assert::IsTrue   (page.IsDirty(), L"the other model and the calibration still wait for OK");
+
+            page.Revert();
+
+            Assert::AreEqual (size_t (0), page.GetModels().at (token).FindProfile ("Swapped")->mapping.pb0.size(), L"Cancel keeps the save");
+            Assert::IsTrue   (page.GetModels().find (xboxToken) == page.GetModels().end(), L"and reverts what was not saved");
+            Assert::IsTrue   (page.GetCalibrations().empty());
+            Assert::IsFalse  (page.IsDirty());
+        }
+
+
+        TEST_METHOD (SaveProfileEdits_DoesNotChangeTheActiveProfile)
+        {
+            ControllersPageState  page;
+            HRESULT               hr = S_OK;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true);
+            page.SelectProfile ("Swapped");
+            page.RemoveBinding (PaddleTarget::Pb0, 0);
+
+            hr = page.SaveProfileEdits ([] (const std::map<std::string, ControllerModelSettings> &,
+                                            const std::map<std::string, ControllerCalibration> &)
+            {
+                return S_OK;
+            });
+
+            Assert::IsTrue  (SUCCEEDED (hr));
+            Assert::IsTrue  (page.IsDirty(), L"only the switch to Swapped is left for OK");
+            page.SelectProfile ("Default");
+            Assert::IsFalse (page.IsDirty(), L"switching back leaves the save as the only change, already committed");
+        }
+
+
+        TEST_METHOD (SaveProfileEdits_ThatFails_LeavesTheEditsPending)
+        {
+            ControllersPageState  page;
+            HRESULT               hr = S_OK;
+
+            page.Load ({ MakeStick() }, MakeSavedWithSwapped(), {}, true, "Swapped");
+            page.RemoveBinding (PaddleTarget::Pb0, 0);
+
+            hr = page.SaveProfileEdits ([] (const std::map<std::string, ControllerModelSettings> &,
+                                            const std::map<std::string, ControllerCalibration> &)
+            {
+                return E_ACCESSDENIED;
+            });
+
+            Assert::IsTrue  (FAILED (hr));
+            Assert::IsTrue  (page.HasUnappliedProfileEdits());
+            Assert::IsTrue  (page.IsDirty());
+            page.Revert();
+            Assert::IsFalse (page.IsDirty());
         }
 
 

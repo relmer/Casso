@@ -63,6 +63,58 @@ void SettingsApplyController::BindControllers (ControllersPageState * state, Con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommitControllerSettings
+//
+//  CRT and printing edits are applied to the prefs as they are made, so the
+//  file is written from a copy holding their baselines instead. The live
+//  prefs take the controller settings too, so OK's save keeps them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsApplyController::CommitControllerSettings (const std::map<std::string, ControllerModelSettings> & models,
+                                                           const std::map<std::string, ControllerCalibration>   & calibrations)
+{
+    HRESULT                 hr = S_OK;
+    ControllerProfileStore  store;
+    GlobalUserPrefs         saved;
+
+
+
+    CBRA (m_prefs != nullptr);
+    CBRA (m_fs != nullptr);
+
+    store.models         = models;
+    store.calibrations   = calibrations;
+    m_prefs->controllers = store.ToJson (m_prefs->controllers);
+
+    if (m_controllerService != nullptr)
+    {
+        m_controllerService->SetModelSettings (store.models);
+    }
+
+    saved                         = *m_prefs;
+    saved.crtOverrides            = m_baselineCrt;
+    saved.printOutputDpi          = m_baselinePrintOutputDpi;
+    saved.printDotStyle           = m_baselinePrintDotStyle;
+    saved.printerAudioEnabled     = m_baselinePrinterAudioEnabled;
+    saved.printerAudioVolume      = m_baselinePrinterAudioVolume;
+    saved.printerAudioPanOverride = m_baselinePrinterAudioPanOverride;
+    saved.printerAudioPan         = m_baselinePrinterAudioPan;
+
+    hr = (m_ucs != nullptr) ? m_ucs->SaveAll (saved, *m_fs)
+                            : saved.Save (m_emuShell->GetAssetBaseDir(), *m_fs);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SnapshotBaselines
 //
 //  Captures the current CRT block for every monitor type plus the

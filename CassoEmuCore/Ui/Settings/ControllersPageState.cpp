@@ -899,6 +899,56 @@ void ControllersPageState::DiscardProfileEdits()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SaveProfileEdits
+//
+//  The whole model is committed rather than the edited profile's mapping
+//  alone. Profile names and the deadzone live in the same model settings, so
+//  committing part of it would leave a baseline matching neither the page nor
+//  the prefs file: a pending rename would revert to two profiles. A model
+//  with no settings entry as edited is dropped from the committed set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ControllersPageState::SaveProfileEdits (const CommitFn & commit)
+{
+    HRESULT                                         hr        = S_OK;
+    const ControllerEntry *                         selected  = GetSelected();
+    std::map<std::string, ControllerModelSettings>  committed = m_baselineModels;
+    bool                                            hasCommit = static_cast<bool> (commit);
+    std::string                                     token;
+
+
+
+    CBRA (hasCommit);
+    CBR  (selected != nullptr);
+
+    token = ControllerTokens::ModelToToken (selected->unit.model);
+
+    if (m_models.find (token) != m_models.end())
+    {
+        committed[token] = m_models.at (token);
+    }
+    else
+    {
+        committed.erase (token);
+    }
+
+    hr = commit (committed, m_baselineCalibrations);
+    CHR (hr);
+
+    m_baselineModels = std::move (committed);
+    CaptureSwitchMapping();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasActiveProfileChanged
 //
 ////////////////////////////////////////////////////////////////////////////////

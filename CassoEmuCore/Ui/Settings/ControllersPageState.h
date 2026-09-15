@@ -129,6 +129,17 @@ public:
     bool                                  HasUnappliedProfileEdits () const;
     void                                  DiscardProfileEdits      ();
 
+    // Commits the selected model's settings as edited -- every profile's
+    // mapping, the profiles created, renamed and deleted, and the deadzone --
+    // ahead of OK. `commit` receives every model and calibration as they would
+    // stand committed: the other models' pending edits and all pending
+    // calibrations left out. The committed model joins the baseline only when
+    // `commit` succeeds, so Cancel no longer reverts it. The machine's active
+    // profile does not change.
+    using CommitFn = std::function<HRESULT (const std::map<std::string, ControllerModelSettings> & models,
+                                            const std::map<std::string, ControllerCalibration>   & calibrations)>;
+    HRESULT                               SaveProfileEdits         (const CommitFn & commit);
+
     // The profile that becomes the machine's active one on OK, empty for
     // Default, and whether it differs from the one the page opened on.
     bool                                  HasActiveProfileChanged  () const;
