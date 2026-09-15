@@ -722,7 +722,11 @@ void ControllersPage::RefreshRows()
 
             m_rows[target][row].SetItems      (items);
             m_rows[target][row].SetItemGlyphs (glyphs);
-            m_rows[target][row].SetSelected (isCapturing ? kPressToAssignItem : (row < count ? choice : kNoneItem));
+            // A target the machine lacks says so, rather than showing a
+            // binding saved from a machine that has it as though it applied.
+            m_rows[target][row].SetSelected (!available  ? kNoneItem
+                                             : isCapturing ? kPressToAssignItem
+                                             : (row < count ? choice : kNoneItem));
             m_rows[target][row].SetEnabled  (available);
             m_rows[target][row].SetVisible  (row < shown);
         }
