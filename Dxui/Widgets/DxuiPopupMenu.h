@@ -263,6 +263,14 @@ private:
     static constexpr int       kHoverInsetYDip         = 2;
     static constexpr float     kHoverRadiusDip         = 4.0f;
 
+    //  A submenu row's chevron, drawn as Explorer draws it: two thin strokes
+    //  meeting at a point, in a box of fixed width at the row's right.
+    static constexpr int       s_kSubmenuChevronBoxDip    = 12;
+    static constexpr float     s_kSubmenuChevronHalfDip   = 4.0f;
+    static constexpr float     s_kSubmenuChevronDepthDip  = 4.0f;
+    static constexpr float     s_kSubmenuChevronStrokeDip = 1.0f;
+    static constexpr float     s_kSubmenuChevronInsetDip  = 4.0f;
+
     struct Palette
     {
         uint32_t  bg       = 0;

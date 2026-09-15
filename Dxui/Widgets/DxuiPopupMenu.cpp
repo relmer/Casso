@@ -800,9 +800,11 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
             widestLabel = px;
         }
 
+        //  A submenu row ends in a drawn chevron, which needs a fixed width
+        //  rather than a measured glyph.
         if (row.kind == DxuiPopupMenuItem::Kind::Submenu)
         {
-            px = MeasureRunPx (s_kpszTriangleRight, fontPx, text);
+            px = m_scaler.ToPx (s_kSubmenuChevronBoxDip);
         }
         else if (!row.command->accelerator.empty())
         {
@@ -1769,19 +1771,19 @@ void DxuiPopupMenu::PaintRow (
                         left + (float) labelLeft, y + (float) padTop, fontDip, labelArgb);
     }
 
+    //  Explorer ends a submenu row in a thin chevron, not a filled triangle:
+    //  two strokes meeting at a point, at the right of the accelerator column.
     if (row.kind == DxuiPopupMenuItem::Kind::Submenu)
     {
-        hr = text.DrawString (s_kpszTriangleRight,
-                              left + (float) m_accelLeftPx,
-                              y + (float) padTop,
-                              accelW + (float) m_metrics.rightPadPx - (float) pad,
-                              (float) rowH,
-                              accelArgb,
-                              fontDip,
-                              DxuiTheme::kBodyFace,
-                              DxuiTextHAlign::Right,
-                              DxuiTextVAlign::Top);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        float  right = left + (float) m_accelLeftPx + accelW + (float) m_metrics.rightPadPx - (float) pad;
+        float  half  = m_scaler.ToPxf (s_kSubmenuChevronHalfDip);
+        float  depth = m_scaler.ToPxf (s_kSubmenuChevronDepthDip);
+        float  thick = (std::max) (1.0f, m_scaler.ToPxf (s_kSubmenuChevronStrokeDip));
+        float  tipX  = right - m_scaler.ToPxf (s_kSubmenuChevronInsetDip);
+        float  midY  = y + (float) padTop + (float) rowH * 0.5f;
+
+        painter.DrawLineApprox (tipX - depth, midY - half, tipX, midY, thick, accelArgb);
+        painter.DrawLineApprox (tipX - depth, midY + half, tipX, midY, thick, accelArgb);
     }
     else if (!row.command->accelerator.empty())
     {
