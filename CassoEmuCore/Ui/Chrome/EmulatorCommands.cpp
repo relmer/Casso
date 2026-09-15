@@ -679,7 +679,12 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
     //  dispatch is running is in one of these, and picking a source rebuilds
     //  the rows more than once before that dispatch returns. Freeing it frees
     //  the source its dispatch is still reading.
-    if (m_paddleDispatchDepth == 0)
+    //
+    //  NOR WHILE A MENU IS OPEN. One generation assumed one rebuild per change,
+    //  but a controller plugged in can rebuild the rows more than once while
+    //  the picker is open, and the second rebuild freed the rows the open menu
+    //  was still painting.
+    if (m_paddleDispatchDepth == 0 && !m_isPaddleMenuOpen)
     {
         m_retiredPaddleRows.clear();
     }

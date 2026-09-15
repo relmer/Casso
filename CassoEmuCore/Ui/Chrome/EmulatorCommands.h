@@ -137,6 +137,11 @@ public:
     void  SetPaddleSources        (const std::vector<InputModeRules::PaddleSource> & sources);
     void  SetPaddleSourcePickedFn (PaddleSourcePickedFn fn) { m_onPaddleSourcePicked = std::move (fn); }
 
+    // Whether a menu holding the rows is on screen. While one is, no retired
+    // generation is freed, however many rebuilds arrive: a controller plugged
+    // in rebuilds the rows more than once, and the menu still holds the first.
+    void  SetPaddleMenuOpen       (bool isOpen) { m_isPaddleMenuOpen = isOpen; }
+
     // Mouse mode: a plain toggle on the strip, because it toggles one thing.
     // It is NOT in the paddle-source picker: it drives the //c's IOU mouse,
     // not the game port, so it is not an answer to that question (FR-008).
@@ -190,6 +195,7 @@ private:
 
     // How many row dispatches are on the stack right now. See above.
     int                                        m_paddleDispatchDepth  = 0;
+    bool                                       m_isPaddleMenuOpen     = false;
     std::vector<InputModeRules::PaddleSource>  m_paddleSources;
     PaddleSourcePickedFn                       m_onPaddleSourcePicked;
 

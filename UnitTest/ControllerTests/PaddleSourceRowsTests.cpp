@@ -231,6 +231,34 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (RebuildsWhileTheMenuIsOpen_KeepEveryRowTheMenuHolds)
+        {
+            EmulatorCommands                commands;
+            std::vector<DxuiPopupMenuItem>  open;
+
+            commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+            open = commands.GetPaddleSourceItems();
+
+            // An Xbox controller plugged in while the picker is open: the rows
+            // are rebuilt as it arrives and again as it is selected.
+            commands.SetPaddleMenuOpen (true);
+            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", false),
+                                         MakeSource (L"Use keys as joystick", L"Keys", true) });
+            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true),
+                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
+
+            Assert::AreEqual (std::wstring (L"Use keys as joystick"), open[0].command->label,
+                L"the rows the open menu paints are still there after both rebuilds");
+            Assert::IsTrue   (open[0].command->IsChecked());
+
+            // Closed again, the next rebuild lets the old generations go.
+            commands.SetPaddleMenuOpen (false);
+            commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true) });
+
+            Assert::AreEqual (static_cast<size_t> (1), commands.GetPaddleSourceItems().size());
+        }
+
+
         TEST_METHOD (RowsShrinking_DropsTheSpareRowsFromTheList)
         {
             EmulatorCommands  commands;
