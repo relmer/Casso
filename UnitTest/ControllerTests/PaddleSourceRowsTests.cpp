@@ -302,6 +302,32 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (Picker_SeparatesTheMultiplayerRowFromTheSources)
+        {
+            EmulatorCommands                commands;
+            InputModeRules::PaddleSource    twoPlayer = MakeSource (L"Multiplayer...", L"Multiplayer", false);
+            std::vector<DxuiPopupMenuItem>  items;
+
+            twoPlayer.isMultiplayer = true;
+
+            commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true),
+                                         MakeSource (L"Use keys as joystick", L"Keys", false),
+                                         twoPlayer });
+
+            items = commands.GetPaddlePickerItems();
+
+            // The rows above it are the one thing driving the game port; this
+            // is the mode where two things do, so it does not read as a third
+            // source.
+            Assert::AreEqual (static_cast<size_t> (6), items.size(),
+                L"two sources, a separator, the two-player row, a separator, then the settings entry");
+            Assert::IsTrue   (items[2].command == nullptr, L"a separator sits ahead of it");
+            Assert::AreEqual (std::wstring (L"Multiplayer..."), items[3].command->label);
+            Assert::AreEqual (static_cast<size_t> (3), commands.GetPaddleSourceItems().size(),
+                L"and the source rows alone carry no separators");
+        }
+
+
         TEST_METHOD (ProfileRows_AreOnePerProfileDefaultFirst)
         {
             EmulatorCommands                commands;

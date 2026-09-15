@@ -988,14 +988,30 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 //  below a separator, so the settings for the controller in use are one
 //  click from where it was chosen.
 //
+//  The two-player row sits below a separator of its own. The rows above it
+//  are the one thing that drives the game port; it is the mode where two
+//  things do, so grouping it with them would read as a third source.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
 {
-    std::vector<DxuiPopupMenuItem>      items    = GetPaddleSourceItems();
+    std::vector<DxuiPopupMenuItem>      items;
+    std::vector<DxuiPopupMenuItem>      rows     = GetPaddleSourceItems();
     std::shared_ptr<const DxuiCommand>  settings = Find (IDM_VIEW_CONTROLLER_SETTINGS);
+    size_t                              i        = 0;
 
 
+
+    for (i = 0; i < rows.size(); i++)
+    {
+        if (i < m_paddleSources.size() && m_paddleSources[i].isMultiplayer)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        items.push_back (rows[i]);
+    }
 
     if (settings != nullptr)
     {

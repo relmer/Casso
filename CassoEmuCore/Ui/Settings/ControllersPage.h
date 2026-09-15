@@ -57,6 +57,7 @@ public:
     static constexpr size_t  kAxisCount   = 2;
     static constexpr size_t  kButtonCount = 3;
     static constexpr size_t  kMaxRows     = 4;
+    static constexpr size_t  kPlayerCount = MultiplayerSetup::kPlayerCount;
 
     using SampleSource = std::function<std::optional<ControllerSample> (const ControllerUnitKey &)>;
     using InspectFn    = std::function<void (const std::optional<ControllerUnitKey> &)>;
@@ -122,6 +123,9 @@ private:
 
     void                 RebuildChoices     ();
     void                 RefreshRows        ();
+    void                 RefreshMultiplayer ();
+    void                 OnPlayerControllerSelect (size_t player, int item);
+    void                 OnPlayerTargetSelect     (size_t player, int item);
     void                 RefreshAxisOptions ();
     void                 RefreshCalibration ();
     void                 OnRowSelect        (size_t target, size_t row, int item);
@@ -156,6 +160,18 @@ private:
     bool                                        m_hasLayout           = false;
     bool                                        m_isSyncing           = false;
     std::function<void ()>                      m_onLayoutChanged;
+
+    // The two player slots, shown only while the machine is in multiplayer
+    // mode. Each row's drop-downs carry what they offer, so a pick resolves
+    // to a controller and a target rather than to an index into a list that
+    // may have been rebuilt since.
+    DxuiLabel                                                                m_multiplayerHeading;
+    std::array<DxuiLabel, kPlayerCount>                                      m_playerLabel;
+    std::array<DxuiComboBox, kPlayerCount>                                   m_playerController;
+    std::array<DxuiLabel, kPlayerCount>                                      m_playerMapsLabel;
+    std::array<DxuiComboBox, kPlayerCount>                                   m_playerTarget;
+    std::array<std::vector<std::optional<ControllerUnitKey>>, kPlayerCount>  m_playerUnits;
+    std::array<std::vector<PlayerAxisTarget>, kPlayerCount>                  m_playerTargets;
 
     DxuiLabel          m_controllerLabel;
     DxuiComboBox       m_controller;

@@ -2725,6 +2725,24 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 void EmulatorShell::PickPaddleSource (InputModeRules::PaddleSource source)
 {
+    // Two people playing is set up rather than picked: the row turns the mode
+    // on for this machine and opens the page where the slots are filled, since
+    // the mode on its own says nothing about who holds what.
+    if (source.isMultiplayer)
+    {
+        if (m_controllerService != nullptr)
+        {
+            m_controllerService->SetMultiplayerEnabled (true);
+        }
+
+        SetArrowsJoystick (false);
+        SetPointerMapping (InputMappingMode::Off);
+        SyncGamePortAxisOwner();
+        SyncInputModeUi();
+        OpenSettings (true);
+        return;
+    }
+
     if (source.isArrowKeys)
     {
         SetControllerSelection (std::nullopt);
@@ -3122,7 +3140,11 @@ void EmulatorShell::SyncGamePortAxisOwner()
     {
         ControllerInputService::Snapshot  snapshot = m_controllerService->GetSnapshot();
 
-        state.hasController        = snapshot.selection.has_value();
+        // In multiplayer the players drive the axes and the selection drives
+        // nothing, so the mode itself is what holds them: reading the
+        // selection alone would leave the axes at center for two people
+        // playing on a machine with no controller selected.
+        state.hasController        = snapshot.selection.has_value() || snapshot.multiplayer.isEnabled;
         state.isControllerAttached = snapshot.isAnyDriverConnected;
     }
 

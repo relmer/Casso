@@ -880,5 +880,206 @@ namespace ControllerTests
             page.SelectProfile ("Default");
             Assert::AreEqual (std::string(), page.GetActiveProfileName(), L"the Default is committed as no profile name");
         }
+
+
+        // Two players, each on their own joystick of a four-axis machine.
+        static MultiplayerSetup MakeTwoPlayers (const ControllerUnitKey & first, const ControllerUnitKey & second)
+        {
+            MultiplayerSetup  setup;
+
+            setup.isEnabled         = true;
+            setup.players[0].unit   = first;
+            setup.players[0].target = PlayerAxisTarget::Joystick0;
+            setup.players[1].unit   = second;
+            setup.players[1].target = PlayerAxisTarget::Joystick1;
+            return setup;
+        }
+
+
+        TEST_METHOD (InPlay_WithTheModeOff_EverythingIsInPlay)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeStick() }, {}, {}, true);
+
+            // Single-source mode is what a machine has always done: the one
+            // controller drives both paddles and all three buttons.
+            Assert::IsTrue (page.IsTargetInPlay (PaddleTarget::Pdl0));
+            Assert::IsTrue (page.IsTargetInPlay (PaddleTarget::Pdl1));
+            Assert::IsTrue (page.IsTargetInPlay (PaddleTarget::Pb0));
+            Assert::IsTrue (page.IsTargetInPlay (PaddleTarget::Pb1));
+            Assert::IsTrue (page.IsTargetInPlay (PaddleTarget::Pb2));
+        }
+
+
+        TEST_METHOD (InPlay_AJoystickSlot_PlaysBothPaddlesAndOneButton)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 4);
+            page.SelectController (0);
+
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pdl0), L"a joystick is two paddles wired to one stick");
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pdl1));
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pb0),  L"and the player's own button line comes off PB0");
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pb1),  L"PB1 belongs to the other player while the mode is on");
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pb2),  L"and PB2 is unused (FR-039)");
+        }
+
+
+        TEST_METHOD (InPlay_ASinglePaddleSlot_PlaysOnePaddleAndOneButton)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+            MultiplayerSetup      setup  = MakeTwoPlayers (first.unit, second.unit);
+
+            setup.players[0].target = PlayerAxisTarget::Paddle2;
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (setup, 4);
+            page.SelectController (0);
+
+            // The slot's paddles take the mapping's targets in ascending
+            // order, so one paddle plays the controller's PDL0 alone.
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pdl0));
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pdl1), L"there is no second paddle for PDL1 to land on");
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pb0));
+        }
+
+
+        TEST_METHOD (InPlay_PlayerTwo_DrivesTheirLineFromTheirOwnPb0)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 4);
+            page.SelectController (1);
+
+            Assert::IsTrue  (page.FindEditedPlayer() == std::optional<size_t> (1));
+            Assert::IsTrue  (page.IsTargetInPlay (PaddleTarget::Pb0),
+                L"player two's PB0 bindings drive PB1, so PB0 is the row they edit");
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pb1),
+                L"their own PB1 bindings are kept and ignored while the mode is on");
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pb2));
+        }
+
+
+        TEST_METHOD (InPlay_AControllerInNeitherSlot_PlaysNothing)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+            ControllerDeviceInfo  spare  = MakeStick ("{C}");
+
+            page.Load ({ first, second, spare }, {}, {}, true);
+            page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 4);
+            page.SelectController (2);
+
+            Assert::IsTrue  (!page.FindEditedPlayer().has_value());
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pdl0));
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pdl1));
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pb0));
+        }
+
+
+        TEST_METHOD (InPlay_ASlotThisMachineCannotPlay_IsNotInPlay)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 2);
+            page.SelectController (1);
+
+            // Player two is on joystick 1, which is PDL2/PDL3: a //c has
+            // neither, so they are not read at all (FR-035).
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pdl0));
+            Assert::IsFalse (page.IsTargetInPlay (PaddleTarget::Pb0),
+                L"neither their paddles nor their button reach a two-axis machine");
+
+            page.SelectController (0);
+            Assert::IsTrue (page.IsTargetInPlay (PaddleTarget::Pdl0), L"while player one, on joystick 0, plays as usual");
+        }
+
+
+        TEST_METHOD (TargetChoices_LeaveOutTheOtherPlayersClaimAndTheMissingPaddles)
+        {
+            ControllersPageState           page;
+            ControllerDeviceInfo           first   = MakeStick ("{A}");
+            ControllerDeviceInfo           second  = MakeStick ("{B}");
+            std::vector<PlayerAxisTarget>  choices;
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 2);
+
+            choices = page.GetTargetChoices (1);
+
+            Assert::AreEqual (size_t (0), (size_t) std::count (choices.begin(), choices.end(), PlayerAxisTarget::Joystick1),
+                L"a //c has no PDL2/PDL3, so joystick 1 is not offered");
+            Assert::AreEqual (size_t (0), (size_t) std::count (choices.begin(), choices.end(), PlayerAxisTarget::Joystick0),
+                L"nor is what player one already holds (FR-036)");
+            Assert::AreEqual (size_t (0), choices.size(),
+                L"player one on joystick 0 leaves a two-axis machine with nothing for player two");
+        }
+
+
+        TEST_METHOD (MultiplayerEdits_ApplyAtOnceAndAreNotUndoneByCancel)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first   = MakeStick ("{A}");
+            ControllerDeviceInfo  second  = MakeStick ("{B}");
+            MultiplayerSetup      applied;
+            int                   changes = 0;
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetOnMultiplayerChanged ([&] (const MultiplayerSetup & setup)
+            {
+                applied = setup;
+                changes++;
+            });
+
+            page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 4);
+            page.SetMultiplayerTarget (1, PlayerAxisTarget::Paddle2);
+
+            Assert::AreEqual (1, changes, L"the slot reaches the service as it is edited");
+            Assert::IsTrue   (applied.players[1].target == PlayerAxisTarget::Paddle2);
+
+            // The mode is a machine input setting, like the toolbar picker's
+            // choice, not a profile edit the sheet commits.
+            Assert::IsFalse (page.IsDirty(), L"so it is no part of what OK commits");
+
+            page.Revert();
+
+            Assert::IsTrue (page.GetMultiplayer().players[1].target == PlayerAxisTarget::Paddle2,
+                L"and Cancel does not take back what already took effect");
+        }
+
+
+        TEST_METHOD (MultiplayerSlots_ASecondSlotRepeatingTheFirst_IsEmptied)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (MakeTwoPlayers (first.unit, second.unit), 4);
+            page.SetMultiplayerUnit (1, first.unit);
+
+            Assert::IsFalse (page.GetMultiplayer().players[1].unit.has_value(),
+                L"two people cannot share one controller, so the later slot gives way");
+
+            page.SetMultiplayerUnit (1, second.unit);
+            page.SetMultiplayerTarget (1, PlayerAxisTarget::Paddle0);
+
+            Assert::IsFalse (page.GetMultiplayer().players[1].unit.has_value(),
+                L"nor can they claim a paddle player one already holds (FR-036)");
+        }
     };
 }

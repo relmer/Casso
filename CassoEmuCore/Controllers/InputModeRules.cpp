@@ -42,6 +42,7 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     std::vector<PaddleSource>  sources;
     PaddleSource               arrows;
     PaddleSource               paddle;
+    PaddleSource               twoPlayer;
     bool                       isControllerMode = state.hasController || multiplayer.isEnabled;
 
 
@@ -85,8 +86,17 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     paddle.isMousePaddle = true;
     paddle.isChecked     = state.mousePaddle && !isControllerMode;
 
+    // Not a fourth source but a different answer to the question: the sources
+    // above are one person playing, and this is two. It carries the ellipsis
+    // because picking it opens the settings where the two players are set up.
+    twoPlayer.label         = L"Multiplayer...";
+    twoPlayer.shortLabel    = L"Multiplayer";
+    twoPlayer.isMultiplayer = true;
+    twoPlayer.isChecked     = multiplayer.isEnabled;
+
     sources.push_back (arrows);
     sources.push_back (paddle);
+    sources.push_back (twoPlayer);
 
     return sources;
 }
@@ -102,6 +112,12 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
 //  One controller's name while two are driving would say the second drives
 //  nothing, so several checked controllers read as a count instead.
 //
+//  THE MODE OUTRANKS THE COUNT. While two people are playing, the answer to
+//  what drives the game port is the mode, not how many controllers it has
+//  reached today: a player slot left empty, or filled with a controller this
+//  machine has no paddles for, would otherwise drop the face back to one
+//  controller's name while the machine is still in two-player mode.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring InputModeRules::GetPaddleSourceLabel (const std::vector<PaddleSource> & sources)
@@ -116,6 +132,11 @@ std::wstring InputModeRules::GetPaddleSourceLabel (const std::vector<PaddleSourc
         if (!source.isChecked)
         {
             continue;
+        }
+
+        if (source.isMultiplayer)
+        {
+            return source.shortLabel;
         }
 
         if (first == nullptr)

@@ -131,7 +131,7 @@ namespace ControllerTests
             state.arrowsJoystick = true;
             sources              = InputModeRules::BuildPaddleSources (state, devices, std::nullopt);
 
-            Assert::AreEqual (size_t (4), sources.size(), L"each attached controller plus the keys and the mouse");
+            Assert::AreEqual (size_t (5), sources.size(), L"each attached controller, the keys and the mouse, then the two-player row");
 
             // A real stick plays these games better than either, so it is
             // what the list offers first.
@@ -140,8 +140,11 @@ namespace ControllerTests
             Assert::AreEqual (std::wstring (L"Use keys as joystick"), sources[2].label);
             Assert::AreEqual (std::wstring (L"Use mouse as paddle"),  sources[3].label);
 
+            Assert::AreEqual (std::wstring (L"Multiplayer..."),       sources[4].label);
+
             Assert::IsTrue (sources[2].isArrowKeys);
             Assert::IsTrue (sources[3].isMousePaddle);
+            Assert::IsTrue (sources[4].isMultiplayer, L"the mode where two people play sits last, below its own separator");
             Assert::IsTrue (sources[2].isChecked, L"the one in use is checked wherever it sits");
         }
 
@@ -171,7 +174,7 @@ namespace ControllerTests
             state.hasController = true;
             sources             = InputModeRules::BuildPaddleSources (state, devices, gone.unit);
 
-            Assert::AreEqual (size_t (2), sources.size(),
+            Assert::AreEqual (size_t (3), sources.size(),
                 L"a row for a controller that is not there would offer a pick that drives nothing");
             Assert::IsFalse (sources[0].isChecked, L"and the keys are not checked, because they are not driving");
             Assert::IsFalse (sources[1].isChecked);
@@ -192,7 +195,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (PaddleSources_BothPlayersAreCheckedAndCounted)
+        TEST_METHOD (PaddleSources_BothPlayersAreCheckedAndTheFaceReadsTheMode)
         {
             InputModeRules::State                      state;
             std::vector<ControllerDeviceInfo>          devices = { MakeStick ("{A}", L"Gladiator"),
@@ -205,8 +208,9 @@ namespace ControllerTests
 
             Assert::IsTrue (sources[0].isChecked, L"player one's controller is checked");
             Assert::IsTrue (sources[1].isChecked, L"and so is player two's");
-            Assert::AreEqual (std::wstring (L"2 controllers"), InputModeRules::GetPaddleSourceLabel (sources),
-                L"the closed picker does not wear one controller's name while two are playing");
+            Assert::IsTrue (sources.back().isChecked, L"as is the mode they are playing in");
+            Assert::AreEqual (std::wstring (L"Multiplayer"), InputModeRules::GetPaddleSourceLabel (sources),
+                L"the closed picker wears the mode, not one controller's name, while two are playing");
         }
 
 
@@ -222,7 +226,8 @@ namespace ControllerTests
             sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup, 2);
 
             Assert::IsFalse  (sources[1].isChecked, L"player two, on joystick 1, plays nothing on the //c");
-            Assert::AreEqual (std::wstring (L"Gladiator"), InputModeRules::GetPaddleSourceLabel (sources));
+            Assert::AreEqual (std::wstring (L"Multiplayer"), InputModeRules::GetPaddleSourceLabel (sources),
+                L"the machine is still in the mode, whatever it could find paddles for");
 
             state.hasController  = false;
             state.arrowsJoystick = true;
@@ -232,6 +237,28 @@ namespace ControllerTests
             Assert::IsFalse  (sources[0].isChecked, L"nor do kept player slots while the keys drive");
             Assert::IsFalse  (sources[1].isChecked);
             Assert::AreEqual (std::wstring (L"Keys"), InputModeRules::GetPaddleSourceLabel (sources));
+        }
+
+
+        TEST_METHOD (PaddleSources_TheMultiplayerRowFollowsTheMode)
+        {
+            InputModeRules::State                      state;
+            std::vector<ControllerDeviceInfo>          devices = { MakeStick ("{A}", L"Gladiator") };
+            MultiplayerSetup                           setup;
+            std::vector<InputModeRules::PaddleSource>  sources;
+
+            state.hasController = true;
+            sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup);
+
+            Assert::IsTrue   (sources.back().isMultiplayer);
+            Assert::IsFalse  (sources.back().isChecked, L"the mode is off, so the row is not the answer");
+            Assert::AreEqual (std::wstring (L"Gladiator"), InputModeRules::GetPaddleSourceLabel (sources));
+
+            setup.isEnabled = true;
+            sources         = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup);
+
+            Assert::IsTrue   (sources.back().isChecked, L"turned on, it is what drives the game port");
+            Assert::AreEqual (std::wstring (L"Multiplayer"), InputModeRules::GetPaddleSourceLabel (sources));
         }
 
 

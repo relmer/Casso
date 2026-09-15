@@ -179,6 +179,261 @@ bool ControllersPageState::IsCalibratable() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetMultiplayer
+//
+//  The machine's mode as the service holds it. Set when the page opens and
+//  whenever the mode is turned on from the toolbar picker while it is open,
+//  so the page never shows a setup the machine is not playing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetMultiplayer (const MultiplayerSetup & setup, size_t axisCount)
+{
+    m_multiplayer = ControllerSelectionPolicy::Normalize (setup);
+    m_axisCount   = axisCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetOnMultiplayerChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetOnMultiplayerChanged (MultiplayerChangedFn onChanged)
+{
+    m_onMultiplayerChanged = std::move (onChanged);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMultiplayer / GetAxisCount / IsMultiplayerEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const MultiplayerSetup & ControllersPageState::GetMultiplayer() const
+{
+    return m_multiplayer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetAxisCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ControllersPageState::GetAxisCount() const
+{
+    return m_axisCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsMultiplayerEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsMultiplayerEnabled() const
+{
+    return m_multiplayer.isEnabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMultiplayerUnit
+//
+//  The controller one player holds. Normalization empties the second slot
+//  when it repeats the first slot's controller or claims a paddle it already
+//  holds, so the page shows what will be played rather than what was asked
+//  for (FR-036).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetMultiplayerUnit (size_t player, const std::optional<ControllerUnitKey> & unit)
+{
+    if (player >= MultiplayerSetup::kPlayerCount)
+    {
+        return;
+    }
+
+    m_multiplayer.players[player].unit = unit;
+    m_multiplayer                      = ControllerSelectionPolicy::Normalize (m_multiplayer);
+
+    if (m_onMultiplayerChanged)
+    {
+        m_onMultiplayerChanged (m_multiplayer);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMultiplayerTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPageState::SetMultiplayerTarget (size_t player, PlayerAxisTarget target)
+{
+    if (player >= MultiplayerSetup::kPlayerCount)
+    {
+        return;
+    }
+
+    m_multiplayer.players[player].target = target;
+    m_multiplayer                        = ControllerSelectionPolicy::Normalize (m_multiplayer);
+
+    if (m_onMultiplayerChanged)
+    {
+        m_onMultiplayerChanged (m_multiplayer);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTargetChoices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<PlayerAxisTarget> ControllersPageState::GetTargetChoices (size_t player) const
+{
+    return ControllerSelectionPolicy::GetTargetChoices (m_multiplayer, player, m_axisCount);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindEditedPlayer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<size_t> ControllersPageState::FindEditedPlayer() const
+{
+    const ControllerEntry *  selected = GetSelected();
+
+
+
+    if (selected == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return ControllerSelectionPolicy::FindPlayer (m_multiplayer, selected->unit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsTargetInPlay
+//
+//  What the page grays out while two people play. A row left in play is one
+//  the controller being edited actually drives; the rest keep their bindings
+//  and show them, because a binding the user cannot see is one they cannot
+//  understand losing.
+//
+//  THE PADDLE COUNT DECIDES THE AXIS ROWS. A slot mapped to a joystick plays
+//  the controller's PDL0 and PDL1; one mapped to a single paddle plays PDL0
+//  alone, since the slot's paddles take the mapping's targets in ascending
+//  order. A player whose paddles this machine does not have plays nothing at
+//  all, so nothing of theirs is in play either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllersPageState::IsTargetInPlay (PaddleTarget target) const
+{
+    std::optional<size_t>  player = FindEditedPlayer();
+    size_t                 axes   = 0;
+
+
+
+    if (!m_multiplayer.isEnabled)
+    {
+        return true;
+    }
+
+    if (!player.has_value())
+    {
+        return false;
+    }
+
+    axes = ControllerSelectionPolicy::GetAxesForPlayer (m_multiplayer, player.value(), m_axisCount).count();
+
+    switch (target)
+    {
+        case PaddleTarget::Pdl0:  return axes >= 1;
+        case PaddleTarget::Pdl1:  return axes >= 2;
+
+        // Each player drives ONE button line, and it is their PB0 bindings
+        // that drive it whichever line that is (FR-039).
+        case PaddleTarget::Pb0:   return axes >= 1;
+
+        default:                  return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTargetLabel
+//
+//  Zero-based throughout, matching what the machine's own software calls
+//  these: a paddle game reads PDL(0).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ControllersPageState::GetTargetLabel (PlayerAxisTarget target)
+{
+    switch (target)
+    {
+        case PlayerAxisTarget::Joystick0:  return L"Joystick 0 (paddles 0 and 1)";
+        case PlayerAxisTarget::Joystick1:  return L"Joystick 1 (paddles 2 and 3)";
+        case PlayerAxisTarget::Paddle0:    return L"Paddle 0";
+        case PlayerAxisTarget::Paddle1:    return L"Paddle 1";
+        case PlayerAxisTarget::Paddle2:    return L"Paddle 2";
+        default:                           return L"Paddle 3";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetMapping
 //
 //  The edited profile's mapping as edited, or the built-in default for a

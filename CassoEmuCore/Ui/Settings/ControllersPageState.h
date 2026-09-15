@@ -4,6 +4,7 @@
 
 #include "Controllers/ControlCapture.h"
 #include "Controllers/ControllerProfileStore.h"
+#include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/MappingEvaluator.h"
 
 
@@ -47,6 +48,13 @@ enum class CalibrationStep
 //  what the user tries on this page drives the game port only once they
 //  press OK, and Cancel puts every copy back as it was, calibrations
 //  included.
+//
+//  THE MULTIPLAYER SETUP IS THE ONE EXCEPTION, and deliberately so. Which
+//  controller each player holds and what it maps to is a MACHINE INPUT
+//  setting, the same kind of choice the toolbar's paddle picker makes, not an
+//  edit to a profile. Those take effect when they are made and are saved for
+//  the machine, so these do too: a change here reaches the service at once
+//  and Cancel does not take it back.
 //
 //  Edits go to the chosen profile of the selected controller's model, which
 //  starts as the machine's active profile. A name the model has no profile
@@ -95,6 +103,37 @@ public:
     std::optional<size_t>                 GetSelectedIndex   () const;
     void                                  SelectController   (size_t index);
     bool                                  IsCalibratable     () const;
+
+    // The machine's two-player setup and how many paddle axes it has. Applied
+    // at once rather than on OK; see the note above.
+    using MultiplayerChangedFn = std::function<void (const MultiplayerSetup &)>;
+
+    void                      SetMultiplayer          (const MultiplayerSetup & setup, size_t axisCount);
+    void                      SetOnMultiplayerChanged (MultiplayerChangedFn onChanged);
+    const MultiplayerSetup &  GetMultiplayer          () const;
+    size_t                    GetAxisCount            () const;
+    bool                      IsMultiplayerEnabled    () const;
+
+    // One player's controller, or their target. Both normalize, so a slot that
+    // cannot be played beside the other one is emptied rather than kept.
+    void  SetMultiplayerUnit   (size_t player, const std::optional<ControllerUnitKey> & unit);
+    void  SetMultiplayerTarget (size_t player, PlayerAxisTarget target);
+
+    // What one slot may map to on this machine, less what the other holds.
+    std::vector<PlayerAxisTarget>  GetTargetChoices (size_t player) const;
+
+    // Which player holds the controller being edited, or none.
+    std::optional<size_t>          FindEditedPlayer () const;
+
+    // Whether a target of the controller being edited drives anything. With
+    // multiplayer off every target is in play, which is what a machine has
+    // always done. With it on, a player drives the paddles their slot maps to
+    // -- PDL0 and PDL1 for a joystick, PDL0 alone for a single paddle -- and
+    // one button line, which is their PB0 bindings whichever line it lands on
+    // (FR-039). A controller in neither slot drives nothing.
+    bool                           IsTargetInPlay   (PaddleTarget target) const;
+
+    static std::wstring            GetTargetLabel   (PlayerAxisTarget target);
 
     const ControlMapping &                GetMapping         () const;
     float                                 GetDeadzone        () const;
@@ -213,6 +252,12 @@ private:
     // committed settings. An empty committed name marks a profile created on
     // the page, which the committed settings do not have yet.
     std::map<std::string, std::map<std::string, std::string>>  m_committedNames;
+
+    // The machine's mode, applied as it is edited rather than on OK, so it
+    // has no baseline and takes no part in IsDirty or Revert.
+    MultiplayerSetup                                m_multiplayer;
+    size_t                                          m_axisCount = GamePortContribution::kAxisCount;
+    MultiplayerChangedFn                            m_onMultiplayerChanged;
 
     ControlCapture                                  m_capture;
     PaddleTarget                                    m_captureTarget = PaddleTarget::Pdl0;

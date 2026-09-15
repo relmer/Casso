@@ -264,7 +264,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T098b [US7] Drive the mode from `ControllerInputService`: the players are the drivers, each playing its slot's paddles, and one button line per player (FR-038, FR-039)
 - [X] T098c [US7] Persist it as the per-machine `multiplayer` block in `MachineInputPrefs`, normalized on load; drop the short-lived `controllerAxes` key, which never shipped
 - [X] T098d [US7] Rework the Phase 9 tests onto the mode, and add the button rule, the single-paddle slots, the refusal of an overlapping setup, and turning the mode off
-- [ ] T099 [US7] Add the multiplayer UI to the Controllers page: the mode switch, the two player slots, each offering `GetTargetChoices` for this machine less what the other player holds (FR-035, FR-037)
+- [X] T099 [US7] Add the multiplayer UI to the Controllers page: the mode switch, the two player slots, each offering `GetTargetChoices` for this machine less what the other player holds (FR-035, FR-037)
 - [X] T100 [US7] Build a four-axis readout disk from `Disks/Casso/JoystickTest.bas` showing PDL(0)-PDL(3) and PB0-PB2, for validating two-controller play without a commercial two-player disk
 - [ ] T101 [US7] Build; run `-Filter Controller`; validate two controllers at once on hardware against the readout disk, and on a two-player game disk if one is available
 - [ ] T102 [US7] Commit: `feat(input): assign controllers to game-port axes`

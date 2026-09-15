@@ -20,6 +20,8 @@ static constexpr int  s_kWideWidthDp           = 340;
 static constexpr int  s_kButtonWidthDp         = 130;
 static constexpr int  s_kProfileButtonWidthDp  = 90;
 static constexpr int  s_kOptionWidthDp         = 110;
+static constexpr int  s_kMapsWidthDp           = 56;
+static constexpr int  s_kPlayerTargetWidthDp   = 210;
 static constexpr int  s_kChildIndentDp         = 18;
 static constexpr int  s_kGapDp                 = 6;
 static constexpr int  s_kSectionGapDp          = 14;
@@ -50,6 +52,16 @@ ControllersPage::ControllersPage (std::wstring title)
     size_t  row    = 0;
 
 
+
+    Adopt (m_multiplayerHeading);
+
+    for (target = 0; target < kPlayerCount; target++)
+    {
+        Adopt (m_playerLabel[target]);
+        Adopt (m_playerController[target]);
+        Adopt (m_playerMapsLabel[target]);
+        Adopt (m_playerTarget[target]);
+    }
 
     Adopt (m_controllerLabel);
     Adopt (m_controller);
@@ -136,6 +148,25 @@ void ControllersPage::SetState (ControllersPageState * state)
             OnProfileSelect (index);
         }
     });
+
+    for (target = 0; target < kPlayerCount; target++)
+    {
+        m_playerController[target].SetSelect ([this, target] (int item)
+        {
+            if (!m_isSyncing)
+            {
+                OnPlayerControllerSelect (target, item);
+            }
+        });
+
+        m_playerTarget[target].SetSelect ([this, target] (int item)
+        {
+            if (!m_isSyncing)
+            {
+                OnPlayerTargetSelect (target, item);
+            }
+        });
+    }
 
     m_newProfile.SetOnClick    ([this] () { OnNewProfile(); });
     m_renameProfile.SetOnClick ([this] () { OnRenameProfile(); });
@@ -277,6 +308,12 @@ void ControllersPage::SetPopupHost (DxuiHwndSource * host)
     m_controller.SetPopupHost (host);
     m_profile.SetPopupHost    (host);
 
+    for (target = 0; target < kPlayerCount; target++)
+    {
+        m_playerController[target].SetPopupHost (host);
+        m_playerTarget[target].SetPopupHost     (host);
+    }
+
     for (target = 0; target < kTargetCount; target++)
     {
         for (row = 0; row < kMaxRows; row++)
@@ -328,12 +365,17 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int     indent      = scaler.ToPx (s_kChildIndentDp);
     int     gap         = scaler.ToPx (s_kGapDp);
     int     sectionGap  = scaler.ToPx (s_kSectionGapDp);
+    int     mapsWidth   = scaler.ToPx (s_kMapsWidthDp);
+    int     targetWidth = scaler.ToPx (s_kPlayerTargetWidthDp);
     int     x           = rect.left + pad;
     int     y           = rect.top  + pad;
     int     axesX       = x + stickSize + sectionGap;
     int     stickTop    = 0;
     int     axesBottom  = 0;
+    int     playerX     = 0;
+    bool    isTwoPlayer = m_state != nullptr && m_state->IsMultiplayerEnabled();
     size_t  target      = 0;
+    size_t  player      = 0;
     size_t  row         = 0;
 
 
@@ -342,8 +384,54 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_lastScaler = scaler;
     m_hasLayout  = true;
 
+    // The two player slots lead the page while the machine is in that mode,
+    // since who is playing decides what everything below it edits. With the
+    // mode off there are no slots to fill, so the section is not there at all
+    // rather than sitting empty on every machine.
+    playerX = x + indent;
+
+    m_multiplayerHeading.SetVisible (isTwoPlayer);
+    m_multiplayerHeading.SetRect    (MakeRect (x, y, wideWidth, rowH));
+    m_multiplayerHeading.SetText    (L"Multiplayer");
+
+    if (isTwoPlayer)
+    {
+        y += rowH;
+    }
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        m_playerLabel[player].SetVisible (isTwoPlayer);
+        m_playerLabel[player].SetRect    (MakeRect (playerX, y, labelWidth, rowH));
+        m_playerLabel[player].SetText    (player == 0 ? L"Player 1:" : L"Player 2:");
+
+        m_playerController[player].SetVisible (isTwoPlayer);
+        m_playerController[player].SetRect    (MakeRect (playerX + labelWidth, y, rowWidth, rowH));
+
+        m_playerMapsLabel[player].SetVisible (isTwoPlayer);
+        m_playerMapsLabel[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap, y, mapsWidth, rowH));
+        m_playerMapsLabel[player].SetText    (L"maps to");
+
+        m_playerTarget[player].SetVisible (isTwoPlayer);
+        m_playerTarget[player].SetRect    (MakeRect (playerX + labelWidth + rowWidth + gap + mapsWidth + gap, y, targetWidth, rowH));
+
+        if (isTwoPlayer)
+        {
+            y += rowH + gap;
+        }
+    }
+
+    if (isTwoPlayer)
+    {
+        y += sectionGap - gap;
+    }
+
     m_controllerLabel.SetRect (MakeRect (x, y, labelWidth, rowH));
-    m_controllerLabel.SetText (L"Controller:");
+
+    // While two people play, this drop-down chooses whose mappings the rest
+    // of the page edits rather than who drives the game port, which the
+    // slots above decide.
+    m_controllerLabel.SetText (isTwoPlayer ? L"Editing:" : L"Controller:");
     m_controller.SetRect      (MakeRect (x + labelWidth, y, wideWidth, rowH));
     y += rowH + gap;
 
@@ -459,6 +547,16 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_reset.SetLabel (L"Reset profile");
     m_reset.Layout (MakeRect (x + labelWidth, y, buttonWidth, rowH));
+
+    m_multiplayerHeading.SetDpi (dpi);
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        m_playerLabel[player].SetDpi      (dpi);
+        m_playerController[player].SetDpi (dpi);
+        m_playerMapsLabel[player].SetDpi  (dpi);
+        m_playerTarget[player].SetDpi     (dpi);
+    }
 
     m_controllerLabel.SetDpi (dpi);
     m_controller.SetDpi      (dpi);
@@ -643,6 +741,7 @@ void ControllersPage::Refresh()
     m_controller.SetSelected (selected.has_value() ? (int) selected.value() : 0);
     m_controller.SetEnabled  (selected.has_value());
 
+    RefreshMultiplayer();
     RefreshProfiles();
     RefreshRows();
     RefreshAxisOptions();
@@ -1049,6 +1148,11 @@ void ControllersPage::RefreshRows()
     {
         PaddleTarget  paddleTarget = TargetAt (target);
         bool          available    = hasUnit && m_state->IsTargetAvailable (paddleTarget);
+
+        // A target the machine has but this controller's player does not
+        // drive: shown with its bindings, and not editable, so the user can
+        // see what the profile holds while two people are playing.
+        bool          isEditable   = available && m_state->IsTargetInPlay (paddleTarget);
         size_t        count        = GetBindingCount (target);
         size_t        shown        = GetShownRows (target);
 
@@ -1087,11 +1191,11 @@ void ControllersPage::RefreshRows()
             m_rows[target][row].SetSelected (!available  ? kNoneItem
                                              : isCapturing ? kPressToAssignItem
                                              : (row < count ? choice : kNoneItem));
-            m_rows[target][row].SetEnabled  (available);
+            m_rows[target][row].SetEnabled  (isEditable);
             m_rows[target][row].SetVisible  (row < shown);
         }
 
-        m_addRow[target].SetEnabled (available && count > 0 && shown < kMaxRows && !m_hasExtraRow[target]);
+        m_addRow[target].SetEnabled (isEditable && count > 0 && shown < kMaxRows && !m_hasExtraRow[target]);
     }
 
     if (shared.empty())
@@ -1109,6 +1213,132 @@ void ControllersPage::RefreshRows()
 
         m_sharedWarning.SetText (L"Assigned to more than one target: " + names);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshMultiplayer
+//
+//  Each player's two drop-downs. The controller list offers None and every
+//  attached controller LESS the one the other player holds, so the pair the
+//  page offers is always one the machine can play; the targets come from the
+//  policy, which has already left out the paddles this machine lacks and the
+//  ones the other player claimed (FR-035, FR-036).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::RefreshMultiplayer()
+{
+    size_t  player = 0;
+    size_t  i      = 0;
+
+
+
+    if (!m_state->IsMultiplayerEnabled())
+    {
+        return;
+    }
+
+    for (player = 0; player < kPlayerCount; player++)
+    {
+        const MultiplayerSlot &           slot     = m_state->GetMultiplayer().players[player];
+        std::optional<ControllerUnitKey>  other    = m_state->GetMultiplayer().players[player == 0 ? 1 : 0].unit;
+        std::vector<std::wstring>         items;
+        int                               selected = 0;
+
+        m_playerUnits[player].clear();
+        m_playerUnits[player].push_back (std::nullopt);
+        items.push_back (L"None");
+
+        for (const ControllersPageState::ControllerEntry & entry : m_state->GetControllers())
+        {
+            if (other.has_value() && other.value() == entry.unit)
+            {
+                continue;
+            }
+
+            if (slot.unit.has_value() && slot.unit.value() == entry.unit)
+            {
+                selected = (int) items.size();
+            }
+
+            m_playerUnits[player].push_back (entry.unit);
+            items.push_back (entry.isConnected ? entry.description : entry.description + L" (not connected)");
+        }
+
+        m_playerController[player].SetItems    (items);
+        m_playerController[player].SetSelected (selected);
+
+        items.clear();
+        selected                = 0;
+        m_playerTargets[player] = m_state->GetTargetChoices (player);
+
+        for (i = 0; i < m_playerTargets[player].size(); i++)
+        {
+            if (m_playerTargets[player][i] == slot.target)
+            {
+                selected = (int) i;
+            }
+
+            items.push_back (ControllersPageState::GetTargetLabel (m_playerTargets[player][i]));
+        }
+
+        m_playerTarget[player].SetItems    (items);
+        m_playerTarget[player].SetSelected (selected);
+
+        // An empty slot plays nothing, so what it would map to is not a
+        // question yet.
+        m_playerTarget[player].SetEnabled (slot.unit.has_value() && !items.empty());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPlayerControllerSelect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnPlayerControllerSelect (size_t player, int item)
+{
+    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerUnits[player].size())
+    {
+        return;
+    }
+
+    m_state->SetMultiplayerUnit (player, m_playerUnits[player][(size_t) item]);
+
+    // The slots decide which rows below are in play, so the whole page
+    // follows a pick here.
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPlayerTargetSelect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllersPage::OnPlayerTargetSelect (size_t player, int item)
+{
+    if (m_state == nullptr || player >= kPlayerCount || item < 0 || (size_t) item >= m_playerTargets[player].size())
+    {
+        return;
+    }
+
+    m_state->SetMultiplayerTarget (player, m_playerTargets[player][(size_t) item]);
+    Relayout();
 }
 
 
@@ -1145,9 +1375,14 @@ void ControllersPage::RefreshAxisOptions()
             }
         }
 
-        m_invert[axis].SetEnabled   (analog != nullptr);
-        m_response[axis].SetEnabled (analog != nullptr);
-        m_speed[axis].SetEnabled    (analog != nullptr && analog->response == AxisResponse::Rate);
+        // An axis this controller's player does not drive takes no options
+        // either: the row it belongs to is not editable, so neither is what
+        // shapes it.
+        bool  isEditable = m_state->IsTargetInPlay (TargetAt (axis));
+
+        m_invert[axis].SetEnabled   (analog != nullptr && isEditable);
+        m_response[axis].SetEnabled (analog != nullptr && isEditable);
+        m_speed[axis].SetEnabled    (analog != nullptr && isEditable && analog->response == AxisResponse::Rate);
 
         if (analog != nullptr)
         {

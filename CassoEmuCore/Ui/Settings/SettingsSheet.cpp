@@ -24,7 +24,11 @@
 // old width did not have. Every page is left-aligned, so the extra width falls
 // on the right margin and no existing page moves.
 static constexpr int    s_kSheetWidthDip     = 720;
-static constexpr int    s_kSheetHeightDip    = 776;   // the Controllers page, the tallest, ends a section gap above OK / Cancel
+// RAISED FOR THE MULTIPLAYER SECTION. The Controllers page grows by a heading
+// and the two player rows while the machine is in that mode, and the sheet is
+// one size for every page and every mode, so it is sized to the taller case.
+// With the mode off the page ends further above OK / Cancel than it used to.
+static constexpr int    s_kSheetHeightDip    = 880;   // the Controllers page in multiplayer, the tallest, ends a section gap above OK / Cancel
 
 
 
@@ -448,6 +452,20 @@ HRESULT SettingsSheet::OpenModeless (
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
                                                              m_emuShell->GetMachine().GetConfig().name.end()));
 
+            // The machine's mode and its axis budget. Unlike the mappings,
+            // these are not copies the page edits and OK commits: they are
+            // machine input settings, so an edit goes to the service and to
+            // the machine's prefs as it is made, exactly as a pick from the
+            // toolbar's paddle picker does.
+            m_controllersState.SetMultiplayer (snapshot.multiplayer, snapshot.axisCount);
+
+            m_controllersState.SetOnMultiplayerChanged ([this, service] (const MultiplayerSetup & setup)
+            {
+                service->SetMultiplayer (setup);
+                m_emuShell->PersistInputModeForMachine();
+                m_emuShell->SyncPaddleSourceList();
+            });
+
             m_controllersPage->SetSampleSource ([service] (const ControllerUnitKey & unit)
             {
                 return service->GetInspectedSample (unit);
@@ -558,6 +576,17 @@ void SettingsSheet::ShowControllersPage()
     int  index = IndexOfPage (m_controllersPage);
 
 
+
+    // The picker's Multiplayer row turns the mode on and then lands here, so
+    // a sheet that was already open would otherwise go on showing the mode as
+    // it stood when it opened, without the section the user came for.
+    if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr && m_controllersPage != nullptr)
+    {
+        ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+
+        m_controllersState.SetMultiplayer (snapshot.multiplayer, snapshot.axisCount);
+        m_controllersPage->Refresh();
+    }
 
     if (index >= 0)
     {

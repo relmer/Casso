@@ -53,6 +53,11 @@ public:
         std::optional<ControllerUnitKey>  controller;   // absent for the two keyboard and mouse entries
         bool                              isArrowKeys   = false;
         bool                              isMousePaddle = false;
+
+        // The row that turns two-player mode on and opens its settings. Not a
+        // source in its own right: it is where the sources come from two
+        // people instead of one.
+        bool                              isMultiplayer = false;
         bool                              isChecked     = false;
 
         bool operator== (const PaddleSource &) const = default;
