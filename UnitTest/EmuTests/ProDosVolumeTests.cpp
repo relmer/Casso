@@ -1637,6 +1637,215 @@ public:
     }
 
 
+    //  Builds the same tree the removal test uses: UTIL, UTIL/DEEP, and a file
+    //  inside the deeper one.
+    static vector<Byte> MakeTreeVolume()
+    {
+        vector<Byte>  first  = MakeVolume();
+        vector<Byte>  second;
+        vector<Byte>  third;
+        vector<Byte>  fourth;
+        FilePayload   payload;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (300, 'Z');
+
+        {
+            ProDosVolume  volume (first);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL"), second));
+        }
+
+        {
+            ProDosVolume  volume (second);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL/DEEP"), third));
+        }
+
+        {
+            ProDosVolume  volume (third);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("UTIL/DEEP/NOTES"), payload, fourth));
+        }
+
+        return fourth;
+    }
+
+
+    TEST_METHOD (Volume_CreateDirectory_InsideASubdirectory_Nests)
+    {
+        vector<Byte>   first = MakeVolume();
+        vector<Byte>   second;
+        vector<Byte>   third;
+        VolumeListing  inside;
+
+        {
+            ProDosVolume  volume (first);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL"), second));
+        }
+
+        {
+            ProDosVolume  volume (second);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL/DEEP"), third));
+        }
+
+        {
+            ProDosVolume  volume (third);
+
+            AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse ("UTIL"), inside));
+
+            Assert::AreEqual (size_t (1), inside.entries.size());
+            Assert::AreEqual (std::string ("DEEP"), inside.entries[0].name);
+            Assert::IsTrue   (inside.entries[0].isDirectory);
+        }
+    }
+
+
+    TEST_METHOD (Volume_BuildRemovalPlan_ListsTheSubtreeDeepestFirst)
+    {
+        vector<Byte>          tree = MakeTreeVolume();
+        ProDosVolume          volume (tree);
+        DirectoryRemovalPlan  plan;
+
+        AssertSucceeded (volume.BuildRemovalPlan (FilePath::Parse ("UTIL"), plan));
+
+        //  Deepest first, the directory itself last.
+        Assert::AreEqual (size_t (3), plan.entries.size());
+        Assert::AreEqual (std::string ("UTIL/DEEP/NOTES"), plan.entries[0].path);
+        Assert::AreEqual (std::string ("UTIL/DEEP"),       plan.entries[1].path);
+        Assert::AreEqual (std::string ("UTIL"),            plan.entries[2].path);
+        Assert::IsFalse  (plan.hasLockedEntries);
+        Assert::IsTrue   (plan.blocksFreed >= 3);
+    }
+
+
+    TEST_METHOD (Volume_RemoveDirectory_TakesTheWholeSubtreeAndGivesItsSpaceBack)
+    {
+        vector<Byte>   vol        = MakeVolume();
+        vector<Byte>   step;
+        vector<Byte>   emptied;
+        FilePayload    payload;
+        VolumeListing  root;
+        DeleteOutcome  outcome;
+        uint32_t       freeBefore = 0;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (300, 'Z');
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL"), step));
+        }
+
+        {
+            ProDosVolume  volume (step);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL/DEEP"), vol));
+        }
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("UTIL/DEEP/NOTES"), payload, step));
+        }
+
+        {
+            ProDosVolume          volume (step);
+            DirectoryRemovalPlan  plan;
+            VolumeListing         before;
+
+            AssertSucceeded (volume.Enumerate (before));
+
+            freeBefore = before.freeUnits;
+
+            AssertSucceeded (volume.BuildRemovalPlan (FilePath::Parse ("UTIL"), plan));
+
+            //  Deepest first, the directory itself last.
+            Assert::AreEqual (size_t (3), plan.entries.size());
+            Assert::AreEqual (std::string ("UTIL/DEEP/NOTES"), plan.entries[0].path);
+            Assert::AreEqual (std::string ("UTIL/DEEP"),       plan.entries[1].path);
+            Assert::AreEqual (std::string ("UTIL"),            plan.entries[2].path);
+            Assert::IsFalse  (plan.hasLockedEntries);
+            Assert::IsTrue   (plan.blocksFreed >= 3);
+        }
+
+        {
+            ProDosVolume  volume (step);
+
+            AssertSucceeded (volume.RemoveDirectory (FilePath::Parse ("UTIL"), false, emptied, outcome));
+        }
+
+        {
+            ProDosVolume  volume (emptied);
+
+            AssertSucceeded (volume.Enumerate (root));
+
+            Assert::AreEqual (size_t (0), root.entries.size(), L"the directory and everything below it is gone");
+            Assert::IsTrue   (root.freeUnits > freeBefore, L"and its blocks are free again");
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND),
+                              volume.EnumerateDirectory (FilePath::Parse ("UTIL"), root));
+        }
+    }
+
+
+    TEST_METHOD (Volume_RemoveDirectory_ALockedEntryStopsItUnlessForced)
+    {
+        vector<Byte>   vol      = MakeVolume();
+        vector<Byte>   step;
+        vector<Byte>   emptied;
+        FilePayload    payload;
+        DeleteOutcome  outcome;
+        size_t         accessAt = 0;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (300, 'Z');
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL"), step));
+        }
+
+        {
+            ProDosVolume  volume (step);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("UTIL/NOTES"), payload, vol));
+        }
+
+        //  Clear destroy-enable on the file, which is the bit a removal is
+        //  gated on. It is the first record of the directory's own key block.
+        accessAt = ProDosSkeleton::GetBlockByteOffset (7, kKeyBlockEntry + kEntryLength + kEntOffAccess);
+
+        vol[accessAt] = 0x43;
+
+        {
+            ProDosVolume          volume (vol);
+            DirectoryRemovalPlan  plan;
+
+            AssertSucceeded (volume.BuildRemovalPlan (FilePath::Parse ("UTIL"), plan));
+
+            Assert::IsTrue (plan.hasLockedEntries, L"the plan marks what is locked before anything is written");
+
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
+                              volume.RemoveDirectory (FilePath::Parse ("UTIL"), false, emptied, outcome));
+            Assert::AreEqual (size_t (0), emptied.size(), L"and nothing is written");
+
+            AssertSucceeded (volume.RemoveDirectory (FilePath::Parse ("UTIL"), true, emptied, outcome));
+        }
+
+        {
+            ProDosVolume   volume (emptied);
+            VolumeListing  root;
+
+            AssertSucceeded (volume.Enumerate (root));
+            Assert::AreEqual (size_t (0), root.entries.size());
+        }
+    }
+
+
     TEST_METHOD (Volume_CreateDirectory_ARepeatOrAMissingParent_IsRefused)
     {
         vector<Byte>  vol = MakeVolume();

@@ -1521,7 +1521,15 @@ void ProDosVolume::LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBlock, u
         return;
     }
 
-    recordAt   = ProDosSkeleton::kOffFirstEntry + (size_t) (entryNumber - 1) * entryLength;
+    recordAt = ProDosSkeleton::kOffFirstEntry + (size_t) (entryNumber - 1) * entryLength;
+
+    //  The header's own account of where its record sits is read off the disk,
+    //  so a damaged one can point past the end of the block it names.
+    if (recordAt + ProDosSkeleton::kEntryLength > (size_t) ProDosSkeleton::kBlockByteSize)
+    {
+        return;
+    }
+
     blocksUsed = (Word) (volume.ReadWord (parent, recordAt + ProDosSkeleton::kEntOffBlocksUsed) + 1);
 
     WriteWordAt (buffer, parent, recordAt + ProDosSkeleton::kEntOffBlocksUsed, blocksUsed);
@@ -2100,13 +2108,34 @@ HRESULT ProDosVolume::Delete (
     vector<Byte>    & outBuffer,
     DeleteOutcome   & outOutcome) const
 {
+    return DeleteEntry (path, false, outBuffer, outOutcome);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::DeleteEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::DeleteEntry (
+    const FilePath  & path,
+    bool              force,
+    vector<Byte>    & outBuffer,
+    DeleteOutcome   & outOutcome) const
+{
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
     bool                   found       = false;
     bool                   isLocked    = false;
+    bool                   permitted   = false;
     bool                   isDirectory = false;
     bool                   fullyParsed = true;
     uint16_t               owner       = 0;
+    uint16_t               local       = 0;
     int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
     Byte                   typeLen     = 0;
     vector<RawEntry>       entries;
@@ -2126,18 +2155,23 @@ HRESULT ProDosVolume::Delete (
     //  index comes from the whole-volume order the report speaks in.
     CollectEntries (dirKeyBlock, entries, damage, fullyParsed);
 
-    found = TryFindEntry (entries, path.GetLeaf(), owner);
+    //  TWO INDICES, AND THEY COUNT DIFFERENT THINGS. `local` is the record's
+    //  place among the directory's own records; `owner` is its place in the
+    //  whole-volume order the report speaks in. They agree in the volume
+    //  directory and nowhere else, so one variable for both reads a record
+    //  from beyond the end of a subdirectory's list.
+    found = TryFindEntry (entries, path.GetLeaf(), local);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     CollectAllEntries (all, damage, fullyParsed);
 
-    found = TryFindOwnerIndex (all, entries[owner], owner);
+    found = TryFindOwnerIndex (all, entries[local], owner);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     // ProDOS gates removal on destroy-enable, not on write-enable, and the
     // access byte can carry one without the other.
-    isLocked    = (entries[owner].access & kAccessDestroyEnable) == 0;
-    isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
+    isLocked    = (entries[local].access & kAccessDestroyEnable) == 0;
+    isDirectory = entries[local].storage == ProDosSkeleton::kStorageSubdir;
 
     // Being a directory is reported FIRST, and the order is not arbitrary. The
     // subdirectories on Merlin's own ProDOS disk have destroy-enable clear, so
@@ -2145,8 +2179,10 @@ HRESULT ProDosVolume::Delete (
     // them off to unlock something that would still be refused afterwards. The
     // capability refusal is the true one and belongs in front of the permission
     // refusal.
+    permitted = force || !isLocked;
+
     CBREx (!isDirectory, HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED));
-    CBREx (!isLocked,    HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+    CBREx (permitted,    HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
 
     hr = BuildIntegrityReport (report);
     CHRA (hr);
@@ -2181,12 +2217,12 @@ HRESULT ProDosVolume::Delete (
         }
     }
 
-    typeLen = ReadByte (entries[owner].dirBlock,
-                        entries[owner].entryOffset + ProDosSkeleton::kEntOffTypeName);
+    typeLen = ReadByte (entries[local].dirBlock,
+                        entries[local].entryOffset + ProDosSkeleton::kEntOffTypeName);
 
     WriteByteAt (result,
-                 entries[owner].dirBlock,
-                 entries[owner].entryOffset + ProDosSkeleton::kEntOffTypeName,
+                 entries[local].dirBlock,
+                 entries[local].entryOffset + ProDosSkeleton::kEntOffTypeName,
                  (Byte) (typeLen & 0x0F));
 
     AdjustFileCount (result, dirKeyBlock, -1);
@@ -2194,6 +2230,307 @@ HRESULT ProDosVolume::Delete (
 
     hr = HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::CollectRemovalEntries
+//
+//  Depth first, and each directory's contents land in the plan before the
+//  directory itself, which is the order a caller can apply without ever
+//  removing a directory that still holds something.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::CollectRemovalEntries (
+    int                     keyBlock,
+    const std::string     & prefix,
+    ChainWalkGuard        & guard,
+    DirectoryRemovalPlan  & inOutPlan) const
+{
+    vector<RawEntry>     entries;
+    vector<std::string>  damage;
+    bool                 parsed  = true;
+    bool                 visitOk = false;
+    size_t               i       = 0;
+
+
+
+    visitOk = keyBlock > 0 && keyBlock < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) keyBlock);
+
+    if (!visitOk)
+    {
+        inOutPlan.catalogFullyParsed = false;
+
+        return;
+    }
+
+    CollectEntries (keyBlock, entries, damage, parsed);
+
+    inOutPlan.catalogFullyParsed = inOutPlan.catalogFullyParsed && parsed;
+
+    for (i = 0; i < entries.size(); i++)
+    {
+        DirectoryRemovalEntry  listed;
+        ChainWalkGuard         blockGuard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+        vector<uint32_t>       blocks;
+        bool                   walked = true;
+
+        listed.path        = prefix + entries[i].name;
+        listed.isDirectory = entries[i].storage == ProDosSkeleton::kStorageSubdir;
+
+        if (listed.isDirectory)
+        {
+            CollectRemovalEntries ((int) entries[i].keyPointer, listed.path + "/", guard, inOutPlan);
+            CollectDirectoryBlocks ((int) entries[i].keyPointer, blocks, blockGuard);
+
+            //  A directory is removable when ProDOS says its record may go, the
+            //  same bit a file is gated on.
+            listed.isLocked = (entries[i].access & kAccessDestroyEnable) == 0;
+        }
+        else
+        {
+            //  A file whose chain cannot be walked is still listed, with the
+            //  blocks the walk did reach: the plan reports what removal would
+            //  free, and a damaged file is exactly what one of these disks has.
+            walked = CollectFileBlocks (entries[i], blocks, blockGuard);
+
+            IGNORE_RETURN_VALUE (walked, true);
+
+            listed.isLocked = (entries[i].access & kAccessDestroyEnable) == 0;
+        }
+
+        listed.blocks = (uint32_t) blocks.size();
+
+        inOutPlan.blocksFreed     += listed.blocks;
+        inOutPlan.hasLockedEntries = inOutPlan.hasLockedEntries || listed.isLocked;
+
+        inOutPlan.entries.push_back (listed);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::BuildRemovalPlan
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const
+{
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    int                    keyBlock    = ProDosSkeleton::kDirKeyBlock;
+    bool                   named       = !path.IsEmpty();
+    ChainWalkGuard         guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    ChainWalkGuard         blockGuard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    vector<uint32_t>       blocks;
+    DirectoryRemovalEntry  itself;
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (named, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    outPlan = DirectoryRemovalPlan();
+
+    hr = ResolveDirectory (path, keyBlock);
+    CHR (hr);
+
+    CollectRemovalEntries (keyBlock, path.ToString() + "/", guard, outPlan);
+
+    //  The directory itself goes last, after everything it holds.
+    CollectDirectoryBlocks (keyBlock, blocks, blockGuard);
+
+    itself.path        = path.ToString();
+    itself.isDirectory = true;
+    itself.blocks      = (uint32_t) blocks.size();
+
+    outPlan.blocksFreed += itself.blocks;
+
+    outPlan.entries.push_back (itself);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::RemoveEmptyDirectory
+//
+//  The record becomes a tombstone the way a file's does, and the directory's
+//  own chain of blocks goes back to the free map -- only the blocks this
+//  record alone claims, by the rule every delete here follows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::RemoveEmptyDirectory (
+    const FilePath  & path,
+    vector<Byte>    & outBuffer,
+    DeleteOutcome   & outOutcome) const
+{
+    HRESULT                hr          = S_OK;
+    bool                   found       = false;
+    bool                   fullyParsed = true;
+    bool                   isEmpty     = false;
+    int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
+    uint16_t               owner       = 0;
+    uint16_t               local       = 0;
+    Byte                   typeLen     = 0;
+    VolumeListing          inside;
+    vector<RawEntry>       entries;
+    vector<RawEntry>       all;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
+
+
+
+    hr = EnumerateDirectory (path, inside);
+    CHR (hr);
+
+    isEmpty = inside.entries.empty();
+    CBREx (isEmpty, HRESULT_FROM_WIN32 (ERROR_DIR_NOT_EMPTY));
+
+    hr = ResolveDirectory (GetParentPath (path), dirKeyBlock);
+    CHR (hr);
+
+    CollectEntries (dirKeyBlock, entries, damage, fullyParsed);
+
+    found = TryFindEntry (entries, path.GetLeaf(), local);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    CollectAllEntries (all, damage, fullyParsed);
+
+    found = TryFindOwnerIndex (all, entries[local], owner);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_sectors;
+
+    for (uint32_t block : report.GetClaimsOf (owner))
+    {
+        bool  mineAlone = report.IsUniquelyOwnedBy (block, owner);
+
+        if (mineAlone)
+        {
+            SetFreeInBitmap (result, block, true);
+            outOutcome.freedUnits.push_back (block);
+        }
+        else
+        {
+            outOutcome.leakedUnits.push_back (block);
+        }
+    }
+
+    typeLen = ReadByte (all[owner].dirBlock, all[owner].entryOffset + ProDosSkeleton::kEntOffTypeName);
+
+    WriteByteAt (result,
+                 all[owner].dirBlock,
+                 all[owner].entryOffset + ProDosSkeleton::kEntOffTypeName,
+                 (Byte) (typeLen & 0x0F));
+
+    AdjustFileCount (result, dirKeyBlock, -1);
+
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::RemoveDirectory
+//
+//  THE WHOLE SUBTREE OR NONE OF IT. Every step is applied to a staged buffer
+//  that no caller can see, and only a finished one is handed back, so a
+//  removal that cannot finish leaves the image exactly as it was rather than
+//  half-emptied.
+//
+//  A LOCKED ENTRY ANYWHERE STOPS IT unless `force` was given, and that is
+//  decided before the first record changes -- discovering a locked file
+//  half-way through would leave the caller with a directory partly removed and
+//  nothing to say about the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::RemoveDirectory (
+    const FilePath  & path,
+    bool              force,
+    vector<Byte>    & outBuffer,
+    DeleteOutcome   & outOutcome) const
+{
+    HRESULT               hr          = S_OK;
+    size_t                bufferBytes = m_sectors.size();
+    bool                  permitted   = false;
+    size_t                i           = 0;
+    vector<Byte>          staged;
+    DirectoryRemovalPlan  plan;
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    hr = BuildRemovalPlan (path, plan);
+    CHR (hr);
+
+    permitted = force || !plan.hasLockedEntries;
+    CBREx (permitted, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+
+    outOutcome                    = DeleteOutcome();
+    outOutcome.catalogFullyParsed = plan.catalogFullyParsed;
+
+    staged = m_sectors;
+
+    for (i = 0; i < plan.entries.size(); i++)
+    {
+        ProDosVolume   step (staged);
+        FilePath       entryPath = FilePath::Parse (plan.entries[i].path);
+        DeleteOutcome  removal;
+        vector<Byte>   next;
+
+        if (plan.entries[i].isDirectory)
+        {
+            hr = step.RemoveEmptyDirectory (entryPath, next, removal);
+        }
+        else
+        {
+            hr = step.DeleteEntry (entryPath, force, next, removal);
+        }
+
+        CHR (hr);
+
+        outOutcome.freedUnits.insert (outOutcome.freedUnits.end(), removal.freedUnits.begin(), removal.freedUnits.end());
+        outOutcome.leakedUnits.insert (outOutcome.leakedUnits.end(), removal.leakedUnits.begin(), removal.leakedUnits.end());
+        outOutcome.chainWasDamaged = outOutcome.chainWasDamaged || removal.chainWasDamaged;
+
+        staged = next;
+    }
+
+    AppendDeleteWarnings (outOutcome);
+
+    outBuffer = staged;
 
 Error:
     return hr;

@@ -49,6 +49,13 @@ public:
 
     HRESULT  CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const override;
 
+    HRESULT  BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const override;
+
+    HRESULT  RemoveDirectory  (const FilePath  & path,
+                               bool              force,
+                               vector<Byte>    & outBuffer,
+                               DeleteOutcome   & outOutcome) const override;
+
     HRESULT  Write     (const FilePath     & path,
                         const FilePayload  & payload,
                         vector<Byte>       & outBuffer) const override;
@@ -252,6 +259,28 @@ private:
 
     //  Turns what a delete decided into text a user can act on.
     static void  AppendDeleteWarnings (DeleteOutcome & inOutOutcome);
+
+    //  One directory's contents into the plan, deepest first, each path written
+    //  out from the volume directory.
+    void  CollectRemovalEntries (int                     keyBlock,
+                                 const std::string     & prefix,
+                                 ChainWalkGuard        & guard,
+                                 DirectoryRemovalPlan  & inOutPlan) const;
+
+    //  What Delete does, plus the override a subtree removal needs: with
+    //  `force` a locked entry goes too, which is the only difference between
+    //  removing one file and removing one inside a subtree the caller has
+    //  already been answered on.
+    HRESULT  DeleteEntry (const FilePath  & path,
+                          bool              force,
+                          vector<Byte>    & outBuffer,
+                          DeleteOutcome   & outOutcome) const;
+
+    //  Removes a directory that holds nothing: its chain of blocks goes back to
+    //  the free map and its record in the parent becomes a tombstone.
+    HRESULT  RemoveEmptyDirectory (const FilePath  & path,
+                                   vector<Byte>    & outBuffer,
+                                   DeleteOutcome   & outOutcome) const;
 
     //  Walks one directory's chain from its key block, under a guard. Damage
     //  is appended rather than thrown.

@@ -63,6 +63,31 @@ public:
         return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
     }
 
+    //  What removing this directory would remove, in removal order, with the
+    //  locked entries marked and the blocks totaled. Nothing is written.
+    virtual HRESULT  BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const
+    {
+        UNREFERENCED_PARAMETER (path);
+        UNREFERENCED_PARAMETER (outPlan);
+
+        return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+    }
+
+    //  Removes the directory and everything below it, all of it or none.
+    //  A locked entry is removed only with `force`, and refused without it.
+    virtual HRESULT  RemoveDirectory (const FilePath  & path,
+                                      bool              force,
+                                      vector<Byte>    & outBuffer,
+                                      DeleteOutcome   & outOutcome) const
+    {
+        UNREFERENCED_PARAMETER (path);
+        UNREFERENCED_PARAMETER (force);
+        UNREFERENCED_PARAMETER (outBuffer);
+        UNREFERENCED_PARAMETER (outOutcome);
+
+        return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+    }
+
     //  Adds or replaces. Produces the complete post-write buffer.
     virtual HRESULT  Write (const FilePath     & path,
                             const FilePayload  & payload,

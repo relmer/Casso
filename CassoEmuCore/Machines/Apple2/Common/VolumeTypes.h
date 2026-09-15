@@ -156,3 +156,43 @@ struct DeleteOutcome
     bool                      catalogFullyParsed = true;
     bool                      chainWasDamaged    = false;
 };
+
+
+
+
+//
+//  One entry a directory removal would remove.
+//
+struct DirectoryRemovalEntry
+{
+    std::string  path;                  // from the volume directory
+    bool         isDirectory = false;
+    bool         isLocked    = false;
+    uint32_t     blocks      = 0;
+};
+
+
+
+
+//
+//  What removing a directory would remove, computed before anything is
+//  written.
+//
+//  REMOVING A DIRECTORY IS THE ONE DELETE WHOSE EXTENT NOBODY CAN SEE. A file
+//  is one name and one size; a directory can hold hundreds of entries and
+//  several directories below them, and the person typing the command is
+//  answering for all of it. So the whole list, the locked entries within it and
+//  the total blocks are produced first, for a caller to show and to be
+//  answered on.
+//
+//  Entries are in REMOVAL ORDER -- the contents of a directory before the
+//  directory itself -- so a caller applying them in order never removes a
+//  directory that still holds something.
+//
+struct DirectoryRemovalPlan
+{
+    std::vector<DirectoryRemovalEntry>  entries;
+    uint32_t                            blocksFreed        = 0;
+    bool                                hasLockedEntries   = false;
+    bool                                catalogFullyParsed = true;
+};
