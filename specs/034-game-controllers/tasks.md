@@ -261,7 +261,7 @@ description: "Task list for 034 physical game controllers"
 - [ ] T097 [US7] Widen `ControlMapping` to four axis targets and update `MappingEvaluator` accordingly; keep the default mapping claiming PDL0/PDL1 only (FR-038)
 - [ ] T098 [US7] Hold the assignment as controller-to-axes in `ControllerSelectionPolicy`, persist it per machine, and displace the previous owner on reassignment (FR-036, FR-037)
 - [ ] T099 [US7] Add the axis assignment UI to the Controllers page: which controller holds which axis, axes the machine lacks not offered (FR-035, FR-037)
-- [ ] T100 [US7] Build a four-axis readout disk from `Disks/Casso/JoystickTest.bas` showing PDL(0)-PDL(3) and PB0-PB2, for validating two-controller play without a commercial two-player disk
+- [X] T100 [US7] Build a four-axis readout disk from `Disks/Casso/JoystickTest.bas` showing PDL(0)-PDL(3) and PB0-PB2, for validating two-controller play without a commercial two-player disk
 - [ ] T101 [US7] Build; run `-Filter Controller`; validate two controllers at once on hardware against the readout disk, and on a two-player game disk if one is available
 - [ ] T102 [US7] Commit: `feat(input): assign controllers to game-port axes`
 
