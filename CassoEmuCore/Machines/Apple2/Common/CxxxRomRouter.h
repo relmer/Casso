@@ -73,8 +73,17 @@ public:
     // resolving to slot ROM. Caller-owned; pass nullptr to detach.
     void SetSlotIoDevice (int slot, MemoryDevice * device);
 
+    // Side-effect-free read for the debugger: the byte a CPU read would
+    // return, without latching or clearing INTC8ROM. A slot page owned by an
+    // I/O device is not readable this way, since reading a device has effects.
+    bool TryPeek (Word address, Byte & value) const;
+
+    // True when address resolves to the internal ROM image rather than a slot
+    // ROM or the floating bus, under the current MMU switches.
+    bool IsInternalRomSelected (Word address) const;
+
 private:
-    Byte           ResolveByte     (Word address);
+    Byte           ResolveByte     (Word address) const;
     MemoryDevice * GetSlotIoDevice (Word address) const;
 
     Apple2eMmu &   m_mmu;

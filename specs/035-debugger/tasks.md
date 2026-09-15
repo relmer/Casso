@@ -74,14 +74,14 @@ description: "Task list for 035-debugger"
 ### Target seam, memory view and hook (CassoEmuCore)
 
 - [X] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `StartRun (const RunRequest &)` with the stop delivered to `IRunObserver::OnStopped`, `RequestPause`, `SetHookInstalled`, `SetWatchedPages`, `GetVideoPosition`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Also `IRunObserver.h` and `IRunDriver.h` (`Start`, `Pause`). Add `UnitTest/DebuggerTests/MockDebugTarget.h`, an in-memory 64 KB implementation for session tests that records hook and mask changes.
-- [ ] T015 [P] Write `UnitTest/DebuggerTests/DebugMemoryViewTests.cpp` (R-003) against `TestMachine` for Apple ][, ][+, //e, Enhanced //e and //c:
+- [X] T015 [P] Write `UnitTest/DebuggerTests/DebugMemoryViewTests.cpp` (R-003) against `TestMachine` for Apple ][, ][+, //e, Enhanced //e and //c:
   - **Parity below $C000 and above $D000**: across banking states set through the soft switches (RAMRD/RAMWRT, ALTZP, 80STORE, language-card bank 1/2 read and write), `Peek` equals the value a CPU read returns; bus reads there have no side effects. `UnitTest/EmuTests/MemoryProbeHelpers.h` shows the probing pattern.
   - **Parity in $C100-$CFFF**: for each INTCXROM/SLOTC3ROM/INTC8ROM state, `Peek` equals the byte of the slot or internal ROM image that state selects, compared without a bus read, because a bus read there latches the router.
   - **No side effects**: a full peek sweep leaves every soft switch, the `CxxxRomRouter` latches and the speaker state unchanged.
   - **Region labels** match `mainRam|auxRam|lcBank1|lcBank2|rom|slotRom|io`.
   - **Writes**: `Poke` to ROM returns read-only and changes nothing.
   - **Non-zero**: assert that the number of addresses swept is non-zero.
-- [ ] T016 Implement `CassoEmuCore/Debugger/DebugMemoryView.h/.cpp` per research R-003: the bus's shadow page tables below $C000 (never the published ones, which hold null for a watched page); slot and internal ROM images for $C100-$CFFF selected by `IMmu::GetIntCxRom/GetSlotC3Rom` and the `CxxxRomRouter` state; `LanguageCard::IsReadRam/IsWriteRam/IsBank2/ReadRom` and `Apple2cRomBank` for $D000-$FFFF. $C000-$C0FF is never read; `Peek` reports it unreadable. Makes T015 pass.
+- [X] T016 Implement `CassoEmuCore/Debugger/DebugMemoryView.h/.cpp` per research R-003: the bus's shadow page tables below $C000 (never the published ones, which hold null for a watched page); slot and internal ROM images for $C100-$CFFF selected by `IMmu::GetIntCxRom/GetSlotC3Rom` and the `CxxxRomRouter` state; `LanguageCard::IsReadRam/IsWriteRam/IsBank2/ReadRom` and `Apple2cRomBank` for $D000-$FFFF. $C000-$C0FF is never read; `Peek` reports it unreadable. Makes T015 pass.
 - [X] T017 [P] Write `UnitTest/DebuggerTests/DebugHookTests.cpp`:
   - with a null hook, `MachineHost::RunCycles` behavior and cycle counts are unchanged;
   - with a hook that stops at an address, `StepOne` and `RunCycles` stop before that instruction executes, including an address in the middle of a slice;
@@ -414,6 +414,10 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
   Report any suite that could not run and why.
 - [ ] T086 Run all of quickstart.md end to end and record the results in the final merge commit message.
+- [ ] T087 Investigate the emulation slowdown measured when T018 landed (Release x64, `CycleEmulation_MeetsBudget`, 1M //e cycles: 5.59/5.63/5.61 ms before, 5.78/5.88/5.87 ms after, about 4%):
+  1. Confirm it is real: time a longer window (50M cycles) with 10 or more runs per build, on the commit before `9f12ea90` and on the current head.
+  2. If it is real, attribute it by reverting one change at a time: the `m_debugHook` tests in `MachineHost::StepOne` and `RunCycles`; the `m_debugWatched` test and `ReadFromDevice` split on the `MemoryBus::ReadByte` slow path; `StoreToPage` on the write fast path; the placement of the shadow tables inside `MemoryBus`.
+  3. Fix what is found (for example, a separate `RunCycles` loop taken only while a hook is set) and record before and after numbers in the commit message. With no session attached the cost must not be measurable, as plan.md Performance Goals require.
 
 ---
 

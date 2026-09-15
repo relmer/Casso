@@ -354,38 +354,27 @@ void CxxxRomRouter::Reset()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte CxxxRomRouter::ResolveByte (Word address)
+Byte CxxxRomRouter::ResolveByte (Word address) const
 {
-    HRESULT  hr        = S_OK;
-    Byte     result    = kFloatingBusByte;
-    bool     intCx     = false;
-    bool     slotC3    = false;
-    bool     intC8     = false;
-    bool     inSlot3   = false;
-    bool     inExp     = false;
-    Word     romOffset = 0;
-    int      slot      = 0;
-    Word     pageOff   = 0;
+    HRESULT  hr         = S_OK;
+    Byte     result     = kFloatingBusByte;
+    bool     inExp      = false;
+    bool     isInternal = false;
+    Word     romOffset  = 0;
+    int      slot       = 0;
+    Word     pageOff    = 0;
 
 
 
     BAIL_OUT_IF (address < kCxxxRouterStart || address > kCxxxRouterEnd, S_OK);
 
-    intCx     = m_mmu.GetIntCxRom();
-    slotC3    = m_mmu.GetSlotC3Rom();
-    intC8     = m_mmu.GetIntC8Rom();
-    inSlot3   = (address >= kSlot3PageStart    && address <= kSlot3PageEnd);
-    inExp     = (address >= kExpansionRomStart && address <= kExpansionRomLast);
-    romOffset = static_cast<Word> (address - kCxxxRouterStart);
-    slot      = static_cast<int>  ((address >> kAddressPageShift) & kSlotNibbleMask);
-    pageOff   = static_cast<Word> (address & kPageOffsetMask);
+    inExp      = (address >= kExpansionRomStart && address <= kExpansionRomLast);
+    isInternal = IsInternalRomSelected (address);
+    romOffset  = static_cast<Word> (address - kCxxxRouterStart);
+    slot       = static_cast<int>  ((address >> kAddressPageShift) & kSlotNibbleMask);
+    pageOff    = static_cast<Word> (address & kPageOffsetMask);
 
-    // Apple //c (m_noExternalSlots): with no external card slots the whole
-    // $C100-$CFFF window (incl. the $C800 expansion space) is always internal
-    // firmware regardless of INTCXROM/SLOTC3ROM/INTC8ROM -- the //c ROM enters
-    // $C800 with them clear. On the //e this stays false and normal arbitration
-    // applies.
-    if (m_noExternalSlots || intCx || (inSlot3 && !slotC3) || (inExp && intC8))
+    if (isInternal)
     {
         result = (romOffset < m_internal.size()) ? m_internal[romOffset] : kFloatingBusByte;
     }
@@ -400,4 +389,62 @@ Byte CxxxRomRouter::ResolveByte (Word address)
 
 Error:
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsInternalRomSelected
+//
+//  Apple //c (m_noExternalSlots): with no external card slots the whole
+//  $C100-$CFFF window (incl. the $C800 expansion space) is always internal
+//  firmware regardless of INTCXROM/SLOTC3ROM/INTC8ROM -- the //c ROM enters
+//  $C800 with them clear. On the //e this stays false and normal arbitration
+//  applies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CxxxRomRouter::IsInternalRomSelected (Word address) const
+{
+    bool  inSlot3 = (address >= kSlot3PageStart    && address <= kSlot3PageEnd);
+    bool  inExp   = (address >= kExpansionRomStart && address <= kExpansionRomLast);
+
+
+
+    return m_noExternalSlots          ||
+           m_mmu.GetIntCxRom()        ||
+           (inSlot3 && !m_mmu.GetSlotC3Rom()) ||
+           (inExp   &&  m_mmu.GetIntC8Rom());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeek
+//
+//  ResolveByte without Read's INTC8ROM side effects. A slot page delegated to
+//  an I/O device has no side-effect-free answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CxxxRomRouter::TryPeek (Word address, Byte & value) const
+{
+    bool  isDevicePage = GetSlotIoDevice (address) != nullptr;
+
+
+
+    value = kFloatingBusByte;
+
+    if (!isDevicePage)
+    {
+        value = ResolveByte (address);
+    }
+
+    return !isDevicePage;
 }
