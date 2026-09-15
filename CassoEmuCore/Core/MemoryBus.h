@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "IWatchSink.h"
 #include "MemoryDevice.h"
 
 class Prng;
@@ -94,6 +95,17 @@ public:
     // updated in place on banking changes, so the returned pointer stays valid.
     Byte * const * GetReadPageTable () const { return m_readPage; }
 
+    // Debugger watch mask. A watched page is published as null in the tables
+    // above, so every access to it takes the slow path and reaches the watch
+    // sink; the page the MMU last set is kept in the shadow tables and served
+    // from there. The shadow tables are also what a side-effect-free debugger
+    // peek reads.
+    void   SetWatchedPage     (int pageIndex, bool watched);
+    void   SetWatchSink       (IWatchSink * sink)       { m_watchSink = sink; }
+    bool   IsPageWatched      (int pageIndex) const     { return pageIndex >= 0 && pageIndex < 0x100 && m_debugWatched[pageIndex]; }
+    Byte * GetShadowReadPage  (Word address) const      { return m_shadowReadPage[address >> 8]; }
+    Byte * GetShadowWritePage (Word address) const      { return m_shadowWritePage[address >> 8]; }
+
     // Video-dirty tracking. Pages the renderer reads (text/hi-res, main +
     // aux, since aux is re-pointed at the same page index) are marked
     // "watched"; a write into any of them, or any banking change, raises
@@ -131,6 +143,11 @@ public:
 private:
     MemoryDevice * FindDevice (Word address) const;
 
+    Byte ReadFromDevice   (Word address);
+    Byte ReadWatchedPage  (Word address);
+    void WriteWatchedPage (Word address, Byte value);
+    void StoreToPage      (Byte * page, Word address, Byte value);
+
     // Rebuild the I/O dispatch map from the current device list. Called from
     // the constructor and after any AddDevice / RemoveDevice -- the only events
     // that can change which device an address resolves to.
@@ -167,6 +184,14 @@ private:
     // banking change, and starts true so the first frame renders.
     bool                    m_videoWatched[0x100] = {};
     bool                    m_videoDirty          = true;
+
+    // Debugger watch mask (see SetWatchedPage). The shadow tables hold what
+    // SetReadPage / SetWritePage were given; m_readPage / m_writePage hold the
+    // same pointers except on watched pages, where they hold null.
+    Byte *                  m_shadowReadPage [0x100] = {};
+    Byte *                  m_shadowWritePage[0x100] = {};
+    bool                    m_debugWatched   [0x100] = {};
+    IWatchSink *            m_watchSink              = nullptr;
 
     BankingChangedFn        m_bankingChanged;
 };

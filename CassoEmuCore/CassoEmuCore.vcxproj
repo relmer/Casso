@@ -449,6 +449,8 @@
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\JsonWriter.h" />
     <ClInclude Include="Core\MemoryBus.h" />
+    <ClInclude Include="Core\IWatchSink.h" />
+    <ClInclude Include="Debugger\DebugHook.h" />
     <ClInclude Include="Debugger\Reply.h" />
     <ClInclude Include="Debugger\IDebugTarget.h" />
     <ClInclude Include="Debugger\IRunObserver.h" />

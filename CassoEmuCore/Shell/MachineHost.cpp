@@ -3,6 +3,7 @@
 #include "Shell/MachineHost.h"
 
 #include "Core/Prng.h"
+#include "Debugger/DebugHook.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -192,6 +193,11 @@ Byte MachineHost::StepOne()
         return (0);
     }
 
+    if (m_debugHook != nullptr && m_debugHook->ShouldStopBefore (m_cpu->GetPC()))
+    {
+        return (0);
+    }
+
     // StepOne polls the interrupt lines itself and dispatches a pending
     // NMI/IRQ vector in place of the opcode fetch, reporting the cost through
     // GetLastInstructionCycles either way -- so a bare StepOne is the whole
@@ -226,7 +232,8 @@ Byte MachineHost::StepOne()
 
 uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 {
-    uint64_t  spent = 0;
+    uint64_t  spent  = 0;
+    Byte      cycles = 0;
 
 
 
@@ -237,7 +244,15 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 
     while (spent < cycleBudget)
     {
-        spent += StepOne();
+        cycles  = StepOne();
+        spent  += cycles;
+
+        // A hook stop returns a short slice: StepOne declined to execute, or
+        // the instruction it just ran raised a stop for the next boundary.
+        if (m_debugHook != nullptr && (cycles == 0 || m_debugHook->HasPendingStop()))
+        {
+            break;
+        }
     }
 
     return (spent);

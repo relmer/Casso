@@ -18,6 +18,7 @@
 class Apple2cRomBank;
 class Apple2eMmu;
 class AppleMouse;
+class DebugHook;
 class IDisk2EventSink;
 class IInputEventSink;
 class Prng;
@@ -200,6 +201,14 @@ public:
     //  rather than expecting an exact count.
     uint64_t  RunCycles (uint64_t cycleBudget);
 
+    //  The debugger's per-instruction hook, or null. While set, StepOne asks
+    //  it before each instruction and returns 0 without executing when it
+    //  says stop; RunCycles returns early on that, or on a stop raised during
+    //  the instruction it just ran. Unset, each instruction costs one pointer
+    //  test.
+    void         SetDebugHook (DebugHook * hook) noexcept { m_debugHook = hook; }
+    DebugHook *  GetDebugHook () const noexcept           { return m_debugHook; }
+
     //  Point the machine's devices at whoever is watching, or at nobody.
     //  Every device is attached independently: the input panel is useful on
     //  its own, and it used to receive nothing unless the disk panel
@@ -235,6 +244,8 @@ private:
 
     std::unique_ptr<EmuCpu>  m_cpu;
     std::unique_ptr<Prng>    m_prng;
+
+    DebugHook  *  m_debugHook = nullptr;
 
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;

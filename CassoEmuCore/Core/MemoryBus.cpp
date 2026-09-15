@@ -76,9 +76,8 @@ Byte MemoryBus::ReadByte (Word address)
     // ($C000-$CFFF) stays null and falls through to device dispatch so its
     // read side effects run. This is the hottest read in the emulator, so the
     // mapped case stays one branch deep.
-    Byte *          page   = m_readPage[address >> 8];
-    MemoryDevice *  device = nullptr;
-    Byte            value  = 0;
+    Byte *  page  = m_readPage[address >> 8];
+    Byte    value = 0;
 
 
 
@@ -86,22 +85,79 @@ Byte MemoryBus::ReadByte (Word address)
     {
         value = page[address & 0xFF];
     }
+    else if (m_debugWatched[address >> 8])
+    {
+        value = ReadWatchedPage (address);
+    }
     else
     {
-        device = FindDevice (address);
+        value = ReadFromDevice (address);
+    }
 
-        if (device != nullptr)
-        {
-            value              = device->Read (address);
-            m_floatingBusValue = value;
-        }
-        else if (address >= 0xC000 && address <= 0xCFFF)
-        {
-            // Unmapped I/O: the bus holds whatever the last device drove.
-            // Outside that window an unmapped address reads as 0 instead --
-            // there is no bus to float.
-            value = m_floatingBusValue;
-        }
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadFromDevice
+//
+//  The device-dispatch half of ReadByte, for an address with no mapped page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte MemoryBus::ReadFromDevice (Word address)
+{
+    MemoryDevice *  device = FindDevice (address);
+    Byte            value  = 0;
+
+
+
+    if (device != nullptr)
+    {
+        value              = device->Read (address);
+        m_floatingBusValue = value;
+    }
+    else if (address >= 0xC000 && address <= 0xCFFF)
+    {
+        // Unmapped I/O: the bus holds whatever the last device drove.
+        // Outside that window an unmapped address reads as 0 instead --
+        // there is no bus to float.
+        value = m_floatingBusValue;
+    }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadWatchedPage
+//
+//  A read of a watched page: served from the shadow page when the MMU mapped
+//  one, otherwise from the device exactly as an unwatched read would be, and
+//  then reported to the watch sink.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte MemoryBus::ReadWatchedPage (Word address)
+{
+    Byte *  page  = m_shadowReadPage[address >> 8];
+    Byte    value = 0;
+
+
+
+    value = (page != nullptr) ? page[address & 0xFF] : ReadFromDevice (address);
+
+    if (m_watchSink != nullptr)
+    {
+        m_watchSink->OnWatchedAccess (address, value, BusAccess::Read);
     }
 
     return value;
@@ -154,26 +210,17 @@ void MemoryBus::WriteByte (Word address, Byte value)
 
         if (page != nullptr)
         {
-            Byte * cell = &page[address & 0xFF];
-
-            // Video-dirty raise: only a write that actually CHANGES a
-            // *displayed* byte in a watched page marks the frame for re-render.
-            // The watched check short-circuits the common non-video write; the
-            // screen-hole check drops undisplayed scratch writes; and the
-            // value compare drops same-value re-stores -- so an idle screen
-            // whose firmware polls through the screen holes stops re-rendering.
-            if (m_videoWatched[address >> 8]                       &&
-                (address & s_kScreenBlockMask) < s_kFirstScreenHoleByte &&
-                *cell != value)
-            {
-                m_videoDirty = true;
-            }
-
-            *cell = value;
+            StoreToPage (page, address, value);
             return;
         }
 
         // No page mapping -- fall through to device-based write (e.g., for ROM areas)
+    }
+
+    if (m_debugWatched[address >> 8])
+    {
+        WriteWatchedPage (address, value);
+        return;
     }
 
     device = FindDevice (address);
@@ -192,7 +239,88 @@ void MemoryBus::WriteByte (Word address, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StoreToPage
+//
+//  A write landing in a mapped page.
+//
+//  Video-dirty raise: only a write that actually CHANGES a *displayed* byte in
+//  a watched page marks the frame for re-render. The watched check
+//  short-circuits the common non-video write; the screen-hole check drops
+//  undisplayed scratch writes; and the value compare drops same-value
+//  re-stores -- so an idle screen whose firmware polls through the screen
+//  holes stops re-rendering.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::StoreToPage (Byte * page, Word address, Byte value)
+{
+    Byte * cell = &page[address & 0xFF];
+
+
+
+    if (m_videoWatched[address >> 8]                           &&
+        (address & s_kScreenBlockMask) < s_kFirstScreenHoleByte &&
+        *cell != value)
+    {
+        m_videoDirty = true;
+    }
+
+    *cell = value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteWatchedPage
+//
+//  A write to a watched page: stored through the shadow page when the MMU
+//  mapped one, with the same video-dirty rule as the fast path, otherwise
+//  dispatched to the device once; then reported to the watch sink.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::WriteWatchedPage (Word address, Byte value)
+{
+    Byte *          page   = m_shadowWritePage[address >> 8];
+    MemoryDevice *  device = nullptr;
+
+
+
+    if (page != nullptr)
+    {
+        StoreToPage (page, address, value);
+    }
+    else
+    {
+        device = FindDevice (address);
+
+        if (device != nullptr)
+        {
+            device->Write (address, value);
+        }
+
+        m_floatingBusValue = value;
+    }
+
+    if (m_watchSink != nullptr)
+    {
+        m_watchSink->OnWatchedAccess (address, value, BusAccess::Write);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetReadPage / SetWritePage
+//
+//  The shadow table always takes the pointer; the published table takes it
+//  unless the page is watched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,7 +328,8 @@ void MemoryBus::SetReadPage (int pageIndex, Byte * page)
 {
     if (pageIndex >= 0 && pageIndex < 0x100)
     {
-        m_readPage[pageIndex] = page;
+        m_shadowReadPage[pageIndex] = page;
+        m_readPage[pageIndex]       = m_debugWatched[pageIndex] ? nullptr : page;
     }
 }
 
@@ -208,7 +337,31 @@ void MemoryBus::SetWritePage (int pageIndex, Byte * page)
 {
     if (pageIndex >= 0 && pageIndex < 0x100)
     {
-        m_writePage[pageIndex] = page;
+        m_shadowWritePage[pageIndex] = page;
+        m_writePage[pageIndex]       = m_debugWatched[pageIndex] ? nullptr : page;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetWatchedPage
+//
+//  Watching a page unpublishes it; unwatching republishes whatever the MMU set
+//  in the meantime.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::SetWatchedPage (int pageIndex, bool watched)
+{
+    if (pageIndex >= 0 && pageIndex < 0x100)
+    {
+        m_debugWatched[pageIndex] = watched;
+        m_readPage[pageIndex]     = watched ? nullptr : m_shadowReadPage[pageIndex];
+        m_writePage[pageIndex]    = watched ? nullptr : m_shadowWritePage[pageIndex];
     }
 }
 
