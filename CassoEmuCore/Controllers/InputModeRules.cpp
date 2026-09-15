@@ -21,36 +21,52 @@
 //  that are here (FR-008a), so a row for one that is gone would offer a pick
 //  that drives nothing.
 //
-//  A CONTROLLER IS CHECKED WHILE IT HOLDS AN AXIS, not only while it is the
-//  selection. With two players on two controllers, checking one of them would
-//  say the other drives nothing. An assignment kept while the keys or the
-//  mouse drive checks nothing, since the controllers are not driving then.
+//  BOTH PLAYERS ARE CHECKED IN MULTIPLAYER, not only the selection. With two
+//  people playing, checking one of them would say the other drives nothing. A
+//  player slot kept while the keys or the mouse drive checks nothing, since
+//  the controllers are not driving then, and neither does one mapped to
+//  paddles this machine lacks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
-    const State &                                 state,
-    const std::vector<ControllerDeviceInfo> &     devices,
-    const std::optional<ControllerUnitKey> &      selection,
-    const std::vector<ControllerAxisAssignment> & assignments,
-    size_t                                        axisCount)
+    const State &                             state,
+    const std::vector<ControllerDeviceInfo> & devices,
+    const std::optional<ControllerUnitKey> &  selection,
+    const MultiplayerSetup &                  multiplayer,
+    size_t                                    axisCount)
 {
+    // isControllerMode: multiplayer is a controller mode by definition, since
+    // picking the keys or the mouse turns it off, so there is no state where
+    // it is on and they drive.
     std::vector<PaddleSource>  sources;
     PaddleSource               arrows;
     PaddleSource               paddle;
+    bool                       isControllerMode = state.hasController || multiplayer.isEnabled;
 
 
 
     for (const ControllerDeviceInfo & device : devices)
     {
-        PaddleSource  entry;
-        bool          holdsAxis = ControllerSelectionPolicy::GetAxesFor (assignments, device.unit, selection, axisCount).any();
+        PaddleSource           entry;
+        std::optional<size_t>  player    = ControllerSelectionPolicy::FindPlayer (multiplayer, device.unit);
+        bool                   isDriving = false;
+
+        if (multiplayer.isEnabled)
+        {
+            isDriving = player.has_value()
+                        && ControllerSelectionPolicy::GetAxesForPlayer (multiplayer, player.value(), axisCount).any();
+        }
+        else
+        {
+            isDriving = selection.has_value() && selection.value() == device.unit;
+        }
 
         entry.label      = device.description;
         entry.shortLabel = Shorten (device.description);
         entry.formFactor = device.formFactor;
         entry.controller = device.unit;
-        entry.isChecked  = state.hasController && holdsAxis;
+        entry.isChecked  = isControllerMode && isDriving;
 
         sources.push_back (entry);
     }
@@ -62,12 +78,12 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     arrows.label       = L"Use keys as joystick";
     arrows.shortLabel  = L"Keys";
     arrows.isArrowKeys = true;
-    arrows.isChecked   = state.arrowsJoystick && !state.hasController;
+    arrows.isChecked   = state.arrowsJoystick && !isControllerMode;
 
     paddle.label         = L"Use mouse as paddle";
     paddle.shortLabel    = L"Mouse";
     paddle.isMousePaddle = true;
-    paddle.isChecked     = state.mousePaddle && !state.hasController;
+    paddle.isChecked     = state.mousePaddle && !isControllerMode;
 
     sources.push_back (arrows);
     sources.push_back (paddle);

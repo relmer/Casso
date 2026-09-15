@@ -33,7 +33,7 @@ public:
     static constexpr const char *  kpszPointerKey    = "pointerMapping";
     static constexpr const char *  kpszControllerKey = "controller";
     static constexpr const char *  kpszProfileKey    = "controllerProfile";
-    static constexpr const char *  kpszAxesKey       = "controllerAxes";
+    static constexpr const char *  kpszMultiplayerKey = "multiplayer";
 
     // outArrows always comes back false: arrows-to-joystick is not resumed,
     // only turned on by hand in the session that plays. It takes X and Z for
@@ -65,17 +65,24 @@ public:
         const std::string &  controllerToken,
         const std::string &  profileName);
 
-    // Which controller holds which axes. Absent or empty means the selected
-    // controller holds PDL0 and PDL1. An entry that cannot be read is
-    // skipped; axes the current machine lacks are kept (FR-035).
-    static std::vector<ControllerAxisAssignment>  ReadAxisAssignments (const JsonValue * uiPrefs);
+    // The machine's two-player setup. An absent block, or one that is not
+    // enabled, means single-source mode: the machine behaves exactly as it did
+    // before the mode existed. A slot whose controller cannot be read is left
+    // empty, and the setup is normalized, so an overlapping or repeated pair
+    // in a hand-edited file is refused rather than played (FR-036).
+    static MultiplayerSetup  ReadMultiplayer (const JsonValue * uiPrefs);
 
-    // Always written, as an empty array when there is no assignment, so
-    // clearing one replaces the saved list rather than leaving it behind.
-    static std::pair<std::string, JsonValue>      BuildAxisAssignmentEntry (
-        const std::vector<ControllerAxisAssignment> &  assignments);
+    // Always written, so turning the mode off replaces the saved block rather
+    // than leaving it behind. Paddles this machine lacks are written as they
+    // stand, so a //e's setup survives a trip through a //c (FR-035).
+    static std::pair<std::string, JsonValue>  BuildMultiplayerEntry (
+        const MultiplayerSetup &  setup);
 
     static const char *      ModeToToken   (InputMappingMode    mode);
     static InputMappingMode  ModeFromToken (const std::string & token,
                                             InputMappingMode    fallback);
+
+    static const char *      TargetToToken   (PlayerAxisTarget    target);
+    static PlayerAxisTarget  TargetFromToken (const std::string & token,
+                                              PlayerAxisTarget    fallback);
 };

@@ -76,14 +76,14 @@ public:
     static std::wstring  Shorten (const std::wstring & text);
 
     // What the picker is built from: the attached controllers, then the keys
-    // and the mouse. A controller is checked while it holds an axis the
-    // machine has, so two controllers playing at once are both checked.
+    // and the mouse. In multiplayer both players' controllers are checked, so
+    // neither reads as driving nothing.
     static std::vector<PaddleSource>  BuildPaddleSources (
-        const State &                                 state,
-        const std::vector<ControllerDeviceInfo> &     devices,
-        const std::optional<ControllerUnitKey> &      selection,
-        const std::vector<ControllerAxisAssignment> & assignments = {},
-        size_t                                        axisCount   = GamePortContribution::kAxisCount);
+        const State &                             state,
+        const std::vector<ControllerDeviceInfo> & devices,
+        const std::optional<ControllerUnitKey> &  selection,
+        const MultiplayerSetup &                  multiplayer = {},
+        size_t                                    axisCount   = GamePortContribution::kAxisCount);
 
     // What the closed picker wears: the driving source's short label, a count
     // while several controllers drive at once, or "Controller" when nothing

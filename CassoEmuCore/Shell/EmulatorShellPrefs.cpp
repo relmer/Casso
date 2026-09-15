@@ -265,14 +265,14 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs)
         return;
     }
 
-    // How many axes this machine has, before anything is assigned to them: an
-    // assignment for axes it lacks is kept and ignored (FR-035).
+    // How many axes this machine has, before anything is mapped onto them: a
+    // player slot for paddles it lacks is kept and plays nothing (FR-035).
     if (definition != nullptr)
     {
         m_controllerService->SetAxisCount (static_cast<size_t> (definition->gamePortAxisCount));
     }
 
-    m_controllerService->SetAxisAssignments (MachineInputPrefs::ReadAxisAssignments (uiPrefs));
+    m_controllerService->SetMultiplayer (MachineInputPrefs::ReadMultiplayer (uiPrefs));
 
     token = MachineInputPrefs::ReadControllerToken (uiPrefs);
 
@@ -354,7 +354,7 @@ void EmulatorShell::PersistInputModeForMachine()
         // Empty for Default, which leaves the profile key absent.
         controllerEntries = MachineInputPrefs::BuildControllerEntries (token, snapshot.activeProfile);
         entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
-        entries.push_back (MachineInputPrefs::BuildAxisAssignmentEntry (snapshot.assignments));
+        entries.push_back (MachineInputPrefs::BuildMultiplayerEntry (snapshot.multiplayer));
     }
 
     hr = DiskSettings::WriteSavedUiPrefs (

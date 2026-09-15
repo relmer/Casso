@@ -24,11 +24,13 @@
 //  the thread should wait for the next wake, which is what keeps an idle
 //  Casso idle.
 //
-//  The controllers that drive the game port are the selection and every
-//  controller that holds an axis the machine has (see
-//  ControllerAxisAssignment). Each is read and evaluated on its own; their
-//  axes are merged by assignment and their buttons OR together, so one
-//  controller leaving releases only what it held.
+//  WHICH CONTROLLERS DRIVE THE GAME PORT FOLLOWS THE MACHINE'S MODE. In
+//  single-source mode it is the selection alone, driving PDL0/PDL1 and
+//  PB0-PB2, which is what a machine has always done. In multiplayer mode it is
+//  the two player slots, each playing the paddles its slot maps to and one
+//  button line of its own (see MultiplayerSetup); the selection drives
+//  nothing. Each driver is read and evaluated on its own, so one controller
+//  leaving releases only what it held.
 //
 //  Nothing here touches a device or a machine directly: the backend reads
 //  controllers and the mixer writes the machine, so every rule in this class
@@ -63,12 +65,12 @@ public:
         ControllerSample                       lastSample;
         bool                                   isSelectedConnected  = false;
 
-        // Which controller holds which axes, and how many the machine has.
-        std::vector<ControllerAxisAssignment>  assignments;
+        // The machine's two-player setup, and how many axes it has.
+        MultiplayerSetup                       multiplayer;
         size_t                                 axisCount            = GamePortContribution::kAxisCount;
 
         // Whether any controller that drives the game port reads: the
-        // selection, or one holding axes of its own.
+        // selection, or either player's controller.
         bool                                   isAnyDriverConnected = false;
     };
 
@@ -97,18 +99,28 @@ public:
     void  SetStateChangedFn     (StateChangedFn onStateChanged);
     void  SetWakeFn             (WakeFn wake);
 
-    // How many paddle axes the machine has. An assignment naming an axis past
-    // it is kept and ignored, so a machine with more axes restores it
-    // (FR-034, FR-035).
+    // How many paddle axes the machine has. A player slot mapped to a paddle
+    // past it is kept and plays nothing, so a machine with more axes restores
+    // it (FR-034, FR-035).
     void  SetAxisCount          (size_t axisCount);
 
-    // The machine's assignments, replacing any before. Empty is the default:
-    // the selected controller holds PDL0 and PDL1.
-    void  SetAxisAssignments    (std::vector<ControllerAxisAssignment> assignments);
+    // The machine's two-player setup, replacing any before. It is normalized
+    // first, so an overlapping or repeated slot is refused rather than played
+    // (FR-036).
+    void  SetMultiplayer        (MultiplayerSetup setup);
 
-    // Gives one controller exactly these axes, taking each from whichever
-    // controller held it (FR-036, FR-037).
-    void  AssignAxes            (const ControllerUnitKey & unit, ControllerAxisAssignment::AxisSet axes);
+    // Turns the mode on or off, keeping both slots. Off is single-source mode,
+    // where the machine behaves exactly as it did before the mode existed;
+    // picking a single source from the toolbar picker turns it off.
+    void  SetMultiplayerEnabled (bool isEnabled);
+
+    // One player's controller and what it maps to. A slot that cannot be
+    // played beside the other one is emptied by the same normalization.
+    void  SetMultiplayerSlot    (size_t                                    player,
+                                 const std::optional<ControllerUnitKey> &  unit,
+                                 PlayerAxisTarget                          target);
+
+    MultiplayerSetup  GetMultiplayer () const;
 
     // Runs the selection policy on the next tick, for a machine switched to:
     // one with no controller saved counts as a controller connecting (FR-032).
@@ -212,6 +224,7 @@ private:
     // All of these assume m_mutex is already held.
     const ControllerDeviceInfo *    FindDeviceLocked         (const ControllerUnitKey & unit) const;
     std::vector<ControllerUnitKey>  GetDriverUnitsLocked     () const;
+    MultiplayerSetup::AxisSet       GetDriverAxesLocked      (const ControllerUnitKey & unit) const;
     bool                            IsDriverLocked           (const ControllerUnitKey & unit) const;
     void                            SyncDriversLocked        ();
     void                            ResolveMappingLocked     (DriverState & driver);
@@ -229,7 +242,7 @@ private:
 
     // Every controller that drives the game port, by unit token.
     std::map<std::string, DriverState>                   m_drivers;
-    std::vector<ControllerAxisAssignment>                m_assignments;
+    MultiplayerSetup                                     m_multiplayer;
     size_t                                               m_axisCount = GamePortContribution::kAxisCount;
 
     // Controller thread only: each driver's rate paddles, by unit token, and

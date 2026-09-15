@@ -13,6 +13,17 @@ static constexpr const char *  s_kpszInputModeJoystick = "joystick";
 static constexpr const char *  s_kpszInputModePaddle   = "paddle";
 static constexpr const char *  s_kpszInputModeMouse    = "mouse";
 
+static constexpr const char *  s_kpszEnabledKey        = "enabled";
+static constexpr const char *  s_kpszPlayersKey        = "players";
+static constexpr const char *  s_kpszMapsKey           = "maps";
+
+static constexpr const char *  s_kpszTargetJoystick0   = "joystick0";
+static constexpr const char *  s_kpszTargetJoystick1   = "joystick1";
+static constexpr const char *  s_kpszTargetPaddle0     = "paddle0";
+static constexpr const char *  s_kpszTargetPaddle1     = "paddle1";
+static constexpr const char *  s_kpszTargetPaddle2     = "paddle2";
+static constexpr const char *  s_kpszTargetPaddle3     = "paddle3";
+
 
 
 
@@ -271,64 +282,35 @@ std::vector<std::pair<std::string, JsonValue>> MachineInputPrefs::BuildControlle
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineInputPrefs::ReadAxisAssignments
+//  MachineInputPrefs::TargetToToken
 //
-//  Each entry is { "controller": <unit token>, "axes": [<axis index>, ...] }.
-//  Entries are applied in file order through the same displacement rule the
-//  user's own assignments follow, so a hand-edited file that gives one axis
-//  to two controllers resolves to the later one rather than to both.
+//  What a player slot maps to, in its persisted spelling. Names rather than
+//  ordinals, for the same reason the mapping modes use them: inserting a
+//  target later cannot silently reinterpret a saved slot as another one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ControllerAxisAssignment> MachineInputPrefs::ReadAxisAssignments (const JsonValue * uiPrefs)
+const char * MachineInputPrefs::TargetToToken (PlayerAxisTarget target)
 {
-    HRESULT                                hr          = S_OK;
-    std::vector<ControllerAxisAssignment>  assignments;
-    const JsonValue                      * list        = nullptr;
-    size_t                                 i           = 0;
-    size_t                                 j           = 0;
+    // Joystick 0 is both the first target and the safe spelling for one this
+    // build does not know: every machine with a game port has PDL0 and PDL1.
+    const char *  token = s_kpszTargetJoystick0;
 
 
 
-    if (uiPrefs == nullptr || !uiPrefs->HasArray (kpszAxesKey, list) || list == nullptr)
+    switch (target)
     {
-        return assignments;
+        case PlayerAxisTarget::Joystick1:  token = s_kpszTargetJoystick1; break;
+        case PlayerAxisTarget::Paddle0:    token = s_kpszTargetPaddle0;   break;
+        case PlayerAxisTarget::Paddle1:    token = s_kpszTargetPaddle1;   break;
+        case PlayerAxisTarget::Paddle2:    token = s_kpszTargetPaddle2;   break;
+        case PlayerAxisTarget::Paddle3:    token = s_kpszTargetPaddle3;   break;
+
+        case PlayerAxisTarget::Joystick0:
+        default:                                                          break;
     }
 
-    for (i = 0; i < list->GetArraySize(); i++)
-    {
-        const JsonValue                 &  entry = list->GetArrayElement (i);
-        const JsonValue                 *  axes  = nullptr;
-        std::string                        token;
-        ControllerUnitKey                  unit;
-        ControllerAxisAssignment::AxisSet  held;
-
-        if (entry.GetType() != JsonType::Object || !entry.HasString (kpszControllerKey, token) || !entry.HasArray ("axes", axes))
-        {
-            continue;
-        }
-
-        hr = ControllerTokens::UnitFromToken (token, unit);
-
-        if (FAILED (hr) || axes == nullptr)
-        {
-            continue;
-        }
-
-        for (j = 0; j < axes->GetArraySize(); j++)
-        {
-            const JsonValue &  axis = axes->GetArrayElement (j);
-
-            if (axis.GetType() == JsonType::Number && axis.GetInt() >= 0 && axis.GetInt() < (int) held.size())
-            {
-                held.set ((size_t) axis.GetInt());
-            }
-        }
-
-        ControllerSelectionPolicy::AssignAxes (assignments, unit, held);
-    }
-
-    return assignments;
+    return token;
 }
 
 
@@ -337,35 +319,151 @@ std::vector<ControllerAxisAssignment> MachineInputPrefs::ReadAxisAssignments (co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineInputPrefs::BuildAxisAssignmentEntry
+//  MachineInputPrefs::TargetFromToken
+//
+//  The inverse, answering with `fallback` for an empty or unrecognized token
+//  so a file written by a newer build degrades to a playable slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<std::string, JsonValue> MachineInputPrefs::BuildAxisAssignmentEntry (
-    const std::vector<ControllerAxisAssignment> &  assignments)
+PlayerAxisTarget MachineInputPrefs::TargetFromToken (
+    const std::string &  token,
+    PlayerAxisTarget     fallback)
 {
-    std::vector<JsonValue>  list;
-    size_t                  axis = 0;
+    PlayerAxisTarget  target = fallback;
 
 
 
-    for (const ControllerAxisAssignment & assignment : assignments)
+    if      (token == s_kpszTargetJoystick0) { target = PlayerAxisTarget::Joystick0; }
+    else if (token == s_kpszTargetJoystick1) { target = PlayerAxisTarget::Joystick1; }
+    else if (token == s_kpszTargetPaddle0)   { target = PlayerAxisTarget::Paddle0;   }
+    else if (token == s_kpszTargetPaddle1)   { target = PlayerAxisTarget::Paddle1;   }
+    else if (token == s_kpszTargetPaddle2)   { target = PlayerAxisTarget::Paddle2;   }
+    else if (token == s_kpszTargetPaddle3)   { target = PlayerAxisTarget::Paddle3;   }
+
+    return target;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::ReadMultiplayer
+//
+//  The block is { "enabled": <bool>, "players": [ <slot>, <slot> ] }, where a
+//  slot is { "controller": <unit token>, "maps": <target token> }.
+//
+//  A SLOT WHOSE CONTROLLER CANNOT BE READ IS LEFT EMPTY rather than dropping
+//  the block: the other player keeps playing, and the empty slot is what the
+//  settings page shows for the one that could not be restored. An empty token
+//  reads the same way, which is how a slot nobody has filled round-trips.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MultiplayerSetup MachineInputPrefs::ReadMultiplayer (const JsonValue * uiPrefs)
+{
+    MultiplayerSetup    setup;
+    const JsonValue   * block     = nullptr;
+    const JsonValue   * players   = nullptr;
+    bool                isEnabled = false;
+    size_t              i         = 0;
+
+
+
+    if (uiPrefs == nullptr || !uiPrefs->HasObject (kpszMultiplayerKey, block) || block == nullptr)
     {
-        std::vector<std::pair<std::string, JsonValue>>  entry;
-        std::vector<JsonValue>                          axes;
-
-        for (axis = 0; axis < assignment.axes.size(); axis++)
-        {
-            if (assignment.axes.test (axis))
-            {
-                axes.emplace_back ((double) axis);
-            }
-        }
-
-        entry.emplace_back (kpszControllerKey, JsonValue (ControllerTokens::UnitToToken (assignment.unit)));
-        entry.emplace_back ("axes", JsonValue (std::move (axes)));
-        list.emplace_back (std::move (entry));
+        return setup;
     }
 
-    return { kpszAxesKey, JsonValue (std::move (list)) };
+    if (block->HasBool (s_kpszEnabledKey, isEnabled))
+    {
+        setup.isEnabled = isEnabled;
+    }
+
+    if (!block->HasArray (s_kpszPlayersKey, players) || players == nullptr)
+    {
+        return setup;
+    }
+
+    for (i = 0; i < players->GetArraySize() && i < MultiplayerSetup::kPlayerCount; i++)
+    {
+        const JsonValue &  entry = players->GetArrayElement (i);
+        HRESULT            hr    = S_OK;
+        std::string        token;
+        std::string        maps;
+        ControllerUnitKey  unit;
+
+        if (entry.GetType() != JsonType::Object)
+        {
+            continue;
+        }
+
+        if (entry.HasString (s_kpszMapsKey, maps))
+        {
+            setup.players[i].target = TargetFromToken (maps, PlayerAxisTarget::Joystick0);
+        }
+
+        if (!entry.HasString (kpszControllerKey, token))
+        {
+            continue;
+        }
+
+        hr = ControllerTokens::UnitFromToken (token, unit);
+
+        if (FAILED (hr))
+        {
+            continue;
+        }
+
+        setup.players[i].unit = unit;
+    }
+
+    return ControllerSelectionPolicy::Normalize (setup);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::BuildMultiplayerEntry
+//
+//  BOTH SLOTS ARE ALWAYS WRITTEN, an empty one as an empty controller token.
+//  The block is spliced key by key, so a slot left out would leave the one
+//  already in the file behind, and a player the user cleared would come back
+//  on the next launch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<std::string, JsonValue> MachineInputPrefs::BuildMultiplayerEntry (
+    const MultiplayerSetup &  setup)
+{
+    std::vector<std::pair<std::string, JsonValue>>  block;
+    std::vector<JsonValue>                          players;
+    size_t                                          i     = 0;
+
+
+
+    for (i = 0; i < MultiplayerSetup::kPlayerCount; i++)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  entry;
+        std::string                                     token;
+
+        if (setup.players[i].unit.has_value())
+        {
+            token = ControllerTokens::UnitToToken (setup.players[i].unit.value());
+        }
+
+        entry.emplace_back (kpszControllerKey, JsonValue (token));
+        entry.emplace_back (s_kpszMapsKey,     JsonValue (std::string (TargetToToken (setup.players[i].target))));
+        players.emplace_back (std::move (entry));
+    }
+
+    block.emplace_back (s_kpszEnabledKey, JsonValue (setup.isEnabled));
+    block.emplace_back (s_kpszPlayersKey, JsonValue (std::move (players)));
+
+    return { kpszMultiplayerKey, JsonValue (std::move (block)) };
 }

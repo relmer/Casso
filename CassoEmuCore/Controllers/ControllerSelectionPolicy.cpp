@@ -27,18 +27,18 @@
 //  and with none attached the selection is cleared. A controller returning
 //  later is only a controller arriving.
 //
-//  A CONTROLLER THAT HOLDS AXES OF ITS OWN IS CHOSEN LAST. It is already
-//  driving its own axes, so a free controller is the better stand-in; and
-//  when one is chosen anyway its own axes come with it rather than PDL0 and
-//  PDL1, so the player still on the machine does not move (SC-012).
+//  A CONTROLLER A PLAYER IS HOLDING IS CHOSEN LAST. While multiplayer is on it
+//  is already playing that player's paddles, so a free controller is the
+//  better stand-in; and the selection drives nothing in that mode anyway, so
+//  the player still at the machine does not move (SC-012).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
-    const std::optional<ControllerUnitKey> &      current,
-    const std::vector<ControllerDeviceInfo> &     devices,
-    bool                                          hasGamePort,
-    const std::vector<ControllerAxisAssignment> & assignments)
+    const std::optional<ControllerUnitKey> &   current,
+    const std::vector<ControllerDeviceInfo> &  devices,
+    bool                                       hasGamePort,
+    const MultiplayerSetup &                   multiplayer)
 {
     Decision                      decision;
     const ControllerDeviceInfo *  found     = nullptr;
@@ -62,7 +62,7 @@ ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
             return decision;
         }
 
-        preferred                      = &GetPreferredDevice (devices, assignments);
+        preferred                      = &GetPreferredDevice (devices, multiplayer);
         decision.selection             = preferred->unit;
         decision.description           = preferred->description;
         decision.reason                = SelectionChangeReason::AutomaticSelection;
@@ -105,7 +105,7 @@ ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
         return decision;
     }
 
-    preferred            = &GetPreferredDevice (devices, assignments);
+    preferred            = &GetPreferredDevice (devices, multiplayer);
     decision.selection   = preferred->unit;
     decision.description = preferred->description;
     decision.reason      = SelectionChangeReason::Replacement;
@@ -119,85 +119,34 @@ ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssignAxes
+//  GetTargetAxes
 //
-//  Each axis has one owner, so the axes handed to this unit leave every other
-//  entry. The selected controller's default PDL0 and PDL1 need no edit: they
-//  are computed less whatever the entries hold.
-//
-//  An entry left holding nothing is kept. A controller whose last axis was
-//  taken stays off the game port until it is given one, rather than falling
-//  back to a default nobody chose for it.
+//  A joystick is two paddles wired to one stick; a paddle is one. Paddles the
+//  machine does not have are left out here rather than removed from the slot,
+//  so a //c plays what it can of a setup saved on a //e and the //e plays all
+//  of it again (FR-035).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerSelectionPolicy::AssignAxes (
-    std::vector<ControllerAxisAssignment> & assignments,
-    const ControllerUnitKey &               unit,
-    ControllerAxisAssignment::AxisSet       axes)
+MultiplayerSetup::AxisSet ControllerSelectionPolicy::GetTargetAxes (
+    PlayerAxisTarget  target,
+    size_t            axisCount)
 {
-    bool  isFound = false;
+    MultiplayerSetup::AxisSet  axes;
+    size_t                     axis  = 0;
 
 
 
-    for (ControllerAxisAssignment & entry : assignments)
+    switch (target)
     {
-        if (entry.unit == unit)
-        {
-            entry.axes = axes;
-            isFound    = true;
-        }
-        else
-        {
-            entry.axes &= ~axes;
-        }
-    }
+        case PlayerAxisTarget::Joystick0:  axes.set (0); axes.set (1); break;
+        case PlayerAxisTarget::Joystick1:  axes.set (2); axes.set (3); break;
+        case PlayerAxisTarget::Paddle0:    axes.set (0);               break;
+        case PlayerAxisTarget::Paddle1:    axes.set (1);               break;
+        case PlayerAxisTarget::Paddle2:    axes.set (2);               break;
+        case PlayerAxisTarget::Paddle3:    axes.set (3);               break;
 
-    if (!isFound)
-    {
-        assignments.push_back ({ unit, axes });
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetAxesFor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-ControllerAxisAssignment::AxisSet ControllerSelectionPolicy::GetAxesFor (
-    const std::vector<ControllerAxisAssignment> & assignments,
-    const ControllerUnitKey &                     unit,
-    const std::optional<ControllerUnitKey> &      selection,
-    size_t                                        axisCount)
-{
-    ControllerAxisAssignment::AxisSet  axes;
-    ControllerAxisAssignment::AxisSet  heldByOthers;
-    bool                               isFound      = false;
-    size_t                             axis         = 0;
-
-
-
-    for (const ControllerAxisAssignment & entry : assignments)
-    {
-        if (entry.unit == unit)
-        {
-            axes    = entry.axes;
-            isFound = true;
-        }
-        else
-        {
-            heldByOthers |= entry.axes;
-        }
-    }
-
-    if (!isFound && selection.has_value() && selection.value() == unit)
-    {
-        axes = ControllerAxisAssignment::AxisSet (kDefaultAxisBits) & ~heldByOthers;
+        default:                                                       break;
     }
 
     for (axis = axisCount; axis < axes.size(); axis++)
@@ -214,23 +163,168 @@ ControllerAxisAssignment::AxisSet ControllerSelectionPolicy::GetAxesFor (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HasAssignment
+//  GetAxesForPlayer
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ControllerSelectionPolicy::HasAssignment (
-    const std::vector<ControllerAxisAssignment> & assignments,
-    const ControllerUnitKey &                     unit)
+MultiplayerSetup::AxisSet ControllerSelectionPolicy::GetAxesForPlayer (
+    const MultiplayerSetup &  setup,
+    size_t                    player,
+    size_t                    axisCount)
 {
-    for (const ControllerAxisAssignment & entry : assignments)
+    MultiplayerSetup::AxisSet  axes;
+    bool                       isPlaying = setup.isEnabled
+                                           && player < MultiplayerSetup::kPlayerCount
+                                           && setup.players[player].unit.has_value();
+
+
+
+    if (!isPlaying)
     {
-        if (entry.unit == unit)
+        return axes;
+    }
+
+    return GetTargetAxes (setup.players[player].target, axisCount);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindPlayer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<size_t> ControllerSelectionPolicy::FindPlayer (
+    const MultiplayerSetup &   setup,
+    const ControllerUnitKey &  unit)
+{
+    size_t  player = 0;
+
+
+
+    if (!setup.isEnabled)
+    {
+        return std::nullopt;
+    }
+
+    for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
+    {
+        if (setup.players[player].unit.has_value() && setup.players[player].unit.value() == unit)
         {
-            return true;
+            return player;
         }
     }
 
-    return false;
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Normalize
+//
+//  THE LATER SLOT GIVES WAY. A setup that repeats a controller or claims a
+//  paddle the first slot already holds cannot be played as written, and
+//  emptying the second slot is the answer the user can see: the player whose
+//  choice was refused has an empty slot to fill rather than a paddle that
+//  quietly does nothing.
+//
+//  The paddles are compared across the whole port, not the machine's count, so
+//  a //c cannot accept an overlap a //e would refuse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MultiplayerSetup ControllerSelectionPolicy::Normalize (MultiplayerSetup setup)
+{
+    MultiplayerSetup::AxisSet  first    = GetTargetAxes (setup.players[0].target, GamePortContribution::kAxisCount);
+    MultiplayerSetup::AxisSet  second   = GetTargetAxes (setup.players[1].target, GamePortContribution::kAxisCount);
+    bool                       isFilled = setup.players[0].unit.has_value() && setup.players[1].unit.has_value();
+    bool                       isSame   = false;
+    bool                       overlaps = false;
+
+
+
+    if (!isFilled)
+    {
+        return setup;
+    }
+
+    isSame   = setup.players[0].unit.value() == setup.players[1].unit.value();
+    overlaps = (first & second).any();
+
+    if (isSame || overlaps)
+    {
+        setup.players[1].unit.reset();
+    }
+
+    return setup;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTargetChoices
+//
+//  What the settings page offers one slot: every target the machine has the
+//  paddles for, less the ones the other player is already holding. A slot with
+//  no controller in the other player's hands is offered everything the machine
+//  can play.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<PlayerAxisTarget> ControllerSelectionPolicy::GetTargetChoices (
+    const MultiplayerSetup &  setup,
+    size_t                    player,
+    size_t                    axisCount)
+{
+    static constexpr PlayerAxisTarget  kAllTargets[] = { PlayerAxisTarget::Joystick0,
+                                                         PlayerAxisTarget::Joystick1,
+                                                         PlayerAxisTarget::Paddle0,
+                                                         PlayerAxisTarget::Paddle1,
+                                                         PlayerAxisTarget::Paddle2,
+                                                         PlayerAxisTarget::Paddle3 };
+    std::vector<PlayerAxisTarget>      choices;
+    MultiplayerSetup::AxisSet          taken;
+    size_t                             other   = 0;
+
+
+
+    if (player >= MultiplayerSetup::kPlayerCount)
+    {
+        return choices;
+    }
+
+    other = (player == 0) ? 1 : 0;
+
+    if (setup.players[other].unit.has_value())
+    {
+        taken = GetTargetAxes (setup.players[other].target, axisCount);
+    }
+
+    for (PlayerAxisTarget target : kAllTargets)
+    {
+        MultiplayerSetup::AxisSet  axes = GetTargetAxes (target, axisCount);
+
+        // A target the machine cannot play in full is not offered: half a
+        // joystick is not a choice the user made.
+        if (axes != GetTargetAxes (target, GamePortContribution::kAxisCount) || (axes & taken).any())
+        {
+            continue;
+        }
+
+        choices.push_back (target);
+    }
+
+    return choices;
 }
 
 
@@ -241,18 +335,18 @@ bool ControllerSelectionPolicy::HasAssignment (
 //
 //  GetPreferredDevice
 //
-//  The first listed controller with no axes of its own, or the first listed
-//  when every one has some. The caller guarantees the list is not empty.
+//  The first listed controller no player is holding, or the first listed when
+//  both players hold one. The caller guarantees the list is not empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const ControllerDeviceInfo & ControllerSelectionPolicy::GetPreferredDevice (
-    const std::vector<ControllerDeviceInfo> &     devices,
-    const std::vector<ControllerAxisAssignment> & assignments)
+    const std::vector<ControllerDeviceInfo> &  devices,
+    const MultiplayerSetup &                   multiplayer)
 {
     for (const ControllerDeviceInfo & device : devices)
     {
-        if (!HasAssignment (assignments, device.unit))
+        if (!FindPlayer (multiplayer, device.unit).has_value())
         {
             return device;
         }

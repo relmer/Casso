@@ -2743,10 +2743,11 @@ void EmulatorShell::PickPaddleSource (InputModeRules::PaddleSource source)
         SetPointerMapping (InputMappingMode::Off);
 
         // The picker chooses THE controller that drives the paddles, so a pick
-        // gives up any assignment that split the axes across controllers.
+        // leaves multiplayer mode. Both player slots are kept, so turning the
+        // mode back on is a click rather than a setup job.
         if (m_controllerService != nullptr)
         {
-            m_controllerService->SetAxisAssignments ({});
+            m_controllerService->SetMultiplayerEnabled (false);
         }
 
         SetControllerSelection (source.controller);
@@ -2822,7 +2823,7 @@ void EmulatorShell::SyncPaddleSourceList()
     state.isControllerAttached = snapshot.isAnyDriverConnected;
 
     m_mainMenu.GetCommands().SetPaddleSources (
-        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection, snapshot.assignments, snapshot.axisCount));
+        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection, snapshot.multiplayer, snapshot.axisCount));
 
     // Straight onto the command bar's Input drop-down rather than a submenu
     // off the Machine menu: this is a list the user picks from while playing,

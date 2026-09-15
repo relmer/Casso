@@ -108,9 +108,11 @@ void ControllerInputService::SetActive (bool isActive)
 //
 //  SetSelection
 //
-//  Which controller drives the game port, or none. The controller it
-//  replaces stops driving unless it holds axes of its own, and whatever it
-//  held is released; every other driving controller carries on untouched.
+//  Which controller drives the game port, or none. The controller it replaces
+//  stops driving unless a player slot holds it, and whatever it held is
+//  released; every other driving controller carries on untouched. While
+//  multiplayer is on the selection drives nothing, and is only what the
+//  machine returns to when the mode goes off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,9 +288,9 @@ void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
 //
 //  SetAxisCount
 //
-//  A machine with fewer axes drops the drivers left holding none of them and
-//  the values for the axes it lacks; the assignments themselves are kept, so
-//  switching back to a machine with four restores them.
+//  A machine with fewer axes drops the drivers left with none of them and the
+//  values for the axes it lacks; the player slots themselves are kept, so
+//  switching back to a machine with four plays them again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,23 +323,28 @@ void ControllerInputService::SetAxisCount (size_t axisCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetAxisAssignments
+//  SetMultiplayer
+//
+//  The setup is normalized before it is kept, so what the service plays is
+//  never an overlapping or repeated pair of slots, whatever the caller handed
+//  in -- a hand-edited prefs file as much as the settings page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::SetAxisAssignments (std::vector<ControllerAxisAssignment> assignments)
+void ControllerInputService::SetMultiplayer (MultiplayerSetup setup)
 {
-    std::unique_lock<std::mutex>  lock   (m_mutex);
+    std::unique_lock<std::mutex>  lock       (m_mutex);
+    MultiplayerSetup              normalized = ControllerSelectionPolicy::Normalize (std::move (setup));
     GamePortContribution          merged;
 
 
 
-    if (m_assignments == assignments)
+    if (m_multiplayer == normalized)
     {
         return;
     }
 
-    m_assignments = std::move (assignments);
+    m_multiplayer = normalized;
     SyncDriversLocked();
 
     merged = BuildMergedLocked();
@@ -353,28 +360,73 @@ void ControllerInputService::SetAxisAssignments (std::vector<ControllerAxisAssig
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssignAxes
+//  SetMultiplayerEnabled
 //
-//  The displaced controller keeps its other axes and goes on driving them
-//  without a pause; only the axes that moved change hands (FR-036).
+//  BOTH SLOTS ARE KEPT when the mode goes off. Turning multiplayer off is how
+//  a user hands the game port back to one controller for a single-player game,
+//  and throwing the players away would make turning it back on a setup job
+//  rather than a click.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::AssignAxes (const ControllerUnitKey & unit, ControllerAxisAssignment::AxisSet axes)
+void ControllerInputService::SetMultiplayerEnabled (bool isEnabled)
 {
-    std::unique_lock<std::mutex>  lock   (m_mutex);
-    GamePortContribution          merged;
+    MultiplayerSetup  setup = GetMultiplayer();
 
 
 
-    ControllerSelectionPolicy::AssignAxes (m_assignments, unit, axes);
-    SyncDriversLocked();
+    setup.isEnabled = isEnabled;
 
-    merged = BuildMergedLocked();
-    lock.unlock();
+    SetMultiplayer (setup);
+}
 
-    Publish (merged);
-    Wake();
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMultiplayerSlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetMultiplayerSlot (
+    size_t                                    player,
+    const std::optional<ControllerUnitKey> &  unit,
+    PlayerAxisTarget                          target)
+{
+    MultiplayerSetup  setup = GetMultiplayer();
+
+
+
+    if (player >= MultiplayerSetup::kPlayerCount)
+    {
+        return;
+    }
+
+    setup.players[player].unit   = unit;
+    setup.players[player].target = target;
+
+    SetMultiplayer (setup);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMultiplayer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MultiplayerSetup ControllerInputService::GetMultiplayer() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_multiplayer;
 }
 
 
@@ -747,7 +799,7 @@ ControllerWaitSources ControllerInputService::TickDrivers()
         for (const auto & [token, driver] : m_drivers)
         {
             reads.push_back ({ driver.unit, token, driver.mapping, driver.deadzone,
-                               ControllerSelectionPolicy::GetAxesFor (m_assignments, driver.unit, m_selection, m_axisCount).count() });
+                               GetDriverAxesLocked (driver.unit).count() });
         }
 
         m_lastTick                = TickReport();
@@ -982,7 +1034,7 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     snapshot.activeProfile       = m_activeProfile;
     snapshot.lastSample          = m_lastSample;
     snapshot.isSelectedConnected = m_isSelectedConnected;
-    snapshot.assignments         = m_assignments;
+    snapshot.multiplayer         = m_multiplayer;
     snapshot.axisCount           = m_axisCount;
 
     for (const auto & [token, driver] : m_drivers)
@@ -1081,7 +1133,7 @@ void ControllerInputService::RefreshDevices()
                 return GetAttachOrderLocked (a.unit) < GetAttachOrderLocked (b.unit);
             });
 
-        decision = ControllerSelectionPolicy::Evaluate (m_selection, byAttachOrder, m_hasGamePort, m_assignments);
+        decision = ControllerSelectionPolicy::Evaluate (m_selection, byAttachOrder, m_hasGamePort, m_multiplayer);
 
         if (decision.reason == SelectionChangeReason::Cleared && !wasSelectionAttached)
         {
@@ -1092,15 +1144,15 @@ void ControllerInputService::RefreshDevices()
 
         if (decision.hasChanged)
         {
-            // A unit that came back under another identity keeps the axes it
-            // was given.
+            // A unit that came back under another identity keeps the player
+            // slot it was in.
             if (decision.reason == SelectionChangeReason::Adoption && m_selection.has_value() && decision.selection.has_value())
             {
-                for (ControllerAxisAssignment & entry : m_assignments)
+                for (MultiplayerSlot & slot : m_multiplayer.players)
                 {
-                    if (entry.unit == m_selection.value())
+                    if (slot.unit.has_value() && slot.unit.value() == m_selection.value())
                     {
-                        entry.unit = decision.selection.value();
+                        slot.unit = decision.selection.value();
                     }
                 }
             }
@@ -1299,32 +1351,42 @@ uint64_t ControllerInputService::GetAttachOrderLocked (const ControllerUnitKey &
 //
 //  GetDriverUnitsLocked
 //
-//  The controllers that drive the game port: the selection, which always
-//  reaches the buttons, and every controller holding an axis the machine has.
-//  One whose axes are all past the machine's count is not read at all, so an
-//  assignment for axes a //c lacks drives neither axes nor buttons there.
+//  The controllers that drive the game port: the selection in single-source
+//  mode, and in multiplayer the players whose slots this machine has the
+//  paddles for. A player mapped to paddles a //c lacks is not read at all, so
+//  neither their axes nor their button reach it -- and the slot is kept, so a
+//  //e plays it again (FR-035).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<ControllerUnitKey> ControllerInputService::GetDriverUnitsLocked() const
 {
     std::vector<ControllerUnitKey>  units;
+    size_t                          player = 0;
 
 
 
-    if (m_selection.has_value())
+    if (!m_multiplayer.isEnabled)
     {
-        units.push_back (m_selection.value());
+        if (m_selection.has_value())
+        {
+            units.push_back (m_selection.value());
+        }
+
+        return units;
     }
 
-    for (const ControllerAxisAssignment & entry : m_assignments)
+    for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
     {
-        bool  isListed = std::find (units.begin(), units.end(), entry.unit) != units.end();
+        const std::optional<ControllerUnitKey>  & unit      = m_multiplayer.players[player].unit;
+        bool                                      isPlaying = ControllerSelectionPolicy::GetAxesForPlayer (m_multiplayer, player, m_axisCount).any();
 
-        if (!isListed && IsDriverLocked (entry.unit))
+        if (!unit.has_value() || !isPlaying)
         {
-            units.push_back (entry.unit);
+            continue;
         }
+
+        units.push_back (unit.value());
     }
 
     return units;
@@ -1336,17 +1398,67 @@ std::vector<ControllerUnitKey> ControllerInputService::GetDriverUnitsLocked() co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetDriverAxesLocked
+//
+//  The machine paddles one controller drives: its player's, or PDL0 and PDL1
+//  for the selection in single-source mode, in both cases less the paddles
+//  this machine does not have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MultiplayerSetup::AxisSet ControllerInputService::GetDriverAxesLocked (const ControllerUnitKey & unit) const
+{
+    std::optional<size_t>      player = ControllerSelectionPolicy::FindPlayer (m_multiplayer, unit);
+    MultiplayerSetup::AxisSet  axes;
+    size_t                     axis   = 0;
+
+
+
+    if (m_multiplayer.isEnabled)
+    {
+        if (player.has_value())
+        {
+            axes = ControllerSelectionPolicy::GetAxesForPlayer (m_multiplayer, player.value(), m_axisCount);
+        }
+
+        return axes;
+    }
+
+    if (m_selection.has_value() && m_selection.value() == unit)
+    {
+        axes = MultiplayerSetup::AxisSet (ControllerSelectionPolicy::kSingleSourceAxisBits);
+
+        for (axis = m_axisCount; axis < axes.size(); axis++)
+        {
+            axes.reset (axis);
+        }
+    }
+
+    return axes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsDriverLocked
+//
+//  In single-source mode the selection drives whether or not it has an axis
+//  left, because it still reaches the buttons; in multiplayer a player with no
+//  paddle on this machine drives nothing at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ControllerInputService::IsDriverLocked (const ControllerUnitKey & unit) const
 {
-    bool  isSelected = m_selection.has_value() && m_selection.value() == unit;
+    if (m_multiplayer.isEnabled)
+    {
+        return GetDriverAxesLocked (unit).any();
+    }
 
-
-
-    return isSelected || ControllerSelectionPolicy::GetAxesFor (m_assignments, unit, m_selection, m_axisCount).any();
+    return m_selection.has_value() && m_selection.value() == unit;
 }
 
 
@@ -1357,7 +1469,7 @@ bool ControllerInputService::IsDriverLocked (const ControllerUnitKey & unit) con
 //
 //  SyncDriversLocked
 //
-//  Brings the driver list in line with the selection and the assignments. A
+//  Brings the driver list in line with the selection and the player slots. A
 //  controller that stopped driving is dropped with whatever it held; one that
 //  started driving gets its mapping and has its rate paddles centered on the
 //  next tick; one that drives on is left exactly as it was, so a change to
@@ -1469,9 +1581,16 @@ void ControllerInputService::UnresolveDriversLocked()
 //
 //  BuildMergedLocked
 //
-//  Every driving controller's last reading, placed by assignment: its own
-//  PDL0, PDL1 and on land on the axes it holds, in ascending order, and an
-//  axis it does not hold is left for another controller. Buttons OR together.
+//  Every driving controller's last reading, placed where its slot maps it: its
+//  own PDL0, PDL1 and on land on the paddles it drives, in ascending order,
+//  and a paddle it does not drive is left for the other player.
+//
+//  ONE BUTTON LINE PER PLAYER in multiplayer. Player 1's pb0 bindings reach
+//  PB0 and player 2's reach PB1, so a two-player game that reads the two lines
+//  separately can tell the players apart -- which OR-ing every controller's
+//  buttons together made impossible. A player's pb1 and pb2 bindings are kept
+//  in the profile and ignored here, and PB2 is unused. In single-source mode
+//  the one controller drives PB0-PB2 exactly as before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1485,7 +1604,8 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
 
     for (const auto & [token, driver] : m_drivers)
     {
-        ControllerAxisAssignment::AxisSet  axes = ControllerSelectionPolicy::GetAxesFor (m_assignments, driver.unit, m_selection, m_axisCount);
+        MultiplayerSetup::AxisSet  axes   = GetDriverAxesLocked (driver.unit);
+        std::optional<size_t>      player = ControllerSelectionPolicy::FindPlayer (m_multiplayer, driver.unit);
 
         if (!driver.logical.has_value() || !IsDriverLocked (driver.unit))
         {
@@ -1500,7 +1620,16 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
             }
         }
 
-        merged.buttons |= driver.logical->buttons;
+        if (!player.has_value())
+        {
+            merged.buttons |= driver.logical->buttons;
+            continue;
+        }
+
+        if (driver.logical->buttons.test (0))
+        {
+            merged.buttons.set (player.value());
+        }
     }
 
     return merged;
