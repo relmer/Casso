@@ -437,12 +437,14 @@ HRESULT SettingsSheet::OpenModeless (
         {
             ControllerInputService::Snapshot  snapshot = service->GetSnapshot();
 
-            // The page opens on the machine's active profile.
+            // The page opens on the machine's selected controller and active
+            // profile.
             m_controllersState.Load (snapshot.devices,
                                      service->GetModelSettings(),
                                      service->GetCalibrations(),
                                      !m_emuShell->MachineHasCaseSwitches(),
-                                     snapshot.activeProfile);
+                                     snapshot.activeProfile,
+                                     snapshot.selection);
             m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
                                                              m_emuShell->GetMachine().GetConfig().name.end()));
 
@@ -930,9 +932,14 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     DxuiPropertySheet::Layout (boundsPx, scaler);
     m_colorPicker.Layout (boundsPx, scaler);
 
+    // The overlays' text fields need the renderer to place a clicked caret
+    // and to drag a selection; without it a click only jumps to the end.
+    m_colorPicker.SetTextRenderer (GetTextRenderer());
+
     if (m_controllersPage != nullptr)
     {
         m_controllersPage->GetProfileDialog().Layout (boundsPx, scaler);
+        m_controllersPage->GetProfileDialog().SetTextRenderer (GetTextRenderer());
     }
 
     // Restart notice fills the bottom bar from the left edge to just short of
@@ -1285,6 +1292,38 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR SettingsSheet::GetCursorForPoint (POINT clientPx) const
+{
+    LPCWSTR  cursor = nullptr;
+
+
+
+    if (m_colorPicker.IsOpen())
+    {
+        cursor = m_colorPicker.GetCursorForPoint (clientPx);
+    }
+    else if (IsProfileDialogOpen())
+    {
+        cursor = m_controllersPage->GetProfileDialog().GetCursorForPoint (clientPx);
+    }
+    else if (!HasModalOverlay())
+    {
+        cursor = DxuiPropertySheet::GetCursorForPoint (clientPx);
+    }
+
+    return cursor;
 }
 
 

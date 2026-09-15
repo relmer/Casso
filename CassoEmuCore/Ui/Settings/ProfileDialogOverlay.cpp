@@ -549,6 +549,32 @@ void ProfileDialogOverlay::OnMouseMove (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetCursorForPoint
+//
+//  The I-beam over the name field; the arrow everywhere else in the dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR ProfileDialogOverlay::GetCursorForPoint (POINT clientPx) const
+{
+    LPCWSTR  cursor = nullptr;
+
+
+
+    if (m_open && HasNameField())
+    {
+        cursor = m_name.GetCursorForPoint (clientPx);
+    }
+
+    return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnKey
 //
 //  Tab and Shift+Tab move through the controls. Enter runs the focused

@@ -106,6 +106,10 @@ protected:
     bool     OnOverlayChar     (wchar_t ch) override;
     bool     OnOverlayKey      (WPARAM vk) override;
 
+    //  While an overlay is up the cursor comes from it, not from the page
+    //  beneath, so the text fields in the dialogs show the I-beam.
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+
 private:
     //  Set OK to "OK (reboot)" when committing would power-cycle the machine
     //  (staged machine change or a reset-requiring hardware edit), else "OK".

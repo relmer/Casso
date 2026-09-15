@@ -72,11 +72,14 @@ public:
     // The page opens. `hasPb2` is false on a machine whose $C063 is not a
     // pushbutton, the //c, where the PB2 target is unavailable.
     // `activeProfile` is the machine's active profile, empty for Default.
+    // `selection` is the machine's selected controller, which the page opens
+    // on; with none, or one not attached, it opens on the first attached.
     void  Load (const std::vector<ControllerDeviceInfo>              & devices,
                 const std::map<std::string, ControllerModelSettings> & models,
                 const std::map<std::string, ControllerCalibration>   & calibrations,
                 bool                                                   hasPb2,
-                const std::string                                    & activeProfile = std::string());
+                const std::string                                    & activeProfile = std::string(),
+                const std::optional<ControllerUnitKey>               & selection     = std::nullopt);
 
     // The machine's display name, for saying which machine a target is not
     // supported on.

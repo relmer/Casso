@@ -20,8 +20,13 @@ void ControllersPageState::Load (
     const std::map<std::string, ControllerModelSettings> & models,
     const std::map<std::string, ControllerCalibration>   & calibrations,
     bool                                                   hasPb2,
-    const std::string                                    & activeProfile)
+    const std::string                                    & activeProfile,
+    const std::optional<ControllerUnitKey>               & selection)
 {
+    size_t  i = 0;
+
+
+
     m_controllers.clear();
     m_selected.reset();
 
@@ -41,6 +46,16 @@ void ControllersPageState::Load (
     if (!m_controllers.empty())
     {
         m_selected = 0;
+    }
+
+    // The machine's selected controller, when it is attached, is the one
+    // the page opens on; the first attached is only the fallback.
+    for (i = 0; selection.has_value() && i < m_controllers.size(); i++)
+    {
+        if (m_controllers[i].unit == selection.value())
+        {
+            m_selected = i;
+        }
     }
 
     CaptureSwitchMapping();

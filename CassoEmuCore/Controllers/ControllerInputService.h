@@ -65,6 +65,10 @@ public:
     // owner depends on it, and the owner is decided on the UI thread.
     using StateChangedFn = std::function<void ()>;
 
+    // Brings the controller thread out of its wait, for a change that gives
+    // it something new to read before its current wait would end.
+    using WakeFn = std::function<void ()>;
+
     ControllerInputService (IControllerBackend & backend, GamePortInputMixer & mixer);
 
     void  OnDevicesChanged () override;
@@ -75,6 +79,7 @@ public:
     void  SetHasGamePort        (bool hasGamePort);
     void  SetSelectionChangedFn (SelectionChangedFn onSelectionChanged);
     void  SetStateChangedFn     (StateChangedFn onStateChanged);
+    void  SetWakeFn             (WakeFn wake);
 
     // Runs the selection policy on the next tick, for a machine switched to:
     // one with no controller saved counts as a controller connecting (FR-032).
@@ -84,6 +89,9 @@ public:
     // every tick while it is set whether or not it is the selected one, so
     // the page can assign, calibrate and show live readings for any attached
     // controller. Cleared when the page closes, which ends the extra reads.
+    // A request for a new unit, or for one not yet read, wakes the thread:
+    // with an event-driven controller selected it may otherwise sleep until
+    // that controller moves.
     void                             SetInspectedUnit   (const std::optional<ControllerUnitKey> & unit);
     std::optional<ControllerSample>  GetInspectedSample (const ControllerUnitKey & unit) const;
 
@@ -185,6 +193,7 @@ private:
     TickReport                           m_lastTick;
     SelectionChangedFn                   m_onSelectionChanged;
     StateChangedFn                       m_onStateChanged;
+    WakeFn                               m_wake;
     float                                m_deadzone            = 0.0f;
     bool                                 m_isActive            = true;
     bool                                 m_hasGamePort         = true;

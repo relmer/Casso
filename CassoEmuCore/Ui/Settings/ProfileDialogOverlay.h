@@ -48,6 +48,11 @@ public:
 
     void  SetHwnd           (HWND hwnd) { m_name.SetHwnd (hwnd); }
 
+    // The name field measures glyphs through this to place the caret under a
+    // click and to extend a drag selection.
+    void     SetTextRenderer   (IDxuiTextRenderer * renderer) { m_name.SetTextRenderer (renderer); }
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const;
+
     void  OpenNew           (const std::wstring & currentName, AcceptFn onAccept);
     void  OpenRename        (const std::wstring & currentName, AcceptFn onAccept);
     void  OpenConfirmDelete (const std::wstring & name, AcceptFn onAccept);

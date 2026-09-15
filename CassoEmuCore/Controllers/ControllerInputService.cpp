@@ -202,6 +202,25 @@ void ControllerInputService::SetSelectionChangedFn (SelectionChangedFn onSelecti
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetWakeFn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetWakeFn (WakeFn wake)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_wake = std::move (wake);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetStateChangedFn
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,12 +442,34 @@ void ControllerInputService::RequestRescan()
 
 void ControllerInputService::SetInspectedUnit (const std::optional<ControllerUnitKey> & unit)
 {
-    std::lock_guard<std::mutex>  lock (m_mutex);
+    WakeFn  wake;
+    bool    shouldWake = false;
 
 
 
-    m_inspectedUnit      = unit;
-    m_hasInspectedSample = false;
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        // The same unit asked for again keeps its reading, so a page that
+        // re-requests does not blank its own live readout.
+        if (m_inspectedUnit != unit)
+        {
+            m_inspectedUnit      = unit;
+            m_hasInspectedSample = false;
+            shouldWake           = true;
+        }
+        else if (unit.has_value() && !m_hasInspectedSample)
+        {
+            shouldWake = true;
+        }
+
+        wake = m_wake;
+    }
+
+    if (shouldWake && wake)
+    {
+        wake();
+    }
 }
 
 

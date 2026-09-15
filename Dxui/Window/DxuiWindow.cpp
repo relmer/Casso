@@ -1018,6 +1018,16 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
 
 
 
+    // A modal overlay owns every key, Tab / Enter / Escape included. The
+    // modeless pre-translate path (ProcessDialogMessage) arrives here without
+    // passing through OnKeyDown, so the check has to live here too, or Tab
+    // walks the focus of the page hidden behind the overlay.
+    if (HasModalOverlay())
+    {
+        (void) OnOverlayKey (vk);
+        return DxuiMessageResult::Handled;
+    }
+
     switch (vk)
     {
         case VK_TAB:

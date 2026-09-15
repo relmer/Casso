@@ -93,6 +93,7 @@ public:
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 

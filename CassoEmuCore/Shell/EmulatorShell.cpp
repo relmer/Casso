@@ -492,6 +492,14 @@ HRESULT EmulatorShell::Initialize (
         PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
     });
 
+    // The Controllers page asking for a controller to be read wakes the
+    // thread, which may be waiting on an event-driven controller that is not
+    // moving.
+    m_controllerService->SetWakeFn ([this]
+    {
+        m_controllerThread->Wake();
+    });
+
     hr = m_controllerThread->Start (m_controllerBackend.get(), m_controllerService.get(),
                                     [this] { return m_controllerService->Tick(); });
     IGNORE_RETURN_VALUE (hr, S_OK);

@@ -64,6 +64,42 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (Load_OpensOnTheMachinesSelectedController)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick = MakeStick();
+
+            page.Load ({ MakeXbox(), stick }, {}, {}, true, std::string(), stick.unit);
+
+            Assert::IsTrue (page.GetSelectedIndex() == std::optional<size_t> (1), L"the selected controller, not the first attached");
+            Assert::IsTrue (page.GetControllers()[1].unit == stick.unit);
+        }
+
+
+        TEST_METHOD (Load_WithNoSelectionOrOneNotAttached_OpensOnTheFirst)
+        {
+            ControllersPageState  page;
+
+            page.Load ({ MakeXbox(), MakeStick() }, {}, {}, true);
+            Assert::IsTrue (page.GetSelectedIndex() == std::optional<size_t> (0), L"nothing selected");
+
+            page.Load ({ MakeXbox(), MakeStick() }, {}, {}, true, std::string(), MakeStick ("{GONE}").unit);
+            Assert::IsTrue (page.GetSelectedIndex() == std::optional<size_t> (0), L"selected controller not attached");
+        }
+
+
+        TEST_METHOD (Load_OnTheSelectedController_ShowsTheActiveProfileForItsModel)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  stick = MakeStick();
+
+            page.Load ({ MakeXbox(), stick }, MakeSavedWithSwapped(), {}, true, "Swapped", stick.unit);
+
+            Assert::AreEqual (std::string ("Swapped"), page.GetEditedProfileName());
+            Assert::IsFalse  (page.HasUnappliedProfileEdits(), L"opening on it is not an edit");
+        }
+
+
         TEST_METHOD (Edits_StayPendingAndTheMapsHandedInAreUntouched)
         {
             ControllersPageState                            page;

@@ -561,6 +561,14 @@ void ControllersPage::Poll()
         sample = m_sampleSource (unit.value());
     }
 
+    // No reading yet for the controller shown: ask again. The service may
+    // not have read it since the request, or something else cleared the
+    // request (a closing sheet does), and asking wakes the controller thread.
+    if (unit.has_value() && !sample.has_value() && m_onInspect)
+    {
+        m_onInspect (unit);
+    }
+
     m_stick.SetActive (sample.has_value());
 
     if (!sample.has_value())

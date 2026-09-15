@@ -1007,6 +1007,33 @@ bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextInput::GetCursorForPoint  (IDxuiControl override)
+//
+//  The I-beam over an enabled field, as an edit control shows, so the pointer
+//  says the text can be clicked into and selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiTextInput::GetCursorForPoint (POINT clientPx) const
+{
+    LPCWSTR  cursor = nullptr;
+
+
+
+    if (HitTest (clientPx.x, clientPx.y))
+    {
+        cursor = IDC_IBEAM;
+    }
+
+    return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextInput::OnKey  (IDxuiControl override)
 //
 //  Down events dispatch to OnKey(vk); Char events dispatch to OnChar.

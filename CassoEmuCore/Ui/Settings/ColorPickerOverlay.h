@@ -33,6 +33,11 @@ public:
     using CloseFn  = std::function<void (bool accepted, uint32_t argb)>;
 
     void      SetHwnd     (HWND hwnd)       { m_hwnd = hwnd; m_hex.SetHwnd (hwnd); }
+
+    // The hex field measures glyphs through this to place the caret under a
+    // click and to extend a drag selection.
+    void      SetTextRenderer   (IDxuiTextRenderer * renderer) { m_hex.SetTextRenderer (renderer); }
+    LPCWSTR   GetCursorForPoint (POINT clientPx) const         { return m_open ? m_hex.GetCursorForPoint (clientPx) : nullptr; }
     void      SetOnChange (ChangeFn fn)     { m_onChange = std::move (fn); }
     void      SetOnClose  (CloseFn fn)      { m_onClose  = std::move (fn); }
 

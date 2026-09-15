@@ -897,5 +897,38 @@ namespace ControllerTests
             Assert::IsTrue  (sink.writes.back().state.buttons.test (1),                L"and plays its model's saved profile");
             Assert::IsFalse (sink.writes.back().state.buttons.test (0),                L"not the Default");
         }
+
+
+        TEST_METHOD (InspectedUnit_RequestWakesTheThreadUntilItIsRead)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            ControllerDeviceInfo    xbox  = MakeXboxDevice();
+            int                     wakes = 0;
+
+            backend.AddDevice (stick, true);
+            backend.AddDevice (xbox, true);
+            backend.SetSample (stick.unit, MakePushedSample());
+            service.SetWakeFn ([&wakes] { wakes++; });
+
+            service.SetInspectedUnit (stick.unit);
+            Assert::AreEqual (1, wakes, L"a new unit wakes the thread, which may be asleep on another controller's events");
+
+            service.SetInspectedUnit (stick.unit);
+            Assert::AreEqual (2, wakes, L"asking again before it is read wakes it again");
+
+            service.Tick();
+            Assert::IsTrue (service.GetInspectedSample (stick.unit).has_value(), L"the tick reads the inspected unit");
+
+            service.SetInspectedUnit (stick.unit);
+            Assert::AreEqual (2,    wakes,                                              L"once read, the same request is a no-op");
+            Assert::IsTrue   (service.GetInspectedSample (stick.unit).has_value(),     L"and keeps the reading");
+
+            service.SetInspectedUnit (xbox.unit);
+            Assert::AreEqual (3,    wakes,                                              L"another unit wakes it");
+            Assert::IsFalse  (service.GetInspectedSample (stick.unit).has_value(),     L"and the old reading is gone");
+        }
     };
 }
