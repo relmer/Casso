@@ -113,12 +113,12 @@ public:
     //  outside the tree. The host routes mouse input to the widget that started
     //  the drag until the button is released, as Win32 capture does, so
     //  dragging into the adjacent pane keeps scrolling this tree.
-    bool  IsInteracting () const { return m_vertScroll.IsDragging(); }
+    bool  IsInteracting () const { return m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
 
-    //  Whether a point is on the scrollbar, and the hover that widens it.
-    bool  IsOverScrollbar   (POINT pt) const override { return m_vertScroll.HitTest (pt.x, pt.y); }
-    bool  SetScrollbarHover (POINT pt)                { return m_vertScroll.SetHover (m_vertScroll.HitTest (pt.x, pt.y), pt); }
-    bool  TickScrollbars    (int64_t nowMs)           { return m_vertScroll.Tick (nowMs); }
+    //  Whether a point is on a scrollbar, and the hover that widens it.
+    bool  IsOverScrollbar   (POINT pt) const override { return IsOverVertBar (pt) || IsOverHorzBar (pt); }
+    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (IsOverVertBar (pt), pt) | (int) m_horzScroll.SetHover (IsOverHorzBar (pt), pt)) != 0; }
+    bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
 
     //  Explorer's navigation pane, measured at 120 dpi: forty pixels a row.
     static constexpr int  s_kRowHeightDip = 32;
@@ -173,6 +173,15 @@ public:
     int   GetMaxTopRow     () const;
     bool  IsScrollbarVisible () const;
 
+    //  Horizontal scrolling, as in Explorer's navigation pane when nesting is
+    //  wider than the pane: in pixels, over the widest row. Paint measures
+    //  that width; a test with no renderer sets it.
+    int   GetLeftPx              () const { return m_leftPx; }
+    void  SetLeftPx              (int px);
+    int   GetMaxLeftPx           () const;
+    bool  IsHorzScrollbarVisible () const;
+    void  SetRowsExtentPx        (int px) { m_rowsExtentPx = px; SetLeftPx (m_leftPx); }
+
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
     //
@@ -209,11 +218,20 @@ private:
     int   GetContentWidthPx   () const;
     int   GetScrollbarWidthPx () const { return m_scaler.ToPx (s_kScrollbarWidthDip); }
 
-    //  Hands the scrollbar the range, page and position it draws from.
+    //  The rows' own height: the widget's, less the bottom scrollbar when it
+    //  shows.
+    int   GetContentHeightPx () const;
+
+    //  Sets the scrollbars' range, page and position.
     void  SyncVertScroll () const;
+    void  SyncHorzScroll () const;
+
+    bool  IsOverVertBar (POINT pt) const { return IsScrollbarVisible()     && m_vertScroll.HitTest (pt.x, pt.y); }
+    bool  IsOverHorzBar (POINT pt) const { return IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y); }
 
     static constexpr int  s_kScrollbarWidthDip = 10;
     static constexpr int  s_kWheelRows         = 3;
+    static constexpr int  s_kHorzStepDip       = 24;
 
     bool                       m_showCheckboxes = true;
     ChildProviderFn            m_childProvider;
@@ -235,5 +253,8 @@ private:
     ToggleFn                   m_toggle;
     DxuiDpiScaler              m_scaler;
     int                        m_topRow         = 0;
+    int                        m_leftPx         = 0;
+    int                        m_rowsExtentPx   = 0;
     mutable DxuiScrollbar      m_vertScroll;
+    mutable DxuiScrollbar      m_horzScroll;
 };

@@ -234,8 +234,9 @@ int DxuiTreeView::HitTestRow (int x, int y) const
               && y >= m_boundsDip.top  && y < m_boundsDip.bottom
               && m_rowHeightPx > 0;
 
-    //  The scrollbar strip belongs to the bar, not to the row under it.
-    inRange = inRange && x < m_boundsDip.left + GetContentWidthPx();
+    //  A scrollbar's strip belongs to the bar, not to the row under it.
+    inRange = inRange && x < m_boundsDip.left + GetContentWidthPx()
+                      && y < m_boundsDip.top  + GetContentHeightPx();
 
     if (inRange)
     {
@@ -278,7 +279,7 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
     {
         rowDepth = m_flatRows[(size_t) flatRow].depth;
         rowTop   = m_boundsDip.top + flatRow * m_rowHeightPx;
-        twistyX  = m_boundsDip.left + rowDepth * m_indentPx;
+        twistyX  = m_boundsDip.left + rowDepth * m_indentPx - m_leftPx;
         isHit    = x >= twistyX && x < twistyX + m_twistyPx;
 
         UNREFERENCED_PARAMETER (rowTop);
@@ -310,7 +311,7 @@ bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
     if (m_showCheckboxes && flatRow >= 0 && flatRow < (int) m_flatRows.size())
     {
         rowDepth  = m_flatRows[(size_t) flatRow].depth;
-        checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx;
+        checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx - m_leftPx;
         isHit     = x >= checkboxX && x < checkboxX + m_checkboxPx;
     }
 
@@ -897,6 +898,37 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 
 
+    //  The widest row sets how far the tree scrolls sideways, so it is
+    //  measured before either scrollbar is sized. A row's right edge is its
+    //  indent, twisty, checkbox, icon and label, laid out as they are drawn.
+    m_rowsExtentPx = 0;
+
+    for (const FlatRow & fr : m_flatRows)
+    {
+        const DxuiTreeNode  * node   = fr.divider ? nullptr : GetNodeAt ((int) (&fr - m_flatRows.data()));
+        float                 labelW = 0.0f;
+        float                 labelH = 0.0f;
+        float                 right  = 0.0f;
+
+        if (node == nullptr)
+        {
+            continue;
+        }
+
+        hr = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
+
+        right = (float) (fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + textGap + labelW + textGap;
+
+        if (SUCCEEDED (hr) && node->icon)
+        {
+            right += m_scaler.ToPxf ((float) s_kIconDip) + m_scaler.ToPxf ((float) s_kIconGapDip);
+        }
+
+        m_rowsExtentPx = (std::max) (m_rowsExtentPx, SUCCEEDED (hr) ? (int) std::ceil (right) : 0);
+    }
+
+    SetLeftPx (m_leftPx);
+
     //  Rows are clipped to the widget: a tree taller than its pane used to
     //  paint its lower rows over whatever sat below it.
     SyncVertScroll();
@@ -915,9 +947,11 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                       (float) (m_boundsDip.bottom - m_boundsDip.top),
                       theme.ContentBackground());
 
+    //  Clipped to the rows' own area, so a row half under a scrollbar does not
+    //  draw beneath it.
     hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
-                            (float) (m_boundsDip.right - m_boundsDip.left),
-                            (float) (m_boundsDip.bottom - m_boundsDip.top));
+                            (float) GetContentWidthPx(),
+                            (float) GetContentHeightPx());
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     for (i = first; i < last; ++i)
@@ -926,7 +960,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         const DxuiTreeNode  * node        = GetNodeAt (i);
         float                 rowY        = (float) (m_boundsDip.top + (i - m_topRow) * m_rowHeightPx);
         float                 rowHeight   = (float) m_rowHeightPx;
-        float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx);
+        float                 twistyX     = (float) (m_boundsDip.left + fr.depth * m_indentPx - m_leftPx);
         float                 checkboxX   = twistyX + (float) m_twistyPx;
         float                 textX       = checkboxX + (float) GetCheckboxWidthPx() + textGap;
         bool                  hasChildren = false;
@@ -1050,7 +1084,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             hr = text.DrawString (node->label.c_str(),
                                   textX,
                                   rowY,
-                                  (float) m_boundsDip.left + contentW - textX,
+                                  (std::max) ((float) m_boundsDip.left + contentW - textX, (float) m_rowsExtentPx),
                                   rowHeight,
                                   textCol,
                                   fontDip,
@@ -1069,6 +1103,12 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     if (IsScrollbarVisible())
     {
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
+    }
+
+    if (IsHorzScrollbarVisible())
+    {
+        SyncHorzScroll();
+        m_horzScroll.Paint (painter, theme.ForegroundMuted());
     }
 }
 
@@ -1105,7 +1145,7 @@ void DxuiTreeView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 int DxuiTreeView::GetRowCap() const
 {
-    int  height = m_boundsDip.bottom - m_boundsDip.top;
+    int  height = GetContentHeightPx();
 
 
 
@@ -1230,7 +1270,7 @@ void DxuiTreeView::SyncVertScroll() const
     //  The track is in the same coordinates the widget is laid out in, so the
     //  bar hit-tests the events the tree is handed without translating them.
     m_vertScroll.Configure (DxuiScrollbar::Orientation::Vertical, barW, barW, 1);
-    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom });
+    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.top + GetContentHeightPx() });
 
     info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     info.nMin  = 0;
@@ -1238,6 +1278,112 @@ void DxuiTreeView::SyncVertScroll() const
     info.nPage = GetRowCap();
     info.nPos  = m_topRow;
     m_vertScroll.SetScrollInfo (info);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::SyncHorzScroll
+//
+//  Along the bottom, stopping short of the vertical bar's column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTreeView::SyncHorzScroll() const
+{
+    int             barW = GetScrollbarWidthPx();
+    DxuiScrollInfo  info;
+
+
+
+    m_horzScroll.Configure (DxuiScrollbar::Orientation::Horizontal, barW, barW, m_scaler.ToPx (s_kHorzStepDip));
+    m_horzScroll.SetTrack (RECT { m_boundsDip.left, m_boundsDip.bottom - barW, m_boundsDip.left + GetContentWidthPx(), m_boundsDip.bottom });
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+    info.nMax  = m_rowsExtentPx;
+    info.nPage = GetContentWidthPx();
+    info.nPos  = m_leftPx;
+    m_horzScroll.SetScrollInfo (info);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::IsHorzScrollbarVisible
+//
+//  When the widest row is wider than the rows' width. That width excludes the
+//  vertical bar's column only when the rows overflow the full height. Using
+//  the row count instead would recurse, since the bottom bar reduces the row
+//  count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTreeView::IsHorzScrollbarVisible() const
+{
+    int   width      = m_boundsDip.right  - m_boundsDip.left;
+    int   height     = m_boundsDip.bottom - m_boundsDip.top;
+    bool  rowsFit    = m_rowHeightPx <= 0 || (int) m_flatRows.size() <= height / m_rowHeightPx;
+    int   available  = width - (rowsFit ? 0 : GetScrollbarWidthPx());
+
+
+
+    return m_rowsExtentPx > available;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::GetContentHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTreeView::GetContentHeightPx() const
+{
+    int  height = m_boundsDip.bottom - m_boundsDip.top;
+
+
+
+    return (std::max) (0, height - (IsHorzScrollbarVisible() ? GetScrollbarWidthPx() : 0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::GetMaxLeftPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTreeView::GetMaxLeftPx() const
+{
+    return IsHorzScrollbarVisible() ? (std::max) (0, m_rowsExtentPx - GetContentWidthPx()) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::SetLeftPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTreeView::SetLeftPx (int px)
+{
+    m_leftPx = std::clamp (px, 0, GetMaxLeftPx());
 }
 
 
@@ -1274,6 +1420,11 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
             handled = m_vertScroll.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
             SetTopRow (m_vertScroll.GetScrollPos());
         }
+        else if (m_horzScroll.IsDragging())
+        {
+            handled = m_horzScroll.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+            SetLeftPx (m_horzScroll.GetScrollPos());
+        }
         else
         {
             SetMouseHover (ev.positionDip.x, ev.positionDip.y);
@@ -1287,6 +1438,12 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
             handled = m_vertScroll.OnMouseDown (ev.positionDip.x, ev.positionDip.y);
             SetTopRow (m_vertScroll.GetScrollPos());
         }
+        else if (ev.button == DxuiMouseButton::Left && IsOverHorzBar (POINT { ev.positionDip.x, ev.positionDip.y }))
+        {
+            SyncHorzScroll();
+            handled = m_horzScroll.OnMouseDown (ev.positionDip.x, ev.positionDip.y);
+            SetLeftPx (m_horzScroll.GetScrollPos());
+        }
         else if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
@@ -1298,6 +1455,10 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
         {
             handled = m_vertScroll.OnMouseUp();
         }
+        else if (m_horzScroll.IsDragging())
+        {
+            handled = m_horzScroll.OnMouseUp();
+        }
         else if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
@@ -1308,6 +1469,11 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
         if (!ev.wheelHorizontal && IsScrollbarVisible())
         {
             ScrollRows (-(int) (ev.wheelDelta * (float) s_kWheelRows));
+            handled = true;
+        }
+        else if (ev.wheelHorizontal && IsHorzScrollbarVisible())
+        {
+            SetLeftPx (m_leftPx + (int) (ev.wheelDelta * (float) m_scaler.ToPx (s_kHorzStepDip)));
             handled = true;
         }
 

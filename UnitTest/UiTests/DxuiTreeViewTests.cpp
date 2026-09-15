@@ -134,6 +134,35 @@ public:
     }
 
 
+    TEST_METHOD (HorzScroll_ReachesTheWidestRowAndTakesItsStripFromTheRows)
+    {
+        //  Three rows of 20 in a 200 by 100 tree, whose widest row is 500.
+        DxuiTreeView  tv = MakeTallTree (3, 100);
+
+        tv.SetRowsExtentPx (500);
+
+        Assert::IsTrue   (tv.IsHorzScrollbarVisible());
+        Assert::IsFalse  (tv.IsScrollbarVisible(), L"three rows still fit above the bottom bar");
+        Assert::AreEqual (300, tv.GetMaxLeftPx());
+        Assert::AreEqual (4, tv.GetRowCap(), L"the bar's strip is not a row");
+        Assert::AreEqual (-1, tv.HitTestRow (10, 95), L"a press on the bar is not a press on a row");
+
+        //  The twisty moves left with the view, and neither end overruns.
+        Assert::IsTrue   (tv.HitTestTwisty (5, 5, 0));
+        tv.SetLeftPx (999);
+        Assert::AreEqual (300, tv.GetLeftPx());
+        Assert::IsFalse  (tv.HitTestTwisty (5, 5, 0));
+        tv.SetLeftPx (-5);
+        Assert::AreEqual (0, tv.GetLeftPx());
+
+        //  Rows that fit need no bar, and the view returns to the left edge.
+        tv.SetLeftPx (100);
+        tv.SetRowsExtentPx (150);
+        Assert::IsFalse  (tv.IsHorzScrollbarVisible());
+        Assert::AreEqual (0, tv.GetLeftPx());
+    }
+
+
     TEST_METHOD (EnsureRowVisible_ScrollsTheLeastThatShowsTheRow)
     {
         DxuiTreeView  tv = MakeTallTree (10, 100);
