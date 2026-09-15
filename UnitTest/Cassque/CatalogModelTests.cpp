@@ -211,4 +211,26 @@ public:
             Assert::AreEqual (original[row.sourceIndex].name, row.name);
         }
     }
+
+
+
+    //  A DOS 3.3 heading entry: "A", backspaces, then its text. Control
+    //  characters are displayed in caret form and returned as muted ranges, one per run;
+    //  a typed caret and letter, and every other character, pass through
+    //  unmuted.
+    TEST_METHOD (DisplayName_ShowsControlCharactersInCaretFormAndMutesThem)
+    {
+        std::wstring                      name = std::wstring (L"A") + (wchar_t) 0x08 + (wchar_t) 0x08 + L"^H" + (wchar_t) 0x7F;
+        std::vector<std::pair<int, int>>  ranges;
+
+        Assert::AreEqual (std::wstring (L"A^H^H^H^?"), CatalogModel::GetDisplayName (name, ranges));
+        Assert::AreEqual ((size_t) 2, ranges.size());
+        Assert::AreEqual (1, ranges[0].first);
+        Assert::AreEqual (5, ranges[0].second, L"the two backspaces are one run");
+        Assert::AreEqual (7, ranges[1].first,  L"the typed ^H between them is not muted");
+        Assert::AreEqual (9, ranges[1].second);
+
+        Assert::AreEqual (std::wstring (L"MERLIN.X"), CatalogModel::GetDisplayName (L"MERLIN.X", ranges));
+        Assert::IsTrue   (ranges.empty());
+    }
 };

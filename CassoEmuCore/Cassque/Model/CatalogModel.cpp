@@ -73,6 +73,51 @@ std::wstring CatalogModel::FormatAddress (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CatalogModel::GetDisplayName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CatalogModel::GetDisplayName (const std::wstring & name, std::vector<std::pair<int, int>> & outControlRanges)
+{
+    std::wstring  shown;
+    int           start = 0;
+
+
+
+    outControlRanges.clear();
+
+    for (wchar_t c : name)
+    {
+        if (c >= 0x20 && c != 0x7F)
+        {
+            shown += c;
+            continue;
+        }
+
+        start  = (int) shown.size();
+        shown += L'^';
+        shown += (c == 0x7F) ? L'?' : (wchar_t) (c + L'@');
+
+        //  A run of control characters is one muted range.
+        if (!outControlRanges.empty() && outControlRanges.back().second == start)
+        {
+            outControlRanges.back().second = (int) shown.size();
+        }
+        else
+        {
+            outControlRanges.push_back ({ start, (int) shown.size() });
+        }
+    }
+
+    return shown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CatalogModel::FromFileEntry
 //
 //  Size is the recorded length where the filesystem records one, else the

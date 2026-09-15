@@ -466,6 +466,34 @@ void CassqueBrowser::SortByColumn (int column)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueBrowser::GetSelectionKey
+//
+//  The occurrence counts rows of the same name that come before this one in
+//  the listing rather than in the sorted view, so the key stays the same
+//  across a re-sort and a reload.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueBrowser::GetSelectionKey (size_t row) const
+{
+    size_t  occurrence = 0;
+
+
+
+    for (const CatalogRow & other : m_rows)
+    {
+        occurrence += (other.name == m_rows[row].name && other.sourceIndex < m_rows[row].sourceIndex) ? 1 : 0;
+    }
+
+    return std::to_wstring (occurrence) + L":" + m_rows[row].name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueBrowser::SetSelectedRows
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,7 +511,7 @@ void CassqueBrowser::SetSelectedRows (const std::vector<int> & rows)
         if (row >= 0 && row < (int) m_rows.size())
         {
             m_selectedRows.push_back (row);
-            names.push_back (m_rows[row].name);
+            names.push_back (GetSelectionKey ((size_t) row));
         }
     }
 
@@ -592,7 +620,7 @@ void CassqueBrowser::UpdatePreview()
             return;
         }
 
-        result = m_operations.Read (TextEncoding::WideToNarrow (location.path), GetEntryPath (*entry), payload);
+        result = m_operations.Read (TextEncoding::WideToNarrow (location.path), GetEntryPath (*entry), payload, entry->catalogIndex);
 
         if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
         {
@@ -779,10 +807,13 @@ std::vector<DxuiListView::Column> CassqueBrowser::GetCatalogPreviewColumns()
 std::vector<DxuiListView::Cell> CassqueBrowser::ToCatalogPreviewCells (const CatalogRow & row)
 {
     std::vector<DxuiListView::Cell>  cells;
+    DxuiListView::Cell               name;
 
 
 
-    cells.push_back (DxuiListView::Cell { row.name,     false });
+    name.text = CatalogModel::GetDisplayName (row.name, name.dimRanges);
+
+    cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.typeText, false });
     cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSize (row.sizeBytes), false });
 
@@ -805,10 +836,13 @@ std::vector<DxuiListView::Cell> CassqueBrowser::ToCatalogPreviewCells (const Cat
 std::vector<DxuiListView::Cell> CassqueBrowser::ToCells (const CatalogRow & row, const Location & at, IShellIcons * icons)
 {
     std::vector<DxuiListView::Cell>  cells;
+    DxuiListView::Cell               name;
 
 
 
-    cells.push_back (DxuiListView::Cell { row.name,     false });
+    name.text = CatalogModel::GetDisplayName (row.name, name.dimRanges);
+
+    cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.typeText, false });
     cells.push_back (DxuiListView::Cell { row.isDirectory ? std::wstring() : FormatSize (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
@@ -1342,7 +1376,7 @@ HRESULT CassqueBrowser::Reload (bool keepSelection)
 
     for (int row : m_selectedRows)
     {
-        names.push_back (m_rows[row].name);
+        names.push_back (GetSelectionKey ((size_t) row));
     }
 
     m_model.InvalidateAllCatalogs();
@@ -1355,7 +1389,7 @@ HRESULT CassqueBrowser::Reload (bool keepSelection)
 
     for (size_t row = 0; row < m_rows.size(); row++)
     {
-        if (std::find (names.begin(), names.end(), m_rows[row].name) != names.end())
+        if (std::find (names.begin(), names.end(), GetSelectionKey (row)) != names.end())
         {
             rows.push_back ((int) row);
         }
@@ -1582,7 +1616,7 @@ bool CassqueBrowser::SwitchTab (size_t index)
 
     for (size_t row = 0; row < m_rows.size(); row++)
     {
-        if (std::find (names.begin(), names.end(), m_rows[row].name) != names.end())
+        if (std::find (names.begin(), names.end(), GetSelectionKey (row)) != names.end())
         {
             rows.push_back ((int) row);
         }

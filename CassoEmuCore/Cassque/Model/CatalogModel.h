@@ -80,6 +80,14 @@ public:
 
     static std::wstring  FormatAddress (Word address);
 
+    //  A name as displayed in the list. DOS 3.3 names can contain control
+    //  characters (a heading entry uses backspaces to overwrite CATALOG's type
+    //  and size columns), and each is displayed in caret form: ^H for a
+    //  backspace, ^? for DEL. The ranges of those pairs are returned so the
+    //  list draws them muted, which distinguishes them from a typed caret and
+    //  letter.
+    static std::wstring  GetDisplayName (const std::wstring & name, std::vector<std::pair<int, int>> & outControlRanges);
+
     //  What one allocation unit holds: a sector on DOS 3.3, a block on ProDOS.
     static uint64_t  GetUnitBytes (VolumeKind kind);
 
