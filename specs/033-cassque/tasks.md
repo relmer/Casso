@@ -239,8 +239,12 @@
 - [ ] T114 [US2] Options dialog opened from View > Options, holding Host file names; commands the preview's context menu offers leave the top level (FR-045, FR-017a)
 - [ ] T115 [P] [US5] Typed path history: the model in CassoEmuCore (ten entries, newest first, a repeat moves to the top, added only after a successful navigation, browsing adds nothing) with headless tests, persisted through `CassquePrefs` (FR-040, SC-013)
 - [ ] T116 [US5] `DxuiAddressBar` dropdown offering the typed path history (FR-040)
-- [ ] T117 [P] [US2] ProDOS subdirectory creation in the core writer and the command-line tool, with headless tests; nothing creates one today, and FR-017b's folder drop onto a ProDOS image needs it too
-- [ ] T118 [US2] Context-sensitive New: New folder on host folders and ProDOS locations, a new disk image of each supported container on host folders, disabled on DOS 3.3; an unused default name that opens for renaming (FR-046)
+- [ ] T117 [P] [US2] `ProDosVolume` walks directories: every file operation takes a multi-part `FilePath` (today each refuses anything but one part), creates a subdirectory, grows a subdirectory's blocks as entries are added, and keeps the parent's file count; headless tests on the T001 ProDOS fixture. FR-017b's folder drop onto a ProDOS image needs it too (FR-013b, FR-013d)
+- [ ] T121 [US2] Command-line grammar: paths on every file verb with the relative and full-path rules, `list --recurse`/`-r`/`-s`, `mkdir`/`md` creating missing directories along the path, `rmdir`/`rd`, `delete` refusing directories; usage text and `docs` updated; parser and runner tests (FR-013b, FR-013c, FR-013d, FR-013f)
+- [ ] T122 [US2] Recursive delete plan in the core: list, locked marks, blocks freed, refusal on a locked entry without `--force` or an unreadable directory, applied all or nothing on a staged image; `rmdir --recurse --force --yes` and the no-terminal refusal in the runner; tests (FR-013e)
+- [ ] T123 [US2] Cassque's directory delete through the same plan, its confirmation showing the list and totals (FR-013e, FR-015)
+- [ ] T124 [P] [US1] ProDOS name case: case-free matching, GS/OS lowercase flags read for display and written on create and rename, after confirming the field layout against Apple's IIgs technical note; tests (FR-013g)
+- [ ] T118 [US2] Context-sensitive New: New folder on host folders and ProDOS locations, a new disk image of each supported container on host folders, disabled on DOS 3.3; an unused default name that opens for renaming; a new image made with host files selected receives them, refused up front when they will not fit (FR-046)
 - [ ] T119 [US2] Rename on the command bar under the holding file system's rules, host names included (FR-042, FR-013a)
 - [ ] T120 [US1] `DxuiToolbar` See more menu: overflow as the window narrows and items pinned there permanently (FR-047)
 

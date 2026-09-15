@@ -150,6 +150,22 @@ the browser layout needs and the browser itself.
   fit and can hold items permanently. Share is dropped. Help and About go
   in See more.
 - Q: Which list views? → A: Explorer's eight.
+- Q: Does a new disk image take the selected files? → A: Yes. New > Disk
+  image with host files selected copies them into the new image, folders
+  becoming ProDOS directories.
+- Q: How does the command-line tool reach ProDOS directories? → A: Every
+  file verb takes a path, relative to the volume directory or a full
+  ProDOS path from the volume name. `list` gains `--recurse` (`-r`, `-s`),
+  and `mkdir`/`md` and `rmdir`/`rd` are added; `mkdir` creates missing
+  directories along its path with no flag. A bare `/word` that names an
+  option stays an option; any other form of the path reaches the entry, so
+  no separate escape is needed.
+- Q: How does a recursive delete behave? → A: PowerShell's `Remove-Item`
+  meanings for `--recurse` and `--force` (locked entries), with a listed
+  plan and a confirmation `--yes` skips, applied all or nothing.
+- Q: How is ProDOS name case handled? → A: Matched without regard to case,
+  shown with GS/OS lowercase flags where present, and written in uppercase
+  with those flags keeping the typed case.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -527,6 +543,42 @@ bytes, change the grouping, and copy the selection both ways.
 - **FR-013a**: Rename MUST be offered on files in both DOS 3.3 and ProDOS
   images and on host files, from the context menu and F2, applying the
   target file system's name rules and refusing a collision.
+- **FR-013b**: Every file verb of the command-line disk tool MUST take a
+  path into a ProDOS image's directories. A path without a leading slash
+  MUST be read from the volume directory (`GAMES/CHESS`); one with a leading
+  slash MUST be a full ProDOS path beginning with the volume's name
+  (`/MYDISK/GAMES/CHESS`), refused when that name is not the image's. A
+  DOS 3.3 path MUST stay one name, slashes included. A missing directory
+  along a path MUST be refused with a message naming it. Where a bare
+  `/word` names an option, it MUST be read as the option; a path of two or
+  more parts, or one without a leading slash, reaches the entry.
+- **FR-013c**: `disk list <image> [<dir>]` MUST list one directory, and
+  with `--recurse` (also `-r` and `-s`) that directory and everything below
+  it and nothing above, one full path per row.
+- **FR-013d**: `disk mkdir <image> <path>` (also `md`) MUST create a ProDOS
+  directory and any missing directories along the path, as cmd's `mkdir`
+  does: `mkdir A/B/C` creates A and B where absent, then C. A path that
+  already exists in full MUST be refused.
+  On a DOS 3.3 image it MUST be refused, since DOS 3.3 has no directories.
+- **FR-013e**: `disk rmdir <image> <path>` (also `rd`) MUST follow
+  PowerShell's `Remove-Item` meanings: without `--recurse` (`-r`, `-s`) a
+  directory with contents MUST be refused with a message naming the flag;
+  with it the whole subtree MUST go; `--force` MUST also remove locked
+  entries, which are otherwise refused. Before deleting a subtree it MUST
+  list every entry that would go, mark the locked ones, total the blocks
+  freed, and ask for confirmation, which `--yes` (`-y`) skips; with no
+  terminal to answer and no `--yes` it MUST refuse rather than wait. The
+  whole plan MUST be made before anything changes and applied all or
+  nothing: a locked entry without `--force`, or a directory that cannot be
+  fully read, refuses the entire delete. The volume directory MUST NOT be
+  removable. Cassque's delete of a directory MUST use the same plan, and
+  its confirmation MUST show the same list and totals.
+- **FR-013f**: `disk delete` MUST remove files only and refuse a directory,
+  pointing to `rmdir`.
+- **FR-013g**: ProDOS names MUST match without regard to case. Where an
+  entry carries GS/OS's lowercase flags, Cassque and `disk list` MUST show
+  the name in that case. A name created or renamed MUST be stored in
+  uppercase, with lowercase flags keeping the case the user typed.
 - **FR-014**: Operations MUST call the core disk runner directly, never
   spawn the command-line tool.
 - **FR-015**: Destructive operations, meaning delete, format and
@@ -680,7 +732,12 @@ bytes, change the grouping, and copy the selection both ways.
   Cassque can create. A ProDOS image or a directory in one MUST offer New
   folder, making a ProDOS subdirectory. A DOS 3.3 image, which has no
   folders, MUST show New disabled. A new item MUST take an unused default
-  name and open for renaming at once, as Explorer's does.
+  name and open for renaming at once, as Explorer's does. A new disk image
+  made while host files are selected MUST receive copies of them, by Put's
+  conversion rules: selected folders become ProDOS directories, a DOS 3.3
+  image refuses folders with a message rather than flattening them, and a
+  selected disk image goes in as a file, not unpacked. A selection too
+  large for the container MUST be refused before the image is created.
 - **FR-047**: The command bar MUST end in a See more menu. Buttons that no
   longer fit MUST move into it as the window narrows and come back as it
   widens. An item MUST be able to live in See more permanently, never
