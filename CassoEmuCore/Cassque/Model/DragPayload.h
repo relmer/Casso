@@ -45,8 +45,9 @@ public:
     {
         std::wstring  relativePath;
         std::string   catalogPath;
-        bool          isDirectory = false;
-        bool          converted   = false;   // rendered through a listing or text conversion
+        bool          isDirectory  = false;
+        bool          converted    = false;   // rendered through a listing or text conversion
+        size_t        catalogIndex = 0;       // catalog position, for a name several entries share
     };
 
     struct Plan

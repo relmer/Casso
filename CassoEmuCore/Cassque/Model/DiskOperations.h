@@ -5,6 +5,7 @@
 #include "CommandLineOptions.h"
 #include "Devices/Disk/DiskCommandResult.h"
 #include "Devices/Disk/DiskImageSession.h"
+#include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -64,6 +65,9 @@ public:
         std::string  bootableFrom;     // an operating-system image, when not the stock master
     };
 
+    //  No catalog index: the entry is found by its name alone.
+    static constexpr size_t  kNoIndex = SIZE_MAX;
+
     explicit DiskOperations (IDiskFileIo & fileIo);
 
     void  SetIntentChannel (IIntentChannel * channel) { m_intentChannel = channel; }
@@ -74,14 +78,17 @@ public:
     //  One directory's entries, by path from the volume directory, with the
     //  volume's name and free space.
     Result  List (const std::string & imagePath, const std::string & directory, VolumeListing & outListing, VolumeKind & outKind);
-    Result  Read (const std::string & imagePath, const std::string & name, FilePayload & outPayload);
+    //  A catalog index, when given, selects the entry when several entries
+    //  share its name, which DOS 3.3 allows.
+    Result  Read (const std::string & imagePath, const std::string & name, FilePayload & outPayload, size_t catalogIndex = kNoIndex);
 
     //  Command-line verbs, through the runner.
-    Result  Get      (const std::string & imagePath, const std::string & name, Encoding encoding, const std::string & hostPath);
+    Result  Get      (const std::string & imagePath, const std::string & name, Encoding encoding, const std::string & hostPath,
+                      size_t catalogIndex = kNoIndex);
     Result  Put      (const std::string & imagePath, const std::string & hostPath, const std::string & name,
                       const std::string & typeName, bool hasLoadAddress, Word loadAddress, Encoding encoding);
-    Result  Delete   (const std::string & imagePath, const std::string & name);
-    Result  Boot     (const std::string & imagePath, const std::string & name);
+    Result  Delete   (const std::string & imagePath, const std::string & name, size_t catalogIndex = kNoIndex);
+    Result  Boot     (const std::string & imagePath, const std::string & name, size_t catalogIndex = kNoIndex);
     Result  Create   (const std::string & imagePath, const NewDiskRequest & request);
     Result  Init     (const std::string & imagePath, const NewDiskRequest & request);
 
@@ -92,7 +99,8 @@ public:
 
     //  Writes through the volume layer, for what the command line cannot say.
     Result  WritePayload (const std::string & imagePath, const std::string & name, const FilePayload & payload);
-    Result  Rename       (const std::string & imagePath, const std::string & from, const std::string & to);
+    Result  Rename       (const std::string & imagePath, const std::string & from, const std::string & to,
+                          size_t catalogIndex = kNoIndex);
 
     //  The options a command-line invocation of this verb would parse to.
     static CommandLineOptions  MakeOptions (Command command, const std::string & imagePath);
@@ -107,6 +115,10 @@ private:
                         const std::vector<Byte> & edited);
 
     static void  FillNewDisk (const NewDiskRequest & request, CommandLineOptions & inOutOptions);
+
+    static FilePath  MakeEntryPath (VolumeKind kind, const std::string & name, size_t catalogIndex);
+
+    void  ApplyIndex (size_t catalogIndex, CommandLineOptions & inOutOptions);
 
     IDiskFileIo     & m_fileIo;
     IIntentChannel  * m_intentChannel = nullptr;

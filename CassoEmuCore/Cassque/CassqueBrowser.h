@@ -195,6 +195,10 @@ private:
     void     UpdateStatus();
     bool     TryGetSelectedEntry (const FileEntry *& outEntry) const;
 
+    //  The key a selection stores for a row: its name and its occurrence among
+    //  rows with that name, since a DOS 3.3 catalog can repeat a name.
+    std::wstring  GetSelectionKey (size_t row) const;
+
     static std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const CatalogRow & row, const Location & at, IShellIcons & icons);
     static std::shared_ptr<const DxuiIconImage>  GetNodeIcon (const TreeNode & node, IShellIcons & icons);
 

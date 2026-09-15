@@ -176,7 +176,7 @@ std::vector<DxuiDragDropSource::Format> CassqueDragOut::BuildFormats (CassqueBro
                                      return S_OK;
                                  }
 
-                                 result = browser.GetOperations().Get (image, descriptor.catalogPath, GetEncoding (descriptor), "");
+                                 result = browser.GetOperations().Get (image, descriptor.catalogPath, GetEncoding (descriptor), "", descriptor.catalogIndex);
 
                                  if (result.Succeeded())
                                  {

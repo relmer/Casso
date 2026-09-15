@@ -430,7 +430,7 @@ CassqueActions::Outcome CassqueActions::GetSelected (const std::wstring & hostFo
         }
 
         Append (outcome, m_browser.GetOperations().Get (image, m_browser.GetEntryPath (entry), GetEncoding (entry, m_browser.GetVolumeKind()),
-                                                        TextEncoding::WideToNarrow (hostPath)));
+                                                        TextEncoding::WideToNarrow (hostPath), entry.catalogIndex));
     }
 
     return outcome;
@@ -532,7 +532,7 @@ CassqueActions::Outcome CassqueActions::DeleteSelected()
 
     for (const FileEntry & entry : entries)
     {
-        Append (outcome, m_browser.GetOperations().Delete (TextEncoding::WideToNarrow (imagePath), entry.name));
+        Append (outcome, m_browser.GetOperations().Delete (TextEncoding::WideToNarrow (imagePath), entry.name, entry.catalogIndex));
     }
 
     if (outcome.written > 0)
@@ -569,7 +569,7 @@ CassqueActions::Outcome CassqueActions::BootSelected()
         return outcome;
     }
 
-    Append (outcome, m_browser.GetOperations().Boot (TextEncoding::WideToNarrow (imagePath), entries[0].name));
+    Append (outcome, m_browser.GetOperations().Boot (TextEncoding::WideToNarrow (imagePath), entries[0].name, entries[0].catalogIndex));
 
     if (outcome.written > 0)
     {
@@ -617,7 +617,7 @@ CassqueActions::Outcome CassqueActions::RenameSelected (const std::wstring & new
         }
     }
 
-    Append (outcome, m_browser.GetOperations().Rename (TextEncoding::WideToNarrow (imagePath), entries[0].name, target));
+    Append (outcome, m_browser.GetOperations().Rename (TextEncoding::WideToNarrow (imagePath), entries[0].name, target, entries[0].catalogIndex));
 
     if (outcome.written > 0)
     {

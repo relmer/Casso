@@ -221,7 +221,7 @@ DiskOperations::Result DiskOperations::List (const std::string & imagePath, cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskOperations::Result DiskOperations::Read (const std::string & imagePath, const std::string & name, FilePayload & outPayload)
+DiskOperations::Result DiskOperations::Read (const std::string & imagePath, const std::string & name, FilePayload & outPayload, size_t catalogIndex)
 {
     DiskImageSession::OpenedImage  opened;
     Result                         result = OpenVolume (imagePath, opened);
@@ -239,7 +239,7 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
-        hr = volume.Read ((opened.kind == VolumeKind::Dos33) ? FilePath::FromName (name) : FilePath::Parse (name), outPayload);
+        hr = volume.Read (MakeEntryPath (opened.kind, name, catalogIndex), outPayload);
 
         if (FAILED (hr))
         {
@@ -257,6 +257,78 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskOperations::MakeEntryPath
+//
+//  A DOS 3.3 name is one component even when it contains a slash, and the path
+//  includes the entry's catalog index when one is given, since the name may be
+//  shared. ProDOS names are unique within a directory, so the name is enough.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FilePath DiskOperations::MakeEntryPath (VolumeKind kind, const std::string & name, size_t catalogIndex)
+{
+    FilePath  path = (kind == VolumeKind::Dos33) ? FilePath::FromName (name) : FilePath::Parse (name);
+
+
+
+    if (kind == VolumeKind::Dos33 && catalogIndex != kNoIndex)
+    {
+        path = path.WithLeafIndex (catalogIndex);
+    }
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::ApplyIndex
+//
+//  The runner accepts --index only for a DOS 3.3 name that several entries
+//  share, so the index is passed only in that case. Any other entry is
+//  identified by its name alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskOperations::ApplyIndex (size_t catalogIndex, CommandLineOptions & inOutOptions)
+{
+    VolumeListing  listing;
+    VolumeKind     kind    = VolumeKind::Unknown;
+    size_t         sharing = 0;
+    Result         listed;
+
+
+
+    if (catalogIndex == kNoIndex)
+    {
+        return;
+    }
+
+    listed = List (inOutOptions.disk.imagePath, listing, kind);
+
+    if (!listed.Succeeded() || kind != VolumeKind::Dos33)
+    {
+        return;
+    }
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        sharing += (_stricmp (entry.name.c_str(), inOutOptions.disk.path.c_str()) == 0) ? 1 : 0;
+    }
+
+    inOutOptions.disk.hasIndex = sharing > 1;
+    inOutOptions.disk.index    = catalogIndex + 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskOperations::Get
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -265,7 +337,8 @@ DiskOperations::Result DiskOperations::Get (
     const std::string  & imagePath,
     const std::string  & name,
     Encoding             encoding,
-    const std::string  & hostPath)
+    const std::string  & hostPath,
+    size_t               catalogIndex)
 {
     CommandLineOptions  options = MakeOptions (Command::Get, imagePath);
 
@@ -274,6 +347,8 @@ DiskOperations::Result DiskOperations::Get (
     options.disk.path     = name;
     options.disk.encoding = encoding;
     options.disk.hostFile = hostPath;
+
+    ApplyIndex (catalogIndex, options);
 
     return RunCommand (options);
 }
@@ -321,13 +396,15 @@ DiskOperations::Result DiskOperations::Put (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskOperations::Result DiskOperations::Delete (const std::string & imagePath, const std::string & name)
+DiskOperations::Result DiskOperations::Delete (const std::string & imagePath, const std::string & name, size_t catalogIndex)
 {
     CommandLineOptions  options = MakeOptions (Command::Delete, imagePath);
 
 
 
     options.disk.path = name;
+
+    ApplyIndex (catalogIndex, options);
 
     return RunCommand (options);
 }
@@ -342,13 +419,15 @@ DiskOperations::Result DiskOperations::Delete (const std::string & imagePath, co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskOperations::Result DiskOperations::Boot (const std::string & imagePath, const std::string & name)
+DiskOperations::Result DiskOperations::Boot (const std::string & imagePath, const std::string & name, size_t catalogIndex)
 {
     CommandLineOptions  options = MakeOptions (Command::Boot, imagePath);
 
 
 
     options.disk.path = name;
+
+    ApplyIndex (catalogIndex, options);
 
     return RunCommand (options);
 }
@@ -593,7 +672,8 @@ DiskOperations::Result DiskOperations::WritePayload (
 DiskOperations::Result DiskOperations::Rename (
     const std::string  & imagePath,
     const std::string  & from,
-    const std::string  & to)
+    const std::string  & to,
+    size_t               catalogIndex)
 {
     DiskImageSession::OpenedImage  opened;
     Result                         result = OpenVolume (imagePath, opened);
@@ -610,7 +690,7 @@ DiskOperations::Result DiskOperations::Rename (
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
 
-        hr = volume.Rename ((opened.kind == VolumeKind::Dos33) ? FilePath::FromName (from) : FilePath::Parse (from), to, edited);
+        hr = volume.Rename (MakeEntryPath (opened.kind, from, catalogIndex), to, edited);
 
         if (FAILED (hr))
         {

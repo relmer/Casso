@@ -181,8 +181,9 @@ void DragPayload::AppendEntry (
 
 
 
-    descriptor.catalogPath = catalogPath;
-    descriptor.isDirectory = entry.isDirectory;
+    descriptor.catalogPath  = catalogPath;
+    descriptor.isDirectory  = entry.isDirectory;
+    descriptor.catalogIndex = entry.catalogIndex;
 
     if (entry.isDirectory)
     {
