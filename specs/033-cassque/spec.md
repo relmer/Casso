@@ -150,6 +150,12 @@ the browser layout needs and the browser itself.
   fit and can hold items permanently. Share is dropped. Help and About go
   in See more.
 - Q: Which list views? → A: Explorer's eight.
+- Q: How are tabs laid out and drawn? → A: Above the toolbars and address
+  bar, below the system title bar, which stays. Explorer's tab shape, a
+  fixed width that shrinks toward Explorer's minimum, left-aligned label,
+  icon and close button, and a + button after the tabs and scroll arrows.
+  Navigation buttons sit left of the address bar on one row, and the
+  command bar spans the window below it.
 - Q: Does a new disk image take the selected files? → A: Yes. New > Disk
   image with host files selected copies them into the new image, folders
   becoming ProDOS directories.
@@ -742,6 +748,15 @@ bytes, change the grouping, and copy the selection both ways.
   longer fit MUST move into it as the window narrows and come back as it
   widens. An item MUST be able to live in See more permanently, never
   shown on the bar whatever the room.
+- **FR-048**: Tabs MUST take File Explorer's form: its tab shape, a fixed
+  width that shrinks toward Explorer's minimum as tabs are added before the
+  strip scrolls, the label left-aligned and cut off, the location's icon
+  before it and a close button after it. A + button MUST follow the tabs and
+  the scroll arrows and open a new tab.
+- **FR-049**: The chrome MUST run, top to bottom: the tab strip; a row
+  holding the navigation toolbar (Back, Forward, Up, Refresh) at the left
+  and the address bar filling the rest; the full-width command bar of
+  FR-041. The window keeps the system title bar.
 - **FR-043**: The command bar MUST offer Sort and View dropdowns acting
   on the file list: Sort by any column, ascending or descending; View
   choosing how the list draws its entries. View MUST end with Options,
