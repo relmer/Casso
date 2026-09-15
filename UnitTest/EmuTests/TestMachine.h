@@ -4,6 +4,7 @@
 
 #include "Core/MachineConfig.h"
 #include "Core/Prng.h"
+#include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 
@@ -35,16 +36,11 @@
 //
 //  Name a shipped machine and you get it: its configuration read from the
 //  JSON the executable carries, its ROMs resolved out of UnitTest/Fixtures,
-//  and every device wired by MachineBuilder in the production order. Nothing
-//  is faked and nothing is reimplemented -- the difference between this and
-//  a running Casso is that no mixer is attached to the speaker and no thread
-//  drains the printer, because MachineBuildServices leaves those out.
-//
-//  It replaces HeadlessHost, which built the same machines a second time
-//  from a hand-copied wiring order. That copy could only ever be as right as
-//  someone remembered to keep it, and it had already drifted: its power
-//  cycle skipped the disk flush the real one does, and it composed no
-//  machine at all for the ][ and ][+.
+//  and every device wired by MachineBuilder in the production order, through
+//  HeadlessMachineFactory. Nothing is faked and nothing is reimplemented --
+//  the difference between this and a running Casso is that no mixer is
+//  attached to the speaker and no thread drains the printer, because
+//  MachineBuildServices leaves those out.
 //
 //  It IS a MachineHost rather than holding one, so a test reads the machine
 //  it built without a hop through it and hands it to anything taking a
@@ -61,32 +57,15 @@ class TestMachine : public MachineHost
 public:
 
     //  Pinned so a power cycle produces the same DRAM twice running.
-    static constexpr uint64_t  kSeed = 0xCA550001ULL;
+    static constexpr uint64_t  kSeed = HeadlessMachineFactory::kDefaultSeed;
 
-    //  What goes in the machine's card slots.
-    //
-    //  AsShipped is the machine a user gets, Disk ][ in slot 6 and all. A
-    //  machine with a drive and no disk in it does what the real one does:
-    //  the autostart ROM hands over to slot 6 and the drive spins, so it
-    //  never reaches BASIC. A test that wants a prompt without mounting
-    //  anything wants a machine with no disk card -- which is a machine a
-    //  user can configure, not a fiction for testing.
-    enum class Slots
-    {
-        AsShipped,
-        Empty,
-        DiskOnly,     // slot 6 and nothing else
-    };
+    using Slots = HeadlessMachineFactory::Slots;
 
-    //  `machineId` is a shipped machine's directory name: "Apple2",
-    //  "Apple2Plus", "Apple2e", "Apple2eEnhanced" or "Apple2c". Asserts
-    //  rather than failing softly -- a test whose machine did not build has
-    //  nothing left to say.
+    //  Asserts rather than failing softly -- a test whose machine did not
+    //  build has nothing left to say.
     explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
 private:
-
-    static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
 
     MachineBuildServices  m_nothingListening;
     MachineBuilder        m_builder;

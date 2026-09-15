@@ -30,10 +30,11 @@ public:
     std::vector<SoftSwitch>  softSwitches;
     const Microcode        * instructionSet   = nullptr;
     DebugCpuKind             cpuKind          = DebugCpuKind::M65C02;
-    MachineInfo              machineInfo      = { "Apple //e Enhanced", "", {} };
+    DebugMachineInfo         machineInfo      = { "Apple //e Enhanced", "", {} };
     VideoPosition            videoPosition;
 
     IRunObserver           * observer         = nullptr;
+    DebugHook              * stopConditions   = nullptr;
     bool                     hookInstalled    = false;
     int                      hookChanges      = 0;
     WatchedPages             watchedPages     = {};
@@ -88,13 +89,14 @@ public:
     HRESULT StartRun         (const RunRequest & request) override   { runs.push_back (request); return S_OK; }
     void    RequestPause     () override                             { ++pauseRequests; }
     void    SetHookInstalled (bool installed) override               { hookInstalled = installed; ++hookChanges; }
+    void    SetStopConditions (DebugHook * conditions) override      { stopConditions = conditions; }
     void    SetWatchedPages  (const WatchedPages & pages) override   { watchedPages = pages; ++maskChanges; }
 
-    VideoPosition     GetVideoPosition  () const override { return videoPosition; }
-    DebugCpuKind      GetCpuKind        () const override { return cpuKind; }
-    const Microcode * GetInstructionSet () const override { return instructionSet; }
-    MachineInfo       GetMachineInfo    () const override { return machineInfo; }
-    void              InjectKey         (Byte key) override { injectedKeys.push_back (key); }
+    VideoPosition     GetVideoPosition  () const override    { return videoPosition; }
+    DebugCpuKind      GetCpuKind        () const override    { return cpuKind; }
+    const Microcode * GetInstructionSet () const override    { return instructionSet; }
+    DebugMachineInfo  GetMachineInfo    () const override    { return machineInfo; }
+    void              InjectKey         (Byte key) override  { injectedKeys.push_back (key); }
 
     void Stop (const StopEvent & stop)
     {

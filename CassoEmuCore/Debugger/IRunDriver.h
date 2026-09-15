@@ -2,6 +2,8 @@
 
 #include "Debugger/Reply.h"
 
+class IRunObserver;
+
 
 
 
@@ -20,6 +22,7 @@ class IRunDriver
 public:
     virtual ~IRunDriver() = default;
 
-    virtual HRESULT  Start (const RunRequest & request) = 0;
-    virtual void     Pause () = 0;
+    virtual void     SetRunObserver (IRunObserver * observer) = 0;
+    virtual HRESULT  Start          (const RunRequest & request) = 0;
+    virtual void     Pause          () = 0;
 };

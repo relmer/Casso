@@ -2,6 +2,7 @@
 
 #include "Debugger/Reply.h"
 
+class DebugHook;
 class IRunObserver;
 class Microcode;
 
@@ -27,7 +28,7 @@ struct VideoPosition
     uint32_t  cycleInLine = 0;
 };
 
-struct MachineInfo
+struct DebugMachineInfo
 {
     std::string               name;
     std::string               title;
@@ -71,11 +72,12 @@ public:
     virtual HRESULT             StartRun          (const RunRequest & request) = 0;
     virtual void                RequestPause      () = 0;
     virtual void                SetHookInstalled  (bool installed) = 0;
+    virtual void                SetStopConditions (DebugHook * conditions) = 0;
     virtual void                SetWatchedPages   (const WatchedPages & pages) = 0;
 
     virtual VideoPosition       GetVideoPosition  () const = 0;
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
-    virtual MachineInfo         GetMachineInfo    () const = 0;
+    virtual DebugMachineInfo    GetMachineInfo    () const = 0;
     virtual void                InjectKey         (Byte key) = 0;
 };
