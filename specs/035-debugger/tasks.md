@@ -58,8 +58,8 @@ description: "Task list for 035-debugger"
   Depends on T005 and T006.
 - [X] T008 [P] Write `UnitTest/DebuggerTests/LineAssemblerTests.cpp`: one line in Monitor mini-assembler syntax (`LDA #$41`, `JMP ($0036)`, branches to absolute targets turned into relative offsets, out-of-range branch errors) for the 6502 and 65C02 tables. It round-trips through `Disassembler`.
 - [X] T009 Implement `CassoCore/Debugger/LineAssembler.h/.cpp` over an `InstructionSetProvider` (base and 65C02 extended tables) and `OpcodeTable::TryLookup` / `GetOperandSize`. `TryAssemble (Word address, const std::string & line, std::vector<Byte> & outBytes, std::string & outError)` returns a status enum, not a bool. Makes T008 pass.
-- [ ] T010 [P] Write `UnitTest/DebuggerTests/DebugExpressionEvaluatorTests.cpp`: hex with and without `$`, decimal with `#` per AppleWin, `+ - * / & | ^ ! < >`, parentheses, register names `A X Y P S PC`, memory dereference, and symbol lookup through an injected resolver. Also cover errors for unknown symbols and malformed input.
-- [ ] T011 Implement `CassoCore/Debugger/DebugExpressionEvaluator.h/.cpp` (the assembler already owns `class ExpressionEvaluator` in `CassoCore/ExpressionEvaluator.h`, so the name must differ) with an `IDebugExpressionContext` seam (`TryGetRegister`, `TryPeek`, `TryResolveSymbol`) and a parsed `Expression` API type that breakpoint conditions store. Makes T010 pass.
+- [X] T010 [P] Write `UnitTest/DebuggerTests/DebugExpressionEvaluatorTests.cpp`: hex with and without `$`, decimal with `#` per AppleWin, `+ - * / & | ^ ! < >`, parentheses, register names `A X Y P S PC`, memory dereference, and symbol lookup through an injected resolver. Also cover errors for unknown symbols and malformed input.
+- [X] T011 Implement `CassoCore/Debugger/DebugExpressionEvaluator.h/.cpp` (the assembler already owns `class ExpressionEvaluator` in `CassoCore/ExpressionEvaluator.h`, so the name must differ) with an `IDebugExpressionContext` seam (`TryGetRegister`, `TryPeek`, `TryResolveSymbol`) and a parsed `Expression` API type that breakpoint conditions store. Makes T010 pass.
 
 ### API types
 

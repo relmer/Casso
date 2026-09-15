@@ -411,6 +411,20 @@ AppleWin's code.
 
 **Rationale**: Clean-room rule; the help pages document observable behavior.
 
+**Expressions**: `dbg-calculator.html` documents hex by default, `#` for
+decimal, `+ - * % // & | ^`, unary `!`, register names and bare symbol names,
+but not precedence or dereference. Casso fills the gaps as follows:
+
+- Conventional precedence, loosest first: `|`, `^`, `&`, `= == !=`,
+  `< > <= >=`, `+ -`, `* / // %`, then all unary operators. Parentheses group.
+- `/` is accepted as a synonym for `//`.
+- Unary `<` and `>` take the low and high byte, and unary `*` reads one byte
+  through the side-effect-free peek.
+- A bare `A`, `X`, `Y`, `P`, `S` or `PC` is the register, so hex `A` is
+  written `$A` or `0A`. A name made only of hex digits is a number, and any
+  other name is a symbol. `$` forces hex.
+- `!` complements within 16 bits; comparisons produce 1 or 0.
+
 ## R-015: Determinism
 
 **Decision**: In batch mode:
