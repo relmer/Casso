@@ -471,6 +471,7 @@ Error:
 void DxuiPopupHost::Close (int resultCode)
 {
     std::function<void()>  onClosed;
+    DxuiPopupHost *        parent   = m_parent;
 
 
 
@@ -517,6 +518,13 @@ void DxuiPopupHost::Close (int resultCode)
         }
 
         ShowWindow (m_hwnd, SW_HIDE);
+
+        //  A submenu took the mouse from the menu it opened from; closing hands
+        //  it back, so a click outside still dismisses the menu left open.
+        if (parent != nullptr && parent->m_open && parent->m_hwnd != nullptr && parent->m_params.grabsCapture)
+        {
+            SetCapture (parent->m_hwnd);
+        }
     }
 
     // Capture onClosed before dropping content so the owning widget
@@ -536,6 +544,41 @@ void DxuiPopupHost::Close (int resultCode)
     {
         onClosed();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSiblingPopup
+//
+//  Whether a window is another popup of this one's owner, as a submenu is.
+//  Asked when the mouse moves to a window before that window's popup has been
+//  linked to this one, so it goes by the window's class and owner rather than
+//  by the link.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupHost::IsSiblingPopup (HWND hwnd) const
+{
+    constexpr size_t  s_kPrefixLength = 14;   // "DxuiPopupHost_"
+
+
+
+    wchar_t  className[64] = {};
+    bool     sibling       = false;
+
+
+
+    if (hwnd != nullptr && hwnd != m_hwnd && GetWindow (hwnd, GW_OWNER) == GetWindow (m_hwnd, GW_OWNER)
+        && GetClassNameW (hwnd, className, (int) ARRAYSIZE (className)) > 0)
+    {
+        sibling = wcsncmp (className, L"DxuiPopupHost_", s_kPrefixLength) == 0;
+    }
+
+    return sibling;
 }
 
 
@@ -907,6 +950,17 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
     switch (msg)
     {
         case WM_CAPTURECHANGED:
+            //  A submenu opening from this menu takes the mouse to show itself.
+            //  That is not the menu losing the mouse to the rest of the screen,
+            //  so the menu stays; the submenu hands the mouse back as it closes.
+            if (m_open && m_params.dismiss != DxuiPopupDismiss::Manual && !IsSiblingPopup ((HWND) lp))
+            {
+                Close (0);
+            }
+
+            claimed = true;
+            break;
+
         case WM_ACTIVATEAPP:
             if (m_open && m_params.dismiss != DxuiPopupDismiss::Manual)
             {
