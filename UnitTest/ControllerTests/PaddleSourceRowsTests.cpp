@@ -209,29 +209,29 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (AfterADispatch_TheNextRebuildReleasesTheRetiredGenerations)
+        TEST_METHOD (RebuiltRows_AreReleasedOnceNothingHoldsThem)
         {
-            EmulatorCommands  commands;
-
-            commands.SetPaddleSourcePickedFn ([&] (const InputModeRules::PaddleSource &)
-            {
-                commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
-                commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
-            });
+            EmulatorCommands                   commands;
+            std::weak_ptr<const DxuiCommand>   oldRow;
 
             commands.SetPaddleSources ({ MakeSource (L"Gladiator", L"Gladiator", true) });
-            commands.GetPaddleSourceItems()[0].command->dispatch();
 
-            // A rebuild outside any dispatch is where the kept generations go.
-            // The live list is still exactly what was last set.
-            commands.SetPaddleSources ({ MakeSource (L"Use mouse as paddle", L"Mouse", true),
-                                         MakeSource (L"Use keys as joystick", L"Keys", false) });
+            {
+                std::vector<DxuiPopupMenuItem>  held = commands.GetPaddleSourceItems();
 
-            Assert::AreEqual (static_cast<size_t> (2), commands.GetPaddleSourceItems().size());
+                oldRow = held[0].command;
+
+                commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true) });
+
+                Assert::IsFalse (oldRow.expired(), L"the held items keep the replaced row alive");
+            }
+
+            Assert::IsTrue   (oldRow.expired(), L"with the items dropped, nothing keeps the replaced row");
+            Assert::AreEqual (static_cast<size_t> (1), commands.GetPaddleSourceItems().size());
         }
 
 
-        TEST_METHOD (RebuildsWhileTheMenuIsOpen_KeepEveryRowTheMenuHolds)
+        TEST_METHOD (RebuildsWhileItemsAreHeld_KeepEveryRowTheItemsHold)
         {
             EmulatorCommands                commands;
             std::vector<DxuiPopupMenuItem>  open;
@@ -240,21 +240,17 @@ namespace ControllerTests
             open = commands.GetPaddleSourceItems();
 
             // An Xbox controller plugged in while the picker is open: the rows
-            // are rebuilt as it arrives and again as it is selected.
-            commands.SetPaddleMenuOpen (true);
+            // are rebuilt as it arrives, again as it is selected, and again as
+            // the selection settles.
             commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", false),
                                          MakeSource (L"Use keys as joystick", L"Keys", true) });
             commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true),
                                          MakeSource (L"Use keys as joystick", L"Keys", false) });
-
-            Assert::AreEqual (std::wstring (L"Use keys as joystick"), open[0].command->label,
-                L"the rows the open menu paints are still there after both rebuilds");
-            Assert::IsTrue   (open[0].command->IsChecked());
-
-            // Closed again, the next rebuild lets the old generations go.
-            commands.SetPaddleMenuOpen (false);
             commands.SetPaddleSources ({ MakeSource (L"Xbox Controller", L"Xbox Controller", true) });
 
+            Assert::AreEqual (std::wstring (L"Use keys as joystick"), open[0].command->label,
+                L"the rows the open menu paints are still there after every rebuild");
+            Assert::IsTrue   (open[0].command->IsChecked());
             Assert::AreEqual (static_cast<size_t> (1), commands.GetPaddleSourceItems().size());
         }
 
@@ -270,8 +266,8 @@ namespace ControllerTests
             commands.SetPaddleSources ({ MakeSource (L"Use keys as joystick", L"Keys", true),
                                          MakeSource (L"Use mouse as paddle", L"Mouse", false) });
 
-            // The row objects are kept so an open menu never holds a freed
-            // one, which leaves spares behind; they must not reach the menu.
+            // An open menu may still hold the longer list's rows; none of
+            // them may reach a list handed out afterwards.
             Assert::AreEqual (static_cast<size_t> (2), commands.GetPaddleSourceItems().size());
         }
 

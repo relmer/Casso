@@ -142,7 +142,7 @@ EmulatorCommands::EmulatorCommands()
 {
     for (const EmulatorMenuEntry & e : s_kMenuEntries)
     {
-        std::unique_ptr<DxuiCommand>  cmd;
+        std::shared_ptr<DxuiCommand>  cmd;
         WORD                          commandId   = e.commandId;
         std::wstring                  staticLabel;
 
@@ -151,7 +151,7 @@ EmulatorCommands::EmulatorCommands()
             continue;
         }
 
-        cmd              = std::make_unique<DxuiCommand>();
+        cmd              = std::make_shared<DxuiCommand>();
         cmd->id          = commandId;
         cmd->label       = e.label;
         cmd->accelerator = (e.accelerator != nullptr) ? std::wstring (e.accelerator) : std::wstring();
@@ -188,15 +188,15 @@ EmulatorCommands::EmulatorCommands()
 
     for (const ToolbarRow & row : s_kToolbarRows)
     {
-        DxuiCommand *  cmd = FindMutable (row.id);
+        std::shared_ptr<DxuiCommand>  cmd = FindMutable (row.id);
 
         if (cmd == nullptr)
         {
-            std::unique_ptr<DxuiCommand>  own = std::make_unique<DxuiCommand>();
+            std::shared_ptr<DxuiCommand>  own = std::make_shared<DxuiCommand>();
 
             own->id    = row.id;
             own->label = row.label;
-            cmd        = own.get();
+            cmd        = own;
             m_commands.push_back (std::move (own));
         }
 
@@ -209,7 +209,7 @@ EmulatorCommands::EmulatorCommands()
     // separate indicator to say. It keeps its static label as the fallback
     // for when nothing is driving the axes at all.
     {
-        DxuiCommand *  paddle = FindMutable (kIdPaddle);
+        std::shared_ptr<DxuiCommand>  paddle = FindMutable (kIdPaddle);
 
         if (paddle != nullptr)
         {
@@ -224,7 +224,7 @@ EmulatorCommands::EmulatorCommands()
 
     for (size_t i = 0; i < std::size (s_kMonitorColorRows); i++)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
 
         cmd->id        = (int) i;
         cmd->label     = s_kMonitorColorRows[i];
@@ -391,13 +391,13 @@ void EmulatorCommands::Dispatch (WORD commandId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const DxuiCommand * EmulatorCommands::Find (int commandId) const
+std::shared_ptr<const DxuiCommand> EmulatorCommands::Find (int commandId) const
 {
-    for (const std::unique_ptr<DxuiCommand> & cmd : m_commands)
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_commands)
     {
         if (cmd->id == commandId)
         {
-            return cmd.get();
+            return cmd;
         }
     }
 
@@ -414,9 +414,17 @@ const DxuiCommand * EmulatorCommands::Find (int commandId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiCommand * EmulatorCommands::FindMutable (int commandId)
+std::shared_ptr<DxuiCommand> EmulatorCommands::FindMutable (int commandId)
 {
-    return const_cast<DxuiCommand *> (static_cast<const EmulatorCommands *> (this)->Find (commandId));
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_commands)
+    {
+        if (cmd->id == commandId)
+        {
+            return cmd;
+        }
+    }
+
+    return nullptr;
 }
 
 
@@ -437,12 +445,12 @@ DxuiCommand * EmulatorCommands::FindMutable (int commandId)
 
 void EmulatorCommands::RebuildActionTips()
 {
-    std::wstring   machine = m_machineName.empty() ? std::wstring (L"machine") : m_machineName;
-    std::wstring   apple   = DxuiTextRenderer::HasSymbolFont()
-                                 ? std::wstring (s_kpszOpenApple)
-                                 : std::wstring (L"Open Apple");
-    DxuiCommand *  reset   = FindMutable (IDM_MACHINE_RESET);
-    DxuiCommand *  power   = FindMutable (IDM_MACHINE_POWERCYCLE);
+    std::wstring                  machine = m_machineName.empty() ? std::wstring (L"machine") : m_machineName;
+    std::wstring                  apple   = DxuiTextRenderer::HasSymbolFont()
+                                                ? std::wstring (s_kpszOpenApple)
+                                                : std::wstring (L"Open Apple");
+    std::shared_ptr<DxuiCommand>  reset   = FindMutable (IDM_MACHINE_RESET);
+    std::shared_ptr<DxuiCommand>  power   = FindMutable (IDM_MACHINE_POWERCYCLE);
 
 
 
@@ -484,7 +492,7 @@ void EmulatorCommands::SetMachineDisplayName (const std::wstring & displayName)
 
 void EmulatorCommands::SetFullscreen (bool fullscreen)
 {
-    DxuiCommand *  cmd = FindMutable (IDM_VIEW_FULLSCREEN);
+    std::shared_ptr<DxuiCommand>  cmd = FindMutable (IDM_VIEW_FULLSCREEN);
 
 
 
@@ -507,7 +515,7 @@ void EmulatorCommands::SetFullscreen (bool fullscreen)
 
 void EmulatorCommands::SetMuted (bool muted)
 {
-    DxuiCommand *  cmd = FindMutable (kIdVolume);
+    std::shared_ptr<DxuiCommand>  cmd = FindMutable (kIdVolume);
 
 
 
@@ -538,7 +546,7 @@ void EmulatorCommands::SetThemeNames (const std::vector<std::wstring> & displayN
 
     for (size_t i = 0; i < displayNames.size(); i++)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
 
         cmd->id        = (int) i;
         cmd->label     = displayNames[i];
@@ -613,9 +621,9 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetThemeItems() const
 
 
 
-    for (const std::unique_ptr<DxuiCommand> & cmd : m_themeRows)
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_themeRows)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
     }
 
     return items;
@@ -637,9 +645,9 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetMonitorItems() const
 
 
 
-    for (const std::unique_ptr<DxuiCommand> & cmd : m_colorRows)
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_colorRows)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
     }
 
     return items;
@@ -668,33 +676,14 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
 
     m_paddleSources = sources;
 
-    //  THE PREVIOUS GENERATION IS KEPT, not freed. An open drop-down holds
-    //  these commands BY POINTER, and the list is rebuilt on the controller
-    //  thread's schedule -- a controller arriving or leaving while the picker
-    //  is open is a case the quickstart tests on purpose. One generation is
-    //  enough: the surface is handed the new list as soon as the rows are
-    //  rebuilt, so only a menu already on screen can still hold the old one.
-    //  OUTSIDE A DISPATCH, only the generation just replaced is kept, for a
-    //  drop-down still on screen. INSIDE ONE, nothing is freed: the row whose
-    //  dispatch is running is in one of these, and picking a source rebuilds
-    //  the rows more than once before that dispatch returns. Freeing it frees
-    //  the source its dispatch is still reading.
-    //
-    //  NOR WHILE A MENU IS OPEN. One generation assumed one rebuild per change,
-    //  but a controller plugged in can rebuild the rows more than once while
-    //  the picker is open, and the second rebuild freed the rows the open menu
-    //  was still painting.
-    if (m_paddleDispatchDepth == 0 && !m_isPaddleMenuOpen)
-    {
-        m_retiredPaddleRows.clear();
-    }
-
-    m_retiredPaddleRows.push_back (std::move (m_paddleSourceRows));
+    //  Dropping the previous rows frees only those nothing else holds. A menu
+    //  on screen shares ownership of its rows, and a dispatching surface holds
+    //  the row it is dispatching, so a rebuild during either leaves them alive.
     m_paddleSourceRows.clear();
 
     for (i = 0; i < m_paddleSources.size(); i++)
     {
-        std::unique_ptr<DxuiCommand>  cmd    = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd    = std::make_shared<DxuiCommand>();
         InputModeRules::PaddleSource  source = m_paddleSources[i];
 
         cmd->id    = (int) i;
@@ -713,9 +702,7 @@ void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::Paddl
         {
             if (m_onPaddleSourcePicked)
             {
-                m_paddleDispatchDepth++;
                 m_onPaddleSourcePicked (source);
-                m_paddleDispatchDepth--;
             }
         };
 
@@ -737,7 +724,7 @@ void EmulatorCommands::SetMouseModeFns (std::function<bool()> isOn,
                                         std::function<bool()> isOffered,
                                         std::function<void()> toggle)
 {
-    DxuiCommand *  mouse = FindMutable (kIdMouse);
+    std::shared_ptr<DxuiCommand>  mouse = FindMutable (kIdMouse);
 
 
 
@@ -831,9 +818,9 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 
 
 
-    for (const std::unique_ptr<DxuiCommand> & cmd : m_paddleSourceRows)
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_paddleSourceRows)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
     }
 
     return items;
@@ -855,8 +842,8 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
 
 std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
 {
-    std::vector<DxuiPopupMenuItem>  items    = GetPaddleSourceItems();
-    const DxuiCommand *             settings = Find (IDM_VIEW_CONTROLLER_SETTINGS);
+    std::vector<DxuiPopupMenuItem>      items    = GetPaddleSourceItems();
+    std::shared_ptr<const DxuiCommand>  settings = Find (IDM_VIEW_CONTROLLER_SETTINGS);
 
 
 
@@ -891,8 +878,8 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
                                      VolumeFlyout      & volume)
 {
     std::vector<DxuiToolbar::Entry>  entries;
-    DxuiCommand *                    printer = FindMutable (IDM_PRINTER_PREVIEW);
-    DxuiCommand *                    mute    = FindMutable (kIdVolume);
+    std::shared_ptr<DxuiCommand>     printer = FindMutable (IDM_PRINTER_PREVIEW);
+    std::shared_ptr<DxuiCommand>     mute    = FindMutable (kIdVolume);
 
 
 

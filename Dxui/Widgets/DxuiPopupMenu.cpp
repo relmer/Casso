@@ -19,14 +19,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPopupMenuItem DxuiPopupMenuItem::ForCommand (const DxuiCommand * cmd)
+DxuiPopupMenuItem DxuiPopupMenuItem::ForCommand (std::shared_ptr<const DxuiCommand> cmd)
 {
     DxuiPopupMenuItem  item;
 
 
 
     item.kind    = Kind::Command;
-    item.command = cmd;
+    item.command = std::move (cmd);
 
     return item;
 }
@@ -62,14 +62,14 @@ DxuiPopupMenuItem DxuiPopupMenuItem::ForSeparator()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPopupMenuItem DxuiPopupMenuItem::ForSubmenu (const DxuiCommand * cmd, std::vector<DxuiPopupMenuItem> children)
+DxuiPopupMenuItem DxuiPopupMenuItem::ForSubmenu (std::shared_ptr<const DxuiCommand> cmd, std::vector<DxuiPopupMenuItem> children)
 {
     DxuiPopupMenuItem  item;
 
 
 
     item.kind     = Kind::Submenu;
-    item.command  = cmd;
+    item.command  = std::move (cmd);
     item.children = std::move (children);
 
     return item;
@@ -247,7 +247,7 @@ void DxuiPopupMenu::Show (
     IDxuiTextRenderer   & text,
     const RECT          & hostClient)
 {
-    std::vector<std::unique_ptr<DxuiCommand>>  owned;
+    std::vector<std::shared_ptr<DxuiCommand>>  owned;
     std::vector<DxuiPopupMenuItem>             rows;
 
 
@@ -257,13 +257,13 @@ void DxuiPopupMenu::Show (
 
     for (const Item & it : items)
     {
-        std::unique_ptr<DxuiCommand>  cmd     = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd     = std::make_shared<DxuiCommand>();
         bool                          checked = it.checked;
 
         cmd->label     = it.label;
         cmd->isChecked = [checked] () { return checked; };
 
-        rows.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (cmd));
         owned.push_back (std::move (cmd));
     }
 
@@ -1261,7 +1261,8 @@ DxuiPopupMenu * DxuiPopupMenu::GetRoot()
 //  select, with the committed flag set.
 //
 //  The callback and the command are captured before Hide, since Hide can
-//  tear down state either lives in. Hide runs BEFORE the callback fires, so
+//  tear down state either lives in. The command is held by a shared copy, so
+//  a dispatch that rebuilds the rows it came from cannot free it mid-call. Hide runs BEFORE the callback fires, so
 //  a handler that opens a dialog or another menu does not do it underneath a
 //  menu still on screen.
 //
@@ -1272,9 +1273,9 @@ DxuiPopupMenu * DxuiPopupMenu::GetRoot()
 
 void DxuiPopupMenu::Commit (int index)
 {
-    const DxuiCommand *  cmd  = nullptr;
-    DxuiPopupMenu     *  root = nullptr;
-    SelectFn             cb;
+    std::shared_ptr<const DxuiCommand>  cmd;
+    DxuiPopupMenu                     * root = nullptr;
+    SelectFn                            cb;
 
 
 

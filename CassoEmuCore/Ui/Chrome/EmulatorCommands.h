@@ -122,10 +122,11 @@ public:
     void  SetMonitorColorIndex  (int index)   { m_colorIndex = index; }
     int   GetMonitorColorIndex  () const      { return m_colorIndex; }
 
-    const DxuiCommand *  Find (int commandId) const;
+    std::shared_ptr<const DxuiCommand>  Find (int commandId) const;
 
-    // The placements. Item lists hold the commands by pointer, so this
-    // object must outlive the surfaces it fills.
+    // The placements. Item lists share ownership of the commands, but the
+    // commands' functors call back into this object, so it must still
+    // outlive the surfaces it fills.
     std::vector<DxuiMenuBarItem>    BuildMenuItems  () const;
     std::vector<DxuiPopupMenuItem>  GetThemeItems   () const;
     std::vector<DxuiPopupMenuItem>  GetMonitorItems () const;
@@ -133,14 +134,10 @@ public:
     // What drives the paddle axes: every attached controller, then the keys
     // and the mouse, exactly one checked (FR-008). The rows are rebuilt only
     // by the setter, so a surface holding the previous list must be handed
-    // GetPaddleSourceItems() again.
+    // GetPaddleSourceItems() again. A menu still on screen with the previous
+    // list keeps those rows alive through its items.
     void  SetPaddleSources        (const std::vector<InputModeRules::PaddleSource> & sources);
     void  SetPaddleSourcePickedFn (PaddleSourcePickedFn fn) { m_onPaddleSourcePicked = std::move (fn); }
-
-    // Whether a menu holding the rows is on screen. While one is, no retired
-    // generation is freed, however many rebuilds arrive: a controller plugged
-    // in rebuilds the rows more than once, and the menu still holds the first.
-    void  SetPaddleMenuOpen       (bool isOpen) { m_isPaddleMenuOpen = isOpen; }
 
     // Mouse mode: a plain toggle on the strip, because it toggles one thing.
     // It is NOT in the paddle-source picker: it drives the //c's IOU mouse,
@@ -169,8 +166,8 @@ public:
                         VolumeFlyout      & volume);
 
 private:
-    DxuiCommand *  FindMutable (int commandId);
-    void           RebuildActionTips ();
+    std::shared_ptr<DxuiCommand>  FindMutable       (int commandId);
+    void                          RebuildActionTips ();
 
 
     DispatchFn  m_dispatch;
@@ -178,24 +175,13 @@ private:
     CheckFn     m_isEnabled;
     LabelFn     m_labelQuery;
 
-    // Held by pointer from every surface's item list, so the addresses
-    // must not move: built once, in the constructor.
-    std::vector<std::unique_ptr<DxuiCommand>>  m_commands;
-    std::vector<std::unique_ptr<DxuiCommand>>  m_themeRows;
-    std::vector<std::unique_ptr<DxuiCommand>>  m_colorRows;
-    std::vector<std::unique_ptr<DxuiCommand>>  m_paddleSourceRows;
+    // Shared with every surface's item list, so a rebuilt list's previous
+    // rows live on for as long as a menu on screen still holds them.
+    std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_themeRows;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_colorRows;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_paddleSourceRows;
 
-    // Earlier generations, kept alive for two holders. A drop-down already on
-    // screen holds its rows by pointer, which one generation covers. And a
-    // row's own DISPATCH holds its row while it runs -- picking a source
-    // rebuilds the rows several times before the dispatch returns -- so every
-    // generation retired during a dispatch survives until the next rebuild
-    // that happens outside one.
-    std::vector<std::vector<std::unique_ptr<DxuiCommand>>>  m_retiredPaddleRows;
-
-    // How many row dispatches are on the stack right now. See above.
-    int                                        m_paddleDispatchDepth  = 0;
-    bool                                       m_isPaddleMenuOpen     = false;
     std::vector<InputModeRules::PaddleSource>  m_paddleSources;
     PaddleSourcePickedFn                       m_onPaddleSourcePicked;
 

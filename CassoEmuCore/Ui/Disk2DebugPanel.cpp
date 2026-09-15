@@ -415,7 +415,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     DxuiHwndSource                            * host  = GetPopupHost();
     std::vector<DxuiPopupMenuItem>              items;
-    std::vector<std::unique_ptr<DxuiCommand>>   commands;
+    std::vector<std::shared_ptr<DxuiCommand>>   commands;
     size_t                                      count = m_eventList->GetColumnCount();
 
 
@@ -432,7 +432,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 
     for (size_t i = 0; i < count; ++i)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
 
         cmd->label     = m_eventList->GetColumnAt (i).title;
         cmd->isChecked = [this, i] () { return m_eventList->IsColumnVisible (i); };
@@ -443,7 +443,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
             m_focusMgr.Rebuild();
         };
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
         commands.push_back (std::move (cmd));
     }
 

@@ -27,15 +27,15 @@ public:
 
     struct Fixture
     {
-        DxuiCommand           cmd;
-        DxuiMenuBar           bar;
-        DxuiToolbar           toolbar;
-        DxuiPopupMenu         popup;
-        MockDxuiTextRenderer  text;
-        MockDxuiPainter       painter;
-        MockDxuiTheme         theme;
-        DxuiDpiScaler         scaler;
-        bool                  enabled    = true;
+        std::shared_ptr<DxuiCommand>  cmd     = std::make_shared<DxuiCommand>();
+        DxuiMenuBar                   bar;
+        DxuiToolbar                   toolbar;
+        DxuiPopupMenu                 popup;
+        MockDxuiTextRenderer          text;
+        MockDxuiPainter               painter;
+        MockDxuiTheme                 theme;
+        DxuiDpiScaler                 scaler;
+        bool                          enabled = true;
         std::wstring          label      = L"Alpha";
         int                   dispatched = 0;
 
@@ -44,16 +44,16 @@ public:
             std::vector<DxuiMenuBarItem>     items (1);
             std::vector<DxuiToolbar::Entry>  entries (1);
 
-            cmd.id        = 7;
-            cmd.glyph     = L"x";
-            cmd.isEnabled = [this] () { return enabled; };
-            cmd.labelText = [this] () { return label; };
-            cmd.dispatch  = [this] () { dispatched++; };
+            cmd->id        = 7;
+            cmd->glyph     = L"x";
+            cmd->isEnabled = [this] () { return enabled; };
+            cmd->labelText = [this] () { return label; };
+            cmd->dispatch  = [this] () { dispatched++; };
 
             items[0].label = L"&Menu";
-            items[0].submenu.push_back (DxuiPopupMenuItem::ForCommand (&cmd));
+            items[0].submenu.push_back (DxuiPopupMenuItem::ForCommand (cmd));
 
-            entries[0].command = &cmd;
+            entries[0].command = cmd;
 
             bar.SetTextRendererForMeasure (&text);
             bar.SetItems (std::move (items));
@@ -72,7 +72,7 @@ public:
         {
             std::vector<DxuiPopupMenuItem>  rows;
 
-            rows.push_back (DxuiPopupMenuItem::ForCommand (&cmd));
+            rows.push_back (DxuiPopupMenuItem::ForCommand (cmd));
             return rows;
         }
 

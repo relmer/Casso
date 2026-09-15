@@ -328,18 +328,18 @@ public:
         // A command on both surfaces is one declaration: the toolbar's
         // Settings entry is the menu's Settings row, with the short label
         // the strip draws and the mnemonic label the menu draws.
-        EmulatorCommands     cmds;
-        const DxuiCommand *  settings = cmds.Find (IDM_VIEW_SETTINGS);
+        EmulatorCommands                    cmds;
+        std::shared_ptr<const DxuiCommand>  settings = cmds.Find (IDM_VIEW_SETTINGS);
 
-        Assert::IsNotNull (settings);
+        Assert::IsNotNull (settings.get());
         Assert::AreEqual  (L"Settings",       settings->GetShortText().c_str());
         Assert::AreEqual  (L"Se&ttings...",   settings->GetLabelText().c_str());
         Assert::IsNotNull (settings->glyph);
-        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdTheme));
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdTheme).get());
 
         // The input cluster's custom entry is gone: what drives the paddle
         // axes is the picker, and mouse mode is a toggle beside it.
-        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdPaddle));
-        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdMouse));
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdPaddle).get());
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdMouse).get());
     }
 };

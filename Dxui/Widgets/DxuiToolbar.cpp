@@ -330,8 +330,8 @@ void DxuiToolbar::SetFocusIndex (int index)
 
 void DxuiToolbar::ActivateFocused()
 {
-    Slot *               slot = (m_focusIndex >= 0 && m_focusIndex < (int) m_slots.size()) ? &m_slots[(size_t) m_focusIndex] : nullptr;
-    const DxuiCommand *  cmd  = (slot != nullptr) ? slot->entry.command : nullptr;
+    Slot *                              slot = (m_focusIndex >= 0 && m_focusIndex < (int) m_slots.size()) ? &m_slots[(size_t) m_focusIndex] : nullptr;
+    std::shared_ptr<const DxuiCommand>  cmd  = (slot != nullptr) ? slot->entry.command : nullptr;
 
 
 
@@ -882,7 +882,7 @@ const wchar_t * DxuiToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
 
     for (const Slot & slot : m_slots)
     {
-        const DxuiCommand *  cmd  = slot.entry.command;
+        const DxuiCommand *  cmd  = slot.entry.command.get();
         bool                 over = false;
 
         if (tip != nullptr)
@@ -1159,9 +1159,9 @@ bool DxuiToolbar::OnToolbarLButtonUp (int x, int y)
 
     for (Slot & slot : m_slots)
     {
-        const DxuiCommand *  cmd        = slot.entry.command;
-        bool                 wasPressed = slot.pressed;
-        bool                 consumed   = false;
+        std::shared_ptr<const DxuiCommand>  cmd        = slot.entry.command;
+        bool                                wasPressed = slot.pressed;
+        bool                                consumed   = false;
 
         slot.pressed = false;
 
@@ -1236,7 +1236,7 @@ void DxuiToolbar::OpenDropDown (int commandId)
 
     for (size_t i = 0; i < it->second.items.size() && it->second.openedOn < 0; i++)
     {
-        const DxuiCommand *  row = it->second.items[i].command;
+        const DxuiCommand *  row = it->second.items[i].command.get();
 
         if (row != nullptr && row->IsChecked())
         {
@@ -1314,7 +1314,7 @@ void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, c
 void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     HRESULT              hr      = S_OK;
-    const DxuiCommand *  cmd     = slot.entry.command;
+    const DxuiCommand *  cmd     = slot.entry.command.get();
     bool                 enabled = cmd != nullptr && cmd->IsEnabled();
     bool                 checked = slot.entry.kind == Kind::Toggle && cmd != nullptr && cmd->IsChecked();
     bool                 active  = slot.hovered || slot.pressed || checked;

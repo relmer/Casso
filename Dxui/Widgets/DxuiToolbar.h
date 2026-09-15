@@ -90,7 +90,7 @@ public:
 //  when the strip runs out of room, so the leftmost keep their names longest
 //  and no entry ever falls off the end.
 //
-//  Every entry holds a command by pointer and reads its label, glyph, tip,
+//  Every entry shares ownership of its command and reads its label, glyph, tip,
 //  checked and enabled state from it AT PAINT AND CLICK TIME. What a click
 //  does is the entry's kind: a Command dispatches, a Toggle dispatches and
 //  draws pressed while checked, a DropDown opens a menu of commands with
@@ -129,11 +129,11 @@ public:
 
     struct Entry
     {
-        const DxuiCommand        * command    = nullptr;
-        Kind                       kind       = Kind::Command;
-        int                        group      = 0;
-        DecorationFn               decoration;
-        IDxuiToolbarCustomEntry  * custom     = nullptr;
+        std::shared_ptr<const DxuiCommand>   command;
+        Kind                                 kind       = Kind::Command;
+        int                                  group      = 0;
+        DecorationFn                         decoration;
+        IDxuiToolbarCustomEntry            * custom     = nullptr;
     };
 
     DxuiToolbar  ();

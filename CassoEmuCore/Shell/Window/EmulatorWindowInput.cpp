@@ -2810,7 +2810,6 @@ void EmulatorShell::SyncPaddleSourceList()
     state.hasController        = snapshot.selection.has_value();
     state.isControllerAttached = snapshot.isSelectedConnected;
 
-    m_mainMenu.GetCommands().SetPaddleMenuOpen (m_toolbar.IsMenuOpen());
     m_mainMenu.GetCommands().SetPaddleSources (
         InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection));
 
