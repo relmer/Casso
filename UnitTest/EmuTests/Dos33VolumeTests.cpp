@@ -1573,6 +1573,17 @@ public:
         Assert::AreEqual (before.freeUnits - 2, after.freeUnits);
     }
 
+    TEST_METHOD (CreateDirectory_IsNotSomethingThisFilesystemHas)
+    {
+        vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  result;
+        Dos33Volume   volume (disk);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+                          volume.CreateDirectory (FilePath::Parse ("UTIL"), result));
+        Assert::AreEqual (size_t (0), result.size());
+    }
+
     TEST_METHOD (FindEntry_ASharedName_IsRefusedUnlessTheIndexPicksOne)
     {
         // Heading entries on Merlin's disk share names. A name alone must not

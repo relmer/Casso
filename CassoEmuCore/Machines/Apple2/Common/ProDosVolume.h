@@ -47,6 +47,8 @@ public:
     HRESULT  EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const override;
     HRESULT  Read      (const FilePath & path, FilePayload & outPayload) const override;
 
+    HRESULT  CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const override;
+
     HRESULT  Write     (const FilePath     & path,
                         const FilePayload  & payload,
                         vector<Byte>       & outBuffer) const override;
@@ -94,6 +96,9 @@ public:
     static constexpr Byte  kTypeBinary = 0x06;
     static constexpr Byte  kTypeBasic  = 0xFC;
     static constexpr Byte  kTypeSystem = 0xFF;
+
+    //  A directory's file type, which ProDOS records as DIR.
+    static constexpr Byte  kTypeDirectory = 0x0F;
 
     //  Write-enable bit of the access byte. Clear means the file is locked.
     static constexpr Byte  kAccessWriteEnable = 0x02;
@@ -227,6 +232,19 @@ private:
     //  The tally of active entries in one directory's header. Every directory
     //  keeps its own, at the same offset in its key block.
     static void  AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock, int delta);
+
+    //  Links an already-allocated block onto the end of a directory's chain,
+    //  and for a subdirectory grows the record its parent holds, whose blocks
+    //  and length describe the directory itself.
+    static void  LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBlock, uint32_t newBlock);
+
+    //  The first record of a new subdirectory's key block: its own name, the
+    //  marker ProDOS checks for, and the way back to the record above it.
+    static void  WriteSubdirectoryHeader (vector<Byte>       & buffer,
+                                          int                  keyBlock,
+                                          const std::string  & name,
+                                          int                  parentBlock,
+                                          size_t               parentEntryOffset);
 
     //  A binary's auxiliary type IS its load address, and this filesystem
     //  stores no header inside the file to hold one instead.

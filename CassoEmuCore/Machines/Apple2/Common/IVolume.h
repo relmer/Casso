@@ -53,6 +53,16 @@ public:
     //  One file's contents, addressed by path.
     virtual HRESULT  Read (const FilePath & path, FilePayload & outPayload) const = 0;
 
+    //  Creates the directory the path names, in the directory above it. DOS 3.3
+    //  has no directories, so the default reports the capability as absent.
+    virtual HRESULT  CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const
+    {
+        UNREFERENCED_PARAMETER (path);
+        UNREFERENCED_PARAMETER (outBuffer);
+
+        return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+    }
+
     //  Adds or replaces. Produces the complete post-write buffer.
     virtual HRESULT  Write (const FilePath     & path,
                             const FilePayload  & payload,

@@ -1463,6 +1463,232 @@ void ProDosVolume::AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock, int 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolume::LinkDirectoryBlock
+//
+//  The new block goes on the end of the chain, back-linked to the one before
+//  it. A subdirectory also has a record in its parent whose blocks-used and
+//  length describe the directory rather than any file, so both move with it;
+//  the volume directory has no such record and needs neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBlock, uint32_t newBlock)
+{
+    ProDosVolume    volume (buffer);
+    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    size_t          headerAt    = ProDosSkeleton::kOffFirstEntry;
+    int             last        = dirKeyBlock;
+    int             parent      = 0;
+    size_t          recordAt    = 0;
+    Word            blocksUsed  = 0;
+    Byte            entryNumber = 0;
+    Byte            entryLength = 0;
+    bool            isSubdir    = false;
+
+
+
+    while (true)
+    {
+        int   next   = volume.ReadWord (last, ProDosSkeleton::kOffNextBlock);
+        bool  stepOk = next > 0 && next < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) next);
+
+        if (!stepOk)
+        {
+            break;
+        }
+
+        last = next;
+    }
+
+    WriteWordAt (buffer, last, ProDosSkeleton::kOffNextBlock, (Word) newBlock);
+    WriteWordAt (buffer, (int) newBlock, ProDosSkeleton::kOffPrevBlock, (Word) last);
+    WriteWordAt (buffer, (int) newBlock, ProDosSkeleton::kOffNextBlock, 0);
+
+    isSubdir = (volume.ReadByte (dirKeyBlock, headerAt + ProDosSkeleton::kHdrOffTypeName) & 0xF0)
+               == ProDosSkeleton::kStorageSubdirHdr;
+
+    if (!isSubdir)
+    {
+        return;
+    }
+
+    parent      = volume.ReadWord (dirKeyBlock, headerAt + ProDosSkeleton::kHdrOffParentPointer);
+    entryNumber = volume.ReadByte (dirKeyBlock, headerAt + ProDosSkeleton::kHdrOffParentEntryNumber);
+    entryLength = volume.ReadByte (dirKeyBlock, headerAt + ProDosSkeleton::kHdrOffParentEntryLength);
+
+    if (parent <= 0 || parent >= ProDosSkeleton::kTotalBlocks || entryNumber == 0 || entryLength == 0)
+    {
+        return;
+    }
+
+    recordAt   = ProDosSkeleton::kOffFirstEntry + (size_t) (entryNumber - 1) * entryLength;
+    blocksUsed = (Word) (volume.ReadWord (parent, recordAt + ProDosSkeleton::kEntOffBlocksUsed) + 1);
+
+    WriteWordAt (buffer, parent, recordAt + ProDosSkeleton::kEntOffBlocksUsed, blocksUsed);
+    WriteByteAt (buffer, parent, recordAt + ProDosSkeleton::kEntOffEof,
+                 (Byte) ((blocksUsed * ProDosSkeleton::kBlockByteSize) & 0xFF));
+    WriteByteAt (buffer, parent, recordAt + ProDosSkeleton::kEntOffEof + 1,
+                 (Byte) (((blocksUsed * ProDosSkeleton::kBlockByteSize) >> 8) & 0xFF));
+    WriteByteAt (buffer, parent, recordAt + ProDosSkeleton::kEntOffEof + 2,
+                 (Byte) (((blocksUsed * ProDosSkeleton::kBlockByteSize) >> 16) & 0xFF));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::WriteSubdirectoryHeader
+//
+//  A subdirectory's key block opens with a header of its own rather than with a
+//  file record: the same name and geometry fields the volume header carries,
+//  the 0x75 marker ProDOS checks before trusting the block, and the three
+//  fields that lead back to the record above it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::WriteSubdirectoryHeader (
+    vector<Byte>       & buffer,
+    int                  keyBlock,
+    const std::string  & name,
+    int                  parentBlock,
+    size_t               parentEntryOffset)
+{
+    size_t  headerAt    = ProDosSkeleton::kOffFirstEntry;
+    size_t  nameBytes   = name.size();
+    size_t  entryNumber = (parentEntryOffset - ProDosSkeleton::kOffFirstEntry) / ProDosSkeleton::kEntryLength + 1;
+    size_t  i           = 0;
+
+
+
+    WriteByteAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffTypeName,
+                 (Byte) (ProDosSkeleton::kStorageSubdirHdr | (Byte) nameBytes));
+
+    for (i = 0; i < nameBytes; i++)
+    {
+        WriteByteAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffName + i, (Byte) name[i]);
+    }
+
+    WriteByteAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffSubdirMarker, ProDosSkeleton::kSubdirMarker);
+    WriteByteAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffAccess,          ProDosSkeleton::kAccessDefault);
+    WriteByteAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffEntryLength,     ProDosSkeleton::kEntryLength);
+    WriteByteAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffEntriesPerBlock, ProDosSkeleton::kEntriesPerBlock);
+
+    WriteWordAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffFileCount, 0);
+    WriteWordAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffParentPointer, (Word) parentBlock);
+
+    WriteByteAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffParentEntryNumber, (Byte) entryNumber);
+    WriteByteAt (buffer, keyBlock, headerAt + ProDosSkeleton::kHdrOffParentEntryLength, ProDosSkeleton::kEntryLength);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::CreateDirectory
+//
+//  One block, holding the new directory's header and nothing else, plus a
+//  record for it in the directory above. A directory with no free record of its
+//  own grows by a block first, allocated in the same call so the two cannot be
+//  handed the same one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const
+{
+    HRESULT                hr          = S_OK;
+    size_t                 bufferBytes = m_sectors.size();
+    bool                   nameOk      = false;
+    bool                   exists      = false;
+    bool                   slotOk      = false;
+    bool                   allocated   = false;
+    bool                   fullyParsed = true;
+    int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
+    int                    slotBlock   = 0;
+    size_t                 slotOffset  = 0;
+    uint16_t               holder      = 0;
+    uint32_t               keyBlock    = 0;
+    uint32_t               growBlock   = 0;
+    std::string            name;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    vector<uint32_t>       blocks;
+    VolumeIntegrityReport  report;
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    nameOk = TryEncodeDirectoryName (path.GetLeaf(), name);
+    CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    hr = ResolveDirectory (GetParentPath (path), dirKeyBlock);
+    CHR (hr);
+
+    CollectEntries (dirKeyBlock, entries, damage, fullyParsed);
+
+    exists = TryFindEntry (entries, name, holder);
+    CBREx (!exists, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
+
+    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    allocated = TryAllocateBlocks (report, slotOk ? 1 : 2, blocks);
+    CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+    keyBlock = blocks[0];
+    result   = m_sectors;
+
+    if (!slotOk)
+    {
+        growBlock = blocks[1];
+
+        ZeroBlocks (result, vector<uint32_t> { growBlock });
+        LinkDirectoryBlock (result, dirKeyBlock, growBlock);
+        SetFreeInBitmap (result, growBlock, false);
+
+        slotBlock  = (int) growBlock;
+        slotOffset = ProDosSkeleton::kOffFirstEntry;
+    }
+
+    ZeroBlocks (result, vector<uint32_t> { keyBlock });
+    SetFreeInBitmap (result, keyBlock, false);
+
+    WriteSubdirectoryHeader (result, (int) keyBlock, name, slotBlock, slotOffset);
+
+    WriteDirectoryEntry (result,
+                         slotBlock,
+                         slotOffset,
+                         name,
+                         ProDosSkeleton::kStorageSubdir,
+                         kTypeDirectory,
+                         (Word) keyBlock,
+                         1,
+                         (uint32_t) ProDosSkeleton::kBlockByteSize,
+                         0,
+                         dirKeyBlock);
+
+    AdjustFileCount (result, dirKeyBlock, 1);
+
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolume::ResolveAuxType
 //
 //  WHERE A BINARY'S LOAD ADDRESS LIVES IS THE ONE THING THE TWO FILESYSTEMS
@@ -1588,6 +1814,7 @@ HRESULT ProDosVolume::AddFile (
     bool                   allocated    = false;
     bool                   haveKeyBlock = false;
     int                    slotBlock    = 0;
+    uint32_t               growBlock    = 0;
     size_t                 slotOffset   = 0;
     size_t                 dataBlocks   = 0;
     size_t                 overhead     = 0;
@@ -1598,7 +1825,6 @@ HRESULT ProDosVolume::AddFile (
 
 
     slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
-    CBREx (slotOk, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
     hr = BuildIntegrityReport (report);
     CHRA (hr);
@@ -1613,8 +1839,11 @@ HRESULT ProDosVolume::AddFile (
         dataBlocks = 1;
     }
 
+    //  A directory with no free record takes one more block, allocated in the
+    //  same call as the file's own. Two calls could hand the same block to
+    //  both, since neither is recorded in the bitmap until the result is built.
     overhead  = GetOverheadBlocks (dataBlocks);
-    allocated = TryAllocateBlocks (report, dataBlocks + overhead, blocks);
+    allocated = TryAllocateBlocks (report, dataBlocks + overhead + (slotOk ? 0 : 1), blocks);
 
     CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
@@ -1622,6 +1851,19 @@ HRESULT ProDosVolume::AddFile (
     CBRA (haveKeyBlock);
 
     result = m_sectors;
+
+    if (!slotOk)
+    {
+        growBlock = blocks.back();
+        blocks.pop_back();
+
+        ZeroBlocks (result, vector<uint32_t> { growBlock });
+        LinkDirectoryBlock (result, dirKeyBlock, growBlock);
+        SetFreeInBitmap (result, growBlock, false);
+
+        slotBlock  = (int) growBlock;
+        slotOffset = ProDosSkeleton::kOffFirstEntry;
+    }
 
     ZeroBlocks (result, blocks);
 

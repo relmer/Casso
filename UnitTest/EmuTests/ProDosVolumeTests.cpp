@@ -1586,6 +1586,82 @@ public:
     }
 
 
+    TEST_METHOD (Volume_CreateDirectory_MakesADirectoryThatHoldsFiles)
+    {
+        vector<Byte>   vol = MakeVolume();
+        vector<Byte>   made;
+        vector<Byte>   filled;
+        FilePayload    payload;
+        FilePayload    read;
+        VolumeListing  root;
+        VolumeListing  inside;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (300, 'Z');
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL"), made));
+        }
+
+        //  The volume header's tally counts the new directory.
+        Assert::AreEqual ((Word) 1, WordAt (made, kDirKeyBlock, kKeyBlockEntry + 0x21));
+
+        {
+            ProDosVolume  volume (made);
+
+            AssertSucceeded (volume.Enumerate (root));
+
+            Assert::AreEqual (size_t (1), root.entries.size());
+            Assert::AreEqual (std::string ("UTIL"), root.entries[0].name);
+            Assert::IsTrue   (root.entries[0].isDirectory);
+
+            AssertSucceeded  (volume.EnumerateDirectory (FilePath::Parse ("UTIL"), inside));
+            Assert::AreEqual (size_t (0), inside.entries.size(), L"a new directory holds nothing");
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("UTIL/NOTES"), payload, filled));
+        }
+
+        {
+            ProDosVolume  volume (filled);
+
+            AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse ("UTIL"), inside));
+
+            Assert::AreEqual (size_t (1), inside.entries.size());
+            Assert::AreEqual (std::string ("NOTES"), inside.entries[0].name);
+
+            AssertSucceeded (volume.Read (FilePath::Parse ("UTIL/NOTES"), read));
+            Assert::IsTrue   (payload.bytes == read.bytes, L"the file reads back byte for byte");
+        }
+    }
+
+
+    TEST_METHOD (Volume_CreateDirectory_ARepeatOrAMissingParent_IsRefused)
+    {
+        vector<Byte>  vol = MakeVolume();
+        vector<Byte>  made;
+        vector<Byte>  again;
+        vector<Byte>  deeper;
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL"), made));
+        }
+
+        ProDosVolume  volume (made);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS),
+                          volume.CreateDirectory (FilePath::Parse ("UTIL"), again));
+        Assert::AreEqual (size_t (0), again.size());
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND),
+                          volume.CreateDirectory (FilePath::Parse ("NOPE/DEEP"), deeper),
+                          L"the directory above it has to be there first");
+    }
+
+
     TEST_METHOD (Volume_Delete_AMissingFileOrAMissingDirectory_IsRefused)
     {
         vector<Byte>  vol = MakeVolume();
