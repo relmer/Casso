@@ -235,7 +235,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T087 [US6] Add profile management to `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp` and `ControllersPage.h/.cpp`: profile list, New (Default, copy of current, Paddles), Rename, Delete, Reset; name validation messages in the fixed error format from `.github/copilot-instructions.md`; keep-or-discard prompt when switching profiles with unapplied edits; edits apply to the profile they were made on
 - [X] T088 [US6] Add profile rows to `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp` beside the paddle-source rows, as their OWN command-bar drop-down rather than a Machine-menu submenu (FR-008, FR-031: no cascades, and the Machine menu keeps its existing entries), rebuilt and re-laid the way `SyncPaddleSourceList` does it (T052)
 - [X] T089 [US6] Build; run `-Filter Controller`, `-Filter Chrome`; run quickstart scenarios 8, 10a (Paddles template) and 11 (profile rows) on hardware
-- [ ] T090 [US6] Commit: `feat(input): named controller profiles`
+- [X] T090 [US6] Commit: `feat(input): named controller profiles`
 
 **Checkpoint**: All six user stories work.
 
