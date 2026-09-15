@@ -49,6 +49,11 @@ public:
         // non-overlapping; honored only for left-aligned columns.
         std::vector<std::pair<int, int>>  matches;
 
+        //  Half-open character ranges drawn in the muted color within text
+        //  that is otherwise not. Sorted, non-overlapping, left-aligned
+        //  columns only, as matches are.
+        std::vector<std::pair<int, int>>  dimRanges;
+
         //  Drawn at the start of the cell, the text moved along past it.
         std::shared_ptr<const DxuiIconImage>  icon;
     };

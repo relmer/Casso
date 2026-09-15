@@ -2742,6 +2742,59 @@ void DxuiListView::PaintDataRows (
                 }
             }
 
+            // Muted ranges: the text is drawn a run at a time, each run placed
+            // by measuring the text before it, the way a match band is placed.
+            if (!cells[c].dimRanges.empty() && m_columns[c].align == DxuiTextHAlign::Left)
+            {
+                const std::wstring &  cellText = cells[c].text;
+                float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
+                float                 cellMaxW = (float) colWPx[c] - cellPadL - cellPadR - iconShift;
+                int                   pos      = 0;
+                size_t                next     = 0;
+
+                while (pos < (int) cellText.size())
+                {
+                    bool      inRange = next < cells[c].dimRanges.size() && pos >= cells[c].dimRanges[next].first;
+                    int       end     = inRange ? cells[c].dimRanges[next].second
+                                                : (next < cells[c].dimRanges.size() ? cells[c].dimRanges[next].first : (int) cellText.size());
+                    float     offset  = 0.0f;
+                    float     hIgnore = 0.0f;
+                    HRESULT   hrM     = S_OK;
+
+                    end = std::clamp (end, pos + 1, (int) cellText.size());
+
+                    if (pos > 0)
+                    {
+                        hrM = text.MeasureString (cellText.substr (0, (size_t) pos).c_str(), fontPx, GetBodyFace(), offset, hIgnore);
+                        IGNORE_RETURN_VALUE (hrM, S_OK);
+                    }
+
+                    if (offset >= cellMaxW)
+                    {
+                        break;
+                    }
+
+                    hr = text.DrawString (cellText.substr ((size_t) pos, (size_t) (end - pos)).c_str(),
+                                          cellX + offset,
+                                          ry,
+                                          cellMaxW - offset,
+                                          rowH,
+                                          inRange ? pal.fgDim : argb,
+                                          fontPx,
+                                          GetBodyFace(),
+                                          DxuiTextHAlign::Left,
+                                          DxuiTextVAlign::CenterOnCapHeight,
+                                          DxuiFontWeight::Normal,
+                                          false);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+
+                    next += inRange ? 1 : 0;
+                    pos   = end;
+                }
+
+                continue;
+            }
+
             hr = text.DrawString (cells[c].text.c_str(),
                                   x + colOff + (float) colXPx[c] + cellPadL + iconShift,
                                   ry,
