@@ -227,6 +227,7 @@
     <ClCompile Include="DebuggerTests\MonitorListing1979Tests.cpp" />
     <ClCompile Include="DebuggerTests\LineAssemblerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugExpressionEvaluatorTests.cpp" />
+    <ClCompile Include="DebuggerTests\MockDebugTargetTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

@@ -63,8 +63,8 @@ description: "Task list for 035-debugger"
 
 ### API types
 
-- [ ] T012 [P] Create `CassoCore/Debugger/DebugCommand.h`: `DebugVerb` enum (total over every engine operation; ends in `Count` for sweeps) and `DebugCommand` with the fields in data-model.md: `verb`, `sourceName`, `a1/a2/a3` plus presence flags, `values`, `expression`, `text`, `count`, `budget` (`std::optional<uint64_t>`).
-- [ ] T013 [P] Create `CassoEmuCore/Debugger/Reply.h`, holding the reply-side types from data-model.md:
+- [X] T012 [P] Create `CassoCore/Debugger/DebugCommand.h`: `DebugVerb` enum (total over every engine operation; ends in `Count` for sweeps) and `DebugCommand` with the fields in data-model.md: `verb`, `sourceName`, `a1/a2/a3` plus presence flags, `values`, `expression`, `text`, `count`, `budget` (`std::optional<uint64_t>`).
+- [X] T013 [P] Create `CassoEmuCore/Debugger/Reply.h`, holding the reply-side types from data-model.md:
   - `CommandStatus { Ok, Error, NotAvailable, Unknown }`;
   - the `ReplyData` variant, with one struct per data kind listed in `contracts/debug-channel-protocol.md`;
   - `Reply { status, command, data, text, error {label, detail} }`;
@@ -73,7 +73,7 @@ description: "Task list for 035-debugger"
 
 ### Target seam, memory view and hook (CassoEmuCore)
 
-- [ ] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `StartRun (const RunRequest &)` with the stop delivered to `IRunObserver::OnStopped`, `RequestPause`, `SetHookInstalled`, `SetWatchedPages`, `GetVideoPosition`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Also `IRunObserver.h` and `IRunDriver.h` (`Start`, `Pause`). Add `UnitTest/DebuggerTests/MockDebugTarget.h`, an in-memory 64 KB implementation for session tests that records hook and mask changes.
+- [X] T014 Create `CassoEmuCore/Debugger/IDebugTarget.h` with the operations in data-model.md "IDebugTarget": `GetRegisters/SetRegisters`, `Peek/Poke/GetRegion`, `ReadIo/WriteIo`, `GetSoftSwitches`, `StartRun (const RunRequest &)` with the stop delivered to `IRunObserver::OnStopped`, `RequestPause`, `SetHookInstalled`, `SetWatchedPages`, `GetVideoPosition`, `GetCpuKind`, `GetMachineInfo`, `InjectKey`. Also `IRunObserver.h` and `IRunDriver.h` (`Start`, `Pause`). Add `UnitTest/DebuggerTests/MockDebugTarget.h`, an in-memory 64 KB implementation for session tests that records hook and mask changes.
 - [ ] T015 [P] Write `UnitTest/DebuggerTests/DebugMemoryViewTests.cpp` (R-003) against `TestMachine` for Apple ][, ][+, //e, Enhanced //e and //c:
   - **Parity below $C000 and above $D000**: across banking states set through the soft switches (RAMRD/RAMWRT, ALTZP, 80STORE, language-card bank 1/2 read and write), `Peek` equals the value a CPU read returns; bus reads there have no side effects. `UnitTest/EmuTests/MemoryProbeHelpers.h` shows the probing pattern.
   - **Parity in $C100-$CFFF**: for each INTCXROM/SLOTC3ROM/INTC8ROM state, `Peek` equals the byte of the slot or internal ROM image that state selects, compared without a bus read, because a bus read there latches the router.
