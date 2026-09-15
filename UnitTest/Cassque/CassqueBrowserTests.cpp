@@ -406,6 +406,59 @@ public:
     }
 
 
+    //  The tab menu's commands: open somewhere in a new tab, copy a tab, close
+    //  the tabs after one, and close every tab but one. The last tab stays.
+    TEST_METHOD (TabMenu_OpenDuplicateAndClose)
+    {
+        Host          host;
+        std::wstring  folder = host.OpenDisksFolder();
+        Location      image  = Location::MakeDiskImage (L"C:\\Disks\\prodos.po");
+
+        AssertSucceeded (host.browser.SelectTreeNode (folder));
+
+        Assert::AreEqual ((size_t) 1, host.browser.OpenInNewTab (image));
+        Assert::IsTrue   (host.browser.GetLocation() == image, L"A new tab opens where it was asked to, and shows");
+
+        Assert::AreEqual ((size_t) 2, host.browser.DuplicateTab (1));
+        Assert::IsTrue   (host.browser.GetBrowserModel().GetTab (2).location == image, L"A copy is at the same place");
+
+        Assert::IsTrue   (host.browser.CloseTabsToRight (1));
+        Assert::AreEqual ((size_t) 2, host.browser.GetBrowserModel().GetTabCount());
+        Assert::IsFalse  (host.browser.CloseTabsToRight (1), L"The last tab has none to its right");
+
+        Assert::IsTrue   (host.browser.CloseOtherTabs (1));
+        Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
+        Assert::IsTrue   (host.browser.GetLocation() == image, L"The tab kept is the one the menu was opened on");
+        Assert::IsFalse  (host.browser.CloseOtherTabs (0), L"and with no others, nothing closes");
+    }
+
+
+    //  A folder or disk image row leads somewhere, a plain file does not, and
+    //  every row has a path to copy.
+    TEST_METHOD (Rows_LocationAndPath)
+    {
+        Host          host;
+        std::wstring  folder = host.OpenDisksFolder();
+        Location      location;
+        std::wstring  path;
+
+        AssertSucceeded (host.browser.SelectTreeNode (folder));
+
+        Assert::IsTrue   (host.browser.TryGetRowLocation (FindRow (host.browser, L"dos33.dsk"), location));
+        Assert::IsTrue   (location == Location::MakeDiskImage (L"C:\\Disks\\dos33.dsk"));
+        Assert::IsFalse  (host.browser.TryGetRowLocation (FindRow (host.browser, L"readme.txt"), location), L"A plain file leads nowhere");
+
+        Assert::IsTrue   (host.browser.TryGetRowPath (FindRow (host.browser, L"readme.txt"), path));
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\readme.txt"), path);
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
+
+        Assert::IsTrue   (host.browser.TryGetRowPath (FindRow (host.browser, L"NOTES"), path));
+        Assert::IsTrue   (path.rfind (L"C:\\Disks\\dos33.dsk", 0) == 0, L"An entry in an image starts at the image");
+        Assert::IsTrue   (path.size() > 5 && path.compare (path.size() - 5, 5, L"NOTES") == 0, L"and ends at the entry");
+    }
+
+
     TEST_METHOD (RestoreTabs_OpensEachAndActivatesTheFirst)
     {
         Host  host;
