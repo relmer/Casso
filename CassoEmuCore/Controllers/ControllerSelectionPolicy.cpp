@@ -27,15 +27,22 @@
 //  and with none attached the selection is cleared. A controller returning
 //  later is only a controller arriving.
 //
+//  A CONTROLLER THAT HOLDS AXES OF ITS OWN IS CHOSEN LAST. It is already
+//  driving its own axes, so a free controller is the better stand-in; and
+//  when one is chosen anyway its own axes come with it rather than PDL0 and
+//  PDL1, so the player still on the machine does not move (SC-012).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
-    const std::optional<ControllerUnitKey> &   current,
-    const std::vector<ControllerDeviceInfo> &  devices,
-    bool                                       hasGamePort)
+    const std::optional<ControllerUnitKey> &      current,
+    const std::vector<ControllerDeviceInfo> &     devices,
+    bool                                          hasGamePort,
+    const std::vector<ControllerAxisAssignment> & assignments)
 {
     Decision                      decision;
-    const ControllerDeviceInfo *  found = nullptr;
+    const ControllerDeviceInfo *  found     = nullptr;
+    const ControllerDeviceInfo *  preferred = nullptr;
 
 
 
@@ -55,8 +62,9 @@ ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
             return decision;
         }
 
-        decision.selection             = devices.front().unit;
-        decision.description           = devices.front().description;
+        preferred                      = &GetPreferredDevice (devices, assignments);
+        decision.selection             = preferred->unit;
+        decision.description           = preferred->description;
         decision.reason                = SelectionChangeReason::AutomaticSelection;
         decision.hasChanged            = true;
         decision.clearsOtherInputModes = true;
@@ -97,11 +105,160 @@ ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
         return decision;
     }
 
-    decision.selection   = devices.front().unit;
-    decision.description = devices.front().description;
+    preferred            = &GetPreferredDevice (devices, assignments);
+    decision.selection   = preferred->unit;
+    decision.description = preferred->description;
     decision.reason      = SelectionChangeReason::Replacement;
 
     return decision;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssignAxes
+//
+//  Each axis has one owner, so the axes handed to this unit leave every other
+//  entry. The selected controller's default PDL0 and PDL1 need no edit: they
+//  are computed less whatever the entries hold.
+//
+//  An entry left holding nothing is kept. A controller whose last axis was
+//  taken stays off the game port until it is given one, rather than falling
+//  back to a default nobody chose for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerSelectionPolicy::AssignAxes (
+    std::vector<ControllerAxisAssignment> & assignments,
+    const ControllerUnitKey &               unit,
+    ControllerAxisAssignment::AxisSet       axes)
+{
+    bool  isFound = false;
+
+
+
+    for (ControllerAxisAssignment & entry : assignments)
+    {
+        if (entry.unit == unit)
+        {
+            entry.axes = axes;
+            isFound    = true;
+        }
+        else
+        {
+            entry.axes &= ~axes;
+        }
+    }
+
+    if (!isFound)
+    {
+        assignments.push_back ({ unit, axes });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetAxesFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerAxisAssignment::AxisSet ControllerSelectionPolicy::GetAxesFor (
+    const std::vector<ControllerAxisAssignment> & assignments,
+    const ControllerUnitKey &                     unit,
+    const std::optional<ControllerUnitKey> &      selection,
+    size_t                                        axisCount)
+{
+    ControllerAxisAssignment::AxisSet  axes;
+    ControllerAxisAssignment::AxisSet  heldByOthers;
+    bool                               isFound      = false;
+    size_t                             axis         = 0;
+
+
+
+    for (const ControllerAxisAssignment & entry : assignments)
+    {
+        if (entry.unit == unit)
+        {
+            axes    = entry.axes;
+            isFound = true;
+        }
+        else
+        {
+            heldByOthers |= entry.axes;
+        }
+    }
+
+    if (!isFound && selection.has_value() && selection.value() == unit)
+    {
+        axes = ControllerAxisAssignment::AxisSet (kDefaultAxisBits) & ~heldByOthers;
+    }
+
+    for (axis = axisCount; axis < axes.size(); axis++)
+    {
+        axes.reset (axis);
+    }
+
+    return axes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasAssignment
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerSelectionPolicy::HasAssignment (
+    const std::vector<ControllerAxisAssignment> & assignments,
+    const ControllerUnitKey &                     unit)
+{
+    for (const ControllerAxisAssignment & entry : assignments)
+    {
+        if (entry.unit == unit)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPreferredDevice
+//
+//  The first listed controller with no axes of its own, or the first listed
+//  when every one has some. The caller guarantees the list is not empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ControllerDeviceInfo & ControllerSelectionPolicy::GetPreferredDevice (
+    const std::vector<ControllerDeviceInfo> &     devices,
+    const std::vector<ControllerAxisAssignment> & assignments)
+{
+    for (const ControllerDeviceInfo & device : devices)
+    {
+        if (!HasAssignment (assignments, device.unit))
+        {
+            return device;
+        }
+    }
+
+    return devices.front();
 }
 
 

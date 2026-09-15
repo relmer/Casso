@@ -2,6 +2,8 @@
 
 #include "Config/MachineInputPrefs.h"
 
+#include "Controllers/ControllerTokens.h"
+
 
 
 
@@ -261,4 +263,109 @@ std::vector<std::pair<std::string, JsonValue>> MachineInputPrefs::BuildControlle
     }
 
     return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::ReadAxisAssignments
+//
+//  Each entry is { "controller": <unit token>, "axes": [<axis index>, ...] }.
+//  Entries are applied in file order through the same displacement rule the
+//  user's own assignments follow, so a hand-edited file that gives one axis
+//  to two controllers resolves to the later one rather than to both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ControllerAxisAssignment> MachineInputPrefs::ReadAxisAssignments (const JsonValue * uiPrefs)
+{
+    HRESULT                                hr          = S_OK;
+    std::vector<ControllerAxisAssignment>  assignments;
+    const JsonValue                      * list        = nullptr;
+    size_t                                 i           = 0;
+    size_t                                 j           = 0;
+
+
+
+    if (uiPrefs == nullptr || !uiPrefs->HasArray (kpszAxesKey, list) || list == nullptr)
+    {
+        return assignments;
+    }
+
+    for (i = 0; i < list->GetArraySize(); i++)
+    {
+        const JsonValue                 &  entry = list->GetArrayElement (i);
+        const JsonValue                 *  axes  = nullptr;
+        std::string                        token;
+        ControllerUnitKey                  unit;
+        ControllerAxisAssignment::AxisSet  held;
+
+        if (entry.GetType() != JsonType::Object || !entry.HasString (kpszControllerKey, token) || !entry.HasArray ("axes", axes))
+        {
+            continue;
+        }
+
+        hr = ControllerTokens::UnitFromToken (token, unit);
+
+        if (FAILED (hr) || axes == nullptr)
+        {
+            continue;
+        }
+
+        for (j = 0; j < axes->GetArraySize(); j++)
+        {
+            const JsonValue &  axis = axes->GetArrayElement (j);
+
+            if (axis.GetType() == JsonType::Number && axis.GetInt() >= 0 && axis.GetInt() < (int) held.size())
+            {
+                held.set ((size_t) axis.GetInt());
+            }
+        }
+
+        ControllerSelectionPolicy::AssignAxes (assignments, unit, held);
+    }
+
+    return assignments;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineInputPrefs::BuildAxisAssignmentEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<std::string, JsonValue> MachineInputPrefs::BuildAxisAssignmentEntry (
+    const std::vector<ControllerAxisAssignment> &  assignments)
+{
+    std::vector<JsonValue>  list;
+    size_t                  axis = 0;
+
+
+
+    for (const ControllerAxisAssignment & assignment : assignments)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  entry;
+        std::vector<JsonValue>                          axes;
+
+        for (axis = 0; axis < assignment.axes.size(); axis++)
+        {
+            if (assignment.axes.test (axis))
+            {
+                axes.emplace_back ((double) axis);
+            }
+        }
+
+        entry.emplace_back (kpszControllerKey, JsonValue (ControllerTokens::UnitToToken (assignment.unit)));
+        entry.emplace_back ("axes", JsonValue (std::move (axes)));
+        list.emplace_back (std::move (entry));
+    }
+
+    return { kpszAxesKey, JsonValue (std::move (list)) };
 }

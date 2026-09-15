@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Controllers/ControllerSelectionPolicy.h"
 #include "Controllers/ControllerTypes.h"
 #include "Controllers/GamePortInputMixer.h"
 #include "Core/UnicodeSymbols.h"
@@ -75,11 +76,19 @@ public:
     static std::wstring  Shorten (const std::wstring & text);
 
     // What the picker is built from: the attached controllers, then the keys
-    // and the mouse.
+    // and the mouse. A controller is checked while it holds an axis the
+    // machine has, so two controllers playing at once are both checked.
     static std::vector<PaddleSource>  BuildPaddleSources (
-        const State &                             state,
-        const std::vector<ControllerDeviceInfo> & devices,
-        const std::optional<ControllerUnitKey> &  selection);
+        const State &                                 state,
+        const std::vector<ControllerDeviceInfo> &     devices,
+        const std::optional<ControllerUnitKey> &      selection,
+        const std::vector<ControllerAxisAssignment> & assignments = {},
+        size_t                                        axisCount   = GamePortContribution::kAxisCount);
+
+    // What the closed picker wears: the driving source's short label, a count
+    // while several controllers drive at once, or "Controller" when nothing
+    // drives the axes.
+    static std::wstring  GetPaddleSourceLabel (const std::vector<PaddleSource> & sources);
 
     // The line the persistent banner carries while the keys or the mouse
     // drive the game port, and empty while a controller drives or nothing

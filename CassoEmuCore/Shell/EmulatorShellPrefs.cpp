@@ -252,10 +252,11 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
 
 void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs)
 {
-    HRESULT                           hr    = S_OK;
+    HRESULT                           hr         = S_OK;
     std::string                       token;
     std::optional<ControllerUnitKey>  selection;
     ControllerUnitKey                 unit;
+    const MachineDefinition         * definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
 
 
 
@@ -263,6 +264,15 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs)
     {
         return;
     }
+
+    // How many axes this machine has, before anything is assigned to them: an
+    // assignment for axes it lacks is kept and ignored (FR-035).
+    if (definition != nullptr)
+    {
+        m_controllerService->SetAxisCount (static_cast<size_t> (definition->gamePortAxisCount));
+    }
+
+    m_controllerService->SetAxisAssignments (MachineInputPrefs::ReadAxisAssignments (uiPrefs));
 
     token = MachineInputPrefs::ReadControllerToken (uiPrefs);
 
@@ -344,6 +354,7 @@ void EmulatorShell::PersistInputModeForMachine()
         // Empty for Default, which leaves the profile key absent.
         controllerEntries = MachineInputPrefs::BuildControllerEntries (token, snapshot.activeProfile);
         entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
+        entries.push_back (MachineInputPrefs::BuildAxisAssignmentEntry (snapshot.assignments));
     }
 
     hr = DiskSettings::WriteSavedUiPrefs (

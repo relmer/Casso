@@ -11,6 +11,28 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DriverRead
+//
+//  What one tick needs to read and evaluate one driving controller, copied
+//  out from under the lock so the backend and the evaluator run outside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ControllerInputService::DriverRead
+{
+    ControllerUnitKey  unit;
+    std::string        token;
+    ControlMapping     mapping;
+    float              deadzone         = 0.0f;
+    size_t             logicalAxisCount = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ControllerInputService
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,25 +71,33 @@ void ControllerInputService::OnDevicesChanged()
 //  SetActive
 //
 //  Casso became the active application, or stopped being it. An inactive
-//  Casso releases the controller's contribution, so a button held as the user
-//  switches away does not stay down in the guest.
+//  Casso releases every controller's contribution, so a button held as the
+//  user switches away does not stay down in the guest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::SetActive (bool isActive)
 {
-    std::unique_lock<std::mutex>  lock (m_mutex);
+    std::unique_lock<std::mutex>  lock      (m_mutex);
     bool                          wasActive = m_isActive;
 
 
 
     m_isActive = isActive;
+
+    if (!wasActive || isActive)
+    {
+        return;
+    }
+
+    for (auto & [token, driver] : m_drivers)
+    {
+        driver.logical.reset();
+    }
+
     lock.unlock();
 
-    if (wasActive && !isActive)
-    {
-        ReleaseContribution();
-    }
+    ReleaseContribution();
 }
 
 
@@ -78,7 +108,9 @@ void ControllerInputService::SetActive (bool isActive)
 //
 //  SetSelection
 //
-//  Which controller drives the game port, or none.
+//  Which controller drives the game port, or none. The controller it
+//  replaces stops driving unless it holds axes of its own, and whatever it
+//  held is released; every other driving controller carries on untouched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,6 +118,7 @@ void ControllerInputService::SetSelection (const std::optional<ControllerUnitKey
 {
     std::unique_lock<std::mutex>  lock       (m_mutex);
     bool                          hasChanged = m_selection != selection;
+    GamePortContribution          merged;
 
 
 
@@ -99,16 +132,13 @@ void ControllerInputService::SetSelection (const std::optional<ControllerUnitKey
         return;
     }
 
-    m_selection            = selection;
-    m_lastSample           = ControllerSample();
-    m_isSelectedConnected  = false;
+    m_selection           = selection;
+    m_lastSample          = ControllerSample();
+    m_isSelectedConnected = false;
 
-    // The mapping belongs to the controller that was chosen, so a different
-    // controller starts from its own defaults rather than inheriting the last
-    // one's bindings.
-    m_mapping              = ControlMapping();
-    m_rateResetPending     = true;
-    EnsureMappingForActiveLocked();
+    // A driver that is new starts from its own model's mapping and with its
+    // rate paddles at center; one that was already driving keeps both.
+    SyncDriversLocked();
 
     // A saved controller restored for a machine may not be attached. The
     // policy is what replaces it, so the next tick has to run it; a pick
@@ -118,9 +148,10 @@ void ControllerInputService::SetSelection (const std::optional<ControllerUnitKey
         m_devicesDirty = true;
     }
 
+    merged = BuildMergedLocked();
     lock.unlock();
 
-    ReleaseContribution();
+    Publish (merged);
 }
 
 
@@ -140,6 +171,11 @@ void ControllerInputService::SetDeadzone (float deadzone)
 
 
     m_deadzone = deadzone;
+
+    for (auto & [token, driver] : m_drivers)
+    {
+        driver.deadzone = deadzone;
+    }
 }
 
 
@@ -167,6 +203,14 @@ void ControllerInputService::SetHasGamePort (bool hasGamePort)
         }
 
         m_hasGamePort = hasGamePort;
+
+        if (!hasGamePort)
+        {
+            for (auto & [token, driver] : m_drivers)
+            {
+                driver.logical.reset();
+            }
+        }
     }
 
     m_devicesDirty = true;
@@ -240,6 +284,105 @@ void ControllerInputService::SetStateChangedFn (StateChangedFn onStateChanged)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetAxisCount
+//
+//  A machine with fewer axes drops the drivers left holding none of them and
+//  the values for the axes it lacks; the assignments themselves are kept, so
+//  switching back to a machine with four restores them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetAxisCount (size_t axisCount)
+{
+    std::unique_lock<std::mutex>  lock   (m_mutex);
+    size_t                        count  = std::min (axisCount, GamePortContribution::kAxisCount);
+    GamePortContribution          merged;
+
+
+
+    if (m_axisCount == count)
+    {
+        return;
+    }
+
+    m_axisCount = count;
+    SyncDriversLocked();
+
+    merged = BuildMergedLocked();
+    lock.unlock();
+
+    Publish (merged);
+    Wake();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAxisAssignments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SetAxisAssignments (std::vector<ControllerAxisAssignment> assignments)
+{
+    std::unique_lock<std::mutex>  lock   (m_mutex);
+    GamePortContribution          merged;
+
+
+
+    if (m_assignments == assignments)
+    {
+        return;
+    }
+
+    m_assignments = std::move (assignments);
+    SyncDriversLocked();
+
+    merged = BuildMergedLocked();
+    lock.unlock();
+
+    Publish (merged);
+    Wake();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssignAxes
+//
+//  The displaced controller keeps its other axes and goes on driving them
+//  without a pause; only the axes that moved change hands (FR-036).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::AssignAxes (const ControllerUnitKey & unit, ControllerAxisAssignment::AxisSet axes)
+{
+    std::unique_lock<std::mutex>  lock   (m_mutex);
+    GamePortContribution          merged;
+
+
+
+    ControllerSelectionPolicy::AssignAxes (m_assignments, unit, axes);
+    SyncDriversLocked();
+
+    merged = BuildMergedLocked();
+    lock.unlock();
+
+    Publish (merged);
+    Wake();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResetPaddleRate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,8 +432,8 @@ void ControllerInputService::SetModelSettings (std::map<std::string, ControllerM
 
     // A controller in use picks the new settings up now rather than at its
     // next connect, so OK on the Controllers page takes effect at once.
-    m_mapping = ControlMapping();
-    EnsureMappingForActiveLocked();
+    UnresolveDriversLocked();
+    SyncDriversLocked();
     m_rateResetPending = true;
 }
 
@@ -321,8 +464,8 @@ std::map<std::string, ControllerModelSettings> ControllerInputService::GetModelS
 //
 //  SetActiveProfile
 //
-//  Switching profiles does not reset the machine. The mapping is resolved
-//  again at once, the rate paddles return to center, and the controller's
+//  Switching profiles does not reset the machine. The mappings are resolved
+//  again at once, the rate paddles return to center, and every controller's
 //  contribution is released, so a button the new profile does not bind comes
 //  up and an axis it does not drive centers before the next reading submits
 //  what the new profile asks for (FR-030).
@@ -345,9 +488,9 @@ void ControllerInputService::SetActiveProfile (const std::string & name)
     }
 
     m_activeProfile    = name;
-    m_mapping          = ControlMapping();
     m_rateResetPending = true;
-    EnsureMappingForActiveLocked();
+    UnresolveDriversLocked();
+    SyncDriversLocked();
 
     lock.unlock();
 
@@ -504,17 +647,17 @@ std::optional<ControllerSample> ControllerInputService::GetInspectedSample (cons
 //
 //  Tick
 //
-//  Controller thread. The selected controller first, then the one the
+//  Controller thread. The driving controllers first, then the one the
 //  Controllers page shows, if the page is open. While the page is open the
-//  thread polls at the measured period regardless of what the selected
-//  controller needs, since the controller being edited may be one that
-//  sends no change events of its own.
+//  thread polls at the measured period regardless of what the driving
+//  controllers need, since the controller being edited may be one that sends
+//  no change events of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ControllerWaitSources ControllerInputService::Tick()
 {
-    ControllerWaitSources             wait      = TickSelected();
+    ControllerWaitSources             wait      = TickDrivers();
     std::optional<ControllerUnitKey>  inspected;
     ControllerSample                  sample;
     HRESULT                           hr        = S_OK;
@@ -555,38 +698,36 @@ ControllerWaitSources ControllerInputService::Tick()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TickSelected
+//  TickDrivers
 //
-//  Controller thread. Reads the selected controller once and submits what it
-//  asks of the game port, then says how long to wait for the next wake: the
-//  measured poll period while a controller that must be polled is selected,
-//  and otherwise nothing at all, since a DirectInput device wakes the thread
-//  itself and an empty selection has nothing to read.
+//  Controller thread. Reads each driving controller once, submits what they
+//  ask of the game port together, then says how long to wait for the next
+//  wake: the measured poll period while a controller that must be polled is
+//  driving, and otherwise nothing at all, since a DirectInput device wakes
+//  the thread itself and no driver means nothing to read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ControllerWaitSources ControllerInputService::TickSelected()
+ControllerWaitSources ControllerInputService::TickDrivers()
 {
-    HRESULT                           hr                = S_OK;
-    double                            nowSeconds        = 0.0;
-    float                             elapsedSeconds    = 0.0f;
-    std::optional<ControllerUnitKey>  active;
-    ControllerSample                  sample;
-    ControllerSample                  calibrated;
-    ControlMapping                    mapping;
-    ControllerWaitSources             wait;
-    float                             deadzone          = 0.0f;
-    bool                              isActive          = false;
-    bool                              wasConnected      = false;
-    bool                              isConnected       = false;
-    bool                              needsTimedPoll    = false;
-    StateChangedFn                    onStateChanged;
+    std::vector<DriverRead>   reads;
+    std::vector<std::string>  resetTokens;
+    ControllerWaitSources     wait;
+    GamePortContribution      merged;
+    StateChangedFn            onStateChanged;
+    float                     elapsedSeconds = 0.0f;
+    bool                      isActive       = false;
+    bool                      hasFlipped     = false;
+    bool                      needsPoll      = false;
 
 
 
     if (m_rateResetPending.exchange (false))
     {
-        m_evaluator.ResetRate();
+        for (auto & [token, evaluator] : m_evaluators)
+        {
+            evaluator.ResetRate();
+        }
     }
 
     if (m_devicesDirty.exchange (false))
@@ -597,123 +738,223 @@ ControllerWaitSources ControllerInputService::TickSelected()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
 
-        active       = m_selection;
-        mapping      = m_mapping;
-        deadzone     = m_deadzone;
-        isActive     = m_isActive;
-        wasConnected = m_isSelectedConnected;
+        elapsedSeconds = MeasureElapsedLocked();
+        isActive       = m_isActive;
 
-        // The time since the last reading is what a rate binding moves its
-        // paddle by. The first reading has none to measure from.
-        nowSeconds = m_clock ? m_clock()
-                             : std::chrono::duration<double> (std::chrono::steady_clock::now().time_since_epoch()).count();
+        SyncDriversLocked();
+        resetTokens.swap (m_rateResetTokens);
 
-        elapsedSeconds    = (m_lastTickSeconds < 0.0) ? 0.0f : (float) (nowSeconds - m_lastTickSeconds);
-        m_lastTickSeconds = nowSeconds;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_mutex);
-
-        m_lastTick                = TickReport();
-        m_lastTick.hasSelection   = active.has_value();
-        m_lastTick.isActiveXInput = active.has_value()
-                                    && active.value().model.kind == ControllerKind::XInput;
-        m_lastTick.hasMapping     = (m_mapping != ControlMapping());
-        m_lastTick.isAppActive    = m_isActive;
-        m_lastTick.deadzone       = m_deadzone;
-    }
-
-    if (!active.has_value())
-    {
-        return wait;
-    }
-
-    hr          = m_backend.ReadSample (active.value(), sample);
-    isConnected = SUCCEEDED (hr) && sample.connected;
-
-    {
-        std::lock_guard<std::mutex>  lock (m_mutex);
-
-        m_lastTick.readResult  = hr;
-        m_lastTick.isConnected = isConnected;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_mutex);
-
-        calibrated = sample;
-
-        // A DirectInput unit is read through its own calibration; an
-        // Xbox-class controller is factory-calibrated and never gets one
-        // (FR-018a). The first reading after it is selected or comes back is
-        // where it rests, so that is the center (FR-007).
-        if (isConnected && active.value().model.kind == ControllerKind::DirectInput)
+        for (const auto & [token, driver] : m_drivers)
         {
-            ControllerCalibration &  calibration = m_calibrations[ControllerTokens::UnitToToken (active.value())];
-
-            if (!wasConnected)
-            {
-                calibration.CaptureCenter (sample);
-            }
-
-            calibration.Observe (sample);
-            calibrated = calibration.Apply (sample);
+            reads.push_back ({ driver.unit, token, driver.mapping, driver.deadzone,
+                               ControllerSelectionPolicy::GetAxesFor (m_assignments, driver.unit, m_selection, m_axisCount).count() });
         }
 
-        m_isSelectedConnected = isConnected;
-        m_lastSample          = isConnected ? sample : ControllerSample();
-        onStateChanged        = m_onStateChanged;
+        m_lastTick                = TickReport();
+        m_lastTick.hasSelection   = m_selection.has_value();
+        m_lastTick.isActiveXInput = m_selection.has_value() && m_selection.value().model.kind == ControllerKind::XInput;
+        m_lastTick.isAppActive    = m_isActive;
+        m_lastTick.deadzone       = m_deadzone;
+
+        if (m_selection.has_value() && m_drivers.contains (ControllerTokens::UnitToToken (m_selection.value())))
+        {
+            const DriverState &  selected = m_drivers.at (ControllerTokens::UnitToToken (m_selection.value()));
+
+            m_lastTick.hasMapping = selected.mapping != ControlMapping();
+            m_lastTick.deadzone   = selected.deadzone;
+        }
     }
 
-    // Who owns the axes turns on whether the selected controller reads, so
-    // the first successful read after it is chosen has to be announced: until
+    for (const std::string & token : resetTokens)
+    {
+        m_evaluators[token].ResetRate();
+    }
+
+    for (const DriverRead & read : reads)
+    {
+        hasFlipped = TickDriver (read, elapsedSeconds, isActive, wait, needsPoll) || hasFlipped;
+    }
+
+    ForgetIdleEvaluators (reads);
+
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        merged                = BuildMergedLocked();
+        onStateChanged        = m_onStateChanged;
+        m_lastTick.didSubmit  = isActive && merged != GamePortContribution();
+        m_lastTick.submitted  = merged;
+    }
+
+    Publish (merged);
+
+    // Who owns the axes turns on whether a driving controller reads, so the
+    // first successful read after one is chosen has to be announced: until
     // then the axes rest at center however far the stick is pushed.
-    if (isConnected != wasConnected && onStateChanged)
+    if (hasFlipped && onStateChanged)
     {
         onStateChanged();
     }
 
-    if (!isConnected)
-    {
-        // A controller that could not be read is gone, not resting. Nothing
-        // to wait on either: the next device notification is what brings it
-        // back, and that arrives as a window message.
-        ReleaseContribution();
-
-        return wait;
-    }
-
-    if (!isActive)
-    {
-        ReleaseContribution();
-    }
-    else
-    {
-        GamePortContribution  contribution = m_evaluator.Evaluate (calibrated, mapping, deadzone, elapsedSeconds);
-
-        m_mixer.Submit (GamePortSource::Controller, contribution);
-        m_hasContribution = true;
-
-        {
-            std::lock_guard<std::mutex>  lock (m_mutex);
-
-            m_lastTick.didSubmit = true;
-            m_lastTick.submitted = contribution;
-        }
-    }
-
-    // What the thread waits on until the next read: the controller's own
-    // change events where it has them, and the measured poll period only for
-    // the ones that have none.
-    m_backend.GetWakeSources (active.value(), wait.events, needsTimedPoll);
-
-    if (needsTimedPoll || m_evaluator.IsRateMoving())
+    if (needsPoll)
     {
         wait.timeoutMs = kPollPeriodMs;
     }
 
     return wait;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TickDriver
+//
+//  Controller thread. One driving controller: read it, evaluate it while
+//  Casso is active, and record what it asks for. A controller that could not
+//  be read is gone, not resting, and contributes nothing; nothing of its own
+//  to wait on either, since the next device notification is what brings it
+//  back. Returns whether it connected or disconnected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerInputService::TickDriver (
+    const DriverRead       & read,
+    float                    elapsedSeconds,
+    bool                     isActive,
+    ControllerWaitSources  & wait,
+    bool                   & outNeedsPoll)
+{
+    HRESULT                              hr             = S_OK;
+    ControllerSample                     sample;
+    ControllerSample                     calibrated;
+    std::optional<GamePortContribution>  logical;
+    std::vector<HANDLE>                  events;
+    bool                                 isConnected    = false;
+    bool                                 hasFlipped     = false;
+    bool                                 needsTimedPoll = false;
+
+
+
+    hr          = m_backend.ReadSample (read.unit, sample);
+    isConnected = SUCCEEDED (hr) && sample.connected;
+    calibrated  = RecordReading (read, hr, sample, isConnected, hasFlipped);
+
+    if (isConnected && isActive)
+    {
+        MappingEvaluator &  evaluator = m_evaluators[read.token];
+
+        logical      = evaluator.Evaluate (calibrated, read.mapping, read.deadzone, elapsedSeconds, read.logicalAxisCount);
+        outNeedsPoll = outNeedsPoll || evaluator.IsRateMoving();
+    }
+
+    if (isConnected)
+    {
+        // What the thread waits on until the next read: the controller's own
+        // change events where it has them, and the measured poll period only
+        // for the ones that have none.
+        m_backend.GetWakeSources (read.unit, events, needsTimedPoll);
+        wait.events.insert (wait.events.end(), events.begin(), events.end());
+        outNeedsPoll = outNeedsPoll || needsTimedPoll;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock  (m_mutex);
+        auto                         found = m_drivers.find (read.token);
+
+        // A setter may have dropped this driver while it was being read.
+        if (found != m_drivers.end())
+        {
+            found->second.logical = logical;
+        }
+    }
+
+    return hasFlipped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordReading
+//
+//  Under the lock: whether the driver reads, and the reading put through its
+//  calibration. A DirectInput unit is read through its own calibration; an
+//  Xbox-class controller is factory-calibrated and never gets one (FR-018a).
+//  The first reading after it starts driving or comes back is where it rests,
+//  so that is the center (FR-007).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ControllerSample ControllerInputService::RecordReading (
+    const DriverRead        & read,
+    HRESULT                   hr,
+    const ControllerSample  & sample,
+    bool                      isConnected,
+    bool                    & outHasFlipped)
+{
+    std::lock_guard<std::mutex>  lock         (m_mutex);
+    auto                         found        = m_drivers.find (read.token);
+    ControllerSample             calibrated   = sample;
+    bool                         wasConnected = found != m_drivers.end() && found->second.isConnected;
+    bool                         isSelected   = m_selection.has_value() && m_selection.value() == read.unit;
+
+
+
+    if (isConnected && read.unit.model.kind == ControllerKind::DirectInput)
+    {
+        ControllerCalibration &  calibration = m_calibrations[read.token];
+
+        if (!wasConnected)
+        {
+            calibration.CaptureCenter (sample);
+        }
+
+        calibration.Observe (sample);
+        calibrated = calibration.Apply (sample);
+    }
+
+    if (found != m_drivers.end())
+    {
+        found->second.isConnected = isConnected;
+    }
+
+    if (isSelected)
+    {
+        m_isSelectedConnected  = isConnected;
+        m_lastSample           = isConnected ? sample : ControllerSample();
+        m_lastTick.readResult  = hr;
+        m_lastTick.isConnected = isConnected;
+    }
+
+    outHasFlipped = isConnected != wasConnected;
+
+    return calibrated;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ForgetIdleEvaluators
+//
+//  Controller thread. A controller that stopped driving gives up its rate
+//  paddles; if it drives again it starts from center.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::ForgetIdleEvaluators (const std::vector<DriverRead> & reads)
+{
+    std::erase_if (m_evaluators, [&reads] (const std::pair<const std::string, MappingEvaluator> & entry)
+    {
+        return std::none_of (reads.begin(), reads.end(), [&entry] (const DriverRead & read) { return read.token == entry.first; });
+    });
 }
 
 
@@ -741,6 +982,13 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     snapshot.activeProfile       = m_activeProfile;
     snapshot.lastSample          = m_lastSample;
     snapshot.isSelectedConnected = m_isSelectedConnected;
+    snapshot.assignments         = m_assignments;
+    snapshot.axisCount           = m_axisCount;
+
+    for (const auto & [token, driver] : m_drivers)
+    {
+        snapshot.isAnyDriverConnected = snapshot.isAnyDriverConnected || driver.isConnected;
+    }
 
     return snapshot;
 }
@@ -776,6 +1024,7 @@ ControllerInputService::TickReport ControllerInputService::GetLastTickReport() c
 //  selected controller that is gone hands the selection to the one attached
 //  longest, or to nothing, and the contribution it was holding is released at
 //  once: with nothing selected there is no read left to fail and release it.
+//  Every other driving controller keeps what it holds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -787,6 +1036,7 @@ void ControllerInputService::RefreshDevices()
     ControllerSelectionPolicy::Decision  decision;
     SelectionChangedFn                   onSelectionChanged;
     StateChangedFn                       onStateChanged;
+    GamePortContribution                 merged;
     std::wstring                         departedDescription;
     bool                                 wasSelectionAttached = false;
     bool                                 hasListChanged       = false;
@@ -831,7 +1081,7 @@ void ControllerInputService::RefreshDevices()
                 return GetAttachOrderLocked (a.unit) < GetAttachOrderLocked (b.unit);
             });
 
-        decision = ControllerSelectionPolicy::Evaluate (m_selection, byAttachOrder, m_hasGamePort);
+        decision = ControllerSelectionPolicy::Evaluate (m_selection, byAttachOrder, m_hasGamePort, m_assignments);
 
         if (decision.reason == SelectionChangeReason::Cleared && !wasSelectionAttached)
         {
@@ -842,8 +1092,19 @@ void ControllerInputService::RefreshDevices()
 
         if (decision.hasChanged)
         {
-            // The mapping belongs to the controller it was made for, so the
-            // next one starts from its own defaults.
+            // A unit that came back under another identity keeps the axes it
+            // was given.
+            if (decision.reason == SelectionChangeReason::Adoption && m_selection.has_value() && decision.selection.has_value())
+            {
+                for (ControllerAxisAssignment & entry : m_assignments)
+                {
+                    if (entry.unit == m_selection.value())
+                    {
+                        entry.unit = decision.selection.value();
+                    }
+                }
+            }
+
             // EVERY CHANGE IS SAVED BUT A CLEAR. Nothing being attached is not
             // a choice, and writing it down threw away the controller the
             // machine had, so the next switch to it picked whatever was
@@ -854,20 +1115,22 @@ void ControllerInputService::RefreshDevices()
             }
 
             m_selection           = decision.selection;
-            m_mapping             = ControlMapping();
-            m_rateResetPending    = true;
             m_lastSample          = ControllerSample();
             m_isSelectedConnected = false;
         }
 
-        EnsureMappingForActiveLocked();
+        // Also resolves the mapping of a driving controller that has just
+        // arrived: an empty mapping reads every control as unbound.
+        SyncDriversLocked();
+
+        merged             = BuildMergedLocked();
         onSelectionChanged = m_onSelectionChanged;
         onStateChanged     = m_onStateChanged;
     }
 
     if (decision.hasChanged)
     {
-        ReleaseContribution();
+        Publish (merged);
     }
 
     // Outside the lock: the sink persists the choice and raises a notice, and
@@ -892,22 +1155,76 @@ void ControllerInputService::RefreshDevices()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Publish
+//
+//  Submits what the driving controllers ask for together, or releases the
+//  controller source when they ask for nothing, without disturbing what any
+//  other input source is holding. Called outside the lock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::Publish (const GamePortContribution & merged)
+{
+    if (merged == GamePortContribution())
+    {
+        ReleaseContribution();
+        return;
+    }
+
+    m_mixer.Submit (GamePortSource::Controller, merged);
+    m_hasContribution = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReleaseContribution
 //
-//  Returns the controller's axes to center and its buttons to released,
+//  Returns the controllers' axes to center and their buttons to released,
 //  without disturbing what any other input source is holding.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllerInputService::ReleaseContribution()
 {
-    if (!m_hasContribution)
+    if (m_hasContribution.exchange (false))
     {
-        return;
+        m_mixer.ReleaseSource (GamePortSource::Controller);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Wake
+//
+//  Brings the controller thread round to read a driver that has just been
+//  added, rather than at the end of whatever wait it is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::Wake()
+{
+    WakeFn  wake;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        wake = m_wake;
     }
 
-    m_mixer.ReleaseSource (GamePortSource::Controller);
-    m_hasContribution = false;
+    if (wake)
+    {
+        wake();
+    }
 }
 
 
@@ -980,41 +1297,131 @@ uint64_t ControllerInputService::GetAttachOrderLocked (const ControllerUnitKey &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EnsureMappingForActive / EnsureMappingForActiveLocked
+//  GetDriverUnitsLocked
 //
-//  Gives the controller being read the mapping it plays with. An empty
-//  mapping reads every control as unbound, so a controller without one sits
-//  at center with its buttons up no matter what the user does with it --
-//  which is why this runs from both the refresh and the tick, rather than
-//  only from the refresh: the first refresh happens before any controller is
-//  selected.
+//  The controllers that drive the game port: the selection, which always
+//  reaches the buttons, and every controller holding an axis the machine has.
+//  One whose axes are all past the machine's count is not read at all, so an
+//  assignment for axes a //c lacks drives neither axes nor buttons there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ControllerInputService::EnsureMappingForActive()
+std::vector<ControllerUnitKey> ControllerInputService::GetDriverUnitsLocked() const
 {
-    std::lock_guard<std::mutex>  lock (m_mutex);
+    std::vector<ControllerUnitKey>  units;
 
 
 
-    EnsureMappingForActiveLocked();
+    if (m_selection.has_value())
+    {
+        units.push_back (m_selection.value());
+    }
+
+    for (const ControllerAxisAssignment & entry : m_assignments)
+    {
+        bool  isListed = std::find (units.begin(), units.end(), entry.unit) != units.end();
+
+        if (!isListed && IsDriverLocked (entry.unit))
+        {
+            units.push_back (entry.unit);
+        }
+    }
+
+    return units;
 }
 
 
-void ControllerInputService::EnsureMappingForActiveLocked()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDriverLocked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerInputService::IsDriverLocked (const ControllerUnitKey & unit) const
 {
-    const ControllerDeviceInfo *  active  = FindActiveDeviceLocked();
-    const ControllerProfile    *  profile = nullptr;
+    bool  isSelected = m_selection.has_value() && m_selection.value() == unit;
 
 
 
-    if (active == nullptr || m_mapping != ControlMapping())
+    return isSelected || ControllerSelectionPolicy::GetAxesFor (m_assignments, unit, m_selection, m_axisCount).any();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncDriversLocked
+//
+//  Brings the driver list in line with the selection and the assignments. A
+//  controller that stopped driving is dropped with whatever it held; one that
+//  started driving gets its mapping and has its rate paddles centered on the
+//  next tick; one that drives on is left exactly as it was, so a change to
+//  another controller never interrupts it (SC-012).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::SyncDriversLocked()
+{
+    std::vector<ControllerUnitKey>  units = GetDriverUnitsLocked();
+
+
+
+    std::erase_if (m_drivers, [&units] (const std::pair<const std::string, DriverState> & entry)
+    {
+        return std::find (units.begin(), units.end(), entry.second.unit) == units.end();
+    });
+
+    for (const ControllerUnitKey & unit : units)
+    {
+        std::string  token            = ControllerTokens::UnitToToken (unit);
+        auto         [found, isAdded] = m_drivers.try_emplace (token);
+
+        if (isAdded)
+        {
+            found->second.unit = unit;
+            m_rateResetTokens.push_back (token);
+        }
+
+        ResolveMappingLocked (found->second);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveMappingLocked
+//
+//  Gives a driving controller the mapping it plays with. An empty mapping
+//  reads every control as unbound, so a controller without one sits at center
+//  with its buttons up no matter what the user does with it -- which is why
+//  this runs from the refresh, the setters and the tick alike: a controller
+//  can start driving before it is enumerated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::ResolveMappingLocked (DriverState & driver)
+{
+    const ControllerDeviceInfo  * device  = FindDeviceLocked (driver.unit);
+    const ControllerProfile     * profile = nullptr;
+
+
+
+    if (device == nullptr || driver.isResolved)
     {
         return;
     }
 
     // The deadzone belongs to the model, whichever profile is active.
-    m_profiles.GetDefaultSettings (active->unit.model, active->controls, m_mapping, m_deadzone);
+    m_profiles.GetDefaultSettings (device->unit.model, device->controls, driver.mapping, driver.deadzone);
+    driver.isResolved = true;
 
     if (m_activeProfile.empty())
     {
@@ -1023,12 +1430,106 @@ void ControllerInputService::EnsureMappingForActiveLocked()
 
     // A remembered profile the model no longer has plays the Default, which
     // is already in hand; nothing is recreated for it (FR-029).
-    profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (active->unit.model), m_activeProfile);
+    profile = m_profiles.FindProfile (ControllerTokens::ModelToToken (device->unit.model), m_activeProfile);
 
     if (profile != nullptr)
     {
-        m_mapping = profile->mapping;
+        driver.mapping = profile->mapping;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UnresolveDriversLocked
+//
+//  Every driver's mapping is looked up again, and what it held is dropped:
+//  the settings or the profile it was resolved from changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ControllerInputService::UnresolveDriversLocked()
+{
+    for (auto & [token, driver] : m_drivers)
+    {
+        driver.mapping    = ControlMapping();
+        driver.isResolved = false;
+        driver.logical.reset();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildMergedLocked
+//
+//  Every driving controller's last reading, placed by assignment: its own
+//  PDL0, PDL1 and on land on the axes it holds, in ascending order, and an
+//  axis it does not hold is left for another controller. Buttons OR together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GamePortContribution ControllerInputService::BuildMergedLocked() const
+{
+    GamePortContribution  merged;
+    size_t                axis    = 0;
+    size_t                logical = 0;
+
+
+
+    for (const auto & [token, driver] : m_drivers)
+    {
+        ControllerAxisAssignment::AxisSet  axes = ControllerSelectionPolicy::GetAxesFor (m_assignments, driver.unit, m_selection, m_axisCount);
+
+        if (!driver.logical.has_value() || !IsDriverLocked (driver.unit))
+        {
+            continue;
+        }
+
+        for (axis = 0, logical = 0; axis < axes.size(); axis++)
+        {
+            if (axes.test (axis))
+            {
+                merged.paddle[axis] = driver.logical->paddle[logical++];
+            }
+        }
+
+        merged.buttons |= driver.logical->buttons;
+    }
+
+    return merged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureElapsedLocked
+//
+//  The time since the last reading, which is what a rate binding moves its
+//  paddle by. The first reading has none to measure from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float ControllerInputService::MeasureElapsedLocked()
+{
+    double  nowSeconds = m_clock ? m_clock()
+                                 : std::chrono::duration<double> (std::chrono::steady_clock::now().time_since_epoch()).count();
+    float   elapsed    = (m_lastTickSeconds < 0.0) ? 0.0f : (float) (nowSeconds - m_lastTickSeconds);
+
+
+
+    m_lastTickSeconds = nowSeconds;
+
+    return elapsed;
 }
 
 
@@ -1052,43 +1553,4 @@ const ControllerDeviceInfo * ControllerInputService::FindDeviceLocked (const Con
     }
 
     return nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FindActiveDeviceLocked
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const ControllerDeviceInfo * ControllerInputService::FindActiveDeviceLocked() const
-{
-    if (!m_selection.has_value())
-    {
-        return nullptr;
-    }
-
-    return FindDeviceLocked (m_selection.value());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsSelectedDevicePresent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ControllerInputService::IsSelectedDevicePresent() const
-{
-    std::lock_guard<std::mutex>  lock (m_mutex);
-
-
-
-    return FindActiveDeviceLocked() != nullptr;
 }

@@ -21,12 +21,19 @@
 //  that are here (FR-008a), so a row for one that is gone would offer a pick
 //  that drives nothing.
 //
+//  A CONTROLLER IS CHECKED WHILE IT HOLDS AN AXIS, not only while it is the
+//  selection. With two players on two controllers, checking one of them would
+//  say the other drives nothing. An assignment kept while the keys or the
+//  mouse drive checks nothing, since the controllers are not driving then.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
-    const State &                             state,
-    const std::vector<ControllerDeviceInfo> & devices,
-    const std::optional<ControllerUnitKey> &  selection)
+    const State &                                 state,
+    const std::vector<ControllerDeviceInfo> &     devices,
+    const std::optional<ControllerUnitKey> &      selection,
+    const std::vector<ControllerAxisAssignment> & assignments,
+    size_t                                        axisCount)
 {
     std::vector<PaddleSource>  sources;
     PaddleSource               arrows;
@@ -37,12 +44,13 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     for (const ControllerDeviceInfo & device : devices)
     {
         PaddleSource  entry;
+        bool          holdsAxis = ControllerSelectionPolicy::GetAxesFor (assignments, device.unit, selection, axisCount).any();
 
         entry.label      = device.description;
         entry.shortLabel = Shorten (device.description);
         entry.formFactor = device.formFactor;
         entry.controller = device.unit;
-        entry.isChecked  = selection.has_value() && selection.value() == device.unit;
+        entry.isChecked  = state.hasController && holdsAxis;
 
         sources.push_back (entry);
     }
@@ -65,6 +73,54 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
     sources.push_back (paddle);
 
     return sources;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPaddleSourceLabel
+//
+//  One controller's name while two are driving would say the second drives
+//  nothing, so several checked controllers read as a count instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InputModeRules::GetPaddleSourceLabel (const std::vector<PaddleSource> & sources)
+{
+    const PaddleSource  * first       = nullptr;
+    size_t                controllers = 0;
+
+
+
+    for (const PaddleSource & source : sources)
+    {
+        if (!source.isChecked)
+        {
+            continue;
+        }
+
+        if (first == nullptr)
+        {
+            first = &source;
+        }
+
+        if (source.controller.has_value())
+        {
+            controllers++;
+        }
+    }
+
+    if (controllers > 1)
+    {
+        return std::format (L"{} controllers", controllers);
+    }
+
+    // Nothing is driving the axes, which is a state worth showing rather than
+    // leaving the picker blank.
+    return first != nullptr ? first->shortLabel : std::wstring (L"Controller");
 }
 
 

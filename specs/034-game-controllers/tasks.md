@@ -249,17 +249,17 @@ description: "Task list for 034 physical game controllers"
 
 ### Tests for User Story 7
 
-- [ ] T091 [P] [US7] Extend `UnitTest/ControllerTests/GamePortInputMixerTests.cpp`: per-axis ownership, two `Controller` contributions holding PDL0 and PDL1 independently, an axis assigned away displacing its previous owner (FR-036), and buttons still ORing across both
-- [ ] T092 [P] [US7] Extend `UnitTest/ControllerTests/MappingEvaluatorTests.cpp`: a mapping driving all four axes; bindings on PDL2/PDL3 ignored on a two-axis machine without faulting (FR-035)
-- [ ] T093 [P] [US7] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: two assigned fakes drive their own axes simultaneously; one disconnecting releases only its own axes and leaves the other's readings uninterrupted (SC-012)
-- [ ] T094 [P] [US7] Add axis-budget tests: a //e reports four axes and a //c two; an assignment naming PDL2 on a //c is ignored but retained, and comes back on switching to a //e (FR-035)
+- [X] T091 [P] [US7] Extend `UnitTest/ControllerTests/GamePortInputMixerTests.cpp`: per-axis ownership, two `Controller` contributions holding PDL0 and PDL1 independently, an axis assigned away displacing its previous owner (FR-036), and buttons still ORing across both
+- [X] T092 [P] [US7] Extend `UnitTest/ControllerTests/MappingEvaluatorTests.cpp`: a mapping driving all four axes; bindings on PDL2/PDL3 ignored on a two-axis machine without faulting (FR-035)
+- [X] T093 [P] [US7] Extend `UnitTest/ControllerTests/ControllerInputServiceTests.cpp`: two assigned fakes drive their own axes simultaneously; one disconnecting releases only its own axes and leaves the other's readings uninterrupted (SC-012)
+- [X] T094 [P] [US7] Add axis-budget tests: a //e reports four axes and a //c two; an assignment naming PDL2 on a //c is ignored but retained, and comes back on switching to a //e (FR-035)
 
 ### Implementation for User Story 7
 
-- [ ] T095 [US7] Widen `GamePortContribution::paddle` to four per-axis optionals and `GamePortState::paddle` to four bytes in `CassoEmuCore/Controllers/ControllerTypes.h` and `GamePortInputMixer.h`; make `SetAxisOwner` take an axis index (FR-036)
-- [ ] T096 [US7] Write PDL2/PDL3 through `CassoEmuCore/Shell/MachineGamePortSink.cpp`, and report the machine's axis count from the machine config so the //c reports two (FR-034)
-- [ ] T097 [US7] Widen `ControlMapping` to four axis targets and update `MappingEvaluator` accordingly; keep the default mapping claiming PDL0/PDL1 only (FR-038)
-- [ ] T098 [US7] Hold the assignment as controller-to-axes in `ControllerSelectionPolicy`, persist it per machine, and displace the previous owner on reassignment (FR-036, FR-037)
+- [X] T095 [US7] Widen `GamePortContribution::paddle` to four per-axis optionals and `GamePortState::paddle` to four bytes in `CassoEmuCore/Controllers/ControllerTypes.h` and `GamePortInputMixer.h`; make `SetAxisOwner` take an axis index (FR-036)
+- [X] T096 [US7] Write PDL2/PDL3 through `CassoEmuCore/Shell/MachineGamePortSink.cpp`, and report the machine's axis count from the machine config so the //c reports two (FR-034)
+- [X] T097 [US7] Widen `ControlMapping` to four axis targets and update `MappingEvaluator` accordingly; keep the default mapping claiming PDL0/PDL1 only (FR-038)
+- [X] T098 [US7] Hold the assignment as controller-to-axes in `ControllerSelectionPolicy`, persist it per machine, and displace the previous owner on reassignment (FR-036, FR-037)
 - [ ] T099 [US7] Add the axis assignment UI to the Controllers page: which controller holds which axis, axes the machine lacks not offered (FR-035, FR-037)
 - [X] T100 [US7] Build a four-axis readout disk from `Disks/Casso/JoystickTest.bas` showing PDL(0)-PDL(3) and PB0-PB2, for validating two-controller play without a commercial two-player disk
 - [ ] T101 [US7] Build; run `-Filter Controller`; validate two controllers at once on hardware against the readout disk, and on a two-player game disk if one is available

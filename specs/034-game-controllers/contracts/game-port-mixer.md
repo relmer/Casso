@@ -39,8 +39,10 @@ class GamePortInputMixer
 public:
     void           SetSink              (IGamePortSink * sink);
     void           SetApplyThread       (std::thread::id applyThread, std::function<void()> requestFlush);
-    // Ownership is per axis: two controllers can hold PDL0 and PDL1
-    // independently, and each axis has at most one owner (FR-036).
+    // Ownership is per axis: each axis has at most one owner, and handing an
+    // axis to a source displaces its previous owner for that axis only
+    // (FR-036). The one-argument form sets all four.
+    void           SetAxisOwner         (AxisOwner owner);
     void           SetAxisOwner         (size_t axis, AxisOwner owner);
     void           Submit               (GamePortSource source, const GamePortContribution & contribution);
     void           ReleaseSource        (GamePortSource source);
@@ -59,7 +61,7 @@ public:
 | `FireKeys` | PB0, PB1 | X/Z plus left/right Alt in arrows-to-joystick mode, foreground only |
 | `AppleModifierKeys` | PB0, PB1, PB2 | Left Alt, right Alt and Shift on the //e and //c (PB2 is Shift) |
 | `MousePaddle` | Axes, PB0, PB1 | Captured mouse in paddle mode |
-| `Controller` | Axes, PB0-PB2 | The controller service |
+| `Controller` | Axes, PB0-PB2 | The controller service: every driving controller merged, each axis present only where a controller holds it (see data-model `ControllerAxisAssignment`) |
 
 Arrow axes and fire buttons are separate sources so focus loss can release the buttons without moving the axes, which is how the machine behaved before the mixer.
 
@@ -68,7 +70,8 @@ Arrow axes and fire buttons are separate sources so focus loss can release the b
 | Rule | Detail |
 |---|---|
 | Buttons | Final PBn = OR of every source's PBn (FR-014) |
-| Axes | Final PDLn = the owner's contribution, or center (127) when the owner has none or is `None` |
+| Axes | Final PDLn = PDLn's owner's contribution for that axis, or center (127) when that owner does not drive PDLn or is `None`. A contribution holds each axis as its own optional |
+| Axis count | The sink writes only the machine's axes (`GamePortTargets::axisCount`, from `MachineDefinition::gamePortAxisCount`): four on the ][, ][+ and //e, two on the //c, whose PDL2/PDL3 lines are the mouse (FR-034) |
 | Owner switch | Takes effect immediately with the new owner's last contribution, so arrows held when the controller reconnects stop driving the axes at once (spec edge case) |
 | Writes | The sink is called only when the final state differs from the last applied state, so a controller at rest writes nothing however often it is sampled |
 | Apply thread | The sink is called only on the apply thread (the UI thread in the shell). The device setters behind it notify the input debug panel, whose host-input callbacks are UI-thread only. A `Submit` from another thread records its values and calls `requestFlush` once until the next `FlushPending`; the shell posts a window message that calls `FlushPending`. With no apply thread set, every caller writes inline |

@@ -135,7 +135,7 @@ Per model: `float` fraction of travel, [0, 0.9]. Defaults and radial/axial rule 
 
 | Field | Type | Notes |
 |---|---|---|
-| pdl | `std::array<std::vector<AxisBinding>, 4>` | PDL0-PDL3; empty = center. Indices 2 and 3 are never evaluated on a machine with two axes (FR-035) |
+| pdl0-pdl3 | `std::vector<AxisBinding>` each | The controller's own PDL0-PDL3 targets; empty = center. Where they land on the machine is the controller's axis assignment (below). `MappingEvaluator::Evaluate` takes an axis count and leaves targets past it absent, so bindings the machine cannot play are ignored without faulting and kept (FR-035) |
 | pb0 | `std::vector<ButtonBinding>` | Empty = released |
 | pb1 | `std::vector<ButtonBinding>` | Empty = released |
 | pb2 | `std::vector<ButtonBinding>` | Empty = released; ignored on the //c (R15) |
@@ -182,6 +182,28 @@ Owns `std::map<ModelToken, ModelSettings>` and `std::map<UnitToken, ControllerCa
 |---|---|---|
 | `controller` | unit token or absent | Absent = no controller selected |
 | `controllerProfile` | profile name or absent | Absent or missing profile = Default (FR-029) |
+| `controllerAxes` | array of `{ "controller": <unit token>, "axes": [<index>...] }`, or absent | Absent or empty = the selected controller holds PDL0/PDL1 (FR-038). Kept for axes the machine lacks (FR-035) |
+
+### ControllerAxisAssignment (per machine, controller-to-axes)
+
+| Field | Type | Notes |
+|---|---|---|
+| unit | `ControllerUnitKey` | |
+| axes | `std::bitset<4>` | The machine axes this controller holds |
+
+Rules (`ControllerSelectionPolicy`, pure):
+
+- **The selection needs no entry.** Without one it holds PDL0 and PDL1 less any axis another entry holds, which is exactly what a machine with only `controller` saved has always done. An entry for it replaces that default.
+- **Displacement.** `AssignAxes (unit, axes)` gives the unit exactly those axes and removes each of them from every other entry; the displaced controller keeps its other axes. An entry left holding nothing is kept, so a displaced controller stays off rather than falling back to a default (FR-036).
+- **Budget.** `GetAxesFor (assignments, unit, selection, axisCount)` leaves out axes past the machine's count without changing the assignment (FR-034, FR-035). A controller whose axes are all past the count is not read at all, so neither its axes nor its buttons reach a //c.
+- **Replacement.** When the selection leaves, a controller with no entry of its own is preferred; an assigned one takes over only when no unassigned one is attached, and keeps its own axes rather than moving onto the freed ones (SC-012).
+- **XInput limit.** Xbox-class controllers share one unit key (FR-018a), so two of them cannot hold different axes. Two players need at least one DirectInput controller, or two DirectInput controllers.
+
+**How the assignment combines with the profile: the assignment remaps, the profile binds.** A controller's mapping drives its own PDL0-PDL3 targets; the machine axes it holds, in ascending order, are where those land. A controller holding PDL1 alone plays its `pdl0` bindings on PDL1, and one holding PDL2 and PDL3 plays its `pdl0`/`pdl1` there. So two players on the same Default or Paddles profile need no per-player profile (quickstart 12), and one controller holding all four axes plays a mapping that binds all four as written (quickstart 14, US7 #7).
+
+**What drives the game port** (`ControllerInputService`): the selection, and every controller holding an axis the machine has. Each is read, calibrated and evaluated on its own (its own rate paddles); the service merges them by assignment into the one `Controller` source, with axes a controller does not hold left absent and buttons ORed. A controller that stops reading contributes nothing, so only its axes center and only its buttons release; the others are untouched (SC-012). A pick from the command-bar picker clears the assignments, because the picker chooses the one controller that drives the paddles.
+
+**Picker with several controllers driving.** Every attached controller holding an axis the machine has is checked, and the closed picker reads "N controllers" rather than one controller's name. With the keys or the mouse driving, kept assignments check nothing.
 
 ### ControllerSelectionPolicy (pure)
 
@@ -208,4 +230,4 @@ Xbox-class selection matches any unit of the selected model; with several connec
 
 ### GamePortInputMixer (pure, mutex-guarded)
 
-Sources: `FireKeys`, `AppleModifierKeys` (Open-Apple, Solid-Apple, and on the //e Shift as PB2), `MousePaddle`, `Controller`. Axis owner is held **per axis** (`ArrowKeys`, `MousePaddle`, `Controller`, `None`), chosen from input mode and the selection, so PDL0 and PDL1 can belong to different controllers (FR-036). Final buttons = OR of all sources; each final axis = that axis's owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.
+Sources: `FireKeys`, `AppleModifierKeys` (Open-Apple, Solid-Apple, and on the //e Shift as PB2), `MousePaddle`, `Controller`. Axis owner is held **per axis** (`ArrowKeys`, `MousePaddle`, `Controller`, `None`); `SetAxisOwner (owner)` sets all four and `SetAxisOwner (axis, owner)` displaces one axis's owner only (FR-036). Several controllers reach the mixer as the single `Controller` source, merged by the service with each axis held separately, so PDL0 and PDL1 can belong to different controllers. Final buttons = OR of all sources; each final axis = that axis's owner's contribution or center. Writes through `IGamePortSink` only when a final value changes.

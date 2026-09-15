@@ -43,6 +43,7 @@ Added as a known top-level key in `GlobalUserPrefs` (`CassoEmuCore/Config/Global
 - An axis binding has either `analog` or both `negative` and `positive`.
 - `response` is `absolute` (default when absent) or `rate`; `maxSpeed` is read only for `rate` and clamped to [16, 1024].
 - `pb2` may be absent; it is kept on load and save for every machine, and ignored at evaluation on the //c.
+- `pdl2` and `pdl3` follow the same binding rules as `pdl0`. Absent means empty, and each is written only when it has a binding, so a two-axis mapping is written exactly as before. A profile with an unreadable `pdl2`/`pdl3` binding is rejected like any other.
 - `ControlId` tokens are defined in the data model.
 
 ### Rules
@@ -65,8 +66,21 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 |---|---|---|
 | `controller` | Unit token, e.g. `xinput:045e:0b13` or `dinput:044f:b10a/{8E8A...}` | No controller selected |
 | `controllerProfile` | Profile name | Default |
+| `controllerAxes` | Array of `{ "controller": <unit token>, "axes": [<axis index 0-3>, ...] }` | No assignment: the selected controller holds PDL0 and PDL1, exactly as before this key existed |
+
+```json
+"controllerAxes": [
+  { "controller": "xinput",                          "axes": [0] },
+  { "controller": "dinput:231d:0121/guid:{01661270}", "axes": [1] }
+]
+```
 
 - A selection is written as the unit token for DirectInput and the model token for XInput (FR-018a).
+- `controllerAxes` is always written, as `[]` when there is no assignment, because the block is spliced key by key and an omitted key would leave a cleared assignment in the file. Absent and `[]` read the same.
+- An empty array is the default: a machine with only `controller` saved behaves exactly as before (FR-038). The selected controller needs no entry; an entry for it replaces its PDL0/PDL1 default.
+- Entries are applied in order with displacement (FR-036): an axis listed for two controllers goes to the later one. An entry with an unreadable token, no `axes` array, or a non-object is skipped; an axis index that is not a number in 0-3 is ignored.
+- Axis indexes past the machine's count are kept on load and save and ignored when played, so a //c keeps a //e's four-axis assignment (FR-035).
+- A pick from the command-bar paddle picker clears the assignment.
 - Selecting arrows-to-joystick or mouse-to-paddle removes `controller` (FR-008), which lets automatic selection apply at the next connect (FR-032).
 
 ## Unit-test obligations

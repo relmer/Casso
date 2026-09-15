@@ -2476,7 +2476,8 @@ void EmulatorShell::UpdateJoystickAxesFromKeys()
         y = s_kPaddleAxisMax;
     }
 
-    contribution.paddle = std::array<Byte, 2> { x, y };
+    contribution.paddle[0] = x;
+    contribution.paddle[1] = y;
     m_gamePortMixer.Submit (GamePortSource::ArrowKeys, contribution);
 }
 
@@ -2740,6 +2741,14 @@ void EmulatorShell::PickPaddleSource (InputModeRules::PaddleSource source)
     {
         SetArrowsJoystick (false);
         SetPointerMapping (InputMappingMode::Off);
+
+        // The picker chooses THE controller that drives the paddles, so a pick
+        // gives up any assignment that split the axes across controllers.
+        if (m_controllerService != nullptr)
+        {
+            m_controllerService->SetAxisAssignments ({});
+        }
+
         SetControllerSelection (source.controller);
     }
 
@@ -2810,10 +2819,10 @@ void EmulatorShell::SyncPaddleSourceList()
     state.arrowsJoystick       = m_arrowsJoystick;
     state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
     state.hasController        = snapshot.selection.has_value();
-    state.isControllerAttached = snapshot.isSelectedConnected;
+    state.isControllerAttached = snapshot.isAnyDriverConnected;
 
     m_mainMenu.GetCommands().SetPaddleSources (
-        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection));
+        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection, snapshot.assignments, snapshot.axisCount));
 
     // Straight onto the command bar's Input drop-down rather than a submenu
     // off the Machine menu: this is a list the user picks from while playing,
@@ -3035,7 +3044,7 @@ void EmulatorShell::TraceControllerState()
     state.arrowsJoystick       = m_arrowsJoystick;
     state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
     state.hasController        = snapshot.selection.has_value();
-    state.isControllerAttached = snapshot.isSelectedConnected;
+    state.isControllerAttached = snapshot.isAnyDriverConnected;
 
     swprintf_s (line,
         L"[controller] devices=%zu sel=%d xinput=%d "
@@ -3044,8 +3053,8 @@ void EmulatorShell::TraceControllerState()
         snapshot.devices.size(),
         tick.hasSelection, tick.isActiveXInput, (unsigned int) tick.readResult, tick.isConnected,
         tick.hasMapping, tick.isAppActive, tick.didSubmit,
-        tick.submitted.paddle.has_value() ? tick.submitted.paddle.value()[0] : -1,
-        tick.submitted.paddle.has_value() ? tick.submitted.paddle.value()[1] : -1,
+        tick.submitted.paddle[0].has_value() ? (int) tick.submitted.paddle[0].value() : -1,
+        tick.submitted.paddle[1].has_value() ? (int) tick.submitted.paddle[1].value() : -1,
         tick.submitted.buttons.test (0), tick.submitted.buttons.test (1),
         tick.submitted.buttons.test (2),
         tick.deadzone,
@@ -3087,9 +3096,15 @@ std::wstring EmulatorShell::GetStandInBannerText() const
 //
 //  SyncGamePortAxisOwner
 //
-//  Who owns PDL0/PDL1: a selected controller once it reads, else paddle mode,
-//  else arrows-to-joystick, else nothing, which rests the axes at center. The
-//  rule itself is in InputModeRules so it can be asserted without a machine.
+//  Who owns the axes: the controllers once one of them reads, else paddle
+//  mode, else arrows-to-joystick, else nothing, which rests the axes at
+//  center. The rule itself is in InputModeRules so it can be asserted without
+//  a machine. Which controller drives which axis is settled inside the
+//  controller source, which leaves an axis it does not drive at center.
+//
+//  ANY DRIVING CONTROLLER THAT READS KEEPS THE AXES, not only the selection:
+//  a second player's controller must keep driving through the moment the
+//  first one's is unplugged and before the rescan moves the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3107,7 +3122,7 @@ void EmulatorShell::SyncGamePortAxisOwner()
         ControllerInputService::Snapshot  snapshot = m_controllerService->GetSnapshot();
 
         state.hasController        = snapshot.selection.has_value();
-        state.isControllerAttached = snapshot.isSelectedConnected;
+        state.isControllerAttached = snapshot.isAnyDriverConnected;
     }
 
     m_gamePortMixer.SetAxisOwner (InputModeRules::GetAxisOwner (state));
@@ -3576,7 +3591,8 @@ void EmulatorShell::PushPaddlePosition()
 
 
 
-    m_mousePaddleContribution.paddle = std::array<Byte, 2> { x, y };
+    m_mousePaddleContribution.paddle[0] = x;
+    m_mousePaddleContribution.paddle[1] = y;
     m_gamePortMixer.Submit (GamePortSource::MousePaddle, m_mousePaddleContribution);
 }
 

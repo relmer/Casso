@@ -910,17 +910,7 @@ void EmulatorCommands::SetMouseModeFns (std::function<bool()> isOn,
 
 std::wstring EmulatorCommands::GetCheckedPaddleSourceLabel() const
 {
-    for (const InputModeRules::PaddleSource & source : m_paddleSources)
-    {
-        if (source.isChecked)
-        {
-            return source.shortLabel;
-        }
-    }
-
-    // Nothing is driving the axes, which is a state worth showing rather than
-    // leaving the picker blank.
-    return L"Controller";
+    return InputModeRules::GetPaddleSourceLabel (m_paddleSources);
 }
 
 

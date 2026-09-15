@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Controllers/ControllerSelectionPolicy.h"
 #include "Core/JsonValue.h"
 #include "Ui/UiCommandTypes.h"
 
@@ -32,6 +33,7 @@ public:
     static constexpr const char *  kpszPointerKey    = "pointerMapping";
     static constexpr const char *  kpszControllerKey = "controller";
     static constexpr const char *  kpszProfileKey    = "controllerProfile";
+    static constexpr const char *  kpszAxesKey       = "controllerAxes";
 
     // outArrows always comes back false: arrows-to-joystick is not resumed,
     // only turned on by hand in the session that plays. It takes X and Z for
@@ -62,6 +64,16 @@ public:
     static std::vector<std::pair<std::string, JsonValue>>  BuildControllerEntries (
         const std::string &  controllerToken,
         const std::string &  profileName);
+
+    // Which controller holds which axes. Absent or empty means the selected
+    // controller holds PDL0 and PDL1. An entry that cannot be read is
+    // skipped; axes the current machine lacks are kept (FR-035).
+    static std::vector<ControllerAxisAssignment>  ReadAxisAssignments (const JsonValue * uiPrefs);
+
+    // Always written, as an empty array when there is no assignment, so
+    // clearing one replaces the saved list rather than leaving it behind.
+    static std::pair<std::string, JsonValue>      BuildAxisAssignmentEntry (
+        const std::vector<ControllerAxisAssignment> &  assignments);
 
     static const char *      ModeToToken   (InputMappingMode    mode);
     static InputMappingMode  ModeFromToken (const std::string & token,
