@@ -287,6 +287,16 @@ private:
                                   bool                 recurse,
                                   DiskCommandResult  & result);
 
+    //  A typed path as the volume reads it. A path with no leading slash is
+    //  read from the volume directory and comes back unchanged; one with a
+    //  leading slash names the volume first, and is turned down when that name
+    //  is not this image's. A DOS 3.3 name is one name, slashes included.
+    HRESULT  ResolveVolumePath (const CommandLineOptions             & options,
+                                const DiskImageSession::OpenedImage  & opened,
+                                const std::string                    & typed,
+                                std::string                          & outPath,
+                                DiskCommandResult                    & result);
+
     //  The path `get`, `delete` and `boot` act on, and the name used in their
     //  messages: the name as typed, or with --index the entry at that position.
     HRESULT  ResolveEntryPath (const CommandLineOptions             & options,

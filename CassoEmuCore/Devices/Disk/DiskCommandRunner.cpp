@@ -429,7 +429,8 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
         { HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
           "is a binary and requires a load address. Use %Lload $XXXX" },
         { HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED),
-          "is a directory. Removing it would strand the files beneath it" },
+          "is a directory, and delete takes files only. Use rmdir, which removes "
+          "a directory and, with --recurse, everything below it" },
         { HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF),
           "has a sector chain that cannot be followed to its end" },
         { HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
@@ -476,6 +477,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     HRESULT                        hr           = S_OK;
     DiskImageSession::OpenedImage  opened;
     VolumeListing                  listing;
+    std::string                    directory;
     char                           summary[128] = {};
 
 
@@ -510,7 +512,10 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         //  The rows come from the directory the caller named, and the volume's
         //  name and free space above and below them describe the whole volume
         //  either way.
-        hr = AppendDirectoryRows (volume, opened.kind, options.disk.path, options.disk.recurse, result);
+        hr = ResolveVolumePath (options, opened, options.disk.path, directory, result);
+        CHR (hr);
+
+        hr = AppendDirectoryRows (volume, opened.kind, directory, options.disk.recurse, result);
 
         CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
                         ApplyPrefix (DescribeVolumeRefusal (hr))));
@@ -675,6 +680,7 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
     size_t                         i        = 0;
     DiskImageSession::OpenedImage  opened;
     FilePath                       path;
+    std::string                    typed;
     vector<Byte>                   staged;
 
 
@@ -690,7 +696,10 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
             result.Fail (options.disk.imagePath, options.disk.path,
                   "cannot hold directories: this volume is DOS 3.3, which has none"));
 
-    path   = FilePath::Parse (options.disk.path);
+    hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
+    CHR (hr);
+
+    path   = FilePath::Parse (typed);
     staged = opened.sectors;
 
     for (i = 1; i <= path.GetDepth(); i++)
@@ -767,6 +776,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     DeleteOutcome                  outcome;
     FilePath                       path;
     vector<Byte>                   edited;
+    std::string                    typed;
     std::string                    declined;
     char                           note[128]   = {};
 
@@ -783,7 +793,10 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
             result.Fail (options.disk.imagePath, options.disk.path,
                   "holds no directories: this volume is DOS 3.3, which has none"));
 
-    path = FilePath::Parse (options.disk.path);
+    hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
+    CHR (hr);
+
+    path = FilePath::Parse (typed);
 
     {
         ProDosVolume  volume (opened.sectors);
@@ -1591,6 +1604,74 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ResolveVolumePath
+//
+//  `/MYDISK/GAMES/CHESS` is a whole ProDOS path: the volume, then the way down
+//  through it. `GAMES/CHESS` is the same place read from the volume directory.
+//  The two forms are what a ProDOS user types, and the first says which disk it
+//  means, so it is checked rather than dropped -- a full path naming another
+//  volume is a caller acting on the wrong disk, and that is worth turning down.
+//
+//  A DOS 3.3 NAME IS ONE NAME, SLASHES AND ALL. That filesystem has no
+//  directories and no volume names, and a catalog will hold a name with a
+//  slash in it, so nothing is stripped there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolveVolumePath (
+    const CommandLineOptions             & options,
+    const DiskImageSession::OpenedImage  & opened,
+    const std::string                    & typed,
+    std::string                          & outPath,
+    DiskCommandResult                    & result)
+{
+    HRESULT        hr        = S_OK;
+    FilePath       path      = FilePath::Parse (typed);
+    bool           plain     = !path.IsRooted() || opened.kind == VolumeKind::Dos33;
+    bool           mine      = false;
+    size_t         i         = 0;
+    VolumeListing  listing;
+    std::string    rest;
+    char           note[128] = {};
+
+
+
+    outPath = typed;
+
+    BAIL_OUT_IF (plain, S_OK);
+
+    {
+        ProDosVolume  volume (opened.sectors);
+
+        hr = volume.Enumerate (listing);
+    }
+
+    CHRF (hr, result.Fail (options.disk.imagePath, "", "catalog could not be read"));
+
+    mine = !path.IsEmpty() && _stricmp (path.GetComponents()[0].c_str(), listing.volumeName.c_str()) == 0;
+
+    snprintf (note, sizeof (note), "names another volume; this image is /%s", listing.volumeName.c_str());
+
+    CBRFEx (mine, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND),
+            result.Fail (options.disk.imagePath, typed, note));
+
+    for (i = 1; i < path.GetComponents().size(); i++)
+    {
+        rest += (rest.empty() ? "" : "/") + path.GetComponents()[i];
+    }
+
+    outPath = rest;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::ResolveEntryPath
 //
 //  Without --index, the path is the name as typed. With it, the path is the
@@ -1620,12 +1701,16 @@ HRESULT DiskCommandRunner::ResolveEntryPath (
     bool           matches   = true;
     bool           shared    = false;
     VolumeListing  listing;
+    std::string    typed;
     char           note[128] = {};
 
 
 
-    outName = options.disk.path;
-    outPath = FilePath::Parse (options.disk.path);
+    hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
+    CHR (hr);
+
+    outName = typed;
+    outPath = FilePath::Parse (typed);
 
     BAIL_OUT_IF (!options.disk.hasIndex, S_OK);
 
@@ -1645,9 +1730,9 @@ HRESULT DiskCommandRunner::ResolveEntryPath (
     inRange = position < listing.entries.size();
     CBRFEx (inRange, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), result.Fail (options.disk.imagePath, "", ApplyPrefix (notAllowed.c_str())));
 
-    if (!options.disk.path.empty())
+    if (!typed.empty())
     {
-        matches = _stricmp (options.disk.path.c_str(), listing.entries[position].name.c_str()) == 0;
+        matches = _stricmp (typed.c_str(), listing.entries[position].name.c_str()) == 0;
     }
 
     snprintf (note, sizeof (note), "does not match index %u", (unsigned) options.disk.index);

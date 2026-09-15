@@ -419,6 +419,61 @@ public:
     }
 
 
+    TEST_METHOD (AFullPath_NamesTheVolumeFirst_AndAnotherVolumeIsRefused)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   rooted;
+        DiskCommandResult   relative;
+        DiskCommandResult   wrong;
+        CommandLineOptions  options;
+
+        SeedProDosDisk (io);
+
+        //  `/MERLIN` is this image, so a path through it reaches the volume
+        //  directory exactly as a relative one does.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.path = "/MERLIN";
+        rooted            = runner.Run (options);
+
+        options.disk.path = "";
+        relative          = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, rooted.exitStatus);
+        Assert::AreEqual (relative.output, rooted.output, L"the two forms name one directory");
+
+        //  A full path naming another volume is acting on the wrong disk.
+        options.disk.path = "/NOTTHISONE/SOURCE";
+        wrong             = runner.Run (options);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, wrong.exitStatus);
+        Assert::IsTrue      (wrong.diagnostics.find ("this image is /MERLIN") != std::string::npos);
+    }
+
+
+    TEST_METHOD (ADos33NameKeepsItsSlashes)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedRealDisk (io);
+
+        //  DOS 3.3 has no directories and no volume names, so a leading slash
+        //  is part of the name. This disk holds a file called /HELLO, and
+        //  reading it is the proof that nothing stripped the slash.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path = "/HELLO";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue   (result.hasPayload);
+        Assert::IsTrue   (result.diagnostics.find ("this image is") == std::string::npos,
+            L"and no volume was read out of the name");
+    }
+
+
     TEST_METHOD (List_SaysNotBootable_OnlyWhenTheBootTracksAreEmpty)
     {
         FakeDiskFileIo     io;
