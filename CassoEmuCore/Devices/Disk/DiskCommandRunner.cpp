@@ -111,6 +111,7 @@ std::vector<std::string> DiskCommandRunner::FindMissingParameters (const Command
                                        || command == Command::BlockWrite;
     bool                      wantsName = command == Command::Get || command == Command::Delete
                                        || command == Command::Boot;
+    bool                      wantsPath = command == Command::Mkdir || command == Command::Rmdir;
 
 
 
@@ -131,6 +132,11 @@ std::vector<std::string> DiskCommandRunner::FindMissingParameters (const Command
     if (wantsName && options.disk.path.empty())
     {
         missing.push_back ("<name>");
+    }
+
+    if (wantsPath && options.disk.path.empty())
+    {
+        missing.push_back ("<path>");
     }
 
     if (wantsFile && options.disk.hostFile.empty())
@@ -501,29 +507,13 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
             result.output += summary;
         }
 
-        for (const FileEntry & entry : listing.entries)
-        {
-            size_t  sharing = 0;
+        //  The rows come from the directory the caller named, and the volume's
+        //  name and free space above and below them describe the whole volume
+        //  either way.
+        hr = AppendDirectoryRows (volume, opened.kind, options.disk.path, options.disk.recurse, result);
 
-            for (const FileEntry & other : listing.entries)
-            {
-                sharing += (_stricmp (other.name.c_str(), entry.name.c_str()) == 0) ? 1 : 0;
-            }
-
-            result.output += (opened.kind == VolumeKind::Dos33)
-                           ? FormatDos33Entry (entry)
-                           : FormatProDosEntry (entry);
-
-            //  A name that several entries share cannot select one of them, so
-            //  each such entry is listed with its index. A unique name has none.
-            if (sharing > 1)
-            {
-                snprintf (summary, sizeof (summary), "  (index %u)", (unsigned) (entry.catalogIndex + 1));
-                result.output += summary;
-            }
-
-            result.output += "\n";
-        }
+        CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
+                        ApplyPrefix (DescribeVolumeRefusal (hr))));
 
         snprintf (summary, sizeof (summary), "\n%u %s free of %u\n",
                   (unsigned) listing.freeUnits,
@@ -574,6 +564,285 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
                   lost, Utils::GetSingularOrPluralForm (lost, "sector", "sectors"));
 
         result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
+        result.exitStatus   = DiskCommandResult::kWithComplaints;
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::AppendDirectoryRows
+//
+//  A RECURSIVE ROW CARRIES ITS FULL PATH, because a listing that reaches
+//  several directories has rows whose names repeat: two files called NOTES in
+//  different directories are two rows reading NOTES, and nothing in the output
+//  says which is which. The row is formatted from a copy whose name is the
+//  path, so the columns stay exactly as a one-directory listing prints them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::AppendDirectoryRows (
+    const IVolume      & volume,
+    VolumeKind           kind,
+    const std::string  & directory,
+    bool                 recurse,
+    DiskCommandResult  & result)
+{
+    HRESULT        hr        = S_OK;
+    VolumeListing  listing;
+    char           note[32]  = {};
+
+
+
+    hr = volume.EnumerateDirectory (FilePath::Parse (directory), listing);
+    CHR (hr);
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        FileEntry  shown   = entry;
+        size_t     sharing = 0;
+
+        for (const FileEntry & other : listing.entries)
+        {
+            sharing += (_stricmp (other.name.c_str(), entry.name.c_str()) == 0) ? 1 : 0;
+        }
+
+        if (recurse && !directory.empty())
+        {
+            shown.name = directory + "/" + entry.name;
+        }
+
+        result.output += (kind == VolumeKind::Dos33)
+                       ? FormatDos33Entry (shown)
+                       : FormatProDosEntry (shown);
+
+        //  A name that several entries share cannot select one of them, so
+        //  each such entry is listed with its index. A unique name has none.
+        if (sharing > 1)
+        {
+            snprintf (note, sizeof (note), "  (index %u)", (unsigned) (entry.catalogIndex + 1));
+            result.output += note;
+        }
+
+        result.output += "\n";
+    }
+
+    if (recurse)
+    {
+        for (const FileEntry & entry : listing.entries)
+        {
+            std::string  below = directory.empty() ? entry.name : directory + "/" + entry.name;
+
+            if (entry.isDirectory)
+            {
+                hr = AppendDirectoryRows (volume, kind, below, true, result);
+                CHR (hr);
+            }
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunMkdir
+//
+//  Every directory along the path is made where it is not there yet, which is
+//  what cmd's own mkdir does: `mkdir A/B/C` makes all three. A path that is
+//  there in full already is an error rather than a quiet success, since the
+//  caller asked for something to be made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT                        hr       = S_OK;
+    bool                           named    = !options.disk.path.empty();
+    bool                           isProDos = false;
+    bool                           madeAny  = false;
+    size_t                         i        = 0;
+    DiskImageSession::OpenedImage  opened;
+    FilePath                       path;
+    vector<Byte>                   staged;
+
+
+
+    CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<path>", result));
+
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+    CHR (hr);
+
+    isProDos = opened.kind == VolumeKind::ProDos;
+
+    CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+            result.Fail (options.disk.imagePath, options.disk.path,
+                  "cannot hold directories: this volume is DOS 3.3, which has none"));
+
+    path   = FilePath::Parse (options.disk.path);
+    staged = opened.sectors;
+
+    for (i = 1; i <= path.GetDepth(); i++)
+    {
+        ProDosVolume   step (staged);
+        VolumeListing  listing;
+        std::string    prefix;
+        vector<Byte>   next;
+        HRESULT        probe   = S_OK;
+        size_t         j       = 0;
+        bool           there   = false;
+
+        for (j = 0; j < i; j++)
+        {
+            prefix += (prefix.empty() ? "" : "/") + path.GetComponents()[j];
+        }
+
+        probe = step.EnumerateDirectory (FilePath::Parse (prefix), listing);
+        there = SUCCEEDED (probe);
+
+        if (there)
+        {
+            continue;
+        }
+
+        hr = step.CreateDirectory (FilePath::Parse (prefix), next);
+
+        CHRF (hr, result.Fail (options.disk.imagePath, prefix,
+                        ApplyPrefix (DescribeVolumeRefusal (hr))));
+
+        staged  = next;
+        madeAny = true;
+    }
+
+    CBRFEx (madeAny, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS),
+            result.Fail (options.disk.imagePath, options.disk.path, "is already on this volume"));
+
+    hr = m_session.SaveAndCommit (opened, staged, result);
+    CHR (hr);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::RunRmdir
+//
+//  PowerShell's meanings: a directory holding anything needs --recurse, and
+//  --force takes the locked entries with it.
+//
+//  THE LIST COMES BEFORE THE QUESTION. A subtree removal is answered for by
+//  whoever typed it, and nobody can answer for what they cannot see, so every
+//  entry that would go is printed with the locked ones marked and the blocks
+//  totaled, and only then is the question asked. --yes answers it in advance,
+//  and with nobody at the keyboard the removal is turned down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT                        hr          = S_OK;
+    bool                           named       = !options.disk.path.empty();
+    bool                           isProDos    = false;
+    bool                           holdsThings = false;
+    bool                           permitted   = false;
+    bool                           confirmed   = false;
+    DiskImageSession::OpenedImage  opened;
+    DirectoryRemovalPlan           plan;
+    DeleteOutcome                  outcome;
+    FilePath                       path;
+    vector<Byte>                   edited;
+    std::string                    declined;
+    char                           note[128]   = {};
+
+
+
+    CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<path>", result));
+
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+    CHR (hr);
+
+    isProDos = opened.kind == VolumeKind::ProDos;
+
+    CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+            result.Fail (options.disk.imagePath, options.disk.path,
+                  "holds no directories: this volume is DOS 3.3, which has none"));
+
+    path = FilePath::Parse (options.disk.path);
+
+    {
+        ProDosVolume  volume (opened.sectors);
+
+        hr = volume.BuildRemovalPlan (path, plan);
+    }
+
+    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
+                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+
+    holdsThings = plan.entries.size() > 1;
+    permitted   = !holdsThings || options.disk.recurse;
+
+    CBRFEx (permitted, HRESULT_FROM_WIN32 (ERROR_DIR_NOT_EMPTY),
+            result.Fail (options.disk.imagePath, options.disk.path,
+                  ApplyPrefix ("holds entries, which --recurse removes with it")));
+
+    if (holdsThings)
+    {
+        result.output += "Removing " + options.disk.path + ":\n";
+
+        for (const DirectoryRemovalEntry & entry : plan.entries)
+        {
+            result.output += "  " + entry.path + (entry.isLocked ? "   (locked)" : "") + "\n";
+        }
+
+        snprintf (note, sizeof (note), "%u entries, %u blocks\n",
+                  (unsigned) plan.entries.size(), (unsigned) plan.blocksFreed);
+
+        result.output += note;
+    }
+
+    confirmed = options.disk.yes;
+    declined  = "was not removed: nobody was there to answer, and --yes answers in advance";
+
+    if (!confirmed && m_confirm)
+    {
+        confirmed = m_confirm ("Remove " + options.disk.path + " and everything below it?");
+        declined  = "was not removed";
+    }
+
+    CBRFEx (confirmed, HRESULT_FROM_WIN32 (ERROR_CANCELLED),
+            result.Fail (options.disk.imagePath, options.disk.path, ApplyPrefix (declined)));
+
+    {
+        ProDosVolume  volume (opened.sectors);
+
+        hr = volume.RemoveDirectory (path, options.disk.force, edited, outcome);
+    }
+
+    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
+                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+
+    hr = m_session.SaveAndCommit (opened, edited, result);
+    CHR (hr);
+
+    for (const std::string & warning : outcome.warnings)
+    {
+        result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, options.disk.path, warning) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
 
@@ -1621,6 +1890,14 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
         case CommandLineOptions::DiskOptions::Command::Boot:
             RunBoot (options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Mkdir:
+            RunMkdir (options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Rmdir:
+            RunRmdir (options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::BlockRead:

@@ -1911,18 +1911,25 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("prog.a65"), opts.inputFile);
         }
 
-        //  `list` NAMES A DISK AND NOTHING ELSE, so its second operand is
-        //  surplus and not merely unused. `disk list img.dsk PROG` cataloged
-        //  the whole disk, said nothing about PROG, and exited 0 -- which reads
-        //  exactly like a listing filtered to PROG that happened to match
-        //  everything.
-        TEST_METHOD (Disk_ListTakesOnlyTheImage)
+        //  `list` NAMES A DISK AND, SINCE PRODOS DIRECTORIES, ONE DIRECTORY ON
+        //  IT. A third operand is surplus and not merely unused: `disk list
+        //  img.dsk GAMES extra` would catalog GAMES, say nothing about extra,
+        //  and exit 0 -- which reads exactly like a listing filtered to extra
+        //  that happened to match everything.
+        TEST_METHOD (Disk_ListTakesTheImageAndADirectory)
         {
-            ArgVector           args = { "CassoCli", "disk", "list", "my.dsk", "PROG" };
-            CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+            ArgVector           two  = { "CassoCli", "disk", "list", "my.dsk", "GAMES" };
+            CommandLineOptions  ok   = CommandLineParser::Parse (two.Count(), two.Data(), NoProbe());
 
-            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
-            Assert::AreEqual (std::string ("my.dsk"), opts.disk.imagePath,
+            Assert::IsTrue (ok.parseVerdict == CommandLineOptions::ParseVerdict::Clean,
+                            L"the directory to list is the second operand");
+            Assert::AreEqual (std::string ("GAMES"), ok.disk.path);
+
+            ArgVector           three = { "CassoCli", "disk", "list", "my.dsk", "GAMES", "extra" };
+            CommandLineOptions  bad   = CommandLineParser::Parse (three.Count(), three.Data(), NoProbe());
+
+            Assert::IsTrue (bad.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            Assert::AreEqual (std::string ("my.dsk"), bad.disk.imagePath,
                               L"and the image it did name is untouched");
         }
 
@@ -1972,11 +1979,11 @@ namespace CommandLineTests
         //  one the descriptive word does.
         TEST_METHOD (Disk_AnAliasCarriesItsCommandsOperandCount)
         {
-            ArgVector           args = { "CassoCli", "disk", "cat", "my.dsk", "PROG" };
+            ArgVector           args = { "CassoCli", "disk", "cat", "my.dsk", "GAMES", "extra" };
             CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
 
             Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
-                            L"`cat` is `list`, and `list` takes a disk and nothing else");
+                            L"`cat` is `list`, and `list` takes a disk and a directory");
         }
     };
 
@@ -3001,7 +3008,7 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
-            Assert::AreEqual (size_t (21), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (25), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 

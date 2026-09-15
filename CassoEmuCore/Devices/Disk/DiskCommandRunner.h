@@ -78,6 +78,18 @@ public:
     //  everything a runner with one does, minus the announcement.
     void  SetIntentChannel (IIntentChannel * channel) { m_intentChannel = channel; }
 
+    //  How a command asks the person running it to confirm something, and the
+    //  answer it gets.
+    //
+    //  INJECTED, BECAUSE THE RUNNER REACHES THE HOST THROUGH NOTHING ELSE. A
+    //  console read placed here would be unreachable from the tests, which do
+    //  not link the executable. NONE SET MEANS NOBODY IS THERE TO ASK, which is
+    //  every test and every script, and a removal that needs an answer is
+    //  turned down rather than assumed.
+    using ConfirmFn = std::function<bool (const std::string & question)>;
+
+    void  SetConfirmAsker (ConfirmFn asker) { m_confirm = std::move (asker); }
+
     DiskCommandResult  Run (const CommandLineOptions & options);
 
 
@@ -264,6 +276,16 @@ private:
     void  RunPut    (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunDelete (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunBoot   (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunMkdir  (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunRmdir  (const CommandLineOptions & options, DiskCommandResult & result);
+
+    //  One directory's rows, and with `recurse` the rows of everything below
+    //  it, each of those written as a full path.
+    HRESULT  AppendDirectoryRows (const IVolume      & volume,
+                                  VolumeKind           kind,
+                                  const std::string  & directory,
+                                  bool                 recurse,
+                                  DiskCommandResult  & result);
 
     //  The path `get`, `delete` and `boot` act on, and the name used in their
     //  messages: the name as typed, or with --index the entry at that position.
@@ -367,6 +389,9 @@ private:
     //  Caller-owned; null means nothing is announced, which is every test and
     //  every caller that has no emulator to talk to.
     IIntentChannel    * m_intentChannel = nullptr;
+
+    //  Caller-owned as well; none means no terminal.
+    ConfirmFn           m_confirm;
 
     IDiskFileIo       & m_fileIo;
     DiskImageSession    m_session;

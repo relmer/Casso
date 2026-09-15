@@ -113,7 +113,8 @@ struct CommandLineOptions
         //  the table is swept to check every command is described in the help,
         //  and the help request is not one of the things being described.
         enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init,
-                                  SectorRead, SectorWrite, BlockRead, BlockWrite, Help };
+                                  Mkdir, Rmdir, SectorRead, SectorWrite, BlockRead,
+                                  BlockWrite, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -149,6 +150,13 @@ struct CommandLineOptions
         std::string  path;                             // the file ON the disk
         size_t       index          = 0;               // --index: which entry in catalog order, from 1
         bool         hasIndex       = false;
+
+        //  Directory commands. `recurse` reaches everything below the path,
+        //  `force` takes locked entries too, and `yes` answers the question a
+        //  removal would otherwise ask.
+        bool         recurse        = false;           // --recurse, -r, -s
+        bool         force          = false;           // --force
+        bool         yes            = false;           // --yes, -y
         std::string  hostFile;                         // source for put, --out for get
         std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --load
