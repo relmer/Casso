@@ -138,15 +138,15 @@ bool DxuiTextInput::OnLButtonUp (int x, int y)
 
 int DxuiTextInput::CountClick (int x, int y)
 {
-    constexpr int  kHalf  = 2;
-    int64_t        now    = m_clock ? m_clock() : (int64_t) GetTickCount64();
-    UINT           timeMs = (m_doubleClickMs != 0) ? m_doubleClickMs : GetDoubleClickTime();
-    int            rectCx = (m_doubleClickCx != 0) ? m_doubleClickCx : GetSystemMetrics (SM_CXDOUBLECLK);
-    int            rectCy = (m_doubleClickCy != 0) ? m_doubleClickCy : GetSystemMetrics (SM_CYDOUBLECLK);
-    bool     isRepeat = m_clickCount > 0
-                     && now - m_lastClickMs <= (int64_t) timeMs
-                     && std::abs (x - m_lastClickPt.x) <= rectCx / kHalf
-                     && std::abs (y - m_lastClickPt.y) <= rectCy / kHalf;
+    constexpr int  kHalf    = 2;
+    int64_t        now      = m_clock ? m_clock() : (int64_t) GetTickCount64();
+    UINT           timeMs   = (m_doubleClickMs != 0) ? m_doubleClickMs : GetDoubleClickTime();
+    int            rectCx   = (m_doubleClickCx != 0) ? m_doubleClickCx : GetSystemMetrics (SM_CXDOUBLECLK);
+    int            rectCy   = (m_doubleClickCy != 0) ? m_doubleClickCy : GetSystemMetrics (SM_CYDOUBLECLK);
+    bool           isRepeat = m_clickCount > 0
+                           && now - m_lastClickMs <= (int64_t) timeMs
+                           && std::abs (x - m_lastClickPt.x) <= rectCx / kHalf
+                           && std::abs (y - m_lastClickPt.y) <= rectCy / kHalf;
 
 
 
