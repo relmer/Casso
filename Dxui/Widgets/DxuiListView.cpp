@@ -3105,6 +3105,11 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
         ClickRow (row, ev.ctrl, ev.shift);
         m_dragSelecting = m_multiSelect;
     }
+    else if (!ev.ctrl && !ev.shift && !m_selectedRows.empty())
+    {
+        //  A plain click on the empty space below the rows selects nothing.
+        ClearSelection();
+    }
 
     handled = true;
 

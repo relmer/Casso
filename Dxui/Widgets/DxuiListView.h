@@ -309,6 +309,10 @@ public:
     // repaint and claim focus; IsInteracting is true mid-drag so a Win32
     // host knows to hold mouse capture.
     void  SetOnSelectionChanged (std::function<void (int)>  cb)  { m_onSelectionChanged = std::move (cb); }
+
+    //  Selects nothing and reports it, as a click on the list's empty space
+    //  does in Explorer.
+    void  ClearSelection        ()                               { SetSelectedRows ({}, -1); if (m_onSelectionChanged) { m_onSelectionChanged (-1); } }
     void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
     void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_onSortColumn       = std::move (cb); }
 

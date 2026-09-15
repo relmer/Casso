@@ -56,7 +56,11 @@ public:
     static constexpr const wchar_t *  kVariableTextFace = L"Segoe UI Variable Text";
     static constexpr float            kFontDip          = 14.0f;
 
-    DxuiAddressBar() { m_focusable = true; m_input.SetChromeless (true); }
+    //  A typed or pasted path is as long as Windows allows one to be, not the
+    //  text input's short default.
+    static constexpr size_t  kMaxPathChars = 32767;
+
+    DxuiAddressBar() { m_focusable = true; m_input.SetChromeless (true); m_input.SetMaxLength (kMaxPathChars); }
     ~DxuiAddressBar() override = default;
 
     void  SetSegments     (std::vector<std::wstring> labels);
