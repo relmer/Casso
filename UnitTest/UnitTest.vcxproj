@@ -467,6 +467,10 @@
     <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />
     <ClCompile Include="Dxui\DxuiIconImageTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewScrolledHitTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewScrollKeepTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />
     <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />

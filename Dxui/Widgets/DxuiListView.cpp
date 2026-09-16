@@ -3599,9 +3599,14 @@ void DxuiListView::OnFocusChanged (bool focused)
         m_kbColFocus = 0;
         ClearColumnFocusMarkers();
 
+        //  THE ROW IN VIEW, NOT ROW ZERO. Seeding the first row scrolls a list
+        //  the user had scrolled elsewhere, and a host that gives the list
+        //  focus on a press then hit-tests that press against a list which has
+        //  just jumped home: the click lands on whatever fell under the
+        //  pointer after the jump.
         if (GetSelectedRow() < 0 && GetRowCount() > 0)
         {
-            SetSelectedRow (0);
+            SetSelectedRow (m_topRow);
         }
     }
 }
