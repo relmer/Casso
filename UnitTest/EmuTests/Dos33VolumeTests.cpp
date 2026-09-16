@@ -1573,6 +1573,102 @@ public:
         Assert::AreEqual (before.freeUnits - 2, after.freeUnits);
     }
 
+    //  MATCHING IGNORES CASE, SO TWO SPELLINGS ARE ONE NAME. The catalog is
+    //  upper case and DOS compares without regard to case, so PROG and prog are
+    //  the same name to every lookup -- which makes them a shared name, not two
+    //  names. The disks this is measured against carry byte-identical
+    //  duplicates, so only a planted pair exercises the comparison itself.
+    TEST_METHOD (FindEntry_TwoSpellingsOfOneName_CountAsShared)
+    {
+        vector<Byte>   vol      = MakeFormattedVolume();
+        vector<Byte>   result;
+        FilePayload    payload  = MakeBinaryPayload (300, 0x0300);
+        FilePayload    read;
+        VolumeListing  listing;
+        size_t         secondAt = 0;
+
+        {
+            Dos33Volume  volume (vol);
+
+            AssertSucceeded (volume.Write (FilePath::FromName ("PROG"), payload, result));
+        }
+
+        //  A second record of the same name in the other case, which DOS itself
+        //  would never write and a catalog editor would.
+        secondAt = EntryOffset (kCatalogFirstSector, 1);
+
+        result[secondAt + 0x00] = 0x7F;
+        result[secondAt + 0x01] = 0x7F;
+        result[secondAt + 0x02] = Dos33Volume::kTypeText;
+
+        WriteEntryName (result, secondAt, "prog");
+
+        {
+            Dos33Volume  volume (result);
+
+            AssertSucceeded (volume.Enumerate (listing));
+
+            Assert::AreEqual (size_t (2), listing.entries.size());
+            Assert::AreEqual (string ("PROG"), listing.entries[0].name);
+            Assert::AreEqual (string ("prog"), listing.entries[1].name,
+                L"the catalog holds both spellings, and a listing shows them as written");
+
+            //  Either spelling names both entries, so neither alone selects one.
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DUP_NAME),
+                              volume.Read (FilePath::FromName ("PROG"), read));
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DUP_NAME),
+                              volume.Read (FilePath::FromName ("prog"), read));
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DUP_NAME),
+                              volume.Read (FilePath::FromName ("PrOg"), read));
+        }
+    }
+
+
+    //  The index selects the entry, and the name beside it is checked without
+    //  regard to case, so a caller who types the other spelling still reaches
+    //  the entry the index names.
+    TEST_METHOD (FindEntry_AnIndexWithTheNameInAnotherCase_StillMatches)
+    {
+        vector<Byte>   vol      = MakeFormattedVolume();
+        vector<Byte>   result;
+        vector<Byte>   renamed;
+        FilePayload    payload  = MakeBinaryPayload (300, 0x0300);
+        VolumeListing  listing;
+        size_t         secondAt = 0;
+
+        {
+            Dos33Volume  volume (vol);
+
+            AssertSucceeded (volume.Write (FilePath::FromName ("PROG"), payload, result));
+        }
+
+        secondAt = EntryOffset (kCatalogFirstSector, 1);
+
+        result[secondAt + 0x00] = 0x7F;
+        result[secondAt + 0x01] = 0x7F;
+        result[secondAt + 0x02] = Dos33Volume::kTypeText;
+
+        WriteEntryName (result, secondAt, "prog");
+
+        {
+            Dos33Volume  volume (result);
+
+            //  Entry 1 is the planted `prog`; naming it `PROG` reaches it.
+            AssertSucceeded (volume.Rename (FilePath::FromName ("PROG").WithLeafIndex (1),
+                                            "SECOND", renamed));
+        }
+
+        {
+            Dos33Volume  volume (renamed);
+
+            AssertSucceeded (volume.Enumerate (listing));
+
+            Assert::AreEqual (string ("PROG"),   listing.entries[0].name, L"the first entry is untouched");
+            Assert::AreEqual (string ("SECOND"), listing.entries[1].name, L"and the index named the second");
+        }
+    }
+
+
     TEST_METHOD (CreateDirectory_IsNotSomethingThisFilesystemHas)
     {
         vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
