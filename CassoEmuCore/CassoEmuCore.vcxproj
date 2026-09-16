@@ -474,6 +474,7 @@
     <ClInclude Include="Debugger\ReplyJson.h" />
     <ClInclude Include="Debugger\IDebugNotificationSink.h" />
     <ClInclude Include="Debugger\IDebugCommandHandler.h" />
+    <ClInclude Include="Debugger\IInstructionObserver.h" />
     <ClInclude Include="Shell\HeadlessMachineFactory.h" />
     <ClInclude Include="Shell\IRomSource.h" />
     <ClInclude Include="Debugger\Reply.h" />

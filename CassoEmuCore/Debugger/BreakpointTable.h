@@ -20,14 +20,16 @@ class IDebugExpressionContext;
 
 struct Breakpoint
 {
-    int             id       = 0;
-    BreakpointKind  kind     = BreakpointKind::Address;
-    Word            first    = 0;
-    Word            last     = 0;
-    Byte            opcode   = 0;
+    int             id        = 0;
+    BreakpointKind  kind      = BreakpointKind::Address;
+    Word            first     = 0;
+    Word            last      = 0;
+    Byte            opcode    = 0;
     Expression      condition;
-    bool            enabled  = true;
-    uint32_t        hits     = 0;
+    bool            enabled   = true;
+    bool            temporary = false;            // cleared once it fires
+    bool            stops     = true;             // false: counts hits only
+    uint32_t        hits      = 0;
 };
 
 
@@ -62,6 +64,12 @@ public:
     bool  TryClear         (int id);
     void  ClearAll         ();
     bool  TrySetEnabled    (int id, bool enabled);
+    bool  TrySetFlags      (int id, bool temporary, bool stops);
+
+    //  Inserts an entry under the id it carries, for BPEDIT, which keeps a
+    //  breakpoint's id across its new definition. Fails if the id is taken.
+    bool  TryAdopt         (const Breakpoint & entry);
+    bool  TryFind          (int id, Breakpoint & entry) const;
 
     const std::vector<Breakpoint> &  GetAll () const { return m_entries; }
 
@@ -71,7 +79,8 @@ public:
     //  True when an enabled entry stops before the instruction at pc, whose
     //  opcode is given. hitId receives the entry's id, and its hit count is
     //  incremented. Address entries are checked first, then opcode and BRK
-    //  entries, then register conditions.
+    //  entries, then register conditions. An entry that does not stop only
+    //  counts the hit.
     bool  TryMatchBeforeInstruction (Word                            pc,
                                      Byte                            opcode,
                                      const IDebugExpressionContext & context,

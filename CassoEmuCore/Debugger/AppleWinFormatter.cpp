@@ -182,8 +182,15 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<SoftSwitchData>     (&data)) { FormatSoftSwitches   (*v, lines); }
     else if (auto * v = std::get_if<SymbolData>         (&data)) { FormatSymbols        (*v, lines); }
     else if (auto * v = std::get_if<FileIoData>         (&data)) { FormatFileIo         (*v, lines); }
+    else if (auto * v = std::get_if<CompareData>        (&data)) { FormatCompare        (*v, lines); }
+    else if (auto * v = std::get_if<DataBlockListData>  (&data)) { FormatDataBlocks     (*v, lines); }
+    else if (auto * v = std::get_if<ProfileData>        (&data)) { FormatProfile        (*v, lines); }
+    else if (auto * v = std::get_if<CalcData>           (&data)) { FormatCalc           (*v, lines); }
+    else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }
     else if (auto * v = std::get_if<ModeData>           (&data)) { lines.push_back (v->mode == CommandMode::Monitor ? "Mode: MONITOR" : "Mode: APPLEWIN"); }
+    else if (auto * v = std::get_if<VideoInfoData>      (&data)) { lines.push_back (std::format ("Scanline {}, cycle {}", v->scanline, v->cycleInLine)); }
+    else if (auto * v = std::get_if<BranchRecordData>   (&data)) { lines.push_back (v->address.has_value() ? std::format ("Last branch at ${:04X}", *v->address) : std::string ("No branch recorded.")); }
 }
 
 
@@ -505,25 +512,175 @@ void AppleWinFormatter::FormatFileIo (const FileIoData & data, Lines & lines)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinFormatter::FormatCompare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatCompare (const CompareData & data, Lines & lines)
+{
+    lines.push_back (std::format ("Compared {} bytes, {} differ.", data.compared, data.differences.size()));
+
+    for (const CompareDifference & difference : data.differences)
+    {
+        lines.push_back (std::format ("{:04X}: {:02X}  {:04X}: {:02X}", difference.address, difference.value, difference.other, difference.otherValue));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatDataBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatDataBlocks (const DataBlockListData & data, Lines & lines)
+{
+    static constexpr const char * kKinds[] = { "bytes", "words", "address", "text", "float" };
+
+
+
+    if (data.blocks.empty())
+    {
+        lines.push_back ("No data blocks.");
+        return;
+    }
+
+    for (const DataBlock & block : data.blocks)
+    {
+        lines.push_back (std::format ("{:<12} ${:04X}-${:04X}  {}", block.name, block.first, block.last, kKinds[(int) block.kind]));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatProfile (const ProfileData & data, Lines & lines)
+{
+    lines.push_back (std::format ("Instructions: {}, cycles: {}", data.instructions, data.cycles));
+
+    if (data.instructions == 0)
+    {
+        return;
+    }
+
+    FormatProfileTable ("Opcode", data.instructions, data.opcodes, lines);
+    FormatProfileTable ("Mode",   data.instructions, data.modes,   lines);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatProfileTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatProfileTable (
+    const char                       * heading,
+    uint64_t                           total,
+    const std::vector<ProfileEntry>  & entries,
+    Lines                            & lines)
+{
+    static constexpr double  kPercent = 100.0;
+
+
+
+    lines.push_back (std::format ("{:<8} {:>10} {:>7}", heading, "Count", "Percent"));
+
+    for (const ProfileEntry & entry : entries)
+    {
+        lines.push_back (std::format ("{:<8} {:>10} {:>6.1f}%", entry.name, entry.count, (double) entry.count * kPercent / (double) total));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatCalc
+//
+//  Hex, binary of the low byte, decimal and the character, with a note where
+//  the byte has its high bit set or is a control character.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatCalc (const CalcData & data, Lines & lines)
+{
+    static constexpr Byte  kLowBits    = 0x7F;
+    static constexpr Byte  kHighBit    = 0x80;
+    static constexpr Byte  kFirstPrint = 0x20;
+    static constexpr Byte  kDelete     = 0x7F;
+    Byte                   low         = (Byte) data.value;
+    Byte                   ch          = (Byte) (low & kLowBits);
+    bool                   isHigh      = (low & kHighBit) != 0;
+    bool                   isControl   = ch < kFirstPrint || ch == kDelete;
+    std::string            text;
+
+
+
+    text = std::format ("${:04X}  0z{:08b}  {:5}  '{}'", data.value, low, data.value, isControl ? ' ' : (char) ch);
+
+    if (isHigh && isControl)      { text += " (High Ctrl)"; }
+    else if (isHigh)              { text += " (High)"; }
+    else if (isControl)           { text += " (Ctrl)"; }
+
+    lines.push_back (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinFormatter::DescribeBreakpoint
+//
+//  The kind and place, then any flag that is off its default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakpoint)
 {
     static constexpr const char * kAccess[] = { "read", "write", "read or write" };
+    std::string                   text;
 
 
 
     switch (breakpoint.kind)
     {
-    case BreakpointKind::Opcode:    return std::format ("on opcode ${:02X}", breakpoint.opcode);
-    case BreakpointKind::Register:  return "when " + breakpoint.condition;
-    case BreakpointKind::Memory:    return std::format ("on {} of {}{}", kAccess[(int) breakpoint.access], FormatAddress (breakpoint),
-                                                        breakpoint.mode == WatchMode::Before ? ", before the access" : "");
-    case BreakpointKind::Io:        return "on I/O at " + FormatAddress (breakpoint);
-    case BreakpointKind::Brk:       return "on BRK";
-    case BreakpointKind::Interrupt: return "on interrupt";
-    default:                        return "at " + FormatAddress (breakpoint);
+    case BreakpointKind::Opcode:    text = std::format ("on opcode ${:02X}", breakpoint.opcode);                                  break;
+    case BreakpointKind::Register:  text = "when " + breakpoint.condition;                                                       break;
+    case BreakpointKind::Memory:    text = std::format ("on {} of {}{}", kAccess[(int) breakpoint.access], FormatAddress (breakpoint),
+                                                        breakpoint.mode == WatchMode::Before ? ", before the access" : "");     break;
+    case BreakpointKind::Io:        text = "on I/O at " + FormatAddress (breakpoint);                                             break;
+    case BreakpointKind::Brk:       text = "on BRK";                                                                              break;
+    case BreakpointKind::Interrupt: text = "on interrupt";                                                                        break;
+    default:                        text = "at " + FormatAddress (breakpoint);                                                    break;
     }
+
+    if (breakpoint.temporary)
+    {
+        text += ", temporary";
+    }
+
+    if (!breakpoint.stops)
+    {
+        text += ", counts only";
+    }
+
+    return text;
 }

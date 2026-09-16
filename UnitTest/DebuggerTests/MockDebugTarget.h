@@ -32,6 +32,8 @@ public:
     DebugCpuKind             cpuKind          = DebugCpuKind::M65C02;
     DebugMachineInfo         machineInfo      = { "Apple //e Enhanced", "", {} };
     VideoPosition            videoPosition;
+    uint64_t                 cycleCount       = 0;
+    bool                     keyPending       = false;
 
     IRunObserver           * observer         = nullptr;
     DebugHook              * stopConditions   = nullptr;
@@ -93,10 +95,12 @@ public:
     void    SetWatchedPages  (const WatchedPages & pages) override   { watchedPages = pages; ++maskChanges; }
 
     VideoPosition     GetVideoPosition  () const override    { return videoPosition; }
+    uint64_t          GetCycleCount     () const override    { return cycleCount; }
     DebugCpuKind      GetCpuKind        () const override    { return cpuKind; }
     const Microcode * GetInstructionSet () const override    { return instructionSet; }
     DebugMachineInfo  GetMachineInfo    () const override    { return machineInfo; }
-    void              InjectKey         (Byte key) override  { injectedKeys.push_back (key); }
+    void              InjectKey         (Byte key) override  { injectedKeys.push_back (key); keyPending = true; }
+    bool              IsKeyPending      () const override    { return keyPending; }
 
     void Stop (const StopEvent & stop)
     {

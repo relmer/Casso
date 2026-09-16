@@ -106,6 +106,11 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     {
         m_lastOpcode = PeekOpcode (pc);
         ++m_instructions;
+
+        if (m_conditions != nullptr)
+        {
+            m_conditions->OnInstruction (pc);
+        }
     }
 
     return m_stopped;

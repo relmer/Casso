@@ -230,5 +230,56 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Cycles: 1234"),               Render (CyclesData { 1234 })[0]);
             Assert::AreEqual (std::string ("Mode: MONITOR"),              Render (ModeData { CommandMode::Monitor })[0]);
         }
+
+
+
+        TEST_METHOD (HandlerKinds)
+        {
+            MessageData        message;
+            CompareData        compare;
+            DataBlockListData  blocks;
+            ProfileData        profile;
+            BreakpointListData flagged;
+            BreakpointInfo     entry;
+
+
+
+            message.lines        = { "one", "two" };
+            compare.compared     = 16;
+            compare.differences  = { { 0x0301, 0x41, 0x0401, 0x42 } };
+            blocks.blocks        = { { "B_0300", 0x0300, 0x030F, DataBlockKind::Bytes }, { "T_0800", 0x0800, 0x0803, DataBlockKind::Text } };
+            profile.instructions = 10;
+            profile.cycles       = 30;
+            profile.opcodes      = { { "LDA", 6 }, { "STA", 4 } };
+            profile.modes        = { { "imm", 10 } };
+            entry.id             = 3;
+            entry.address        = 0x0300;
+            entry.last           = 0x0300;
+            entry.temporary      = true;
+            entry.stops          = false;
+            flagged.breakpoints  = { entry };
+
+            Assert::AreEqual ((size_t) 2,                                       Render (message).size());
+            Assert::AreEqual (std::string ("two"),                              Render (message)[1]);
+            Assert::AreEqual (std::string ("Compared 16 bytes, 1 differ."),     Render (compare)[0]);
+            Assert::AreEqual (std::string ("0301: 41  0401: 42"),               Render (compare)[1]);
+            Assert::AreEqual (std::string ("B_0300       $0300-$030F  bytes"),  Render (blocks)[0]);
+            Assert::AreEqual (std::string ("T_0800       $0800-$0803  text"),   Render (blocks)[1]);
+            Assert::AreEqual (std::string ("No data blocks."),                  Render (DataBlockListData())[0]);
+            Assert::AreEqual (std::string ("Instructions: 10, cycles: 30"),     Render (profile)[0]);
+            Assert::AreEqual (std::string ("Opcode        Count Percent"),      Render (profile)[1]);
+            Assert::AreEqual (std::string ("LDA               6   60.0%"),      Render (profile)[2]);
+            Assert::AreEqual (std::string ("Mode          Count Percent"),      Render (profile)[4]);
+            Assert::AreEqual (std::string ("imm              10  100.0%"),      Render (profile)[5]);
+            Assert::AreEqual ((size_t) 1,                                       Render (ProfileData()).size());
+            Assert::AreEqual (std::string ("$0041  0z01000001     65  'A'"),             Render (CalcData { 0x41 })[0]);
+            Assert::AreEqual (std::string ("$000D  0z00001101     13  ' ' (Ctrl)"),      Render (CalcData { 0x0D })[0]);
+            Assert::AreEqual (std::string ("$00C1  0z11000001    193  'A' (High)"),      Render (CalcData { 0xC1 })[0]);
+            Assert::AreEqual (std::string ("$008D  0z10001101    141  ' ' (High Ctrl)"), Render (CalcData { 0x8D })[0]);
+            Assert::AreEqual (std::string ("Scanline 42, cycle 17"),            Render (VideoInfoData { 42, 17 })[0]);
+            Assert::AreEqual (std::string ("Last branch at $0303"),             Render (BranchRecordData { (Word) 0x0303 })[0]);
+            Assert::AreEqual (std::string ("No branch recorded."),              Render (BranchRecordData())[0]);
+            Assert::AreEqual (std::string ("#3 enabled  at $0300, temporary, counts only, hits 0"), Render (flagged)[0]);
+        }
     };
 }

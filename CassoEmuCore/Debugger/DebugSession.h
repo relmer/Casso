@@ -10,6 +10,9 @@
 
 class IDebugCommandHandler;
 class IDebugNotificationSink;
+class IFileSystem;
+class IInstructionObserver;
+class OpcodeTable;
 
 
 
@@ -61,8 +64,14 @@ public:
     Reply  Execute               (const DebugCommand & command);
     void   AddHandler            (IDebugCommandHandler * handler);
 
+    // One line in the session's mode, parsed and executed; the reply echoes
+    // the line. FormatReply renders a reply's text in the session's mode.
+    Reply  ExecuteLine           (const std::string & line);
+    void   FormatReply           (Reply & reply) const;
+
     // Called by command handlers after they change a table.
     void   OnStopConditionsChanged ();
+    void   ClearAllBreakpoints   ();
 
     // Machine events the host reports.
     void   OnMachineChanged      (const std::string & machineName);
@@ -79,9 +88,29 @@ public:
     WatchTable            & GetZeroPage    ()       { return m_zeroPage; }
     WatchTable            & GetBookmarks   ()       { return m_bookmarks; }
 
+    // Host files, through the injected file system; a relative path is taken
+    // from the current directory. Absent a file system, file commands fail.
+    void                  SetFileSystem        (IFileSystem * fileSystem)         { m_fileSystem = fileSystem; }
+    IFileSystem         * GetFileSystem        () const                           { return m_fileSystem; }
+    const std::wstring  & GetCurrentDirectory  () const                           { return m_currentDirectory; }
+    void                  SetCurrentDirectory  (const std::wstring & directory)   { m_currentDirectory = directory; }
+    std::wstring          ResolvePath          (const std::string & path) const;
+
+    // The last S or SH results, reachable as @1, @2 and so on.
+    const std::vector<Word> & GetSearchResults () const                          { return m_searchResults; }
+    void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); }
+
+    // Line-assembly mode: each following line is assembled at the address,
+    // and a blank line ends it.
+    void   BeginAssembly         (Word address);
+    bool   IsAssembling          () const { return m_assemblyAddress.has_value(); }
+
+    void   SetInstructionObserver (IInstructionObserver * observer) { m_instructionObserver = observer; }
+
     // DebugHook: the stop conditions consulted before each instruction.
     bool   ShouldStopBefore      (Word pc) override;
     bool   HasPendingStop        () const override;
+    void   OnInstruction         (Word pc) override;
 
     // IRunObserver
     void   OnStopped             (const StopEvent & stop) override;
@@ -94,15 +123,22 @@ public:
 private:
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
+    void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
     void   UpdateHookInstalled   ();
     bool   HasStopConditions     () const;
+    bool   TryMatchBeforeWatchpoint (Word pc);
+    void   ClearTemporary        (const StopEvent & stop);
 
-    static bool   TryGetRunKind  (DebugVerb verb, RunKind & kind);
-    static void   SetError       (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
+    static bool         TryGetRunKind  (DebugVerb verb, RunKind & kind);
+    static void         SetError       (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
+    static std::string  Trim           (const std::string & text);
 
     IDebugTarget                        & m_target;
     IDebugNotificationSink              & m_sink;
     std::vector<IDebugCommandHandler *>   m_handlers;
+    IInstructionObserver                * m_instructionObserver = nullptr;
+    IFileSystem                         * m_fileSystem          = nullptr;
+    std::wstring                          m_currentDirectory;
 
     int                                   m_nextId        = 0;
     BreakpointTable                       m_breakpoints   { m_nextId };
@@ -110,6 +146,7 @@ private:
     WatchTable                            m_watches;
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
+    std::vector<Word>                     m_searchResults;
 
     RunState                              m_state         = RunState::Paused;
     CommandMode                           m_mode          = CommandMode::AppleWin;
@@ -118,5 +155,6 @@ private:
     std::optional<int>                    m_lastBreakpointId;
     std::optional<WatchHit>               m_beforeHit;
 
-    bool   TryMatchBeforeWatchpoint (Word pc);
+    std::optional<Word>                   m_assemblyAddress;
+    std::unique_ptr<OpcodeTable>          m_assemblyOpcodes;
 };

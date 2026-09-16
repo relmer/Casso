@@ -155,6 +155,89 @@ bool WatchpointTable::TrySetEnabled (int id, bool enabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchpointTable::TrySetFlags
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::TrySetFlags (int id, bool temporary, bool stops)
+{
+    bool  isFound = false;
+
+
+
+    for (Watchpoint & entry : m_entries)
+    {
+        if (entry.id == id)
+        {
+            entry.temporary = temporary;
+            entry.stops     = stops;
+            isFound         = true;
+        }
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::TryAdopt
+//
+//  Inserts an entry under the id it carries, for BPEDIT. Fails if the id is
+//  taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::TryAdopt (const Watchpoint & entry)
+{
+    Watchpoint  existing;
+
+
+
+    if (TryFind (entry.id, existing))
+    {
+        return false;
+    }
+
+    m_entries.push_back (entry);
+    std::sort (m_entries.begin(), m_entries.end(), [] (const Watchpoint & a, const Watchpoint & b) { return a.id < b.id; });
+    Publish();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::TryFind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::TryFind (int id, Watchpoint & entry) const
+{
+    for (const Watchpoint & candidate : m_entries)
+    {
+        if (candidate.id == id)
+        {
+            entry = candidate;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchpointTable::HasEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,6 +293,11 @@ bool WatchpointTable::TryMatchBefore (Word pc, const AccessPrediction & predicti
             }
 
             ++entry.hits;
+
+            if (!entry.stops)
+            {
+                continue;
+            }
 
             hit.id       = entry.id;
             hit.address  = touch.address;
@@ -340,6 +428,11 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
         }
 
         ++entry.hits;
+
+        if (!entry.stops)
+        {
+            return;
+        }
 
         if (!m_pendingHit.has_value() || ShouldReplace (address, access))
         {

@@ -224,6 +224,86 @@ bool BreakpointTable::TrySetEnabled (int id, bool enabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::TrySetFlags
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TrySetFlags (int id, bool temporary, bool stops)
+{
+    bool  isFound = false;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        if (entry.id == id)
+        {
+            entry.temporary = temporary;
+            entry.stops     = stops;
+            isFound         = true;
+        }
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryAdopt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryAdopt (const Breakpoint & entry)
+{
+    Breakpoint  existing;
+
+
+
+    if (TryFind (entry.id, existing))
+    {
+        return false;
+    }
+
+    m_entries.push_back (entry);
+    std::sort (m_entries.begin(), m_entries.end(), [] (const Breakpoint & a, const Breakpoint & b) { return a.id < b.id; });
+    RebuildAddressBits();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryFind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryFind (int id, Breakpoint & entry) const
+{
+    for (const Breakpoint & candidate : m_entries)
+    {
+        if (candidate.id == id)
+        {
+            entry = candidate;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::HasEnabledStopCondition
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,6 +352,12 @@ bool BreakpointTable::TryMatchBeforeInstruction (
             if (TryMatchEntry (entry, pc, opcode, context))
             {
                 ++entry.hits;
+
+                if (!entry.stops)
+                {
+                    continue;
+                }
+
                 hitId = entry.id;
                 return true;
             }

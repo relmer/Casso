@@ -37,6 +37,7 @@ public:
     static const char * GetSymbolTableName  (SymbolTableId table);
     static const char * GetModeName         (CommandMode mode);
     static const char * GetWatchModeName    (WatchMode mode);
+    static const char * GetDataBlockKindName (DataBlockKind kind);
 
 private:
     using Members = std::vector<std::pair<std::string, JsonValue>>;
@@ -53,5 +54,8 @@ private:
     static JsonValue    MakeStack           (const StackData & data);
     static JsonValue    MakeSoftSwitches    (const SoftSwitchData & data);
     static JsonValue    MakeSymbols         (const SymbolData & data);
+    static JsonValue    MakeCompare         (const CompareData & data);
+    static JsonValue    MakeDataBlocks      (const DataBlockListData & data);
+    static JsonValue    MakeProfile         (const ProfileData & data);
     static JsonValue    MakeTextArray       (const std::vector<std::string> & lines);
 };

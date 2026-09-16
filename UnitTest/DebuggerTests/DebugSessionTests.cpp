@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugSession.h"
 #include "Debugger/IDebugNotificationSink.h"
+#include "Debugger/IInstructionObserver.h"
 #include "MockDebugTarget.h"
 #include "TestHelpers.h"
 
@@ -430,6 +431,210 @@ namespace DebuggerTests
             Assert::IsTrue   (session.TryPeek (0x0300, byte));
             Assert::AreEqual ((Byte) 0xA9, byte);
             Assert::IsFalse  (session.TryGetRegister ("Q", value));
+        }
+
+
+
+        TEST_METHOD (ExecuteLine_ParsesInSessionMode_EchoesLine)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            Reply            reply;
+
+
+
+            reply = session.ExecuteLine ("  g  ");
+            Assert::AreEqual ((int) CommandStatus::Ok,    (int) reply.status);
+            Assert::AreEqual (std::string ("  g  "),      reply.command);
+            Assert::AreEqual ((int) RunState::DebugRun,   (int) session.GetRunState());
+            target.Stop (MakeStop (StopReason::Pause, 0));
+
+            reply = session.ExecuteLine ("frob");
+            Assert::AreEqual ((int) CommandStatus::Unknown, (int) reply.status);
+            Assert::AreEqual (std::string ("unknown command"), reply.error.label);
+
+            reply = session.ExecuteLine ("bp");
+            Assert::AreEqual ((int) CommandStatus::Error,   (int) reply.status);
+            Assert::AreEqual (std::string ("invalid arguments"), reply.error.label);
+
+            reply = session.ExecuteLine ("hgr");
+            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status);
+
+            reply = session.ExecuteLine ("");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+
+            session.ExecuteLine ("mode monitor");
+            reply = session.ExecuteLine ("300L");
+            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status);
+            Assert::AreEqual (std::string ("Monitor mode is not available yet."), reply.error.detail);
+
+            reply = session.ExecuteLine ("/mode applewin");
+            Assert::AreEqual ((int) CommandStatus::Ok,        (int) reply.status);
+            Assert::AreEqual ((int) CommandMode::AppleWin,    (int) session.GetMode());
+        }
+
+
+
+        TEST_METHOD (ResolvePath_RelativeFromCurrentDirectory_QuotesDropped)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+
+
+
+            session.SetCurrentDirectory (L"C:\\Work");
+
+            Assert::AreEqual (std::wstring (L"C:\\Work\\out.bin"), session.ResolvePath ("out.bin"));
+            Assert::AreEqual (std::wstring (L"C:\\Work\\Test.txt"), session.ResolvePath ("\"Test.txt\""));
+            Assert::AreEqual (std::wstring (L"D:\\x\\y.bin"),       session.ResolvePath ("D:\\x\\y.bin"));
+            Assert::AreEqual (std::wstring (L"\\\\server\\s\\f"),   session.ResolvePath ("\\\\server\\s\\f"));
+            Assert::IsTrue   (session.ResolvePath ("").empty());
+        }
+
+
+
+        TEST_METHOD (SearchResults_ResolveAsAtN)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            Word             address = 0;
+
+
+
+            session.SetSearchResults ({ 0x0300, 0x0410 });
+
+            Assert::IsTrue   (session.TryResolveSymbol ("@1", address));
+            Assert::AreEqual ((Word) 0x0300, address);
+            Assert::IsTrue   (session.TryResolveSymbol ("@2", address));
+            Assert::AreEqual ((Word) 0x0410, address);
+            Assert::IsFalse  (session.TryResolveSymbol ("@3", address));
+            Assert::IsFalse  (session.TryResolveSymbol ("@0", address));
+            Assert::IsFalse  (session.TryResolveSymbol ("@",  address));
+            Assert::IsFalse  (session.TryResolveSymbol ("HOME", address));
+        }
+
+
+
+        TEST_METHOD (Assembly_LinesAssembleAtAdvancingAddress_BlankEnds)
+        {
+            TestCpu          cpu;
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            Reply            reply;
+
+
+
+            cpu.InitForTest();
+            target.instructionSet = cpu.GetInstructionSet();
+
+            session.BeginAssembly (0x0300);
+            Assert::IsTrue (session.IsAssembling());
+
+            reply = session.ExecuteLine ("LDA #$41");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::IsTrue   (std::holds_alternative<DisassemblyData> (reply.data));
+            Assert::AreEqual ((Byte) 0xA9, target.memory[0x0300]);
+            Assert::AreEqual ((Byte) 0x41, target.memory[0x0301]);
+
+            reply = session.ExecuteLine ("FROB");
+            Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
+            Assert::IsTrue   (session.IsAssembling());
+
+            reply = session.ExecuteLine ("RTS");
+            Assert::AreEqual ((Byte) 0x60, target.memory[0x0302]);
+
+            reply = session.ExecuteLine ("");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::IsFalse  (session.IsAssembling());
+
+            reply = session.ExecuteLine ("RTS");
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, L"RTS is a command again");
+            Assert::AreEqual ((int) RunState::Stepping, (int) session.GetRunState());
+        }
+
+
+
+        TEST_METHOD (TemporaryBreakpoint_ClearedByItsStop_CountingOneNeverStops)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            int              temporary = session.GetBreakpoints().AddAddress (0x0300, 0x0300);
+            int              counting  = session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            Breakpoint       entry;
+
+
+
+            session.GetBreakpoints().TrySetFlags (temporary, true, true);
+            session.GetBreakpoints().TrySetFlags (counting, false, false);
+            session.OnStopConditionsChanged();
+
+            Assert::IsFalse  (session.ShouldStopBefore (0x0303), L"a counting breakpoint does not stop");
+            Assert::IsTrue   (session.GetBreakpoints().TryFind (counting, entry));
+            Assert::AreEqual ((uint32_t) 1, entry.hits);
+
+            Assert::IsTrue   (session.ShouldStopBefore (0x0300));
+            target.Stop (MakeStop (StopReason::Breakpoint, 0x0300));
+
+            Assert::AreEqual (temporary, sink.stops.at (0).breakpointId.value_or (-1));
+            Assert::IsFalse  (session.GetBreakpoints().TryFind (temporary, entry), L"the temporary entry is gone");
+            Assert::IsTrue   (session.GetBreakpoints().TryFind (counting, entry));
+        }
+
+
+
+        TEST_METHOD (ClearAllBreakpoints_RestartsNumbering)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+
+
+
+            session.GetBreakpoints().AddAddress (0x0300, 0x0300);
+            session.GetWatchpoints().Add (WatchAccess::Read, 0xC000, 0xC000);
+            session.ClearAllBreakpoints();
+
+            Assert::AreEqual (0, session.GetBreakpoints().AddAddress (0x0300, 0x0300));
+            Assert::AreEqual (1, session.GetWatchpoints().Add (WatchAccess::Read, 0xC000, 0xC000));
+        }
+
+
+
+        TEST_METHOD (InstructionObserver_HearsOnlyDebuggerRuns)
+        {
+            class Counting : public IInstructionObserver
+            {
+            public:
+                std::vector<Word> pcs;
+
+                void OnInstruction (DebugSession &, Word pc) override { pcs.push_back (pc); }
+            };
+
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::FreeRunning);
+            Counting         observer;
+
+
+
+            session.SetInstructionObserver (&observer);
+            session.GetBreakpoints().AddAddress (0x0400, 0x0400);
+            session.OnStopConditionsChanged();
+
+            session.OnInstruction (0x0300);
+            Assert::IsTrue (observer.pcs.empty(), L"a free-running machine is not observed");
+
+            session.Execute (MakeCommand (DebugVerb::Go, "G"));
+            session.OnInstruction (0x0300);
+            session.OnInstruction (0x0301);
+
+            Assert::AreEqual ((size_t) 2,    observer.pcs.size());
+            Assert::AreEqual ((Word) 0x0301, observer.pcs[1]);
         }
     };
 }

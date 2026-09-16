@@ -47,10 +47,12 @@ public:
     void                SetWatchedPages   (const WatchedPages & pages) override;
 
     VideoPosition       GetVideoPosition  () const override;
+    uint64_t            GetCycleCount     () const override;
     DebugCpuKind        GetCpuKind        () const override;
     const Microcode   * GetInstructionSet () const override;
     DebugMachineInfo    GetMachineInfo    () const override;
     void                InjectKey         (Byte key) override;
+    bool                IsKeyPending      () const override;
 
 private:
     MachineHost       & m_host;

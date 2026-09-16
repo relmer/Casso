@@ -82,8 +82,10 @@ enum class SymbolTableId
     ProDos,
 };
 
+// Lines with no other structure: ECHO, PRINT, a script's collected output.
 struct MessageData
 {
+    std::vector<std::string>  lines;
 };
 
 struct RegistersData
@@ -125,6 +127,8 @@ struct BreakpointInfo
     WatchAccess     access    = WatchAccess::ReadWrite;
     WatchMode       mode      = WatchMode::After;
     bool            enabled   = true;
+    bool            temporary = false;             // cleared when it fires
+    bool            stops     = true;              // false: counts hits only
     uint32_t        hits      = 0;
 };
 
@@ -210,6 +214,75 @@ struct FileIoData
     bool         mismatch    = false;
 };
 
+// MC: each byte that differs between the source range and the destination.
+struct CompareDifference
+{
+    Word  address    = 0;
+    Byte  value      = 0;
+    Word  other      = 0;
+    Byte  otherValue = 0;
+};
+
+struct CompareData
+{
+    uint32_t                        compared = 0;
+    std::vector<CompareDifference>  differences;
+};
+
+enum class DataBlockKind
+{
+    Bytes,
+    Words,
+    Address,
+    Text,
+    Float,
+};
+
+// A range the disassembler shows as data rather than code.
+struct DataBlock
+{
+    std::string    name;
+    Word           first = 0;
+    Word           last  = 0;
+    DataBlockKind  kind  = DataBlockKind::Bytes;
+};
+
+struct DataBlockListData
+{
+    std::vector<DataBlock>  blocks;
+};
+
+struct VideoInfoData
+{
+    uint32_t  scanline    = 0;
+    uint32_t  cycleInLine = 0;
+};
+
+// LBR: the last instruction that transferred control, if one has.
+struct BranchRecordData
+{
+    std::optional<Word>  address;
+};
+
+struct ProfileEntry
+{
+    std::string  name;
+    uint64_t     count = 0;
+};
+
+struct ProfileData
+{
+    uint64_t                   instructions = 0;
+    uint64_t                   cycles       = 0;
+    std::vector<ProfileEntry>  opcodes;
+    std::vector<ProfileEntry>  modes;
+};
+
+struct CalcData
+{
+    Word  value = 0;
+};
+
 using ReplyData = std::variant<MessageData,
                                RegistersData,
                                MemoryData,
@@ -223,7 +296,13 @@ using ReplyData = std::variant<MessageData,
                                SymbolData,
                                CyclesData,
                                ModeData,
-                               FileIoData>;
+                               FileIoData,
+                               CompareData,
+                               DataBlockListData,
+                               VideoInfoData,
+                               BranchRecordData,
+                               ProfileData,
+                               CalcData>;
 
 
 

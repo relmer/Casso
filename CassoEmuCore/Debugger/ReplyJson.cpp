@@ -332,6 +332,25 @@ const char * ReplyJson::GetWatchModeName (WatchMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReplyJson::GetDataBlockKindName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ReplyJson::GetDataBlockKindName (DataBlockKind kind)
+{
+    static constexpr const char * kNames[] = { "bytes", "words", "address", "text", "float" };
+
+
+
+    return kNames[(int) kind];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReplyJson::WriteLine
 //
 //  Compact JSON escapes every control character inside strings, so the record
@@ -500,7 +519,119 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
                                     { "mismatch",    JsonValue (v->mismatch) } });
     }
 
+    if (auto * v = std::get_if<CompareData>       (&data)) { return MakeCompare    (*v); }
+    if (auto * v = std::get_if<DataBlockListData> (&data)) { return MakeDataBlocks (*v); }
+    if (auto * v = std::get_if<ProfileData>       (&data)) { return MakeProfile    (*v); }
+
+    if (auto * v = std::get_if<VideoInfoData> (&data))
+    {
+        return JsonValue (Members { { "kind",        MakeString ("videoInfo") },
+                                    { "scanline",    MakeNumber (v->scanline) },
+                                    { "cycleInLine", MakeNumber (v->cycleInLine) } });
+    }
+
+    if (auto * v = std::get_if<BranchRecordData> (&data))
+    {
+        return JsonValue (Members { { "kind",    MakeString ("branchRecord") },
+                                    { "address", v->address.has_value() ? MakeNumber (*v->address) : JsonValue (nullptr) } });
+    }
+
+    if (auto * v = std::get_if<CalcData> (&data))
+    {
+        return JsonValue (Members { { "kind", MakeString ("calc") }, { "value", MakeNumber (v->value) } });
+    }
+
     return JsonValue (Members { { "kind", MakeString ("message") } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeCompare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeCompare (const CompareData & data)
+{
+    std::vector<JsonValue>  differences;
+
+
+
+    for (const CompareDifference & difference : data.differences)
+    {
+        differences.push_back (JsonValue (Members { { "address",    MakeNumber (difference.address) },
+                                                    { "value",      MakeNumber (difference.value) },
+                                                    { "other",      MakeNumber (difference.other) },
+                                                    { "otherValue", MakeNumber (difference.otherValue) } }));
+    }
+
+    return JsonValue (Members { { "kind",        MakeString ("compare") },
+                                { "compared",    MakeNumber (data.compared) },
+                                { "differences", JsonValue (std::move (differences)) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeDataBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeDataBlocks (const DataBlockListData & data)
+{
+    std::vector<JsonValue>  blocks;
+
+
+
+    for (const DataBlock & block : data.blocks)
+    {
+        blocks.push_back (JsonValue (Members { { "name",  MakeString (block.name) },
+                                               { "first", MakeNumber (block.first) },
+                                               { "last",  MakeNumber (block.last) },
+                                               { "kind",  MakeString (GetDataBlockKindName (block.kind)) } }));
+    }
+
+    return JsonValue (Members { { "kind", MakeString ("dataBlocks") }, { "blocks", JsonValue (std::move (blocks)) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeProfile (const ProfileData & data)
+{
+    std::vector<JsonValue>  opcodes;
+    std::vector<JsonValue>  modes;
+
+
+
+    for (const ProfileEntry & entry : data.opcodes)
+    {
+        opcodes.push_back (JsonValue (Members { { "name", MakeString (entry.name) }, { "count", MakeNumber ((int64_t) entry.count) } }));
+    }
+
+    for (const ProfileEntry & entry : data.modes)
+    {
+        modes.push_back (JsonValue (Members { { "name", MakeString (entry.name) }, { "count", MakeNumber ((int64_t) entry.count) } }));
+    }
+
+    return JsonValue (Members { { "kind",         MakeString ("profile") },
+                                { "instructions", MakeNumber ((int64_t) data.instructions) },
+                                { "cycles",       MakeNumber ((int64_t) data.cycles) },
+                                { "opcodes",      JsonValue (std::move (opcodes)) },
+                                { "modes",        JsonValue (std::move (modes)) } });
 }
 
 
@@ -621,8 +752,10 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
         members.emplace_back ("mode",   MakeString (GetWatchModeName (breakpoint.mode)));
     }
 
-    members.emplace_back ("enabled", JsonValue (breakpoint.enabled));
-    members.emplace_back ("hits",    MakeNumber (breakpoint.hits));
+    members.emplace_back ("enabled",   JsonValue (breakpoint.enabled));
+    members.emplace_back ("temporary", JsonValue (breakpoint.temporary));
+    members.emplace_back ("stops",     JsonValue (breakpoint.stops));
+    members.emplace_back ("hits",      MakeNumber (breakpoint.hits));
     return JsonValue (std::move (members));
 }
 

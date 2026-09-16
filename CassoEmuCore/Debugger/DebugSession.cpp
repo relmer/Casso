@@ -2,9 +2,15 @@
 
 #include "Debugger/DebugSession.h"
 
+#include "OpcodeTable.h"
+#include "Debugger/AppleWinFormatter.h"
+#include "Debugger/AppleWinParser.h"
+#include "Debugger/Disassembler.h"
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/IDebugNotificationSink.h"
+#include "Debugger/IInstructionObserver.h"
+#include "Debugger/LineAssembler.h"
 
 
 
@@ -116,6 +122,208 @@ void DebugSession::AddHandler (IDebugCommandHandler * handler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::ExecuteLine
+//
+//  In AppleWin mode the line is an AppleWin command. In Monitor mode only the
+//  / prefix reaches one until the Monitor parser exists. A line while the
+//  assembler is active is source for it. Parse failures become replies with
+//  the parser's message as the detail.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteLine (const std::string & line)
+{
+    AppleWinParseResult  parsed;
+    Reply                reply;
+    std::string          text = Trim (line);
+
+
+
+    if (m_assemblyAddress.has_value())
+    {
+        reply.command = line;
+        ExecuteAssemblyLine (text, reply);
+        return reply;
+    }
+
+    if (m_mode == CommandMode::Monitor && !text.starts_with ('/'))
+    {
+        reply.command = line;
+        SetError (reply, CommandStatus::NotAvailable, "command not available", "Monitor mode is not available yet.");
+        return reply;
+    }
+
+    if (text.starts_with ('/'))
+    {
+        text = Trim (text.substr (1));
+    }
+
+    parsed = AppleWinParser::Parse (text, *this);
+
+    switch (parsed.status)
+    {
+    case ParseStatus::Ok:
+        reply = Execute (parsed.command);
+        break;
+
+    case ParseStatus::Unknown:
+        SetError (reply, CommandStatus::Unknown, "unknown command", parsed.error);
+        break;
+
+    case ParseStatus::NotAvailable:
+    case ParseStatus::WindowOnly:
+        SetError (reply, CommandStatus::NotAvailable, "command not available", parsed.error);
+        break;
+
+    case ParseStatus::Invalid:
+        SetError (reply, CommandStatus::Error, "invalid arguments", parsed.error);
+        break;
+
+    default:
+        break;
+    }
+
+    reply.command = line;
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::FormatReply
+//
+//  Monitor mode renders as AppleWin mode until its formatter exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::FormatReply (Reply & reply) const
+{
+    AppleWinFormatter::Format (reply);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ResolvePath
+//
+//  Quotes around the name are dropped. A rooted path is used as given; any
+//  other is taken from the current directory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebugSession::ResolvePath (const std::string & path) const
+{
+    std::string   bare     = Trim (path);
+    std::wstring  wide;
+    bool          isRooted = false;
+
+
+
+    if (bare.size() >= 2 && (bare.front() == '"' || bare.front() == '\'') && bare.back() == bare.front())
+    {
+        bare = bare.substr (1, bare.size() - 2);
+    }
+
+    wide.assign (bare.begin(), bare.end());
+    isRooted = wide.starts_with (L'\\') || wide.starts_with (L'/') || (wide.size() > 1 && wide[1] == L':');
+
+    if (isRooted || m_currentDirectory.empty() || wide.empty())
+    {
+        return wide;
+    }
+
+    return m_currentDirectory + (m_currentDirectory.ends_with (L'\\') ? L"" : L"\\") + wide;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::BeginAssembly
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::BeginAssembly (Word address)
+{
+    m_assemblyAddress = address;
+    m_assemblyOpcodes = std::make_unique<OpcodeTable> (m_target.GetInstructionSet());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteAssemblyLine
+//
+//  A blank line ends the mode. Anything else is one instruction, assembled at
+//  the current address, written, and shown as the disassembler reads it back.
+//  A line that does not assemble leaves the address and the mode as they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
+{
+    LineAssembler            assembler (*m_assemblyOpcodes);
+    Disassembler             disassembler (m_target.GetInstructionSet());
+    DisassemblyData          data;
+    DisassemblyLine          shown;
+    std::vector<Byte>        bytes;
+    std::string              error;
+    LineAssemblyStatus       status  = LineAssemblyStatus::Ok;
+    Word                     address = *m_assemblyAddress;
+    HRESULT                  hr      = S_OK;
+
+
+
+    if (line.empty())
+    {
+        m_assemblyAddress.reset();
+        m_assemblyOpcodes.reset();
+        reply.data = MessageData { { "Assembly ended." } };
+        return;
+    }
+
+    status = assembler.TryAssemble (address, line, bytes, error);
+
+    if (status != LineAssemblyStatus::Ok)
+    {
+        SetError (reply, CommandStatus::Error, "assembly error", error);
+        return;
+    }
+
+    for (size_t i = 0; i < bytes.size(); ++i)
+    {
+        if (!m_target.TryPoke ((Word) (address + i), bytes[i]))
+        {
+            SetError (reply, CommandStatus::Error, "memory not writable", std::format ("${:04X} cannot be written.", address));
+            return;
+        }
+    }
+
+    hr = disassembler.DisassembleOne (address, bytes, shown.instruction);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    data.lines.push_back (shown);
+    reply.data        = data;
+    m_assemblyAddress = (Word) (address + bytes.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::OnStopConditionsChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +331,51 @@ void DebugSession::AddHandler (IDebugCommandHandler * handler)
 void DebugSession::OnStopConditionsChanged()
 {
     UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ClearAllBreakpoints
+//
+//  With both tables empty no id is live, so numbering starts over, which
+//  lets a saved breakpoint script address its entries by number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ClearAllBreakpoints()
+{
+    m_breakpoints.ClearAll();
+    m_watchpoints.ClearAll();
+    m_nextId = 0;
+    UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::OnInstruction
+//
+//  Recording runs only during a run the debugger started.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::OnInstruction (Word pc)
+{
+    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping;
+
+
+
+    if (isDebuggerRun && m_instructionObserver != nullptr)
+    {
+        m_instructionObserver->OnInstruction (*this, pc);
+    }
 }
 
 
@@ -320,8 +573,39 @@ void DebugSession::OnStopped (const StopEvent & stop)
     m_beforeHit.reset();
     m_state = RunState::Paused;
 
+    ClearTemporary (event);
     UpdateHookInstalled();
     m_sink.OnStopped (event);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ClearTemporary
+//
+//  A temporary breakpoint or watchpoint goes once it has caused a stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ClearTemporary (const StopEvent & stop)
+{
+    Breakpoint  breakpoint;
+    Watchpoint  watchpoint;
+
+
+
+    if (stop.breakpointId.has_value() && m_breakpoints.TryFind (*stop.breakpointId, breakpoint) && breakpoint.temporary)
+    {
+        m_breakpoints.TryClear (breakpoint.id);
+    }
+
+    if (stop.watch.has_value() && m_watchpoints.TryFind (stop.watch->id, watchpoint) && watchpoint.temporary)
+    {
+        m_watchpoints.TryClear (watchpoint.id);
+    }
 }
 
 
@@ -375,13 +659,31 @@ bool DebugSession::TryPeek (Word address, Byte & value) const
 //
 //  DebugSession::TryResolveSymbol
 //
-//  No symbol tables are loaded yet, so no name resolves.
+//  @n is the nth search result, counted from 1. No symbol tables are loaded
+//  yet, so no other name resolves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebugSession::TryResolveSymbol (const std::string &, Word &) const
+bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) const
 {
-    return false;
+    size_t  index = 0;
+
+
+
+    if (name.size() < 2 || name[0] != '@' || name.find_first_not_of ("0123456789", 1) != std::string::npos)
+    {
+        return false;
+    }
+
+    index = (size_t) std::stoul (name.substr (1));
+
+    if (index == 0 || index > m_searchResults.size())
+    {
+        return false;
+    }
+
+    address = m_searchResults[index - 1];
+    return true;
 }
 
 
@@ -584,4 +886,24 @@ void DebugSession::SetError (
     reply.status       = status;
     reply.error.label  = label;
     reply.error.detail = detail;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::Trim
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebugSession::Trim (const std::string & text)
+{
+    size_t  first = text.find_first_not_of (" \t\r\n");
+    size_t  last  = text.find_last_not_of  (" \t\r\n");
+
+
+
+    return (first == std::string::npos) ? std::string() : text.substr (first, last - first + 1);
 }

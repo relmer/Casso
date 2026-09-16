@@ -76,8 +76,12 @@ public:
     virtual void                SetWatchedPages   (const WatchedPages & pages) = 0;
 
     virtual VideoPosition       GetVideoPosition  () const = 0;
+    virtual uint64_t            GetCycleCount     () const = 0;
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
     virtual DebugMachineInfo    GetMachineInfo    () const = 0;
+
+    // The keyboard: a key is pending until the guest clears the strobe.
     virtual void                InjectKey         (Byte key) = 0;
+    virtual bool                IsKeyPending      () const = 0;
 };

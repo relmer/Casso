@@ -16,13 +16,15 @@
 
 struct Watchpoint
 {
-    int          id      = 0;
-    WatchAccess  access  = WatchAccess::ReadWrite;
-    Word         first   = 0;
-    Word         last    = 0;
-    WatchMode    mode    = WatchMode::After;
-    bool         enabled = true;
-    uint32_t     hits    = 0;
+    int          id        = 0;
+    WatchAccess  access    = WatchAccess::ReadWrite;
+    Word         first     = 0;
+    Word         last      = 0;
+    WatchMode    mode      = WatchMode::After;
+    bool         enabled   = true;
+    bool         temporary = false;               // cleared once it fires
+    bool         stops     = true;                // false: counts hits only
+    uint32_t     hits      = 0;
 };
 
 
@@ -61,6 +63,9 @@ public:
     bool   TryClear         (int id);
     void   ClearAll         ();
     bool   TrySetEnabled    (int id, bool enabled);
+    bool   TrySetFlags      (int id, bool temporary, bool stops);
+    bool   TryAdopt         (const Watchpoint & entry);
+    bool   TryFind          (int id, Watchpoint & entry) const;
 
     const std::vector<Watchpoint> &  GetAll () const { return m_entries; }
 
