@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/MemoryHandlers.h"
 
 #include "Config/IFileSystem.h"
+#include "Debugger/BinaryImageReader.h"
 #include "Debugger/DebugSession.h"
 
 
@@ -314,26 +315,41 @@ void MemoryHandlers::ShowResults (DebugSession & session, Reply & reply)
 //
 //  MemoryHandlers::LoadBinary
 //
-//  BLOAD file addr[,len] reads the file's bytes to the address. Until the
-//  binary formats that carry their own address are read, the address is
-//  required.
+//  BLOAD file[,DOS|RAW|HEX|SREC|AS] [addr[,len]]. Intel HEX, S-records and
+//  AppleSingle are known from their content and carry their own addresses;
+//  raw bytes need one, and a DOS 3.3 binary is chosen by the word after the
+//  file name because its header cannot be told from data. A length caps a
+//  single-segment load.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem  * files   = nullptr;
-    std::string    content;
-    size_t         count   = 0;
-    FileIoData     data;
-    HRESULT        hr      = S_OK;
+    IFileSystem                  * files     = nullptr;
+    std::string                    name      = command.text;
+    std::optional<BinaryFormat>    format;
+    std::optional<Word>            address;
+    BinaryFormat                   chosen    = BinaryFormat::Raw;
+    size_t                         comma     = name.rfind (',');
+    std::string                    content;
+    std::string                    error;
+    BinaryImage                    image;
+    size_t                         requested = 0;
+    size_t                         loaded    = 0;
+    FileIoData                     data;
+    HRESULT                        hr        = S_OK;
 
 
 
-    if (!command.hasA1)
+    if (comma != std::string::npos && BinaryImageReader::TryGetFormatName (name.substr (comma + 1), chosen))
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "BLOAD takes a file name and the address to load it at.");
-        return;
+        format = chosen;
+        name   = name.substr (0, comma);
+    }
+
+    if (command.hasA1)
+    {
+        address = command.a1;
     }
 
     if (!TryGetFiles (session, reply, files))
@@ -341,26 +357,48 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
         return;
     }
 
-    hr = files->ReadAllText (session.ResolvePath (command.text), content);
+    hr = files->ReadAllText (session.ResolvePath (name), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", command.text));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
         return;
     }
 
-    count = command.hasA2 ? std::min<size_t> (content.size(), (size_t) (command.a2 - command.a1) + 1) : content.size();
-    count = std::min<size_t> (count, (size_t) (kAddressSpace - command.a1) + 1);
+    hr = BinaryImageReader::Read (std::span<const Byte> ((const Byte *) content.data(), content.size()), format, address, image, error);
 
-    if (!TryPokeRange (session.GetTarget(), command.a1, std::span<const Byte> ((const Byte *) content.data(), count), reply))
+    if (FAILED (hr))
     {
+        reply.SetError (CommandStatus::Error, "file not loadable", error);
         return;
     }
 
-    data.path        = command.text;
-    data.requested   = (uint32_t) content.size();
-    data.transferred = (uint32_t) count;
-    data.mismatch    = count != content.size();
+    for (const BinarySegment & segment : image.segments)
+    {
+        size_t  count = segment.bytes.size();
+
+
+
+        if (command.hasA2 && image.segments.size() == 1)
+        {
+            count = std::min<size_t> (count, (size_t) (command.a2 - command.a1) + 1);
+        }
+
+        count      = std::min<size_t> (count, (size_t) (kAddressSpace - segment.address) + 1);
+        requested += segment.bytes.size();
+
+        if (!TryPokeRange (session.GetTarget(), segment.address, std::span<const Byte> (segment.bytes.data(), count), reply))
+        {
+            return;
+        }
+
+        loaded += count;
+    }
+
+    data.path        = std::format ("{} ({})", name, BinaryImageReader::GetFormatName (image.format));
+    data.requested   = (uint32_t) requested;
+    data.transferred = (uint32_t) loaded;
+    data.mismatch    = loaded != requested;
     reply.data       = data;
 }
 

@@ -187,7 +187,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - view and enter: `D`, `MDB`, `ME`, `MEB`, `MEW`, `ME8`, `ME16`;
   - move, compare, fill: `M`/`MM`, `MC`, `F`;
   - search: `S`/`MS`, `SH`, `@`;
-  - files: `BLOAD`, `BSAVE`, `TSAVE` (`BLOAD` reads raw bytes to a required address until T051 adds the formats that carry their own);
+  - files: `BLOAD`, `BSAVE`, `TSAVE`;
   - I/O: `IN`/`INPUT`, `OUT`;
   - the Casso engine command `SWITCHES` (FR-007), as defined in `contracts/command-modes.md`.
 - [X] T040 [P] [US1] `CassoEmuCore/Debugger/Handlers/DataDirectiveHandlers.h/.cpp`: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`, `DW4`, `ASC`, `DF`, `DA`, and `U` disassembly honoring those data ranges. Also `A addr`, which enters the line-assembly mode Monitor `!` uses (each following line assembled through `LineAssembler`, a blank line ends it), as `contracts/command-modes.md` defines.
@@ -216,15 +216,15 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - the symbol count asserted non-zero for each fixture.
 - [X] T046 [US1] Implement `CassoCore/Debugger/SymbolFileReader.h/.cpp` and `CassoEmuCore/Debugger/SymbolTable.h/.cpp` (tables `Main`, `Basic`, `Asm`, `User`, `User2`, `Src`, `Src2`, `Dos33`, `ProDos`; case-insensitive lookup). Makes T045 pass.
 - [X] T047 [P] [US1] Author ROM symbol tables in `-g` format as file-scope tables in `CassoEmuCore/Debugger/RomSymbols.cpp`, one per machine plus DOS 3.3 and ProDOS entry points. Take names and addresses only from Apple's published Reference Manuals and DOS/ProDOS technical references, never from another emulator's symbol files (FR-031), and record the source of each table in a comment. `UnitTest/DebuggerTests/RomSymbolsTests.cpp` checks spot entries (`COUT $FDED`, `GETLN $FD6A`, `MONZ $FF69`) and that each table is non-empty.
-- [ ] T048 [P] [US1] Write `UnitTest/DebuggerTests/AppleSingleCodecTests.cpp`: read and write round trip of the data fork, real name, and ProDOS file info (type, aux type); magic `$00051600` detection; errors for truncated and unknown-version input. First check with the 033-cassque session whether it has already added `AppleSingleCodec`; if so, reuse it and skip T049.
-- [ ] T049 [US1] Implement `CassoEmuCore/Core/AppleSingleCodec.h/.cpp` if 033 has not: no knowledge of memory, disks or the debugger (research R-016). Makes T048 pass.
-- [ ] T050 [P] [US1] Write `UnitTest/DebuggerTests/BinaryImageReaderTests.cpp`:
+- [X] T048 [P] [US1] Write `UnitTest/DebuggerTests/AppleSingleCodecTests.cpp`: read and write round trip of the data fork, real name, and ProDOS file info (type, aux type); magic `$00051600` detection; errors for truncated and unknown-version input. The 033-cassque branch carried no codec when this was checked, so T049 added one.
+- [X] T049 [US1] Implement `CassoEmuCore/Core/AppleSingleCodec.h/.cpp` if 033 has not: no knowledge of memory, disks or the debugger (research R-016). Makes T048 pass.
+- [X] T050 [P] [US1] Write `UnitTest/DebuggerTests/BinaryImageReaderTests.cpp`:
   - Intel HEX and S-record, with checksums and multiple segments;
   - AppleSingle, taking its address from the aux type;
   - DOS 3.3 binary and raw, each selected explicitly;
   - an error for a raw load with no address;
   - content detection never guessing DOS 3.3 binary.
-- [ ] T051 [US1] Implement `CassoEmuCore/Debugger/BinaryImageReader.h/.cpp` (in EmuCore because it uses the codec there; CassoCore cannot reference CassoEmuCore) returning `{segments, format}`. `BLOAD` in T039 uses it. Makes T050 pass.
+- [X] T051 [US1] Implement `CassoEmuCore/Debugger/BinaryImageReader.h/.cpp` (in EmuCore because it uses the codec there; CassoCore cannot reference CassoEmuCore) returning `{segments, format}`. `BLOAD` in T039 uses it. Makes T050 pass.
 - [X] T052 [P] [US1] `CassoEmuCore/Debugger/Handlers/SymbolHandlers.h/.cpp`: `SYM`, `SYMMAIN`, `SYMBASIC`, `SYMASM`, `SYMUSER`, `SYMUSER2`, `SYMSRC`, `SYMSRC2`, `SYMDOS33`/`SYMDOS`, `SYMPRODOS`/`SYMPRO`, `SYMINFO`, `SYMLIST`. Tests in `UnitTest/DebuggerTests/SymbolHandlersTests.cpp`. The bookmark commands are in `WatchHandlers` (T041).
 
 ### Batch mode

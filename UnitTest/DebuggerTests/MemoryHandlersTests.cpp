@@ -176,15 +176,15 @@ namespace DebuggerTests
             reply = rig.RunOk ("BLOAD prog.bin 300");
             Assert::AreEqual ((Byte) 0xA9, rig.target.memory[0x0300]);
             Assert::AreEqual ((Byte) 0x60, rig.target.memory[0x0302]);
-            Assert::AreEqual (std::string ("prog.bin: 3 of 3 bytes"), reply.text.at (0));
+            Assert::AreEqual (std::string ("prog.bin (raw): 3 of 3 bytes"), reply.text.at (0));
 
             reply = rig.RunOk ("BLOAD prog.bin 400,2");
             Assert::AreEqual ((Byte) 0x41, rig.target.memory[0x0401]);
             Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0402], L"the length caps the load");
-            Assert::AreEqual (std::string ("prog.bin: 2 of 3 bytes; the file and the range differ in size"), reply.text.at (0));
+            Assert::AreEqual (std::string ("prog.bin (raw): 2 of 3 bytes; the file and the range differ in size"), reply.text.at (0));
 
             rig.RunFails ("BLOAD missing.bin 300", "file not found");
-            rig.RunFails ("BLOAD prog.bin",        "invalid arguments");
+            rig.RunFails ("BLOAD prog.bin",        "file not loadable");
             rig.RunFails ("BLOAD prog.bin D000",   "memory not writable");
 
             Assert::AreEqual (std::string ("out.bin: 3 of 3 bytes"), rig.RunOk ("BSAVE out.bin 300:302").text.at (0));
@@ -193,6 +193,39 @@ namespace DebuggerTests
 
             rig.session.SetFileSystem (nullptr);
             rig.RunFails ("BLOAD prog.bin 300", "no file access");
+        }
+
+
+
+        TEST_METHOD (BLOAD_FormatsFromContentOrWord)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.hex", ":03030000A94160B0\n:0103030060" "99" "\n:00000001FF\n");
+            rig.files.WriteAllText (L"C:\\Work\\prog.s19", "S1060500A94160AA\nS9030500F7\n");
+            rig.files.WriteAllText (L"C:\\Work\\prog.dos", std::string ("\x00\x07\x02\x00\xEA\x60", 6));
+
+            reply = rig.RunOk ("BLOAD prog.hex");
+            Assert::AreEqual ((Byte) 0xA9, rig.target.memory[0x0300]);
+            Assert::AreEqual ((Byte) 0x60, rig.target.memory[0x0303]);
+            Assert::AreEqual (std::string ("prog.hex (Intel HEX): 4 of 4 bytes"), reply.text.at (0));
+
+            Assert::AreEqual (std::string ("prog.s19 (S-record): 3 of 3 bytes"), rig.RunOk ("BLOAD prog.s19").text.at (0));
+            Assert::AreEqual ((Byte) 0x41, rig.target.memory[0x0501]);
+
+            Assert::AreEqual (std::string ("prog.dos (DOS 3.3 binary): 2 of 2 bytes"), rig.RunOk ("BLOAD prog.dos,DOS").text.at (0));
+            Assert::AreEqual ((Byte) 0xEA, rig.target.memory[0x0700], L"the header's address");
+            Assert::AreEqual ((Byte) 0x60, rig.target.memory[0x0701]);
+
+            rig.RunOk ("BLOAD prog.dos,raw 800");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0800], L"the header loads as data when raw is chosen");
+            Assert::AreEqual ((Byte) 0x07, rig.target.memory[0x0801]);
+
+            rig.RunFails ("BLOAD prog.hex 300", "file not loadable");
+            rig.RunFails ("BLOAD prog.dos",     "file not loadable");
         }
 
 

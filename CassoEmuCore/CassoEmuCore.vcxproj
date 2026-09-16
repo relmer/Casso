@@ -217,6 +217,8 @@
     <ClCompile Include="Debugger\SymbolTable.cpp" />
     <ClCompile Include="Debugger\RomSymbols.cpp" />
     <ClCompile Include="Debugger\Handlers\SymbolHandlers.cpp" />
+    <ClCompile Include="Core\AppleSingleCodec.cpp" />
+    <ClCompile Include="Debugger\BinaryImageReader.cpp" />
     <ClCompile Include="Shell\HeadlessMachineFactory.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
@@ -497,6 +499,8 @@
     <ClInclude Include="Debugger\SymbolTable.h" />
     <ClInclude Include="Debugger\RomSymbols.h" />
     <ClInclude Include="Debugger\Handlers\SymbolHandlers.h" />
+    <ClInclude Include="Core\AppleSingleCodec.h" />
+    <ClInclude Include="Debugger\BinaryImageReader.h" />
     <ClInclude Include="Shell\HeadlessMachineFactory.h" />
     <ClInclude Include="Shell\IRomSource.h" />
     <ClInclude Include="Debugger\Reply.h" />
