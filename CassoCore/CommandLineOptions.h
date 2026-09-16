@@ -398,6 +398,7 @@ struct CommandLineOptions
     {
         static constexpr uint64_t  kDefaultMaxCycles = 100000000;
         static constexpr uint64_t  kDefaultSeed      = 0xCA550001;
+        static constexpr uint32_t  kDefaultTimeout   = 120;
 
         std::string               machine;                       // --machine <name>
         std::string               disk1;                         // --disk1 <image>
@@ -409,6 +410,14 @@ struct CommandLineOptions
         uint64_t                  maxCycles     = kDefaultMaxCycles;
         uint64_t                  seed          = kDefaultSeed;
         bool                      writeDisks    = false;         // --write-disks
+
+        //  A running Casso instead of a machine built here. list prints the
+        //  instances with a debug channel open; ttachPid runs the script
+        //  against one of them, waiting at most 	imeoutSeconds for a run.
+        bool                      list           = false;                 // --list
+        uint32_t                  attachPid      = 0;                     // --attach <pid>
+        bool                      isAttach       = false;
+        uint32_t                  timeoutSeconds = kDefaultTimeout;       // --timeout <seconds>
     };
 
     DebugOptions  debug;

@@ -345,6 +345,11 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 2, transport.Written (client).size());
             Assert::IsFalse  (Parsed (transport.Written (client)[1]).HasInt ("causeId", ignored),
                               L"the read started nothing, so it caused nothing");
+
+            bool  running = false;
+
+            Assert::IsFalse  (Parsed (transport.Written (client)[0]).HasBool ("running", running),
+                              L"and its reply does not say a run is going");
         }
 
 
@@ -368,6 +373,11 @@ namespace DebuggerTests
             runner.running = true;
             transport.Send (client, Command ("g", 5));
             server.Pump();
+
+            bool  running = false;
+
+            Assert::IsTrue (Parsed (transport.Written (client)[0]).HasBool ("running", running) && running,
+                            L"the reply says a stop naming this command is still to come");
 
             stop.reason = StopReason::Breakpoint;
             server.OnStopped (stop);

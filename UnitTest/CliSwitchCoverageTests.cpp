@@ -470,6 +470,18 @@ namespace CliSwitchCoverageTests
             { "debug", "write-disks", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--write-disks" },
               [] (const CommandLineOptions & o) { return o.debug.writeDisks; },
               "--write-disks persists what the guest writes" },
+
+            { "debug", "list", { "CassoCli", "debug", "--list" },
+              [] (const CommandLineOptions & o) { return o.debug.list; },
+              "--list describes the running instances" },
+
+            { "debug", "attach", { "CassoCli", "debug", "--attach", "1234", "--command", "r" },
+              [] (const CommandLineOptions & o) { return o.debug.isAttach && o.debug.attachPid == 1234; },
+              "--attach names the running Casso to use" },
+
+            { "debug", "timeout", { "CassoCli", "debug", "--attach", "1234", "--command", "r", "--timeout", "9" },
+              [] (const CommandLineOptions & o) { return o.debug.timeoutSeconds == 9; },
+              "--timeout bounds the wait for a run" },
         };
     }
 

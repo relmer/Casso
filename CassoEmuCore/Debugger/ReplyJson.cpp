@@ -18,6 +18,25 @@
 
 std::string ReplyJson::WriteReply (const Reply & reply, std::optional<int64_t> id)
 {
+    return WriteReply (reply, id, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::WriteReply
+//
+//  `running` is written only when true. Absent is the ordinary case -- the
+//  command is finished -- and a client reading an older record treats a
+//  missing field the same way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ReplyJson::WriteReply (const Reply & reply, std::optional<int64_t> id, bool isRunning)
+{
     Members  members;
 
 
@@ -38,6 +57,11 @@ std::string ReplyJson::WriteReply (const Reply & reply, std::optional<int64_t> i
     }
 
     members.emplace_back ("text", MakeTextArray (reply.text));
+
+    if (isRunning)
+    {
+        members.emplace_back ("running", JsonValue (true));
+    }
 
     if (reply.status != CommandStatus::Ok)
     {

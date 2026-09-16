@@ -225,7 +225,10 @@
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
     <ClCompile Include="Debugger\Channel\ChannelProtocol.cpp" />
     <ClCompile Include="Debugger\Channel\DebugChannelServer.cpp" />
+    <ClCompile Include="Debugger\Channel\InstanceLister.cpp" />
     <ClCompile Include="Debugger\Channel\PipeSecurity.cpp" />
+    <ClCompile Include="Debugger\Channel\Win32InstanceDirectory.cpp" />
+    <ClCompile Include="Cli\DebugAttachRunner.cpp" />
     <ClCompile Include="Debugger\Channel\Win32NamedPipeApi.cpp" />
     <ClCompile Include="Debugger\Channel\Win32PipeTransport.cpp" />
     <ClCompile Include="Debugger\Handlers\MonitorHandlers.cpp" />
@@ -524,7 +527,11 @@
     <ClInclude Include="Debugger\Channel\IDebugCommandRunner.h" />
     <ClInclude Include="Debugger\Channel\DebugChannelServer.h" />
     <ClInclude Include="Debugger\Channel\INamedPipeApi.h" />
+    <ClInclude Include="Debugger\Channel\IInstanceDirectory.h" />
+    <ClInclude Include="Debugger\Channel\InstanceLister.h" />
     <ClInclude Include="Debugger\Channel\PipeSecurity.h" />
+    <ClInclude Include="Debugger\Channel\Win32InstanceDirectory.h" />
+    <ClInclude Include="Cli\DebugAttachRunner.h" />
     <ClInclude Include="Debugger\Channel\Win32NamedPipeApi.h" />
     <ClInclude Include="Debugger\Channel\Win32PipeTransport.h" />
     <ClInclude Include="Debugger\Handlers\MonitorHandlers.h" />

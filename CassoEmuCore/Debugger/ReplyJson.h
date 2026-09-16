@@ -22,6 +22,10 @@ class ReplyJson
 {
 public:
     static std::string  WriteReply          (const Reply & reply, std::optional<int64_t> id);
+
+    //  The same, marked `"running":true` when the command left a run going, so
+    //  a client knows a `stopped` naming this command is still to come.
+    static std::string  WriteReply          (const Reply & reply, std::optional<int64_t> id, bool isRunning);
     static std::string  WriteStopped        (const StopEvent & stop, std::optional<int64_t> causeId);
     static std::string  WriteResumed        ();
     static std::string  WriteReset          (bool isPowerCycle);

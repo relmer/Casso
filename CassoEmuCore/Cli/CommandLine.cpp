@@ -50,6 +50,9 @@ static const char *  s_kDebugOptionLines[] =
     "  {0}max-cycles <n>{1}       The cycle budget for every run the script starts (default: 100000000)",
     "  {0}seed <n>{1}             The DRAM power-on pattern seed (default: 0xCA550001), so two runs match",
     "  {0}write-disks{1}          Persist guest disk writes; without it they go to an in-memory overlay",
+    "  {0}list{1}                 List the running Casso instances with a debug channel open: pid, title, machine and disks",
+    "  {0}attach <pid>{1}         Run the script against that running Casso instead of building a machine",
+    "  {0}timeout <seconds>{1}    With {0}attach, how long to wait for a run to stop before pausing it (default: 120)",
 };
 
 
@@ -807,6 +810,10 @@ void CommandLine::PrintDebugPage (char prefix)
     PrintUsageLine ("      Runs stop.txt against a //e with no disk, printing each command and its reply.");
     PrintUsageLine (std::format ("  CassoCli debug {0}machine Apple2e {0}disk1 game.woz {0}command \"bpmr C000\" {0}command g {0}json", lp));
     PrintUsageLine ("      Boots the disk, stops at the first keyboard read, and prints the reply and stop records as JSON Lines.");
+    PrintUsageLine (std::format ("  CassoCli debug {0}list", lp));
+    PrintUsageLine ("      Lists every running Casso started with --debugger.");
+    PrintUsageLine (std::format ("  CassoCli debug {0}attach 1234 {0}command r", lp));
+    PrintUsageLine ("      Prints the registers of the running Casso whose process id is 1234.");
 
     PrintExitCodes (std::string (CommandLineParser::kDebugExitStatusHelpText));
 }

@@ -24,4 +24,6 @@ public:
 
 private:
     static HRESULT  ReadScript (const std::string & path, std::string & text);
+    static void     ListInstances  (int & exitCode);
+    static HRESULT  AttachAndRun   (const CommandLineOptions & options, const std::string & script, int & exitCode);
 };

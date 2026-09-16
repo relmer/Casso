@@ -390,6 +390,9 @@ static constexpr const char *  s_kpszDebugLongOptions[] =
     "max-cycles",
     "seed",
     "write-disks",
+    "list",
+    "attach",
+    "timeout",
 };
 
 
@@ -1092,7 +1095,8 @@ bool CommandLineParser::IsDebugOptionNeedingValue (const std::string & arg)
 {
     return arg == "--machine" || arg == "--disk1"      || arg == "--disk2" ||
            arg == "--script"  || arg == "--command"    || arg == "--mode"  ||
-           arg == "--max-cycles" || arg == "--seed";
+           arg == "--max-cycles" || arg == "--seed"    || arg == "--attach" ||
+           arg == "--timeout";
 }
 
 
@@ -4110,6 +4114,34 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
         {
             debug.writeDisks = true;
         }
+        else if (IsLongOption (arg, "--list", options))
+        {
+            debug.list = true;
+        }
+        else if (IsLongOption (arg, "--attach", options) && hasValue)
+        {
+            hr = ParseDecimal (argv[++argIndex], debug.attachPid);
+
+            if (SUCCEEDED (hr))
+            {
+                debug.isAttach = true;
+            }
+            else
+            {
+                Refusal (options) << "Error: invalid process id for " << FormatLongOption ("--attach", options.flagPrefix) << "\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+        }
+        else if (IsLongOption (arg, "--timeout", options) && hasValue)
+        {
+            hr = ParseDecimal (argv[++argIndex], debug.timeoutSeconds);
+
+            if (FAILED (hr))
+            {
+                Refusal (options) << "Error: invalid timeout value\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+        }
         else if (IsLongOption (arg, "--max-cycles", options) && hasValue)
         {
             hr = ParseDecimal (argv[++argIndex], cycles);
@@ -4161,7 +4193,28 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
         return;
     }
 
-    if (debug.machine.empty())
+    //  --list takes nothing else: it describes running instances rather than
+    //  running anything, so a script beside it would be silently ignored.
+    if (debug.list)
+    {
+        if (debug.isAttach || !debug.machine.empty() || !debug.scriptPath.empty() || !debug.commands.empty())
+        {
+            Refusal (options) << "Error: " << FormatLongOption ("--list", options.flagPrefix) << " takes no other option\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        }
+
+        return;
+    }
+
+    //  --attach runs against the machine a running Casso already has, so
+    //  naming one to build here would be naming a machine nothing uses.
+    if (debug.isAttach && !debug.machine.empty())
+    {
+        Refusal (options) << "Error: " << FormatLongOption ("--attach", options.flagPrefix) << " and "
+                          << FormatLongOption ("--machine", options.flagPrefix) << " cannot be used together\n";
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+    }
+    else if (!debug.isAttach && debug.machine.empty())
     {
         Refusal (options) << "Error: required parameter " << FormatLongOption ("--machine", options.flagPrefix) << " <name> missing\n";
         options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;

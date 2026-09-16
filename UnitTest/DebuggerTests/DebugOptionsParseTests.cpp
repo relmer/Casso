@@ -117,6 +117,58 @@ namespace DebugOptionsParseTests
             Assert::AreEqual ((uint64_t) 0xCA550001, options.debug.seed);
         }
 
+        //  --list describes running instances and runs nothing, so it needs no
+        //  machine, and anything that would run beside it is refused rather
+        //  than silently ignored.
+        TEST_METHOD (List_NeedsNoMachine_AndTakesNothingElse)
+        {
+            CommandLineOptions  alone = Parse ({ "CassoCli", "debug", "--list" });
+            CommandLineOptions  mixed = Parse ({ "CassoCli", "debug", "--list", "--command", "r" });
+
+
+
+            Assert::IsFalse (IsRefused (alone), Widen (alone.refusalMessage).c_str());
+            Assert::IsTrue  (alone.debug.list);
+
+            Assert::IsTrue  (IsRefused (mixed));
+        }
+
+
+
+        //  --attach runs against a running Casso's machine, so it needs no
+        //  --machine and refuses one; it still needs something to run.
+        TEST_METHOD (Attach_TakesAPid_AndRefusesAMachine)
+        {
+            CommandLineOptions  attach    = Parse ({ "CassoCli", "debug", "--attach", "1234", "--command", "r", "--timeout", "30" });
+            CommandLineOptions  both      = Parse ({ "CassoCli", "debug", "--attach", "1234", "--machine", "Apple2e", "--command", "r" });
+            CommandLineOptions  nothing   = Parse ({ "CassoCli", "debug", "--attach", "1234" });
+            CommandLineOptions  notANum   = Parse ({ "CassoCli", "debug", "--attach", "abc", "--command", "r" });
+
+
+
+            Assert::IsFalse  (IsRefused (attach), Widen (attach.refusalMessage).c_str());
+            Assert::IsTrue   (attach.debug.isAttach);
+            Assert::AreEqual ((uint32_t) 1234, attach.debug.attachPid);
+            Assert::AreEqual ((uint32_t) 30,   attach.debug.timeoutSeconds);
+
+            Assert::IsTrue   (IsRefused (both),     L"a machine to build is meaningless when attaching");
+            Assert::IsTrue   (IsRefused (nothing),  L"still needs a script or a command");
+            Assert::IsTrue   (IsRefused (notANum),  L"a process id is a number");
+        }
+
+
+
+        TEST_METHOD (Timeout_DefaultsToTwoMinutes)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "debug", "--attach", "5", "--command", "r" });
+
+
+
+            Assert::AreEqual ((uint32_t) 120, options.debug.timeoutSeconds);
+        }
+
+
+
         TEST_METHOD (ScriptDash_IsStandardInput)
         {
             CommandLineOptions  options = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--script", "-" });

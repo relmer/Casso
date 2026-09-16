@@ -158,6 +158,7 @@ void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const Ch
 {
     ChannelHello  hello;
     Reply         reply;
+    bool          isRunning = false;
 
 
 
@@ -195,14 +196,16 @@ void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const Ch
     //  A line that started no run, or whose run has already ended, leaves
     //  nothing for a later stop to be caused by. Without this a pause long
     //  after an ordinary `R` would be reported as that `R`'s outcome.
-    if (!m_runner.IsRunInProgress())
+    isRunning = m_runner.IsRunInProgress();
+
+    if (!isRunning)
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
         m_causeId.reset();
     }
 
-    m_transport.WriteLine (connection, ReplyJson::WriteReply (reply, request.id));
+    m_transport.WriteLine (connection, ReplyJson::WriteReply (reply, request.id, isRunning));
 }
 
 
