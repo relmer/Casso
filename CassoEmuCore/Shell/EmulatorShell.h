@@ -81,6 +81,7 @@ class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
 class CpuManagerRunDriver;
+class DebugSession;
 struct MonitorSpec;
 
 // Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
@@ -436,6 +437,27 @@ private:
     // 0/1, kind matches Disk2AudioSource::TestSoundKind. CPU-thread only,
     // marshaled via IDM_AUDIO_DRIVE_TEST.
     void PlayDriveTestSound (int drive, int kind);
+
+    // A debugger command line from a client, run on the CPU thread, marshaled
+    // via IDM_DEBUG_COMMAND. Handed to whoever attached a command handler; a
+    // machine with no debugger attached drops it.
+    void RunDebugCommand (uint32_t clientId, const std::string & line);
+
+    // The user paused or resumed the machine, told to an attached session.
+    // CPU thread only, marshaled via IDM_DEBUG_PAUSE_CHANGED.
+    void NotifyDebugPauseChanged (bool paused);
+
+    // Tells an attached session the machine was reset or replaced. CPU thread
+    // only; each is a no-op when no session is attached.
+    void NotifyDebugReset          (bool isPowerCycle);
+    void NotifyDebugMachineChanged (const std::string & machineName);
+
+    // Where debugger commands and machine events go. Both are owned by the
+    // caller, which detaches them with null before destroying them.
+    using DebugCommandHandler = std::function<void (uint32_t clientId, const std::string & line)>;
+
+    void SetDebugSession        (DebugSession * session)          { m_debugSession = session; }
+    void SetDebugCommandHandler (DebugCommandHandler handler)      { m_debugCommandHandler = std::move (handler); }
 
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.
@@ -1944,6 +1966,8 @@ private:
     // nobody is debugging, which is what keeps the slice loop's cost to a
     // comparison. Owned by whoever attached the session, not by the shell.
     CpuManagerRunDriver         * m_debugRunDriver = nullptr;
+    DebugSession                * m_debugSession   = nullptr;
+    DebugCommandHandler           m_debugCommandHandler;
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};

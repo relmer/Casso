@@ -548,6 +548,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // machine switch even though it's still on screen.
     m_shell.AttachDebugSinksIfOpen();
 
+    // A debugger attached to the old machine is told it is gone. Its
+    // breakpoints named addresses on a machine that no longer exists.
+    m_shell.NotifyDebugMachineChanged (machineNameNarrow);
+
     m_shell.UpdateWindowTitle();
 
     // Record the new active machine in GlobalUserPrefs so the next
@@ -626,6 +630,7 @@ Error:
 void MachineManager::SoftReset()
 {
     m_shell.m_machine.SoftReset();
+    m_shell.NotifyDebugReset (false);
 
     // Re-zero the Disk II Debug Uptime column on every reset so the user
     // sees a clean 00:00 anchor after each Ctrl+Shift+R / Ctrl+Shift+P.
@@ -645,6 +650,7 @@ void MachineManager::SoftReset()
 void MachineManager::PowerCycle()
 {
     m_shell.m_machine.PowerCycle();
+    m_shell.NotifyDebugReset (true);
 
     m_shell.ResetUptimeAnchor();
 }

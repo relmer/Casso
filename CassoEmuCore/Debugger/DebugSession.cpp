@@ -538,6 +538,44 @@ void DebugSession::OnReset (bool isPowerCycle)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::OnUserPaused
+//
+//  The user paused the machine in Casso. A client is told the same way it is
+//  told about any other stop, so it can read where the machine is without
+//  knowing who stopped it.
+//
+//  A machine that was already paused announces nothing: the stop a client last
+//  heard about is still the true one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::OnUserPaused()
+{
+    StopEvent  stop;
+
+
+
+    if (m_state == RunState::Paused)
+    {
+        return;
+    }
+
+    m_state = RunState::Paused;
+    UpdateHookInstalled();
+
+    stop.reason    = StopReason::Pause;
+    stop.registers = m_target.GetRegisters();
+    stop.pc        = stop.registers.pc;
+
+    m_sink.OnStopped (stop);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::OnUserResumed
 //
 //  The user resumed the machine in Casso: it runs freely, and the stop

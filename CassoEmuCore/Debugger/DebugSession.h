@@ -89,6 +89,7 @@ public:
     // Machine events the host reports.
     void   OnMachineChanged      (const std::string & machineName);
     void   OnReset               (bool isPowerCycle);
+    void   OnUserPaused          ();
     void   OnUserResumed         ();
 
     RunState                GetRunState    () const { return m_state; }

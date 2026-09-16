@@ -49,6 +49,16 @@
 //  sent as WM_COMMAND, so its value is outside the Disk range OnCommand checks.
 #define IDM_DISK_RESOLVE_CHANGE     40074
 
+//  Debugger work for the CPU thread. Neither is sent as WM_COMMAND: they are
+//  posted to the CPU queue so a debugger command and a user pause run on the
+//  thread that owns the machine, and never race it.
+//
+//  IDM_DEBUG_COMMAND carries one command line and the id of the client its
+//  reply goes back to (see DebugCommandPayload). IDM_DEBUG_PAUSE_CHANGED
+//  carries "1" when the user paused the machine and "0" when they resumed it.
+#define IDM_DEBUG_COMMAND           40075
+#define IDM_DEBUG_PAUSE_CHANGED     40076
+
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031
 #define IDM_VIEW_AMBER              40032

@@ -54,6 +54,11 @@ public:
     //  machine nobody is debugging pays one comparison per slice.
     bool     OnSliceExecuted (uint32_t cyclesExecuted);
 
+    //  Ends the run at once, with reason pause. For a machine the user has
+    //  already paused: no slice will run to deliver the stop, so it is
+    //  delivered here instead. CPU thread only; does nothing with no run.
+    void     EndForUserPause ();
+
     bool     IsRunning       () const { return m_isRunning; }
 
 private:

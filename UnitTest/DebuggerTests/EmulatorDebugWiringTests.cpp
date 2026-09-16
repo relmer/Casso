@@ -5,6 +5,9 @@
 #include "Debugger/IRunObserver.h"
 #include "Shell/CpuManager.h"
 #include "EmuTests/TestMachine.h"
+#include "Debugger/DebugCommandPayload.h"
+#include "Debugger/DebugSession.h"
+#include "HandlerTestRig.h"
 
 
 
@@ -333,6 +336,164 @@ namespace EmulatorDebugWiringTests
             rig.driver.Pause();
 
             Assert::IsTrue (rig.cpuManager.IsPaused(), L"the machine stops");
+        }
+    };
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  UserPauseDuringARunTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (UserPauseDuringARunTests)
+    {
+    public:
+
+        //  The user paused a machine that was in the middle of a debugger run.
+        //  No slice will run to deliver the stop, so it is delivered at once, and
+        //  the client hears one stop rather than a run that never ends.
+        TEST_METHOD (APauseDuringARunEndsItAtOnce)
+        {
+            TestMachine          machine (std::string ("Apple2e"), TestMachine::Slots::Empty);
+            MachineDebugTarget   target  (machine);
+            CpuManager           cpuManager;
+            CpuManagerRunDriver  driver  (machine, cpuManager, target.GetRunHook());
+            RecordingObserver    observer;
+            RunRequest           request;
+            HRESULT              hr      = S_OK;
+
+
+
+            driver.SetRunObserver (&observer);
+
+            hr = driver.Start (request);
+            Assert::IsTrue (SUCCEEDED (hr));
+
+            driver.EndForUserPause();
+
+            Assert::IsFalse  (driver.IsRunning());
+            Assert::AreEqual ((size_t) 1, observer.stops.size());
+            Assert::IsTrue   (observer.stops[0].reason == StopReason::Pause);
+        }
+
+
+
+        TEST_METHOD (APauseWithNoRunAnnouncesNothingFromTheDriver)
+        {
+            TestMachine          machine (std::string ("Apple2e"), TestMachine::Slots::Empty);
+            MachineDebugTarget   target  (machine);
+            CpuManager           cpuManager;
+            CpuManagerRunDriver  driver  (machine, cpuManager, target.GetRunHook());
+            RecordingObserver    observer;
+
+
+
+            driver.SetRunObserver (&observer);
+            driver.EndForUserPause();
+
+            Assert::IsTrue (observer.stops.empty(), L"the session reports a plain user pause, not the driver");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SessionUserPauseTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (SessionUserPauseTests)
+    {
+    public:
+
+        TEST_METHOD (PausingAFreeRunningMachineAnnouncesAStop)
+        {
+            MockDebugTarget            target;
+            RecordingNotificationSink  sink;
+            DebugSession               session (target, sink, RunState::FreeRunning);
+
+
+
+            target.registers.pc = 0xC600;
+            session.OnUserPaused();
+
+            Assert::AreEqual ((size_t) 1, sink.stops.size());
+            Assert::IsTrue   (sink.stops[0].reason == StopReason::Pause);
+            Assert::AreEqual ((Word) 0xC600, sink.stops[0].pc, L"where the machine stopped");
+            Assert::IsTrue   (session.GetRunState() == RunState::Paused);
+        }
+
+
+
+        //  The stop a client last heard is still the true one.
+        TEST_METHOD (PausingAPausedMachineAnnouncesNothing)
+        {
+            MockDebugTarget            target;
+            RecordingNotificationSink  sink;
+            DebugSession               session (target, sink, RunState::Paused);
+
+
+
+            session.OnUserPaused();
+
+            Assert::IsTrue (sink.stops.empty());
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebugCommandPayloadTests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebugCommandPayloadTests)
+    {
+    public:
+
+        TEST_METHOD (ALineSurvivesTheTripExactly)
+        {
+            std::string          payload = DebugCommandPayload::Encode (42, "  bp c000 , Stop Here  ");
+            DebugCommandPayload  decoded;
+
+
+
+            Assert::IsTrue   (DebugCommandPayload::TryDecode (payload, decoded));
+            Assert::AreEqual ((uint32_t) 42, decoded.clientId);
+            Assert::AreEqual (std::string ("  bp c000 , Stop Here  "), decoded.line);
+        }
+
+
+
+        TEST_METHOD (AnEmptyLineIsStillACommand)
+        {
+            DebugCommandPayload  decoded;
+
+
+
+            Assert::IsTrue   (DebugCommandPayload::TryDecode (DebugCommandPayload::Encode (3, ""), decoded));
+            Assert::AreEqual (std::string(), decoded.line);
+        }
+
+
+
+        TEST_METHOD (AClientIdThatIsNotAWholeNumberIsRefused)
+        {
+            DebugCommandPayload  decoded;
+
+
+
+            Assert::IsFalse (DebugCommandPayload::TryDecode ("R",            decoded), L"no separator");
+            Assert::IsFalse (DebugCommandPayload::TryDecode ("\nR",          decoded), L"no id");
+            Assert::IsFalse (DebugCommandPayload::TryDecode ("-1\nR",        decoded), L"negative");
+            Assert::IsFalse (DebugCommandPayload::TryDecode ("4 2\nR",       decoded), L"not one number");
+            Assert::IsFalse (DebugCommandPayload::TryDecode ("4294967296\nR", decoded), L"past 32 bits");
+            Assert::IsTrue  (DebugCommandPayload::TryDecode ("4294967295\nR", decoded), L"the largest id fits");
         }
     };
 }

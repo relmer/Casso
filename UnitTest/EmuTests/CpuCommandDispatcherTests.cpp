@@ -205,6 +205,43 @@ public:
     }
 
 
+    TEST_METHOD (ADebugCommandReachesTheTargetWithItsClient)
+    {
+        Notebook  target;
+
+        //  The line keeps its spaces and its case: it is what the client typed.
+        Dispatch (IDM_DEBUG_COMMAND, "7\nBP C000 , Stop Here", target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size());
+        Assert::AreEqual (std::string ("RunDebugCommand 7 [BP C000 , Stop Here]"), target.calls[0]);
+    }
+
+
+    TEST_METHOD (ADebugCommandNamingNoClientIsDropped)
+    {
+        Notebook  target;
+
+        //  No client to answer, so running it would send the reply nowhere.
+        Dispatch (IDM_DEBUG_COMMAND, "R",       target);
+        Dispatch (IDM_DEBUG_COMMAND, "\nR",     target);
+        Dispatch (IDM_DEBUG_COMMAND, "seven\nR", target);
+
+        Assert::IsTrue (target.calls.empty());
+    }
+
+
+    TEST_METHOD (APauseChangeSaysWhichWay)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_PAUSE_CHANGED, "1", target);
+        Dispatch (IDM_DEBUG_PAUSE_CHANGED, "0", target);
+
+        Assert::AreEqual (std::string ("NotifyDebugPauseChanged paused"),  target.calls[0]);
+        Assert::AreEqual (std::string ("NotifyDebugPauseChanged resumed"), target.calls[1]);
+    }
+
+
 private:
 
     //  A target that writes down what it was asked, one line per call.
@@ -297,6 +334,16 @@ private:
         void     PlayDriveTestSound (int drive, int kind) override
         {
             calls.push_back (std::format ("PlayDriveTestSound {} {}", drive, kind));
+        }
+
+        void     RunDebugCommand (uint32_t clientId, const std::string & line) override
+        {
+            calls.push_back (std::format ("RunDebugCommand {} [{}]", clientId, line));
+        }
+
+        void     NotifyDebugPauseChanged (bool paused) override
+        {
+            calls.push_back (std::format ("NotifyDebugPauseChanged {}", paused ? "paused" : "resumed"));
         }
     };
 

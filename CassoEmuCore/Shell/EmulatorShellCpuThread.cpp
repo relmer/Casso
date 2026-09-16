@@ -3,6 +3,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Debugger/CpuManagerRunDriver.h"
+#include "Debugger/DebugSession.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
@@ -630,6 +631,98 @@ void EmulatorShell::PlayDriveTestSound (int drive, int kind)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunDebugCommand
+//
+//  A debugger command, run on the CPU thread because that is where the machine
+//  it inspects and changes is safe to touch. With no handler attached nobody is
+//  debugging, so there is no one to reply to and the line is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunDebugCommand (uint32_t clientId, const std::string & line)
+{
+    if (m_debugCommandHandler)
+    {
+        m_debugCommandHandler (clientId, line);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDebugPauseChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::NotifyDebugPauseChanged (bool paused)
+{
+    // A pause during a debugger run ends that run, so a client hears one stop
+    // with its budget and cycle count rather than a run that never finishes.
+    if (paused && m_debugRunDriver != nullptr)
+    {
+        m_debugRunDriver->EndForUserPause();
+    }
+
+    if (m_debugSession == nullptr)
+    {
+        return;
+    }
+
+    if (paused)
+    {
+        m_debugSession->OnUserPaused();
+    }
+    else
+    {
+        m_debugSession->OnUserResumed();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDebugReset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::NotifyDebugReset (bool isPowerCycle)
+{
+    if (m_debugSession != nullptr)
+    {
+        m_debugSession->OnReset (isPowerCycle);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDebugMachineChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::NotifyDebugMachineChanged (const std::string & machineName)
+{
+    if (m_debugSession != nullptr)
+    {
+        m_debugSession->OnMachineChanged (machineName);
+    }
 }
 
 

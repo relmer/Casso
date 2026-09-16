@@ -694,6 +694,11 @@ void WindowCommandManager::OnMachineCommand (int id)
         case IDM_MACHINE_PAUSE:
         {
             m_shell.m_cpuManager.TogglePaused();
+
+            // An attached debugger hears about it on the CPU thread, where the
+            // session and any run in progress live.
+            m_shell.m_cpuManager.PostCommand (IDM_DEBUG_PAUSE_CHANGED, m_shell.m_cpuManager.IsPaused() ? "1" : "0");
+
             m_shell.UpdateWindowTitle();
             break;
         }

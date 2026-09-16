@@ -2,6 +2,7 @@
 
 #include "Shell/CpuCommandDispatcher.h"
 
+#include "Debugger/DebugCommandPayload.h"
 #include "resource.h"
 
 
@@ -106,6 +107,24 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
         case IDM_AUDIO_DRIVE_TEST:
             DispatchDriveTest (cmd.payload, target);
+            break;
+
+        case IDM_DEBUG_COMMAND:
+        {
+            //  A payload that cannot be read names no client to answer, so it
+            //  is dropped rather than run with its reply sent nowhere.
+            DebugCommandPayload  decoded;
+
+            if (DebugCommandPayload::TryDecode (cmd.payload, decoded))
+            {
+                target.RunDebugCommand (decoded.clientId, decoded.line);
+            }
+
+            break;
+        }
+
+        case IDM_DEBUG_PAUSE_CHANGED:
+            target.NotifyDebugPauseChanged (cmd.payload == "1");
             break;
 
         default:

@@ -45,6 +45,13 @@ public:
     virtual void     SetDriveAudioVolumes     (float motor, float head, float door)             = 0;
     virtual void     SetDriveAudioPan         (int drive, float pan)                            = 0;
     virtual void     PlayDriveTestSound       (int drive, int kind)                             = 0;
+
+    //  A debugger command line and the client its reply goes to, run on the
+    //  thread that owns the machine.
+    virtual void     RunDebugCommand          (uint32_t clientId, const std::string & line)     = 0;
+
+    //  The user paused or resumed the machine, told to an attached debugger.
+    virtual void     NotifyDebugPauseChanged  (bool paused)                                     = 0;
 };
 
 

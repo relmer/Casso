@@ -164,6 +164,24 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CpuManagerRunDriver::EndForUserPause
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManagerRunDriver::EndForUserPause()
+{
+    if (m_isRunning)
+    {
+        Finish (StopReason::Pause, m_spent);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CpuManagerRunDriver::Finish
 //
 //  Stops the machine, puts back what the run borrowed, and announces the stop.
