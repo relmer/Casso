@@ -91,6 +91,7 @@ replies with its own `protocol`, and the client decides whether to continue.
 | `data` | typed payload; `kind` identifies the shape (see below). Absent on `error` and `unknown` |
 | `text` | array of lines, the same text the window and batch mode print in the line's mode |
 | `error` | on non-`ok`: `{"label":"...","detail":"..."}`, the two-line error shape |
+| `running` | `true` when the command left a run in progress, so a `stopped` notification with this `id` as `causeId` is still to come. Absent otherwise. Added during implementation so an unattended client (`debug --attach`) knows whether to wait |
 
 **All numbers are JSON integers. Addresses and bytes are never hex strings.**
 Clients format them.
