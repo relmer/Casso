@@ -165,7 +165,9 @@ public:
 
         ConfigureList (list);
 
-        // Sticky by default -> installing 20 rows pins the view to the tail.
+        list.SetFollowEnd (true);
+
+        // Following the end -> installing 20 rows pins the view to the tail.
         list.SetRowProvider (20, [] (int, std::vector<DxuiListView::Cell> &) {});
         Assert::AreEqual (10, list.GetTopRow());
         Assert::IsTrue   (list.IsAtBottom());
@@ -224,6 +226,7 @@ public:
         std::vector<int>      requested;
 
         ConfigureList (list);
+        list.SetFollowEnd (true);
         list.SetRowProvider (1000, [&] (int row, std::vector<DxuiListView::Cell> & out)
         {
             requested.push_back (row);

@@ -241,8 +241,10 @@ public:
     int   GetVisibleRowCapacity () const;
     int   GetMaxTopRow          () const;
     bool  IsAtBottom            () const                 { return m_topRow >= GetMaxTopRow(); }
-    void  EnableStickyTail      (bool b)                 { m_stickyTail = b; }
-    bool  IsStickyTailEnabled   () const                 { return m_stickyTail; }
+    //  Follow the end: a view parked on the last row stays there as rows
+    //  arrive, as a log does. Off unless a list asks for it.
+    void  SetFollowEnd          (bool b)                 { m_followEnd = b; }
+    bool  IsFollowEndEnabled    () const                 { return m_followEnd; }
     void  SetTopRow             (int topRow);
     void  ScrollByRows          (int delta)              { SetTopRow (m_topRow + delta); }
     // Scroll just enough to bring `row` into the visible window, without
@@ -596,7 +598,8 @@ private:
     bool                       m_sortDescending    = false;
     bool                       m_showHeader        = false;
     int                        m_topRow            = 0;
-    bool                       m_stickyTail        = true;
+    bool                       m_followEnd         = false;
+    bool                       m_atEnd             = true;
     bool                       m_listFocused       = false;
     int                        m_focusedHeaderCol  = -1;
     int                        m_focusedDividerCol = -1;

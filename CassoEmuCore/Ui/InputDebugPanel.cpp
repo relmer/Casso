@@ -1062,7 +1062,7 @@ void InputDebugPanel::ConfigureWidgets()
     m_pairView[1]->SetSelect ([this] (int idx) { OnPairViewChanged (1, idx); });
 
     m_eventList->SetShowHeader    (true);
-    m_eventList->EnableStickyTail (true);
+    m_eventList->SetFollowEnd     (true);
 
     // The list owns its own scroll / thumb / column-resize / row-select
     // routing via OnMouse; these callbacks fold the semantic outcomes

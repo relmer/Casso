@@ -1192,6 +1192,7 @@ void Disk2DebugPanel::ConfigureWidgets()
     m_eventList->SetColumns                 (std::move (cols));
     m_eventList->SetShowHeader              (true);
     m_eventList->SetHorizontalScrollEnabled (true);
+    m_eventList->SetFollowEnd               (true);
 
     // The list owns keyboard column navigation: when it holds focus, its
     // own OnKey cycles the header / divider / body sub-stops on Tab and
