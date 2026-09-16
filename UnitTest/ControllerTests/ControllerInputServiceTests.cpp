@@ -221,6 +221,64 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (TwoPlayers_TurningTheModeOnFillsEmptySlotsFromWhatIsAttached)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox  = MakeXboxDevice();
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            MultiplayerSetup        setup;
+
+            backend.AddDevice (xbox, true);
+            backend.AddDevice (stick);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            // Turning the mode on with nothing set up must not leave both
+            // slots empty: that is a mode in which nobody plays.
+            service.SetMultiplayerEnabled (true);
+            setup = service.GetMultiplayer();
+
+            Assert::IsTrue (setup.players[0].unit.has_value(), L"player one takes the first attached controller");
+            Assert::IsTrue (setup.players[1].unit.has_value(), L"and player two the second");
+            Assert::IsTrue (setup.players[0].target == PlayerAxisTarget::Joystick0);
+            Assert::IsTrue (setup.players[1].target == PlayerAxisTarget::Joystick1, L"on the two joysticks, so neither overlaps");
+            Assert::IsFalse (setup.players[0].unit.value() == setup.players[1].unit.value(), L"and never the same controller twice");
+        }
+
+
+        TEST_METHOD (TwoPlayers_TurningTheModeOnFillsTheSlotTheUserLeftEmpty)
+        {
+            FakeControllerBackend   backend;
+            GamePortInputMixer      mixer;
+            ControllerInputService  service (backend, mixer);
+            ControllerDeviceInfo    xbox  = MakeXboxDevice();
+            ControllerDeviceInfo    stick = MakeStickDevice();
+            MultiplayerSetup        chosen;
+            MultiplayerSetup        setup;
+
+            backend.AddDevice (xbox, true);
+            backend.AddDevice (stick);
+            service.OnDevicesChanged();
+            service.Tick();
+
+            // A user who has already chosen player one is still owed a second
+            // player; filling only when BOTH slots were empty left them with a
+            // two-player mode one person could play.
+            chosen.players[0].unit   = stick.unit;
+            chosen.players[0].target = PlayerAxisTarget::Joystick0;
+            service.SetMultiplayer (chosen);
+
+            service.SetMultiplayerEnabled (true);
+            setup = service.GetMultiplayer();
+
+            Assert::IsTrue (setup.players[0].unit.value() == stick.unit, L"the chosen player is kept");
+            Assert::IsTrue (setup.players[1].unit.has_value(), L"and the empty slot takes the other controller");
+            Assert::IsTrue (setup.players[1].unit.value() == xbox.unit, L"never the one player one already holds");
+        }
+
+
         TEST_METHOD (TwoPlayers_MovingAPlayerFreesThePaddleTheyLeft)
         {
             FakeControllerBackend   backend;

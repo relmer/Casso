@@ -1081,5 +1081,29 @@ namespace ControllerTests
             Assert::IsFalse (page.GetMultiplayer().players[1].unit.has_value(),
                 L"nor can they claim a paddle player one already holds (FR-036)");
         }
+
+
+        TEST_METHOD (MultiplayerSlots_FillingASlotMovesItOffAPaddleTheOtherHolds)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+            MultiplayerSetup      setup;
+
+            // Both slots start on joystick 0, which is what a user meets the
+            // first time: picking a controller for player two must give them
+            // somewhere to play rather than being refused as an overlap.
+            setup.isEnabled       = true;
+            setup.players[0].unit = first.unit;
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (setup, 4);
+            page.SetMultiplayerUnit (1, second.unit);
+
+            Assert::IsTrue (page.GetMultiplayer().players[1].unit.has_value(), L"the pick sticks");
+            Assert::IsTrue (page.GetMultiplayer().players[1].unit.value() == second.unit);
+            Assert::IsFalse (page.GetMultiplayer().players[1].target == page.GetMultiplayer().players[0].target,
+                L"on a free target rather than the one player one already holds");
+        }
     };
 }

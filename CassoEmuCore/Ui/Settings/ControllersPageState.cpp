@@ -261,22 +261,41 @@ bool ControllersPageState::IsMultiplayerEnabled() const
 //
 //  SetMultiplayerUnit
 //
-//  The controller one player holds. Normalization empties the second slot
-//  when it repeats the first slot's controller or claims a paddle it already
-//  holds, so the page shows what will be played rather than what was asked
-//  for (FR-036).
+//  The controller one player holds.
+//
+//  FILLING A SLOT MOVES IT OFF A PADDLE THE OTHER PLAYER HOLDS rather than
+//  refusing it. Both slots start on joystick 0, so a user who picks a
+//  controller for the second player is asking for two players, not for the
+//  paddles the first one already has; leaving the choice to be emptied by
+//  normalization read as the drop-down ignoring the pick.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ControllersPageState::SetMultiplayerUnit (size_t player, const std::optional<ControllerUnitKey> & unit)
 {
+    std::vector<PlayerAxisTarget>  choices;
+
+
+
     if (player >= MultiplayerSetup::kPlayerCount)
     {
         return;
     }
 
     m_multiplayer.players[player].unit = unit;
-    m_multiplayer                      = ControllerSelectionPolicy::Normalize (m_multiplayer);
+
+    if (unit.has_value())
+    {
+        choices = ControllerSelectionPolicy::GetTargetChoices (m_multiplayer, player, m_axisCount);
+
+        if (!choices.empty() &&
+            std::find (choices.begin(), choices.end(), m_multiplayer.players[player].target) == choices.end())
+        {
+            m_multiplayer.players[player].target = choices.front();
+        }
+    }
+
+    m_multiplayer = ControllerSelectionPolicy::Normalize (m_multiplayer);
 
     if (m_onMultiplayerChanged)
     {

@@ -195,7 +195,7 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (PaddleSources_BothPlayersAreCheckedAndTheFaceReadsTheMode)
+        TEST_METHOD (PaddleSources_OnlyTheModeIsCheckedWhileTwoPlay)
         {
             InputModeRules::State                      state;
             std::vector<ControllerDeviceInfo>          devices = { MakeStick ("{A}", L"Gladiator"),
@@ -206,9 +206,11 @@ namespace ControllerTests
             state.hasController = true;
             sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup);
 
-            Assert::IsTrue (sources[0].isChecked, L"player one's controller is checked");
-            Assert::IsTrue (sources[1].isChecked, L"and so is player two's");
-            Assert::IsTrue (sources.back().isChecked, L"as is the mode they are playing in");
+            // One game port, one checked entry. Checking the players as well
+            // asked which of the two checked answers was driving.
+            Assert::IsFalse (sources[0].isChecked, L"player one's own row is not the answer");
+            Assert::IsFalse (sources[1].isChecked, L"nor player two's");
+            Assert::IsTrue  (sources.back().isChecked, L"the mode they are playing in is");
             Assert::AreEqual (std::wstring (L"Multiplayer"), InputModeRules::GetPaddleSourceLabel (sources),
                 L"the closed picker wears the mode, not one controller's name, while two are playing");
         }
@@ -225,6 +227,7 @@ namespace ControllerTests
             state.hasController = true;
             sources             = InputModeRules::BuildPaddleSources (state, devices, devices[0].unit, setup, 2);
 
+            Assert::IsFalse  (sources[0].isChecked, L"no player's row is checked in the mode, on any machine");
             Assert::IsFalse  (sources[1].isChecked, L"player two, on joystick 1, plays nothing on the //c");
             Assert::AreEqual (std::wstring (L"Multiplayer"), InputModeRules::GetPaddleSourceLabel (sources),
                 L"the machine is still in the mode, whatever it could find paddles for");

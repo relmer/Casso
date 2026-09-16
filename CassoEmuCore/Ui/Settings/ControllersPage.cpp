@@ -480,9 +480,12 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_response[target].SetRect  (MakeRect (axesX + labelWidth + optionWidth, axesBottom, optionWidth, rowH));
         m_response[target].SetItems ({ L"Position", L"Paddle speed" });
 
-        // The speed slider lines up with the "+" above it rather than merely
-        // following the response drop-down, so the column edge reads straight.
-        m_speed[target].SetRect          (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom, optionWidth, rowH));
+        // The speed slider starts at the "+" above it so the column edge reads
+        // straight, and runs to where that column ends. A slider keeps a fixed
+        // readout column on its right, so at the option width its track was a
+        // stub sitting far left of everything it lines up with.
+        m_speed[target].SetRect          (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom,
+                                                    optionWidth + addWidth, rowH));
         m_speed[target].SetRange         (ControllerProfileStore::kMinMaxSpeed, ControllerProfileStore::kMaxMaxSpeed);
         m_speed[target].SetStep          (16.0f);
         m_speed[target].SetDecimalPlaces (0);

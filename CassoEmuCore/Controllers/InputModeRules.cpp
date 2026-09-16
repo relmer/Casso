@@ -21,11 +21,11 @@
 //  that are here (FR-008a), so a row for one that is gone would offer a pick
 //  that drives nothing.
 //
-//  BOTH PLAYERS ARE CHECKED IN MULTIPLAYER, not only the selection. With two
-//  people playing, checking one of them would say the other drives nothing. A
-//  player slot kept while the keys or the mouse drive checks nothing, since
-//  the controllers are not driving then, and neither does one mapped to
-//  paddles this machine lacks.
+//  IN MULTIPLAYER ONLY THE MULTIPLAYER ROW IS CHECKED. One game port has one
+//  thing driving it, and in that mode the answer is "two people", not either
+//  of their controllers: checking a player's row as well asked the user why
+//  two entries were checked and which of them won. Who holds which paddles is
+//  the settings page's business, not this list's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,21 +47,19 @@ std::vector<InputModeRules::PaddleSource> InputModeRules::BuildPaddleSources (
 
 
 
+    // The machine's axis count no longer decides any row's check: in
+    // multiplayer the mode's row is the checked one whatever the players can
+    // reach, and outside it the selection answers on its own. It stays a
+    // parameter because what a player can play still belongs in this rule's
+    // vocabulary, and the callers already have it.
+    UNREFERENCED_PARAMETER (axisCount);
+
     for (const ControllerDeviceInfo & device : devices)
     {
-        PaddleSource           entry;
-        std::optional<size_t>  player    = ControllerSelectionPolicy::FindPlayer (multiplayer, device.unit);
-        bool                   isDriving = false;
-
-        if (multiplayer.isEnabled)
-        {
-            isDriving = player.has_value()
-                        && ControllerSelectionPolicy::GetAxesForPlayer (multiplayer, player.value(), axisCount).any();
-        }
-        else
-        {
-            isDriving = selection.has_value() && selection.value() == device.unit;
-        }
+        PaddleSource  entry;
+        bool          isDriving = !multiplayer.isEnabled
+                                  && selection.has_value()
+                                  && selection.value() == device.unit;
 
         entry.label      = device.description;
         entry.shortLabel = Shorten (device.description);

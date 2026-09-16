@@ -371,11 +371,44 @@ void ControllerInputService::SetMultiplayer (MultiplayerSetup setup)
 
 void ControllerInputService::SetMultiplayerEnabled (bool isEnabled)
 {
-    MultiplayerSetup  setup = GetMultiplayer();
+    MultiplayerSetup  setup  = GetMultiplayer();
+    size_t            player = 0;
 
 
 
     setup.isEnabled = isEnabled;
+
+    // TWO PLAYERS START WITH THE CONTROLLERS THAT ARE THERE. An empty slot
+    // means nobody plays it, which reads as the mode doing nothing, so every
+    // empty slot takes an attached controller the other slot does not hold.
+    // Filling only when BOTH were empty left the second slot empty for a user
+    // who had already chosen the first player's controller.
+    if (isEnabled)
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
+        {
+            size_t  other = (player == 0) ? 1 : 0;
+
+            if (setup.players[player].unit.has_value())
+            {
+                continue;
+            }
+
+            for (const ControllerDeviceInfo & device : m_devices)
+            {
+                if (setup.players[other].unit.has_value() && setup.players[other].unit.value() == device.unit)
+                {
+                    continue;
+                }
+
+                setup.players[player].unit   = device.unit;
+                setup.players[player].target = (player == 0) ? PlayerAxisTarget::Joystick0 : PlayerAxisTarget::Joystick1;
+                break;
+            }
+        }
+    }
 
     SetMultiplayer (setup);
 }
