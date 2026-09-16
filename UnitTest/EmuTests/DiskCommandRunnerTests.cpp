@@ -447,7 +447,8 @@ public:
         wrong             = runner.Run (options);
 
         Assert::AreNotEqual (DiskCommandResult::kClean, wrong.exitStatus);
-        Assert::IsTrue      (wrong.diagnostics.find ("this image is /MERLIN") != std::string::npos);
+        Assert::IsTrue      (wrong.diagnostics.find ("is a path on another volume") != std::string::npos);
+        Assert::IsTrue      (wrong.diagnostics.find ("this image is /MERLIN")       != std::string::npos);
     }
 
 

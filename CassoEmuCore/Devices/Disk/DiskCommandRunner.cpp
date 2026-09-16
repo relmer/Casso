@@ -1650,7 +1650,7 @@ HRESULT DiskCommandRunner::ResolveVolumePath (
 
     mine = !path.IsEmpty() && _stricmp (path.GetComponents()[0].c_str(), listing.volumeName.c_str()) == 0;
 
-    snprintf (note, sizeof (note), "names another volume; this image is /%s", listing.volumeName.c_str());
+    snprintf (note, sizeof (note), "is a path on another volume; this image is /%s", listing.volumeName.c_str());
 
     CBRFEx (mine, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND),
             result.Fail (options.disk.imagePath, typed, note));

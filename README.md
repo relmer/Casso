@@ -541,9 +541,10 @@ tables — so the next dialect is a profile, not a second assembler.
 
 Beyond assembling, a `run` subcommand loads and executes a binary or source, and a
 `disk` subcommand closes the build loop: `create`, `init`, `list`, `get`, `put`,
-`delete`, `boot`, `sectorread`, `sectorwrite`, `blockread` and `blockwrite`, on
-DOS 3.3 and ProDOS volumes across `.dsk`, `.do`, `.po`, `.woz`, `.nib` and `.nb2`
-alike.
+`delete`, `mkdir`, `rmdir`, `boot`, `sectorread`, `sectorwrite`, `blockread` and
+`blockwrite`, on DOS 3.3 and ProDOS volumes across `.dsk`, `.do`, `.po`, `.woz`,
+`.nib` and `.nb2` alike. Every ProDOS subdirectory is reachable by full path, and
+`list --recurse` covers a directory and everything under it.
 
 Full reference: **[docs/Assembler.md](docs/Assembler.md)**.
 
