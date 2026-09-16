@@ -6,6 +6,7 @@
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/IRunObserver.h"
+#include "Debugger/SymbolTable.h"
 #include "Debugger/WatchTable.h"
 #include "Debugger/WatchpointTable.h"
 
@@ -101,6 +102,12 @@ public:
     WatchTable            & GetZeroPage    ()       { return m_zeroPage; }
     WatchTable            & GetBookmarks   ()       { return m_bookmarks; }
     DataBlockTable        & GetDataBlocks  ()       { return m_dataBlocks; }
+    SymbolTable           & GetSymbols     ()       { return m_symbols; }
+    const SymbolTable     & GetSymbols     () const { return m_symbols; }
+
+    // The shipped tables for the target's machine into Main, Basic, Dos33
+    // and ProDos; the constructor and a machine switch do this.
+    void   LoadRomSymbols        ();
 
     // Host files, through the injected file system; a relative path is taken
     // from the current directory. Absent a file system, file commands fail.
@@ -173,6 +180,7 @@ private:
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
     DataBlockTable                        m_dataBlocks;
+    SymbolTable                           m_symbols;
     std::vector<Word>                     m_searchResults;
 
     RunState                              m_state         = RunState::Paused;

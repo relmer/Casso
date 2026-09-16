@@ -513,7 +513,9 @@ namespace DebuggerTests
             Assert::IsFalse  (session.TryResolveSymbol ("@3", address));
             Assert::IsFalse  (session.TryResolveSymbol ("@0", address));
             Assert::IsFalse  (session.TryResolveSymbol ("@",  address));
-            Assert::IsFalse  (session.TryResolveSymbol ("HOME", address));
+            Assert::IsFalse  (session.TryResolveSymbol ("NOSUCH", address));
+            Assert::IsTrue   (session.TryResolveSymbol ("home", address), L"the machine's ROM symbols are loaded");
+            Assert::AreEqual ((Word) 0xFC58, address);
         }
 
 

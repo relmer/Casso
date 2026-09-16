@@ -11,6 +11,7 @@
 #include "Debugger/IDebugNotificationSink.h"
 #include "Debugger/IInstructionObserver.h"
 #include "Debugger/LineAssembler.h"
+#include "Debugger/RomSymbols.h"
 
 
 
@@ -35,6 +36,35 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_target.SetStopConditions (this);
     m_target.SetRunObserver    (this);
     m_watchpoints.SetTarget    (&m_target);
+    LoadRomSymbols();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::LoadRomSymbols
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::LoadRomSymbols()
+{
+    std::string  error;
+    size_t       loaded = 0;
+    HRESULT      hr     = S_OK;
+
+
+
+    hr = m_symbols.LoadFrom (SymbolTableId::Main, RomSymbols::GetMain (m_target.GetMachineInfo().name), 0, loaded, error);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = m_symbols.LoadFrom (SymbolTableId::Basic, RomSymbols::GetBasic(), 0, loaded, error);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = m_symbols.LoadFrom (SymbolTableId::Dos33, RomSymbols::GetDos33(), 0, loaded, error);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = m_symbols.LoadFrom (SymbolTableId::ProDos, RomSymbols::GetProDos(), 0, loaded, error);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -399,6 +429,7 @@ void DebugSession::OnMachineChanged (const std::string & machineName)
     m_state = RunState::Paused;
 
     UpdateHookInstalled();
+    LoadRomSymbols();
     m_sink.OnMachineChanged (machineName);
 }
 
@@ -734,20 +765,21 @@ bool DebugSession::TryPeek (Word address, Byte & value) const
 //
 //  DebugSession::TryResolveSymbol
 //
-//  @n is the nth search result, counted from 1. No symbol tables are loaded
-//  yet, so no other name resolves.
+//  @n is the nth search result, counted from 1; any other name is looked up
+//  in the enabled symbol tables.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) const
 {
-    size_t  index = 0;
+    size_t         index = 0;
+    SymbolTableId  table = SymbolTableId::Main;
 
 
 
     if (name.size() < 2 || name[0] != '@' || name.find_first_not_of ("0123456789", 1) != std::string::npos)
     {
-        return false;
+        return m_symbols.TryResolve (name, address, table);
     }
 
     index = (size_t) std::stoul (name.substr (1));

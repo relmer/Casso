@@ -47,10 +47,11 @@ bool DataDirectiveHandlers::TryExecute (DebugSession & session, const DebugComma
 
 Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data)
 {
-    IDebugTarget  & target  = session.GetTarget();
+    IDebugTarget  & target      = session.GetTarget();
     Disassembler    disassembler (target.GetInstructionSet());
-    uint32_t        address = first;
-    HRESULT         hr      = S_OK;
+    SymbolTableId   symbolTable = SymbolTableId::Main;
+    uint32_t        address     = first;
+    HRESULT         hr          = S_OK;
 
 
 
@@ -75,6 +76,11 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
 
             hr = disassembler.DisassembleOne ((Word) address, bytes, line.instruction);
             IGNORE_RETURN_VALUE (hr, S_OK);
+
+            if (line.instruction.hasTarget)
+            {
+                session.GetSymbols().TryFindName (line.instruction.target, line.symbol, symbolTable);
+            }
         }
 
         address += line.instruction.bytes.size();

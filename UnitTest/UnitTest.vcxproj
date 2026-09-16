@@ -248,6 +248,9 @@
     <ClCompile Include="DebuggerTests\ExecutionHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ConfigHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\SymbolFileReaderTests.cpp" />
+    <ClCompile Include="DebuggerTests\RomSymbolsTests.cpp" />
+    <ClCompile Include="DebuggerTests\SymbolHandlersTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

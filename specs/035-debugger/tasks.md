@@ -206,7 +206,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - `CassoEmuCore/Cli/MerlinMode.cpp` writes `<output>.dbg` per `SAV` output through `ArtifactWriter::WriteDebugInfo`, on the per-output rule `As65Mode::WriteExtraArtifacts` uses;
   - tests in `UnitTest/PerOutputArtifactTests.cpp` and `UnitTest/MerlinCommandLineTests.cpp`;
   - documentation in `docs/Assembler.md` under Merlin.
-- [ ] T045 [P] [US1] Write `UnitTest/DebuggerTests/SymbolFileReaderTests.cpp`:
+- [X] T045 [P] [US1] Write `UnitTest/DebuggerTests/SymbolFileReaderTests.cpp` (the Merlin listing case runs against an inline sample until T042 lands the fixture):
   - Casso `-g` (`NAME=$ADDR`, `;` comments, both sections);
   - the Merlin listing symbol table, against `LABELS.listing.txt`;
   - AppleWin `.SYM` (`ADDR NAME`);
@@ -214,8 +214,8 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - detection from content;
   - an error for an unrecognized file;
   - the symbol count asserted non-zero for each fixture.
-- [ ] T046 [US1] Implement `CassoCore/Debugger/SymbolFileReader.h/.cpp` and `CassoEmuCore/Debugger/SymbolTable.h/.cpp` (tables `Main`, `Basic`, `Asm`, `User`, `User2`, `Src`, `Src2`, `Dos33`, `ProDos`; case-insensitive lookup). Makes T045 pass.
-- [ ] T047 [P] [US1] Author ROM symbol tables in `-g` format as file-scope tables in `CassoEmuCore/Debugger/RomSymbols.cpp`, one per machine plus DOS 3.3 and ProDOS entry points. Take names and addresses only from Apple's published Reference Manuals and DOS/ProDOS technical references, never from another emulator's symbol files (FR-031), and record the source of each table in a comment. `UnitTest/DebuggerTests/RomSymbolsTests.cpp` checks spot entries (`COUT $FDED`, `GETLN $FD6A`, `MONZ $FF69`) and that each table is non-empty.
+- [X] T046 [US1] Implement `CassoCore/Debugger/SymbolFileReader.h/.cpp` and `CassoEmuCore/Debugger/SymbolTable.h/.cpp` (tables `Main`, `Basic`, `Asm`, `User`, `User2`, `Src`, `Src2`, `Dos33`, `ProDos`; case-insensitive lookup). Makes T045 pass.
+- [X] T047 [P] [US1] Author ROM symbol tables in `-g` format as file-scope tables in `CassoEmuCore/Debugger/RomSymbols.cpp`, one per machine plus DOS 3.3 and ProDOS entry points. Take names and addresses only from Apple's published Reference Manuals and DOS/ProDOS technical references, never from another emulator's symbol files (FR-031), and record the source of each table in a comment. `UnitTest/DebuggerTests/RomSymbolsTests.cpp` checks spot entries (`COUT $FDED`, `GETLN $FD6A`, `MONZ $FF69`) and that each table is non-empty.
 - [ ] T048 [P] [US1] Write `UnitTest/DebuggerTests/AppleSingleCodecTests.cpp`: read and write round trip of the data fork, real name, and ProDOS file info (type, aux type); magic `$00051600` detection; errors for truncated and unknown-version input. First check with the 033-cassque session whether it has already added `AppleSingleCodec`; if so, reuse it and skip T049.
 - [ ] T049 [US1] Implement `CassoEmuCore/Core/AppleSingleCodec.h/.cpp` if 033 has not: no knowledge of memory, disks or the debugger (research R-016). Makes T048 pass.
 - [ ] T050 [P] [US1] Write `UnitTest/DebuggerTests/BinaryImageReaderTests.cpp`:
@@ -225,7 +225,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - an error for a raw load with no address;
   - content detection never guessing DOS 3.3 binary.
 - [ ] T051 [US1] Implement `CassoEmuCore/Debugger/BinaryImageReader.h/.cpp` (in EmuCore because it uses the codec there; CassoCore cannot reference CassoEmuCore) returning `{segments, format}`. `BLOAD` in T039 uses it. Makes T050 pass.
-- [ ] T052 [P] [US1] `CassoEmuCore/Debugger/Handlers/SymbolHandlers.h/.cpp`: `SYM`, `SYMMAIN`, `SYMBASIC`, `SYMASM`, `SYMUSER`, `SYMUSER2`, `SYMSRC`, `SYMSRC2`, `SYMDOS33`/`SYMDOS`, `SYMPRODOS`/`SYMPRO`, `SYMINFO`, `SYMLIST`, and bookmark commands `BM`, `BMA`, `BMC`, `BML`, `BMG`. Tests in `UnitTest/DebuggerTests/SymbolHandlersTests.cpp`.
+- [X] T052 [P] [US1] `CassoEmuCore/Debugger/Handlers/SymbolHandlers.h/.cpp`: `SYM`, `SYMMAIN`, `SYMBASIC`, `SYMASM`, `SYMUSER`, `SYMUSER2`, `SYMSRC`, `SYMSRC2`, `SYMDOS33`/`SYMDOS`, `SYMPRODOS`/`SYMPRO`, `SYMINFO`, `SYMLIST`. Tests in `UnitTest/DebuggerTests/SymbolHandlersTests.cpp`. The bookmark commands are in `WatchHandlers` (T041).
 
 ### Batch mode
 
