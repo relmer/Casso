@@ -50,7 +50,7 @@ CassoCli debug --attach 20044 --command "bp FDED" --command g
 >bp FDED
 Breakpoint #0 set at $FDED
 >g
-Breakpoint #0 at $FDED
+Stopped: breakpoint at $FDED
 ```
 
 - A run the script starts is waited for before the next line runs, so each

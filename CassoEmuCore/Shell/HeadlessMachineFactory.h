@@ -45,7 +45,7 @@ public:
     };
 
     //  `machineId` is a shipped machine's directory name: "Apple2",
-    //  "Apple2Plus", "Apple2e", "Apple2eEnhanced" or "Apple2c".
+    //  "Apple2Plus", "Apple2e", "Apple2eEnhanced" or "Apple2c", in any case.
     static HRESULT  Build (MachineHost        & host,
                            MachineBuilder     & builder,
                            const IRomSource   & source,
@@ -59,5 +59,6 @@ private:
                                 const std::string  & machineId,
                                 MachineConfig      & config,
                                 std::string        & error);
-    static void     ApplySlots (Slots slots, MachineConfig & config);
+    static void         ApplySlots     (Slots slots, MachineConfig & config);
+    static std::string  GetShippedId   (const std::string & machineId);
 };

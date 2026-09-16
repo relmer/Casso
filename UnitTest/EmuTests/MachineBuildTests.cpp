@@ -75,6 +75,17 @@ public:
     }
 
 
+    //  `CassoCli debug --machine apple2e` builds the //e: the name is matched
+    //  to the shipped id without regard to case.
+    TEST_METHOD (AMachineNameInAnyCaseBuildsTheShippedMachine)
+    {
+        TestMachine  machine ("apple2e");
+
+        Assert::AreEqual (std::wstring (L"Apple2e"), machine.GetCurrentMachineName());
+        Assert::IsNotNull (machine.GetMmu(), L"//e MMU");
+    }
+
+
     TEST_METHOD (ABuiltMachineBootsItsRom)
     {
         TestMachine  machine ("Apple2e");

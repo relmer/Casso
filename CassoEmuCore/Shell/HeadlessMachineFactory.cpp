@@ -4,6 +4,7 @@
 
 #include "Core/MachineConfig.h"
 #include "Core/Prng.h"
+#include "Machines/MachineDefinitions.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/IRomSource.h"
 #include "Shell/MachineBuilder.h"
@@ -32,15 +33,16 @@ HRESULT HeadlessMachineFactory::Build (
     uint64_t             seed,
     std::string        & error)
 {
-    HRESULT        hr = S_OK;
+    HRESULT        hr        = S_OK;
     MachineConfig  config;
-    std::wstring   wide (machineId.begin(), machineId.end());
+    std::string    shippedId = GetShippedId (machineId);
+    std::wstring   wide (shippedId.begin(), shippedId.end());
 
 
 
     error.clear();
 
-    hr = LoadConfig (source, machineId, config, error);
+    hr = LoadConfig (source, shippedId, config, error);
     CHR (hr);
 
     ApplySlots (slots, config);
@@ -53,7 +55,7 @@ HRESULT HeadlessMachineFactory::Build (
     host.GetConfig() = config;
 
     hr = builder.Build (config);
-    CHRF (hr, error = std::format ("{} did not build.", machineId));
+    CHRF (hr, error = std::format ("{} did not build.", shippedId));
 
 Error:
     return hr;
@@ -128,4 +130,33 @@ void HeadlessMachineFactory::ApplySlots (Slots slots, MachineConfig & config)
         std::erase_if (config.slots,
                        [] (const SlotConfig & slot) { return slot.slot != kDiskSlot; });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeadlessMachineFactory::GetShippedId
+//
+//  The shipped id a name matches when case is ignored, or the name unchanged
+//  when it matches none. The id selects the machine's built-in definition by
+//  exact match, so `apple2e` has to become `Apple2e` before the build: left as
+//  typed, it finds no definition and the configuration is read as a
+//  user-defined machine, which fails on fields a shipped JSON leaves out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string HeadlessMachineFactory::GetShippedId (const std::string & machineId)
+{
+    for (const std::string & id : MachineDefinitions::GetKnownIds())
+    {
+        if (_stricmp (id.c_str(), machineId.c_str()) == 0)
+        {
+            return id;
+        }
+    }
+
+    return machineId;
 }

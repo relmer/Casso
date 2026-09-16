@@ -447,7 +447,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 - [ ] T083 [P] Write `docs/Debugger.md`: ways in, both modes, the `/` prefix, Casso engine commands, symbol and binary formats, and batch examples. Link it from `README.md` and update README's feature list and test counts.
 - [ ] T084 [P] Add `CHANGELOG.md` entries under `[Unreleased]` for each merged phase. Keep them terse, give only the user-visible effect with `GH #51` first, and show them for approval before pushing.
-- [ ] T085 Run the pre-merge gate for each phase merge:
+- [X] T085 Run the pre-merge gate for each phase merge:
   - `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`;
   - the full Debug and Release suites with `scripts/RunTests.ps1`;
   - `scripts/RunTests.ps1 -Build -Scenario`, because DISK and disk overlays touch what a guest reads;
@@ -455,7 +455,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - `scripts/RunHarteTests.ps1 -SkipGenerate` at full depth, because `MachineHost`'s instruction loop changed.
 
   Report any suite that could not run and why.
-- [ ] T086 Run all of quickstart.md end to end and record the results in the final merge commit message.
+- [X] T086 Run all of quickstart.md end to end and record the results in the final merge commit message.
 - [X] T087 Investigate the emulation slowdown measured when T018 landed (Release x64, `CycleEmulation_MeetsBudget`, 1M //e cycles: 5.59/5.63/5.61 ms before, 5.78/5.88/5.87 ms after, about 4%):
   1. Confirm it is real: time a longer window (50M cycles) with 10 or more runs per build, on the commit before `9f12ea90` and on the current head.
   2. If it is real, attribute it by reverting one change at a time: the `m_debugHook` tests in `MachineHost::StepOne` and `RunCycles`; the `m_debugWatched` test and `ReadFromDevice` split on the `MemoryBus::ReadByte` slow path; `StoreToPage` on the write fast path; the placement of the shadow tables inside `MemoryBus`.
