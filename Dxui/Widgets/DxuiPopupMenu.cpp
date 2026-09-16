@@ -333,7 +333,7 @@ void DxuiPopupMenu::ShowCore (
         RefreshMetrics();
     }
 
-    width  = MeasureWidthPx (text);
+    width  = (std::max) (MeasureWidthPx (text), m_minWidthPx);
     height = GetContentHeightPx();
 
     if (left + width  > hostClient.right)  { left = hostClient.right  - width;  }

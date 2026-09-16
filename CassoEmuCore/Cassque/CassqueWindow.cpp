@@ -3047,6 +3047,12 @@ void CassqueWindow::Dispatch (int id)
             m_address->BeginEdit();
             break;
 
+        case CassqueCommands::kAddressHistory:
+            SetFocusPane (Pane::Address);
+            m_address->BeginEdit();
+            ShowAddressHistoryMenu (m_address->GetBounds());
+            break;
+
         case CassqueCommands::kAbout:
             ShowAbout();
             break;
@@ -4477,9 +4483,13 @@ void CassqueWindow::ShowAddressHistoryMenu (const RECT & anchor)
         m_menuCommands.push_back (std::move (command));
     }
 
+    //  Under the whole bar and as wide as it, as Explorer's history list is,
+    //  rather than under the chevron that opened it.
+    UNREFERENCED_PARAMETER (anchor);
+
     if (!items.empty())
     {
-        DxuiContextMenu::ShowUnder (*GetPopupHost(), anchor, std::move (items));
+        DxuiContextMenu::ShowUnderMatchingWidth (*GetPopupHost(), m_address->GetBounds(), std::move (items));
     }
 }
 

@@ -77,6 +77,10 @@ public:
         kZoomIn,
         kZoomOut,
         kZoomReset,
+
+        //  F4: the address opens for editing and its history drops, as in
+        //  Explorer. Ctrl+L and Alt+D only open the address.
+        kAddressHistory,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -259,7 +263,7 @@ private:
         { VK_F3,    false, false, false, kFindNext      },
         { 'L',      true,  false, false, kEditAddress   },
         { 'D',      false, true,  false, kEditAddress   },
-        { VK_F4,    false, false, false, kEditAddress   },
+        { VK_F4,    false, false, false, kAddressHistory },
     };
 
     //  The standard commands are NOT in the key table: DxuiCommandRouter

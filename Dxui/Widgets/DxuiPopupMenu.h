@@ -177,6 +177,12 @@ public:
     //  so the strip still sees the pointer and can swap titles on hover.
     void  SetGrabsCapture (bool grabs)          { m_grabsCapture = grabs; }
 
+    //  The narrowest the next show may be, in pixels, so a menu hung from a
+    //  wide control -- an address bar's history -- can match its width. Zero
+    //  lets the content decide, and a shared menu should be given it again
+    //  before each show, or one caller's width carries into the next.
+    void  SetMinWidthPx (int px)                { m_minWidthPx = (px > 0) ? px : 0; }
+
     void              SetPopupHost   (DxuiHwndSource * host) { m_popupHost = host; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
@@ -366,6 +372,7 @@ private:
     DxuiHwndSource     * m_popupHost        = nullptr;
     DxuiPopupHost      * m_activePopup      = nullptr;
     bool                 m_grabsCapture     = true;
+    int                  m_minWidthPx       = 0;
     bool                 m_reopenGuard      = true;
 
     bool                 m_colorsSet   = false;
