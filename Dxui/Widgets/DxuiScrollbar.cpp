@@ -581,8 +581,8 @@ void DxuiScrollbar::NotifyPos (int sbCode, int newPos)
 //
 //  DxuiScrollbar::Paint
 //
-//  Fills the track strip, the thumb (inset one pixel across the bar), and
-//  the two arrow triangles when present.
+//  Fills the thumb, centered across the bar, and the two arrow triangles
+//  once the pointer is near enough to fade them in. No track is drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
