@@ -366,10 +366,27 @@ failure looks exactly like a disk or emulation defect. This is the single
 biggest time sink here: a whole investigation into a nonexistent `I/O ERROR`
 came from typing too early.
 
+**Load source from the Executive menu, not from the editor.** The menu's `L` is
+"Load source" and prompts for a name on its own line (`%Load:`), pre-filling the
+previous one. The **editor's** `L` is List, so `L` followed by a filename there
+draws `ERR: Extra command characters` rather than loading anything. `Q` leaves
+the editor for the menu; `E` ("Enter ED/ASM") goes the other way. The task text's
+`L`, `E`, `ASM` is that order and means exactly this.
+
 **Merlin appends `.S` to the name itself.** Answer its Load prompt with
 `LABELS`, not `LABELS.S` -- the latter searches for `LABELS.S.S` and reports
 `FILE NOT FOUND`. The prompt renders as `%Load:LABELS?`; the trailing `?` is
 Merlin's own hint character, not part of what was typed.
+
+**A `KBD` directive stops the assembly to ask a question, and anything already
+in flight answers it.** `KEYMAC.S` asks `Save object code? (YES/NO):` partway
+through. Keystrokes sent to page the listing arrive at that prompt instead, so
+the answer becomes whatever was queued and the assembly fails further down on
+the unset symbol (`Unknown label in line: 304`). Worse, an answer typed after
+the prompt has passed lands in the **source buffer** as a new line, where a bare
+word becomes a label definition. Answer each prompt in order and send nothing
+else until the listing is actually scrolling. `UnitTest/Fixtures/Merlin/README.md`
+records which sources take `KBD` input; `LABELS.S` and `MAKE DUMP.S` take none.
 
 **Read the whole screen, never a grep for one expected string.** Filtering for
 `FILE NOT FOUND` alone reads an `I/O ERROR` screen as success.
