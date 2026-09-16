@@ -115,7 +115,7 @@ description: "Task list for 034 physical game controllers"
 ### Tests for User Story 2
 
 - [X] T039 [P] [US2] Create `UnitTest/ControllerTests/ControllerSelectionPolicyTests.cpp` covering every row of the policy table in data-model.md: connect with none selected (including present at start and on machine switch) selects the first in enumeration order and requests arrows/paddle off and a notice; connect with a selection changes nothing; selected DirectInput unit absent with exactly one same-model unit attached adopts it; two same-model units attached adopts nothing; the user choosing arrows or paddle clears the selection; Xbox model selection matches any unit and the lowest slot wins; a machine without a game port keeps but ignores the selection
-- [ ] T040 [P] [US2] Extend `UnitTest/UiTests/MachineInputPrefsTests.cpp`: `controller` and `controllerProfile` round trip; absent keys mean none and Default; existing `arrowsToJoystick`/`pointerMapping` behavior unchanged
+- [X] T040 [P] [US2] Extend `UnitTest/UiTests/MachineInputPrefsTests.cpp`: `controller` and `controllerProfile` round trip; absent keys mean none and Default; existing `arrowsToJoystick`/`pointerMapping` behavior unchanged
 - [X] T041 [P] [US2] Create `UnitTest/ControllerTests/PaddleSourceRowsTests.cpp`: one row per attached controller plus a selected-but-disconnected one; exactly one row checked; the disconnected row disabled; the label the strip wears is the checked row's short label, and "Controller" when none is checked; a command pointer taken before a rebuild stays valid until the rebuilt rows replace the menu items
 - [X] T042 [P] [US2] Create `UnitTest/ControllerTests/InputModeRulesTests.cpp`: selecting a controller turns off arrows-to-joystick and mouse-to-paddle; turning either on clears the controller selection; the resulting axis owner for each combination, including the disconnect fallback
 - [X] T043 [P] [US2] SUPERSEDED with T048; `DxuiTimedInfoBanner` arrived from master with its own tests.
@@ -132,7 +132,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T051 [US2] DONE, and further than planned: with the picker wearing the source on its face the cluster was left toggling one thing, so `InputClusterEntry` is deleted outright and mouse mode is a plain `kIdMouse` toggle beside the picker. Its monoline painters moved to `InputMonoGlyphs`, where the picker reaches them too.
 - [X] T052 [US2] Rebuild the rows and re-lay the strip from `EmulatorShell::SyncPaddleSourceList` in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp` whenever the device list, the selection or the input mode changes, and hand them to the toolbar through `SetDropDownItems (kIdPaddle, ...)`; the picker's width moves with its label, so the strip is laid out again on every change
 - [X] T053 [US2] Build; run `scripts/RunTests.ps1 -Filter Controller`, `-Filter MachineInputPrefs`, `-Filter Chrome`, `-Filter MenuBar`; run quickstart scenario 1, the selection half of scenario 8, and the controller rows of scenario 11 on hardware
-- [ ] T054 [US2] Commit: `feat(input): controller selection, persistence, menu and toolbar`
+- [X] T054 [US2] Commit: `feat(input): controller selection, persistence, menu and toolbar`
 
 **Checkpoint**: Selection is automatic, manual and persistent.
 
@@ -266,8 +266,8 @@ description: "Task list for 034 physical game controllers"
 - [X] T098d [US7] Rework the Phase 9 tests onto the mode, and add the button rule, the single-paddle slots, the refusal of an overlapping setup, and turning the mode off
 - [X] T099 [US7] Add the multiplayer UI to the Controllers page: the mode switch, the two player slots, each offering `GetTargetChoices` for this machine less what the other player holds (FR-035, FR-037)
 - [X] T100 [US7] Build a four-axis readout disk from `Disks/Casso/JoystickTest.bas` showing PDL(0)-PDL(3) and PB0-PB2, for validating two-controller play without a commercial two-player disk
-- [ ] T101 [US7] Build; run `-Filter Controller`; validate two controllers at once on hardware against the readout disk, and on a two-player game disk if one is available
-- [ ] T102 [US7] Commit: `feat(input): assign controllers to game-port axes`
+- [X] T101 [US7] Build; run `-Filter Controller`; validate two controllers at once on hardware against the readout disk, and on a two-player game disk if one is available
+- [X] T102 [US7] Commit: `feat(input): assign controllers to game-port axes`
 
 **Checkpoint**: Two people play at once; the //c offers two axes and the //e four.
 
