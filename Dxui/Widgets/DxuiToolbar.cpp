@@ -1255,9 +1255,16 @@ void DxuiToolbar::OpenDropDown (int commandId)
         }
     }
 
+    // UNDER THE ENTRY, not at a point. A point-placed popup is never flipped,
+    // only slid back onto the monitor, so a window near the bottom of the
+    // screen opened its drop-down downward anyway and left it lying against
+    // the taskbar. Anchored to the entry, it opens above the bar instead when
+    // the room below runs out, the way the menu bar's menus already do.
+    RECT  anchor = { slot->rc.left, m_barRect.top, slot->rc.right, m_barRect.bottom };
+
     m_openPicker = commandId;
     m_dropdown.SetOnClickOutside (m_onDropDownClickOutside);
-    m_dropdown.ShowAt (slot->rc.left, m_barRect.bottom, it->second.items, *m_textRenderer, m_hostClient);
+    m_dropdown.ShowUnder (anchor, it->second.items, *m_textRenderer, m_hostClient);
 
     if (!m_dropdown.IsVisible())
     {
