@@ -370,4 +370,18 @@ public:
 
         Assert::IsFalse  (PreviewDecoder::ParseDetails ("C:\\disks\\x.dsk: cannot be read\n", details), L"A plain failure has no details");
     }
+
+
+    TEST_METHOD (TextIsKnownByItsContentNotItsType)
+    {
+        const Byte  plain[]   = { 'H', 'I', '\r', 'T', 'H', 'E', 'R', 'E' };
+        const Byte  apple[]   = { 0xC8, 0xC9, 0x8D, 0xA0, 0xD4, 0x00, 0x00, 0x00 };
+        const Byte  binary[]  = { 0xA9, 0x00, 0x8D, 0x10, 0xC0, 0x60 };
+        const Byte  zeros[]   = { 0x00, 0x00, 0x00 };
+
+        Assert::IsTrue  (PreviewDecoder::LooksLikeText (plain),  L"Plain ASCII");
+        Assert::IsTrue  (PreviewDecoder::LooksLikeText (apple),  L"High-bit Apple text, with its sector padding");
+        Assert::IsFalse (PreviewDecoder::LooksLikeText (binary), L"Machine code");
+        Assert::IsFalse (PreviewDecoder::LooksLikeText (zeros),  L"Nothing but padding");
+    }
 };

@@ -109,6 +109,10 @@ public:
 
     static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, const Microcode * table, std::vector<std::wstring> & outLines);
 
+    //  Whether a file's leading bytes read as text, with or without the high
+    //  bit Apple text carries; a DOS 3.3 file's zero padding does not count.
+    static bool  LooksLikeText (std::span<const Byte> bytes);
+
 private:
     static bool  IsApplesoftType (Byte type, VolumeKind kind);
     static bool  IsIntegerType   (Byte type, VolumeKind kind);
@@ -119,6 +123,8 @@ private:
     static std::wstring  FormatProDosDate (const FileEntry & entry);
     static bool          IsCutOff         (const ApplesoftListingError & error);
     static std::wstring  DescribeCutOff   (const ApplesoftListingError & error);
+
+    static constexpr size_t  s_kTextSampleBytes = 4096;
 
     static constexpr const wchar_t *  s_kMonths[12] =
     {

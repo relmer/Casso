@@ -153,6 +153,49 @@ PreviewContent::Kind PreviewDecoder::Decide (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDecoder::LooksLikeText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDecoder::LooksLikeText (std::span<const Byte> bytes)
+{
+    size_t  count = (std::min) (bytes.size(), s_kTextSampleBytes);
+    size_t  i     = 0;
+
+
+
+    //  Trailing zeros are the padding of a file saved in whole sectors.
+    while (count > 0 && bytes[count - 1] == 0)
+    {
+        count--;
+    }
+
+    if (count == 0)
+    {
+        return false;
+    }
+
+    for (i = 0; i < count; i++)
+    {
+        Byte  value = (Byte) (bytes[i] & 0x7F);
+
+
+
+        if ((value < 0x20 || value == 0x7F) && value != '\t' && value != '\r' && value != '\n')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDecoder::SplitIntoLines
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -346,7 +389,7 @@ HRESULT PreviewDecoder::Render (
             outContent.kind     = PreviewContent::Kind::Hex;
             outContent.bytes    = payload.bytes;
             outContent.origin   = origin;
-            outContent.textFile = true;
+            outContent.textFile = LooksLikeText (payload.bytes);
             break;
 
         case PreviewContent::Kind::Picture:
@@ -363,8 +406,9 @@ HRESULT PreviewDecoder::Render (
             }
             else
             {
-                outContent.bytes  = payload.bytes;
-                outContent.origin = origin;
+                outContent.bytes    = payload.bytes;
+                outContent.origin   = origin;
+                outContent.textFile = LooksLikeText (payload.bytes);
             }
 
             break;
