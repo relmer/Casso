@@ -94,6 +94,7 @@ public:
     void                  SetMachineName (const std::wstring & name) { m_machineName = name; }
     const std::wstring &  GetMachineName () const                    { return m_machineName; }
 
+
     // Controllers came or went while the page is open. One that left keeps
     // its row and its edits, shown as not connected, so unplugging a cable by
     // accident does not throw away the user's work.
@@ -261,6 +262,11 @@ private:
 
     // The machine's mode, applied as it is edited rather than on OK, so it
     // has no baseline and takes no part in IsDirty or Revert.
+    //
+    // THE MODE AS PLAYED, not as saved. The page shows the settings for the
+    // mode the machine is actually in, so it never disagrees with the toolbar
+    // picker: a machine that fell back to one controller because none of its
+    // players is attached shows the single-player settings (FR-040).
     MultiplayerSetup                                m_multiplayer;
     size_t                                          m_axisCount = GamePortContribution::kAxisCount;
     MultiplayerChangedFn                            m_onMultiplayerChanged;

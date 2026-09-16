@@ -457,7 +457,7 @@ HRESULT SettingsSheet::OpenModeless (
             // machine input settings, so an edit goes to the service and to
             // the machine's prefs as it is made, exactly as a pick from the
             // toolbar's paddle picker does.
-            m_controllersState.SetMultiplayer (snapshot.multiplayer, snapshot.axisCount);
+            m_controllersState.SetMultiplayer (service->GetLiveMultiplayer(), snapshot.axisCount);
 
             m_controllersState.SetOnMultiplayerChanged ([this, service] (const MultiplayerSetup & setup)
             {
@@ -595,7 +595,7 @@ void SettingsSheet::ShowControllersPage()
         // Laid out again rather than merely re-synced: the section is not a
         // value on the page, it is rows that come and go, and every row below
         // it moves with them.
-        m_controllersState.SetMultiplayer (snapshot.multiplayer, snapshot.axisCount);
+        m_controllersState.SetMultiplayer (m_emuShell->GetControllerService()->GetLiveMultiplayer(), snapshot.axisCount);
         m_controllersPage->Relayout();
     }
 
@@ -667,10 +667,16 @@ void SettingsSheet::OnDialogTick()
         // the mode on and opens this page. Without this the page would go on
         // showing the mode it opened in, and the player slots would stay
         // hidden until the sheet was closed and opened again.
-        if (m_controllersState.GetMultiplayer()  != snapshot.multiplayer ||
-            m_controllersState.GetAxisCount()    != snapshot.axisCount)
+        // AS PLAYED, so a player's controller coming or going moves the page
+        // between the two-player and single-player settings the same way it
+        // moves the toolbar picker, even though it never touches the saved
+        // setup (FR-040).
+        MultiplayerSetup  live = m_emuShell->GetControllerService()->GetLiveMultiplayer();
+
+        if (m_controllersState.GetMultiplayer() != live ||
+            m_controllersState.GetAxisCount()   != snapshot.axisCount)
         {
-            m_controllersState.SetMultiplayer (snapshot.multiplayer, snapshot.axisCount);
+            m_controllersState.SetMultiplayer (live, snapshot.axisCount);
 
             // The section comes and goes with the mode, which moves every row
             // below it, so the page is laid out again rather than merely

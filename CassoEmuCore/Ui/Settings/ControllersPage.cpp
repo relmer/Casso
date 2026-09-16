@@ -403,6 +403,7 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         y += rowH;
     }
 
+
     for (player = 0; player < kPlayerCount; player++)
     {
         m_playerLabel[player].SetVisible (isTwoPlayer);
