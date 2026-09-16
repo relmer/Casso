@@ -251,7 +251,6 @@
     <ClCompile Include="DebuggerTests\SymbolFileReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\RomSymbolsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolHandlersTests.cpp" />
-    <ClCompile Include="DebuggerTests\AppleSingleCodecTests.cpp" />
     <ClCompile Include="DebuggerTests\BinaryImageReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugOptionsParseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugModeTests.cpp" />
@@ -334,6 +333,7 @@
     <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cBootTests.cpp" />
     <ClCompile Include="EmuTests\AppleMouseTests.cpp" />
+    <ClCompile Include="EmuTests\AppleSingleCodecTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
     <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />

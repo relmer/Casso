@@ -26,7 +26,9 @@ bool AppleSingleCodec::IsAppleSingle (std::span<const Byte> bytes)
 //  AppleSingleCodec::Decode
 //
 //  Every entry's offset and length must lie inside the file; a version other
-//  than 1 or 2 is refused, since its entry layout is not known.
+//  than 1 or 2 is refused, since its entry layout is not known. A dates entry
+//  shorter than its four dates is an error rather than a partial read, since
+//  which dates it holds cannot be known.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +76,16 @@ HRESULT AppleSingleCodec::Decode (std::span<const Byte> bytes, AppleSingleFile &
         {
             file.realName.assign (bytes.begin() + offset, bytes.begin() + offset + length);
         }
+        else if (id == kFileDatesId)
+        {
+            CBRFEx (length >= kFileDatesSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
+                    error = std::format ("The AppleSingle dates entry is {} bytes; it needs {}.", length, kFileDatesSize));
+
+            file.createDate = ReadDate (bytes, offset);
+            file.modifyDate = ReadDate (bytes, offset + 4);
+            file.backupDate = ReadDate (bytes, offset + 8);
+            file.accessDate = ReadDate (bytes, offset + 12);
+        }
         else if (id == kProDosInfoId && length >= kProDosInfoSize)
         {
             file.hasProDosInfo = true;
@@ -95,15 +107,17 @@ Error:
 //
 //  AppleSingleCodec::Encode
 //
-//  A version 2 file with the data fork, the real name when there is one, and
-//  the ProDOS info when it is set, in that order.
+//  A version 2 file with the data fork, the real name when there is one, the
+//  dates when any is set, and the ProDOS info when it is set, in that order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleSingleCodec::Encode (const AppleSingleFile & file, std::vector<Byte> & bytes)
 {
-    size_t  count  = 1 + (file.realName.empty() ? 0 : 1) + (file.hasProDosInfo ? 1 : 0);
-    size_t  offset = kHeaderSize + count * kEntrySize;
+    bool    hasDates = file.createDate.has_value() || file.modifyDate.has_value() ||
+                       file.backupDate.has_value() || file.accessDate.has_value();
+    size_t  count    = 1 + (file.realName.empty() ? 0 : 1) + (hasDates ? 1 : 0) + (file.hasProDosInfo ? 1 : 0);
+    size_t  offset   = kHeaderSize + count * kEntrySize;
 
 
 
@@ -126,6 +140,14 @@ void AppleSingleCodec::Encode (const AppleSingleFile & file, std::vector<Byte> &
         offset += file.realName.size();
     }
 
+    if (hasDates)
+    {
+        WriteBigEndian32 (bytes, kFileDatesId);
+        WriteBigEndian32 (bytes, (uint32_t) offset);
+        WriteBigEndian32 (bytes, (uint32_t) kFileDatesSize);
+        offset += kFileDatesSize;
+    }
+
     if (file.hasProDosInfo)
     {
         WriteBigEndian32 (bytes, kProDosInfoId);
@@ -135,6 +157,14 @@ void AppleSingleCodec::Encode (const AppleSingleFile & file, std::vector<Byte> &
 
     bytes.insert (bytes.end(), file.data.begin(), file.data.end());
     bytes.insert (bytes.end(), file.realName.begin(), file.realName.end());
+
+    if (hasDates)
+    {
+        WriteDate (bytes, file.createDate);
+        WriteDate (bytes, file.modifyDate);
+        WriteDate (bytes, file.backupDate);
+        WriteDate (bytes, file.accessDate);
+    }
 
     if (file.hasProDosInfo)
     {
@@ -223,4 +253,43 @@ void AppleSingleCodec::WriteBigEndian16 (std::vector<Byte> & bytes, Word value)
 
     bytes.push_back ((Byte) (value >> kByteBits));
     bytes.push_back ((Byte) value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleSingleCodec::ReadDate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int32_t> AppleSingleCodec::ReadDate (std::span<const Byte> bytes, size_t at)
+{
+    uint32_t  raw = ReadBigEndian32 (bytes, at);
+
+
+
+    if (raw == kUnknownDate)
+    {
+        return std::nullopt;
+    }
+
+    return (int32_t) raw;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleSingleCodec::WriteDate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleSingleCodec::WriteDate (std::vector<Byte> & bytes, std::optional<int32_t> date)
+{
+    WriteBigEndian32 (bytes, date.has_value() ? (uint32_t) *date : kUnknownDate);
 }
