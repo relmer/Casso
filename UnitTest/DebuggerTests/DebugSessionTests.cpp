@@ -511,10 +511,15 @@ namespace DebuggerTests
             reply = session.ExecuteLine ("");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
 
+            //  A MONITOR LINE NOW PARSES AS ONE. This session has no handler
+            //  families attached, so nothing runs the command it parsed to,
+            //  and what comes back names that command rather than the mode:
+            //  the difference between "the Monitor is not implemented" and
+            //  "this particular session cannot run L".
             session.ExecuteLine ("mode monitor");
             reply = session.ExecuteLine ("300L");
             Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status);
-            Assert::AreEqual (std::string ("Monitor mode is not available yet."), reply.error.detail);
+            Assert::AreEqual (std::string ("L is not available yet."), reply.error.detail);
 
             reply = session.ExecuteLine ("/mode applewin");
             Assert::AreEqual ((int) CommandStatus::Ok,        (int) reply.status);

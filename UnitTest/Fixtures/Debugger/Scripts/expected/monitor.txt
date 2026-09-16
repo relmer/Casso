@@ -1,0 +1,26 @@
+>MODE MONITOR
+Mode: MONITOR
+*300: A9 41 60
+0300- A9 41 60
+*300.302
+0300- A9 41 60
+*41<300.302S
+0301
+*300S
+A=41 X=00 Y=00 P=24 S=FD
+*^E
+A=41 X=00 Y=00 P=24 S=FD
+*: 01 02 03
+A=01 X=02 Y=03 P=24 S=FD
+*300.302W out.bin
+out.bin: 3 of 3 bytes
+*400: 00 00 00
+0400- 00 00 00
+*400.402R out.bin
+out.bin: 3 of 3 bytes
+*400.402
+0400- A9 41 60
+*/bp 300
+Breakpoint #0 set at $0300
+*/bpl
+#0 enabled  at $0300, hits 0

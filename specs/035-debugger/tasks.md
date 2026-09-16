@@ -321,7 +321,18 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - `!` and `F666G` enter `LineAssembler` mode.
 
   Tests in `UnitTest/DebuggerTests/MonitorHandlersTests.cpp` cover Story 2 scenarios 1-6, including a breakpoint set in AppleWin mode listed from Monitor mode.
-- [ ] T064 [US2] Add Monitor-mode scripts and expected output to `UnitTest/Fixtures/Debugger/Scripts/` and cases to `UnitTest/DebuggerTests/DebugModeTests.cpp` for quickstart phase 1 steps 5 and 6, with `out.bin` held in the mock `IFileSystem`.
+  - Done, with `DebugSession` wired to the Monitor parser and formatter. What it settled, and what it caught:
+    - **The session's mode decides the layout**, so `/R` typed at a `*` prompt prints the Monitor's `A=00 X=00 Y=00 P=24 S=FD` rather than AppleWin's line. A reply the Monitor has no layout for keeps the AppleWin text.
+    - **A bare `MODE APPLEWIN` is not a mode switch at a Monitor prompt**: `M` is the Monitor's move command and the line reads as one. `/MODE APPLEWIN` is the way back, and two of these tests were wrong about that before the run corrected them.
+    - **Return continues to the end of the eight-byte row, not eight bytes on.** Continuing from $0301 shows seven bytes and stops at $0307; asking for eight would spill one byte into the next row and print a second line holding one byte.
+    - **`300S` and `300T` set the program counter**, where AppleWin's `T` and `P` take a count and never an address, so `ExecuteRun` keys on the address being present.
+    - **A crash, not a wrong answer**: `MemoryHandlers::Search` reads a mask byte for every value byte, so the Monitor parser filling only `values` walked off the end of `mask` and took the test host down. The Monitor has no wildcard, so every mask byte is $FF.
+    - **A power-cycled machine has no usable stack pointer.** It is whatever the power-on pattern left, and a Monitor `G` pushes its return address onto that stack; with the pointer near zero the push wraps, the RTS pops two unrelated bytes, and the run never ends. The rig sets the pointer and a cycle budget, because a test that hangs the suite is a far worse way to find out than one that fails.
+- [x] T064 [US2] Add Monitor-mode scripts and expected output to `UnitTest/Fixtures/Debugger/Scripts/` and cases to `UnitTest/DebuggerTests/DebugModeTests.cpp` for quickstart phase 1 steps 5 and 6, with `out.bin` held in the mock `IFileSystem`.
+  - `monitor.txt` with text and JSON Lines goldens, plus `modes.txt` rewritten to deposit known bytes so its examine is about the mode switch rather than about the power-on pattern. Reading the generated output found two things:
+    - **A defect: a stop was printed in AppleWin wording whatever mode the reader was in.** `300S` at a `*` prompt said `Step at $0302` instead of the Monitor's register line, because `DebugBatchSink` formatted stops without asking the session for its mode. Fixed; the JSON form carries the stop as data and never varied.
+    - **`^E` arms exactly one colon, and arming it twice eats the next deposit.** The first draft of the script had two, so `400: 00 00 00` set the registers instead of memory. That is the Monitor's own rule working correctly, and it is easy to trip over, so the script says so where a reader of the fixture will see it.
+  - `L` is deliberately absent from the script: it lists twenty instructions whatever follows the three deposited, so the golden would mostly pin the disassembly of the power-on pattern.
 
 **Checkpoint**: The FR-027, FR-028 and FR-029 tests pass on every fixture ROM, and the full suite is green. Plan phase 1 is complete and mergeable to master.
 

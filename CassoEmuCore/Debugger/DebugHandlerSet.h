@@ -5,6 +5,7 @@
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
+#include "Debugger/Handlers/MonitorHandlers.h"
 #include "Debugger/Handlers/RegisterHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
@@ -40,4 +41,5 @@ private:
     WatchHandlers          m_watches;
     ConfigHandlers         m_config;
     SymbolHandlers         m_symbols;
+    MonitorHandlers        m_monitor;
 };

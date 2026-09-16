@@ -1,3 +1,6 @@
+; Known bytes first, so what the examine prints is about the mode and not
+; about the power-on pattern that happens to be in memory.
+MEB 300 A9 41 60
 MODE MONITOR
 300.302
 /R

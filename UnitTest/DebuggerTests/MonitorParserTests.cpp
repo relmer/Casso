@@ -141,14 +141,18 @@ namespace DebuggerTests
 
             rig.One ("300");
 
+            //  To the end of the row rather than eight bytes on: rows are
+            //  labeled on eight-byte boundaries, so the first continuation
+            //  is short and the next one is a full row.
             afterReturn = rig.One ("");
             AssertVerb (DebugVerb::Examine, afterReturn, "<return>");
             Assert::AreEqual ((int) 0x301, (int) afterReturn.a1);
-            Assert::AreEqual ((int) 0x308, (int) afterReturn.a2, L"one line of eight bytes");
+            Assert::AreEqual ((int) 0x307, (int) afterReturn.a2, L"to the end of the row");
 
             afterSpace = rig.One (" ");
             AssertVerb (DebugVerb::Examine, afterSpace, "<space>");
-            Assert::AreEqual ((int) 0x309, (int) afterSpace.a1);
+            Assert::AreEqual ((int) 0x308, (int) afterSpace.a1, L"and the next row starts on the boundary");
+            Assert::AreEqual ((int) 0x30F, (int) afterSpace.a2);
         }
 
 

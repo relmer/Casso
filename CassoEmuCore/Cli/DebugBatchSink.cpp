@@ -3,6 +3,7 @@
 #include "Cli/DebugBatchSink.h"
 
 #include "Debugger/AppleWinFormatter.h"
+#include "Debugger/MonitorFormatter.h"
 #include "Debugger/ReplyJson.h"
 
 
@@ -37,8 +38,26 @@ std::string DebugBatchSink::TakePending()
 
 void DebugBatchSink::OnStopped (const StopEvent & stop)
 {
+    bool  isMonitor = m_session != nullptr && m_session->GetMode() == CommandMode::Monitor;
+
+
+
     m_lastStop = stop.reason;
-    m_pending += m_json ? ReplyJson::WriteStopped (stop, std::nullopt) : AppleWinFormatter::FormatStop (stop);
+
+    //  A STOP IS PRINTED IN THE MODE THE READER IS WORKING IN. At a `*`
+    //  prompt a step shows the Monitor's register line, which is what the
+    //  original ][ printed; `Step at $0302` is the AppleWin wording and
+    //  belongs to the AppleWin prompt. The JSON form carries the stop as
+    //  data and does not vary by mode at all.
+    if (m_json)
+    {
+        m_pending += ReplyJson::WriteStopped (stop, std::nullopt);
+    }
+    else
+    {
+        m_pending += isMonitor ? MonitorFormatter::FormatStop (stop) : AppleWinFormatter::FormatStop (stop);
+    }
+
     m_pending += "\n";
 }
 

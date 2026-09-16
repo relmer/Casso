@@ -1,0 +1,15 @@
+{"type":"reply","status":"ok","command":"MODE MONITOR","data":{"kind":"mode","mode":"monitor"},"text":["Mode: MONITOR"]}
+{"type":"modeChanged","mode":"monitor"}
+{"type":"reply","status":"ok","command":"300: A9 41 60","data":{"kind":"memory","rows":[{"address":768,"bytes":[169,65,96],"region":"mainRam"}]},"text":["0300- A9 41 60"]}
+{"type":"reply","status":"ok","command":"300.302","data":{"kind":"memory","rows":[{"address":768,"bytes":[169,65,96],"region":"mainRam"}]},"text":["0300- A9 41 60"]}
+{"type":"reply","status":"ok","command":"41<300.302S","data":{"kind":"searchHits","addresses":[769]},"text":["0301"]}
+{"type":"reply","status":"ok","command":"300S","data":{"kind":"message"},"text":[]}
+{"type":"stopped","reason":"step","pc":770,"cycles":2,"registers":{"a":65,"x":0,"y":0,"p":36,"s":253,"pc":770}}
+{"type":"reply","status":"ok","command":"^E","data":{"kind":"registers","a":65,"x":0,"y":0,"p":36,"s":253,"pc":770,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A=41 X=00 Y=00 P=24 S=FD"]}
+{"type":"reply","status":"ok","command":": 01 02 03","data":{"kind":"registers","a":1,"x":2,"y":3,"p":36,"s":253,"pc":770,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A=01 X=02 Y=03 P=24 S=FD"]}
+{"type":"reply","status":"ok","command":"300.302W out.bin","data":{"kind":"fileIo","path":"out.bin","requested":3,"transferred":3,"mismatch":false},"text":["out.bin: 3 of 3 bytes"]}
+{"type":"reply","status":"ok","command":"400: 00 00 00","data":{"kind":"memory","rows":[{"address":1024,"bytes":[0,0,0],"region":"mainRam"}]},"text":["0400- 00 00 00"]}
+{"type":"reply","status":"ok","command":"400.402R out.bin","data":{"kind":"fileIo","path":"out.bin","requested":3,"transferred":3,"mismatch":false},"text":["out.bin: 3 of 3 bytes"]}
+{"type":"reply","status":"ok","command":"400.402","data":{"kind":"memory","rows":[{"address":1024,"bytes":[169,65,96],"region":"mainRam"}]},"text":["0400- A9 41 60"]}
+{"type":"reply","status":"ok","command":"/bp 300","data":{"kind":"breakpointSet","breakpoint":{"id":0,"kind":"address","address":768,"last":768,"enabled":true,"temporary":false,"stops":true,"hits":0}},"text":["Breakpoint #0 set at $0300"]}
+{"type":"reply","status":"ok","command":"/bpl","data":{"kind":"breakpointList","breakpoints":[{"id":0,"kind":"address","address":768,"last":768,"enabled":true,"temporary":false,"stops":true,"hits":0}]},"text":["#0 enabled  at $0300, hits 0"]}

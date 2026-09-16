@@ -11,6 +11,8 @@
 #include "Debugger/IDebugNotificationSink.h"
 #include "Debugger/IInstructionObserver.h"
 #include "Debugger/LineAssembler.h"
+#include "Debugger/MonitorFormatter.h"
+#include "Debugger/MonitorParser.h"
 #include "Debugger/RomSymbols.h"
 
 
@@ -157,41 +159,47 @@ void DebugSession::AddHandler (IDebugCommandHandler * handler)
 //
 //  DebugSession::ExecuteLine
 //
-//  In AppleWin mode the line is an AppleWin command. In Monitor mode only the
-//  / prefix reaches one until the Monitor parser exists. A line while the
-//  assembler is active is source for it. Parse failures become replies with
-//  the parser's message as the detail.
+//  The line goes to the parser for the session's mode. A line while the
+//  assembler is active is source for it, whichever mode that is. Parse
+//  failures become replies with the parser's message as the detail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Reply DebugSession::ExecuteLine (const std::string & line)
 {
-    AppleWinParseResult  parsed;
-    Reply                reply;
-    std::string          text = Trim (line);
+    Reply        reply;
+    std::string  text = Trim (line);
 
 
 
     if (m_assemblyAddress.has_value())
     {
-        reply.command = line;
         ExecuteAssemblyLine (text, reply);
-        return reply;
-    }
-
-    if (m_mode == CommandMode::Monitor && !text.starts_with ('/'))
-    {
         reply.command = line;
-        SetError (reply, CommandStatus::NotAvailable, "command not available", "Monitor mode is not available yet.");
         return reply;
     }
 
-    if (text.starts_with ('/'))
-    {
-        text = Trim (text.substr (1));
-    }
+    reply         = (m_mode == CommandMode::Monitor) ? ExecuteMonitorLine (text) : ExecuteAppleWinLine (text);
+    reply.command = line;
+    return reply;
+}
 
-    parsed = AppleWinParser::Parse (text, *this);
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteAppleWinLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteAppleWinLine (const std::string & text)
+{
+    AppleWinParseResult  parsed = AppleWinParser::Parse (text, *this);
+    Reply                reply;
+
+
 
     switch (parsed.status)
     {
@@ -216,8 +224,69 @@ Reply DebugSession::ExecuteLine (const std::string & line)
         break;
     }
 
-    reply.command = line;
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteMonitorLine
+//
+//  A Monitor line can hold several commands, so this is the one place a line
+//  produces more than one reply and they have to become one.
+//
+//  ONE COMMAND KEEPS ITS REPLY WHOLE, data and all, because that is nearly
+//  every line and a JSON reader should see the structure. Several commands
+//  are run in order and their rendered text is concatenated, with the first
+//  failure as the line's status; the merged reply carries no data of its
+//  own, so formatting it again adds nothing. A JSON reader sees one record
+//  with the whole line's text, which is the honest report of what a line
+//  like `300.30F 400.40F` did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteMonitorLine (const std::string & text)
+{
+    MonitorParseResult  parsed = MonitorParser::Parse (text, m_monitorState);
+    Reply               merged;
+
+
+
+    //  A `/` line was never the Monitor's.
+    if (!parsed.appleWinLine.empty())
+    {
+        return ExecuteAppleWinLine (parsed.appleWinLine);
+    }
+
+    if (parsed.status == ParseStatus::Invalid)
+    {
+        SetError (merged, CommandStatus::Error, "invalid arguments", parsed.error);
+        return merged;
+    }
+
+    if (parsed.commands.size() == 1)
+    {
+        return Execute (parsed.commands.front());
+    }
+
+    for (const DebugCommand & command : parsed.commands)
+    {
+        Reply  one = Execute (command);
+
+        MonitorFormatter::Format (one);
+        merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
+
+        if (merged.status == CommandStatus::Ok)
+        {
+            merged.status = one.status;
+            merged.error  = one.error;
+        }
+    }
+
+    return merged;
 }
 
 
@@ -234,6 +303,12 @@ Reply DebugSession::ExecuteLine (const std::string & line)
 
 void DebugSession::FormatReply (Reply & reply) const
 {
+    if (m_mode == CommandMode::Monitor)
+    {
+        MonitorFormatter::Format (reply);
+        return;
+    }
+
     AppleWinFormatter::Format (reply);
 }
 
@@ -516,6 +591,15 @@ bool DebugSession::ShouldStopBefore (Word pc)
         return true;
     }
 
+    //  A Monitor `G` returning through its pushed address. It takes no id and
+    //  is absent from BPL, because it is not the reader's breakpoint: it is
+    //  how the Monitor gets control back from a program that ends in RTS.
+    if (m_monitorReturn.has_value() && pc == *m_monitorReturn)
+    {
+        m_monitorReturn.reset();
+        return true;
+    }
+
     return TryMatchBeforeWatchpoint (pc);
 }
 
@@ -680,6 +764,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
     m_watchpoints.ClearPending();
     m_lastBreakpointId.reset();
     m_beforeHit.reset();
+    m_monitorReturn.reset();
     m_state = RunState::Paused;
 
     ClearTemporary (event);
@@ -895,12 +980,31 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 
     if (request.kind == RunKind::Go && command.hasA3 && !command.hasA2)
     {
+        //  A Monitor `G` leaves the Monitor's own return address on the
+        //  stack first, so a program ending in RTS comes back rather than
+        //  running on into whatever follows it.
+        if (command.mode == CommandMode::Monitor)
+        {
+            PushMonitorReturn();
+        }
+
         registers    = m_target.GetRegisters();
         registers.pc = command.a3;
         m_target.SetRegisters (registers);
     }
 
-    isStep             = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
+    isStep = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
+
+    //  The Monitor's `300S` and `300T` step and trace FROM an address, where
+    //  AppleWin's T and P take a count and never an address. Keying on the
+    //  address being present is what lets one run path serve both.
+    if (isStep && command.hasA1)
+    {
+        registers    = m_target.GetRegisters();
+        registers.pc = command.a1;
+        m_target.SetRegisters (registers);
+    }
+
     request.fullSpeed  = command.verb == DebugVerb::GoFullSpeed;
     request.hasUntilPc = command.hasA1 && request.kind == RunKind::RunTo;
     request.untilPc    = command.a1;
@@ -921,6 +1025,41 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         UpdateHookInstalled();
         SetError (reply, CommandStatus::Error, "run failed", "The machine could not start the run.");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::PushMonitorReturn
+//
+//  The address an RTS returns to, pushed as the 6502 pushes one: high byte
+//  first, and one less than the address itself, because RTS adds one.
+//
+//  REGISTERS ARE NOT RELOADED FROM $45-$49 the way the ROM's G does. The CPU
+//  is the single truth here, so a register set in AppleWin mode survives a
+//  Monitor G rather than being overwritten by five bytes of zero page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::PushMonitorReturn()
+{
+    static constexpr Word  kStackPage = 0x0100;
+    Cpu6502Registers       registers  = m_target.GetRegisters();
+    Word                   pushed     = (Word) (kMonitorReentry - 1);
+
+
+
+    m_target.TryPoke ((Word) (kStackPage + registers.sp), (Byte) (pushed >> 8));
+    registers.sp = (Byte) (registers.sp - 1);
+
+    m_target.TryPoke ((Word) (kStackPage + registers.sp), (Byte) (pushed & 0xFF));
+    registers.sp = (Byte) (registers.sp - 1);
+
+    m_target.SetRegisters (registers);
+    m_monitorReturn = kMonitorReentry;
 }
 
 

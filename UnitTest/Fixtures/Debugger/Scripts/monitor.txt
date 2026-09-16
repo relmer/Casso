@@ -1,0 +1,25 @@
+; Monitor mode end to end, as quickstart phase 1 steps 5 and 6 drive it:
+; deposit and examine, search, step, the registers and the colon that sets
+; them, a host file written and read back, and an AppleWin command reached
+; with the slash prefix.
+;
+; No L here on purpose. It lists twenty instructions whatever follows the
+; three that were deposited, so the output would be mostly the power-on
+; pattern disassembled, and this script is about the commands.
+;
+; Note the single ^E. It arms the next colon to set the registers instead of
+; memory, and arming it again would make the deposit at $0400 below set
+; registers too -- which is the Monitor's own rule and easy to trip over.
+MODE MONITOR
+300: A9 41 60
+300.302
+41<300.302S
+300S
+^E
+: 01 02 03
+300.302W out.bin
+400: 00 00 00
+400.402R out.bin
+400.402
+/bp 300
+/bpl

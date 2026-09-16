@@ -185,11 +185,20 @@ MonitorParseResult MonitorParser::Parse (const std::string & line, MonitorState 
             {
                 command = MakeCommand (DebugVerb::SearchMemory, 'S');
                 ApplyRange (scan, command);
+
+                //  EVERY VALUE BYTE CARRIES A MASK BYTE. The search matches
+                //  value against memory through the mask, and AppleWin's `S`
+                //  uses that for its `?` wildcards; the Monitor has no
+                //  wildcard, so every byte matches in full. Leaving the mask
+                //  empty is not "no wildcards" -- it is a shorter array than
+                //  the search walks.
                 command.values.push_back ((Byte) (*scan.dest & 0xFF));
+                command.mask.push_back   (0xFF);
 
                 if (*scan.dest > 0xFF)
                 {
                     command.values.push_back ((Byte) (*scan.dest >> 8));
+                    command.mask.push_back   (0xFF);
                 }
             }
             else
@@ -344,8 +353,13 @@ void MonitorParser::FlushExamine (Scan & scan, MonitorState & state, MonitorPars
             return;
         }
 
+        //  TO THE END OF THE ROW, NOT EIGHT BYTES ON. Rows are labeled on
+        //  eight-byte boundaries, so continuing from $0301 shows seven bytes
+        //  and stops at $0307; the next Return starts a full row at $0308.
+        //  Asking for eight from $0301 would spill one byte into the next
+        //  row and print a second line with a single byte on it.
         command.a1    = (Word) (state.lastExamined + 1);
-        command.a2    = (Word) (command.a1 + s_kBytesPerLine - 1);
+        command.a2    = (Word) (command.a1 | (s_kBytesPerLine - 1));
         command.hasA1 = true;
         command.hasA2 = true;
     }

@@ -221,6 +221,7 @@
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
     <ClCompile Include="Debugger\DebugHandlerSet.cpp" />
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
+    <ClCompile Include="Debugger\Handlers\MonitorHandlers.cpp" />
     <ClCompile Include="Shell\FileRomSource.cpp" />
     <ClCompile Include="Cli\DebugBatchSink.cpp" />
     <ClCompile Include="Cli\DebugBatchRunner.cpp" />
@@ -509,6 +510,7 @@
     <ClInclude Include="Debugger\BinaryImageReader.h" />
     <ClInclude Include="Debugger\DebugHandlerSet.h" />
     <ClInclude Include="Debugger\MonitorFormatter.h" />
+    <ClInclude Include="Debugger\Handlers\MonitorHandlers.h" />
     <ClInclude Include="Shell\FileRomSource.h" />
     <ClInclude Include="Cli\DebugBatchSink.h" />
     <ClInclude Include="Cli\DebugBatchRunner.h" />

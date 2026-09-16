@@ -6,6 +6,7 @@
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/IRunObserver.h"
+#include "Debugger/MonitorState.h"
 #include "Debugger/SymbolTable.h"
 #include "Debugger/WatchTable.h"
 #include "Debugger/WatchpointTable.h"
@@ -105,6 +106,11 @@ public:
     SymbolTable           & GetSymbols     ()       { return m_symbols; }
     const SymbolTable     & GetSymbols     () const { return m_symbols; }
 
+    // What the Monitor's line scan carries between lines: where the last
+    // examine stopped, where a bare `:` stores, and whether `^E` armed the
+    // next one to set registers.
+    MonitorState          & GetMonitorState ()      { return m_monitorState; }
+
     // The shipped tables for the target's machine into Main, Basic, Dos33
     // and ProDos; the constructor and a machine switch do this.
     void   LoadRomSymbols        ();
@@ -153,9 +159,17 @@ private:
         uint32_t  last  = 0;
     };
 
+    //  Where a Monitor `G` returns to. The ROM's own G pushes the address of
+    //  the code that re-enters the Monitor, so an RTS from the program lands
+    //  back at the prompt; Casso pushes the same address and stops there.
+    static constexpr Word  kMonitorReentry = 0xFF69;
+
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
+    Reply  ExecuteMonitorLine    (const std::string & text);
+    Reply  ExecuteAppleWinLine   (const std::string & text);
+    void   PushMonitorReturn     ();
     void   UpdateHookInstalled   ();
     bool   HasStopConditions     () const;
     bool   TryMatchBeforeWatchpoint (Word pc);
@@ -195,4 +209,7 @@ private:
 
     std::optional<Word>                   m_assemblyAddress;
     std::unique_ptr<OpcodeTable>          m_assemblyOpcodes;
+
+    MonitorState                          m_monitorState;
+    std::optional<Word>                   m_monitorReturn;
 };

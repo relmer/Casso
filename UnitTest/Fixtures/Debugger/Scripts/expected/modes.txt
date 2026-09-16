@@ -1,10 +1,11 @@
+>MEB 300 A9 41 60
+0300: A9 41 60                 )A`
 >MODE MONITOR
 Mode: MONITOR
 *300.302
-Error: command not available
-       Monitor mode is not available yet.
+0300- A9 41 60
 */R
-A:00 X:00 Y:00 P:24 S:FD PC:FA62  ..R..I..
+A=00 X=00 Y=00 P=24 S=FD
 */MODE APPLEWIN
 Mode: APPLEWIN
 >R

@@ -280,6 +280,41 @@ namespace DebugModeTests
             rig.AssertOutputIs ("modes.jsonl");
         }
 
+        //  Quickstart phase 1 steps 5 and 6, driven from a script: deposit
+        //  and examine, search, step, the registers and the colon that sets
+        //  them, a host file written and read back, and an AppleWin command
+        //  reached with the slash prefix.
+        TEST_METHOD (MonitorScript_ProducesTheExpectedText)
+        {
+            BatchRig  rig;
+
+
+
+            Assert::AreEqual (0, rig.Run (rig.Script ("monitor.txt")));
+            Assert::IsTrue   (rig.result.diagnostics.empty(), rig.Widen (rig.result.diagnostics).c_str());
+            rig.AssertOutputIs ("monitor.txt");
+
+            //  The file the script wrote went through the injected file
+            //  system and nowhere near a real disk.
+            Assert::IsTrue (rig.files.Exists (L"out.bin"), L"the script's host file");
+        }
+
+
+
+        TEST_METHOD (MonitorScript_ProducesTheExpectedJsonLines)
+        {
+            BatchRig  rig;
+
+
+
+            rig.options.json = true;
+
+            Assert::AreEqual (0, rig.Run (rig.Script ("monitor.txt")));
+            rig.AssertOutputIs ("monitor.jsonl");
+        }
+
+
+
         TEST_METHOD (MonitorOption_StartsInMonitorMode)
         {
             BatchRig  rig;
