@@ -10,6 +10,18 @@ Entries before versioning was introduced use dates only.
 
 ### Added
 
+- GH #97: Game controllers can now be mapped to the Apple's game ports. Xbox
+  controllers, gamepads, and joysticks appear in the controller picker, and
+  selected devices are saved per machine. A new Controllers page in Settings
+  provides full customization of mapping controller inputs to the Apple's game
+  inputs, as well as dead zone and calibration. These customizations can be
+  stored in profiles so that custom mappings best suited to specific games are
+  just a click away. The existing option of mapping keyboard or mouse to
+  joystick/paddle inputs is still available.
+- Multiplayer mode supports two controllers at once, each mapped to a joystick
+  or to separate paddles, with each player getting one button input. Note that
+  the physical Apple //c hardware only supports two paddle inputs, so it can
+  support multiplayer with paddles but only a single player with a joystick.
 - The toolbar is reachable from the keyboard. F10 or Tab into the chrome
   focus ring walks the menu titles, the ten toolbar entries and the drives;
   Enter on an entry activates it, and Enter on Volume opens the flyout with

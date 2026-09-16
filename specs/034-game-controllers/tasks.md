@@ -275,13 +275,13 @@ description: "Task list for 034 physical game controllers"
 
 ## Phase 10: Polish and Pre-Merge Gates
 
-- [ ] T103 [P] Add a `[Unreleased]` entry to `CHANGELOG.md` with `GH #97:` first, one or two lines of user-visible effect; show it to the user and wait for approval
-- [ ] T104 [P] Update `README.md` headline features if controller support belongs there; show it to the user and wait for approval
+- [X] T103 [P] Add a `[Unreleased]` entry to `CHANGELOG.md` with `GH #97:` first, one or two lines of user-visible effect; show it to the user and wait for approval
+- [X] T104 [P] Update `README.md` headline features if controller support belongs there; show it to the user and wait for approval
 - [ ] T105 Walk `specs/034-game-controllers/quickstart.md` sections 3-4 end to end, scenarios 1 through 15 including the two-controller scenarios 12-15 (SC-011, SC-012) on Release x64 and record outcomes in `specs/034-game-controllers/validation.md`, including any scenario that could not run and why. Measure and record, using temporary local instrumentation that is not committed: SC-002, time from a changed sample read to the sink write, plus one frame; SC-005, time from removal to the sink's release write and from arrival to the first controller write; SC-007, Casso's CPU time over 60 s idle on the //e with controllers attached and none selected, compared against the same run on master
-- [ ] T106 Merge `origin/master` into the branch; rebuild with `-Target Rebuild`; fix any renames the compiler surfaces
-- [ ] T107 `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
-- [ ] T108 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for Debug and Release, x64 and ARM64; zero warnings
-- [ ] T109 Full suite with `scripts/RunTests.ps1` in Debug and Release; confirm `UnitTest.dll` is newer than the build before trusting the result
+- [X] T106 Merge `origin/master` into the branch; rebuild with `-Target Rebuild`; fix any renames the compiler surfaces
+- [X] T107 `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
+- [X] T108 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for Debug and Release, x64 and ARM64; zero warnings
+- [X] T109 Full suite with `scripts/RunTests.ps1` in Debug and Release; confirm `UnitTest.dll` is newer than the build before trusting the result
 - [ ] T110 Present every commit subject, the CHANGELOG entry and any README change for approval; push only after approval; merge to master with `--no-ff`, subject `merge(input): 034 physical game controllers (...)`, body `Closes #97`
 
 ---
