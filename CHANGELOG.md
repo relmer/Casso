@@ -14,6 +14,8 @@ Entries before versioning was introduced use dates only.
   focus ring walks the menu titles, the ten toolbar entries and the drives;
   Enter on an entry activates it, and Enter on Volume opens the flyout with
   the arrow, Home, End and page keys moving the slider until Escape.
+- `CassoCli merlin -g` writes a symbol file with the `.dbg` extension for each
+  object it assembles.
 - `CassoCli merlin -l` appends a symbol table to its listing, as Merlin does:
   the source's symbols in alphabetical order, then again in address order. It
   goes in the `.lst` file beside the object. Local labels and the assembler's
@@ -39,6 +41,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Symbol files from `-g` no longer list the predefined `ERRORS`, `__65SC02__`
+  and `__6502X__` symbols.
 - The disk picker opens with its list scrolled to the top rather than the
   bottom.
 - Fixed bug preventing write-enabling images that rely on +R attribute for

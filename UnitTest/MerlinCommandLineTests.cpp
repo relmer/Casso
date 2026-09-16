@@ -121,10 +121,11 @@ namespace MerlinCommandLineTests
         //  what makes the table sweep below an assertion rather than a listing.
         static std::string Fingerprint (const CommandLineOptions & options)
         {
-            return options.outputFile + "|" + options.listingFile + "|"
+            return options.outputFile + "|" + options.listingFile + "|" + options.debugFile + "|"
                  + (options.generateListing ? "L" : "-")
                  + (options.listingToStdout ? "S" : "-")
                  + (options.verbose         ? "V" : "-")
+                 + (options.debugInfo       ? "G" : "-")
                  + "|" + Definitions (options);
         }
 
@@ -319,6 +320,42 @@ namespace MerlinCommandLineTests
             Assert::IsTrue   (opts.generateListing);
             Assert::IsTrue   (opts.listingFile.empty());
         }
+
+        //  `-g` follows the listing flag's rule for the listing flag's reason: a
+        //  Merlin source that saves twice produces two objects, and one debug
+        //  file indexed by address cannot describe both.
+        TEST_METHOD (DebugFlagAlone_NamesNoFile)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-g" });
+
+            Assert::IsTrue (opts.debugInfo);
+            Assert::IsTrue (opts.debugFile.empty(), L"the name comes from the object, later");
+        }
+
+
+
+        TEST_METHOD (DebugFlag_RefusesAnAttachedName)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "demo.s", "-gout.dbg" });
+
+            Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                            L"a name cannot serve several debug files");
+            Assert::IsTrue (opts.refusalMessage.find ("takes no filename") != std::string::npos,
+                            L"and the refusal says which rule was broken");
+        }
+
+
+
+        TEST_METHOD (DebugFlag_DoesNotSwallowTheSourceAfterIt)
+        {
+            CommandLineOptions  opts = Fixture::Parse ({ "CassoCli", "merlin", "-g", "demo.s" });
+
+            Assert::AreEqual (std::string ("demo.s"), opts.inputFile,
+                              L"the word after -g is the source, not the debug file");
+            Assert::IsTrue   (opts.debugInfo);
+        }
+
+
 
         TEST_METHOD (VerboseFlag_IsSeen)
         {

@@ -603,7 +603,7 @@ HRESULT ArtifactWriter::WriteDebugInfo (const AssemblyResult & result,
 
     CBR (isOpen);
 
-    dbgFile << Assembler::FormatDebugInfo (result.symbols);
+    dbgFile << Assembler::FormatDebugInfo (result.symbols, result.builtinSymbols);
 
 Error:
     return hr;

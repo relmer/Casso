@@ -246,6 +246,13 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.verbose; },
               "-v is verbose" },
 
+            //  Asserted the way the listing row above is, and for the same
+            //  reason: `-g` records that one was asked for while leaving the
+            //  name to the object it will describe.
+            { "merlin", "g", { "CassoCli", "merlin", "p.s", "-g" },
+              [] (const CommandLineOptions & o) { return o.debugInfo && o.debugFile.empty(); },
+              "-g asks for a debug file beside each object" },
+
             { "merlin", "d", { "CassoCli", "merlin", "p.s", "-d", "HOURS=12" },
               [] (const CommandLineOptions & o)
               {

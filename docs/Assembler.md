@@ -429,6 +429,7 @@ CassoCli merlin <source> [flags]
 |---|---|
 | `-o <file>` | Rename output file. Default: `<source>.bin`, unless the source names one itself. |
 | `-l` | Generate a listing beside each object, named after it. Takes no filename. |
+| `-g` | Write a symbol file with the `.dbg` extension for each object, named after it. |
 | `-d <symbol>[=<value>]` | Define a symbol the source expects. Without a value it is defined as `1`. |
 | `-v` | Verbose: an assembly summary on stderr. |
 | `--dos-bin` | Write the bytes behind a 4-byte DOS 3.3 header (origin + length), ready to `BLOAD`. |
@@ -506,6 +507,20 @@ That is why `-l` takes no filename under Merlin. One name cannot serve several
 listings, and the objects already supply the names. `as65 -l` is unchanged: it
 keeps its filename and its standard-output default, and an as65 source has no
 directive that could produce a second output.
+
+`-g` follows the same rule, for a sharper reason. A symbol file is indexed by
+address, so one file describing two outputs that both begin at `$0300` has
+entries that collide and a symbol that wins silently. `SAV LOADER` produces
+`LOADER`, `LOADER.lst` and `LOADER.dbg`, each carrying the symbols defined in
+the span it belongs to.
+
+The file holds symbols and nothing else: each one twice, once ordered by address
+and once by symbol. It carries no source line numbers, so `.dbg` names the
+extension as65 established rather than a format with debug information in it.
+
+The three symbols the assembler predefines so `IFDEF` has an answer --
+`ERRORS`, `__65SC02__` and `__6502X__` -- are left out. All three sit at
+`$0000`, and they belong to the assembler rather than to the source.
 
 ### Symbols and expressions
 

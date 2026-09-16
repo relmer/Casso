@@ -32,4 +32,9 @@ public:
 
 protected:
     std::string             ResolveOutputName            (const CommandLineOptions & options, const AssemblyResult & result) const override;
+
+    //  The debug file `-g` asks for, one per object. AS65 writes three extra
+    //  artifacts and Merlin has flags for only this one, so the two overrides
+    //  share the per-output rule rather than the list of files.
+    HRESULT                 WriteExtraArtifacts          (const CommandLineOptions & options, const AssemblyResult & result) const override;
 };

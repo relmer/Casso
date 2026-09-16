@@ -237,6 +237,32 @@ namespace PerOutputArtifactTests
 
 
 
+        //  The debug file describes the SOURCE's symbols. ERRORS, __65SC02__ and
+        //  __6502X__ are defined-but-zero so `IFDEF` can be answered, and a
+        //  debugger importing them would gain three symbols on $0000 that no
+        //  source wrote -- in the one file whose whole purpose is telling a
+        //  reader what the addresses mean.
+        TEST_METHOD (TheDebugFileLeavesTheAssemblersOwnSymbolsOut)
+        {
+            AssemblyResult  result = Fixture::Assemble (TwoOutputSource());
+            std::string     debug  = Assembler::FormatDebugInfo (result.symbols, result.builtinSymbols);
+
+
+
+            Assert::IsFalse (result.builtinSymbols.empty(),
+                             L"the assembler does define some, or this asserts nothing");
+
+            Assert::IsTrue (debug.find ("ERRORS")     == std::string::npos, L"no ERRORS");
+            Assert::IsTrue (debug.find ("__65SC02__") == std::string::npos, L"no __65SC02__");
+            Assert::IsTrue (debug.find ("__6502X__")  == std::string::npos, L"no __6502X__");
+
+            //  The source's own symbols are still there, so the filter is not
+            //  simply emptying the file.
+            Assert::IsTrue (debug.find ("FIRST") != std::string::npos, L"the source's symbols remain");
+        }
+
+
+
         //  Bytes assembled after the last save reach no file and the assembly
         //  says so. The LISTING is a record of what was assembled, so they are
         //  shown rather than dropped.

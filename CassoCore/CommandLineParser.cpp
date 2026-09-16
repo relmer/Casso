@@ -94,6 +94,13 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
            nullptr,
            CommandLineParser::FlagCategory::General, "",
            "Verbose: an assembly summary on stderr" },
+    //  NO FILENAME, for the reason the listing row above gives: one name cannot
+    //  serve the several objects a Merlin source may cut itself into, so each
+    //  symbol file takes the name of the object it describes.
+    { "g", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
+           nullptr,
+           CommandLineParser::FlagCategory::AssembledCode, "",
+           "Write a symbol file (.dbg) for each object assembled" },
 
     //  Merlin asks the operator for a keyboard-input symbol and waits. A batch
     //  assembly has nobody to ask, so the answer has to arrive with the
@@ -3406,6 +3413,25 @@ bool CommandLineParser::ApplyMerlinFlag (char                 letter,
 
     case 'v':
         options.verbose = true;
+        break;
+
+    case 'g':
+        //  A DEBUG FILE PER OBJECT, NAMED AFTER IT, on the listing's rule and
+        //  for the listing's reason: one file indexed by address cannot
+        //  describe two objects that both begin at $0300.
+        options.debugInfo = true;
+        options.debugFile.clear();
+
+        if (!value.empty())
+        {
+            Refusal (options) << "Error: " << options.flagPrefix
+                              << "g takes no filename under merlin\n";
+            Refusal (options) << "       a debug file is written beside each object, named after it\n";
+
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            stop                 = true;
+        }
+
         break;
 
     case 'd':

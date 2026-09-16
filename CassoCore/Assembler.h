@@ -78,7 +78,9 @@ public:
                                       int  columnWidth     = 0);
     static std::string FormatSymbolTable (const std::unordered_map<std::string, Word> & symbols,
                                           const std::unordered_map<std::string, SymbolKind> & symbolKinds);
-    static std::string FormatDebugInfo   (const std::unordered_map<std::string, Word> & symbols);
+    //  `omit` lists symbols to leave out, as FormatMerlinSymbolTable's does.
+    static std::string FormatDebugInfo   (const std::unordered_map<std::string, Word> & symbols,
+                                          const std::set<std::string> & omit = {});
 
     //  The symbol table a Merlin listing carries: the same symbols twice, once
     //  in name order and once in address order, in the layout research R-009

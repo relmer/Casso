@@ -593,12 +593,24 @@ std::string Assembler::FormatMerlinSymbolTable (const std::unordered_map<std::st
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols)
+std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols,
+                                        const std::set<std::string> & omit)
 {
     std::string                                output;
-    std::vector<std::pair<std::string, Word>>  sorted (symbols.begin(), symbols.end());
+    std::vector<std::pair<std::string, Word>>  sorted;
 
 
+
+    //  The assembler's own builtins are left out. They are defined-but-zero so
+    //  `IFDEF` can be answered, and a debugger importing this file would gain
+    //  three symbols sitting on $0000 that no source ever wrote.
+    for (const auto & pair : symbols)
+    {
+        if (omit.find (pair.first) == omit.end())
+        {
+            sorted.push_back (pair);
+        }
+    }
 
     // Sort symbols by address for deterministic output
     std::sort (sorted.begin(), sorted.end(),
