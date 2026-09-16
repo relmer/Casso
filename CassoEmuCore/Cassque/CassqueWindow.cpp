@@ -364,6 +364,7 @@ void CassqueWindow::ConfigureWidgets()
         FillList();
     });
 
+
     m_list->SetShowHeader (true);
     m_list->SetColumns (CassqueBrowser::GetColumns());
     m_list->SetPreciseAutoFit (true);
@@ -514,6 +515,19 @@ void CassqueWindow::ConfigureWidgets()
 
     m_browser.GetTypedPaths().Reset (m_prefs.typedPaths);
     ApplyStoredColumnWidths();
+
+    //  Posting is all that happens on the watcher's thread; the settle timer
+    //  and the re-read run here.
+    if (m_context.watcher != nullptr)
+    {
+        m_folderWatch = std::make_unique<FolderWatch> (*m_context.watcher);
+
+        m_folderWatch->SetOnChanged ([this] ()
+        {
+            PostMessageW (GetHwnd(), kFolderChangedMessage, 0, 0);
+        });
+    }
+
     m_browser.RestoreTabs (m_prefs.tabs);
 
     m_tree->OnFocusChanged (true);
@@ -979,6 +993,7 @@ void CassqueWindow::FillList()
         m_listLocation = m_browser.GetLocation();
         m_list->SetTopRow (0);
         RevealLocationInTree();
+        UpdateWatchedFolders();
     }
 
     m_list->UpdateAutoFitFromRows();
@@ -3610,6 +3625,16 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
+    //  A change arrived. Restarting the timer rather than re-reading now is
+    //  what collapses a burst: a copy of a hundred files re-reads once, when
+    //  the copying stops.
+    if (msg == kFolderChangedMessage)
+    {
+        SetTimer (GetHwnd(), kFolderTimerId, kFolderSettleMs, nullptr);
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (msg != kReplyMessage)
     {
         return DxuiMessageResult::NotHandled;
@@ -4016,7 +4041,15 @@ DxuiMessageResult CassqueWindow::OnActivateApp (bool active)
         ApplyTheme();
     }
 
-    if (active && m_list != nullptr && m_browser.GetBrowserModel().HasTabs())
+    //  NO RE-READ HERE. Coming back to the window used to re-enumerate the
+    //  folder and rebuild every row, whether or not anything had changed,
+    //  which on a folder of a few thousand files is a stall for nothing. The
+    //  watcher says what changed instead, and says it as it happens.
+    //
+    //  Without a watcher -- an unwatchable share, or a host that supplied
+    //  none -- the browser shows what it read when it read it, and the next
+    //  navigation picks up the rest.
+    if (active && m_list != nullptr && m_folderWatch == nullptr && m_browser.GetBrowserModel().HasTabs())
     {
         hr = m_browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -4135,6 +4168,114 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
             Invalidate();
         });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::UpdateWatchedFolders
+//
+//  The folder the list is showing, and for an image the folder holding it, so
+//  the image being replaced underneath is noticed too.
+//
+//  THE TREE'S OPEN FOLDERS ARE NOT WATCHED, for two reasons that both want
+//  fixing before they are. The watcher takes a thread per directory, which a
+//  deep tree would turn into twenty of them; and rebuilding the tree drops
+//  every node, so a refresh would fold the tree shut while someone is using
+//  it. Both need work of their own: a watcher multiplexing directories onto
+//  one thread, and a rebuild that keeps what is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::UpdateWatchedFolders()
+{
+    std::vector<std::wstring>  folders;
+    Location                   showing = m_browser.GetLocation();
+
+
+
+    if (m_folderWatch == nullptr)
+    {
+        return;
+    }
+
+    if (showing.kind == Location::Kind::HostFolder && !showing.path.empty())
+    {
+        folders.push_back (showing.path);
+    }
+    else if (!showing.path.empty())
+    {
+        folders.push_back (CassqueBrowser::GetParentFolder (showing.path));
+    }
+
+    m_folderWatch->SetWatched (folders);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RefreshChangedFolders
+//
+//  Runs once a burst has settled. The same files stay selected, and the view
+//  stays on the same files, by the rules RefreshAnchor sets out: a file added
+//  or removed elsewhere in the folder is no reason to lose the selection or to
+//  move what is on screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::RefreshChangedFolders()
+{
+    HRESULT                    hr = S_OK;
+    std::vector<std::wstring>  changed;
+    std::vector<std::wstring>  keys;
+    RefreshAnchor::Before      before;
+    RefreshAnchor::After       after;
+
+
+
+    if (m_folderWatch == nullptr || !m_folderWatch->TakeChanged (changed))
+    {
+        return;
+    }
+
+    if (!m_browser.GetBrowserModel().HasTabs())
+    {
+        return;
+    }
+
+    //  The view as it stands, in keys, before the rows under it change.
+    m_browser.GetRowKeys (before.keys);
+    before.topRow   = m_list->GetTopRow();
+    before.capacity = m_list->GetVisibleRowCapacity();
+    before.selected = m_list->GetSelectedRows();
+
+    //  The focused item counts only as part of the selection it belongs to.
+    before.focused  = m_list->IsRowSelected (m_list->GetSelectedRow()) ? m_list->GetSelectedRow() : -1;
+
+    //  Re-read without the browser's own restore: the anchor decides both the
+    //  selection and where the view lands.
+    hr = m_browser.Reload (false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    FillList();
+
+    m_browser.GetRowKeys (keys);
+    after = RefreshAnchor::Compute (before, keys);
+
+    m_browser.SetSelectedRows (after.selected);
+    m_list->SetSelectedRows   (after.selected, after.focused);
+
+    //  Last, since restoring the selection scrolls it into view.
+    m_list->SetTopRow (after.topRow);
+
+    FillPreview();
+    FillStatus();
+    Invalidate();
 }
 
 
@@ -4876,6 +5017,14 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
 
 DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
 {
+    if (timerId == kFolderTimerId)
+    {
+        KillTimer (GetHwnd(), kFolderTimerId);
+        RefreshChangedFolders();
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (timerId != kTooltipTimerId)
     {
         return DxuiMessageResult::NotHandled;

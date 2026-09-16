@@ -16,6 +16,8 @@
 #include "Theme/DxuiDarkTheme.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Theme/DxuiLightTheme.h"
+#include "Cassque/Model/FolderWatch.h"
+#include "Cassque/Model/RefreshAnchor.h"
 #include "Widgets/DxuiAddressBar.h"
 #include "Widgets/DxuiFramebufferView.h"
 #include "Widgets/DxuiHexView.h"
@@ -69,6 +71,10 @@ public:
         std::wstring    baseDir;
         HWND            owner       = nullptr;
         std::wstring    titlePrefix;
+
+        //  Optional: without one, the browser shows what it read when it read
+        //  it, and a change made elsewhere is seen on the next navigation.
+        IFolderWatcher * watcher    = nullptr;
     };
 
     CassqueWindow (CassqueBrowser & browser, CassqueActions & actions, CassquePrefs & prefs, Context context);
@@ -126,6 +132,16 @@ public:
 
     //  The private message that carries a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
+
+    //  A watched folder changed. Posted from the watcher's thread, which does
+    //  nothing else.
+    static constexpr UINT      kFolderChangedMessage = WM_APP + 0x32;
+    static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
+
+    //  How long to let a burst settle before re-reading. Copying a hundred
+    //  files reports a hundred changes; re-reading once at the end is both
+    //  faster and steadier to look at.
+    static constexpr UINT      kFolderSettleMs       = 200;
 
 protected:
     void  OnCreate        () override;
@@ -242,6 +258,14 @@ private:
 
     //  The file list's column widths from the last run.
     void  ApplyStoredColumnWidths ();
+
+    //  The host folders worth watching: the one the list is showing and every
+    //  one the tree has open. Cheap enough to call after anything that could
+    //  have changed either.
+    void  UpdateWatchedFolders ();
+
+    //  Re-reads whatever the watcher reported, once the burst has settled.
+    void  RefreshChangedFolders ();
     void  ShowHistoryMenu (bool forward, const RECT & anchor);
 
     static std::wstring  EscapeMnemonics (const std::wstring & text);
@@ -339,6 +363,7 @@ private:
     Win32ProcessLauncher                         m_launcher;
     Win32ShellIcons                              m_shellIcons;
     std::vector<std::unique_ptr<DxuiCommand>>    m_menuCommands;
+    std::unique_ptr<FolderWatch>                 m_folderWatch;
     std::vector<Win32IntentChannel::Reply>       m_pendingReplies;
     bool                                         m_dragArmed         = false;
     int                                          m_cassoDriveCount   = 0;

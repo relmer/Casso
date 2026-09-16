@@ -172,6 +172,11 @@ public:
     //  Whether the selected rows are all disk images in a host folder.
     bool  AreSelectedRowsImages() const;
 
+    //  Every row's key, in row order, as a selection stores them: a name and
+    //  its occurrence among rows with that name. What a refresh matches rows
+    //  by, since an index moves whenever a row is added or removed above it.
+    void  GetRowKeys (std::vector<std::wstring> & outKeys) const;
+
     //  The list widget's columns, in CatalogModel::Column order, and one
     //  row's cells.
     static std::vector<DxuiListView::Column>  GetColumns();

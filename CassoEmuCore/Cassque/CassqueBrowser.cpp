@@ -476,30 +476,56 @@ void CassqueBrowser::SortByColumn (int column)
 
 void CassqueBrowser::SelectRowsByKeys (const std::vector<std::wstring> & names)
 {
-    std::unordered_set<std::wstring>          wanted (names.begin(), names.end());
-    std::unordered_map<std::wstring, size_t>  seen;
-    std::vector<int>                          rows;
-    size_t                                    row = 0;
+    std::unordered_set<std::wstring>  wanted (names.begin(), names.end());
+    std::vector<std::wstring>         keys;
+    std::vector<int>                  rows;
+    size_t                            row = 0;
 
 
 
-    //  ONE PASS, NOT ONE PER ROW. GetSelectionKey counts a name's earlier
-    //  occurrences by walking every row, so asking it for each row in turn
-    //  walked the listing once per file, and a folder of a few thousand cost
-    //  millions of comparisons. The occurrences are counted as the rows go by
-    //  instead, and the wanted keys are looked up rather than searched.
-    for (row = 0; row < m_rows.size(); row++)
+    GetRowKeys (keys);
+
+    for (row = 0; row < keys.size(); row++)
     {
-        size_t        occurrence = seen[m_rows[row].name]++;
-        std::wstring  key        = std::to_wstring (occurrence) + L":" + m_rows[row].name;
-
-        if (wanted.find (key) != wanted.end())
+        if (wanted.find (keys[row]) != wanted.end())
         {
             rows.push_back ((int) row);
         }
     }
 
     SetSelectedRows (rows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetRowKeys
+//
+//  ONE PASS, NOT ONE PER ROW. GetSelectionKey counts a name's earlier
+//  occurrences by walking every row, so asking it for each row in turn walked
+//  the listing once per file, and a folder of a few thousand cost millions of
+//  comparisons. The occurrences are counted as the rows go by instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueBrowser::GetRowKeys (std::vector<std::wstring> & outKeys) const
+{
+    std::unordered_map<std::wstring, size_t>  seen;
+
+
+
+    outKeys.clear();
+    outKeys.reserve (m_rows.size());
+
+    for (const CatalogRow & row : m_rows)
+    {
+        size_t  occurrence = seen[row.name]++;
+
+        outKeys.push_back (std::to_wstring (occurrence) + L":" + row.name);
+    }
 }
 
 

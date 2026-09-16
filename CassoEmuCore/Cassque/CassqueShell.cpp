@@ -406,6 +406,7 @@ HRESULT CassqueShell::Initialize (HINSTANCE instance, const CassqueLaunchOptions
         context.baseDir     = m_baseDir;
         context.owner       = m_options.owner;
         context.titlePrefix = m_options.titlePrefix;
+        context.watcher     = &m_watcher;
 
         m_window = std::make_unique<CassqueWindow> (m_browser, m_actions, m_prefs, context);
     }

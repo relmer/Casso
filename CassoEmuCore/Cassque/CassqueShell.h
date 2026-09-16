@@ -8,6 +8,7 @@
 #include "Cassque/Model/CassquePrefs.h"
 #include "Config/Win32FileSystem.h"
 #include "Seams/Win32DiskFileIo.h"
+#include "Seams/Win32FolderWatcher.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Theme/DxuiDarkTheme.h"
 #include "Theme/DxuiLightTheme.h"
@@ -106,6 +107,7 @@ public:
 private:
     Win32FileSystem                 m_fs;
     Win32DiskFileIo                 m_fileIo;
+    Win32FolderWatcher              m_watcher;
     Win32IntentChannel              m_intentChannel;
     CassqueBrowser                  m_browser;
     CassqueActions                  m_actions;
