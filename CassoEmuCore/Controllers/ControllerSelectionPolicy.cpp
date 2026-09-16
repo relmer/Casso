@@ -113,6 +113,58 @@ ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsMultiplayerPlayable
+//
+//  Whether the mode the user left on is one this machine can play right now.
+//
+//  ONE PLAYER STILL AT THE MACHINE IS ENOUGH. The mode is given up only when
+//  the game port would otherwise be dead -- no slot filled, or not one of the
+//  controllers the slots name attached.
+//
+//  A PLAYER LEAVING MUST NOT HAND THEIR PADDLES TO THE OTHER. Falling back the
+//  moment either controller went would do exactly that, because single-source
+//  play gives the one controller PDL0 and PDL1: a co-player whose batteries
+//  died would leave the remaining player's stick driving the axis they just
+//  vacated, in the middle of a game (SC-012). Their paddles center and wait
+//  for them instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ControllerSelectionPolicy::IsMultiplayerPlayable (
+    const MultiplayerSetup &                   setup,
+    const std::vector<ControllerDeviceInfo> &  devices)
+{
+    size_t  player = 0;
+
+
+
+    if (!setup.isEnabled)
+    {
+        return false;
+    }
+
+    for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
+    {
+        if (!setup.players[player].unit.has_value())
+        {
+            continue;
+        }
+
+        if (FindUnit (devices, setup.players[player].unit.value()) != nullptr)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTargetAxes
 //
 //  A joystick is two paddles wired to one stick; a paddle is one. Paddles the

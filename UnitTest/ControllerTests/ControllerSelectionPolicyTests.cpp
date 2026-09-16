@@ -99,6 +99,75 @@ namespace ControllerTests
         }
 
 
+        //
+        //  The saved mode is intent. What the machine plays is the mode less
+        //  any player whose controller is not plugged in, so a game port with
+        //  a controller attached is never left dead (FR-040).
+        //
+
+        TEST_METHOD (Playable_NeedsOneOfItsPlayersAttached)
+        {
+            ControllerDeviceInfo               xbox    = MakeXbox();
+            ControllerDeviceInfo               stick   = MakeStick ("{A}");
+            MultiplayerSetup                   setup   = MakeTwoPlayers (xbox.unit, stick.unit);
+            std::vector<ControllerDeviceInfo>  both    = { xbox, stick };
+            std::vector<ControllerDeviceInfo>  oneOnly = { stick };
+            std::vector<ControllerDeviceInfo>  neither = { MakeStick ("{OTHER}") };
+
+            Assert::IsTrue  (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, both),
+                L"both players are plugged in, so the mode is played as saved");
+            Assert::IsTrue  (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, oneOnly),
+                L"one player leaving does not end the game for the other (SC-012)");
+            Assert::IsFalse (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, neither),
+                L"with neither player attached the port would be dead, so one controller takes it");
+            Assert::IsFalse (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, {}),
+                L"and with nothing attached there is nothing to play");
+        }
+
+
+        // A user who set one player up and left the other slot alone is
+        // playing a one-player setup through the mode; the empty slot is not
+        // a controller anyone has to plug in.
+        TEST_METHOD (Playable_AnEmptySlotIsNotARequirement)
+        {
+            ControllerDeviceInfo               stick = MakeStick ("{A}");
+            MultiplayerSetup                   setup;
+            std::vector<ControllerDeviceInfo>  devices = { stick };
+
+            setup.isEnabled       = true;
+            setup.players[0].unit = stick.unit;
+
+            Assert::IsTrue (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, devices));
+        }
+
+
+        // With both slots empty there is no two-player game to play, whatever
+        // the saved flag says, so the one controller drives as it always did.
+        TEST_METHOD (Playable_AnEnabledModeWithNoPlayersIsNotPlayed)
+        {
+            ControllerDeviceInfo               stick   = MakeStick ("{A}");
+            MultiplayerSetup                   setup;
+            std::vector<ControllerDeviceInfo>  devices = { stick };
+
+            setup.isEnabled = true;
+
+            Assert::IsFalse (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, devices));
+        }
+
+
+        TEST_METHOD (Playable_ModeOffIsNeverPlayed)
+        {
+            ControllerDeviceInfo               xbox    = MakeXbox();
+            ControllerDeviceInfo               stick   = MakeStick ("{A}");
+            MultiplayerSetup                   setup   = MakeTwoPlayers (xbox.unit, stick.unit);
+            std::vector<ControllerDeviceInfo>  devices = { xbox, stick };
+
+            setup.isEnabled = false;
+
+            Assert::IsFalse (ControllerSelectionPolicy::IsMultiplayerPlayable (setup, devices));
+        }
+
+
         TEST_METHOD (Normalize_RefusesARepeatedControllerAndAnOverlap)
         {
             ControllerUnitKey  xbox   = MakeXbox().unit;

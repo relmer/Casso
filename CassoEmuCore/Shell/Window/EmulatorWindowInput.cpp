@@ -2840,8 +2840,17 @@ void EmulatorShell::SyncPaddleSourceList()
     state.hasController        = snapshot.selection.has_value();
     state.isControllerAttached = snapshot.isAnyDriverConnected;
 
-    m_mainMenu.GetCommands().SetPaddleSources (
-        InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection, snapshot.multiplayer, snapshot.axisCount));
+    // The mode AS PLAYED, not as saved. A machine whose players are unplugged
+    // is playing a single controller, and a picker checking Multiplayer would
+    // name a source that is driving nothing.
+    {
+        MultiplayerSetup  live = snapshot.multiplayer;
+
+        live.isEnabled = snapshot.isMultiplayerLive;
+
+        m_mainMenu.GetCommands().SetPaddleSources (
+            InputModeRules::BuildPaddleSources (state, snapshot.devices, snapshot.selection, live, snapshot.axisCount));
+    }
 
     // Straight onto the command bar's Input drop-down rather than a submenu
     // off the Machine menu: this is a list the user picks from while playing,
@@ -3144,7 +3153,7 @@ void EmulatorShell::SyncGamePortAxisOwner()
         // nothing, so the mode itself is what holds them: reading the
         // selection alone would leave the axes at center for two people
         // playing on a machine with no controller selected.
-        state.hasController        = snapshot.selection.has_value() || snapshot.multiplayer.isEnabled;
+        state.hasController        = snapshot.selection.has_value() || snapshot.isMultiplayerLive;
         state.isControllerAttached = snapshot.isAnyDriverConnected;
     }
 

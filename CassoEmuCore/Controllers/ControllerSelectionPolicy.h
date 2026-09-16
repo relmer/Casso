@@ -166,6 +166,17 @@ public:
     static bool      IsSelectedAttached (const std::optional<ControllerUnitKey> &   selection,
                                          const std::vector<ControllerDeviceInfo> &  devices);
 
+    // Whether the two-player mode the user left on can be played right now:
+    // at least one slot is filled and its controller is attached.
+    //
+    // THE SAVED MODE IS INTENT, NOT STATE. A machine none of whose players
+    // are plugged in falls back to single-source play rather than leaving the
+    // game port dead, and the saved setup is left alone, so the mode returns
+    // by itself when the controllers do (FR-040). One player leaving does NOT
+    // end the mode: their paddles center and wait for them (SC-012).
+    static bool      IsMultiplayerPlayable (const MultiplayerSetup &                   setup,
+                                            const std::vector<ControllerDeviceInfo> &  devices);
+
     // The paddles a target maps to on a machine with axisCount axes. Paddles
     // past the count are left out, not removed from the slot, so a setup saved
     // on a //e plays again on returning to one (FR-035).

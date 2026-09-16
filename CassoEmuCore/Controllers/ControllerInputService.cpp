@@ -1068,6 +1068,7 @@ ControllerInputService::Snapshot ControllerInputService::GetSnapshot() const
     snapshot.lastSample          = m_lastSample;
     snapshot.isSelectedConnected = m_isSelectedConnected;
     snapshot.multiplayer         = m_multiplayer;
+    snapshot.isMultiplayerLive   = ControllerSelectionPolicy::IsMultiplayerPlayable (m_multiplayer, m_devices);
     snapshot.axisCount           = m_axisCount;
 
     for (const auto & [token, driver] : m_drivers)
@@ -1395,11 +1396,12 @@ uint64_t ControllerInputService::GetAttachOrderLocked (const ControllerUnitKey &
 std::vector<ControllerUnitKey> ControllerInputService::GetDriverUnitsLocked() const
 {
     std::vector<ControllerUnitKey>  units;
+    MultiplayerSetup                live   = GetLiveMultiplayerLocked();
     size_t                          player = 0;
 
 
 
-    if (!m_multiplayer.isEnabled)
+    if (!live.isEnabled)
     {
         if (m_selection.has_value())
         {
@@ -1411,8 +1413,8 @@ std::vector<ControllerUnitKey> ControllerInputService::GetDriverUnitsLocked() co
 
     for (player = 0; player < MultiplayerSetup::kPlayerCount; player++)
     {
-        const std::optional<ControllerUnitKey>  & unit      = m_multiplayer.players[player].unit;
-        bool                                      isPlaying = ControllerSelectionPolicy::GetAxesForPlayer (m_multiplayer, player, m_axisCount).any();
+        const std::optional<ControllerUnitKey>  & unit      = live.players[player].unit;
+        bool                                      isPlaying = ControllerSelectionPolicy::GetAxesForPlayer (live, player, m_axisCount).any();
 
         if (!unit.has_value() || !isPlaying)
         {
@@ -1431,6 +1433,54 @@ std::vector<ControllerUnitKey> ControllerInputService::GetDriverUnitsLocked() co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetLiveMultiplayerLocked
+//
+//  The saved setup, turned off while it cannot be played.
+//
+//  EVERY RULE BELOW READS THIS, NOT m_multiplayer. The saved setup is what the
+//  user asked for and what the prefs keep; this is what the machine plays. A
+//  user whose players are unplugged gets single-source play on whatever is
+//  attached, and the mode returns by itself when they plug back in, because
+//  nothing about the saved setup changed (FR-040).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MultiplayerSetup ControllerInputService::GetLiveMultiplayerLocked() const
+{
+    MultiplayerSetup  live = m_multiplayer;
+
+
+
+    live.isEnabled = ControllerSelectionPolicy::IsMultiplayerPlayable (m_multiplayer, m_devices);
+
+    return live;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLiveMultiplayer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MultiplayerSetup ControllerInputService::GetLiveMultiplayer() const
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return GetLiveMultiplayerLocked();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDriverAxesLocked
 //
 //  The machine paddles one controller drives: its player's, or PDL0 and PDL1
@@ -1441,17 +1491,18 @@ std::vector<ControllerUnitKey> ControllerInputService::GetDriverUnitsLocked() co
 
 MultiplayerSetup::AxisSet ControllerInputService::GetDriverAxesLocked (const ControllerUnitKey & unit) const
 {
-    std::optional<size_t>      player = ControllerSelectionPolicy::FindPlayer (m_multiplayer, unit);
+    MultiplayerSetup           live   = GetLiveMultiplayerLocked();
+    std::optional<size_t>      player = ControllerSelectionPolicy::FindPlayer (live, unit);
     MultiplayerSetup::AxisSet  axes;
     size_t                     axis   = 0;
 
 
 
-    if (m_multiplayer.isEnabled)
+    if (live.isEnabled)
     {
         if (player.has_value())
         {
-            axes = ControllerSelectionPolicy::GetAxesForPlayer (m_multiplayer, player.value(), m_axisCount);
+            axes = ControllerSelectionPolicy::GetAxesForPlayer (live, player.value(), m_axisCount);
         }
 
         return axes;
@@ -1486,7 +1537,7 @@ MultiplayerSetup::AxisSet ControllerInputService::GetDriverAxesLocked (const Con
 
 bool ControllerInputService::IsDriverLocked (const ControllerUnitKey & unit) const
 {
-    if (m_multiplayer.isEnabled)
+    if (GetLiveMultiplayerLocked().isEnabled)
     {
         return GetDriverAxesLocked (unit).any();
     }
@@ -1638,7 +1689,7 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
     for (const auto & [token, driver] : m_drivers)
     {
         MultiplayerSetup::AxisSet  axes   = GetDriverAxesLocked (driver.unit);
-        std::optional<size_t>      player = ControllerSelectionPolicy::FindPlayer (m_multiplayer, driver.unit);
+        std::optional<size_t>      player = ControllerSelectionPolicy::FindPlayer (GetLiveMultiplayerLocked(), driver.unit);
 
         if (!driver.logical.has_value() || !IsDriverLocked (driver.unit))
         {

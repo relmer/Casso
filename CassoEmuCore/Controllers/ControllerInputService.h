@@ -65,8 +65,13 @@ public:
         ControllerSample                       lastSample;
         bool                                   isSelectedConnected  = false;
 
-        // The machine's two-player setup, and how many axes it has.
+        // The machine's two-player setup as the user left it, and how many
+        // axes it has. `multiplayer` is INTENT: the settings page edits it and
+        // the prefs keep it. `isMultiplayerLive` is whether it is what the
+        // machine is playing right now, which it is not while a controller a
+        // player slot names is unplugged (FR-040).
         MultiplayerSetup                       multiplayer;
+        bool                                   isMultiplayerLive    = false;
         size_t                                 axisCount            = GamePortContribution::kAxisCount;
 
         // Whether any controller that drives the game port reads: the
@@ -121,6 +126,11 @@ public:
                                  PlayerAxisTarget                          target);
 
     MultiplayerSetup  GetMultiplayer () const;
+
+    // The setup as it is PLAYED: the saved one, turned off while a controller
+    // one of its slots names is not attached, so the game port falls back to
+    // single-source play rather than going dead (FR-040).
+    MultiplayerSetup  GetLiveMultiplayer () const;
 
     // Runs the selection policy on the next tick, for a machine switched to:
     // one with no controller saved counts as a controller connecting (FR-032).
@@ -223,6 +233,7 @@ private:
 
     // All of these assume m_mutex is already held.
     const ControllerDeviceInfo *    FindDeviceLocked         (const ControllerUnitKey & unit) const;
+    MultiplayerSetup                GetLiveMultiplayerLocked () const;
     std::vector<ControllerUnitKey>  GetDriverUnitsLocked     () const;
     MultiplayerSetup::AxisSet       GetDriverAxesLocked      (const ControllerUnitKey & unit) const;
     bool                            IsDriverLocked           (const ControllerUnitKey & unit) const;
