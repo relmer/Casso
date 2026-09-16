@@ -584,8 +584,11 @@ void SettingsSheet::ShowControllersPage()
     {
         ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
 
+        // Laid out again rather than merely re-synced: the section is not a
+        // value on the page, it is rows that come and go, and every row below
+        // it moves with them.
         m_controllersState.SetMultiplayer (snapshot.multiplayer, snapshot.axisCount);
-        m_controllersPage->Refresh();
+        m_controllersPage->Relayout();
     }
 
     if (index >= 0)
@@ -647,7 +650,26 @@ void SettingsSheet::OnDialogTick()
     // Controllers page's reading of the one it shows.
     if (m_controllersPage != nullptr && m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
     {
-        m_controllersState.UpdateDevices (m_emuShell->GetControllerService()->GetSnapshot().devices);
+        ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+
+        m_controllersState.UpdateDevices (snapshot.devices);
+
+        // The mode can be turned on from the picker while the sheet is open,
+        // which is exactly what the picker's Multiplayer... row does: it turns
+        // the mode on and opens this page. Without this the page would go on
+        // showing the mode it opened in, and the player slots would stay
+        // hidden until the sheet was closed and opened again.
+        if (m_controllersState.GetMultiplayer()  != snapshot.multiplayer ||
+            m_controllersState.GetAxisCount()    != snapshot.axisCount)
+        {
+            m_controllersState.SetMultiplayer (snapshot.multiplayer, snapshot.axisCount);
+
+            // The section comes and goes with the mode, which moves every row
+            // below it, so the page is laid out again rather than merely
+            // re-synced; its layout-changed hook rebuilds the tab order.
+            m_controllersPage->Relayout();
+        }
+
         m_controllersPage->Poll();
     }
 
