@@ -80,6 +80,7 @@ class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
+class CpuManagerRunDriver;
 struct MonitorSpec;
 
 // Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
@@ -198,6 +199,14 @@ public:
     // devices, video modes, which machine this is -- is reached through
     // here rather than off the shell.
     MachineHost & GetMachine() { return m_machine; }
+
+    // The CPU thread, for a debugger run that has to un-pause it and pause it
+    // again from the inside.
+    CpuManager & GetCpuManager() { return m_cpuManager; }
+
+    // Attaches the driver the slice loop reports to, or detaches it with null.
+    // The caller owns it and must detach before destroying it.
+    void SetDebugRunDriver (CpuManagerRunDriver * driver) { m_debugRunDriver = driver; }
 
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_machine.GetMemoryBus(); }
@@ -1930,6 +1939,11 @@ private:
     // and otherwise reads the manager's transition state through the
     // IsRunning() / IsPaused() / GetSpeedMode() accessors.
     CpuManager                    m_cpuManager;
+
+    // The driver of a debugger run, when one is attached. Null on a machine
+    // nobody is debugging, which is what keeps the slice loop's cost to a
+    // comparison. Owned by whoever attached the session, not by the shell.
+    CpuManagerRunDriver         * m_debugRunDriver = nullptr;
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};

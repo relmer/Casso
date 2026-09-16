@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Debugger/CpuManagerRunDriver.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
@@ -867,6 +868,16 @@ void EmulatorShell::ExecuteCpuSlices()
         }
 
         executed += sliceActual;
+
+        // A debugger run ends HERE, on the thread that ran it, because this is
+        // where a stop becomes observable: the hook stopped the CPU partway
+        // through the slice above, which is why RunCycles came back short.
+        // Carrying on with the rest of the frame would run the guest past the
+        // instruction the client was told it stopped on.
+        if (m_debugRunDriver != nullptr && m_debugRunDriver->OnSliceExecuted (sliceActual))
+        {
+            break;
+        }
 
         // The Apple keys held through a reset are held for a count of
         // emulated cycles, the firmware's own timeline.
