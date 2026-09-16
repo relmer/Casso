@@ -29,7 +29,9 @@ struct WatchItem
 //
 //  A numbered address list: AppleWin's display watches, zero-page pointers
 //  and bookmarks each use one. Ids count up from 0 within the list and are
-//  not reused after a clear.
+//  not reused after a clear, except that clearing the whole list starts
+//  numbering over. AddAt fills a given slot, as ZP0-ZP7 do, replacing what
+//  was there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +39,7 @@ class WatchTable
 {
 public:
     int   Add           (Word address);
+    int   AddAt         (int id, Word address);
     bool  TryClear      (int id);
     void  ClearAll      ();
     bool  TrySetEnabled (int id, bool enabled);

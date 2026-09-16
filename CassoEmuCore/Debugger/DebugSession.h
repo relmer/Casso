@@ -33,6 +33,16 @@ enum class RunState
     Stepping,
 };
 
+// LOG: which notifications batch mode and the channel print. Error is
+// stops only; Info adds resumed, reset, machine and mode changes; All adds
+// every reply's text.
+enum class LogLevel
+{
+    Error,
+    Info,
+    All,
+};
+
 
 
 
@@ -82,6 +92,8 @@ public:
     RunState                GetRunState    () const { return m_state; }
     CommandMode             GetMode        () const { return m_mode; }
     std::optional<uint64_t> GetBudget      () const { return m_budget; }
+    LogLevel                GetLogLevel    () const { return m_logLevel; }
+    void                    SetLogLevel    (LogLevel level) { m_logLevel = level; }
     IDebugTarget          & GetTarget      ()       { return m_target; }
     BreakpointTable       & GetBreakpoints ()       { return m_breakpoints; }
     WatchpointTable       & GetWatchpoints ()       { return m_watchpoints; }
@@ -165,6 +177,7 @@ private:
 
     RunState                              m_state         = RunState::Paused;
     CommandMode                           m_mode          = CommandMode::AppleWin;
+    LogLevel                              m_logLevel      = LogLevel::Info;
     std::optional<uint64_t>               m_budget;
     bool                                  m_hookInstalled = false;
     std::optional<int>                    m_lastBreakpointId;

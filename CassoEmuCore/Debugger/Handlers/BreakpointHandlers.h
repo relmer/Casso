@@ -31,8 +31,10 @@ public:
     static BreakpointInfo  MakeInfo (const Breakpoint & entry);
     static BreakpointInfo  MakeInfo (const Watchpoint & entry);
 
-    // The command line that recreates an entry, as BPSAVE writes it.
+    // The command line that recreates an entry, and the script that
+    // recreates the whole table, as BPSAVE writes them.
     static std::string     MakeDefinition (const BreakpointInfo & info);
+    static std::string     MakeScript     (DebugSession & session);
 
 private:
     static constexpr int   kOpcodeCount  = 256;

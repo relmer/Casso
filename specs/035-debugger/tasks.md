@@ -191,7 +191,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - I/O: `IN`/`INPUT`, `OUT`;
   - the Casso engine command `SWITCHES` (FR-007), as defined in `contracts/command-modes.md`.
 - [X] T040 [P] [US1] `CassoEmuCore/Debugger/Handlers/DataDirectiveHandlers.h/.cpp`: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`, `DW4`, `ASC`, `DF`, `DA`, and `U` disassembly honoring those data ranges. Also `A addr`, which enters the line-assembly mode Monitor `!` uses (each following line assembled through `LineAssembler`, a blank line ends it), as `contracts/command-modes.md` defines.
-- [ ] T041 [P] [US1] `CassoEmuCore/Debugger/Handlers/ConfigHandlers.h/.cpp`: `PWD`, `CD`, `LOAD`, `SAVE`, `DISASM`, `STARTUP`, `RUN` (a script through the same session), `DISK`, `LOG`, `ECHO`, `PRINT`, `PRINTF`, `CALC`, `?`, `HELP`, `VERSION`, `MOTD`, `WSAVE`, `ZPSAVE`, `BMSAVE`.
+- [X] T041 [P] [US1] `CassoEmuCore/Debugger/Handlers/ConfigHandlers.h/.cpp`: `PWD`, `CD`, `LOAD`, `SAVE`, `DISASM`, `STARTUP`, `RUN` (a script through the same session), `DISK` (`INFO` and `SLOT`; `EJECT`, `INSERT` and `PROTECT` report not available until the emulator wiring in T070), `LOG`, `ECHO`, `PRINT`, `PRINTF`, `CALC`, `?`, `HELP`, `VERSION`, `MOTD`. The watch, zero-page and bookmark commands (`W*`, `ZP*`, `P0`-`P4`, `BM*`) and their `WSAVE`, `ZPSAVE` and `BMSAVE` live in `Handlers/WatchHandlers.h/.cpp`, beside the tables they act on.
 
 ### Symbols and binary formats (FR-031, FR-032, FR-033)
 

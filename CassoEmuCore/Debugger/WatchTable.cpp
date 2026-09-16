@@ -30,6 +30,40 @@ int WatchTable::Add (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchTable::AddAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int WatchTable::AddAt (int id, Word address)
+{
+    WatchItem  item;
+
+
+
+    for (WatchItem & existing : m_items)
+    {
+        if (existing.id == id)
+        {
+            existing.address = address;
+            existing.enabled = true;
+            return id;
+        }
+    }
+
+    item.id      = id;
+    item.address = address;
+    m_items.push_back (item);
+    std::sort (m_items.begin(), m_items.end(), [] (const WatchItem & a, const WatchItem & b) { return a.id < b.id; });
+    m_nextId = std::max (m_nextId, id + 1);
+    return id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchTable::TryClear
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +90,7 @@ bool WatchTable::TryClear (int id)
 void WatchTable::ClearAll()
 {
     m_items.clear();
+    m_nextId = 0;
 }
 
 

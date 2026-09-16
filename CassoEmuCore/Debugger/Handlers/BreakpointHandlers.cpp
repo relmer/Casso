@@ -921,9 +921,7 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
 {
     IFileSystem       * files = session.GetFileSystem();
     BreakpointListData  list;
-    std::string         script = "BPC *\n";
-    std::string         flags;
-    HRESULT             hr     = S_OK;
+    HRESULT             hr    = S_OK;
 
 
 
@@ -938,6 +936,39 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
         reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
         return;
     }
+
+    hr = files->WriteAllText (session.ResolvePath (command.text), MakeScript (session));
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        return;
+    }
+
+    ListAll (session, list);
+    reply.data = MessageData { { std::format ("Saved {} breakpoints to {}.", list.breakpoints.size(), command.text) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::MakeScript
+//
+//  A clear line, one definition per entry in id order, then disable and
+//  flag lines by the sequential ids the replay produces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointHandlers::MakeScript (DebugSession & session)
+{
+    BreakpointListData  list;
+    std::string         script = "BPC *\n";
+    std::string         flags;
+
+
 
     ListAll (session, list);
 
@@ -962,15 +993,7 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
         }
     }
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), script);
-
-    if (FAILED (hr))
-    {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
-        return;
-    }
-
-    reply.data = MessageData { { std::format ("Saved {} breakpoints to {}.", list.breakpoints.size(), command.text) } };
+    return script;
 }
 
 

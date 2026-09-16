@@ -378,7 +378,7 @@ void AppleWinFormatter::FormatWatchList (const WatchListData & data, Lines & lin
         }
         else if (entry.value.has_value())
         {
-            text += std::format (" = ${:02X}", *entry.value);
+            text += std::format (" = ${:04X}", *entry.value);
         }
 
         if (!entry.enabled)
