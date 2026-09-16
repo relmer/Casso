@@ -416,7 +416,7 @@ HRESULT Win32ControllerBackend::AddDirectInputDevice (const DIDEVICEINSTANCEW & 
     BAIL_OUT_IF (isXInput, S_OK);
 
     opened.unit        = MakeUnitKey (*opened.device.Get(), instance);
-    opened.description = instance.tszInstanceName;
+    opened.description = TrimSpace (instance.tszInstanceName);
     opened.formFactor  = GetFormFactor (instance);
 
     caps.dwSize = sizeof (caps);
@@ -1001,10 +1001,14 @@ ControllerUnitKey Win32ControllerBackend::MakeUnitKey (
 //
 //  GetXInputDescription
 //
-//  The product string Windows itself shows, read from the HID device that
-//  carries the slot's vendor and product. A device that reports no product
-//  string, and a slot whose IDs cannot be read at all, fall back to a generic
-//  name, which keeps a row on the page either way.
+//  The model the vendor and product pair names, else the product string the
+//  HID device reports, else a generic name, which keeps a row on the page
+//  whatever the controller says about itself.
+//
+//  THE TABLE COMES FIRST, ahead of the product string, because Microsoft's
+//  own pads report names that identify no model: an Xbox One S over Bluetooth
+//  calls itself "Xbox Bluetooth Gamepad", and a Series X|S over BLE reports
+//  no product string at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1022,14 +1026,90 @@ std::wstring Win32ControllerBackend::GetXInputDescription (DWORD slot) const
         return L"Xbox Controller";
     }
 
-    productName = GetHidProductName (vendorId, productId);
+    productName = GetKnownModelName (vendorId, productId);
 
     if (!productName.empty())
     {
         return productName;
     }
 
-    return std::format (L"Xbox Controller ({:04x}:{:04x})", vendorId, productId);
+    productName = TrimSpace (GetHidProductName (vendorId, productId));
+
+    if (!productName.empty())
+    {
+        return productName;
+    }
+
+    // NOT the vendor and product pair. A name carrying a hex id reads as a
+    // fault rather than as a controller; two unknown pads that land here are
+    // told apart by DisambiguateDescriptions instead.
+    return L"Xbox Controller";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetKnownModelName
+//
+//  The model a Microsoft vendor and product pair names. XInput exposes no
+//  model, and the pads' own product strings do not carry one, so the pairs
+//  this build knows are named here and everything else falls through.
+//
+//  A PAIR IS NOT A MODEL. The Series X and the Series S report the same
+//  product, so they share one name and are told apart by the tie-breaker; a
+//  pad added after this build ships is named by its product string instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32ControllerBackend::GetKnownModelName (WORD vendorId, WORD productId)
+{
+    constexpr WORD  s_kMicrosoft = 0x045e;
+
+
+
+    if (vendorId != s_kMicrosoft)
+    {
+        return std::wstring();
+    }
+
+    switch (productId)
+    {
+        case 0x0b13: return L"Xbox Series X|S Controller";
+        case 0x02e0: return L"Xbox One S Controller";
+        default:     return std::wstring();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrimSpace
+//
+//  A device's own product string, less the whitespace it padded it with --
+//  the VKB Gladiator reports a trailing space, and a name is compared and
+//  drawn, so the padding is not the device's to decide.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32ControllerBackend::TrimSpace (const std::wstring & text)
+{
+    size_t  first = text.find_first_not_of (L" \t\r\n");
+    size_t  last  = text.find_last_not_of  (L" \t\r\n");
+
+
+
+    if (first == std::wstring::npos)
+    {
+        return std::wstring();
+    }
+
+    return text.substr (first, last - first + 1);
 }
 
 

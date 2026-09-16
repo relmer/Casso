@@ -41,6 +41,12 @@ public:
 
     static void  DisambiguateDescriptions (std::vector<ControllerDeviceInfo> & devices);
 
+    // The model an Xbox-class vendor and product pair names, empty when the
+    // pair is not one this build knows, and a device's own product string
+    // less the whitespace it padded it with. Pure, so both are tested.
+    static std::wstring  GetKnownModelName (WORD vendorId, WORD productId);
+    static std::wstring  TrimSpace         (const std::wstring & text);
+
 private:
 
     // One opened DirectInput device and what enumeration found on it.

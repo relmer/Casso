@@ -162,5 +162,65 @@ namespace ControllerTests
             Assert::AreEqual (0, devices[0].xinputSlot);
             Assert::AreEqual (1, devices[1].xinputSlot);
         }
+
+
+        //
+        //  The model table. XInput exposes no model and the pads' own product
+        //  strings do not carry one -- an Xbox One S over Bluetooth calls
+        //  itself "Xbox Bluetooth Gamepad" and a Series X|S over BLE reports
+        //  nothing at all -- so the pairs this build knows are named here.
+        //
+
+        TEST_METHOD (KnownModel_NamesTheMicrosoftPadsWeKnow)
+        {
+            Assert::AreEqual (std::wstring (L"Xbox Series X|S Controller"),
+                              Win32ControllerBackend::GetKnownModelName (0x045e, 0x0b13));
+            Assert::AreEqual (std::wstring (L"Xbox One S Controller"),
+                              Win32ControllerBackend::GetKnownModelName (0x045e, 0x02e0));
+        }
+
+
+        // A pad this build has never heard of falls through to its own
+        // product string rather than being named wrongly.
+        TEST_METHOD (KnownModel_AnUnknownProductIsNotNamed)
+        {
+            Assert::IsTrue (Win32ControllerBackend::GetKnownModelName (0x045e, 0xffff).empty());
+        }
+
+
+        // The pairs are Microsoft's. Another vendor reusing one of these
+        // product ids must not inherit an Xbox name.
+        TEST_METHOD (KnownModel_AnotherVendorIsNeverNamed)
+        {
+            Assert::IsTrue (Win32ControllerBackend::GetKnownModelName (0x231d, 0x0b13).empty());
+        }
+
+
+        // The VKB Gladiator reports a trailing space, and a name is compared
+        // as well as drawn, so the padding is not the device's to decide.
+        TEST_METHOD (TrimSpace_StripsWhatTheDevicePadded)
+        {
+            Assert::AreEqual (std::wstring (L"VKBsim Gladiator"),
+                              Win32ControllerBackend::TrimSpace (L"VKBsim Gladiator "));
+            Assert::AreEqual (std::wstring (L"Xbox Controller"),
+                              Win32ControllerBackend::TrimSpace (L"  Xbox Controller\r\n"));
+        }
+
+
+        // A string of nothing but padding has no name left in it, and must
+        // come back empty so the caller falls through to its generic name.
+        TEST_METHOD (TrimSpace_AllPaddingIsEmpty)
+        {
+            Assert::IsTrue (Win32ControllerBackend::TrimSpace (L"   ").empty());
+            Assert::IsTrue (Win32ControllerBackend::TrimSpace (L"").empty());
+        }
+
+
+        // An unpadded name is handed back exactly as the device reported it.
+        TEST_METHOD (TrimSpace_LeavesAnUnpaddedNameAlone)
+        {
+            Assert::AreEqual (std::wstring (L"Xbox Bluetooth Gamepad"),
+                              Win32ControllerBackend::TrimSpace (L"Xbox Bluetooth Gamepad"));
+        }
     };
 }
