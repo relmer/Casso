@@ -345,6 +345,27 @@ bool DebugExpressionEvaluator::TryReadOperand (
         return true;
     }
 
+    // @n is search result n, resolved by the session like a symbol.
+    if (lead == '@')
+    {
+        ++pos;
+
+        while (pos < text.size() && isdigit ((unsigned char) text[pos]))
+        {
+            word += text[pos++];
+        }
+
+        if (word.empty())
+        {
+            error = "A search result is written @n.";
+            return false;
+        }
+
+        token.kind = ExpressionToken::Kind::Symbol;
+        token.name = "@" + word;
+        return true;
+    }
+
     if (lead == '$' || lead == '#')
     {
         ++pos;

@@ -164,6 +164,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("ALL ON"), ParseOk ("brk all on").command.text);
             ParseFails ("BPC x", ParseStatus::Invalid);
             ParseFails ("BPM",   ParseStatus::Invalid);
+            ParseFails ("BPA",   ParseStatus::Invalid);
         }
 
 
@@ -186,8 +187,124 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0300, move.command.a1);
             Assert::AreEqual (std::string ("out.bin"), load.command.text);
             Assert::AreEqual ((Word) 0x0300, load.command.a1);
-            ParseFails ("ME 300 1234", ParseStatus::Invalid);
-            ParseFails ("BSAVE",       ParseStatus::Invalid);
+            ParseFails ("OUT C030 1234", ParseStatus::Invalid);
+            ParseFails ("BSAVE",         ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (CorrectedForms_FromAppleWinSource)
+        {
+            AppleWinParseResult  fill3  = ParseOk ("F 2000 3FFF 00");
+            AppleWinParseResult  mebW   = ParseOk ("MEB 300 A9 1234 60");
+            AppleWinParseResult  bpa    = ParseOk ("BPA C030");
+            AppleWinParseResult  change = ParseOk ("BPCHANGE 2 Es");
+            AppleWinParseResult  edit   = ParseOk ("BPEDIT 1 BPR A = 41");
+            AppleWinParseResult  calc   = ParseOk ("CALC 'A'+1");
+
+
+
+            Assert::AreEqual ((Word) 0x2000, fill3.command.a1);
+            Assert::AreEqual ((Word) 0x3FFF, fill3.command.a2);
+            Assert::IsTrue   (std::vector<Byte> ({ 0x00 }) == fill3.command.values);
+
+            Assert::IsTrue   (std::vector<Byte> ({ 0xA9, 0x34, 0x12, 0x60 }) == mebW.command.values);
+
+            Assert::AreEqual ((int) DebugVerb::SetBreakpointAndWatchpoint, (int) bpa.command.verb);
+            Assert::AreEqual ((int) DebugVerb::SetMemoryWatchpoint,        (int) ParseOk ("BPIO C000").command.verb);
+            Assert::AreEqual ((int) DebugVerb::StepInto,                   (int) ParseOk ("TL 3").command.verb);
+            Assert::AreEqual ((uint32_t) 3,                                ParseOk ("TL 3").command.count);
+            Assert::AreEqual ((int) DebugVerb::DefineBytes,                (int) ParseOk ("Z 300").command.verb);
+            Assert::AreEqual ((int) DebugVerb::ListData,                   (int) ParseOk ("B").command.verb);
+
+            Assert::AreEqual ((uint32_t) 2,       change.command.count);
+            Assert::AreEqual (std::string ("Es"), change.command.text);
+            Assert::AreEqual ((uint32_t) 1,       edit.command.count);
+            Assert::AreEqual (std::string ("BPR A = 41"), edit.command.text);
+            ParseFails ("BPEDIT 1", ParseStatus::Invalid);
+
+            Assert::AreEqual ((Word) 0x42, calc.command.a1);
+            Assert::IsTrue   (calc.command.hasA1);
+            ParseFails ("CALC", ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (Search_ItemsAndWildcards)
+        {
+            AppleWinParseResult  text   = ParseOk ("S F000,1000 'Ap' \"b\" AD ? C0 3? ?1 C030");
+
+
+
+            Assert::AreEqual ((Word) 0xF000, text.command.a1);
+            Assert::IsTrue   (std::vector<Byte> ({ 0xC1, 0xF0, 0x62, 0xAD, 0x00, 0xC0, 0x30, 0x01, 0x30, 0xC0 }) == text.command.values);
+            Assert::IsTrue   (std::vector<Byte> ({ 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xF0, 0x0F, 0xFF, 0xFF }) == text.command.mask);
+            Assert::IsTrue   (std::vector<Byte> ({ 0x00 }) == ParseOk ("SH 800,8000 ??").command.mask);
+            ParseFails ("S 800,10",        ParseStatus::Invalid);
+            ParseFails ("S 800,10 'open",  ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (DataDirectives_NameForms)
+        {
+            AppleWinParseResult  plain = ParseOk ("DB 300:30F");
+            AppleWinParseResult  named = ParseOk ("DW TABLE 3F0");
+            AppleWinParseResult  eq    = ParseOk ("ASC GREETING = 800:80B");
+            AppleWinParseResult  bare  = ParseOk ("DB");
+            AppleWinParseResult  undef = ParseOk ("X 305");
+
+
+
+            Assert::AreEqual ((Word) 0x0300,           plain.command.a1);
+            Assert::IsTrue   (plain.command.text.empty());
+            Assert::AreEqual (std::string ("TABLE"),    named.command.text);
+            Assert::AreEqual ((Word) 0x03F0,           named.command.a1);
+            Assert::AreEqual (std::string ("GREETING"), eq.command.text);
+            Assert::AreEqual ((Word) 0x080B,           eq.command.a2);
+            Assert::IsFalse  (bare.command.hasA1);
+            Assert::AreEqual ((int) DebugVerb::RemoveData, (int) undef.command.verb);
+            Assert::AreEqual ((Word) 0x0305,           undef.command.a1);
+        }
+
+
+
+        TEST_METHOD (Symbols_TableSubcommands)
+        {
+            AppleWinParseResult  load = ParseOk ("SYMUSER LOAD \"game.sym\",800");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::ShowSymbolInfo, (int) ParseOk ("SYM").command.verb);
+            Assert::AreEqual ((int) DebugVerb::ClearSymbols,   (int) ParseOk ("SYMASM clear").command.verb);
+            Assert::AreEqual ((int) DebugVerb::EnableSymbols,  (int) ParseOk ("SYMMAIN OFF").command.verb);
+            Assert::AreEqual ((uint32_t) 0,                    ParseOk ("SYMMAIN OFF").command.count);
+            Assert::AreEqual ((uint32_t) 1,                    ParseOk ("SYMMAIN on").command.count);
+            Assert::AreEqual ((int) DebugVerb::LoadSymbols,    (int) load.command.verb);
+            Assert::AreEqual (std::string ("\"game.sym\",800"), load.command.text);
+            Assert::AreEqual ((int) DebugVerb::SaveSymbols,    (int) ParseOk ("SYMUSER SAVE \"out.sym\"").command.verb);
+            Assert::AreEqual ((int) DebugVerb::RemoveSymbol,   (int) ParseOk ("SYM ~ LIFE").command.verb);
+            Assert::AreEqual ((int) DebugVerb::LookupSymbol,   (int) ParseOk ("SYM game.sym").command.verb);
+            ParseFails ("SYMUSER LOAD", ParseStatus::Invalid);
+        }
+
+
+
+        TEST_METHOD (Shorthand_ListAndMove)
+        {
+            AppleWinParseResult  list = ParseOk ("300L");
+            AppleWinParseResult  move = ParseOk ("4000<2000.3FFFM");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::Disassemble, (int) list.command.verb);
+            Assert::AreEqual ((Word) 0x0300,                list.command.a1);
+            Assert::AreEqual ((int) DebugVerb::MoveMemory,  (int) move.command.verb);
+            Assert::AreEqual ((Word) 0x4000,                move.command.a3);
+            Assert::AreEqual ((Word) 0x2000,                move.command.a1);
+            Assert::AreEqual ((Word) 0x3FFF,                move.command.a2);
+            ParseFails ("FROG",  ParseStatus::Unknown);
+            ParseFails ("FROGL", ParseStatus::Unknown);
         }
 
 
@@ -235,7 +352,6 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("LIFE"),          add.command.text);
             Assert::AreEqual ((Word) 0x0300,                 add.command.a1);
             Assert::AreEqual ((int) DebugVerb::RemoveSymbol, (int) ParseOk ("SYM ! LIFE").command.verb);
-            Assert::AreEqual ((int) DebugVerb::LoadSymbols,  (int) ParseOk ("SYMUSER game.sym").command.verb);
             Assert::AreEqual ((int) DebugVerb::LookupSymbol, (int) ParseOk ("SYM HOME").command.verb);
         }
 

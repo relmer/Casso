@@ -44,7 +44,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "RTS",         V::StepOut,                  F::Cpu,         A::Headless,     nullptr,     nullptr },
     { "T",           V::StepInto,                 F::Cpu,         A::Headless,     nullptr,     nullptr },
     { "TF",          V::TraceToFile,              F::Cpu,         A::Headless,     nullptr,     nullptr },
-    { "TL",          V::TraceLine,                F::Cpu,         A::Headless,     nullptr,     nullptr },
+    { "TL",          V::StepInto,                 F::Cpu,         A::Headless,     "T",         nullptr },
     { "U",           V::Disassemble,              F::Cpu,         A::Headless,     nullptr,     nullptr },
 
     // Bookmarks
@@ -60,10 +60,10 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BRKOP",       V::BreakOnOpcode,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BRKINT",      V::BreakOnInterrupt,         F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BP",          V::SetBreakpoint,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
-    { "BPA",         V::SetConditionalBreakpoint, F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPA",         V::SetBreakpointAndWatchpoint, F::Breakpoints, A::Headless,   nullptr,     nullptr },
     { "BPR",         V::SetRegisterBreakpoint,    F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPX",         V::SetBreakpoint,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
-    { "BPIO",        V::SetIoBreakpoint,          F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPIO",        V::SetMemoryWatchpoint,      F::Breakpoints, A::Headless,     "BPM",       nullptr },
     { "BPM",         V::SetMemoryWatchpoint,      F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPMR",        V::SetReadWatchpoint,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPMW",        V::SetWriteWatchpoint,       F::Breakpoints, A::Headless,     nullptr,     nullptr },
@@ -92,9 +92,9 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "RCC",         V::ResetCycles,              F::Cycles,      A::Headless,     nullptr,     nullptr },
 
     // Disassembler data
-    { "Z",           V::ListData,                 F::Data,        A::Headless,     nullptr,     nullptr },
+    { "Z",           V::DefineBytes,              F::Data,        A::Headless,     "DB",        nullptr },
     { "X",           V::RemoveData,               F::Data,        A::Headless,     nullptr,     nullptr },
-    { "B",           V::DefineBytes,              F::Data,        A::Headless,     nullptr,     nullptr },
+    { "B",           V::ListData,                 F::Data,        A::Headless,     nullptr,     nullptr },
     { "DB",          V::DefineBytes,              F::Data,        A::Headless,     nullptr,     nullptr },
     { "DB2",         V::DefineBytes,              F::Data,        A::Headless,     nullptr,     nullptr },
     { "DB4",         V::DefineBytes,              F::Data,        A::Headless,     nullptr,     nullptr },

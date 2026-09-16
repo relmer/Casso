@@ -175,6 +175,11 @@ namespace DebuggerTests
             Expect      (context, "home+1",   0xFC59);
             Expect      (context, "COUT-HOME", 0x195);
             ExpectError (context, "NOSUCH",   "NOSUCH");
+
+            context.symbols["@1"] = 0x0300;
+            Expect      (context, "@1+2",     0x302);
+            ExpectError (context, "@",        "@n");
+            ExpectError (context, "@9",       "@9");
         }
 
 

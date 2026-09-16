@@ -62,21 +62,37 @@ private:
         const IDebugExpressionContext * context;
     };
 
+    // How a list of values is written: bytes only, words only, or bytes
+    // where a value above $FF becomes two bytes, as MEB takes them.
+    enum class ValueWidth
+    {
+        Bytes,
+        Words,
+        BytesOrWords,
+    };
+
     static Tokens  Split              (const std::string & text);
     static std::string  ToUpper       (const std::string & text);
+    static std::string  Join          (const Tokens & tokens, size_t first);
     static bool    TryParseShorthand  (const std::string & first, const Arguments & args, AppleWinParseResult & result);
+    static bool    TryParseMoveShorthand (const std::string & upper, const Arguments & args, AppleWinParseResult & result);
     static bool    TryParseArguments  (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseRunArguments      (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseRegisterArguments (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseFlagArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseBreakpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseMemoryArguments   (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseDataArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseListArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseSymbolArguments   (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseOutputArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseEngineArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryEvaluate        (const std::string & text, const IDebugExpressionContext & context, Word & value, std::string & error);
     static bool    TryParseRange      (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
-    static bool    TryParseValues     (const Tokens & tokens, size_t first, bool isWords, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool    TryParseValues     (const Tokens & tokens, size_t first, ValueWidth width, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool    TryParseSearchItems (const std::string & items, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool    TryParseSearchWord  (const std::string & word, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool    TryParseIdOrAll    (const Tokens & tokens, DebugCommand & command, std::string & error);
     static bool    TryParseCondition  (const std::string & subject, const Tokens & tokens, size_t first, DebugCommand & command, std::string & error);
 };

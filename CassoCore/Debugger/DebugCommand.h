@@ -43,7 +43,6 @@ enum class DebugVerb
     StepOver,
     StepOut,
     Trace,
-    TraceLine,
     TraceToFile,
     SetProgramCounter,
     CallSubroutine,
@@ -64,7 +63,7 @@ enum class DebugVerb
     SetBreakpoint,
     SetConditionalBreakpoint,
     SetRegisterBreakpoint,
-    SetIoBreakpoint,
+    SetBreakpointAndWatchpoint,
     SetMemoryWatchpoint,
     SetReadWatchpoint,
     SetWriteWatchpoint,
@@ -138,6 +137,9 @@ enum class DebugVerb
 
     // Symbols
     LoadSymbols,
+    SaveSymbols,
+    ClearSymbols,
+    EnableSymbols,
     LookupSymbol,
     AddSymbol,
     RemoveSymbol,
@@ -216,6 +218,7 @@ struct DebugCommand
     bool                     hasA3    = false;
 
     std::vector<Byte>        values;
+    std::vector<Byte>        mask;         // per byte of values: bits a search must match
     Expression               expression;
     std::string              text;
     uint32_t                 count    = 0;

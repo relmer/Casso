@@ -69,7 +69,11 @@ namespace DebuggerTests
         {
             DebugVerb::None,
             DebugVerb::SetRegister,
+            DebugVerb::SetConditionalBreakpoint,
             DebugVerb::LoadSymbols,
+            DebugVerb::SaveSymbols,
+            DebugVerb::ClearSymbols,
+            DebugVerb::EnableSymbols,
             DebugVerb::AddSymbol,
             DebugVerb::RemoveSymbol,
             DebugVerb::SetMode,
