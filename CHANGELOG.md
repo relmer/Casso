@@ -86,7 +86,8 @@ Entries before versioning was introduced use dates only.
 - Clicking a menu title while a drop-down is open switches to that menu
   instead of just closing the drop-down.
 - Escape closes an open drop-down first, rather than closing the whole dialog.
-- Switching machines now restores a saved color mode of color.
+- A machine set to color display stays in color after switching to it.
+  Previously, it came back in the monitor's own phosphor, such as green.
 - Clicking OK in Settings no longer disconnects a Disk ][ card's second drive.
 
 ## [1.24.2]: The one with the redist dist
