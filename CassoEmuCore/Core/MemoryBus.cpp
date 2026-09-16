@@ -76,8 +76,15 @@ Byte MemoryBus::ReadByte (Word address)
     // ($C000-$CFFF) stays null and falls through to device dispatch so its
     // read side effects run. This is the hottest read in the emulator, so the
     // mapped case stays one branch deep.
-    Byte *  page  = m_readPage[address >> 8];
-    Byte    value = 0;
+    //
+    // The device dispatch is written out here rather than calling
+    // ReadFromDevice, which holds the same code for ReadWatchedPage. Every ROM
+    // fetch comes this way, and the call cost about 5% of emulation speed in
+    // Release x64 (50M //e cycles: 288 ms with the call, 275 ms inline, 271 ms
+    // before the watch mask existed).
+    Byte *          page   = m_readPage[address >> 8];
+    MemoryDevice *  device = nullptr;
+    Byte            value  = 0;
 
 
 
@@ -91,7 +98,17 @@ Byte MemoryBus::ReadByte (Word address)
     }
     else
     {
-        value = ReadFromDevice (address);
+        device = FindDevice (address);
+
+        if (device != nullptr)
+        {
+            value              = device->Read (address);
+            m_floatingBusValue = value;
+        }
+        else if (address >= 0xC000 && address <= 0xCFFF)
+        {
+            value = m_floatingBusValue;
+        }
     }
 
     return value;
@@ -208,9 +225,20 @@ void MemoryBus::WriteByte (Word address, Byte value)
     {
         Byte * page = m_writePage[address >> 8];
 
+        // Written out rather than calling StoreToPage, for the reason ReadByte
+        // gives: this is the hottest write, and the call is measurable.
         if (page != nullptr)
         {
-            StoreToPage (page, address, value);
+            Byte * cell = &page[address & 0xFF];
+
+            if (m_videoWatched[address >> 8]                           &&
+                (address & s_kScreenBlockMask) < s_kFirstScreenHoleByte &&
+                *cell != value)
+            {
+                m_videoDirty = true;
+            }
+
+            *cell = value;
             return;
         }
 

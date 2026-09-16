@@ -456,7 +456,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
   Report any suite that could not run and why.
 - [ ] T086 Run all of quickstart.md end to end and record the results in the final merge commit message.
-- [ ] T087 Investigate the emulation slowdown measured when T018 landed (Release x64, `CycleEmulation_MeetsBudget`, 1M //e cycles: 5.59/5.63/5.61 ms before, 5.78/5.88/5.87 ms after, about 4%):
+- [X] T087 Investigate the emulation slowdown measured when T018 landed (Release x64, `CycleEmulation_MeetsBudget`, 1M //e cycles: 5.59/5.63/5.61 ms before, 5.78/5.88/5.87 ms after, about 4%):
   1. Confirm it is real: time a longer window (50M cycles) with 10 or more runs per build, on the commit before `9f12ea90` and on the current head.
   2. If it is real, attribute it by reverting one change at a time: the `m_debugHook` tests in `MachineHost::StepOne` and `RunCycles`; the `m_debugWatched` test and `ReadFromDevice` split on the `MemoryBus::ReadByte` slow path; `StoreToPage` on the write fast path; the placement of the shadow tables inside `MemoryBus`.
   3. Fix what is found (for example, a separate `RunCycles` loop taken only while a hook is set) and record before and after numbers in the commit message. With no session attached the cost must not be measurable, as plan.md Performance Goals require.
