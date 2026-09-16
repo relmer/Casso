@@ -279,7 +279,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 ### Implementation
 
-- [ ] T059 [P] [US2] Write `UnitTest/DebuggerTests/MonitorParserTests.cpp` for every form in `contracts/command-modes.md` "Apple II Monitor mode":
+- [x] T059 [P] [US2] Write `UnitTest/DebuggerTests/MonitorParserTests.cpp` for every form in `contracts/command-modes.md` "Apple II Monitor mode":
   - examine, range, `.addr`, and continuing on Return or space;
   - deposit with and without an address;
   - `L`, `M`, `V`, `+`, `-`, `G`, `I`, `N`, `n^K`, `n^P`, `^B`, `^C`, `^Y`, and `^E` followed by `:`;
@@ -290,7 +290,13 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - lowercase input;
   - `/rest-of-line` routed to the AppleWin parser;
   - a malformed line produces an error and no command.
-- [ ] T060 [US2] Implement `CassoCore/Debugger/MonitorState.h` (`a1`-`a4`, `lastExamined`, `storeAddress`, `registerEditPending`, `assemblerActive`) and `CassoCore/Debugger/MonitorParser.h/.cpp`, following the Monitor's line scan (R-013). Makes T059 pass and, with T057, the ROM coverage test.
+- [x] T060 [US2] Implement `CassoCore/Debugger/MonitorState.h` (`a1`-`a4`, `lastExamined`, `storeAddress`, `registerEditPending`, `assemblerActive`) and `CassoCore/Debugger/MonitorParser.h/.cpp`, following the Monitor's line scan (R-013). Makes T059 pass and, with T057, the ROM coverage test.
+  - Both now pass, so the branch is green again. Notes on what the implementation settled:
+    - **No expression context.** Monitor numbers are bare hex, with no operators and no symbols, so `Parse` takes only the line and the state where the AppleWin parser needs an `IDebugExpressionContext`.
+    - **No command letter is a hex digit.** G, I, L, M, N, R, S, T, V and W all sit outside A-F, and the control commands arrive as control codes, so the scan never has to guess whether `B` is a digit or a command.
+    - **The `/` hand-off moved into the parser.** `MonitorParseResult::appleWinLine` carries what followed the slash, which puts the routing decision in one place instead of leaving it in `DebugSession::ExecuteLine`.
+    - **Command shapes match the AppleWin handlers**, so one handler serves both modes: `dest<start.endM` fills a3 with the destination and a1/a2 with the source range, exactly as `M dest range` does, and `41<300.3FFS` fills a1/a2 and `values`. `addrG` sets a3 rather than a1, which is the field `ExecuteRun` already reads to set the program counter rather than run to an address.
+    - `MonitorState` keeps `a1`-`a4` as the Monitor's own documented model, but the per-line accumulation is local to the scan and nothing reads those four yet. If T063's handlers do not need them either, they should go.
 - [ ] T061 [P] [US2] Write `UnitTest/DebuggerTests/MonitorFormatterTests.cpp`:
   - examine `0300- A9 00 8D 00 03 60 ...`, rows aligned to 8-byte boundaries (`303.30F` gives `0303-` with five bytes then `0308-` with eight), identical on every machine;
   - list `0300-   A9 00       LDA   #$00`;

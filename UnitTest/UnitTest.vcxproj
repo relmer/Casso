@@ -255,6 +255,7 @@
     <ClCompile Include="DebuggerTests\BinaryImageReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugOptionsParseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugModeTests.cpp" />
+    <ClCompile Include="DebuggerTests\MonitorParserTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorRomFactsTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
