@@ -307,6 +307,7 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "disk1",
     "disk2",
     "trace",
+    "debugger",
 
     //  Undocumented, and here rather than in a help table for that reason:
     //  this list is what makes `/no-image-watch` canonicalize like every other
@@ -333,6 +334,8 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--disk2",   " <image>", "Insert this image into drive 2." },
     { "--trace",   " [size]",  "Record a CPU execution trace and write it out on "
                               "exit or on a crash. A size takes a K, M or G suffix." },
+    { "--debugger", "",        "Open the debug channel at start, without pausing, "
+                              "so a debugger client can attach." },
     { "--help",    "",         "Show this message and exit." },
 };
 
@@ -4619,6 +4622,10 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg == "--no-image-watch")
         {
             parsed.noImageWatch = true;
+        }
+        else if (arg == "--debugger")
+        {
+            parsed.openDebugger = true;
         }
         else if (arg == "--title" && hasValue)
         {

@@ -80,7 +80,16 @@ public:
     // One line in the session's mode, parsed and executed; the reply echoes
     // the line. FormatReply renders a reply's text in the session's mode.
     Reply  ExecuteLine           (const std::string & line);
+
+    // The same, in a mode the caller chose for this one line. The session's
+    // own mode is left as it was, so a channel request naming a mode does not
+    // switch the mode every other client is using.
+    Reply  ExecuteLine           (const std::string & line, CommandMode mode);
     void   FormatReply           (Reply & reply) const;
+    void   FormatReply           (Reply & reply, CommandMode mode) const;
+
+    // Sets the cycle budget later runs get, as `BUDGET` does; empty for none.
+    void   SetBudget             (std::optional<uint64_t> budget) { m_budget = budget; }
 
     // Called by command handlers after they change a table.
     void   OnStopConditionsChanged ();

@@ -260,6 +260,7 @@
     <ClCompile Include="DebuggerTests\MonitorHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ChannelProtocolTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugChannelServerTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorRomFactsTests.cpp" />

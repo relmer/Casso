@@ -3135,6 +3135,29 @@ namespace CommandLineTests
                 L"an invocation that names no label carries none");
         }
 
+        //  `--debugger` opens the channel at start. It takes no value, so the
+        //  flag after it is still a flag rather than a name it swallowed.
+        TEST_METHOD (Emulator_DebuggerOpensTheChannelAtStart)
+        {
+            ArgVector  dashed  = { "--debugger", "--machine", "Apple2e" };
+            ArgVector  slashed = { "/debugger" };
+            ArgVector  absent  = { "--machine", "Apple2e" };
+
+            CommandLineOptions::EmulatorOptions  withFlag =
+                CommandLineParser::ParseEmulator (dashed.Count(), dashed.Data());
+            CommandLineOptions::EmulatorOptions  withSlash =
+                CommandLineParser::ParseEmulator (slashed.Count(), slashed.Data());
+            CommandLineOptions::EmulatorOptions  without =
+                CommandLineParser::ParseEmulator (absent.Count(), absent.Data());
+
+            Assert::IsTrue   (withFlag.openDebugger);
+            Assert::AreEqual (std::string ("Apple2e"), withFlag.machine, L"the flag after it still lands");
+            Assert::IsTrue   (withFlag.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+
+            Assert::IsTrue   (withSlash.openDebugger, L"the slash form canonicalizes through the same table");
+            Assert::IsFalse  (without.openDebugger,   L"absent, the channel stays closed");
+        }
+
 
         //  A BARE IMAGE PATH IS REFUSED, NOT GUESSED AT. This grammar has no
         //  operand: a drive is filled by --disk1 or --disk2 and by nothing else.

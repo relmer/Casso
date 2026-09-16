@@ -200,6 +200,7 @@
     <ClCompile Include="Debugger\RunStopHook.cpp" />
     <ClCompile Include="Debugger\MachineDebugTarget.cpp" />
     <ClCompile Include="Debugger\CpuManagerRunDriver.cpp" />
+    <ClCompile Include="Debugger\DebuggerController.cpp" />
     <ClCompile Include="Debugger\SynchronousRunDriver.cpp" />
     <ClCompile Include="Debugger\BreakpointTable.cpp" />
     <ClCompile Include="Debugger\WatchpointTable.cpp" />
@@ -489,6 +490,7 @@
     <ClInclude Include="Debugger\RunStopHook.h" />
     <ClInclude Include="Debugger\MachineDebugTarget.h" />
     <ClInclude Include="Debugger\CpuManagerRunDriver.h" />
+    <ClInclude Include="Debugger\DebuggerController.h" />
     <ClInclude Include="Debugger\SynchronousRunDriver.h" />
     <ClInclude Include="Debugger\BreakpointTable.h" />
     <ClInclude Include="Debugger\WatchpointTable.h" />

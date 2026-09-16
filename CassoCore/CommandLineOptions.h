@@ -359,6 +359,12 @@ struct CommandLineOptions
         //  a developer switch ends up in the interface.
         bool         noImageWatch = false;             // --no-image-watch
 
+        //  Open the debug channel as the machine starts. The machine is NOT
+        //  paused: a debugger attaching to a program that is already running
+        //  is the case this exists for, and stopping it at start would change
+        //  what the client came to watch.
+        bool         openDebugger = false;             // --debugger
+
         //  Text put in front of the window caption, so one window out of
         //  several can be told from the others at a glance.
         //

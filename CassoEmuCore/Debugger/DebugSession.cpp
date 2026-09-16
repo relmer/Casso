@@ -167,6 +167,23 @@ void DebugSession::AddHandler (IDebugCommandHandler * handler)
 
 Reply DebugSession::ExecuteLine (const std::string & line)
 {
+    return ExecuteLine (line, m_mode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteLine
+//
+//  One line in a given mode, leaving the session's own mode alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
+{
     Reply        reply;
     std::string  text = Trim (line);
 
@@ -179,7 +196,7 @@ Reply DebugSession::ExecuteLine (const std::string & line)
         return reply;
     }
 
-    reply         = (m_mode == CommandMode::Monitor) ? ExecuteMonitorLine (text) : ExecuteAppleWinLine (text);
+    reply         = (mode == CommandMode::Monitor) ? ExecuteMonitorLine (text) : ExecuteAppleWinLine (text);
     reply.command = line;
     return reply;
 }
@@ -303,7 +320,24 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text)
 
 void DebugSession::FormatReply (Reply & reply) const
 {
-    if (m_mode == CommandMode::Monitor)
+    FormatReply (reply, m_mode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::FormatReply
+//
+//  In a given mode, for a line that was run in one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::FormatReply (Reply & reply, CommandMode mode) const
+{
+    if (mode == CommandMode::Monitor)
     {
         MonitorFormatter::Format (reply);
         return;
