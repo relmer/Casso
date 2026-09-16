@@ -59,6 +59,9 @@ struct CassquePrefs
     int                    previewZoom     = kDefaultPreviewZoom;
     std::vector<Location>  tabs;
 
+    //  The address bar's typed path history, newest first.
+    std::vector<std::wstring>  typedPaths;
+
     //  Absent file: defaults, with the theme seeded from the emulator's
     //  preferences when they can be read. Reports the read's own result for
     //  a file that exists and will not parse.

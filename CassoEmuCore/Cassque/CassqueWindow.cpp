@@ -494,6 +494,7 @@ void CassqueWindow::ConfigureWidgets()
     m_address->SetOnSeparator ([this] (int index, const RECT & anchor) { ShowAddressMenu (index, anchor); });
     m_address->SetOnOverflow  ([this] (const RECT & anchor) { ShowAddressOverflowMenu (anchor); });
 
+    m_browser.GetTypedPaths().Reset (m_prefs.typedPaths);
     m_browser.RestoreTabs (m_prefs.tabs);
 
     m_tree->OnFocusChanged (true);
@@ -3069,6 +3070,7 @@ void CassqueWindow::ShowAbout()
 void CassqueWindow::OnWindowClose()
 {
     m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
+    m_prefs.typedPaths = m_browser.GetTypedPaths().GetEntries();
     StorePlacement();
     Hide();
     PostQuitMessage (0);

@@ -67,6 +67,8 @@ public:
         saved.placement.valid     = true;
         saved.treeWidthDip        = 300;
         saved.previewWidthDip     = 400;
+        saved.typedPaths.push_back (L"C:\\Disks\\Merlin.po");
+        saved.typedPaths.push_back (L"C:\\Games");
         saved.tabs.push_back (Location::MakeHostFolder (L"C:\\Disks"));
         saved.tabs.push_back (Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
 
@@ -84,6 +86,9 @@ public:
         Assert::AreEqual (400, loaded.previewWidthDip);
         Assert::AreEqual ((size_t) 2, loaded.tabs.size());
         Assert::IsTrue   (loaded.tabs[1] == Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
+        Assert::AreEqual ((size_t) 2, loaded.typedPaths.size());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\Merlin.po"), loaded.typedPaths[0]);
+        Assert::AreEqual (std::wstring (L"C:\\Games"),            loaded.typedPaths[1]);
     }
 
 

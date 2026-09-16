@@ -196,6 +196,7 @@
     <ClCompile Include="Cassque\Model\BrowserModel.cpp" />
     <ClCompile Include="Cassque\Model\CassoTargeting.cpp" />
     <ClCompile Include="Cassque\Model\CassquePrefs.cpp" />
+    <ClCompile Include="Cassque\Model\TypedPathHistory.cpp" />
     <ClCompile Include="Cassque\Model\CatalogModel.cpp" />
     <ClCompile Include="Cassque\Model\ContentSniffer.cpp" />
     <ClCompile Include="Cassque\Model\DiskOperations.cpp" />
@@ -465,6 +466,7 @@
     <ClInclude Include="Cassque\Model\BrowserModel.h" />
     <ClInclude Include="Cassque\Model\CassoTargeting.h" />
     <ClInclude Include="Cassque\Model\CassquePrefs.h" />
+    <ClInclude Include="Cassque\Model\TypedPathHistory.h" />
     <ClInclude Include="Cassque\Model\CatalogModel.h" />
     <ClInclude Include="Cassque\Model\ContentSniffer.h" />
     <ClInclude Include="Cassque\Model\DiskOperations.h" />

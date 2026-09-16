@@ -213,8 +213,14 @@ JsonValue CassquePrefs::ToJson() const
     std::vector<std::pair<std::string, JsonValue>>  placementFields;
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
+    std::vector<JsonValue>                          typedValues;
 
 
+
+    for (const std::wstring & typed : typedPaths)
+    {
+        typedValues.push_back (JsonValue (TextEncoding::WideToNarrow (typed)));
+    }
 
     placementFields.emplace_back ("x",         JsonValue ((double) placement.x));
     placementFields.emplace_back ("y",         JsonValue ((double) placement.y));
@@ -243,6 +249,7 @@ JsonValue CassquePrefs::ToJson() const
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
+    root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
 
     return JsonValue (std::move (root));
 }
@@ -262,16 +269,17 @@ JsonValue CassquePrefs::ToJson() const
 
 HRESULT CassquePrefs::FromJson (const JsonValue & root)
 {
-    HRESULT            hr        = S_OK;
-    bool               isObject  = root.GetType() == JsonType::Object;
-    const JsonValue *  placed    = nullptr;
-    const JsonValue *  splitters = nullptr;
-    const JsonValue *  tabArray  = nullptr;
+    HRESULT            hr         = S_OK;
+    bool               isObject   = root.GetType() == JsonType::Object;
+    const JsonValue  * placed     = nullptr;
+    const JsonValue  * splitters  = nullptr;
+    const JsonValue  * tabArray   = nullptr;
+    const JsonValue  * typedArray = nullptr;
     std::string        text;
-    size_t             i         = 0;
-    int                grouping  = kDefaultHexGrouping;
-    int                columns   = 0;
-    int                zoom      = kDefaultPreviewZoom;
+    size_t             i          = 0;
+    int                grouping   = kDefaultHexGrouping;
+    int                columns    = 0;
+    int                zoom       = kDefaultPreviewZoom;
 
 
 
@@ -338,6 +346,21 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
             if (TryLocationFromJson (tabArray->GetArrayElement (i), location))
             {
                 tabs.push_back (location);
+            }
+        }
+    }
+
+    if (root.HasArray ("typedPaths", typedArray))
+    {
+        typedPaths.clear();
+
+        for (i = 0; i < typedArray->GetArraySize(); i++)
+        {
+            const JsonValue &  value = typedArray->GetArrayElement (i);
+
+            if (value.GetType() == JsonType::String)
+            {
+                typedPaths.push_back (TextEncoding::NarrowToWide (value.GetString()));
             }
         }
     }

@@ -1891,6 +1891,10 @@ bool CassqueBrowser::NavigateToAddress (const std::wstring & text)
     if (parsed)
     {
         NavigateToLocation (location);
+
+        //  After the navigation, so that a path going nowhere is never offered
+        //  back.
+        m_typedPaths.Add (text);
     }
 
     return parsed;

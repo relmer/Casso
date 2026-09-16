@@ -290,6 +290,7 @@
     <ClCompile Include="Cassque\BrowserModelTests.cpp" />
     <ClCompile Include="Cassque\KnownFolderStoreTests.cpp" />
     <ClCompile Include="Cassque\CassquePrefsTests.cpp" />
+    <ClCompile Include="Cassque\TypedPathHistoryTests.cpp" />
     <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
     <ClCompile Include="Cassque\DragPayloadTests.cpp" />
     <ClCompile Include="UiTests\IntentReplyTests.cpp" />

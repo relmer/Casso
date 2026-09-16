@@ -7,6 +7,7 @@
 #include "Cassque/Model/DiskOperations.h"
 #include "Cassque/Model/PreviewDecoder.h"
 #include "Cassque/Model/TreeModel.h"
+#include "Cassque/Model/TypedPathHistory.h"
 #include "Config/IFileSystem.h"
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -128,6 +129,12 @@ public:
     void  NavigateToLocation (const Location & location);
     bool  NavigateToAddress  (const std::wstring & text);
 
+    //  The paths typed into the address bar. Held here because this is where a
+    //  typed path is told apart from a click, and where its navigation is known
+    //  to have succeeded. Seeded from the stored copy at startup.
+    TypedPathHistory &        GetTypedPaths ()       { return m_typedPaths; }
+    const TypedPathHistory &  GetTypedPaths () const { return m_typedPaths; }
+
     //  What an address bar separator lists: the folders and images in a host
     //  folder.
     void  GetFolderChildren  (const Location & location, std::vector<BrowserModel::AddressSegment> & outChildren) { BrowserModel::GetFolderChildren (m_fs, location, outChildren); }
@@ -206,6 +213,7 @@ private:
     TreeModel                           m_tree;
     BrowserModel                        m_model;
     DiskOperations                      m_operations;
+    TypedPathHistory                    m_typedPaths;
     MemoryBus                           m_bus;
     std::map<std::wstring, TreeNode>    m_nodes;
     std::vector<CatalogRow>             m_rows;
