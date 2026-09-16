@@ -329,6 +329,13 @@ struct Reply
     ReplyData                 data;
     std::vector<std::string>  text;
     ReplyError                error;
+
+    void SetError (CommandStatus errorStatus, const std::string & label, const std::string & detail)
+    {
+        status       = errorStatus;
+        error.label  = label;
+        error.detail = detail;
+    }
 };
 
 

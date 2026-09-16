@@ -177,19 +177,19 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - setting: `BP`, `BPA`, `BPR`, `BPX`, `BPIO`, `BPM`, `BPMR`, `BPMW`, `BRK`, `BRKOP`, `BRKINT`;
   - managing: `BPC`, `BPD`, `BPE`, `BPL`, `BPEDIT`, `BPCHANGE`;
   - saving: `BPSAVE`.
-- [ ] T038 [P] [US1] `CassoEmuCore/Debugger/Handlers/RegisterHandlers.h/.cpp`:
+- [X] T038 [P] [US1] `CassoEmuCore/Debugger/Handlers/RegisterHandlers.h/.cpp`:
   - `R`/`REGISTER`;
   - `CL`, `CLC`, `CLZ`, `CLI`, `CLD`, `CLB`, `CLR`, `CLV`, `CLN`;
   - `SE`, `SEC`, `SEZ`, `SEI`, `SED`, `SEB`, `SER`, `SEV`, `SEN`;
   - aliases `RC` `RZ` `RI` `RD` `RB` `RR` `RV` `RN` and `SC` `SZ` `SI` `SD` `SB` `SR` `SV` `SN`;
-  - stack: `POP`, `PPOP`, `PUSH`.
+  - stack: `POP`, `PPOP`, `PUSH`, and the Casso engine command `STACK` (FR-007), which lives here with the other stack commands.
 - [ ] T039 [P] [US1] `CassoEmuCore/Debugger/Handlers/MemoryHandlers.h/.cpp`:
   - view and enter: `D`, `MDB`, `ME`, `MEB`, `MEW`, `ME8`, `ME16`;
   - move, compare, fill: `M`/`MM`, `MC`, `F`;
   - search: `S`/`MS`, `SH`, `@`;
   - files: `BLOAD`, `BSAVE`, `TSAVE`;
   - I/O: `IN`/`INPUT`, `OUT`;
-  - the Casso engine commands `SWITCHES` and `STACK` (FR-007), as defined in `contracts/command-modes.md`.
+  - the Casso engine command `SWITCHES` (FR-007), as defined in `contracts/command-modes.md`.
 - [ ] T040 [P] [US1] `CassoEmuCore/Debugger/Handlers/DataDirectiveHandlers.h/.cpp`: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`, `DW4`, `ASC`, `DF`, `DA`, and `U` disassembly honoring those data ranges. Also `A addr`, which enters the line-assembly mode Monitor `!` uses (each following line assembled through `LineAssembler`, a blank line ends it), as `contracts/command-modes.md` defines.
 - [ ] T041 [P] [US1] `CassoEmuCore/Debugger/Handlers/ConfigHandlers.h/.cpp`: `PWD`, `CD`, `LOAD`, `SAVE`, `DISASM`, `STARTUP`, `RUN` (a script through the same session), `DISK`, `LOG`, `ECHO`, `PRINT`, `PRINTF`, `CALC`, `?`, `HELP`, `VERSION`, `MOTD`, `WSAVE`, `ZPSAVE`, `BMSAVE`.
 
