@@ -474,6 +474,44 @@ void CassqueBrowser::SortByColumn (int column)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+void CassqueBrowser::SelectRowsByKeys (const std::vector<std::wstring> & names)
+{
+    std::unordered_set<std::wstring>          wanted (names.begin(), names.end());
+    std::unordered_map<std::wstring, size_t>  seen;
+    std::vector<int>                          rows;
+    size_t                                    row = 0;
+
+
+
+    //  ONE PASS, NOT ONE PER ROW. GetSelectionKey counts a name's earlier
+    //  occurrences by walking every row, so asking it for each row in turn
+    //  walked the listing once per file, and a folder of a few thousand cost
+    //  millions of comparisons. The occurrences are counted as the rows go by
+    //  instead, and the wanted keys are looked up rather than searched.
+    for (row = 0; row < m_rows.size(); row++)
+    {
+        size_t        occurrence = seen[m_rows[row].name]++;
+        std::wstring  key        = std::to_wstring (occurrence) + L":" + m_rows[row].name;
+
+        if (wanted.find (key) != wanted.end())
+        {
+            rows.push_back ((int) row);
+        }
+    }
+
+    SetSelectedRows (rows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::GetSelectionKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::wstring CassqueBrowser::GetSelectionKey (size_t row) const
 {
     size_t  occurrence = 0;
@@ -1370,7 +1408,6 @@ HRESULT CassqueBrowser::Reload (bool keepSelection)
 {
     HRESULT                    hr = S_OK;
     std::vector<std::wstring>  names;
-    std::vector<int>           rows;
 
 
 
@@ -1387,15 +1424,7 @@ HRESULT CassqueBrowser::Reload (bool keepSelection)
         return hr;
     }
 
-    for (size_t row = 0; row < m_rows.size(); row++)
-    {
-        if (std::find (names.begin(), names.end(), GetSelectionKey (row)) != names.end())
-        {
-            rows.push_back ((int) row);
-        }
-    }
-
-    SetSelectedRows (rows);
+    SelectRowsByKeys (names);
 
     return hr;
 }
@@ -1601,7 +1630,6 @@ size_t CassqueBrowser::NewTab()
 bool CassqueBrowser::SwitchTab (size_t index)
 {
     std::vector<std::wstring>  names;
-    std::vector<int>           rows;
 
 
 
@@ -1613,16 +1641,7 @@ bool CassqueBrowser::SwitchTab (size_t index)
     names = m_model.GetActiveTab().selection;
     m_rootId.clear();
     ReloadAfterNavigation();
-
-    for (size_t row = 0; row < m_rows.size(); row++)
-    {
-        if (std::find (names.begin(), names.end(), GetSelectionKey (row)) != names.end())
-        {
-            rows.push_back ((int) row);
-        }
-    }
-
-    SetSelectedRows (rows);
+    SelectRowsByKeys (names);
 
     return true;
 }

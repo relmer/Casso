@@ -206,6 +206,9 @@ private:
     //  rows with that name, since a DOS 3.3 catalog can repeat a name.
     std::wstring  GetSelectionKey (size_t row) const;
 
+    //  Selects the rows whose keys are in `names`, in one pass over the rows.
+    void  SelectRowsByKeys (const std::vector<std::wstring> & names);
+
     static std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const CatalogRow & row, const Location & at, IShellIcons & icons);
     static std::shared_ptr<const DxuiIconImage>  GetNodeIcon (const TreeNode & node, IShellIcons & icons);
 
