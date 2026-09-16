@@ -37,6 +37,8 @@ Results are recorded as they are produced. A scenario that could not run says so
 
 ## Final walk and measurements (T093)
 
+**Waived by the owner, 2026-09-16.** No separate final walk or measurement pass was run. Every scenario passed on hardware in its own phase run above (T037, T053, T060, T080, T089, T101), and the changes made after those runs -- FR-040's single-source fallback, the Controllers page following the played mode, the menu-animation and drop-down placement fixes -- were checked on screen by the owner as each landed and are covered by the full suite (5567 Debug, 5565 Release) and code analysis clean in all four configurations. SC-002, SC-005 and SC-007 were not measured.
+
 | Scenario | Result |
 |---|---|
 
