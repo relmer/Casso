@@ -256,16 +256,14 @@ Error:
 //  Every attached controller exactly once: one entry per connected XInput
 //  slot, then the DirectInput devices that are not XInput devices in disguise.
 //  Xbox-class controllers share one model key (FR-018a) and are told apart by
-//  their slot, which is all XInput exposes. With more than one connected the
-//  slot goes into the description too, so a list can tell two of the same
-//  controller apart.
+//  their slot, which is all XInput exposes. Two devices that describe
+//  themselves identically get a number appended once the whole list is built.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32ControllerBackend::EnumerateDevices (std::vector<ControllerDeviceInfo> & outDevices)
 {
-    HRESULT  hr        = S_OK;
-    size_t   xboxCount = 0;
+    HRESULT  hr = S_OK;
 
 
 
@@ -283,8 +281,6 @@ HRESULT Win32ControllerBackend::EnumerateDevices (std::vector<ControllerDeviceIn
         }
     }
 
-    xboxCount = m_xinputConnected.count();
-
     for (int slot = 0; slot < kXInputSlotCount; slot++)
     {
         ControllerDeviceInfo  info;
@@ -300,11 +296,6 @@ HRESULT Win32ControllerBackend::EnumerateDevices (std::vector<ControllerDeviceIn
         info.description     = GetXInputDescription ((DWORD) slot);
         info.xinputSlot      = slot;
         info.controls        = XInputSampleDecoder::ListControls();
-
-        if (xboxCount > 1)
-        {
-            info.description += std::format (L" #{}", slot + 1);
-        }
 
         outDevices.push_back (info);
     }
@@ -327,6 +318,8 @@ HRESULT Win32ControllerBackend::EnumerateDevices (std::vector<ControllerDeviceIn
         info.controls    = DirectInputSampleDecoder::ListControls (device.layout);
         outDevices.push_back (info);
     }
+
+    DisambiguateDescriptions (outDevices);
 
     return hr;
 }
@@ -1008,14 +1001,56 @@ ControllerUnitKey Win32ControllerBackend::MakeUnitKey (
 //
 //  GetXInputDescription
 //
-//  XInputGetCapabilitiesEx, ordinal 108 of xinput1_4.dll, reports the slot's
-//  vendor and product. It is undocumented and used for the description only:
-//  the model key is the same for every Xbox-class controller (FR-018a), so a
-//  missing export costs nothing but the numbers in the text.
+//  The product string Windows itself shows, read from the HID device that
+//  carries the slot's vendor and product. A device that reports no product
+//  string, and a slot whose IDs cannot be read at all, fall back to a generic
+//  name, which keeps a row on the page either way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring Win32ControllerBackend::GetXInputDescription (DWORD slot) const
+{
+    WORD          vendorId    = 0;
+    WORD          productId   = 0;
+    bool          hasIds      = TryGetXInputIds (slot, vendorId, productId);
+    std::wstring  productName;
+
+
+
+    if (!hasIds)
+    {
+        return L"Xbox Controller";
+    }
+
+    productName = GetHidProductName (vendorId, productId);
+
+    if (!productName.empty())
+    {
+        return productName;
+    }
+
+    return std::format (L"Xbox Controller ({:04x}:{:04x})", vendorId, productId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetXInputIds
+//
+//  XInputGetCapabilitiesEx, ordinal 108 of xinput1_4.dll, reports the slot's
+//  vendor and product. It is undocumented and used for the description only:
+//  the model key is the same for every Xbox-class controller (FR-018a), so a
+//  missing export costs nothing but the name in the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ControllerBackend::TryGetXInputIds (
+    DWORD   slot,
+    WORD  & outVendorId,
+    WORD  & outProductId) const
 {
     struct CapabilitiesEx
     {
@@ -1028,12 +1063,15 @@ std::wstring Win32ControllerBackend::GetXInputDescription (DWORD slot) const
 
     using CapabilitiesExFn = DWORD (WINAPI *) (DWORD, DWORD, DWORD, CapabilitiesEx *);
 
-    HMODULE           module      = GetModuleHandleW (L"xinput1_4.dll");
-    CapabilitiesExFn  getCapsEx   = nullptr;
-    CapabilitiesEx    capsEx      = {};
-    DWORD             result      = ERROR_DEVICE_NOT_CONNECTED;
+    HMODULE           module     = GetModuleHandleW (L"xinput1_4.dll");
+    CapabilitiesExFn  getCapsEx  = nullptr;
+    CapabilitiesEx    capsEx     = {};
+    DWORD             result     = ERROR_DEVICE_NOT_CONNECTED;
 
 
+
+    outVendorId  = 0;
+    outProductId = 0;
 
     if (module == nullptr)
     {
@@ -1052,8 +1090,269 @@ std::wstring Win32ControllerBackend::GetXInputDescription (DWORD slot) const
 
     if (result != ERROR_SUCCESS)
     {
-        return L"Xbox Controller";
+        return false;
     }
 
-    return std::format (L"Xbox Controller ({:04x}:{:04x})", capsEx.vendorId, capsEx.productId);
+    outVendorId  = capsEx.vendorId;
+    outProductId = capsEx.productId;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHidProductName
+//
+//  XInput exposes no name, so the slot is matched to a HID device by vendor
+//  and product and that device is asked for its product string. Only devices
+//  whose interface path carries IG_ are considered, which is the marker an
+//  XInput-capable device has; a wireless receiver and a plain HID pad can
+//  otherwise report the same pair.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32ControllerBackend::GetHidProductName (WORD vendorId, WORD productId) const
+{
+    std::wstring                     name;
+    UINT                             deviceCount = 0;
+    UINT                             listed      = 0;
+    std::vector<RAWINPUTDEVICELIST>  devices;
+
+
+
+    listed = GetRawInputDeviceList (nullptr, &deviceCount, sizeof (RAWINPUTDEVICELIST));
+
+    if (listed == (UINT) -1 || deviceCount == 0)
+    {
+        return name;
+    }
+
+    devices.resize (deviceCount);
+    listed = GetRawInputDeviceList (devices.data(), &deviceCount, sizeof (RAWINPUTDEVICELIST));
+
+    if (listed == (UINT) -1)
+    {
+        return name;
+    }
+
+    devices.resize (listed);
+
+    for (const RAWINPUTDEVICELIST & entry : devices)
+    {
+        RID_DEVICE_INFO  info      = {};
+        UINT             infoSize  = sizeof (info);
+        std::wstring     path;
+
+        if (entry.dwType != RIM_TYPEHID)
+        {
+            continue;
+        }
+
+        info.cbSize = sizeof (info);
+
+        if (GetRawInputDeviceInfoW (entry.hDevice, RIDI_DEVICEINFO, &info, &infoSize) == (UINT) -1)
+        {
+            continue;
+        }
+
+        if (info.hid.dwVendorId != vendorId || info.hid.dwProductId != productId)
+        {
+            continue;
+        }
+
+        path = GetRawInputPath (entry.hDevice);
+
+        if (!IsXInputPath (path))
+        {
+            continue;
+        }
+
+        name = GetHidProductString (path);
+
+        if (!name.empty())
+        {
+            break;
+        }
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRawInputPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32ControllerBackend::GetRawInputPath (HANDLE device) const
+{
+    std::wstring  path;
+    UINT          chars  = 0;
+    UINT          result = GetRawInputDeviceInfoW (device, RIDI_DEVICENAME, nullptr, &chars);
+
+
+
+    if (result == (UINT) -1 || chars == 0)
+    {
+        return path;
+    }
+
+    path.resize (chars);
+    result = GetRawInputDeviceInfoW (device, RIDI_DEVICENAME, path.data(), &chars);
+
+    if (result == (UINT) -1)
+    {
+        path.clear();
+
+        return path;
+    }
+
+    path.resize (wcslen (path.c_str()));
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHidProductString
+//
+//  Opened with no access rights at all, which is what lets a device another
+//  process holds exclusively still report its name. A string of nothing but
+//  spaces is treated as no string, so the caller falls back rather than
+//  showing a blank row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32ControllerBackend::GetHidProductString (const std::wstring & path) const
+{
+    constexpr size_t  kProductChars = 128;
+
+
+
+    std::wstring  product;
+    HANDLE        file                  = INVALID_HANDLE_VALUE;
+    wchar_t       buffer[kProductChars] = {};
+    BOOLEAN       gotProduct            = FALSE;
+    size_t        firstReal             = std::wstring::npos;
+
+
+
+    if (path.empty())
+    {
+        return product;
+    }
+
+    file = CreateFileW (path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                        OPEN_EXISTING, 0, nullptr);
+
+    if (file == INVALID_HANDLE_VALUE)
+    {
+        return product;
+    }
+
+    gotProduct = HidD_GetProductString (file, buffer, (ULONG) sizeof (buffer));
+    CloseHandle (file);
+
+    if (!gotProduct)
+    {
+        return product;
+    }
+
+    product   = buffer;
+    firstReal = product.find_first_not_of (L" \t\r\n");
+
+    if (firstReal == std::wstring::npos)
+    {
+        product.clear();
+
+        return product;
+    }
+
+    product.erase (0, firstReal);
+    product.erase (product.find_last_not_of (L" \t\r\n") + 1);
+
+    return product;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisambiguateDescriptions
+//
+//  A number is appended only where two or more devices would otherwise read
+//  the same, which is what keeps a single controller's real product name
+//  unadorned. An XInput device takes its one-based slot, so the same
+//  controller reads the same way from one run to the next; anything else takes
+//  the lowest number the colliding group has not already claimed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ControllerBackend::DisambiguateDescriptions (std::vector<ControllerDeviceInfo> & devices)
+{
+    std::map<std::wstring, std::vector<size_t>>  byDescription;
+
+
+
+    for (size_t index = 0; index < devices.size(); index++)
+    {
+        byDescription[devices[index].description].push_back (index);
+    }
+
+    for (const auto & entry : byDescription)
+    {
+        std::set<int>  taken;
+        int            next  = 1;
+
+        if (entry.second.size() < 2)
+        {
+            continue;
+        }
+
+        for (size_t index : entry.second)
+        {
+            if (devices[index].xinputSlot != ControllerDeviceInfo::kNoXInputSlot)
+            {
+                taken.insert (devices[index].xinputSlot + 1);
+            }
+        }
+
+        for (size_t index : entry.second)
+        {
+            int  number = 0;
+
+            if (devices[index].xinputSlot != ControllerDeviceInfo::kNoXInputSlot)
+            {
+                number = devices[index].xinputSlot + 1;
+            }
+            else
+            {
+                while (taken.find (next) != taken.end())
+                {
+                    next++;
+                }
+
+                number = next;
+                taken.insert (number);
+            }
+
+            devices[index].description += std::format (L" #{}", number);
+        }
+    }
+
+    return;
 }

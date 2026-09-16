@@ -39,6 +39,8 @@ public:
                                std::vector<HANDLE>     & outEvents,
                                bool                    & outNeedsTimedPoll) override;
 
+    static void  DisambiguateDescriptions (std::vector<ControllerDeviceInfo> & devices);
+
 private:
 
     // One opened DirectInput device and what enumeration found on it.
@@ -87,6 +89,10 @@ private:
     static std::string  ToNarrow (const std::wstring & wide);
     ControllerUnitKey  MakeUnitKey (IDirectInputDevice8W & device, const DIDEVICEINSTANCEW & instance) const;
     std::wstring       GetXInputDescription (DWORD slot) const;
+    bool               TryGetXInputIds      (DWORD slot, WORD & outVendorId, WORD & outProductId) const;
+    std::wstring       GetHidProductName    (WORD vendorId, WORD productId) const;
+    std::wstring       GetRawInputPath      (HANDLE device) const;
+    std::wstring       GetHidProductString  (const std::wstring & path) const;
 
     DirectInputDevice *  FindDirectInputDevice (const ControllerUnitKey & unit);
 
