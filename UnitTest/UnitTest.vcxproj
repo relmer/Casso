@@ -243,6 +243,7 @@
     <ClCompile Include="DebuggerTests\EffectiveAddressTests.cpp" />
     <ClCompile Include="DebuggerTests\RegisterHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\MemoryHandlersTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

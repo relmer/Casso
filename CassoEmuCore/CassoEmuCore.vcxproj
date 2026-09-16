@@ -208,6 +208,7 @@
     <ClCompile Include="Debugger\ReplyJson.cpp" />
     <ClCompile Include="Debugger\Handlers\RegisterHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\BreakpointHandlers.cpp" />
+    <ClCompile Include="Debugger\Handlers\MemoryHandlers.cpp" />
     <ClCompile Include="Shell\HeadlessMachineFactory.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
@@ -479,6 +480,7 @@
     <ClInclude Include="Debugger\IInstructionObserver.h" />
     <ClInclude Include="Debugger\Handlers\RegisterHandlers.h" />
     <ClInclude Include="Debugger\Handlers\BreakpointHandlers.h" />
+    <ClInclude Include="Debugger\Handlers\MemoryHandlers.h" />
     <ClInclude Include="Shell\HeadlessMachineFactory.h" />
     <ClInclude Include="Shell\IRomSource.h" />
     <ClInclude Include="Debugger\Reply.h" />
