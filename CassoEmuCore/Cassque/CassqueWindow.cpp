@@ -952,13 +952,14 @@ void CassqueWindow::FillList()
     m_list->SetRows (std::move (rows));
 
     //  A new location opens at its first row, as Explorer's does, rather than
-    //  wherever the list was scrolled for the last one. Its columns fit its
-    //  own contents, not the widest values of every folder visited before.
+    //  wherever the list was scrolled for the last one. THE COLUMNS STAY AS
+    //  THEY ARE: their widths belong to the view rather than to the folder, so
+    //  they neither twitch from one folder to the next nor pay to re-measure
+    //  every cell of every row on each navigation.
     if (m_browser.GetLocation() != m_listLocation)
     {
         m_listLocation = m_browser.GetLocation();
         m_list->SetTopRow (0);
-        m_list->ResetAutoFit();
         RevealLocationInTree();
     }
 

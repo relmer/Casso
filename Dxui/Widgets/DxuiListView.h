@@ -121,6 +121,14 @@ public:
     void  SetColumnVisible          (size_t idx, bool visible);
     bool  IsColumnVisible           (size_t idx) const     { return (idx < m_columns.size()) && m_columns[idx].visible; }
     void  SetColumnOverrideWidthPx  (size_t idx, int px);
+
+    //  Sets a column's width to what its content wants, as a double-click on
+    //  its divider does in Explorer. The width becomes an override, so it is
+    //  the column's width until something changes it again.
+    //
+    //  Measuring needs the text renderer, which only the paint pass holds, so
+    //  the fit is applied on the next paint rather than here.
+    void  FitColumnToContent        (size_t idx);
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
     int   GetTotalMeasuredWidthPx   () const;
@@ -466,6 +474,13 @@ private:
     Palette      MakePalette         () const;
     ScrollLayout ComputeScrollLayout () const;
     int          GetColumnNaturalWidthPx (size_t c) const;
+
+    //  What a column's content wants, ignoring any override already on it, so
+    //  fitting a column that has been dragged still measures the content.
+    int          GetColumnContentWidthPx (size_t c) const;
+
+    //  Applies a width a fit asked for, once the paint pass has measured it.
+    void         ApplyPendingFit         ();
     void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
 
     // Mouse-event dispatch helpers (lx / ly are widget-relative px).
@@ -609,4 +624,7 @@ private:
     bool     m_dragSelecting         = false;
     int      m_lastClickRow          = -1;
     int64_t  m_lastClickMs           = 0;
+    int      m_lastDividerCol        = -1;
+    int64_t  m_lastDividerMs         = 0;
+    int      m_pendingFitCol         = -1;
 };

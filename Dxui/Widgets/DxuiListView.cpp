@@ -92,10 +92,10 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 
     m_rows = std::move (rows);
 
-    if (m_preciseAutoFit)
-    {
-        m_measureDirty = true;   // re-measure precise column widths for the new rows
-    }
+    //  NOT RE-MEASURED HERE. Measuring walks every cell of every row through
+    //  the text renderer, and a folder of a few thousand files paid that on
+    //  every refill. Columns are sized once for the view and then left alone,
+    //  as Explorer's are; a divider double-click re-fits one on demand.
 
     ClampTopAfterCountChange (wasSticky);
 }
@@ -1109,6 +1109,114 @@ int DxuiListView::GetColumnNaturalWidthPx (size_t c) const
     }
 
     return wpx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetColumnContentWidthPx
+//
+//  The same width GetColumnNaturalWidthPx reports for an un-dragged column,
+//  with any override skipped: fitting a column the user has already dragged
+//  has to measure the content rather than return the width being replaced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetColumnContentWidthPx (size_t c) const
+{
+    int  padPx      = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
+    int  perCharPx  = (int) std::ceil (m_scaler.ToPxf (s_kFontDip) * s_kAutoCharWidthEm);
+    int  measuredPx = 0;
+    int  autoFitPx  = 0;
+
+
+
+    if (c >= m_columns.size() || !m_columns[c].visible)
+    {
+        return 0;
+    }
+
+    if (m_columns[c].widthDip > 0 && !m_columns[c].stretch)
+    {
+        return m_scaler.ToPx (m_columns[c].widthDip);
+    }
+
+    measuredPx = (c < m_measuredWPx.size()) ? m_measuredWPx[c] : 0;
+    autoFitPx  = (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
+                 ? (m_autoMaxChars[c] * perCharPx + padPx)
+                 : 0;
+
+    return m_preciseAutoFit ? measuredPx : (std::max) (measuredPx, autoFitPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FitColumnToContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::FitColumnToContent (size_t idx)
+{
+    if (idx >= m_columns.size() || !m_columns[idx].visible)
+    {
+        return;
+    }
+
+    //  The content has to be measured against the current rows, and only the
+    //  paint pass holds a text renderer, so ask for a measurement and leave
+    //  the width to ApplyPendingFit.
+    m_pendingFitCol = (int) idx;
+    m_measureDirty  = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyPendingFit
+//
+//  Takes the width a fit asked for, once the paint pass has measured it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ApplyPendingFit()
+{
+    int  minPx     = m_scaler.ToPx (s_kMinColWidthDip);
+    int  idx       = m_pendingFitCol;
+    int  contentPx = 0;
+
+
+
+    if (idx < 0)
+    {
+        return;
+    }
+
+    m_pendingFitCol = -1;
+    contentPx       = GetColumnContentWidthPx ((size_t) idx);
+
+    if (contentPx <= 0)
+    {
+        return;
+    }
+
+    SetColumnOverrideWidthPx ((size_t) idx, (std::max) (minPx, contentPx));
+
+    //  Reported here rather than at the double-click, since this is where the
+    //  width the host would store is finally known.
+    if (m_onColumnResized)
+    {
+        m_onColumnResized (idx, GetColumnOverrideWidthPx ((size_t) idx));
+    }
 }
 
 
@@ -3062,6 +3170,12 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     m_theme = &theme;
 
     static_cast<const DxuiListView *> (this)->Paint (painter, text);
+
+    //  After the pass above, which is where the columns are measured: a fit
+    //  asked for by a divider double-click takes the width it wanted, and the
+    //  next frame draws it. Here rather than inside that pass because a width
+    //  is real state, not the measurement cache it is derived from.
+    ApplyPendingFit();
 }
 
 
@@ -3137,6 +3251,26 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     BAIL_OUT_IF (handled, S_OK);
 
     resizeCol = HitTestColumnResize (lx, ly, grabTol);
+
+    //  A second press on the same divider inside the double-click time fits
+    //  the column to its content, as it does in Explorer, instead of starting
+    //  another drag. The pair is consumed so a third press counts afresh.
+    if (resizeCol >= 0)
+    {
+        int64_t  nowMs = (int64_t) GetTickCount64();
+        bool     fit   = (resizeCol == m_lastDividerCol)
+                         && (nowMs - m_lastDividerMs) <= (int64_t) GetDoubleClickTime();
+
+        m_lastDividerCol = fit ? -1 : resizeCol;
+        m_lastDividerMs  = nowMs;
+
+        if (fit)
+        {
+            FitColumnToContent ((size_t) resizeCol);
+            handled = true;
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
 
     if (resizeCol >= 0)
     {
