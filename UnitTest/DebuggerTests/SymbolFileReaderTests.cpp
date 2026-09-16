@@ -117,30 +117,76 @@ namespace DebuggerTests
 
 
 
+        //  Merlin Pro 2.23 assembling LABELS.S, captured off the emulated screen.
+        //  The layout is recorded in research R-009.
+        //
+        //  An earlier version of this test carried a `]LOOP` entry, which no
+        //  Merlin listing can contain: Merlin lists no `]` variable and no local
+        //  label. The reader accepted it, so the test passed while documenting a
+        //  format that does not exist.
         TEST_METHOD (MerlinListing_EntriesAfterTheHeading)
         {
             static constexpr const char * kFile =
-                "0300: A9 41        1 START    LDA #$41\n"
-                "0302: 60           2          RTS\n"
+                "83D7: 00        113  END      BRK              ;table end\n"
                 "\n"
-                "--End assembly, 3 bytes, Errors: 0\n"
+                "--End assembly, 984 bytes, Errors: 0\n"
                 "\n"
                 "Symbol table - alphabetical order:\n"
                 "\n"
-                "   COUT    =$FDED     START   =$0300     ]LOOP   =$0302\n"
+                "   END     =$83D7      LABTBL  =$8000\n"
                 "\n"
                 "Symbol table - numerical order:\n"
                 "\n"
-                "   START   =$0300     ]LOOP   =$0302     COUT    =$FDED\n";
+                "   LABTBL  =$8000      END     =$83D7\n";
 
             std::vector<SymbolFileEntry>  symbols = ReadOk (kFile, SymbolFileFormat::MerlinListing);
 
 
 
-            Assert::AreEqual ((size_t) 3,    symbols.size(), L"the numerical section repeats the alphabetical one");
-            Assert::AreEqual ((Word) 0x0300, Find (symbols, "START"));
-            Assert::AreEqual ((Word) 0x0302, Find (symbols, "]LOOP"));
-            Assert::AreEqual ((Word) 0xFDED, Find (symbols, "COUT"));
+            Assert::AreEqual ((size_t) 2,    symbols.size(), L"the numerical section repeats the alphabetical one");
+            Assert::AreEqual ((Word) 0x83D7, Find (symbols, "END"));
+            Assert::AreEqual ((Word) 0x8000, Find (symbols, "LABTBL"));
+        }
+
+
+
+
+
+        //  A real listing carries a two-character flag field before the name:
+        //  `MD` for a macro definition, `M ` for a label a macro expansion
+        //  produced. Rows from Merlin Pro 2.23 assembling MAKE DUMP.S.
+        //
+        //  THE FLAG MUST NOT BECOME A SYMBOL. It is a bare token sitting exactly
+        //  where a name sits, so a reader pairing tokens off has every chance of
+        //  binding `MD` to the address that follows it.
+        TEST_METHOD (MerlinListing_FlagFieldIsNotASymbol)
+        {
+            static constexpr const char * kFile =
+                "Symbol table - alphabetical order:\n"
+                "\n"
+                "   CALLMAIN=$0A92      ZPFLAGA =$0AA5   MD MOV     =$8000   MD MOVD    =$8000\n"
+                "MD INCD    =$8000   MD DECD    =$8000      AMPER   =$03F5   M  ND      =$09C4\n";
+
+            std::vector<SymbolFileEntry>  symbols = ReadOk (kFile, SymbolFileFormat::MerlinListing);
+
+
+
+            //  The names on either side of a flag both survive it.
+            Assert::AreEqual ((Word) 0x0A92, Find (symbols, "CALLMAIN"));
+            Assert::AreEqual ((Word) 0x0AA5, Find (symbols, "ZPFLAGA"));
+            Assert::AreEqual ((Word) 0x03F5, Find (symbols, "AMPER"));
+
+            //  Including the flagged entries themselves, under their own names.
+            Assert::AreEqual ((Word) 0x8000, Find (symbols, "MOV"));
+            Assert::AreEqual ((Word) 0x8000, Find (symbols, "INCD"));
+            Assert::AreEqual ((Word) 0x09C4, Find (symbols, "ND"));
+
+            //  And the flags are not symbols.
+            for (const SymbolFileEntry & entry : symbols)
+            {
+                Assert::AreNotEqual (std::string ("MD"), entry.name, L"MD is a flag, not a symbol");
+                Assert::AreNotEqual (std::string ("M"),  entry.name, L"M is a flag, not a symbol");
+            }
         }
 
 
