@@ -31,6 +31,11 @@ public:
     virtual ~IShellIcons () = default;
 
     //  The icon Explorer displays for a real file, folder or drive.
-    virtual std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path) = 0;
+    //
+    //  `isDirectory` is told rather than looked up: an implementation caching
+    //  ordinary files by extension needs to know only whether this one is a
+    //  directory, and every caller already holds that. Asking the file system
+    //  instead costs a call for each row of a listing.
+    virtual std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetForKind (Kind kind) = 0;
 };

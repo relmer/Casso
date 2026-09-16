@@ -22,9 +22,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 class RecordingShellIcons : public IShellIcons
 {
 public:
-    std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path) override
+    std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) override
     {
         paths.push_back (path);
+        directoryFlags.push_back (isDirectory);
         return pathIcon;
     }
 
@@ -35,6 +36,7 @@ public:
     }
 
     std::vector<std::wstring>             paths;
+    std::vector<bool>                     directoryFlags;
     std::vector<Kind>                     kinds;
     std::shared_ptr<const DxuiIconImage>  pathIcon = std::make_shared<DxuiIconImage>();
     std::shared_ptr<const DxuiIconImage>  kindIcon = std::make_shared<DxuiIconImage>();
@@ -77,6 +79,27 @@ public:
         {
             Assert::IsFalse ((bool) cells[c].icon, L"and no other column does");
         }
+    }
+
+
+    TEST_METHOD (HostFolderRow_SaysWhetherItIsADirectory)
+    {
+        RecordingShellIcons  icons;
+        CatalogRow           folder;
+        CatalogRow           file;
+        Location             at = Location::MakeHostFolder (L"C:\\Disks");
+
+        folder.name        = L"SUBDIR";
+        folder.isDirectory = true;
+        file.name          = L"GAMES.DSK";
+
+        Assert::IsFalse (CassqueBrowser::ToCells (folder, at, &icons).empty());
+        Assert::IsFalse (CassqueBrowser::ToCells (file,   at, &icons).empty());
+
+        //  Told, so the icons never have to ask the file system which it is.
+        Assert::AreEqual ((size_t) 2, icons.directoryFlags.size());
+        Assert::IsTrue   (icons.directoryFlags[0], L"A folder says so");
+        Assert::IsFalse  (icons.directoryFlags[1], L"and a file says so");
     }
 
 

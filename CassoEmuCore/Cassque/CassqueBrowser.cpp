@@ -1818,7 +1818,7 @@ std::shared_ptr<const DxuiIconImage> CassqueBrowser::GetRowIcon (const CatalogRo
 {
     if (at.kind == Location::Kind::HostFolder)
     {
-        return icons.GetForPath (JoinPath (at.path, row.name));
+        return icons.GetForPath (JoinPath (at.path, row.name), row.isDirectory);
     }
 
     return icons.GetForKind (row.isDirectory ? IShellIcons::Kind::Folder : IShellIcons::Kind::File);
@@ -1841,7 +1841,10 @@ std::shared_ptr<const DxuiIconImage> CassqueBrowser::GetNodeIcon (const TreeNode
         case TreeNode::Kind::CassoRoot:     return icons.GetForKind (IShellIcons::Kind::Casso);
         case TreeNode::Kind::ThisPcRoot:    return icons.GetForKind (IShellIcons::Kind::ThisPc);
         case TreeNode::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
-        default:                            return icons.GetForPath (node.location.path);
+        //  Every remaining node is a drive or a host folder, and a disk image
+        //  node is a file with the icon its extension carries.
+        case TreeNode::Kind::DiskImage:     return icons.GetForPath (node.location.path, false);
+        default:                            return icons.GetForPath (node.location.path, true);
     }
 }
 

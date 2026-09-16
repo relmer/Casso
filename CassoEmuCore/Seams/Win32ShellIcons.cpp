@@ -38,9 +38,9 @@ void Win32ShellIcons::SetSizePx (int sizePx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForPath (const std::wstring & path)
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForPath (const std::wstring & path, bool isDirectory)
 {
-    std::wstring  key   = GetCacheKey (path);
+    std::wstring  key   = GetCacheKey (path, isDirectory);
     UINT          flag  = (m_sizePx <= 16) ? SHGFI_SMALLICON : SHGFI_LARGEICON;
     auto          found = m_cache.find (key);
 
@@ -132,17 +132,15 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Remember (const std::wstri
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring Win32ShellIcons::GetCacheKey (const std::wstring & path)
+std::wstring Win32ShellIcons::GetCacheKey (const std::wstring & path, bool isDirectory)
 {
-    DWORD         attributes = GetFileAttributesW (path.c_str());
-    bool          directory  = (attributes != INVALID_FILE_ATTRIBUTES) && ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
-    size_t        dot        = path.rfind (L'.');
-    size_t        slash      = path.find_last_of (L"\\/");
+    size_t        dot   = path.rfind (L'.');
+    size_t        slash = path.find_last_of (L"\\/");
     std::wstring  extension;
 
 
 
-    if (directory || dot == std::wstring::npos || (slash != std::wstring::npos && dot < slash))
+    if (isDirectory || dot == std::wstring::npos || (slash != std::wstring::npos && dot < slash))
     {
         return L"*path:" + path;
     }

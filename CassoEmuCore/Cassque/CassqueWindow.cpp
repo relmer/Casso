@@ -4414,7 +4414,8 @@ void CassqueWindow::FillTabs()
         {
             case Location::Kind::None:          tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::ThisPc); break;
             case Location::Kind::DiskDirectory: tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
-            default:                            tab.icon = m_shellIcons.GetForPath (location.path);           break;
+            case Location::Kind::DiskImage:     tab.icon = m_shellIcons.GetForPath (location.path, false);     break;
+            default:                            tab.icon = m_shellIcons.GetForPath (location.path, true);      break;
         }
 
         tabs.push_back (tab);

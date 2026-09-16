@@ -27,7 +27,7 @@ public:
     //  The size the icons are drawn at, in pixels. A change drops the cache.
     void  SetSizePx (int sizePx);
 
-    std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path) override;
+    std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) override;
     std::shared_ptr<const DxuiIconImage>  GetForKind (Kind kind) override;
 
     static constexpr int  kDefaultSizePx = 16;
@@ -38,7 +38,7 @@ private:
 
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon);
 
-    static std::wstring  GetCacheKey  (const std::wstring & path);
+    static std::wstring  GetCacheKey  (const std::wstring & path, bool isDirectory);
     static HICON         LoadForPath  (const std::wstring & path, UINT sizeFlag);
     static HICON         LoadForKind  (Kind kind, UINT sizeFlag);
 
