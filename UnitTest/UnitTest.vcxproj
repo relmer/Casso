@@ -244,6 +244,7 @@
     <ClCompile Include="DebuggerTests\RegisterHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\DataDirectiveHandlersTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

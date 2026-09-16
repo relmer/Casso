@@ -190,7 +190,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - files: `BLOAD`, `BSAVE`, `TSAVE` (`BLOAD` reads raw bytes to a required address until T051 adds the formats that carry their own);
   - I/O: `IN`/`INPUT`, `OUT`;
   - the Casso engine command `SWITCHES` (FR-007), as defined in `contracts/command-modes.md`.
-- [ ] T040 [P] [US1] `CassoEmuCore/Debugger/Handlers/DataDirectiveHandlers.h/.cpp`: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`, `DW4`, `ASC`, `DF`, `DA`, and `U` disassembly honoring those data ranges. Also `A addr`, which enters the line-assembly mode Monitor `!` uses (each following line assembled through `LineAssembler`, a blank line ends it), as `contracts/command-modes.md` defines.
+- [X] T040 [P] [US1] `CassoEmuCore/Debugger/Handlers/DataDirectiveHandlers.h/.cpp`: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`, `DW4`, `ASC`, `DF`, `DA`, and `U` disassembly honoring those data ranges. Also `A addr`, which enters the line-assembly mode Monitor `!` uses (each following line assembled through `LineAssembler`, a blank line ends it), as `contracts/command-modes.md` defines.
 - [ ] T041 [P] [US1] `CassoEmuCore/Debugger/Handlers/ConfigHandlers.h/.cpp`: `PWD`, `CD`, `LOAD`, `SAVE`, `DISASM`, `STARTUP`, `RUN` (a script through the same session), `DISK`, `LOG`, `ECHO`, `PRINT`, `PRINTF`, `CALC`, `?`, `HELP`, `VERSION`, `MOTD`, `WSAVE`, `ZPSAVE`, `BMSAVE`.
 
 ### Symbols and binary formats (FR-031, FR-032, FR-033)

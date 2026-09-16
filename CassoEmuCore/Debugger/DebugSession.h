@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/BreakpointTable.h"
+#include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
@@ -87,6 +88,7 @@ public:
     WatchTable            & GetWatches     ()       { return m_watches; }
     WatchTable            & GetZeroPage    ()       { return m_zeroPage; }
     WatchTable            & GetBookmarks   ()       { return m_bookmarks; }
+    DataBlockTable        & GetDataBlocks  ()       { return m_dataBlocks; }
 
     // Host files, through the injected file system; a relative path is taken
     // from the current directory. Absent a file system, file commands fail.
@@ -146,6 +148,7 @@ private:
     WatchTable                            m_watches;
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
+    DataBlockTable                        m_dataBlocks;
     std::vector<Word>                     m_searchResults;
 
     RunState                              m_state         = RunState::Paused;
