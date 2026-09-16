@@ -373,7 +373,8 @@ public:
         // a setup the user turned off in the file.
         Assert::AreEqual (std::string (MachineInputPrefs::kpszMultiplayerKey), entry.first);
         Assert::IsTrue   (entry.second.GetType() == JsonType::Object);
-        Assert::IsTrue   (entry.second.HasArray ("players", players) && players != nullptr);
+        Assert::IsTrue    (entry.second.HasArray ("players", players));
+        Assert::IsNotNull (players);
         Assert::AreEqual (size_t (2), players->GetArraySize(), L"both slots are written, empty or not");
     }
 

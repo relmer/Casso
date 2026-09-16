@@ -124,11 +124,9 @@ ControllersPage::ControllersPage (std::wstring title)
 
 void ControllersPage::SetState (ControllersPageState * state)
 {
-    size_t  target = 0;
-    size_t  row    = 0;
-
-
-
+    // Each loop below scopes its own index. The three walk arrays of three
+    // different lengths, and one index shared across them reads to the
+    // analyzer as a single range wide enough to leave the shortest array.
     m_state = state;
 
     m_controller.SetSelect ([this] (int index)
@@ -149,7 +147,7 @@ void ControllersPage::SetState (ControllersPageState * state)
         }
     });
 
-    for (target = 0; target < kPlayerCount; target++)
+    for (size_t target = 0; target < kPlayerCount; target++)
     {
         m_playerController[target].SetSelect ([this, target] (int item)
         {
@@ -172,9 +170,9 @@ void ControllersPage::SetState (ControllersPageState * state)
     m_renameProfile.SetOnClick ([this] () { OnRenameProfile(); });
     m_deleteProfile.SetOnClick ([this] () { OnDeleteProfile(); });
 
-    for (target = 0; target < kTargetCount; target++)
+    for (size_t target = 0; target < kTargetCount; target++)
     {
-        for (row = 0; row < kMaxRows; row++)
+        for (size_t row = 0; row < kMaxRows; row++)
         {
             m_rows[target][row].SetSelect ([this, target, row] (int item)
             {
@@ -185,10 +183,16 @@ void ControllersPage::SetState (ControllersPageState * state)
             });
         }
 
-        m_addRow[target].SetOnClick ([this, target] () { AddRow (target); });
+        // Bounded again, although the loop already bounds it. The analyzer
+        // widens the index across the loop body and reads this as a write
+        // past the end.
+        if (target < m_addRow.size())
+        {
+            m_addRow[target].SetOnClick ([this, target] () { AddRow (target); });
+        }
     }
 
-    for (target = 0; target < kAxisCount; target++)
+    for (size_t target = 0; target < kAxisCount; target++)
     {
         m_invert[target].SetOnChange ([this, target] (bool checked)
         {
@@ -1169,7 +1173,7 @@ void ControllersPage::RebuildChoices()
     {
         m_choices[target].clear();
 
-        if (!selected.has_value())
+        if (m_state == nullptr || !selected.has_value())
         {
             continue;
         }
@@ -1856,7 +1860,7 @@ std::wstring ControllersPage::GetCapturePrompt() const
         target.pop_back();
     }
 
-    if (!selected.has_value())
+    if (m_state == nullptr || !selected.has_value())
     {
         return L"Press a control.";
     }
@@ -2030,7 +2034,7 @@ ControllerKind ControllersPage::GetSelectedKind() const
 
 
 
-    if (!selected.has_value())
+    if (m_state == nullptr || !selected.has_value())
     {
         return ControllerKind::DirectInput;
     }

@@ -1645,7 +1645,10 @@ GamePortContribution ControllerInputService::BuildMergedLocked() const
             continue;
         }
 
-        for (axis = 0, logical = 0; axis < axes.size(); axis++)
+        // `logical` counts only the axes this driver plays, so it can never
+        // outrun `axis` and never leaves the array. It is bounded anyway:
+        // the invariant is one the reader can follow and the analyzer cannot.
+        for (axis = 0, logical = 0; axis < axes.size() && logical < driver.logical->paddle.size(); axis++)
         {
             if (axes.test (axis))
             {

@@ -302,9 +302,14 @@ namespace ControllerTests
 
             written = store.ToJson (JsonValue());
 
-            Assert::IsTrue (written.HasObject ("models", models) && models->HasObject (token, model));
-            Assert::IsTrue (model->HasArray ("profiles", profiles));
-            Assert::IsTrue (profiles->GetArrayElement (0).HasObject ("mapping", mapping));
+            Assert::IsTrue    (written.HasObject ("models", models));
+            Assert::IsNotNull (models);
+            Assert::IsTrue    (models->HasObject (token, model));
+            Assert::IsNotNull (model);
+            Assert::IsTrue    (model->HasArray ("profiles", profiles));
+            Assert::IsNotNull (profiles);
+            Assert::IsTrue    (profiles->GetArrayElement (0).HasObject ("mapping", mapping));
+            Assert::IsNotNull (mapping);
             Assert::IsTrue  (mapping->HasArray ("pdl0", axes), L"PDL0 is written as before");
             Assert::IsFalse (mapping->HasArray ("pdl2", axes), L"an unbound PDL2 is not written, so the file reads as it did before four axes");
             Assert::IsFalse (mapping->HasArray ("pdl3", axes));
@@ -597,7 +602,7 @@ namespace ControllerTests
             const ControllerModelSettings &  settings = store.GetOrCreateModel (Xbox(), controls);
             const ControllerProfile       *  profile  = settings.FindDefaultProfile();
 
-            Assert::IsTrue   (profile != nullptr, L"and recreated");
+            Assert::IsNotNull (profile, L"and recreated");
             Assert::AreEqual (std::string ("Default"), profile->name);
             Assert::IsTrue   (profile->mapping == DefaultMapping::For (Xbox(), controls));
             Assert::IsTrue   (settings.FindProfile ("Flight") != nullptr, L"the readable profile is kept");

@@ -495,6 +495,14 @@ HRESULT SettingsSheet::OpenModeless (
         {
             return m_apply.CommitControllerSettings (models, calibrations);
         });
+
+        // Laid out again now that the page HAS the machine's mode, not the
+        // default it was built with. The page outlives one opening of the
+        // sheet, so a second opening starts from the layout the first left
+        // behind: a machine already in multiplayer would open showing no
+        // player slots, and the per-tick sync below never corrects it,
+        // because by then the page's mode and the service's agree.
+        m_controllersPage->Relayout();
     }
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist

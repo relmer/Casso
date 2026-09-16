@@ -331,9 +331,20 @@ void DxuiToolbar::SetFocusIndex (int index)
 void DxuiToolbar::ActivateFocused()
 {
     Slot *                              slot = (m_focusIndex >= 0 && m_focusIndex < (int) m_slots.size()) ? &m_slots[(size_t) m_focusIndex] : nullptr;
-    std::shared_ptr<const DxuiCommand>  cmd  = (slot != nullptr) ? slot->entry.command : nullptr;
+    std::shared_ptr<const DxuiCommand>  cmd;
 
 
+
+    // The slot is tested on its own, ahead of the command it carries. A
+    // command reached through the slot is proof enough for a reader that the
+    // slot exists, but not for the analyzer, which reads the switch below as
+    // a dereference of a pointer that was allowed to be null.
+    if (slot == nullptr)
+    {
+        return;
+    }
+
+    cmd = slot->entry.command;
 
     if (cmd == nullptr || !cmd->IsEnabled())
     {
