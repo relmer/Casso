@@ -69,6 +69,7 @@ public:
         saved.previewWidthDip     = 400;
         saved.typedPaths.push_back (L"C:\\Disks\\Merlin.po");
         saved.typedPaths.push_back (L"C:\\Games");
+        saved.columnWidthsDip = { 240, 0, 90 };
         saved.tabs.push_back (Location::MakeHostFolder (L"C:\\Disks"));
         saved.tabs.push_back (Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
 
@@ -86,6 +87,10 @@ public:
         Assert::AreEqual (400, loaded.previewWidthDip);
         Assert::AreEqual ((size_t) 2, loaded.tabs.size());
         Assert::IsTrue   (loaded.tabs[1] == Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
+        Assert::AreEqual ((size_t) 3, loaded.columnWidthsDip.size());
+        Assert::AreEqual (240, loaded.columnWidthsDip[0]);
+        Assert::AreEqual (0,   loaded.columnWidthsDip[1], L"A column that fits itself stores nothing");
+        Assert::AreEqual (90,  loaded.columnWidthsDip[2]);
         Assert::AreEqual ((size_t) 2, loaded.typedPaths.size());
         Assert::AreEqual (std::wstring (L"C:\\Disks\\Merlin.po"), loaded.typedPaths[0]);
         Assert::AreEqual (std::wstring (L"C:\\Games"),            loaded.typedPaths[1]);

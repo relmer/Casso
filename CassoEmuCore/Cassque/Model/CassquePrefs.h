@@ -62,6 +62,11 @@ struct CassquePrefs
     //  The address bar's typed path history, newest first.
     std::vector<std::wstring>  typedPaths;
 
+    //  The file list's column widths, in order, or empty for the widths the
+    //  columns fit for themselves. A column left at its fitted width stores
+    //  nothing, so only what was dragged or fitted comes back.
+    std::vector<int>           columnWidthsDip;
+
     //  Absent file: defaults, with the theme seeded from the emulator's
     //  preferences when they can be read. Reports the read's own result for
     //  a file that exists and will not parse.

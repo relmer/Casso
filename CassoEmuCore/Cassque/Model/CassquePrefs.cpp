@@ -214,12 +214,18 @@ JsonValue CassquePrefs::ToJson() const
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
+    std::vector<JsonValue>                          widthValues;
 
 
 
     for (const std::wstring & typed : typedPaths)
     {
         typedValues.push_back (JsonValue (TextEncoding::WideToNarrow (typed)));
+    }
+
+    for (int width : columnWidthsDip)
+    {
+        widthValues.push_back (JsonValue ((double) width));
     }
 
     placementFields.emplace_back ("x",         JsonValue ((double) placement.x));
@@ -250,6 +256,7 @@ JsonValue CassquePrefs::ToJson() const
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
+    root.emplace_back ("columnWidths",   JsonValue (std::move (widthValues)));
 
     return JsonValue (std::move (root));
 }
@@ -275,6 +282,7 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     const JsonValue  * splitters  = nullptr;
     const JsonValue  * tabArray   = nullptr;
     const JsonValue  * typedArray = nullptr;
+    const JsonValue  * widthArray = nullptr;
     std::string        text;
     size_t             i          = 0;
     int                grouping   = kDefaultHexGrouping;
@@ -362,6 +370,20 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
             {
                 typedPaths.push_back (TextEncoding::NarrowToWide (value.GetString()));
             }
+        }
+    }
+
+    if (root.HasArray ("columnWidths", widthArray))
+    {
+        columnWidthsDip.clear();
+
+        for (i = 0; i < widthArray->GetArraySize(); i++)
+        {
+            const JsonValue &  value = widthArray->GetArrayElement (i);
+
+            //  A hand-edited width of zero or less means the column fits
+            //  itself, which is what an absent entry means too.
+            columnWidthsDip.push_back ((value.GetType() == JsonType::Number) ? (int) value.GetNumber() : 0);
         }
     }
 

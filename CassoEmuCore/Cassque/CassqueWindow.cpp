@@ -390,6 +390,23 @@ void CassqueWindow::ConfigureWidgets()
         FillList();
     });
 
+    //  A width the user set, by dragging a divider or by double-clicking one
+    //  to fit it, is kept for the next run.
+    m_list->SetOnColumnResized ([this] (int column, int widthPx)
+    {
+        if (column < 0)
+        {
+            return;
+        }
+
+        if ((size_t) column >= m_prefs.columnWidthsDip.size())
+        {
+            m_prefs.columnWidthsDip.resize ((size_t) column + 1, 0);
+        }
+
+        m_prefs.columnWidthsDip[(size_t) column] = MulDiv (widthPx, (int) DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi());
+    });
+
     m_list->SetOnActivateRow ([this] (int row)
     {
         if (m_browser.OpenRow (row))
@@ -496,6 +513,7 @@ void CassqueWindow::ConfigureWidgets()
     m_address->SetOnHistory   ([this] (const RECT & anchor) { ShowAddressHistoryMenu (anchor); });
 
     m_browser.GetTypedPaths().Reset (m_prefs.typedPaths);
+    ApplyStoredColumnWidths();
     m_browser.RestoreTabs (m_prefs.tabs);
 
     m_tree->OnFocusChanged (true);
@@ -4116,6 +4134,35 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
             m_address->SetOpenSeparator (-1);
             Invalidate();
         });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ApplyStoredColumnWidths
+//
+//  The widths from the last run, where there are any. A stored zero means the
+//  column was never given a width of its own and still fits itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ApplyStoredColumnWidths()
+{
+    size_t  count = m_prefs.columnWidthsDip.size();
+    size_t  c     = 0;
+
+
+
+    for (c = 0; c < count; c++)
+    {
+        if (m_prefs.columnWidthsDip[c] > 0)
+        {
+            m_list->SetColumnOverrideWidthPx (c, m_scaler.ToPx (m_prefs.columnWidthsDip[c]));
+        }
     }
 }
 

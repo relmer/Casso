@@ -239,6 +239,9 @@ private:
 
     //  What an empty list says, named for the kind of thing being looked at.
     static std::wstring  GetEmptyLocationMessage (Location::Kind kind);
+
+    //  The file list's column widths from the last run.
+    void  ApplyStoredColumnWidths ();
     void  ShowHistoryMenu (bool forward, const RECT & anchor);
 
     static std::wstring  EscapeMnemonics (const std::wstring & text);
