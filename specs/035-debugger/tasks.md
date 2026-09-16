@@ -259,7 +259,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 ### Verification gates (run before any Monitor command work)
 
-- [ ] T057 [US2] Write `UnitTest/DebuggerTests/MonitorCommandTableTests.cpp` (FR-027, SC-002), per research R-011:
+- [x] T057 [US2] Write `UnitTest/DebuggerTests/MonitorCommandTableTests.cpp` (FR-027, SC-002), per research R-011:
   - for `Apple2.rom`, `Apple2Plus.rom`, `Apple2e.rom`, `Apple2eEnhanced.rom` and `Apple2c.rom`, read 23 command bytes at $FFCC and handler offsets at $FFE3;
   - decode each byte with the inverse of the transform in the routine at $FFBE, first asserting that known entries (`L`, `G`, `M`) decode correctly on every ROM;
   - exclude only entries matching the declared filler rule (character `$EA` with handler `$00`, the //c's last entry);
@@ -267,11 +267,15 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - assert 23 entries were read per ROM.
 
   Until T060 exists, the test compiles against an empty command set and fails; that is expected.
-- [ ] T058 [US2] Write `UnitTest/DebuggerTests/MonitorRomFactsTests.cpp` (FR-029), per research R-012:
+
+  Done, and `EveryTableEntry_IsAMonitorCommand` is the one red test on the branch until T060. Verified and recorded in R-011: the transform is `((entry - $89) AND $FF) XOR $B0`; the table is read through a built machine rather than at a file offset, because the //c's Monitor table is in ROM bank 0 and the end of that 32 KB file is bank 1, which is all zeros there; the declared filler rule holds exactly (the //c's last entry, character `$EA`, handler `$00`, the only `$00` handler on any ROM); and the ][+ and //e carry three `^Y` entries where the ][ has `^Y`, `T` and `S`, with real but unreachable handlers, which is why the union of every ROM's commands is a real feature.
+- [x] T058 [US2] Write `UnitTest/DebuggerTests/MonitorRomFactsTests.cpp` (FR-029), per research R-012:
   - on `Apple2eEnhanced.rom` and `Apple2c.rom`, decode the `!` entry of the $FFCC/$FFE3 command table, follow its handler, and assert it prints the `!` prompt and calls the input routine; assert on `Apple2.rom` that $F666 is that ROM's mini-assembler entry; record what the ][+, //e, Enhanced //e and //c hold at $F666 (Applesoft), which is why `F666G` is an alias, not a jump;
   - boot each of those two machines to the `*` prompt in `TestMachine`, type `300l` with `UnitTest/EmuTests/KeystrokeInjector.h`, and assert with `UnitTest/EmuTests/TextScreenScraper.h` that a listing appears.
 
   If either assertion fails against the ROM, stop and update spec FR-017/FR-021 and research R-012 with what the ROM does before continuing.
+
+  Both claims hold; two corrections to how they are reached are recorded in R-012. The `!` handler is at `$FE00 + offset + 1` (the dispatcher at $FFBE pushes the page and the offset and returns), and on both machines it reaches the internal $Cxxx firmware: the //c jumps straight there, the Enhanced //e pages it in with $C007 first. The prompt is printed inside that firmware, not in the handler, so the assertion is that it reaches $Cxxx. $F666 holds a JMP only on the original ][; the other four hold Applesoft. For the lowercase check, `CALL -151` is unreachable, because with no disk the //e spins in its startup firmware and the //c stops at "Check Disk Drive" -- so the test enters at $FF59, byte-identical on all five ROMs, and presses keys on `MachineRefs::keyboard` rather than through `KeystrokeInjector`, which waits on the //e-specific pointer and landed no keys. The Enhanced //e and //c then echo `*300l` and disassemble from $0300: the ROM upshifts the command without upshifting the echo. FR-017 and FR-021 stand as written.
 
 ### Implementation
 

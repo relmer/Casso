@@ -340,9 +340,33 @@ rule is declared data, not a skip, per "Degraded Operation Must Be
 Observable". The test also asserts that the table was found (23 entries read)
 before checking entries.
 
-**Open until verified**: the exact encoding transform is confirmed by the test
-itself decoding known entries (`L`, `G`, `M`) on every ROM before the sweep
-runs.
+**Verified 2026-09-15** against the five fixture ROMs:
+
+- **The transform is** `character = ((entry - $89) AND $FF) XOR $B0`, giving
+  the high-bit-set ASCII the Monitor works in. It is the inverse of the
+  accumulator's path through $FFA7-$FFBD: `EOR #$B0`, then `ADC #$88` with
+  carry set by the `CMP #$0A` that rejected the digit range. `L`, `G` and `M`
+  decode correctly on all five ROMs, and every one of the 23 entries decodes
+  to a character in the documented Monitor set.
+- **The table is read through the machine's bus, not at a file offset.** The
+  //c's ROM file is 32 KB, two 16 KB banks mapped at $C000 and flipped by
+  $C028; the Monitor's table is in bank 0, and the same offset in bank 1 is
+  all zeros. A test that seeks to the end of the file reads the wrong bank and
+  sees 23 zero entries. Reading $FFCC and $FFE3 through a built machine gets
+  the bank the machine powers on with, on every machine, with no per-ROM
+  arithmetic.
+- **The filler rule holds exactly as declared**: the //c's last entry is
+  character `$EA` (`Q`), handler `$00`, and it is the only entry on any ROM
+  with a `$00` handler.
+- **The ][+ and //e carry three `^Y` entries** (`$B2`) where the original ][
+  has `^Y`, `T` and `S`. The duplicates have real, distinct handlers ($C9,
+  $C1, $C4), so they are not filler; the Monitor's scan walks the table from
+  the top and takes the first match, which makes the later two unreachable
+  through the table. They need no exclusion, because `^Y` is a Monitor command
+  and the sweep passes on it. The Enhanced //e replaces the same two slots
+  with `!` and `S`, and the //c carries `S`, `T` and `!` as well. This is why
+  FR-016's union of every ROM's commands on every machine is a real feature
+  rather than a formality: no single ROM has all of them.
 
 ## R-012: FR-029 verification items
 
@@ -355,16 +379,57 @@ them, not assumptions:
   internal `$Cxxx` ROM, reached through `!`. The test therefore locates it
   from the command table: decode the `!` entry at $FFCC and its handler at
   $FFE3 on `Apple2eEnhanced.rom` and `Apple2c.rom`, follow the handler, and
-  assert it prints the `!` prompt and calls the input routine. It also records
-  what each ROM holds at $F666, which is why `F666G` is a Casso alias for `!`
-  rather than a jump.
+  assert it reaches the internal firmware. It also records what each ROM holds
+  at $F666, which is why `F666G` is a Casso alias for `!` rather than a jump.
+
+  **Verified 2026-09-15.** The handler address is `$FE00 + offset + 1`: the
+  dispatcher at $FFBE pushes $FE and then the offset byte and returns, so the
+  `RTS` adds one. What the handlers do:
+
+  | ROM | `!` entry | Handler | What it does |
+  |---|---|---|---|
+  | Apple2 | absent | | slot 3 is `T`; `F666G` is the way in |
+  | Apple2Plus | absent | | slot 3 is a `^Y` duplicate |
+  | Apple2e | absent | | slot 3 is a `^Y` duplicate |
+  | Apple2eEnhanced | `$9A` | $FEF1 | `STA $C007` (internal $C8 ROM in), `JSR $C5D1`, `STA $C006` (out) |
+  | Apple2c | `$9A` | $FE6C | `JMP $C986`, straight into the always-present internal firmware |
+
+  So the claim holds: on both machines `!` reaches the mini-assembler in the
+  internal $Cxxx firmware, and on the Enhanced //e it has to page that
+  firmware in first. The assertion is that the handler reaches $Cxxx, not that
+  it prints a prompt: the prompt is printed inside the internal routine, not
+  in the handler the table points at.
+
+  At $F666 the original ][ holds `4C 92 F5` (`JMP $F592`, whose target bells,
+  sets the `!` prompt character in $33, and calls GETLNZ -- the mini-assembler
+  proper). The ][+, //e, Enhanced //e and //c all hold `85 D3 8A 29 0F AA BC
+  BA` there, which is Applesoft, not an entry point at all.
 - **Lowercase input**: on the Enhanced //e and //c ROMs, the Monitor's input
-  path upshifts lowercase. The test drives the ROM itself: boot to the `*`
-  prompt in a `TestMachine`, type `300l` through `KeystrokeInjector`, and
-  assert a listing appears on the text screen through `TextScreenScraper`. On
-  the original ][ and ][+, where the keyboard has no lowercase, nothing is
-  asserted about ROM behavior; FR-021 is satisfied by the parser for all
-  machines either way.
+  path upshifts lowercase. The test drives the ROM itself: reach the `*`
+  prompt in a `TestMachine`, type `300l`, and assert a listing appears on the
+  text screen through `TextScreenScraper`. On the original ][ and ][+, where
+  the keyboard has no lowercase, nothing is asserted about ROM behavior;
+  FR-021 is satisfied by the parser for all machines either way.
+
+  **Verified 2026-09-15**, with two corrections to how the test reaches the
+  prompt:
+
+  - **`CALL -151` is not available, because neither machine reaches BASIC
+    without a disk.** Given no disk the //e spins in its startup firmware with
+    only its banner on screen, and the //c stops at "Check Disk Drive." The
+    test enters at **$FF59** instead, byte-identical on all five shipped ROMs
+    (`SETNORM`, `INIT`, `SETVID`, `SETKBD`, `CLD`, `BELL`, then `MONZ` at
+    $FF69, whose `LDA #$AA` is the `*` prompt). Entering there sets up the
+    screen and the input and output hooks exactly as a reset does.
+  - **Keys go in through `MachineRefs::keyboard`, not `iieKeyboard`.**
+    `KeystrokeInjector` waits on the //e-specific pointer and landed no keys
+    at all in this state. Pressing the base `AppleKeyboard` and running until
+    the strobe clears works, and is the path
+    `MachineDebugTarget::InjectKey` already uses.
+
+  With those, the Enhanced //e echoes `*300l` and disassembles from $0300: the
+  ROM upshifts the command without upshifting the echo. FR-021 stands as
+  written.
 
 **Rationale**: The user required verification against the fixture ROMs. If
 either check contradicts the spec, the spec changes before code relies on it.
