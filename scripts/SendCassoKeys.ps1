@@ -16,6 +16,11 @@
     produced Merlin's catalog listing, and the listing matched
     ExtractDos33File.ps1's own catalog walk file for file.
 
+    Sending the keystrokes is the easy half. What Merlin does with them is not:
+    see "Driving Merlin under emulation" in UnitTest/MerlinCorpus/README.md for
+    the prompts that swallow input, the boot wait that cannot be a fixed delay,
+    and why the reply to a Load prompt carries no .S suffix.
+
 .PARAMETER ProcessId
     The Casso process to type into. Kill only instances you launched -- other
     worktrees run their own.

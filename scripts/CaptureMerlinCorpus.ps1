@@ -7,11 +7,17 @@
     UnitTest/MerlinCorpus/README.md for the full procedure and for why the disk
     image is never committed.
 
-    SKELETON. The disk-side steps are not implemented yet -- driving Merlin under
-    Casso needs the emulator harness, and the source-in half is a manual editor
-    step by design. What works today is -Verify, which is the half that must not
-    be skipped: it round-trips source that is already on the disk and reports
-    whether it survived intact.
+    SKELETON. The disk-side steps are not implemented yet, and the source-in half
+    is a manual editor step by design. What works today is -Verify, which is the
+    half that must not be skipped: it round-trips source that is already on the
+    disk and reports whether it survived intact.
+
+    Driving Merlin itself is worked out: see "Driving Merlin under emulation" in
+    UnitTest/MerlinCorpus/README.md before automating any of the disk-side steps.
+    Read it first. Every item in it is a failure that reads convincingly as a
+    disk or emulation defect -- keystrokes sent before Merlin's menu appears,
+    the .S suffix Merlin appends itself, a listing that scrolls one line rather
+    than one page.
 
     The read-back half delegates to ExtractDos33File.ps1, which is throwaway
     tooling that works only because the Merlin disk is a flat DOS-order image. It

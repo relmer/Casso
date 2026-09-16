@@ -349,3 +349,43 @@ never claim a version stamp.
 
 Keeping the classes distinct is what makes it always clear where a given
 expectation came from.
+
+## Driving Merlin under emulation
+
+Capturing from real Merlin means driving it by posted keystrokes. Every step
+below cost a session to learn, so none of it is obvious from the tree.
+
+**Send WM_CHAR only.** `scripts/SendCassoKeys.ps1` posts characters; bracketing
+them with WM_KEYDOWN/WM_KEYUP corrupts shifted characters, which in Merlin means
+corrupted filenames and operands.
+
+**Wait for Merlin's menu, never a fixed delay.** Poll the screen (Edit > Copy
+Text, IDM 40005, then read the clipboard) until it contains `MERLIN-PRO`. Typing
+into a machine that is still booting is silently discarded, and the resulting
+failure looks exactly like a disk or emulation defect. This is the single
+biggest time sink here: a whole investigation into a nonexistent `I/O ERROR`
+came from typing too early.
+
+**Merlin appends `.S` to the name itself.** Answer its Load prompt with
+`LABELS`, not `LABELS.S` -- the latter searches for `LABELS.S.S` and reports
+`FILE NOT FOUND`. The prompt renders as `%Load:LABELS?`; the trailing `?` is
+Merlin's own hint character, not part of what was typed.
+
+**Read the whole screen, never a grep for one expected string.** Filtering for
+`FILE NOT FOUND` alone reads an `I/O ERROR` screen as success.
+
+**`ASM` stops at `Update source (Y/N)?` before it lists anything.** Answer `N`;
+that also keeps the capture from writing to the disk image.
+
+**A listing advances one line per keypress, not one page.** Space is not a pager
+here, so a capture loop reading a screen per press re-reads 23 lines it already
+has. Collect and de-duplicate rather than assuming page boundaries.
+
+**Source is type-B at $0901 in high-bit ASCII with CR terminators**, so it is
+text, not a binary to `BLOAD`. BLOADing one at $0901 lands it in the BASIC
+program area and corrupts DOS: the first appears to succeed and every later disk
+operation fails, which reads convincingly as a track-dependent disk fault. Use
+`CassoCli disk get` to extract source instead.
+
+**Work on a copy.** The pristine image is pinned by SHA-256 in
+`scripts/CaptureMerlinCorpus.ps1 -Verify`; never drive Merlin against it.
