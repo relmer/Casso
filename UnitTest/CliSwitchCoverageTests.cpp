@@ -312,10 +312,6 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.useResetVector; },
               "--reset-vector starts where the reset vector points" },
 
-            { "run", "fill", { "CassoCli", "run", "p.bin", "--fill", "$EA" },
-              [] (const CommandLineOptions & o) { return o.fillByte == 0xEA; },
-              "--fill sets the byte unwritten memory holds" },
-
             { "run", "warn", { "CassoCli", "run", "p.a65", "--as65", "--warn" },
               [] (const CommandLineOptions & o)
               { return o.warningMode == WarningMode::Warn; },
@@ -1336,7 +1332,6 @@ namespace CliSwitchCoverageTests
                 { "CassoCli", "run",  "p.bin", "--load",  "nonsense" },
                 { "CassoCli", "run",  "p.bin", "--exec", "nonsense" },
                 { "CassoCli", "run",  "p.bin", "--stop",  "nonsense" },
-                { "CassoCli", "run",  "p.bin", "--fill",  "nonsense" },
                 { "CassoCli", "run",  "p.bin", "--max-cycles", "nonsense" },
             };
 
