@@ -229,12 +229,12 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 ### Batch mode
 
-- [ ] T053 [P] [US1] Write `UnitTest/DebuggerTests/DebugOptionsParseTests.cpp` for `contracts/cli-debug.md` batch options:
+- [x] T053 [P] [US1] Write `UnitTest/DebuggerTests/DebugOptionsParseTests.cpp` for `contracts/cli-debug.md` batch options:
   - `--machine`, `--disk1`, `--disk2`, `--script` (including `-`), repeatable `--command`, `--mode`, `--json`, `--max-cycles`, `--seed`, `--write-disks`;
   - `debug --help`;
   - usage errors.
-- [ ] T054 [US1] Add `Subcommand::Debug` and `DebugOptions` to `CassoCore/CommandLineOptions.h`, parsing in `CassoCore/CommandLineParser.cpp`, and the `debug` help page in `CassoEmuCore/Cli/CommandLine.cpp`. Update `UnitTest/CliSwitchCoverageTests.cpp` for the new grammar. Makes T053 pass.
-- [ ] T055 [P] [US1] Write `UnitTest/DebuggerTests/DebugModeTests.cpp` with scripts in `UnitTest/Fixtures/Debugger/Scripts/` and expected output in `expected/*.txt` and `*.jsonl`:
+- [x] T054 [US1] Add `Subcommand::Debug` and `DebugOptions` to `CassoCore/CommandLineOptions.h`, parsing in `CassoCore/CommandLineParser.cpp`, and the `debug` help page in `CassoEmuCore/Cli/CommandLine.cpp`. Update `UnitTest/CliSwitchCoverageTests.cpp` for the new grammar. Makes T053 pass.
+- [x] T055 [P] [US1] Write `UnitTest/DebuggerTests/DebugModeTests.cpp` with scripts in `UnitTest/Fixtures/Debugger/Scripts/` and expected output in `expected/*.txt` and `*.jsonl`:
   - Story 1 scenarios 1-5, using the script in quickstart phase 1 step 2 (a loop at $0300 that reads $C019, no disk);
   - the exit statuses 0, 1, 2 and 3 from the contract;
   - `;` comment lines;
@@ -243,7 +243,9 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - two runs of each script compared byte for byte (SC-004), including a script that power-cycles, which only passes if the DRAM seed is pinned;
   - exit status 1 taking precedence over 3;
   - all host file access (scripts, `BLOAD`, `BSAVE`, `R`, `W`, `TF`) through a mock `IFileSystem`, with no real files.
-- [ ] T056 [US1] Implement `CassoEmuCore/Cli/DebugMode.h/.cpp` (batch runner taking an injected `IFileSystem`, on `HeadlessMachineFactory` and `MachineDebugTarget`, no wall clock, the `Prng` seeded from `--seed` with default `0xCA550001`, every run carrying the `--max-cycles` budget, R-015) and the `debug` arm in `CassoEmuCore/Cli/CliMain.cpp`. Makes T055 pass.
+  - Note: no command power-cycles the machine, so the seed check dumps never-written DRAM instead (same seed twice matches, another seed differs). `R`/`W` are Monitor-mode commands and wait for US2. The script file itself is read at the console edge; the runner takes its text.
+- [x] T056 [US1] Implement `CassoEmuCore/Cli/DebugMode.h/.cpp` (batch runner taking an injected `IFileSystem`, on `HeadlessMachineFactory` and `MachineDebugTarget`, no wall clock, the `Prng` seeded from `--seed` with default `0xCA550001`, every run carrying the `--max-cycles` budget, R-015) and the `debug` arm in `CassoEmuCore/Cli/CliMain.cpp`. Makes T055 pass.
+  - Note: `DebugBatchRunner` (CassoEmuCore/Cli) holds the machine, the disks and the session; `DebugMode` is the console edge over it. `DebugHandlerSet` attaches every command family. `FileRomSource` (Shell) finds `Machines/<id>/<id>.json` and the ROMs on the executable, working and asset directories. Found while writing the golden outputs: the bus's watch sink was never connected to the session's watchpoint table on a real machine, and the first instruction of a run reported its accesses from $0000; both fixed in `DebugSession` with `IDebugTarget::SetWatchSink`.
 
 **Checkpoint**: Quickstart phase 1 steps 2-4 and 6 pass by hand, and the full suite is green. The MVP is usable for bug diagnosis.
 
@@ -431,7 +433,7 @@ own behavior. These run inside US1, before batch mode (T056).
 - [X] T089 Implement `CassoCore/Debugger/EffectiveAddress.h/.cpp`: from an instruction's `Microcode` addressing mode, the bytes at the program counter and the current registers, the addresses the instruction would read and write, with the byte fetches taken through a peek seam so nothing is disturbed. Covers indexed, indirect and indexed-indirect modes with their wrapping, and reports read, write, or both for a read-modify-write. Tests in `UnitTest/DebuggerTests/EffectiveAddressTests.cpp` sweep every addressing mode on both CPU tables against hand-computed addresses.
 - [X] T090 Add `Before` mode to `WatchpointTable` and `DebugSession` (FR-004): `BPM`, `BPMR` and `BPMW` accept a trailing `BEFORE` or `AFTER` in `AppleWinParser` (default `AFTER`), a `Before` watchpoint puts no page in the bus mask, and the session's `ShouldStopBefore` consults `EffectiveAddress` only while one is enabled. A stop reports `{accessPc, address, access}` and no value. Tests cover a before-stop leaving memory unchanged, an after-stop reporting the value, and the mask holding only after-mode pages.
 - [X] T091 Add the `addrL` and `dest<start.endM` shorthands to `AppleWinParser`, and the `BEFORE`/`AFTER` keyword and the corrected argument forms listed in the handler-family note above, with cases in `AppleWinParserTests.cpp`. The behavior itself lands with each handler family (T036-T041, T052).
-- [ ] T092 Implement the commands AppleWin leaves as stubs (R-018): `MC` listing each difference; `BPEDIT # <definition>` replacing the entry under the same id and resetting its hit count; `WSAVE`, `ZPSAVE`, `BMSAVE`, `BPSAVE`, `SAVE` and `LOAD` writing and replaying command scripts; and `SYM<table> SAVE`. `ME` stays window-only. Tests write through the mock `IFileSystem` and replay each script through the session.
+- [x] T092 Implement the commands AppleWin leaves as stubs (R-018): `MC` listing each difference; `BPEDIT # <definition>` replacing the entry under the same id and resetting its hit count; `WSAVE`, `ZPSAVE`, `BMSAVE`, `BPSAVE`, `SAVE` and `LOAD` writing and replaying command scripts; and `SYM<table> SAVE`. `ME` stays window-only. Tests write through the mock `IFileSystem` and replay each script through the session.
 - [X] T093 Watchpoint hit rule and one-stop rule (R-017): `WatchpointTable` lets a write replace a pending read of the same address within one instruction, and a later write replace an earlier one; `DebugSession` suppresses an after-mode stop for the instruction that just caused a before-mode stop on the same range. Tests use an indexed store on a watched page and a range watched in both modes.
 
 ---

@@ -83,7 +83,7 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
             }
         }
 
-        address += line.instruction.bytes.size();
+        address += (uint32_t) line.instruction.bytes.size();
         data.lines.push_back (line);
     }
 

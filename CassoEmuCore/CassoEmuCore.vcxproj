@@ -219,6 +219,11 @@
     <ClCompile Include="Debugger\Handlers\SymbolHandlers.cpp" />
     <ClCompile Include="Core\AppleSingleCodec.cpp" />
     <ClCompile Include="Debugger\BinaryImageReader.cpp" />
+    <ClCompile Include="Debugger\DebugHandlerSet.cpp" />
+    <ClCompile Include="Shell\FileRomSource.cpp" />
+    <ClCompile Include="Cli\DebugBatchSink.cpp" />
+    <ClCompile Include="Cli\DebugBatchRunner.cpp" />
+    <ClCompile Include="Cli\DebugMode.cpp" />
     <ClCompile Include="Shell\HeadlessMachineFactory.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
@@ -501,6 +506,11 @@
     <ClInclude Include="Debugger\Handlers\SymbolHandlers.h" />
     <ClInclude Include="Core\AppleSingleCodec.h" />
     <ClInclude Include="Debugger\BinaryImageReader.h" />
+    <ClInclude Include="Debugger\DebugHandlerSet.h" />
+    <ClInclude Include="Shell\FileRomSource.h" />
+    <ClInclude Include="Cli\DebugBatchSink.h" />
+    <ClInclude Include="Cli\DebugBatchRunner.h" />
+    <ClInclude Include="Cli\DebugMode.h" />
     <ClInclude Include="Shell\HeadlessMachineFactory.h" />
     <ClInclude Include="Shell\IRomSource.h" />
     <ClInclude Include="Debugger\Reply.h" />

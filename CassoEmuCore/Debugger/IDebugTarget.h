@@ -4,6 +4,7 @@
 
 class DebugHook;
 class IRunObserver;
+class IWatchSink;
 class Microcode;
 
 
@@ -74,6 +75,9 @@ public:
     virtual void                SetHookInstalled  (bool installed) = 0;
     virtual void                SetStopConditions (DebugHook * conditions) = 0;
     virtual void                SetWatchedPages   (const WatchedPages & pages) = 0;
+
+    // Where an access to a watched page is reported.
+    virtual void                SetWatchSink      (IWatchSink * sink) = 0;
 
     virtual VideoPosition       GetVideoPosition  () const = 0;
     virtual uint64_t            GetCycleCount     () const = 0;

@@ -41,6 +41,7 @@ public:
     int                      hookChanges      = 0;
     WatchedPages             watchedPages     = {};
     int                      maskChanges      = 0;
+    IWatchSink             * watchSink        = nullptr;
     std::vector<RunRequest>  runs;
     int                      pauseRequests    = 0;
     std::vector<Byte>        injectedKeys;
@@ -93,6 +94,7 @@ public:
     void    SetHookInstalled (bool installed) override               { hookInstalled = installed; ++hookChanges; }
     void    SetStopConditions (DebugHook * conditions) override      { stopConditions = conditions; }
     void    SetWatchedPages  (const WatchedPages & pages) override   { watchedPages = pages; ++maskChanges; }
+    void    SetWatchSink     (IWatchSink * sink) override            { watchSink = sink; }
 
     VideoPosition     GetVideoPosition  () const override    { return videoPosition; }
     uint64_t          GetCycleCount     () const override    { return cycleCount; }

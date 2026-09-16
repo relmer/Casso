@@ -1,0 +1,12 @@
+{"type":"reply","status":"ok","command":"MEB 300 AD 19 C0 4C 00 03","data":{"kind":"memory","rows":[{"address":768,"bytes":[173,25,192,76,0,3],"region":"mainRam"}]},"text":["0300: AD 19 C0 4C 00 03        -.@L.."]}
+{"type":"reply","status":"ok","command":"R PC 300","data":{"kind":"registers","a":0,"x":0,"y":0,"p":36,"s":253,"pc":768,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I.."]}
+{"type":"reply","status":"ok","command":"BPMR C019","data":{"kind":"breakpointSet","breakpoint":{"id":0,"kind":"memory","address":49177,"last":49177,"access":"read","mode":"after","enabled":true,"temporary":false,"stops":true,"hits":0}},"text":["Breakpoint #0 set on read of $C019"]}
+{"type":"reply","status":"ok","command":"G","data":{"kind":"message"},"text":[]}
+{"type":"stopped","reason":"watchpoint","pc":771,"watch":{"id":0,"address":49177,"value":128,"access":"read","accessPc":768,"mode":"after"},"cycles":4,"registers":{"a":128,"x":0,"y":0,"p":164,"s":253,"pc":771}}
+{"type":"reply","status":"ok","command":"R","data":{"kind":"registers","a":128,"x":0,"y":0,"p":164,"s":253,"pc":771,"flags":{"n":true,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A:80 X:00 Y:00 P:A4 S:FD PC:0303  N.R..I.."]}
+{"type":"reply","status":"ok","command":"T","data":{"kind":"message"},"text":[]}
+{"type":"stopped","reason":"step","pc":768,"cycles":3,"registers":{"a":128,"x":0,"y":0,"p":164,"s":253,"pc":768}}
+{"type":"reply","status":"ok","command":"T","data":{"kind":"message"},"text":[]}
+{"type":"stopped","reason":"watchpoint","pc":771,"watch":{"id":0,"address":49177,"value":128,"access":"read","accessPc":768,"mode":"after"},"cycles":4,"registers":{"a":128,"x":0,"y":0,"p":164,"s":253,"pc":771}}
+{"type":"reply","status":"ok","command":"T","data":{"kind":"message"},"text":[]}
+{"type":"stopped","reason":"step","pc":768,"cycles":3,"registers":{"a":128,"x":0,"y":0,"p":164,"s":253,"pc":768}}

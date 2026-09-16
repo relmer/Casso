@@ -1,0 +1,16 @@
+>MEB 300 AD 19 C0 4C 00 03
+0300: AD 19 C0 4C 00 03        -.@L..
+>R PC 300
+A:00 X:00 Y:00 P:24 S:FD PC:0300  ..R..I..
+>BPMR C019
+Breakpoint #0 set on read of $C019
+>G
+Watchpoint #0: Read $80 from $C019 by $0300
+>R
+A:80 X:00 Y:00 P:A4 S:FD PC:0303  N.R..I..
+>T
+Step at $0300
+>T
+Watchpoint #0: Read $80 from $C019 by $0300
+>T
+Step at $0300

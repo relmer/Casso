@@ -363,7 +363,7 @@ namespace CommandLineTests
         {
             std::string  page = CommandLineHelp::BuildGeneralHelp ("banner\n", '-');
 
-            for (const char * mode : { "as65", "merlin", "run", "disk" })
+            for (const char * mode : { "as65", "merlin", "run", "disk", "debug" })
             {
                 Assert::IsTrue (page.find (std::string ("CassoCli ") + mode) != std::string::npos,
                                 Widen (std::string ("mode missing from the general page: ") + mode).c_str());
@@ -373,6 +373,7 @@ namespace CommandLineTests
             Assert::IsTrue (page.find ("merlin --help") != std::string::npos, L"route to Merlin's page");
             Assert::IsTrue (page.find ("run --help")    != std::string::npos, L"route to the run page");
             Assert::IsTrue (page.find ("disk --help")   != std::string::npos, L"route to the disk page");
+            Assert::IsTrue (page.find ("debug --help")  != std::string::npos, L"route to the debug page");
         }
 
         //  IT CARRIES NO FLAGS OF ITS OWN, which is what keeps it one screen. The

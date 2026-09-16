@@ -4,6 +4,7 @@
 #include "CommandLineParser.h"
 #include "CommandLineHelp.h"
 #include "As65Mode.h"
+#include "DebugMode.h"
 #include "DiskCommand.h"
 #include "MerlinMode.h"
 #include "RunMode.h"
@@ -210,6 +211,10 @@ int CliMain (int argc, char * argv[])
         MerlinMode  mode;
 
         hr = mode.Run (options, exitCode);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Debug)
+    {
+        hr = DebugMode::Run (options, exitCode);
     }
     else
     {

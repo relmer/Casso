@@ -1,0 +1,8 @@
+>FROB
+Error: unknown command
+       FROB is not a command.
+>BLOAD missing.bin 300
+Error: file not found
+       missing.bin could not be read.
+>R
+A:00 X:00 Y:00 P:24 S:FD PC:FA62  ..R..I..

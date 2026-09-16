@@ -45,6 +45,7 @@ public:
     void                SetHookInstalled  (bool installed) override;
     void                SetStopConditions (DebugHook * conditions) override;
     void                SetWatchedPages   (const WatchedPages & pages) override;
+    void                SetWatchSink      (IWatchSink * sink) override;
 
     VideoPosition       GetVideoPosition  () const override;
     uint64_t            GetCycleCount     () const override;

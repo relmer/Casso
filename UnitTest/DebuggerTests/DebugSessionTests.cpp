@@ -67,6 +67,53 @@ namespace DebuggerTests
 
 
 
+        //  The watchpoint table is what the target reports watched accesses
+        //  to, for as long as the session lives. Without this a watchpoint on
+        //  a real machine masked its page and then heard nothing.
+        TEST_METHOD (Construction_MakesTheWatchpointTableTheTargetsWatchSink)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+
+
+
+            {
+                DebugSession  session (target, sink, RunState::Paused);
+
+                Assert::IsTrue (target.watchSink == &session.GetWatchpoints(), L"while the session lives");
+            }
+
+            Assert::IsNull (target.watchSink, L"and not after");
+        }
+
+
+
+        //  A hit during the first instruction of a run reports that
+        //  instruction's address. Only OnInstruction sees the first one:
+        //  ShouldStopBefore is skipped for it, so a stop at $0300 followed by
+        //  G reported the read the LDA at $0300 made as coming from $0000.
+        TEST_METHOD (OnInstruction_RecordsTheAccessPcAWatchpointHitReports)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::DebugRun);
+
+
+
+            session.GetWatchpoints().Add (WatchAccess::Read, 0xC019, 0xC019);
+            session.OnInstruction (0x0300);
+            session.GetWatchpoints().OnWatchedAccess (0xC019, 0x80, BusAccess::Read, std::nullopt);
+
+            Assert::IsTrue (session.HasPendingStop());
+
+            target.Stop (MakeStop (StopReason::Watchpoint, 0x0303));
+
+            Assert::IsTrue   (sink.stops.at (0).watch.has_value());
+            Assert::AreEqual ((Word) 0x0300, sink.stops[0].watch->accessPc);
+        }
+
+
+
         TEST_METHOD (Go_FromPaused_StartsDebugRun)
         {
             MockDebugTarget  target;

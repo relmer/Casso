@@ -55,7 +55,7 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk };
+    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk, Debug };
     enum class CpuTarget     { M6502, M65C02 };
 
     //  What the parser made of the command line itself, apart from anything
@@ -100,7 +100,7 @@ struct CommandLineOptions
     //  ONE ARM PER GRAMMAR, Merlin included. Its flags, its examples and where
     //  its supported subset ends are all its own, and the dialect that answers
     //  `merlin --help` is not the one that answers `as65 --help`.
-    enum class HelpPage      { General, Assemble, Merlin, Run };
+    enum class HelpPage      { General, Assemble, Merlin, Run, Debug };
 
     //
     //  Everything the `disk` subcommand expresses. Nested rather than
@@ -377,6 +377,35 @@ struct CommandLineOptions
     };
 
     DiskOptions   disk;
+
+    //
+    //  Everything the `debug` subcommand expresses: a machine, its disks, the
+    //  script and command lines to run against it, and how the run is paced
+    //  and printed. Nested for the reason DiskOptions is.
+    //
+    //  THE BUDGET AND THE SEED ARE WHAT MAKE A RUN REPEATABLE. Every run a
+    //  script starts carries the budget, so a missed stop ends rather than
+    //  hangs; the seed pins the DRAM power-on pattern, so two runs of one
+    //  script print the same bytes.
+    //
+    struct DebugOptions
+    {
+        static constexpr uint64_t  kDefaultMaxCycles = 100000000;
+        static constexpr uint64_t  kDefaultSeed      = 0xCA550001;
+
+        std::string               machine;                       // --machine <name>
+        std::string               disk1;                         // --disk1 <image>
+        std::string               disk2;                         // --disk2 <image>
+        std::string               scriptPath;                    // --script <path>, or - for standard input
+        std::vector<std::string>  commands;                      // --command <line>, repeatable
+        std::string               mode          = "applewin";    // --mode applewin|monitor
+        bool                      json          = false;         // --json
+        uint64_t                  maxCycles     = kDefaultMaxCycles;
+        uint64_t                  seed          = kDefaultSeed;
+        bool                      writeDisks    = false;         // --write-disks
+    };
+
+    DebugOptions  debug;
 
     //
     //  What the invocation said about writing the object into a disk image.

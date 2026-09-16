@@ -143,6 +143,10 @@ std::string CommandLineHelp::GetUsageLine (CommandLineOptions::Subcommand mode)
     {
         line = "  CassoCli disk <command> <image> [...]         Read and write disk images";
     }
+    else if (mode == CommandLineOptions::Subcommand::Debug)
+    {
+        line = "  CassoCli debug --machine <name> [options]     Run debugger commands on a headless machine";
+    }
     else if (mode == CommandLineOptions::Subcommand::Merlin)
     {
         line = "  CassoCli merlin <source> [options]         Assemble Merlin source";
@@ -255,6 +259,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
         { "merlin " + lp + "help", "Merlin options, and where the supported subset ends" },
         { "run "    + lp + "help", "Run options: load address, where execution starts, limits" },
         { "disk "   + lp + "help", "Disk commands, their options, and a worked example" },
+        { "debug "  + lp + "help", "Debug options: the machine, its disks, the script, the budget" },
         { lp + "version",          "Version information" },
     };
 
@@ -265,8 +270,9 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     text += "\nUsage:\n";
     text += GetUsageLine (CommandLineOptions::Subcommand::As65) + "\n";
     text += GetUsageLine (CommandLineOptions::Subcommand::Merlin) + "\n";
-    text += GetUsageLine (CommandLineOptions::Subcommand::Run)  + "\n";
-    text += GetUsageLine (CommandLineOptions::Subcommand::Disk) + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Run)   + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Disk)  + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Debug) + "\n";
 
     text += "\nHelp:\n";
 

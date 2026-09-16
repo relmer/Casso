@@ -253,6 +253,8 @@
     <ClCompile Include="DebuggerTests\SymbolHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleSingleCodecTests.cpp" />
     <ClCompile Include="DebuggerTests\BinaryImageReaderTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugOptionsParseTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugModeTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

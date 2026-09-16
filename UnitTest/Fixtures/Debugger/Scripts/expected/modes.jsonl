@@ -1,0 +1,8 @@
+{"type":"reply","status":"ok","command":"MODE MONITOR","data":{"kind":"mode","mode":"monitor"},"text":["Mode: MONITOR"]}
+{"type":"modeChanged","mode":"monitor"}
+{"type":"reply","status":"notAvailable","command":"300.302","text":["Error: command not available","       Monitor mode is not available yet."],"error":{"label":"command not available","detail":"Monitor mode is not available yet."}}
+{"type":"reply","status":"ok","command":"/R","data":{"kind":"registers","a":0,"x":0,"y":0,"p":36,"s":253,"pc":64098,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A:00 X:00 Y:00 P:24 S:FD PC:FA62  ..R..I.."]}
+{"type":"reply","status":"ok","command":"/MODE APPLEWIN","data":{"kind":"mode","mode":"applewin"},"text":["Mode: APPLEWIN"]}
+{"type":"modeChanged","mode":"applewin"}
+{"type":"reply","status":"ok","command":"R","data":{"kind":"registers","a":0,"x":0,"y":0,"p":36,"s":253,"pc":64098,"flags":{"n":false,"v":false,"r":true,"b":false,"d":false,"i":true,"z":false,"c":false}},"text":["A:00 X:00 Y:00 P:24 S:FD PC:FA62  ..R..I.."]}
+{"type":"reply","status":"notAvailable","command":"DISK EJECT","text":["Error: command not available","       DISK EJECT needs the emulator's disk manager, which this session does not have."],"error":{"label":"command not available","detail":"DISK EJECT needs the emulator's disk manager, which this session does not have."}}

@@ -1,0 +1,23 @@
+>MEB 300 01 02 03 04
+0300: 01 02 03 04              ....
+>BSAVE out.bin 300:303
+out.bin: 4 of 4 bytes
+>MEB 300 00 00 00 00
+0300: 00 00 00 00              ....
+>BLOAD out.bin 300
+out.bin (raw): 4 of 4 bytes
+>MDB 300
+0300: 01 02 03 04 4D 8E DC 86  ....M.\.
+0308: 6E 65 B3 92 01 C8 21 6C  ne3..H!l
+0310: 1E 1A 64 CB 3D D5 F2 A7  ..dK=Ur'
+0318: 53 9A 2B 80 B1 9E FA A0  S.+.1.z 
+0320: F3 31 3B 8B 24 19 D5 C2  s1;.$.UB
+0328: BE 28 41 BA 0C 15 A2 F9  >(A:.."y
+0330: 00 04 79 C6 3F A7 D5 9A  ..yF?'U.
+0338: 9A 14 CF 9F 8A BE 01 3D  ..O..>.=
+>TF trace.txt
+Trace on: trace.txt
+>T 2
+Step at $FE84
+>TF
+Trace off: trace.txt

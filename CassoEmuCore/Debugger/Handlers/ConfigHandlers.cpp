@@ -4,6 +4,7 @@
 
 #include "Version.h"
 #include "Config/IFileSystem.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/DebugSession.h"
@@ -116,7 +117,7 @@ void ConfigHandlers::PrintDirectory (DebugSession & session, Reply & reply)
 
 
 
-    reply.data = MessageData { { std::string (directory.begin(), directory.end()) } };
+    reply.data = MessageData { { TextEncoding::WideToNarrow (directory) } };
 }
 
 

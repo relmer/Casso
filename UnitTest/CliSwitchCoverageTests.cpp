@@ -420,6 +420,49 @@ namespace CliSwitchCoverageTests
             { "disk", "block", { "CassoCli", "disk", "blockread", "d.po", "--block", "6" },
               [] (const CommandLineOptions & o) { return o.disk.block == 6; },
               "--block says which ProDOS block to start at" },
+
+            //
+            //  debug
+            //
+            { "debug", "machine", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r" },
+              [] (const CommandLineOptions & o) { return o.debug.machine == "Apple2e"; },
+              "--machine names the machine to build" },
+
+            { "debug", "disk1", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--disk1", "a.dsk" },
+              [] (const CommandLineOptions & o) { return o.debug.disk1 == "a.dsk"; },
+              "--disk1 puts an image in drive 1" },
+
+            { "debug", "disk2", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--disk2", "b.dsk" },
+              [] (const CommandLineOptions & o) { return o.debug.disk2 == "b.dsk"; },
+              "--disk2 puts an image in drive 2" },
+
+            { "debug", "script", { "CassoCli", "debug", "--machine", "Apple2e", "--script", "s.txt" },
+              [] (const CommandLineOptions & o) { return o.debug.scriptPath == "s.txt"; },
+              "--script names the file of command lines" },
+
+            { "debug", "command", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "g" },
+              [] (const CommandLineOptions & o) { return o.debug.commands == std::vector<std::string> { "g" }; },
+              "--command gives one command line" },
+
+            { "debug", "mode", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--mode", "monitor" },
+              [] (const CommandLineOptions & o) { return o.debug.mode == "monitor"; },
+              "--mode picks the starting command mode" },
+
+            { "debug", "json", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--json" },
+              [] (const CommandLineOptions & o) { return o.debug.json; },
+              "--json prints JSON Lines instead of text" },
+
+            { "debug", "max-cycles", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--max-cycles", "5000" },
+              [] (const CommandLineOptions & o) { return o.debug.maxCycles == 5000; },
+              "--max-cycles bounds every run the script starts" },
+
+            { "debug", "seed", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--seed", "0x1234" },
+              [] (const CommandLineOptions & o) { return o.debug.seed == 0x1234; },
+              "--seed pins the DRAM power-on pattern" },
+
+            { "debug", "write-disks", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--write-disks" },
+              [] (const CommandLineOptions & o) { return o.debug.writeDisks; },
+              "--write-disks persists what the guest writes" },
         };
     }
 
@@ -498,6 +541,13 @@ namespace CliSwitchCoverageTests
                 names.insert (Bare (option));
             }
         }
+        else if (mode == "debug")
+        {
+            for (const char * option : CommandLineParser::GetDebugLongOptions())
+            {
+                names.insert (Bare (option));
+            }
+        }
 
         return names;
     }
@@ -505,7 +555,7 @@ namespace CliSwitchCoverageTests
 
 
 
-    static const char *  kModes[] = { "as65", "merlin", "run", "disk" };
+    static const char *  kModes[] = { "as65", "merlin", "run", "disk", "debug" };
 
 
 
@@ -541,8 +591,9 @@ namespace CliSwitchCoverageTests
             Assert::IsTrue (GrammarSwitches ("merlin").size() >= 5,  L"merlin");
             Assert::IsTrue (GrammarSwitches ("run").size()    >= 8,  L"run");
             Assert::IsTrue (GrammarSwitches ("disk").size()   >= 12, L"disk");
+            Assert::IsTrue (GrammarSwitches ("debug").size()  >= 8,  L"debug");
 
-            Assert::IsTrue (Cases().size() >= 45, L"and the case table is populated");
+            Assert::IsTrue (Cases().size() >= 55, L"and the case table is populated");
         }
 
         TEST_METHOD (EverySwitchTheGrammarTakes_IsExercisedByACase)

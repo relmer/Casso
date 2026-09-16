@@ -1,0 +1,3 @@
+FROB
+BLOAD missing.bin 300
+R

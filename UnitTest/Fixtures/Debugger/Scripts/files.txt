@@ -1,0 +1,8 @@
+MEB 300 01 02 03 04
+BSAVE out.bin 300:303
+MEB 300 00 00 00 00
+BLOAD out.bin 300
+MDB 300
+TF trace.txt
+T 2
+TF

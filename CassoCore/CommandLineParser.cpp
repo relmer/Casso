@@ -21,6 +21,7 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
     { "merlin", CommandLineOptions::Subcommand::Merlin },
     { "run",    CommandLineOptions::Subcommand::Run    },
     { "disk",   CommandLineOptions::Subcommand::Disk   },
+    { "debug",  CommandLineOptions::Subcommand::Debug  },
 };
 
 
@@ -364,6 +365,24 @@ static constexpr const char *  s_kpszRunLongOptions[] =
 };
 
 
+//  The `debug` grammar's long options, which are all of its options: the
+//  subcommand takes no operand, because a machine is named by --machine and a
+//  script by --script, and a bare word would have to be guessed at.
+static constexpr const char *  s_kpszDebugLongOptions[] =
+{
+    "machine",
+    "disk1",
+    "disk2",
+    "script",
+    "command",
+    "mode",
+    "json",
+    "max-cycles",
+    "seed",
+    "write-disks",
+};
+
+
 
 
 //
@@ -541,8 +560,9 @@ bool CommandLineParser::IsLoneQuestionMark (int argc, char * argv[], int startIn
 
 int CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand mode)
 {
-    bool  startedNothing = mode == CommandLineOptions::Subcommand::Run ||
-                           mode == CommandLineOptions::Subcommand::Disk;
+    bool  startedNothing = mode == CommandLineOptions::Subcommand::Run  ||
+                           mode == CommandLineOptions::Subcommand::Disk ||
+                           mode == CommandLineOptions::Subcommand::Debug;
 
 
 
@@ -1044,6 +1064,25 @@ bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
     return arg == "-o"     || arg == "-l"     || arg == "--fill" ||
            arg == "--load" || arg == "--exec" || arg == "--stop" ||
            arg == "--max-cycles";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDebugOptionNeedingValue
+//
+//  The same question for the `debug` grammar, for the same reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsDebugOptionNeedingValue (const std::string & arg)
+{
+    return arg == "--machine" || arg == "--disk1"      || arg == "--disk2" ||
+           arg == "--script"  || arg == "--command"    || arg == "--mode"  ||
+           arg == "--max-cycles" || arg == "--seed";
 }
 
 
@@ -1737,6 +1776,23 @@ void CommandLineParser::RefuseImageOptionsWithoutAnImage (CommandLineOptions & o
 std::span<const char * const> CommandLineParser::GetRunLongOptions()
 {
     return std::span<const char * const> (s_kpszRunLongOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetDebugLongOptions
+//
+//  The long options `debug` takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const char * const> CommandLineParser::GetDebugLongOptions()
+{
+    return std::span<const char * const> (s_kpszDebugLongOptions);
 }
 
 
@@ -3925,6 +3981,216 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ParseDebugOptions
+//
+//  The `debug` grammar: long options with separated values, no operand. A
+//  help request anywhere wins, as in the `run` grammar. Every mistake is a
+//  refusal: an option this grammar lacks might have changed which machine
+//  ran or what it ran, so nothing is dropped and run anyway.
+//
+//  --machine and one of --script or --command are required, and their
+//  absence is refused here rather than by the runner, so the page and the
+//  reason arrive together the way every other refusal's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex, CommandLineOptions & options)
+{
+    CommandLineOptions::DebugOptions & debug     = options.debug;
+    HRESULT                            hr        = S_OK;
+    bool                               wantsHelp = false;
+    uint32_t                           cycles    = 0;
+
+
+
+    wantsHelp = IsLoneQuestionMark (argc, argv, argIndex);
+
+    for (int probe = argIndex; probe < argc; probe++)
+    {
+        if (IsHelpRequest (argv[probe]))
+        {
+            wantsHelp = true;
+
+            if (argv[probe][0] == '/')
+            {
+                options.flagPrefix = '/';
+            }
+        }
+    }
+
+    if (wantsHelp)
+    {
+        options.showHelp = true;
+        options.helpPage = CommandLineOptions::HelpPage::Debug;
+        return;
+    }
+
+    while (argIndex < argc)
+    {
+        std::string  arg      = GetCanonicalLongFlag (argv[argIndex], std::span<const char * const> (s_kpszDebugLongOptions));
+        bool         hasValue = argIndex + 1 < argc;
+
+
+
+        if (argv[argIndex][0] == '/')
+        {
+            NoteFlagPrefix ('/', options);
+        }
+
+        if (IsLongOption (arg, "--machine", options) && hasValue)
+        {
+            debug.machine = argv[++argIndex];
+        }
+        else if (IsLongOption (arg, "--disk1", options) && hasValue)
+        {
+            debug.disk1 = argv[++argIndex];
+        }
+        else if (IsLongOption (arg, "--disk2", options) && hasValue)
+        {
+            debug.disk2 = argv[++argIndex];
+        }
+        else if (IsLongOption (arg, "--script", options) && hasValue)
+        {
+            debug.scriptPath = argv[++argIndex];
+        }
+        else if (IsLongOption (arg, "--command", options) && hasValue)
+        {
+            debug.commands.push_back (argv[++argIndex]);
+        }
+        else if (IsLongOption (arg, "--mode", options) && hasValue)
+        {
+            debug.mode = argv[++argIndex];
+
+            for (char & ch : debug.mode)
+            {
+                ch = (char) tolower ((unsigned char) ch);
+            }
+
+            if (debug.mode != "applewin" && debug.mode != "monitor")
+            {
+                Refusal (options) << "Error: unknown value for " << FormatLongOption ("--mode", options.flagPrefix) << "\n"
+                                  << "       expected: applewin or monitor\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+        }
+        else if (IsLongOption (arg, "--json", options))
+        {
+            debug.json = true;
+        }
+        else if (IsLongOption (arg, "--write-disks", options))
+        {
+            debug.writeDisks = true;
+        }
+        else if (IsLongOption (arg, "--max-cycles", options) && hasValue)
+        {
+            hr = ParseDecimal (argv[++argIndex], cycles);
+
+            if (SUCCEEDED (hr))
+            {
+                debug.maxCycles = cycles;
+            }
+            else
+            {
+                Refusal (options) << "Error: invalid max-cycles value\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+        }
+        else if (IsLongOption (arg, "--seed", options) && hasValue)
+        {
+            if (!TryParseSeed (argv[++argIndex], debug.seed))
+            {
+                Refusal (options) << "Error: invalid seed value\n"
+                                  << "       a seed is a decimal number, or hex with a 0x or $ prefix\n";
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+        }
+        else if (IsDebugOptionNeedingValue (arg))
+        {
+            Refusal (options) << "Error: " << argv[argIndex] << " needs a value after it\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        }
+        else if (IsFlagShaped (arg))
+        {
+            Refusal (options) << "Error: unknown option: " << arg << "\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            RecordUnrecognizedFlag (arg, options);
+        }
+        else
+        {
+            Refusal (options) << "Error: surplus argument: " << arg << "\n"
+                              << "       `debug` takes no operand; a machine is named by "
+                              << FormatLongOption ("--machine", options.flagPrefix) << " and a script by "
+                              << FormatLongOption ("--script", options.flagPrefix) << "\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        }
+
+        argIndex++;
+    }
+
+    if (options.parseVerdict == CommandLineOptions::ParseVerdict::Refused)
+    {
+        return;
+    }
+
+    if (debug.machine.empty())
+    {
+        Refusal (options) << "Error: required parameter " << FormatLongOption ("--machine", options.flagPrefix) << " <name> missing\n";
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+    }
+    else if (debug.scriptPath.empty() && debug.commands.empty())
+    {
+        Refusal (options) << "Error: nothing to run; give " << FormatLongOption ("--script", options.flagPrefix)
+                          << " <path> or " << FormatLongOption ("--command", options.flagPrefix) << " <line>\n";
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::TryParseSeed
+//
+//  Decimal, or hex behind 0x or $, the whole text consumed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::TryParseSeed (const std::string & text, uint64_t & seed)
+{
+    std::string  digits = text;
+    int          base   = 10;
+    char       * end    = nullptr;
+
+
+
+    if (digits.starts_with ("0x") || digits.starts_with ("0X"))
+    {
+        digits = digits.substr (2);
+        base   = 16;
+    }
+    else if (digits.starts_with ('$'))
+    {
+        digits = digits.substr (1);
+        base   = 16;
+    }
+
+    if (digits.empty())
+    {
+        return false;
+    }
+
+    seed = strtoull (digits.c_str(), &end, base);
+    return end != digits.c_str() && *end == '\0';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RefuseSourceWithoutDialect
 //
 //  Refuses a `run` command line that hands over source without saying which
@@ -4154,6 +4420,10 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     else if (named == CommandLineOptions::Subcommand::Disk)
     {
         ParseDiskOptions (argc, argv, 2, options);
+    }
+    else if (named == CommandLineOptions::Subcommand::Debug)
+    {
+        ParseDebugOptions (argc, argv, 2, options);
     }
 
 Error:

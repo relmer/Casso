@@ -24,7 +24,8 @@
 //  A batch session starts paused; an emulator session starts in whichever
 //  state the machine is in when the debugger opens. The session installs
 //  itself as the target's stop conditions and run observer, and the
-//  watchpoint table as the source of the target's watch mask.
+//  watchpoint table as both the source of the target's watch mask and the
+//  sink every access to a watched page is reported to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +36,7 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
 {
     m_target.SetStopConditions (this);
     m_target.SetRunObserver    (this);
+    m_target.SetWatchSink      (&m_watchpoints);
     m_watchpoints.SetTarget    (&m_target);
     LoadRomSymbols();
 }
@@ -80,6 +82,7 @@ void DebugSession::LoadRomSymbols()
 DebugSession::~DebugSession()
 {
     m_watchpoints.SetTarget    (nullptr);
+    m_target.SetWatchSink      (nullptr);
     m_target.SetStopConditions (nullptr);
     m_target.SetRunObserver    (nullptr);
     m_target.SetHookInstalled  (false);
@@ -392,6 +395,10 @@ void DebugSession::ClearAllBreakpoints()
 //
 //  DebugSession::OnInstruction
 //
+//  Every instruction about to execute. The address is what a watchpoint hit
+//  during the instruction reports as its access PC: recorded here rather
+//  than only in ShouldStopBefore, because the first instruction of a run is
+//  never asked whether to stop, and a read it makes was reported from $0000.
 //  Recording runs only during a run the debugger started.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -401,6 +408,8 @@ void DebugSession::OnInstruction (Word pc)
     bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping;
 
 
+
+    m_watchpoints.SetAccessPc (pc);
 
     if (isDebuggerRun && m_instructionObserver != nullptr)
     {

@@ -1,0 +1,4 @@
+#  Batch-mode scripts and the output each is expected to produce. The
+#  expected files are compared byte for byte with what the runner writes,
+#  which ends every line in LF, so they must keep LF on checkout.
+* text eol=lf

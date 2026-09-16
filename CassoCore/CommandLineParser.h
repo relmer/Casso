@@ -182,6 +182,14 @@ public:
         "    2  Error: bad command line or error opening file\n"
         "    3  Error: execution encountered an illegal instruction";
 
+    //  `debug` in batch mode. Status 1 takes precedence over 3 when a command
+    //  failed and the last run also ended on its budget.
+    static constexpr const char *  kDebugExitStatusHelpText =
+        "    0  Every command returned ok or not available\n"
+        "    1  At least one command returned error or unknown\n"
+        "    2  Usage error, or the machine or a disk could not be loaded\n"
+        "    3  The last run the script started ended on its cycle budget";
+
     //  The status `run` and `disk` both spend on a command line they refused.
     //  Named here rather than written as a 2 at the point of use, so it sits
     //  beside the tables that document it.
@@ -430,6 +438,7 @@ public:
     // assembler's rather than a dialect's.
     static void         RefuseImageOptionsWithoutAnImage (CommandLineOptions & options);
     static std::span<const char * const>    GetRunLongOptions();
+    static std::span<const char * const>    GetDebugLongOptions();
     static std::span<const char * const>    GetDiskOptionNames();
 
     //  Every option the `disk` grammar takes, comma-separated and in their `--` form,
@@ -490,8 +499,9 @@ public:
     //  Whether an argument is an option that grammar HAS and which takes a
     //  value, so an option that merely ran out of command line is not reported
     //  as one that does not exist.
-    static bool  IsDiskOptionNeedingValue (const std::string & arg);
-    static bool  IsRunOptionNeedingValue  (const std::string & arg);
+    static bool  IsDiskOptionNeedingValue  (const std::string & arg);
+    static bool  IsRunOptionNeedingValue   (const std::string & arg);
+    static bool  IsDebugOptionNeedingValue (const std::string & arg);
     // Every accepted subcommand name, so tests can sweep the whole table
     // instead of a hand-picked sample.
     static std::span<const SubcommandName>  GetAllSubcommands();
@@ -597,6 +607,8 @@ private:
     static void  ParseMerlinFlags    (int argc, char * argv[], int startIndex, CommandLineOptions & options);
     static void  ApplyMerlinDefaults (CommandLineOptions & options, const FileExistsFn & fileExists);
     static void  ParseRunOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+    static void  ParseDebugOptions   (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+    static bool  TryParseSeed        (const std::string & text, uint64_t & seed);
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
     static bool  RefuseSourceWithoutDialect         (CommandLineOptions & options);

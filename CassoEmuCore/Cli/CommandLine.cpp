@@ -38,6 +38,22 @@ static const char *  s_kRunOptionLines[] =
 
 
 
+//  The debug options, in the same shape.
+static const char *  s_kDebugOptionLines[] =
+{
+    "  {0}machine <name>{1}       The machine to build: Apple2, Apple2Plus, Apple2e, Apple2eEnhanced or Apple2c",
+    "  {0}disk1 <image>{1}        A disk image for drive 1; {0}disk2 for drive 2",
+    "  {0}script <path>{1}        A file of command lines, one per line; - reads standard input",
+    "  {0}command <line>{1}       One command line; repeatable, run after the script",
+    "  {0}mode <mode>{1}          The starting command mode, applewin (default) or monitor",
+    "  {0}json{1}                 Print one JSON Lines record per reply and notification instead of text",
+    "  {0}max-cycles <n>{1}       The cycle budget for every run the script starts (default: 100000000)",
+    "  {0}seed <n>{1}             The DRAM power-on pattern seed (default: 0xCA550001), so two runs match",
+    "  {0}write-disks{1}          Persist guest disk writes; without it they go to an in-memory overlay",
+};
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,6 +637,10 @@ void CommandLine::PrintUsage (const CommandLineOptions & options)
         PrintRunPage (prefix);
         break;
 
+    case CommandLineOptions::HelpPage::Debug:
+        PrintDebugPage (prefix);
+        break;
+
     default:
         PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
         break;
@@ -664,6 +684,10 @@ void CommandLine::PrintPageFor (CommandLineOptions::Subcommand mode, char prefix
 
     case CommandLineOptions::Subcommand::Run:
         PrintRunPage (prefix);
+        break;
+
+    case CommandLineOptions::Subcommand::Debug:
+        PrintDebugPage (prefix);
         break;
 
     case CommandLineOptions::Subcommand::Disk:
@@ -744,6 +768,47 @@ void CommandLine::PrintRunPage (char prefix)
     PrintUsageLine ("      Loads an already-assembled binary at $8000 and runs it. A binary names no assembler, because none reads it.");
 
     PrintExitCodes (std::string (CommandLineParser::kRunExitStatusHelpText));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintDebugPage
+//
+//  Reached by asking `debug` for help in any form. The machine is built
+//  paused at power-on reset and the script runs line by line; the page ends
+//  with the statuses a script reads back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintDebugPage (char prefix)
+{
+    const char *  lp  = (prefix == '/') ? "/"  : "--";
+    const char *  pad = (prefix == '/') ? " "  : "";
+
+
+
+    PrintPageBanner (CommandLineOptions::Subcommand::Debug);
+    CliOutput::PrintLine (s_pUsageStream);
+    PrintUsageLine ("  Builds the machine paused at power-on reset, runs the script's lines and then the command lines, and exits after the last one. Each line is a debugger command in the current mode: AppleWin's names, or the Apple II Monitor's after MODE MONITOR. A line whose first non-blank character is ; is a comment.");
+
+    PrintSectionHeading ("Debug options");
+
+    for (const char * fmt : s_kDebugOptionLines)
+    {
+        PrintUsageLine (std::vformat (fmt, std::make_format_args (lp, pad)));
+    }
+
+    PrintSectionHeading ("Examples");
+    PrintUsageLine (std::format ("  CassoCli debug {0}machine Apple2e {0}script stop.txt", lp));
+    PrintUsageLine ("      Runs stop.txt against a //e with no disk, printing each command and its reply.");
+    PrintUsageLine (std::format ("  CassoCli debug {0}machine Apple2e {0}disk1 game.woz {0}command \"bpmr C000\" {0}command g {0}json", lp));
+    PrintUsageLine ("      Boots the disk, stops at the first keyboard read, and prints the reply and stop records as JSON Lines.");
+
+    PrintExitCodes (std::string (CommandLineParser::kDebugExitStatusHelpText));
 }
 
 

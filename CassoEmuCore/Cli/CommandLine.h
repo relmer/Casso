@@ -181,6 +181,7 @@ private:
     static void    PrintAssemblePage   (char prefix);
     static void    PrintMerlinPage     (char prefix);
     static void    PrintRunPage        (char prefix);
+    static void    PrintDebugPage      (char prefix);
 
     static void    PrintPageBanner     (CommandLineOptions::Subcommand mode);
     static void    PrintDialectFlags   (DialectId dialect, char prefix);

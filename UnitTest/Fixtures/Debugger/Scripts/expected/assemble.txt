@@ -1,0 +1,11 @@
+>A 300
+Assembling at $0300; a blank line ends it.
+>LDA #41
+0300: A9 41    LDA  #$41
+>JSR FDED
+0302: 20 ED FD JSR  $FDED
+>
+Assembly ended.
+>U 300:304
+0300: A9 41    LDA  #$41
+0302: 20 ED FD JSR  $FDED  ; COUT

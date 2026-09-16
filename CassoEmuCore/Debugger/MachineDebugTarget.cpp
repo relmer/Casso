@@ -3,6 +3,7 @@
 #include "Debugger/MachineDebugTarget.h"
 
 #include "Core/Cpu65C02.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/IRunDriver.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
@@ -337,6 +338,21 @@ void MachineDebugTarget::SetWatchedPages (const WatchedPages & pages)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineDebugTarget::SetWatchSink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::SetWatchSink (IWatchSink * sink)
+{
+    m_host.GetMemoryBus().SetWatchSink (sink);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineDebugTarget::GetVideoPosition
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -428,7 +444,7 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
 
 
 
-    info.name.assign (name.begin(), name.end());
+    info.name = TextEncoding::WideToNarrow (name);
 
     for (int drive = 0; drive < DiskImageStore::kDriveCount; ++drive)
     {
