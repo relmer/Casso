@@ -138,6 +138,7 @@ private:
         Word      auxType     = 0;
         Word      modDate     = 0;
         Word      modTime     = 0;
+        Word      caseFlags   = 0;
         uint32_t  eof         = 0;
         string    name;
     };
@@ -168,6 +169,16 @@ private:
     //  ProDOS's own rule. THIS VALIDATES ONLY NAMES BEING CREATED; reading
     //  imposes no rule at all, on either filesystem.
     static bool  TryEncodeDirectoryName (const std::string & name, std::string & outName);
+
+    //  The same, and the GS/OS case word for the name as it was typed. The
+    //  stored name is upper case either way; the word is what a IIgs reads to
+    //  show the name back the way it was written.
+    static bool  TryEncodeDirectoryName (const std::string & name, std::string & outName, Word & outCaseFlags);
+
+    //  An upper-case name with the case word applied, for display. A word
+    //  without its top bit describes nothing, and the name comes back as the
+    //  directory holds it.
+    static std::string  ApplyCaseFlags (const std::string & name, Word caseFlags);
 
     //  Which storage type a file of this many data blocks needs, and how many
     //  index blocks come with it -- none for a seedling, one for a sapling, and
@@ -208,12 +219,13 @@ private:
     //  the buffer this volume was constructed with. Replacement stages the
     //  removal into a working buffer and calls this on a volume over that, so
     //  one code path places every file and a replacement cannot half-happen.
-    HRESULT  AddFile (int                   dirKeyBlock,
-                      const std::string   & name,
-                      Byte                  fileType,
-                      Word                  auxType,
-                      const vector<Byte>  & bytes,
-                      vector<Byte>        & outBuffer) const;
+    HRESULT  AddFileWithCase (int                   dirKeyBlock,
+                              const std::string   & name,
+                              Word                  caseFlags,
+                              Byte                  fileType,
+                              Word                  auxType,
+                              const vector<Byte>  & bytes,
+                              vector<Byte>        & outBuffer) const;
 
     //  Lays the allocated blocks out in the order the allocator handed them
     //  over: master index first when there is one, then each index block
@@ -234,7 +246,8 @@ private:
                                       Word                 blocksUsed,
                                       uint32_t             eof,
                                       Word                 auxType,
-                                      int                  headerPointer);
+                                      int                  headerPointer,
+                                      Word                 caseFlags);
 
     //  The tally of active entries in one directory's header. Every directory
     //  keeps its own, at the same offset in its key block.

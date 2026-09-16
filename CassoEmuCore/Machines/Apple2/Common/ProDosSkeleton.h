@@ -83,6 +83,17 @@ private:
     static constexpr size_t  kEntOffModified      = 0x21;   // date word, then time word
     static constexpr size_t  kEntOffHeaderPointer = 0x25;
 
+    //  GS/OS records the case of a name in the two bytes ProDOS 8 labeled
+    //  version and min_version, which it never read. Bit 15 set means the
+    //  remaining bits describe the name: bit 14 is its first character, bit 13
+    //  the second, and a set bit means that character is lowercase. The name
+    //  itself stays upper case, so ProDOS 8 reads the volume unchanged.
+    //
+    //  Apple's GS/OS Technical Note #8. `Desk.Accs` stores $B9C0.
+    static constexpr size_t  kEntOffCaseFlags   = 0x1C;
+    static constexpr Word    kCaseFlagsPresent  = 0x8000;
+    static constexpr int     kCaseFirstCharBit  = 14;
+
     //  The storage-type nibble of a directory record. Zero means the record is
     //  INACTIVE -- either never used or deleted -- and a deleted one keeps its
     //  name so an undelete tool can find it, which is exactly why the name

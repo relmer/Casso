@@ -280,7 +280,10 @@ public:
             AssertSucceeded (volume.Read (FilePath::Parse ("GREETING.BAS"), after));
         }
 
-        Assert::IsTrue   (HasName (listing, "GREETING.BAS"));
+        //  The entry holds GREETING.BAS and its case word holds the case that
+        //  was typed, so the listing reads back greeting.bas and a lookup by
+        //  either form reaches it.
+        Assert::IsTrue   (HasName (listing, "greeting.bas"));
         Assert::IsFalse  (HasName (listing, "HELLO"));
         Assert::AreEqual ((size_t) 7, listing.entries.size());
         Assert::IsTrue   (before.bytes == after.bytes, L"the file's blocks are untouched");

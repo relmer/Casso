@@ -1091,7 +1091,10 @@ public:
     }
 
 
-    TEST_METHOD (Volume_Write_LowerCaseName_IsStoredTheWayTheGuestCanTypeIt)
+    //  The directory stores upper case, which is what the guest can type, and
+    //  the GS/OS case word beside it carries what was typed, so the listing
+    //  reads back the way the name was written.
+    TEST_METHOD (Volume_Write_LowerCaseName_IsStoredUpperCaseAndListsAsTyped)
     {
         vector<Byte>   vol     = MakeVolume();
         vector<Byte>   result;
@@ -1104,7 +1107,11 @@ public:
         AssertSucceeded (written.Enumerate (listing));
 
         Assert::AreEqual (size_t (1), listing.entries.size());
-        Assert::AreEqual (string ("PROG.A"), listing.entries[0].name);
+        Assert::AreEqual (string ("prog.a"), listing.entries[0].name);
+
+        //  Upper case on the disk, where ProDOS 8 reads it.
+        Assert::AreEqual ((Byte) 'P', At (result, kDirKeyBlock, kKeyBlockEntry + kEntryLength + kEntOffName));
+        Assert::AreEqual ((Byte) 'R', At (result, kDirKeyBlock, kKeyBlockEntry + kEntryLength + kEntOffName + 1));
     }
 
 
@@ -1583,6 +1590,82 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), hr);
         Assert::AreEqual (size_t (0), result.size());
+    }
+
+
+    //  GS/OS Technical Note #8: the name is stored upper case and the two bytes
+    //  ProDOS 8 called version and min_version carry its case, bit 15 marking
+    //  the word as describing the name at all.
+    TEST_METHOD (Volume_Write_MixedCaseName_StoresUpperCaseAndTheCaseWord)
+    {
+        vector<Byte>   vol = MakeVolume();
+        vector<Byte>   written;
+        FilePayload    payload;
+        FilePayload    read;
+        VolumeListing  listing;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (200, 'x');
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("Desk.Accs"), payload, written));
+        }
+
+        //  The entry itself: upper case, and the word the note's own example
+        //  gives for this name.
+        Assert::AreEqual ((Byte) 'D', At (written, kDirKeyBlock, kKeyBlockEntry + kEntryLength + kEntOffName));
+        Assert::AreEqual ((Byte) 'E', At (written, kDirKeyBlock, kKeyBlockEntry + kEntryLength + kEntOffName + 1));
+        Assert::AreEqual ((Word) 0xB9C0, WordAt (written, kDirKeyBlock, kKeyBlockEntry + kEntryLength + 0x1C));
+
+        {
+            ProDosVolume  volume (written);
+
+            AssertSucceeded (volume.Enumerate (listing));
+
+            Assert::AreEqual (size_t (1), listing.entries.size());
+            Assert::AreEqual (std::string ("Desk.Accs"), listing.entries[0].name,
+                L"the listing shows the name the way it was typed");
+
+            //  Matching pays no attention to case, so either form reaches it.
+            AssertSucceeded (volume.Read (FilePath::Parse ("DESK.ACCS"), read));
+            AssertSucceeded (volume.Read (FilePath::Parse ("desk.accs"), read));
+        }
+    }
+
+
+    //  An entry written by ProDOS 8 carries zero there, which describes no
+    //  case at all, and its name reads back as the directory holds it.
+    TEST_METHOD (Volume_Enumerate_AnEntryWithNoCaseWord_ReadsAsUpperCase)
+    {
+        vector<Byte>   vol     = MakeVolume();
+        vector<Byte>   written;
+        FilePayload    payload;
+        VolumeListing  listing;
+        size_t         wordAt  = 0;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (200, 'x');
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.Write (FilePath::Parse ("Desk.Accs"), payload, written));
+        }
+
+        wordAt = ProDosSkeleton::GetBlockByteOffset (kDirKeyBlock, kKeyBlockEntry + kEntryLength + 0x1C);
+
+        written[wordAt]     = 0;
+        written[wordAt + 1] = 0;
+
+        {
+            ProDosVolume  volume (written);
+
+            AssertSucceeded (volume.Enumerate (listing));
+
+            Assert::AreEqual (std::string ("DESK.ACCS"), listing.entries[0].name);
+        }
     }
 
 

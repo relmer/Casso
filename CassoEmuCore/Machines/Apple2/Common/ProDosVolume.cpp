@@ -145,6 +145,7 @@ void ProDosVolume::CollectEntries (
             entry.auxType     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffAuxType);
             entry.modDate     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffModified);
             entry.modTime     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffModified + 2);
+            entry.caseFlags   = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffCaseFlags);
 
             entry.eof = (uint32_t)
                 (ReadByte (dirBlock, at + ProDosSkeleton::kEntOffEof)
@@ -155,6 +156,8 @@ void ProDosVolume::CollectEntries (
             {
                 entry.name += (char) ReadByte (dirBlock, at + ProDosSkeleton::kEntOffName + i);
             }
+
+            entry.name = ApplyCaseFlags (entry.name, entry.caseFlags);
 
             outEntries.push_back (entry);
         }
@@ -954,13 +957,84 @@ void ProDosVolume::SetFreeInBitmap (vector<Byte> & buffer, uint32_t block, bool 
 
 bool ProDosVolume::TryEncodeDirectoryName (const std::string & name, std::string & outName)
 {
+    Word  ignored = 0;
+
+
+
+    return TryEncodeDirectoryName (name, outName, ignored);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::ApplyCaseFlags
+//
+//  Bit 15 says the word describes the name at all; without it the entry came
+//  from ProDOS 8 and the name is what the directory holds. Bit 14 is the first
+//  character and the bits run down from there, a set bit meaning lower case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProDosVolume::ApplyCaseFlags (const std::string & name, Word caseFlags)
+{
+    std::string  shown (name);
+    size_t       i     = 0;
+    int          bit   = 0;
+
+
+
+    if ((caseFlags & ProDosSkeleton::kCaseFlagsPresent) == 0)
+    {
+        return shown;
+    }
+
+    for (i = 0; i < shown.size(); i++)
+    {
+        bit = ProDosSkeleton::kCaseFirstCharBit - (int) i;
+
+        if (bit < 0)
+        {
+            break;
+        }
+
+        if ((caseFlags & (Word) (1u << bit)) != 0 && shown[i] >= 'A' && shown[i] <= 'Z')
+        {
+            shown[i] = (char) (shown[i] - 'A' + 'a');
+        }
+    }
+
+    return shown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::TryEncodeDirectoryName
+//
+//  The stored name is upper case whatever was typed, and the case word records
+//  what was typed, so a IIgs shows `Desk.Accs` where an Apple //e shows
+//  `DESK.ACCS` and both are reading the same entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosVolume::TryEncodeDirectoryName (const std::string & name, std::string & outName, Word & outCaseFlags)
+{
     size_t  length = name.size();
     size_t  i      = 0;
+    int     bit    = 0;
     Byte    first  = 0;
 
 
 
     outName.clear();
+
+    outCaseFlags = ProDosSkeleton::kCaseFlagsPresent;
 
     if (length == 0 || length > ProDosSkeleton::kVolumeNameBytes)
     {
@@ -985,11 +1059,21 @@ bool ProDosVolume::TryEncodeDirectoryName (const std::string & name, std::string
         {
             outName.clear();
 
+            outCaseFlags = 0;
+
             return false;
         }
 
         // The guest's keyboard produces upper case and its directory stores it,
-        // so a lower-case name would list as something nobody can type.
+        // so a lower-case name would list as something nobody can type. The
+        // case word carries what was typed for anything that reads it.
+        bit = ProDosSkeleton::kCaseFirstCharBit - (int) i;
+
+        if (c >= 'a' && c <= 'z' && bit >= 0)
+        {
+            outCaseFlags |= (Word) (1u << bit);
+        }
+
         outName += (char) ((c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c);
     }
 
@@ -1376,7 +1460,8 @@ void ProDosVolume::WriteDirectoryEntry (
     Word                 blocksUsed,
     uint32_t             eof,
     Word                 auxType,
-    int                  headerPointer)
+    int                  headerPointer,
+    Word                 caseFlags)
 {
     size_t  nameBytes = name.size();
     size_t  i         = 0;
@@ -1414,6 +1499,9 @@ void ProDosVolume::WriteDirectoryEntry (
     //  A word, not a byte: a directory's key block can sit past block 255.
     WriteWordAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffHeaderPointer,
                  (Word) headerPointer);
+
+    //  The case of the name as it was typed, which ProDOS 8 never reads.
+    WriteWordAt (buffer, dirBlock, entryOffset + ProDosSkeleton::kEntOffCaseFlags, caseFlags);
 }
 
 
@@ -1620,6 +1708,7 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
     uint16_t               holder      = 0;
     uint32_t               keyBlock    = 0;
     uint32_t               growBlock   = 0;
+    Word                   caseFlags   = 0;
     std::string            name;
     vector<RawEntry>       entries;
     vector<std::string>    damage;
@@ -1631,7 +1720,7 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
 
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
 
-    nameOk = TryEncodeDirectoryName (path.GetLeaf(), name);
+    nameOk = TryEncodeDirectoryName (path.GetLeaf(), name, caseFlags);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     hr = ResolveDirectory (GetParentPath (path), dirKeyBlock);
@@ -1680,7 +1769,8 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
                          1,
                          (uint32_t) ProDosSkeleton::kBlockByteSize,
                          0,
-                         dirKeyBlock);
+                         dirKeyBlock,
+                         caseFlags);
 
     AdjustFileCount (result, dirKeyBlock, 1);
 
@@ -1790,11 +1880,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolume::AddFile
+//  ProDosVolume::AddFileWithCase
 //
 //  Allocate from the volume bitmap, build whatever index structure the size
 //  calls for, write the data blocks, create the directory entry, and leave the
 //  bitmap agreeing with what was allocated.
+//
+//  The name arrives upper case, as the directory stores it, and the case word
+//  beside it records what the caller typed.
 //
 //  Storage type GROWS with the file. A seedling is its own data block, a
 //  sapling adds one index block, and past 256 data blocks a master index of
@@ -1808,9 +1901,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosVolume::AddFile (
+HRESULT ProDosVolume::AddFileWithCase (
     int                   dirKeyBlock,
     const std::string   & name,
+    Word                  caseFlags,
     Byte                  fileType,
     Word                  auxType,
     const vector<Byte>  & bytes,
@@ -1893,7 +1987,8 @@ HRESULT ProDosVolume::AddFile (
                          (Word) blocks.size(),
                          (uint32_t) payloadSize,
                          auxType,
-                         dirKeyBlock);
+                         dirKeyBlock,
+                         caseFlags);
 
     AdjustFileCount (result, dirKeyBlock, 1);
 
@@ -1946,6 +2041,7 @@ HRESULT ProDosVolume::Write (
     bool                   fullyParsed  = true;
     uint16_t               owner        = 0;
     Word                   auxType      = 0;
+    Word                   caseFlags    = 0;
     std::string            name;
     vector<Byte>           staged;
     vector<RawEntry>       entries;
@@ -1961,7 +2057,7 @@ HRESULT ProDosVolume::Write (
 
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
 
-    nameOk = TryEncodeDirectoryName (path.GetLeaf(), name);
+    nameOk = TryEncodeDirectoryName (path.GetLeaf(), name, caseFlags);
 
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
     CBREx (fits,   HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
@@ -1987,7 +2083,7 @@ HRESULT ProDosVolume::Write (
 
     if (!exists)
     {
-        hr = AddFile (dirKeyBlock, name, payload.type, auxType, payload.bytes, outBuffer);
+        hr = AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
         CHR (hr);
     }
     else
@@ -1998,7 +2094,7 @@ HRESULT ProDosVolume::Write (
         hr = Delete (path, staged, removal);
         CHR (hr);
 
-        hr = stagedVolume.AddFile (dirKeyBlock, name, payload.type, auxType, payload.bytes, outBuffer);
+        hr = stagedVolume.AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
         CHR (hr);
     }
 
@@ -2774,6 +2870,7 @@ HRESULT ProDosVolume::Rename (
     uint16_t               holder      = 0;
     size_t                 i           = 0;
     int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
+    Word                   caseFlags   = 0;
     std::string            name;
     vector<RawEntry>       entries;
     vector<std::string>    damage;
@@ -2784,7 +2881,7 @@ HRESULT ProDosVolume::Rename (
 
     CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
 
-    nameOk = TryEncodeDirectoryName (to, name);
+    nameOk = TryEncodeDirectoryName (to, name, caseFlags);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     hr = ResolveDirectory (GetParentPath (from), dirKeyBlock);
@@ -2823,6 +2920,12 @@ HRESULT ProDosVolume::Rename (
                      entries[owner].entryOffset + ProDosSkeleton::kEntOffName + i,
                      c);
     }
+
+    //  The new name's own case, recorded where a IIgs reads it.
+    WriteWordAt (result,
+                 entries[owner].dirBlock,
+                 entries[owner].entryOffset + ProDosSkeleton::kEntOffCaseFlags,
+                 caseFlags);
 
     // The same self-check every other mutating call runs over its own output.
     // A rename moves no block, so a disagreement would mean the name landed
