@@ -408,7 +408,7 @@ UnitTest/Fixtures/Debugger/
 ├── LICENSE                            # provenance and attribution
 └── Scripts/*.txt + expected/*.txt|.jsonl
 
-UnitTest/Fixtures/Merlin/LABELS.listing.txt      # listing captured from Merlin Pro
+(no Merlin listing fixture; the symbol-table layout is recorded in R-009)
 
 docs/Debugger.md                       # user documentation
 docs/DebugChannel.md                   # protocol documentation

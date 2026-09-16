@@ -238,7 +238,7 @@ from content (FR-031):
 | Format | Line form | Source |
 |---|---|---|
 | Casso `-g` debug file | `NAME=$ADDR`, `;` comments | `CassoCli as65 -g`, and `CassoCli merlin` after FR-033 |
-| Merlin listing symbol table | `NAME =$ADDR` entries after the listing's symbol table heading | Merlin itself (a listing printed to a file through Casso's printer), and `CassoCli merlin -l` |
+| Merlin listing symbol table | `NAME =$ADDR` entries after the listing's symbol table heading | Merlin itself, and `CassoCli merlin -l` |
 | AppleWin `.SYM` | `ADDR NAME` | users' own files |
 | VICE label file | `al ADDR .NAME` | ld65 `-Ln`, ACME `--vicelabels` |
 
@@ -250,12 +250,45 @@ and `SYMPRODOS` start from the published DOS 3.3 and ProDOS entry points.
 **Merlin prerequisite (FR-033)**: `CassoCli merlin` writes no symbol output
 today. `MerlinMode` gains a `-g` symbol file per `SAV` output, following
 spec 026's rule that each artifact splits per output, and its `-l` listing
-gains a trailing symbol table in Merlin's format. The exact layout (sections,
-column widths, how `]` variables and local labels appear) is fixed from a
-fixture: `LABELS.S` assembled by Merlin Pro running under Casso, its listing
-printed to a file through Casso's printer, checked in under
-`UnitTest/Fixtures/Merlin/` beside the existing `LICENSE`. The importer's tests
-and the listing writer's tests both compare against that fixture.
+gains a trailing symbol table in Merlin's format.
+
+**The layout, read off Merlin Pro 2.23 assembling `MAKE DUMP.S` under Casso.**
+Two sections in this order, each introduced by its own heading and each listing
+four entries per row:
+
+```
+Symbol table - alphabetical order:
+
+   BYTESPER=$10     MD CALL    =$8000      CALLER  =$0313      CALLMAIN=$0A92
+M  LP      =$09F9      MAIN    =$0900      MAINPROG=$0900      MAINWRT =$C004
+
+Symbol table - numerical order:
+
+   SOURCE  =$0A        HIMEM   =$0C        ENDSRC  =$0E        BYTESPER=$10
+```
+
+An entry is a two-character flag field, then the name padded to eight columns,
+then `=$` and the value: two hex digits for a zero-page address, four otherwise.
+`MD` flags a macro definition, and every one carries `$8000`, the default origin
+rather than an address, so the value means nothing for those entries.
+
+Three things this capture settles and one it does not:
+
+- **Macros are listed.** All nine `MAC` definitions in `MAKE DUMP.S` appear,
+  each flagged `MD`.
+- **`]` variables are not listed.** The source defines `]1`, `]1END` and `]2`
+  and none appears in either section.
+- **Local labels are not listed.** The source defines twelve (`:BIGLOOP`,
+  `:EXIT`, `:FINISH`, `:GK`, `:LOOP`, `:MAKNIB`, `:NI`, `:NXT`, `:OK`, `:ON`,
+  `:PCHR`, `:ZT`) and none appears. This is a comparison against a known source,
+  not an argument from an empty table.
+- **The `M ` flag is unexplained.** `ND`, `NI` and `LP` carry it with real
+  addresses, and the names resemble local labels in the source. What the flag
+  marks is not determined by this capture and must not be guessed at.
+
+**Four entries per row, on an 80-column screen.** Merlin runs the listing in
+80 columns and a full row measures 76 characters, so the count is Merlin's own
+layout rather than an artifact of a narrow capture.
 
 **Rationale**: AppleWin's `.SYM` data files ship under GPL and the clean-room
 rule forbids using them; reading the file format is not copying them. VICE

@@ -195,12 +195,12 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 ### Symbols and binary formats (FR-031, FR-032, FR-033)
 
-- [ ] T042 [US1] Capture the Merlin listing fixture:
+- [X] T042 [US1] Capture the Merlin symbol-table layout:
   1. On a copy of `UnitTest/Fixtures/Disks/Merlin-proDos2.23.dsk` (never the pristine image), boot Merlin Pro under Casso and load `LABELS.S` (`L`, `E`, `ASM`), following the capture procedure behind `scripts/CaptureMerlinCorpus.ps1`. Record the Merlin version the menu reports.
-  2. Print the assembly listing with the printer output going to a file.
-  3. Check it in as `UnitTest/Fixtures/Merlin/LABELS.listing.txt`, and add it to `UnitTest/Fixtures/Merlin/LICENSE` and `README.md`.
-  4. Record in research R-009 the symbol-table layout it shows: section headings, column widths, and how `]` variables and local labels appear.
-- [ ] T043 [US1] Change `CassoCore/Assembler.h/.cpp` `FormatListing`, used by the Merlin dialect, to append a symbol table in the layout recorded in T042. Add tests in `UnitTest/MerlinListingSymbolTableTests.cpp` comparing the table section of `CassoCli merlin -l LABELS.S` output against `LABELS.listing.txt`. The table is appended only when the dialect profile is Merlin. Add an as65 case to the same test file asserting an as65 listing is unchanged.
+  2. Read the trailing symbol table off the emulated text screen once, to learn the layout. **No listing file is checked in.** Two routes that look available are not: Casso's printer path renders to a dot raster and then to PNG, never to text, and the listing itself scrolls too fast to scrape whole from a 24-line screen. The symbol table is capturable because it sits static at the end of the assembly.
+  3. **Dropped.** There is no repeatable way to get a Merlin listing off the emulated screen into a file, so no `LABELS.listing.txt` is committed and the fixture directory is unchanged. Merlin 32 is a cross-assembler that could generate one, but it is a different program whose format would have to be verified against Merlin Pro 2.23 first; that is separate work, not a prerequisite here.
+  4. Record in research R-009 the symbol-table layout it shows: section headings, column widths, and how `]` variables and local labels appear. **Done**, captured from `MAKE DUMP.S` rather than `LABELS.S`, which defines neither construct.
+- [ ] T043 [US1] Change `CassoCore/Assembler.h/.cpp` `FormatListing`, used by the Merlin dialect, to append a symbol table in the layout recorded in R-009. Add tests in `UnitTest/MerlinListingSymbolTableTests.cpp` checking the table section of `CassoCli merlin -l LABELS.S` output against an inline expected sample quoting R-009, since no listing fixture is committed (T042 step 3). The table is appended only when the dialect profile is Merlin. Add an as65 case to the same test file asserting an as65 listing is unchanged.
 - [ ] T044 [US1] Add `-g` to `CassoCli merlin`:
   - a flag row in `CassoCore/CommandLineParser.cpp` for the Merlin dialect;
   - `CassoEmuCore/Cli/MerlinMode.cpp` writes `<output>.dbg` per `SAV` output through `ArtifactWriter::WriteDebugInfo`, on the per-output rule `As65Mode::WriteExtraArtifacts` uses;
@@ -208,7 +208,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - documentation in `docs/Assembler.md` under Merlin.
 - [X] T045 [P] [US1] Write `UnitTest/DebuggerTests/SymbolFileReaderTests.cpp` (the Merlin listing case runs against an inline sample until T042 lands the fixture):
   - Casso `-g` (`NAME=$ADDR`, `;` comments, both sections);
-  - the Merlin listing symbol table, against `LABELS.listing.txt`;
+  - the Merlin listing symbol table, against an inline sample in the layout R-009 records;
   - AppleWin `.SYM` (`ADDR NAME`);
   - VICE labels (`al ADDR .NAME`);
   - detection from content;
