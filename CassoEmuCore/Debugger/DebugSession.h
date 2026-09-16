@@ -116,4 +116,7 @@ private:
     std::optional<uint64_t>               m_budget;
     bool                                  m_hookInstalled = false;
     std::optional<int>                    m_lastBreakpointId;
+    std::optional<WatchHit>               m_beforeHit;
+
+    bool   TryMatchBeforeWatchpoint (Word pc);
 };

@@ -3,6 +3,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/IDebugNotificationSink.h"
 #include "MockDebugTarget.h"
+#include "TestHelpers.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -353,6 +354,60 @@ namespace DebuggerTests
             Assert::IsTrue   (sink.stops[0].watch.has_value());
             Assert::AreEqual ((Word) 0x0303, sink.stops[0].watch->accessPc);
             Assert::IsFalse  (session.HasPendingStop());
+        }
+
+
+
+        TEST_METHOD (BeforeWatchpoint_StopsBeforeTheStore_OnceOnly)
+        {
+            TestCpu          cpu;
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+            int              before = 0;
+
+
+
+            cpu.InitForTest();
+            target.instructionSet = cpu.GetInstructionSet();
+
+            // $0300: STA $0410, and a read-write after-mode watch on the same
+            // page as well as the before-mode write watch.
+            target.memory[0x0300] = 0x8D;
+            target.memory[0x0301] = 0x10;
+            target.memory[0x0302] = 0x04;
+            target.memory[0x0410] = 0xA0;
+            target.registers.pc   = 0x0300;
+            target.registers.a    = 0x41;
+
+            before = session.GetWatchpoints().Add (WatchAccess::Write, 0x0400, 0x04FF, WatchMode::Before);
+            session.GetWatchpoints().Add (WatchAccess::ReadWrite, 0x0400, 0x04FF);
+            session.OnStopConditionsChanged();
+
+            Assert::IsTrue   (target.hookInstalled);
+            Assert::IsTrue   (target.watchedPages[0x04], L"the after-mode watch keeps its page in the mask");
+            Assert::IsTrue   (session.ShouldStopBefore (0x0300));
+            Assert::AreEqual ((Byte) 0xA0, target.memory[0x0410], L"memory is untouched at a before-stop");
+
+            target.Stop (MakeStop (StopReason::Breakpoint, 0x0300));
+
+            Assert::AreEqual ((int) StopReason::Watchpoint, (int) sink.stops.at (0).reason);
+            Assert::IsTrue   (sink.stops[0].watch.has_value());
+            Assert::AreEqual (before,          sink.stops[0].watch->id);
+            Assert::IsTrue   (sink.stops[0].watch->mode == WatchMode::Before);
+            Assert::AreEqual ((Word) 0x0300,   sink.stops[0].watch->accessPc);
+            Assert::IsFalse  (sink.stops[0].breakpointId.has_value());
+
+            // Resume: the store executes and the bus reports it, but the
+            // after-mode watch on the same range does not stop again.
+            session.GetWatchpoints().SetAccessPc (0x0300);
+            session.GetWatchpoints().OnWatchedAccess (0x0410, 0x41, BusAccess::Write, (Byte) 0xA0);
+            Assert::IsFalse  (session.HasPendingStop(), L"one instruction, one stop");
+
+            // The next instruction's access is reported as usual.
+            Assert::IsFalse  (session.ShouldStopBefore (0x0303), L"nothing at $0303 touches the range");
+            session.GetWatchpoints().OnWatchedAccess (0x0411, 0x42, BusAccess::Write, (Byte) 0x00);
+            Assert::IsTrue   (session.HasPendingStop());
         }
 
 

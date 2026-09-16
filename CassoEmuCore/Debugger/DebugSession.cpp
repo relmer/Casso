@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugSession.h"
 
+#include "Debugger/EffectiveAddress.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/IDebugNotificationSink.h"
 
@@ -192,7 +193,8 @@ void DebugSession::OnUserResumed()
 //  DebugSession::ShouldStopBefore
 //
 //  Records the instruction address for watchpoint hits during the
-//  instruction, then checks the breakpoints.
+//  instruction, then checks the breakpoints, then the before-mode
+//  watchpoints against what the instruction would touch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,9 +214,56 @@ bool DebugSession::ShouldStopBefore (Word pc)
     if (isHit)
     {
         m_lastBreakpointId = hitId;
+        return true;
     }
 
-    return isHit;
+    return TryMatchBeforeWatchpoint (pc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TryMatchBeforeWatchpoint
+//
+//  Prediction runs only while a before-mode watchpoint is enabled. A hit
+//  stops before the instruction and arms the one-stop rule, so the accesses
+//  that instruction makes when the run resumes are not reported again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryMatchBeforeWatchpoint (Word pc)
+{
+    AccessPrediction  prediction;
+    WatchHit          hit;
+    HRESULT           hr = S_OK;
+
+
+
+    if (!m_watchpoints.HasEnabledBefore())
+    {
+        return false;
+    }
+
+    hr = EffectiveAddress::Predict (m_target.GetInstructionSet(), pc, m_target.GetRegisters(), *this, prediction);
+
+    if (FAILED (hr) || !m_watchpoints.TryMatchBefore (pc, prediction, hit))
+    {
+        return false;
+    }
+
+    for (const Watchpoint & entry : m_watchpoints.GetAll())
+    {
+        if (entry.id == hit.id)
+        {
+            m_watchpoints.SuppressAfterStopFor (pc, entry.first, entry.last);
+        }
+    }
+
+    m_beforeHit = hit;
+    return true;
 }
 
 
@@ -252,18 +301,23 @@ void DebugSession::OnStopped (const StopEvent & stop)
 
 
 
-    if (event.reason == StopReason::Breakpoint)
+    if (event.reason == StopReason::Breakpoint && m_beforeHit.has_value())
+    {
+        event.reason = StopReason::Watchpoint;
+        event.watch  = m_beforeHit;
+    }
+    else if (event.reason == StopReason::Breakpoint)
     {
         event.breakpointId = m_lastBreakpointId;
     }
-
-    if (event.reason == StopReason::Watchpoint)
+    else if (event.reason == StopReason::Watchpoint)
     {
         event.watch = m_watchpoints.GetPendingHit();
     }
 
     m_watchpoints.ClearPending();
     m_lastBreakpointId.reset();
+    m_beforeHit.reset();
     m_state = RunState::Paused;
 
     UpdateHookInstalled();

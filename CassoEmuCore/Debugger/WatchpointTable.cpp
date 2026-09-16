@@ -39,6 +39,29 @@ void WatchpointTable::SetTarget (IDebugTarget * target)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchpointTable::SetAccessPc
+//
+//  Called before each instruction. A suppression covers only the instruction
+//  it was set for, so moving on to another ends it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::SetAccessPc (Word pc)
+{
+    if (m_suppression.has_value() && m_suppression->pc != pc)
+    {
+        m_suppression.reset();
+    }
+
+    m_accessPc = pc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchpointTable::Add
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,6 +170,120 @@ bool WatchpointTable::HasEnabled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchpointTable::HasEnabledBefore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::HasEnabledBefore() const
+{
+    return std::any_of (m_entries.begin(), m_entries.end(),
+                        [] (const Watchpoint & entry) { return entry.enabled && entry.mode == WatchMode::Before; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::TryMatchBefore
+//
+//  A predicted read-modify-write matches a read, write or read-write
+//  watchpoint; the hit's access is the watchpoint's own where it is single,
+//  and Write for a read-write one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::TryMatchBefore (Word pc, const AccessPrediction & prediction, WatchHit & hit)
+{
+    for (const PredictedTouch & touch : prediction.touches)
+    {
+        for (Watchpoint & entry : m_entries)
+        {
+            bool  isInRange = touch.address >= entry.first && touch.address <= entry.last;
+
+
+
+            if (!entry.enabled || entry.mode != WatchMode::Before || !isInRange || !IsTouchMatch (entry.access, touch.access))
+            {
+                continue;
+            }
+
+            ++entry.hits;
+
+            hit.id       = entry.id;
+            hit.address  = touch.address;
+            hit.value    = 0;
+            hit.previous.reset();
+            hit.access   = (entry.access == WatchAccess::ReadWrite)
+                         ? (touch.access == PredictedAccess::Read ? WatchAccess::Read : WatchAccess::Write)
+                         : entry.access;
+            hit.accessPc = pc;
+            hit.mode     = WatchMode::Before;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::SuppressAfterStopFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::SuppressAfterStopFor (Word pc, Word first, Word last)
+{
+    m_suppression = Suppression { pc, first, last };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::IsSuppressed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::IsSuppressed (Word address) const
+{
+    return m_suppression.has_value()          &&
+           m_suppression->pc == m_accessPc    &&
+           address >= m_suppression->first    &&
+           address <= m_suppression->last;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::IsTouchMatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::IsTouchMatch (WatchAccess watched, PredictedAccess predicted)
+{
+    return watched == WatchAccess::ReadWrite                                                                        ||
+           predicted == PredictedAccess::ReadWrite                                                                  ||
+           (watched == WatchAccess::Read  && predicted == PredictedAccess::Read)                                    ||
+           (watched == WatchAccess::Write && predicted == PredictedAccess::Write);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchpointTable::GetWatchedPages
 //
 //  Every page an enabled after-mode watchpoint's range touches, and no other.
@@ -190,6 +327,11 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 
 void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess access, std::optional<Byte> previous)
 {
+    if (IsSuppressed (address))
+    {
+        return;
+    }
+
     for (Watchpoint & entry : m_entries)
     {
         if (!entry.enabled || entry.mode != WatchMode::After || address < entry.first || address > entry.last || !IsAccessMatch (entry.access, access))

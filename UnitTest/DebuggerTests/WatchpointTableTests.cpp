@@ -152,6 +152,71 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (BeforeMode_MatchesPredictedTouches)
+        {
+            int               nextId = 0;
+            WatchpointTable   table (nextId);
+            AccessPrediction  store;
+            AccessPrediction  load;
+            AccessPrediction  rmw;
+            WatchHit          hit;
+            int               writeOnly = table.Add (WatchAccess::Write, 0x0400, 0x04FF, WatchMode::Before);
+            int               after     = table.Add (WatchAccess::ReadWrite, 0x0400, 0x04FF);
+
+
+
+            store.touches = { { 0x0410, PredictedAccess::Write } };
+            load.touches  = { { 0x0410, PredictedAccess::Read } };
+            rmw.touches   = { { 0x0410, PredictedAccess::ReadWrite } };
+
+            Assert::IsTrue   (table.HasEnabledBefore());
+            Assert::IsTrue   (table.TryMatchBefore (0x0300, store, hit));
+            Assert::AreEqual (writeOnly,        hit.id);
+            Assert::AreEqual ((Word) 0x0410,    hit.address);
+            Assert::AreEqual ((Word) 0x0300,    hit.accessPc);
+            Assert::IsTrue   (hit.mode == WatchMode::Before);
+            Assert::IsTrue   (hit.access == WatchAccess::Write);
+            Assert::IsFalse  (hit.previous.has_value());
+
+            Assert::IsFalse  (table.TryMatchBefore (0x0300, load, hit), L"a write-only watch ignores a predicted read");
+            Assert::IsTrue   (table.TryMatchBefore (0x0300, rmw, hit),  L"a read-modify-write matches a write watch");
+            Assert::AreEqual ((uint32_t) 2, table.GetAll()[0].hits);
+            Assert::AreEqual ((uint32_t) 0, table.GetAll()[1].hits, L"an after-mode entry is not matched by prediction");
+            Assert::AreEqual (1, after);
+        }
+
+
+
+        TEST_METHOD (OneInstructionOneStop_SuppressesTheResumedAccess)
+        {
+            int              nextId = 0;
+            WatchpointTable  table (nextId);
+
+
+
+            table.Add (WatchAccess::ReadWrite, 0x0400, 0x04FF);
+
+            // A before-stop happened for the instruction at $0300 on this
+            // range; when it executes, its accesses to the range are ignored.
+            table.SetAccessPc (0x0300);
+            table.SuppressAfterStopFor (0x0300, 0x0400, 0x04FF);
+            table.OnWatchedAccess (0x0410, 0x41, BusAccess::Write, (Byte) 0x00);
+            Assert::IsFalse  (table.HasPendingStop());
+            Assert::AreEqual ((uint32_t) 0, table.GetAll()[0].hits);
+
+            // An access outside the range from the same instruction still counts.
+            table.OnWatchedAccess (0x0500, 0x41, BusAccess::Write, (Byte) 0x00);
+            Assert::IsFalse  (table.HasPendingStop(), L"outside the watch range, so no hit either way");
+
+            // The next instruction is not suppressed.
+            table.SetAccessPc (0x0303);
+            table.OnWatchedAccess (0x0410, 0x42, BusAccess::Write, (Byte) 0x41);
+            Assert::IsTrue   (table.HasPendingStop());
+            Assert::AreEqual ((Word) 0x0303, table.GetPendingHit()->accessPc);
+        }
+
+
+
         TEST_METHOD (BeforeMode_NotInMask_NotReportedByBus)
         {
             int              nextId = 0;

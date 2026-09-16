@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/IWatchSink.h"
+#include "Debugger/EffectiveAddress.h"
 #include "Debugger/IDebugTarget.h"
 
 
@@ -54,7 +55,7 @@ public:
     explicit WatchpointTable (int & nextId);
 
     void   SetTarget        (IDebugTarget * target);
-    void   SetAccessPc      (Word pc) { m_accessPc = pc; }
+    void   SetAccessPc      (Word pc);
 
     int    Add              (WatchAccess access, Word first, Word last, WatchMode mode = WatchMode::After);
     bool   TryClear         (int id);
@@ -64,24 +65,45 @@ public:
     const std::vector<Watchpoint> &  GetAll () const { return m_entries; }
 
     bool   HasEnabled       () const;
+    bool   HasEnabledBefore () const;
     bool   HasPendingStop   () const { return m_pendingHit.has_value(); }
     const std::optional<WatchHit> &  GetPendingHit () const { return m_pendingHit; }
     void   ClearPending     () { m_pendingHit.reset(); }
 
     WatchedPages  GetWatchedPages () const;
 
+    //  Before-mode: the first enabled entry a predicted touch falls in, with
+    //  a matching access, records a hit for the instruction at pc.
+    bool   TryMatchBefore   (Word pc, const AccessPrediction & prediction, WatchHit & hit);
+
+    //  One instruction, one stop: after a before-stop on the instruction at
+    //  pc, the accesses that instruction makes to the range are not reported
+    //  when the run resumes. The suppression ends when another instruction
+    //  starts.
+    void   SuppressAfterStopFor (Word pc, Word first, Word last);
+
     void   OnWatchedAccess  (Word address, Byte value, BusAccess access, std::optional<Byte> previous) override;
 
 private:
     static constexpr int  kPageShift = 8;
 
+    struct Suppression
+    {
+        Word  pc    = 0;
+        Word  first = 0;
+        Word  last  = 0;
+    };
+
     static bool  IsAccessMatch  (WatchAccess watched, BusAccess actual);
+    static bool  IsTouchMatch   (WatchAccess watched, PredictedAccess predicted);
+    bool         IsSuppressed   (Word address) const;
     bool         ShouldReplace  (Word address, BusAccess access) const;
     void         Publish        ();
 
-    int                      & m_nextId;
-    std::vector<Watchpoint>    m_entries;
-    IDebugTarget             * m_target   = nullptr;
-    Word                       m_accessPc = 0;
-    std::optional<WatchHit>    m_pendingHit;
+    int                        & m_nextId;
+    std::vector<Watchpoint>      m_entries;
+    IDebugTarget               * m_target   = nullptr;
+    Word                         m_accessPc = 0;
+    std::optional<WatchHit>      m_pendingHit;
+    std::optional<Suppression>   m_suppression;
 };

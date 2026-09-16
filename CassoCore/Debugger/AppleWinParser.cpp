@@ -389,6 +389,20 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & args, DebugC
             return false;
         }
 
+        // A watchpoint takes a trailing BEFORE or AFTER; AFTER is the default.
+        command.text = "AFTER";
+
+        if (args.tokens.size() > 1)
+        {
+            command.text = ToUpper (args.tokens[1]);
+
+            if (command.text != "BEFORE" && command.text != "AFTER")
+            {
+                error = "A watchpoint's mode is BEFORE or AFTER.";
+                return false;
+            }
+        }
+
         return TryParseRange (args.tokens[0], *args.context, command, error);
 
     case DebugVerb::SetConditionalBreakpoint:

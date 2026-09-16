@@ -57,6 +57,17 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Watchpoints_BeforeOrAfter)
+        {
+            Assert::AreEqual (std::string ("AFTER"),  ParseOk ("BPM C030").command.text);
+            Assert::AreEqual (std::string ("BEFORE"), ParseOk ("BPMW 0400 before").command.text);
+            Assert::AreEqual (std::string ("AFTER"),  ParseOk ("BPMR C0EC AFTER").command.text);
+            Assert::AreEqual ((Word) 0x040F,          ParseOk ("BPM 400,10 BEFORE").command.a2);
+            ParseFails ("BPM 400 SIDEWAYS", ParseStatus::Invalid);
+        }
+
+
+
         TEST_METHOD (Expressions_ThroughEvaluator)
         {
             Assert::AreEqual ((Word) 0x0302, ParseOk ("BP PC+2").command.a1);
