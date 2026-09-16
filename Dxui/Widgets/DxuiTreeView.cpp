@@ -866,19 +866,20 @@ bool DxuiTreeView::OnKey (WPARAM vk)
 
 void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    uint32_t         s_kRowIdle      = 0x00000000;
-    uint32_t         s_kRowHover     = theme.ContentHover();
-    uint32_t         s_kRowHighlight = theme.ContentSelection();
-    uint32_t         s_kBoxIdle      = theme.ButtonIdle();
-    uint32_t         s_kBoxLocked    = DxuiColor::ComputeTintForContrast (theme.Background(), 1.6f);
-    uint32_t         s_kCheckGlyph   = theme.ButtonText();
-    uint32_t         s_kCheckLocked  = theme.ForegroundDisabled();
-    uint32_t         s_kTwistyArgb   = theme.ForegroundMuted();
-    uint32_t         s_kTextIdle     = theme.Foreground();
-    uint32_t         s_kTextDisabled = theme.ForegroundDisabled();
-    constexpr float  s_kCheckInset   = 3.0f;
-    constexpr float  s_kFontDip      = 13.0f;
-    constexpr float  s_kTwistyHeight = 8.0f;
+    uint32_t         s_kRowIdle       = 0x00000000;
+    uint32_t         s_kRowHover      = theme.ContentHover();
+    uint32_t         s_kRowHighlight  = theme.ContentSelection();
+    uint32_t         s_kSelectionEdge = theme.ContentSelectionEdge();
+    uint32_t         s_kBoxIdle       = theme.ButtonIdle();
+    uint32_t         s_kBoxLocked     = DxuiColor::ComputeTintForContrast (theme.Background(), 1.6f);
+    uint32_t         s_kCheckGlyph    = theme.ButtonText();
+    uint32_t         s_kCheckLocked   = theme.ForegroundDisabled();
+    uint32_t         s_kTwistyArgb    = theme.ForegroundMuted();
+    uint32_t         s_kTextIdle      = theme.Foreground();
+    uint32_t         s_kTextDisabled  = theme.ForegroundDisabled();
+    constexpr float  s_kCheckInset    = 3.0f;
+    constexpr float  s_kFontDip       = 13.0f;
+    constexpr float  s_kTwistyHeight  = 8.0f;
 
 
 
@@ -995,6 +996,16 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         {
             painter.FillRoundedRect ((float) m_boundsDip.left, rowY, contentW, rowHeight,
                                      m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), rowFill);
+        }
+
+        //  The highlighted row is outlined while the tree holds focus, as the
+        //  file list outlines its own. Without it the tree looks the same
+        //  focused or not, and nothing on screen says where the keys go.
+        if (m_focused && i == m_highlight && s_kSelectionEdge != 0)
+        {
+            painter.OutlineRoundedRect ((float) m_boundsDip.left, rowY, contentW, rowHeight,
+                                        m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip),
+                                        (std::max) (1.0f, m_scaler.ToPxf (1.0f)), s_kSelectionEdge);
         }
 
         if (hasChildren)

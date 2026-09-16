@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiTreeView.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -12,10 +15,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  TreeViewTests
 //
-//  Pure-logic coverage for hit-testing, keyboard navigation, and the
-//  capability-flag driven checkbox behavior. Rendering is not
-//  exercised (Paint would require a GPU). The hardware-tree-shape
-//  tests in HardwareTreeTests build on top of these primitives.
+//  Hit-testing, keyboard navigation, and the capability-flag driven checkbox
+//  behavior. Paint is exercised through the painter mock, which records the
+//  primitives rather than drawing them, so no GPU is involved. The
+//  hardware-tree-shape tests in HardwareTreeTests build on these primitives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +57,47 @@ public:
         tv.SetNodes (std::move (nodes));
         return tv;
     }
+
+    static int CountRowOutlines (const MockDxuiPainter & painter)
+    {
+        int  outlines = 0;
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::OutlineRoundedRect && call.width == 200.0f)
+            {
+                outlines++;
+            }
+        }
+
+        return outlines;
+    }
+
+
+
+    TEST_METHOD (FocusedTree_OutlinesTheHighlightedRow)
+    {
+        DxuiTreeView          tv = MakeFlatTree();
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+        tv.HighlightRow (1);
+
+        //  Unfocused, the highlight fills but nothing outlines it.
+        tv.SetFocused (false);
+        tv.Paint (painter, text, theme);
+
+        Assert::AreEqual (0, CountRowOutlines (painter), L"An unfocused tree draws no focus outline");
+
+        //  Focused, the same row gains the outline the file list draws.
+        painter.Reset();
+        tv.SetFocused (true);
+        tv.Paint (painter, text, theme);
+
+        Assert::AreEqual (1, CountRowOutlines (painter), L"The focused tree outlines its highlighted row");
+    }
+
 
     TEST_METHOD (Flatten_VisibleCountMatchesNodeCount)
     {
