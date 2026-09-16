@@ -81,6 +81,11 @@ public:
     // Re-sync every widget from the state.
     void  Refresh          ();
 
+    // Lay the page out again and rebuild the tab order: what the page shows
+    // changed shape, not just its values -- the multiplayer section coming or
+    // going with the machine's mode, say.
+    void  Relayout         ();
+
     // Press-to-assign in progress, for the sheet's prompt over the page: the
     // sentence it shows, and a way to call the wait off.
     bool          IsCapturing        () const;
@@ -144,7 +149,6 @@ private:
     void                 OnDeleteProfile    ();
     void                 ShowDialog         ();
     void                 AfterEdit          ();
-    void                 Relayout           ();
     ControllerKind       GetSelectedKind    () const;
 
     ControllersPageState                      * m_state               = nullptr;
