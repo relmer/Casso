@@ -685,8 +685,10 @@ private:
     // path runs it on the CPU thread, and the selector sync measures text
     // through Dxui, which asserts the UI thread. Both callers sync the
     // chrome on the UI thread afterwards.
-    void    AdoptInputModeForMachine   (const JsonValue * uiPrefs);
-    void    AdoptControllerForMachine (const JsonValue * uiPrefs);
+    // `machineId` is the machine being ENTERED. The switch path runs these
+    // before it adopts the new config, so m_machine cannot answer for it.
+    void    AdoptInputModeForMachine   (const JsonValue * uiPrefs, const std::string & machineId);
+    void    AdoptControllerForMachine (const JsonValue * uiPrefs, const std::string & machineId);
     void    PersistInputModeForMachine ();
 public:
 

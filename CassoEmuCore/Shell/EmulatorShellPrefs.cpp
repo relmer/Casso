@@ -219,14 +219,14 @@ void EmulatorShell::SaveControllerCalibrations()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
+void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs, const std::string & machineId)
 {
     MachineInputPrefs::ReadFromUiPrefs (uiPrefs,
                                         m_globalPrefs.pointerMapping,
                                         m_arrowsJoystick,
                                         m_pointerMode);
 
-    AdoptControllerForMachine (uiPrefs);
+    AdoptControllerForMachine (uiPrefs, machineId);
 
     // The mixer is thread-safe and writes on the UI thread, so handing the
     // axes over from here is safe on the CPU thread too.
@@ -250,13 +250,13 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs)
+void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const std::string & machineId)
 {
     HRESULT                           hr         = S_OK;
     std::string                       token;
     std::optional<ControllerUnitKey>  selection;
     ControllerUnitKey                 unit;
-    const MachineDefinition         * definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
+    const MachineDefinition         * definition = MachineDefinitions::Find (machineId);
 
 
 
@@ -267,6 +267,12 @@ void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs)
 
     // How many axes this machine has, before anything is mapped onto them: a
     // player slot for paddles it lacks is kept and plays nothing (FR-035).
+    //
+    // From `machineId`, NOT from m_machine. On the switch path this runs
+    // before the new config is adopted, so m_machine is still the machine
+    // being LEFT: reading it left the count a machine behind, which gave a
+    // //c player two the //e's PDL2/PDL3 -- no stick, but a live button --
+    // and cost an //e player two the axes the machine does have.
     if (definition != nullptr)
     {
         m_controllerService->SetAxisCount (static_cast<size_t> (definition->gamePortAxisCount));

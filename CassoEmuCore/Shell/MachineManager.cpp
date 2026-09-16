@@ -396,7 +396,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // the UI thread. The post-switch reflow (WM_APP_DXUI_UPDATE_TITLE) puts it
     // on the chrome. The nudge follows the adopt, so the //c mouse default
     // sees the restored mapping rather than being overwritten by it.
-    m_shell.AdoptInputModeForMachine (inputUiPrefs);
+    m_shell.AdoptInputModeForMachine (inputUiPrefs, newConfig.machineId);
     m_shell.ApplyDefaultPointerForMachine();
 
     // Auto-flush every dirty disk before tearing down the previous
