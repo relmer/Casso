@@ -535,9 +535,12 @@ HWND EmulatorShell::GetPrinterDialogOwner() const
 //  a deferred destroy handled by RunMessageLoop. A second invocation while it
 //  is already open just re-focuses the existing sheet.
 //
+//  showControllers lands on the Controllers tab, for Controller settings...,
+//  whether the sheet is opening or already open.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenSettings()
+void EmulatorShell::OpenSettings (bool showControllers)
 {
     HINSTANCE  hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
 
@@ -551,6 +554,11 @@ void EmulatorShell::OpenSettings()
             SetForegroundWindow (existing);
         }
 
+        if (showControllers)
+        {
+            m_settingsSheet->ShowControllersPage();
+        }
+
         return;
     }
 
@@ -560,4 +568,9 @@ void EmulatorShell::OpenSettings()
     (void) m_settingsSheet->OpenModeless (hInst, m_hwnd,
                                           *m_userConfigStore, m_globalPrefs, *m_themeManager,
                                           *this, m_uiFs);
+
+    if (showControllers)
+    {
+        m_settingsSheet->ShowControllersPage();
+    }
 }

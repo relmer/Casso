@@ -260,7 +260,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         //  run of words, which reads as a text field rather than as focus,
         //  and collides with whatever sits on the next row.
         //
-        if (m_focused)
+        if (m_focused && m_focusCueVisible)
         {
             DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
                                       (float) m_boundsDip.left,
@@ -342,7 +342,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (m_focused)
+    if (m_focused && m_focusCueVisible)
     {
         float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);

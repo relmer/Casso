@@ -180,10 +180,96 @@ float DxuiInfoBanner::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
     m_fitText    = m_text;
     m_fitDpi     = scaler.GetDpi();
     m_fitAvailPx = availableTextPx;
-    m_fitBoxPx   = ResolveCenteredLinePx (availableTextPx, measuredW, scaler);
+    m_fitBoxPx   = FitCenteredBoxPx (text, availableTextPx,
+                                     ResolveCenteredLinePx (availableTextPx, measuredW, scaler),
+                                     measuredW, scaler);
     m_fitValid   = true;
 
     return m_fitBoxPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::FitCenteredBoxPx
+//
+//  Widens the even-split box until the text actually wraps into the number of
+//  lines that split was calculated for.
+//
+//  THE EVEN SPLIT IS AN IDEAL WIDTH, NOT AN ACHIEVABLE ONE. It divides the
+//  text's measured width by the line count, but the renderer breaks at word
+//  boundaries, and a box that is one character narrower than the break it
+//  needs pushes a whole word to a line of its own. That is how a two-line
+//  notice paints as two full lines and a stranded "1.", which is what a
+//  narrow bar showed.
+//
+//  So the split is a starting point and the renderer has the last word:
+//  measure the wrap, and while it needs more lines than were reserved, give
+//  it a few more percent. Bounded, and it stops at the cap the split already
+//  respected, so this can only widen a box within the width the height query
+//  reserved -- never past it, and never onto a line that was not counted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::FitCenteredBoxPx (IDxuiTextRenderer   &  text,
+                                        float                  availableTextPx,
+                                        float                  splitPx,
+                                        float                  measuredWidthPx,
+                                        const DxuiDpiScaler &  scaler) const
+{
+    constexpr int    kMaxSteps  = 16;
+    constexpr float  kGrowth    = 1.06f;
+    HRESULT          hr         = S_OK;
+    float            box        = splitPx;
+    float            lineHeight = scaler.ToPxf (s_kFontDip) * s_kLineHeightEm;
+    float            wrappedW   = 0.0f;
+    float            wrappedH   = 0.0f;
+    int              wanted     = 0;
+    int              step       = 0;
+
+
+
+    if (box >= measuredWidthPx || box >= availableTextPx || lineHeight < 1.0f)
+    {
+        return box;
+    }
+
+    wanted = (int) std::lround (measuredWidthPx / box);
+
+    if (wanted < 1)
+    {
+        wanted = 1;
+    }
+
+    for (step = 0; step < kMaxSteps; step++)
+    {
+        hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
+                                        DxuiTheme::kBodyFace, box, wrappedW, wrappedH);
+
+        //  A renderer that cannot measure a wrap leaves the split as it was,
+        //  which is what this widget did before.
+        if (FAILED (hr) || wrappedH < 1.0f)
+        {
+            return box;
+        }
+
+        if ((int) std::lround (wrappedH / lineHeight) <= wanted)
+        {
+            return box;
+        }
+
+        box *= kGrowth;
+
+        if (box >= availableTextPx)
+        {
+            return availableTextPx;
+        }
+    }
+
+    return box;
 }
 
 

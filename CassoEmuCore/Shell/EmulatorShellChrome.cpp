@@ -233,7 +233,7 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncCaptureBanner
+//  EmulatorShell::SyncStandInBanner
 //
 //  A persistent way OUT, for as long as the pointer is held.
 //
@@ -253,7 +253,7 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncCaptureBanner()
+void EmulatorShell::SyncStandInBanner()
 {
     RECT   client = {};
     RECT   rc     = {};
@@ -263,10 +263,12 @@ void EmulatorShell::SyncCaptureBanner()
 
 
 
-    if (!m_paddleCaptured || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    m_standInBar.SetText (GetStandInBannerText());
+
+    if (m_standInBar.GetText().empty() || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
     {
-        m_captureBar.SetVisible        (false);
-        m_captureBarSurface.SetVisible (false);
+        m_standInBar.SetVisible        (false);
+        m_standInBarSurface.SetVisible (false);
 
         //  A BAND LEFT BEHIND, NOTED FOR THE NEXT FRAME. The height is claimed
         //  and released where the capture starts and ends, but the capture is
@@ -281,9 +283,9 @@ void EmulatorShell::SyncCaptureBanner()
         //  TryPresentUiFrame acts on it at the top of the next frame, where
         //  the change band's own expiry already re-docks from.
         if (m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen()
-            && m_captureBand.GetBounds().bottom > m_captureBand.GetBounds().top)
+            && m_standInBand.GetBounds().bottom > m_standInBand.GetBounds().top)
         {
-            m_captureBandStale = true;
+            m_standInBandStale = true;
         }
 
         return;
@@ -293,13 +295,35 @@ void EmulatorShell::SyncCaptureBanner()
     //  band docking and any cancel the window manager decides to send, the
     //  capture can go while everything the shell knows says it is still held.
     //  OnCancelMode covers the cancel it can identify; this covers the rest,
-    //  by simply asking. It fires only while this window is the foreground one
-    //  and the shell still believes the pointer is held, and costs one
-    //  GetCapture per frame while paddling -- nothing at all otherwise.
-    if (GetCapture() != m_hwnd && GetForegroundWindow() == m_hwnd)
+    //  by simply asking.
+    //
+    //  ONLY WHILE THE PADDLE HOLDS THE POINTER. This belongs to the capture,
+    //  not to the bar: the two were the same condition when the bar existed
+    //  only during a capture, and they stopped being the same when the bar
+    //  took on the arrow keys. Without the test it grabs the pointer and
+    //  clips the cursor to the client in keys mode, where nothing asked for
+    //  the mouse at all.
+    if (m_paddleCaptured && GetCapture() != m_hwnd && GetForegroundWindow() == m_hwnd)
     {
         SetCapture (m_hwnd);
         ClipPaddleCursorToClient();
+    }
+
+    //  A BAND THAT HAS NOT BEEN CLAIMED YET, ASKED FOR. The mirror of the
+    //  release above, and the case that only exists now that the bar is not
+    //  the capture's alone: entering a capture re-docked on its way in, so
+    //  the band was always there by the time this ran. The arrow keys turn
+    //  the bar on without any such moment -- restoring the saved input mode
+    //  at startup is the ordinary one -- and a bar laid into a band of no
+    //  height paints its border and its badge with the text clipped away,
+    //  which is a line across the chrome with a lone glyph sitting on it.
+    //
+    //  FLAGGED, NOT DONE HERE, for the same reason the release is: this runs
+    //  inside the frame a re-dock would repaint.
+    if (!m_d3dRenderer.IsFullscreen()
+        && m_standInBand.GetBounds().bottom <= m_standInBand.GetBounds().top)
+    {
+        m_standInBandStale = true;
     }
 
     //  A DOCKED BAND WHEN THERE ARE BANDS: the dock gives it the client width
@@ -314,7 +338,7 @@ void EmulatorShell::SyncCaptureBanner()
     //  that strip currently is.
     if (!m_d3dRenderer.IsFullscreen())
     {
-        rc = m_captureBand.GetBounds();
+        rc = m_standInBand.GetBounds();
     }
     else
     {
@@ -326,15 +350,52 @@ void EmulatorShell::SyncCaptureBanner()
         rc.left   = client.left;
         rc.right  = client.right;
         rc.top    = top;
-        rc.bottom = top + (LONG) m_captureBar.GetPreferredHeightPx (width, m_scaler);
+        rc.bottom = top + (LONG) m_standInBar.GetPreferredHeightPx (width, m_scaler);
     }
 
-    m_captureBarSurface.Layout     (rc, m_scaler);
-    m_captureBarSurface.SetVisible (true);
+    //  A RECT THAT HAS NOT BEEN LAID OUT YET IS SKIPPED, and nothing else is.
+    //  A band carries its thickness on the docked axis alone and is given its
+    //  width by the dock pass, so between a resize and that pass its rect is
+    //  a slab of NO WIDTH -- and a text box no wider than a glyph wraps every
+    //  character onto a line of its own, which is the bar's sentence running
+    //  down the edge of the window, one letter at a time.
+    //
+    //  NARROW IS NOT A REASON TO DISAPPEAR. A narrow bar is a taller bar: the
+    //  text wraps and the band grows to hold it, which is what the shared
+    //  measurement above is for. The only rect refused here is one with no
+    //  width at all, which is not a width the bar has to cope with -- it is
+    //  the dock not having run.
+    if (rc.right - rc.left <= 0 || rc.bottom - rc.top <= 0)
+    {
+        m_standInBar.SetVisible        (false);
+        m_standInBarSurface.SetVisible (false);
 
-    m_captureBar.SetDpi     (m_scaler.GetDpi());
-    m_captureBar.Layout     (rc, m_scaler);
-    m_captureBar.SetVisible (true);
+        //  Ask for the dock the rect is waiting on, the same way the band's
+        //  own absence is asked for above.
+        if (m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen())
+        {
+            m_standInBandStale = true;
+        }
+
+        return;
+    }
+
+    //  The band is short of what the text needs at this width: re-dock and
+    //  paint at the height there is, rather than showing nothing. A band
+    //  reserved from the same measurement cannot be short, so this is the
+    //  frame after a width change and no more than that.
+    if (rc.bottom - rc.top < GetStandInBarHeightPx ((float) (rc.right - rc.left))
+        && m_hwnd != nullptr && !m_d3dRenderer.IsFullscreen())
+    {
+        m_standInBandStale = true;
+    }
+
+    m_standInBarSurface.Layout     (rc, m_scaler);
+    m_standInBarSurface.SetVisible (true);
+
+    m_standInBar.SetDpi     (m_scaler.GetDpi());
+    m_standInBar.Layout     (rc, m_scaler);
+    m_standInBar.SetVisible (true);
 }
 
 
@@ -902,7 +963,7 @@ void EmulatorShell::SyncChromeBands()
     m_navBand.SetBounds     (RECT{ 0, 0, 0, px.nav });
     m_toolbarBand.SetBounds (RECT{ 0, 0, 0, px.toolbar });
     m_changeBand.SetBounds  (RECT{ 0, 0, 0, px.change });
-    m_captureBand.SetBounds (RECT{ 0, 0, 0, px.capture });
+    m_standInBand.SetBounds (RECT{ 0, 0, 0, px.capture });
     m_driveBand.SetBounds   (RECT{ 0, 0, 0, px.drive });
     m_switchBand.SetBounds  (RECT{ 0, 0, 0, px.switches });
 }
@@ -933,7 +994,7 @@ void EmulatorShell::CollectDockedBands (IDxuiControl * (& outBands)[kDockedBandC
     outBands[1] = &m_navBand;
     outBands[2] = &m_toolbarBand;
     outBands[3] = &m_changeBand;
-    outBands[4] = &m_captureBand;
+    outBands[4] = &m_standInBand;
     outBands[5] = &m_driveBand;
     outBands[6] = &m_switchBand;
 }
@@ -997,6 +1058,13 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
     //  The notice rides its band the way the toolbar rides its own, so a
     //  resize or a DPI change reflows it with everything else.
     LayoutChangeBanner();
+
+    //  AND SO DOES THE INPUT-MODE BAR. It was laid out only from the present
+    //  path, which runs on the frame's cadence rather than the resize's, so
+    //  while the toolbar and the picture followed the drag the bar arrived
+    //  behind them, a step at a time. Everything that rides a band is laid
+    //  out here, in the pass that gives the bands their rects.
+    SyncStandInBanner();
 
     return m_centerBand.GetBounds();
 }
@@ -1197,7 +1265,6 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact
     // (DarkModern / retro) themes the top-down glyphs.
-    m_inputCluster.SetSkeuoStyle     (!theme.compactDrives);
 
     // The strip continues the menu bar's themed surface (navStrip) and its
     // labels take the bar's ink; neither is a color the generic theme
@@ -1490,10 +1557,15 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 //
 //  EmulatorShell::GetCaptureBandThicknessPx
 //
-//  How tall the capture bar's band is.
+//  How tall the input-mode bar's band is.
 //
-//  ZERO WHILE THE POINTER IS FREE, so every session that never grabs it is
-//  laid out exactly as before.
+//  ZERO WHILE A CONTROLLER OR NOTHING DRIVES THE GAME PORT, so every session
+//  that never falls back to the keys or the mouse is laid out as before.
+//
+//  MEASURED FROM A BANNER OF ITS OWN rather than the docked one. This is a
+//  const query and the docked bar is given its text by the layout pass; a
+//  height taken before that pass would measure whatever the last mode left
+//  behind. The two share the text and the DPI, so they measure alike.
 //
 //  ZERO IN FULLSCREEN TOO, where there are no bands at all: the picture owns
 //  the whole client and the bar hangs off the top edge under the toolbar
@@ -1503,25 +1575,59 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 
 int EmulatorShell::GetCaptureBandThicknessPx (int clientWidthPx) const
 {
-    IDxuiTextRenderer *  text = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-
-
-
-    if (!m_paddleCaptured || m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
+    if (m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
     {
         return 0;
     }
 
-    //  MEASURED WHEN THERE IS A RENDERER TO ASK, because the bar centers its
-    //  text and a centered banner picks its line width from that measurement.
-    //  The estimate behind GetPreferredHeightPx is an AVERAGE glyph width: a
-    //  wide face measures past it, and a height taken from it would reserve a
-    //  line fewer than the paint lays down. The estimate stays as the fallback
-    //  for the moments before the renderer exists.
-    if (text != nullptr)
+    return GetStandInBarHeightPx ((float) clientWidthPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetStandInBarHeightPx
+//
+//  How tall the input-mode bar is at a given width, and THE ONLY PLACE THAT
+//  ANSWERS IT. The band reserves the height and the paint checks it, and the
+//  two asking separately is how the bar came to vanish at particular widths:
+//  the reserve measured, the check estimated, and GetPreferredHeightPx is
+//  deliberately generous -- an average glyph width, rounded up so text never
+//  clips. Wherever the estimate wanted a line the measurement did not, the
+//  check called a perfectly good band too short.
+//
+//  MEASURED WHEN THERE IS A RENDERER TO ASK, because the bar centers its text
+//  and a centered banner picks its line width from that measurement. The
+//  estimate is the fallback for the moments before the renderer exists.
+//
+//  Zero only when there is no bar. A narrow bar is a TALLER bar -- the text
+//  wraps and the band grows -- never an absent one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::GetStandInBarHeightPx (float widthPx) const
+{
+    IDxuiTextRenderer *  text = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    std::wstring         line = GetStandInBannerText();
+    DxuiInfoBanner       measure (line);
+
+
+
+    if (line.empty() || widthPx <= 0.0f)
     {
-        return (int) m_captureBar.GetMeasuredHeightPx (*text, (float) clientWidthPx, m_scaler);
+        return 0;
     }
 
-    return (int) m_captureBar.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
+    measure.SetCentered (true);
+    measure.SetDpi      (m_scaler.GetDpi());
+
+    if (text != nullptr)
+    {
+        return (int) measure.GetMeasuredHeightPx (*text, widthPx, m_scaler);
+    }
+
+    return (int) measure.GetPreferredHeightPx (widthPx, m_scaler);
 }

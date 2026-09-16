@@ -56,6 +56,11 @@ public:
     //  than having one removed from it after the fact.
     virtual bool  HasGamePortDevice () const = 0;
 
+    //  How many analog game-port axes the machine exposes: four (PDL0-PDL3)
+    //  on the ][, ][+ and //e, two on the //c, whose PDL2 and PDL3 lines are
+    //  the mouse's direction lines instead.
+    virtual int  GetGamePortAxisCount () const = 0;
+
     //  Whether the machine's case carries switches the user can reach -- the
     //  //c's 40/80 column and keyboard-layout switches. A presentation
     //  question rather than an emulation one, and the machine is who knows the

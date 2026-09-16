@@ -6,10 +6,13 @@
 #include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiToolbar.h"
+#include "Controllers/InputModeRules.h"
+#include "Controllers/ControllerProfileStore.h"
+#include "Core/TextEncoding.h"
+#include "InputMonoGlyphs.h"
 
 
 
-class InputClusterEntry;
 class PrinterStatusLed;
 class VolumeFlyout;
 
@@ -51,7 +54,8 @@ struct EmulatorMenuEntry
 //  Every emulator action declared once. One DxuiCommand per IDM_* the menu
 //  bar or the toolbar shows, plus the four toolbar entries that are not
 //  commands of the menu's (the theme and monitor-color pickers, the volume
-//  flyout, the input cluster), with dispatch, checked, enabled and label
+//  flyout, the paddle picker and the mouse toggle), with dispatch, checked,
+//  enabled and label
 //  bound to the shell through sinks set at startup. Beside the commands sit
 //  two placement tables: menu title to item list, and the toolbar's entry
 //  list with kinds and groups.
@@ -71,12 +75,20 @@ public:
     using CheckFn    = std::function<bool (WORD commandId)>;
     using LabelFn    = std::function<std::wstring (WORD commandId)>;
 
+    // Raised when the user picks a row of the paddle-source list.
+    using PaddleSourcePickedFn = std::function<void (const InputModeRules::PaddleSource &)>;
+
+    // Raised when the user picks a row of the profile list. Empty for Default.
+    using ProfilePickedFn = std::function<void (const std::string & profileName)>;
+
     // Ids for the toolbar entries that are not menu commands. Menu command
     // ids start at 40001, so nothing collides.
-    static constexpr int  kIdTheme  = 1;
-    static constexpr int  kIdColor  = 2;
-    static constexpr int  kIdVolume = 3;
-    static constexpr int  kIdInput  = 4;
+    static constexpr int  kIdTheme   = 1;
+    static constexpr int  kIdColor   = 2;
+    static constexpr int  kIdVolume  = 3;
+    static constexpr int  kIdPaddle  = 5;
+    static constexpr int  kIdMouse   = 6;
+    static constexpr int  kIdProfile = 7;
 
     static constexpr int  kMenuCount = 7;
 
@@ -116,26 +128,68 @@ public:
     void  SetMonitorColorIndex  (int index)   { m_colorIndex = index; }
     int   GetMonitorColorIndex  () const      { return m_colorIndex; }
 
-    const DxuiCommand *  Find (int commandId) const;
+    std::shared_ptr<const DxuiCommand>  Find (int commandId) const;
 
-    // The placements. Item lists hold the commands by pointer, so this
-    // object must outlive the surfaces it fills.
+    // The placements. Item lists share ownership of the commands, but the
+    // commands' functors call back into this object, so it must still
+    // outlive the surfaces it fills.
     std::vector<DxuiMenuBarItem>    BuildMenuItems  () const;
     std::vector<DxuiPopupMenuItem>  GetThemeItems   () const;
     std::vector<DxuiPopupMenuItem>  GetMonitorItems () const;
 
-    // Fills the toolbar: ten entries in strip order, the LED as the printer
-    // entry's decoration, the cluster as the input entry's custom entry and
-    // the flyout as the volume entry's panel, with the two pickers' rows and
-    // the cluster's rows installed as drop-down lists.
+    // What drives the paddle axes: every attached controller, then the keys
+    // and the mouse, exactly one checked (FR-008). The rows are rebuilt only
+    // by the setter, so a surface holding the previous list must be handed
+    // GetPaddleSourceItems() again. A menu still on screen with the previous
+    // list keeps those rows alive through its items.
+    void  SetPaddleSources        (const std::vector<InputModeRules::PaddleSource> & sources);
+    void  SetPaddleSourcePickedFn (PaddleSourcePickedFn fn) { m_onPaddleSourcePicked = std::move (fn); }
+
+    // Mouse mode: a plain toggle on the strip, because it toggles one thing.
+    // It is NOT in the paddle-source picker: it drives the //c's IOU mouse,
+    // not the game port, so it is not an answer to that question (FR-008).
+    // Machines without a mouse leave it disabled rather than absent, so the
+    // strip does not reflow on a machine switch.
+    void  SetMouseModeFns (std::function<bool()> isOn,
+                           std::function<bool()> isOffered,
+                           std::function<void()> toggle);
+
+    std::vector<DxuiPopupMenuItem>  GetPaddleSourceItems        () const;
+    std::vector<DxuiPopupMenuItem>  GetPaddlePickerItems        () const;
+    std::wstring                    GetCheckedPaddleSourceLabel () const;
+
+    // Which drawing the picker wears: the checked source's own, and a gamepad
+    // while nothing is driving -- what COULD go there is the useful answer,
+    // and the disabled ink already says it is not there (FR-008b).
+    InputMonoGlyphKind              GetCheckedPaddleSourceGlyph () const;
+
+    // The selected controller model's profiles, Default first, the active one
+    // checked (empty means Default; names match ignoring case). Not offered
+    // while no controller is selected: the entry is disabled rather than
+    // removed, so the strip does not reflow, and its face reads Default. Like
+    // the paddle rows, each row carries the name it shows, so a row from a
+    // list rebuilt since still picks what it says.
+    void  SetProfiles        (const std::vector<std::string> & names,
+                              const std::string              & activeProfile,
+                              bool                             isOffered);
+    void  SetProfilePickedFn (ProfilePickedFn fn) { m_onProfilePicked = std::move (fn); }
+
+    std::vector<DxuiPopupMenuItem>  GetProfileItems        () const;
+    std::wstring                    GetActiveProfileLabel  () const;
+    bool                            IsProfilePickerOffered () const { return m_isProfileOffered; }
+
+    // Fills the toolbar: eleven entries in strip order, the LED as the printer
+    // entry's decoration and
+    // the flyout as the volume entry's panel, with the pickers' rows
+    // installed as drop-down lists.
     void  BuildToolbar (DxuiToolbar       & toolbar,
                         PrinterStatusLed  & led,
-                        InputClusterEntry & cluster,
                         VolumeFlyout      & volume);
 
 private:
-    DxuiCommand *  FindMutable (int commandId);
-    void           RebuildActionTips ();
+    std::shared_ptr<DxuiCommand>  FindMutable          (int commandId);
+    void                          RebuildActionTips    ();
+    std::string                   GetActiveProfileName () const;
 
 
     DispatchFn  m_dispatch;
@@ -143,11 +197,21 @@ private:
     CheckFn     m_isEnabled;
     LabelFn     m_labelQuery;
 
-    // Held by pointer from every surface's item list, so the addresses
-    // must not move: built once, in the constructor.
-    std::vector<std::unique_ptr<DxuiCommand>>  m_commands;
-    std::vector<std::unique_ptr<DxuiCommand>>  m_themeRows;
-    std::vector<std::unique_ptr<DxuiCommand>>  m_colorRows;
+    // Shared with every surface's item list, so a rebuilt list's previous
+    // rows live on for as long as a menu on screen still holds them.
+    std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_themeRows;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_colorRows;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_paddleSourceRows;
+
+    std::vector<InputModeRules::PaddleSource>  m_paddleSources;
+    PaddleSourcePickedFn                       m_onPaddleSourcePicked;
+
+    std::vector<std::shared_ptr<DxuiCommand>>  m_profileRows;
+    std::vector<std::string>                   m_profileNames;
+    std::string                                m_activeProfile;
+    bool                                       m_isProfileOffered = false;
+    ProfilePickedFn                            m_onProfilePicked;
 
     std::wstring  m_machineName;
     int           m_themeIndex = -1;

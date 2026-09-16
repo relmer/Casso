@@ -932,6 +932,17 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
             break;
 
+        case WM_MOUSEWHEEL:
+            // The popup holds capture, so the wheel arrives here wherever
+            // the pointer is while it is open.
+            if (m_open && m_params.onWheel)
+            {
+                m_params.onWheel (GET_WHEEL_DELTA_WPARAM (wp));
+                claimed = true;
+            }
+
+            break;
+
         case WM_LBUTTONDOWN:
         case WM_RBUTTONDOWN:
         case WM_MBUTTONDOWN:
@@ -955,8 +966,20 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                          (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
                           m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
                 {
+                    //  Both read BEFORE Close, which drops the content and
+                    //  may hand this host back to the pool.
+                    std::function<void (POINT)>  onOutside = m_params.onClickOutside;
+                    POINT                        screen    = pt;
+
+                    ClientToScreen (m_hwnd, &screen);
+
                     Close (0);
                     claimed = true;
+
+                    if (onOutside)
+                    {
+                        onOutside (screen);
+                    }
                 }
             }
 
@@ -1622,8 +1645,13 @@ void DxuiPopupHost::ApplyReveal (float t)
         return;
     }
 
-    fullW  = m_windowRectScreenPx.right  - m_windowRectScreenPx.left;
-    fullH  = m_windowRectScreenPx.bottom - m_windowRectScreenPx.top;
+    // THE CARD IS WHAT GROWS, not the window. The window is the card plus the
+    // margin that holds the drawn shadow, so animating the window put the
+    // growing edge a margin away from the thing the menu hangs off: opening
+    // down it started above the menu bar rather than flush under it, and
+    // opening up it started below the anchor.
+    fullW  = m_windowRectScreenPx.right    - m_windowRectScreenPx.left;
+    fullH  = m_placedRectScreenPx.bottom   - m_placedRectScreenPx.top;
     shownH = (int) ((float) fullH * eased);
 
     if (shownH < 1)
@@ -1631,19 +1659,31 @@ void DxuiPopupHost::ApplyReveal (float t)
         shownH = 1;
     }
 
+    // A SLIDE, NOT A REVEAL. The content keeps its far edge against the
+    // growing edge of the window and travels, so the last row appears first
+    // and slides down ahead of the rows above it. Pinning the content to the
+    // window instead draws the menu on one row at a time from the top, which
+    // is a different animation and not the one Windows menus use.
+    // THE WINDOW IS THE CLIP, so its growing edge has to be the card's edge,
+    // not the shadow margin outside it. Leaving the margin on that edge let
+    // the sliding content paint a margin's worth ABOVE the menu title -- the
+    // animation appeared to start partway up the title rather than under it.
+    //
+    // The margin stays on the trailing edge, where the shadow is, and the
+    // content is lifted by it as well as by the height not yet shown.
     if (m_revealUpward)
     {
-        top    = m_windowRectScreenPx.bottom - shownH;
+        top    = m_placedRectScreenPx.bottom - shownH - m_shadowMarginPx;
         offset = 0.0f;
     }
     else
     {
-        top    = m_windowRectScreenPx.top;
-        offset = -(float) (fullH - shownH);
+        top    = m_placedRectScreenPx.top;
+        offset = -(float) (m_shadowMarginPx + fullH - shownH);
     }
 
     SetWindowPos (m_hwnd, nullptr,
-                  m_windowRectScreenPx.left, top, fullW, shownH,
+                  m_windowRectScreenPx.left, top, fullW, shownH + m_shadowMarginPx,
                   SWP_NOZORDER | SWP_NOACTIVATE);
 
     if (m_compVisual)

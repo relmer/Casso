@@ -5,6 +5,7 @@
 #include "SettingsPanelState.h"
 
 #include "Config/GlobalUserPrefs.h"
+#include "Controllers/ControllerProfileStore.h"
 
 
 
@@ -13,6 +14,8 @@ class IFileSystem;
 class EmulatorShell;
 class SettingsMachineCatalog;
 class SettingsPreviewController;
+class ControllersPageState;
+class ControllerInputService;
 
 
 
@@ -70,6 +73,17 @@ public:
     void  CommitApply         ();
     void  Cancel              (SettingsPreviewController & preview);
 
+    // The Controllers page's state, committed on OK -- into the global prefs
+    // and into the running controller service -- and reverted on Cancel.
+    void  BindControllers     (ControllersPageState * state, ControllerInputService * service);
+
+    // One controller model's settings saved ahead of OK, from the Controllers
+    // page's profile-switch prompt: into the running service and the prefs
+    // file. The file is written with every other page's pending edits left
+    // out, so a later Cancel still leaves them unsaved.
+    HRESULT  CommitControllerSettings (const std::map<std::string, ControllerModelSettings> & models,
+                                       const std::map<std::string, ControllerCalibration>   & calibrations);
+
 
 private:
     SettingsPanelState     * m_state    = nullptr;
@@ -112,4 +126,7 @@ private:
     float        m_baselinePrinterAudioVolume      = 0.0f;
     bool         m_baselinePrinterAudioPanOverride = false;
     float        m_baselinePrinterAudioPan         = 0.0f;
+
+    ControllersPageState    * m_controllersState  = nullptr;
+    ControllerInputService  * m_controllerService = nullptr;
 };

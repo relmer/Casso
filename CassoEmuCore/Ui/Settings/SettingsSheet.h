@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+#include "Ui/Settings/ControllersPage.h"
+#include "Ui/Settings/ControllersPageState.h"
+
 #include "Window/DxuiPropertySheet.h"
 
 #include "SettingsPanelState.h"
@@ -72,6 +75,12 @@ public:
                           EmulatorShell   & emuShell,
                           IFileSystem     & fs);
 
+    //
+    //  Brings the Controllers tab to the front, for Controller settings...
+    //  on the menu and the paddle picker.
+    //
+    void    ShowControllersPage ();
+
 protected:
     void     OnBuildPages () override;
 
@@ -97,6 +106,10 @@ protected:
     bool     OnOverlayChar     (wchar_t ch) override;
     bool     OnOverlayKey      (WPARAM vk) override;
 
+    //  While an overlay is up the cursor comes from it, not from the page
+    //  beneath, so the text fields in the dialogs show the I-beam.
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+
 private:
     //  Set OK to "OK (reboot)" when committing would power-cycle the machine
     //  (staged machine change or a reset-requiring hardware edit), else "OK".
@@ -104,6 +117,13 @@ private:
 
     //  Show/hide + fill the amber restart-notice caption (list #3 / FR-131).
     void  UpdateRestartNotice ();
+
+    //  The prompt over the sheet while the Controllers page waits for a
+    //  control to be pressed.
+    void  PaintCapturePrompt  (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+
+    //  A profile dialog from the Controllers page is open over the sheet.
+    bool  IsProfileDialogOpen () const;
 
     // Drive-sound audition for the Machine page's play (>) buttons. Ported
     // verbatim from SettingsPanel: push the current volumes / pan / mechanism
@@ -203,12 +223,17 @@ private:
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only. m_hardwarePage hosts the merged "Machine" tab (machine
     // selector + CPU speed + hardware spec + device tree, GH #84).
-    HardwarePage    * m_hardwarePage = nullptr;
-    DiskPage        * m_diskPage     = nullptr;
-    ThemePage       * m_themePage    = nullptr;
-    DisplayPage     * m_displayPage  = nullptr;
-    PrintingPage    * m_printingPage = nullptr;
-    ScreenshotsPage * m_shotsPage    = nullptr;
+    HardwarePage     * m_hardwarePage    = nullptr;
+    DiskPage         * m_diskPage        = nullptr;
+    ThemePage        * m_themePage       = nullptr;
+    DisplayPage      * m_displayPage     = nullptr;
+    PrintingPage     * m_printingPage    = nullptr;
+    ScreenshotsPage  * m_shotsPage       = nullptr;
+    ControllersPage  * m_controllersPage = nullptr;
+
+    // What the Controllers page edits. Held by the sheet, beside the other
+    // page state, so the apply controller can commit or revert it.
+    ControllersPageState      m_controllersState;
 
     // Registration index of the Disk page, so OnDialogTick can show / hide its
     // tab as the staged Disk ][ controller is toggled (#84 Phase B). -1 until

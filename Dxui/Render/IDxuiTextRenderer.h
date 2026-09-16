@@ -154,6 +154,33 @@ public:
                                     float    heightDip,
                                     uint32_t argbColor)                         = 0;
 
+    // Anti-aliased shapes, drawn in submission order with the text like
+    // FillRect. The painter's circles are built from horizontal slices, which
+    // shows as a staircase on anything larger than a dot. Defaulted to
+    // no-ops so a mock renderer compiles unchanged.
+    virtual HRESULT  FillEllipse   (float    cxDip,
+                                    float    cyDip,
+                                    float    radiusXDip,
+                                    float    radiusYDip,
+                                    uint32_t argbColor)
+    { (void) cxDip; (void) cyDip; (void) radiusXDip; (void) radiusYDip; (void) argbColor; return S_OK; }
+
+    virtual HRESULT  DrawEllipse   (float    cxDip,
+                                    float    cyDip,
+                                    float    radiusXDip,
+                                    float    radiusYDip,
+                                    float    thicknessDip,
+                                    uint32_t argbColor)
+    { (void) cxDip; (void) cyDip; (void) radiusXDip; (void) radiusYDip; (void) thicknessDip; (void) argbColor; return S_OK; }
+
+    virtual HRESULT  DrawLine      (float    x0Dip,
+                                    float    y0Dip,
+                                    float    x1Dip,
+                                    float    y1Dip,
+                                    float    thicknessDip,
+                                    uint32_t argbColor)
+    { (void) x0Dip; (void) y0Dip; (void) x1Dip; (void) y1Dip; (void) thicknessDip; (void) argbColor; return S_OK; }
+
     virtual HRESULT  MeasureString (const wchar_t  * text,
                                     float            fontSizeDip,
                                     const wchar_t  * fontFamily,

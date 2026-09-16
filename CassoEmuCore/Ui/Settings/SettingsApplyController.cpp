@@ -1,5 +1,9 @@
 #include "Pch.h"
 
+#include "Controllers/ControllerInputService.h"
+#include "Controllers/ControllerProfileStore.h"
+#include "Ui/Settings/ControllersPageState.h"
+
 #include "SettingsApplyController.h"
 
 #include "SettingsApplyAdapter.h"
@@ -35,6 +39,74 @@ void SettingsApplyController::Bind (
     m_emuShell             = emuShell;
     m_onChromeThemeChanged = std::move (onChromeThemeChanged);
     m_catalog              = catalog;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BindControllers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyController::BindControllers (ControllersPageState * state, ControllerInputService * service)
+{
+    m_controllersState  = state;
+    m_controllerService = service;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommitControllerSettings
+//
+//  CRT and printing edits are applied to the prefs as they are made, so the
+//  file is written from a copy holding their baselines instead. The live
+//  prefs take the controller settings too, so OK's save keeps them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsApplyController::CommitControllerSettings (const std::map<std::string, ControllerModelSettings> & models,
+                                                           const std::map<std::string, ControllerCalibration>   & calibrations)
+{
+    HRESULT                 hr = S_OK;
+    ControllerProfileStore  store;
+    GlobalUserPrefs         saved;
+
+
+
+    CBRA (m_prefs != nullptr);
+    CBRA (m_fs != nullptr);
+
+    store.models         = models;
+    store.calibrations   = calibrations;
+    m_prefs->controllers = store.ToJson (m_prefs->controllers);
+
+    if (m_controllerService != nullptr)
+    {
+        m_controllerService->SetModelSettings (store.models);
+    }
+
+    saved                         = *m_prefs;
+    saved.crtOverrides            = m_baselineCrt;
+    saved.printOutputDpi          = m_baselinePrintOutputDpi;
+    saved.printDotStyle           = m_baselinePrintDotStyle;
+    saved.printerAudioEnabled     = m_baselinePrinterAudioEnabled;
+    saved.printerAudioVolume      = m_baselinePrinterAudioVolume;
+    saved.printerAudioPanOverride = m_baselinePrinterAudioPanOverride;
+    saved.printerAudioPan         = m_baselinePrinterAudioPan;
+
+    hr = (m_ucs != nullptr) ? m_ucs->SaveAll (saved, *m_fs)
+                            : saved.Save (m_emuShell->GetAssetBaseDir(), *m_fs);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -373,6 +445,51 @@ void SettingsApplyController::CommitApply()
         }
     }
 
+    // Controller settings from the Controllers page: into the prefs file, then
+    // into the running service so the controller in use plays with them now.
+    // The page's baseline advances only once the save lands, as the other
+    // baselines do.
+    //
+    // The profile chosen on the page becomes the machine's active profile,
+    // after the settings that hold it so a new profile resolves at once, and
+    // is written to the machine's prefs beside the controller selection.
+    if (m_controllersState != nullptr && m_controllersState->IsDirty() && m_prefs != nullptr)
+    {
+        ControllerProfileStore  store;
+        HRESULT                 hrSave        = S_OK;
+        bool                    profileChange = m_controllersState->HasActiveProfileChanged();
+
+        store.models         = m_controllersState->GetModels();
+        store.calibrations   = m_controllersState->GetCalibrations();
+        m_prefs->controllers = store.ToJson (m_prefs->controllers);
+
+        if (m_controllerService != nullptr)
+        {
+            m_controllerService->SetModelSettings (store.models);
+            m_controllerService->SetCalibrations  (store.calibrations);
+
+            if (profileChange)
+            {
+                m_controllerService->SetActiveProfile (m_controllersState->GetActiveProfileName());
+                m_emuShell->PersistInputModeForMachine();
+            }
+        }
+
+        hrSave = (m_ucs != nullptr) ? m_ucs->SaveAll (*m_prefs, *m_fs)
+                                    : m_prefs->Save (m_emuShell->GetAssetBaseDir(), *m_fs);
+
+        if (FAILED (hrSave))
+        {
+            savesRefused = true;
+        }
+        else
+        {
+            m_controllersState->MarkCommitted();
+        }
+
+        IGNORE_RETURN_VALUE (hrSave, S_OK);
+    }
+
     // Every save on this path is fire-and-forget by design, so a refusal would
     // otherwise close the sheet looking like it worked. The file is intact and
     // the startup message already explained why, but that was minutes ago and
@@ -460,6 +577,13 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
 {
     m_pendingMachine.clear();
     m_pendingTheme.clear();
+
+    // Controller edits never reached the service, so undoing them is only
+    // putting the page's copies back.
+    if (m_controllersState != nullptr)
+    {
+        m_controllersState->Revert();
+    }
 
     // Roll back live-preview edits across every monitor block. The
     // shader picks the restored values up on the next frame via the

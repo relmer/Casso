@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Controllers/ControllerSelectionPolicy.h"
 #include "Core/JsonValue.h"
 #include "Ui/UiCommandTypes.h"
 
@@ -28,20 +29,60 @@
 class MachineInputPrefs
 {
 public:
-    static constexpr const char *  kpszArrowsKey  = "arrowsToJoystick";
-    static constexpr const char *  kpszPointerKey = "pointerMapping";
+    static constexpr const char *  kpszArrowsKey     = "arrowsToJoystick";
+    static constexpr const char *  kpszPointerKey    = "pointerMapping";
+    static constexpr const char *  kpszControllerKey = "controller";
+    static constexpr const char *  kpszProfileKey    = "controllerProfile";
+    static constexpr const char *  kpszMultiplayerKey = "multiplayer";
 
+    // outArrows always comes back false: arrows-to-joystick is not resumed,
+    // only turned on by hand in the session that plays. It takes X and Z for
+    // the fire buttons, and a machine that starts in it is one where two
+    // letter keys quietly do not type. The pointer axis has refused to resume
+    // Paddle for the same reason.
     static void  ReadFromUiPrefs (const JsonValue  * uiPrefs,
-                                  bool               seedArrows,
                                   InputMappingMode   seedPointer,
                                   bool             & outArrows,
                                   InputMappingMode & outPointer);
 
+    // Only what will be read back: arrows-to-joystick is not written at all,
+    // and a pointer mode that holds the pointer is written as Off, so the
+    // file never describes a machine that will not come up that way.
     static std::vector<std::pair<std::string, JsonValue>>  BuildUiPrefEntries (
-        bool              arrows,
         InputMappingMode  pointer);
+
+    // The chosen controller and its active profile. Separate from the pair
+    // above because they are read and written on their own: a controller is
+    // chosen on the controller thread's schedule, not when the user touches
+    // the arrows or the pointer.
+    //
+    // An empty token means no controller is chosen, which is not the same as
+    // a controller that is merely unplugged -- that one keeps its token.
+    static std::string  ReadControllerToken (const JsonValue * uiPrefs);
+    static std::string  ReadProfileName     (const JsonValue * uiPrefs);
+
+    static std::vector<std::pair<std::string, JsonValue>>  BuildControllerEntries (
+        const std::string &  controllerToken,
+        const std::string &  profileName);
+
+    // The machine's two-player setup. An absent block, or one that is not
+    // enabled, means single-source mode: the machine behaves exactly as it did
+    // before the mode existed. A slot whose controller cannot be read is left
+    // empty, and the setup is normalized, so an overlapping or repeated pair
+    // in a hand-edited file is refused rather than played (FR-036).
+    static MultiplayerSetup  ReadMultiplayer (const JsonValue * uiPrefs);
+
+    // Always written, so turning the mode off replaces the saved block rather
+    // than leaving it behind. Paddles this machine lacks are written as they
+    // stand, so a //e's setup survives a trip through a //c (FR-035).
+    static std::pair<std::string, JsonValue>  BuildMultiplayerEntry (
+        const MultiplayerSetup &  setup);
 
     static const char *      ModeToToken   (InputMappingMode    mode);
     static InputMappingMode  ModeFromToken (const std::string & token,
                                             InputMappingMode    fallback);
+
+    static const char *      TargetToToken   (PlayerAxisTarget    target);
+    static PlayerAxisTarget  TargetFromToken (const std::string & token,
+                                              PlayerAxisTarget    fallback);
 };

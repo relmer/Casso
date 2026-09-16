@@ -73,42 +73,42 @@ public:
     //
     struct Fixture
     {
-        DxuiCommand  alpha;
-        DxuiCommand  beta;
-        DxuiCommand  gamma;
-        DxuiCommand  sub;
-        DxuiCommand  childA;
-        DxuiCommand  childB;
-        int          dispatched     = 0;
-        int          lastDispatched = -1;
+        std::shared_ptr<DxuiCommand>  alpha          = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  beta           = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  gamma          = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  sub            = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  childA         = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  childB         = std::make_shared<DxuiCommand>();
+        int                           dispatched     = 0;
+        int                           lastDispatched = -1;
 
         Fixture()
         {
-            alpha.id    = 1;
-            alpha.label = L"A very long menu label here";      // 27 glyphs
-            alpha.dispatch = [this] () { dispatched++; lastDispatched = 1; };
+            alpha->id    = 1;
+            alpha->label = L"A very long menu label here";      // 27 glyphs
+            alpha->dispatch = [this] () { dispatched++; lastDispatched = 1; };
 
-            beta.id    = 2;
-            beta.label = L"Beta";
-            beta.isEnabled = [] () { return false; };
-            beta.dispatch  = [this] () { dispatched++; lastDispatched = 2; };
+            beta->id    = 2;
+            beta->label = L"Beta";
+            beta->isEnabled = [] () { return false; };
+            beta->dispatch  = [this] () { dispatched++; lastDispatched = 2; };
 
-            gamma.id    = 3;
-            gamma.label = L"Gamma";
-            gamma.dispatch = [this] () { dispatched++; lastDispatched = 3; };
+            gamma->id    = 3;
+            gamma->label = L"Gamma";
+            gamma->dispatch = [this] () { dispatched++; lastDispatched = 3; };
 
-            sub.id    = 4;
-            sub.label = L"More";
-            sub.dispatch = [] () {};
+            sub->id    = 4;
+            sub->label = L"More";
+            sub->dispatch = [] () {};
 
-            childA.id    = 5;
-            childA.label = L"Child A";
-            childA.isEnabled = [] () { return false; };
-            childA.dispatch  = [this] () { dispatched++; lastDispatched = 5; };
+            childA->id    = 5;
+            childA->label = L"Child A";
+            childA->isEnabled = [] () { return false; };
+            childA->dispatch  = [this] () { dispatched++; lastDispatched = 5; };
 
-            childB.id    = 6;
-            childB.label = L"Child B";
-            childB.dispatch = [this] () { dispatched++; lastDispatched = 6; };
+            childB->id    = 6;
+            childB->label = L"Child B";
+            childB->dispatch = [this] () { dispatched++; lastDispatched = 6; };
         }
 
         //  alpha, ---, beta(disabled), gamma
@@ -116,10 +116,10 @@ public:
         {
             std::vector<DxuiPopupMenuItem>  rows;
 
-            rows.push_back (DxuiPopupMenuItem::ForCommand (&alpha));
+            rows.push_back (DxuiPopupMenuItem::ForCommand (alpha));
             rows.push_back (DxuiPopupMenuItem::ForSeparator());
-            rows.push_back (DxuiPopupMenuItem::ForCommand (&beta));
-            rows.push_back (DxuiPopupMenuItem::ForCommand (&gamma));
+            rows.push_back (DxuiPopupMenuItem::ForCommand (beta));
+            rows.push_back (DxuiPopupMenuItem::ForCommand (gamma));
             return rows;
         }
 
@@ -129,11 +129,11 @@ public:
             std::vector<DxuiPopupMenuItem>  rows;
             std::vector<DxuiPopupMenuItem>  kids;
 
-            kids.push_back (DxuiPopupMenuItem::ForCommand (&childA));
-            kids.push_back (DxuiPopupMenuItem::ForCommand (&childB));
+            kids.push_back (DxuiPopupMenuItem::ForCommand (childA));
+            kids.push_back (DxuiPopupMenuItem::ForCommand (childB));
 
-            rows.push_back (DxuiPopupMenuItem::ForCommand (&alpha));
-            rows.push_back (DxuiPopupMenuItem::ForSubmenu (&sub, std::move (kids)));
+            rows.push_back (DxuiPopupMenuItem::ForCommand (alpha));
+            rows.push_back (DxuiPopupMenuItem::ForSubmenu (sub, std::move (kids)));
             return rows;
         }
     };
@@ -211,7 +211,7 @@ public:
 
         // An accelerator anywhere opens the accelerator column: the gap plus
         // the widest accelerator, on top of the unchanged label column.
-        f.alpha.accelerator = L"Ctrl+X";                        // 6 glyphs
+        f.alpha->accelerator = L"Ctrl+X";                        // 6 glyphs
         menu.Hide();
         now += 1000;
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
@@ -220,7 +220,7 @@ public:
 
         // A checkable row ANYWHERE opens the check gutter for the list, and
         // a list where nothing can check never pays for one.
-        f.gamma.isChecked = [] () { return true; };
+        f.gamma->isChecked = [] () { return true; };
         menu.Hide();
         now += 1000;
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
@@ -236,23 +236,23 @@ public:
     //
     TEST_METHOD (Width_LongLabelWithoutAccelerator_ClearsTheAcceleratorColumn)
     {
-        DxuiCommand                     shortWithAccel;
-        DxuiCommand                     longNoAccel;
+        std::shared_ptr<DxuiCommand>    shortWithAccel = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>    longNoAccel    = std::make_shared<DxuiCommand>();
         DxuiPopupMenu                   menu;
         MockDxuiTextRenderer            text;
         std::vector<DxuiPopupMenuItem>  rows;
-        int                             width = 0;
+        int                             width          = 0;
 
 
-        shortWithAccel.label       = L"Eject drive 1";                                    // 13 glyphs
-        shortWithAccel.accelerator = L"Ctrl+Shift+1";                                     // 12 glyphs
-        shortWithAccel.dispatch    = [] () {};
+        shortWithAccel->label       = L"Eject drive 1";                                    // 13 glyphs
+        shortWithAccel->accelerator = L"Ctrl+Shift+1";                                     // 12 glyphs
+        shortWithAccel->dispatch    = [] () {};
 
-        longNoAccel.label    = L"Set \"JoystickTest.dsk\" internal write-protect flag";    // 50 glyphs
-        longNoAccel.dispatch = [] () {};
+        longNoAccel->label    = L"Set \"JoystickTest.dsk\" internal write-protect flag";    // 50 glyphs
+        longNoAccel->dispatch = [] () {};
 
-        rows.push_back (DxuiPopupMenuItem::ForCommand (&shortWithAccel));
-        rows.push_back (DxuiPopupMenuItem::ForCommand (&longNoAccel));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (shortWithAccel));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (longNoAccel));
 
         menu.ShowAt (0, 0, std::move (rows), text, MakeHost (1600, 600));
         width = menu.GetRect().right - menu.GetRect().left;
@@ -272,33 +272,33 @@ public:
     //
     TEST_METHOD (Paint_AcceleratorsShareALeftEdge_AndLabelsStopShortOfThem)
     {
-        DxuiCommand                     shortAccel;
-        DxuiCommand                     longAccel;
-        DxuiCommand                     longLabel;
+        std::shared_ptr<DxuiCommand>    shortAccel = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>    longAccel  = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>    longLabel  = std::make_shared<DxuiCommand>();
         DxuiPopupMenu                   menu;
         MockDxuiPainter                 painter;
         MockDxuiTextRenderer            text;
         MockDxuiTheme                   theme;
         std::vector<DxuiPopupMenuItem>  rows;
-        float                           accelX    = -1.0f;
-        int                             accels    = 0;
-        float                           labelEdge = 0.0f;
+        float                           accelX     = -1.0f;
+        int                             accels     = 0;
+        float                           labelEdge  = 0.0f;
 
 
-        shortAccel.label       = L"Insert drive 1...";
-        shortAccel.accelerator = L"Ctrl+1";
-        shortAccel.dispatch    = [] () {};
+        shortAccel->label       = L"Insert drive 1...";
+        shortAccel->accelerator = L"Ctrl+1";
+        shortAccel->dispatch    = [] () {};
 
-        longAccel.label       = L"Eject drive 1";
-        longAccel.accelerator = L"Ctrl+Shift+1";
-        longAccel.dispatch    = [] () {};
+        longAccel->label       = L"Eject drive 1";
+        longAccel->accelerator = L"Ctrl+Shift+1";
+        longAccel->dispatch    = [] () {};
 
-        longLabel.label    = L"Set \"JoystickTest.dsk\" internal write-protect flag";
-        longLabel.dispatch = [] () {};
+        longLabel->label    = L"Set \"JoystickTest.dsk\" internal write-protect flag";
+        longLabel->dispatch = [] () {};
 
-        rows.push_back (DxuiPopupMenuItem::ForCommand (&shortAccel));
-        rows.push_back (DxuiPopupMenuItem::ForCommand (&longAccel));
-        rows.push_back (DxuiPopupMenuItem::ForCommand (&longLabel));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (shortAccel));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (longAccel));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (longLabel));
 
         menu.SetTheme (&theme);
         menu.ShowAt (0, 0, std::move (rows), text, MakeHost (1600, 600));
@@ -340,15 +340,15 @@ public:
 
     TEST_METHOD (Width_NeverBelowFloor)
     {
-        DxuiCommand                     tiny;
+        std::shared_ptr<DxuiCommand>    tiny = std::make_shared<DxuiCommand>();
         DxuiPopupMenu                   menu;
         MockDxuiTextRenderer            text;
         std::vector<DxuiPopupMenuItem>  rows;
 
 
-        tiny.label    = L"Hi";
-        tiny.dispatch = [] () {};
-        rows.push_back (DxuiPopupMenuItem::ForCommand (&tiny));
+        tiny->label    = L"Hi";
+        tiny->dispatch = [] () {};
+        rows.push_back (DxuiPopupMenuItem::ForCommand (tiny));
 
         menu.ShowAt (0, 0, std::move (rows), text, MakeHost (800, 600));
 
@@ -703,8 +703,8 @@ public:
         bool  sawDivider = false;
 
 
-        f.gamma.isChecked = [&] () { return checked; };
-        f.gamma.labelText = [&] () { return label; };
+        f.gamma->isChecked = [&] () { return checked; };
+        f.gamma->labelText = [&] () { return label; };
 
         menu.SetTheme (&theme);
         menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));

@@ -208,6 +208,23 @@ public:
     }
 
 
+    TEST_METHOD (TheIIcHasTwoGamePortAxes)
+    {
+        //  Four paddles or two joysticks on every model but the //c, whose
+        //  PDL2 and PDL3 lines carry its mouse.
+        for (const char * id : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })
+        {
+            Assert::AreEqual (4, MachineDefinitions::FindMachine (id)->GetGamePortAxisCount(),
+                L"a ][, ][+ or //e has four axes");
+            Assert::AreEqual (4, MachineDefinitions::Find (id)->gamePortAxisCount,
+                L"and its definition carries the same count");
+        }
+
+        Assert::AreEqual (2, MachineDefinitions::FindMachine ("Apple2c")->GetGamePortAxisCount(), L"the //c has two");
+        Assert::AreEqual (2, MachineDefinitions::Find ("Apple2c")->gamePortAxisCount);
+    }
+
+
 private:
 
     static void BootToPrompt (MachineHost & machine)

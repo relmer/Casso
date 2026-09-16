@@ -5,6 +5,9 @@
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
+#include "Controllers/ControllerProfileStore.h"
+#include "Controllers/ControllerTokens.h"
+#include "Core/JsonWriter.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -162,6 +165,45 @@ void EmulatorShell::RestoreColorTextPref()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SaveControllerCalibrations
+//
+//  Writes every controller model's settings and every unit's calibration
+//  into the global prefs, and saves them only when that changed what they
+//  hold: an automatic calibration that learned nothing new costs no write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveControllerCalibrations()
+{
+    ControllerProfileStore  store;
+    JsonValue               controllers;
+
+
+
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    store.models       = m_controllerService->GetModelSettings();
+    store.calibrations = m_controllerService->GetCalibrations();
+    controllers        = store.ToJson (m_globalPrefs.controllers);
+
+    if (JsonWriter::Write (controllers) == JsonWriter::Write (m_globalPrefs.controllers))
+    {
+        return;
+    }
+
+    m_globalPrefs.controllers = std::move (controllers);
+    SaveGlobalPrefs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AdoptInputModeForMachine
 //
 //  Seeds the live input mapping from a machine's $cassoUiPrefs block. A
@@ -177,13 +219,95 @@ void EmulatorShell::RestoreColorTextPref()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
+void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs, const std::string & machineId)
 {
     MachineInputPrefs::ReadFromUiPrefs (uiPrefs,
-                                        m_globalPrefs.arrowsToJoystick,
                                         m_globalPrefs.pointerMapping,
                                         m_arrowsJoystick,
                                         m_pointerMode);
+
+    AdoptControllerForMachine (uiPrefs, machineId);
+
+    // The mixer is thread-safe and writes on the UI thread, so handing the
+    // axes over from here is safe on the CPU thread too.
+    SyncGamePortAxisOwner();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdoptControllerForMachine
+//
+//  Hands the machine's remembered controller to the service, so the policy
+//  starts from the user's choice rather than choosing for them.
+//
+//  An UNREADABLE OR UNKNOWN TOKEN IS TREATED AS NO CHOICE, not as an error.
+//  The machine still runs, and the policy then picks up whatever is attached,
+//  which is what a user with a broken prefs file wants to happen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const std::string & machineId)
+{
+    HRESULT                           hr         = S_OK;
+    std::string                       token;
+    std::optional<ControllerUnitKey>  selection;
+    ControllerUnitKey                 unit;
+    const MachineDefinition         * definition = MachineDefinitions::Find (machineId);
+
+
+
+    if (m_controllerService == nullptr)
+    {
+        return;
+    }
+
+    // How many axes this machine has, before anything is mapped onto them: a
+    // player slot for paddles it lacks is kept and plays nothing (FR-035).
+    //
+    // From `machineId`, NOT from m_machine. On the switch path this runs
+    // before the new config is adopted, so m_machine is still the machine
+    // being LEFT: reading it left the count a machine behind, which gave a
+    // //c player two the //e's PDL2/PDL3 -- no stick, but a live button --
+    // and cost an //e player two the axes the machine does have.
+    if (definition != nullptr)
+    {
+        m_controllerService->SetAxisCount (static_cast<size_t> (definition->gamePortAxisCount));
+    }
+
+    m_controllerService->SetMultiplayer (MachineInputPrefs::ReadMultiplayer (uiPrefs));
+
+    token = MachineInputPrefs::ReadControllerToken (uiPrefs);
+
+    if (!token.empty())
+    {
+        hr = ControllerTokens::UnitFromToken (token, unit);
+
+        if (SUCCEEDED (hr))
+        {
+            selection = unit;
+        }
+    }
+
+    // The profile first, so the selection resolves its mapping only once.
+    m_controllerService->SetActiveProfile (MachineInputPrefs::ReadProfileName (uiPrefs));
+    m_controllerService->SetSelection (selection);
+
+    // A rate binding's paddle position belongs to the machine it was moved on.
+    m_controllerService->ResetPaddleRate();
+
+    // Whatever was saved, the policy decides against what is attached now: a
+    // machine with nothing saved selects an attached controller, and one
+    // whose saved controller is absent has it replaced (FR-011, FR-032).
+    m_controllerService->RequestRescan();
+
+    if (m_controllerThread != nullptr)
+    {
+        m_controllerThread->Wake();
+    }
 }
 
 
@@ -205,7 +329,10 @@ void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs)
 
 void EmulatorShell::PersistInputModeForMachine()
 {
-    HRESULT  hr = S_OK;
+    HRESULT                                         hr = S_OK;
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+    std::vector<std::pair<std::string, JsonValue>>  controllerEntries;
+    std::string                                     token;
 
 
 
@@ -214,9 +341,30 @@ void EmulatorShell::PersistInputModeForMachine()
         return;
     }
 
+    entries = MachineInputPrefs::BuildUiPrefEntries (m_pointerMode);
+
+    // The controller rides along in the same read-modify-write: choosing one
+    // turns the arrows and the paddle off, so every change that touches one
+    // of the three touches at least two of the keys.
+    if (m_controllerService != nullptr)
+    {
+        // The saved controller, not the one in use: a clear is never saved
+        // (FR-011).
+        ControllerInputService::Snapshot  snapshot = m_controllerService->GetSnapshot();
+
+        if (snapshot.saved.has_value())
+        {
+            token = ControllerTokens::UnitToToken (snapshot.saved.value());
+        }
+
+        // Empty for Default, which leaves the profile key absent.
+        controllerEntries = MachineInputPrefs::BuildControllerEntries (token, snapshot.activeProfile);
+        entries.insert (entries.end(), controllerEntries.begin(), controllerEntries.end());
+        entries.push_back (MachineInputPrefs::BuildMultiplayerEntry (snapshot.multiplayer));
+    }
+
     hr = DiskSettings::WriteSavedUiPrefs (
-             *m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(),
-             MachineInputPrefs::BuildUiPrefEntries (m_arrowsJoystick, m_pointerMode));
+             *m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(), entries);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
