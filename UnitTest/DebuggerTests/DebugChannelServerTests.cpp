@@ -72,6 +72,15 @@ namespace DebuggerTests
             ++pauses;
         }
 
+        //  Set by a test whose command starts a run that is still going when
+        //  the command returns, as the emulator's does.
+        bool running = false;
+
+        bool IsRunInProgress() const override
+        {
+            return running;
+        }
+
         ChannelHello GetInstance() const override
         {
             return instance;
@@ -305,6 +314,67 @@ namespace DebuggerTests
 
             Assert::IsTrue   (Parsed (transport.Written (client)[1]).HasInt ("causeId", causeId));
             Assert::AreEqual (9, causeId);
+        }
+
+
+
+        //  A command that started no run is not the cause of a stop that comes
+        //  later. The user pausing a machine after a client read its registers
+        //  must not be reported as that read's outcome.
+        TEST_METHOD (ACommandThatStartedNoRunCausesNoLaterStop)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client  = 0;
+            StopEvent              stop;
+            int                    ignored = 0;
+
+
+
+            server.Open();
+            client = transport.Connect();
+
+            transport.Send (client, Command ("r", 2));
+            server.Pump();
+
+            stop.reason = StopReason::Pause;
+            server.OnStopped (stop);
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2, transport.Written (client).size());
+            Assert::IsFalse  (Parsed (transport.Written (client)[1]).HasInt ("causeId", ignored),
+                              L"the read started nothing, so it caused nothing");
+        }
+
+
+
+        //  A run a command started that is still going when the command returns
+        //  -- the emulator's case -- is named by the stop that ends it later.
+        TEST_METHOD (ARunStillGoingNamesItsCommandWhenItStops)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client  = 0;
+            StopEvent              stop;
+            int                    causeId = 0;
+
+
+
+            server.Open();
+            client = transport.Connect();
+
+            runner.running = true;
+            transport.Send (client, Command ("g", 5));
+            server.Pump();
+
+            stop.reason = StopReason::Breakpoint;
+            server.OnStopped (stop);
+            server.Pump();
+
+            Assert::IsTrue   (Parsed (transport.Written (client)[1]).HasInt ("causeId", causeId));
+            Assert::AreEqual (5, causeId);
         }
 
 

@@ -1,0 +1,174 @@
+#include "Pch.h"
+
+#include "Debugger/Channel/Win32NamedPipeApi.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::CreatePipeInstance
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HANDLE Win32NamedPipeApi::CreatePipeInstance (const std::wstring   & name,
+                                              DWORD                  openMode,
+                                              DWORD                  pipeMode,
+                                              DWORD                  maxInstances,
+                                              DWORD                  outBufferSize,
+                                              DWORD                  inBufferSize,
+                                              SECURITY_ATTRIBUTES  * security)
+{
+    return ::CreateNamedPipeW (name.c_str(), openMode, pipeMode, maxInstances, outBufferSize, inBufferSize, 0, security);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::ConnectPipe
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL Win32NamedPipeApi::ConnectPipe (HANDLE pipe, OVERLAPPED * overlapped)
+{
+    return ::ConnectNamedPipe (pipe, overlapped);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::ReadPipe
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL Win32NamedPipeApi::ReadPipe (HANDLE pipe, void * buffer, DWORD size, DWORD * read, OVERLAPPED * overlapped)
+{
+    return ::ReadFile (pipe, buffer, size, read, overlapped);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::WritePipe
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL Win32NamedPipeApi::WritePipe (HANDLE pipe, const void * data, DWORD size, DWORD * written, OVERLAPPED * overlapped)
+{
+    return ::WriteFile (pipe, data, size, written, overlapped);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::GetResult
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL Win32NamedPipeApi::GetResult (HANDLE pipe, OVERLAPPED * overlapped, DWORD * transferred, BOOL wait)
+{
+    return ::GetOverlappedResult (pipe, overlapped, transferred, wait);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::CancelIo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL Win32NamedPipeApi::CancelIo (HANDLE pipe, OVERLAPPED * overlapped)
+{
+    return ::CancelIoEx (pipe, overlapped);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::DisconnectPipe
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL Win32NamedPipeApi::DisconnectPipe (HANDLE pipe)
+{
+    return ::DisconnectNamedPipe (pipe);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::CloseHandleOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL Win32NamedPipeApi::CloseHandleOf (HANDLE handle)
+{
+    return ::CloseHandle (handle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::CreateEventHandle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HANDLE Win32NamedPipeApi::CreateEventHandle (BOOL manualReset, BOOL initialState)
+{
+    return ::CreateEventW (nullptr, manualReset, initialState, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::WaitForHandle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD Win32NamedPipeApi::WaitForHandle (HANDLE handle, DWORD milliseconds)
+{
+    return ::WaitForSingleObject (handle, milliseconds);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32NamedPipeApi::GetLastErrorCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD Win32NamedPipeApi::GetLastErrorCode()
+{
+    return ::GetLastError();
+}

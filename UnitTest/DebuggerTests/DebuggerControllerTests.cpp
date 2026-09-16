@@ -183,6 +183,10 @@ namespace DebuggerControllerTests
             Assert::AreEqual (std::string ("test"),    hello.title);
             Assert::AreEqual (std::string ("Apple2e"), hello.machine);
             Assert::IsTrue   (hello.isPaused);
+
+            //  The machine's drives are reported, empty ones as null.
+            Assert::IsFalse  (hello.disks.empty(), L"the drives are listed");
+            Assert::IsFalse  (hello.disks[0].has_value(), L"an empty drive reads as null");
         }
 
 

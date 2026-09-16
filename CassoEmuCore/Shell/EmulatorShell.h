@@ -81,6 +81,9 @@ class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
 class CpuManagerRunDriver;
+class DebuggerController;
+class Win32NamedPipeApi;
+class Win32PipeTransport;
 class DebugSession;
 struct MonitorSpec;
 
@@ -230,6 +233,10 @@ public:
     // before every write can be measured on its own. Undocumented; set from
     // --no-image-watch and read by the two places that install notification.
     void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
+
+    // --debugger: open the debug channel as the CPU thread starts. The machine
+    // is not paused, so a client can attach to a program already running.
+    void SetOpenDebuggerAtStart (bool open)   { m_openDebuggerAtStart = open; }
     bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
 
     // Text put in front of the window caption, so one of several open windows
@@ -458,6 +465,15 @@ private:
 
     void SetDebugSession        (DebugSession * session)          { m_debugSession = session; }
     void SetDebugCommandHandler (DebugCommandHandler handler)      { m_debugCommandHandler = std::move (handler); }
+
+
+    // Opens and closes the debug channel. CPU thread only. Opening an open
+    // channel does nothing; a channel that cannot open is reported and the
+    // emulator carries on without one.
+    HRESULT OpenDebugger    ();
+    void    CloseDebugger   ();
+    void    ServiceDebugger ();
+    bool    IsDebuggerOpen  () const { return m_debugger != nullptr; }
 
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.
@@ -1968,6 +1984,13 @@ private:
     CpuManagerRunDriver         * m_debugRunDriver = nullptr;
     DebugSession                * m_debugSession   = nullptr;
     DebugCommandHandler           m_debugCommandHandler;
+
+    // The debug channel, when `--debugger` opened it. Built and torn down on
+    // the CPU thread, and only ever touched there.
+    bool                                  m_openDebuggerAtStart = false;
+    std::unique_ptr<Win32NamedPipeApi>    m_pipeApi;
+    std::unique_ptr<Win32PipeTransport>   m_pipeTransport;
+    std::unique_ptr<DebuggerController>   m_debugger;
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};

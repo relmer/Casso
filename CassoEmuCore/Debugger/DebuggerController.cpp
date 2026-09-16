@@ -177,9 +177,17 @@ void DebuggerController::RequestPause()
 
 ChannelHello DebuggerController::GetInstance() const
 {
-    ChannelHello  hello;
+    ChannelHello      hello;
+    DebugMachineInfo  info = m_target.GetMachineInfo();
 
 
+
+    //  An empty drive is reported as null rather than as an empty name, so a
+    //  client can tell "no disk" from a disk it cannot name.
+    for (const std::string & disk : info.disks)
+    {
+        hello.disks.push_back (disk.empty() ? std::optional<std::string>() : std::optional<std::string> (disk));
+    }
 
     hello.protocol = ChannelProtocol::kProtocolVersion;
     hello.pid      = m_processId;

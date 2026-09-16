@@ -65,6 +65,7 @@ public:
                                 std::optional<CommandMode>   mode,
                                 std::optional<uint64_t>      budget) override;
     void          RequestPause () override;
+    bool          IsRunInProgress () const override { return m_driver.IsRunning(); }
     ChannelHello  GetInstance  () const override;
 
 private:

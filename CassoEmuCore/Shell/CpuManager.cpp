@@ -426,14 +426,24 @@ void CpuManager::ThreadProc()
     {
         {
             std::unique_lock<std::mutex>  lock (m_pauseMutex);
+            auto                          isWoken = [&]
+            {
+                return !m_paused.load  (std::memory_order_acquire) ||
+                       !m_running.load (std::memory_order_acquire) ||
+                       HasPendingCommands();
+            };
 
-            m_pauseCV.wait (lock,
-                [&]
-                {
-                    return !m_paused.load  (std::memory_order_acquire) ||
-                           !m_running.load (std::memory_order_acquire) ||
-                           HasPendingCommands();
-                });
+            //  A service to run means a paused machine cannot sleep until woken:
+            //  a debug client asking about it has no way to post a command, so
+            //  the loop comes round on a timer to let the service look.
+            if (m_onService)
+            {
+                m_pauseCV.wait_for (lock, std::chrono::milliseconds (kServiceIntervalMs), isWoken);
+            }
+            else
+            {
+                m_pauseCV.wait (lock, isWoken);
+            }
         }
 
         // Runs before the pause check below, so a paused machine still
@@ -441,6 +451,11 @@ void CpuManager::ThreadProc()
         // user immediate feedback (the drive door swings open the moment
         // eject is clicked) and the store has to catch up, paused or not.
         DrainCommandQueue();
+
+        if (m_onService)
+        {
+            m_onService();
+        }
 
         if (m_paused.load (std::memory_order_acquire) && m_running.load (std::memory_order_acquire))
         {

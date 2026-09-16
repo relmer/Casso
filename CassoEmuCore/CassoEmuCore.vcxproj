@@ -225,6 +225,9 @@
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
     <ClCompile Include="Debugger\Channel\ChannelProtocol.cpp" />
     <ClCompile Include="Debugger\Channel\DebugChannelServer.cpp" />
+    <ClCompile Include="Debugger\Channel\PipeSecurity.cpp" />
+    <ClCompile Include="Debugger\Channel\Win32NamedPipeApi.cpp" />
+    <ClCompile Include="Debugger\Channel\Win32PipeTransport.cpp" />
     <ClCompile Include="Debugger\Handlers\MonitorHandlers.cpp" />
     <ClCompile Include="Shell\FileRomSource.cpp" />
     <ClCompile Include="Cli\DebugBatchSink.cpp" />
@@ -520,6 +523,10 @@
     <ClInclude Include="Debugger\Channel\IPipeTransport.h" />
     <ClInclude Include="Debugger\Channel\IDebugCommandRunner.h" />
     <ClInclude Include="Debugger\Channel\DebugChannelServer.h" />
+    <ClInclude Include="Debugger\Channel\INamedPipeApi.h" />
+    <ClInclude Include="Debugger\Channel\PipeSecurity.h" />
+    <ClInclude Include="Debugger\Channel\Win32NamedPipeApi.h" />
+    <ClInclude Include="Debugger\Channel\Win32PipeTransport.h" />
     <ClInclude Include="Debugger\Handlers\MonitorHandlers.h" />
     <ClInclude Include="Shell\FileRomSource.h" />
     <ClInclude Include="Cli\DebugBatchSink.h" />

@@ -2,6 +2,9 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Debugger/DebuggerController.h"
+#include "Debugger/Channel/Win32NamedPipeApi.h"
+#include "Debugger/Channel/Win32PipeTransport.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"

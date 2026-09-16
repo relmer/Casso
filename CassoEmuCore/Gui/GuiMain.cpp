@@ -696,6 +696,7 @@ int WINAPI wWinMain (
     noImageWatch  = parsed.noImageWatch;
 
     shell->SetImageWatchDisabled (noImageWatch);
+    shell->SetOpenDebuggerAtStart (parsed.openDebugger);
 
     // --title: set before the window exists, so the first caption the shell
     // composes already carries the launcher's label.

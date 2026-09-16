@@ -51,6 +51,7 @@ public:
     using ThreadExitFn  = std::function<void()>;
     using CommandFn     = std::function<void(const EmulatorCommand &)>;
     using FrameFn       = std::function<void()>;
+    using ServiceFn     = std::function<void()>;
 
 
     CpuManager  ();
@@ -64,6 +65,14 @@ public:
     void    Stop  ();
 
     void    PostCommand    (WORD id, const std::string & payload = {});
+
+    //  Work the CPU thread does whether or not the machine is paused, on every
+    //  pass through its loop: the debug channel, which has to answer a client
+    //  that asks about a paused machine. Set before Start. While one is set, a
+    //  paused machine wakes every kServiceIntervalMs to run it.
+    static constexpr DWORD  kServiceIntervalMs = 20;
+
+    void    SetServiceFunction (ServiceFn service) { m_onService = std::move (service); }
 
     bool    IsRunning      () const noexcept;
     bool    IsPaused       () const noexcept;
@@ -101,5 +110,6 @@ private:
     ThreadEnterFn  m_onThreadEnter;
     CommandFn      m_onCommand;
     FrameFn        m_onFrame;
+    ServiceFn      m_onService;
     ThreadExitFn   m_onThreadExit;
 };

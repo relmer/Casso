@@ -41,6 +41,11 @@ public:
     //  Stops a running machine. The stop itself arrives as a notification.
     virtual void   RequestPause () = 0;
 
+    //  Whether a run a command started is still going. A stop that arrives
+    //  later names that command as its cause; once no run is going, a later
+    //  stop -- the user pausing a free-running machine -- names none.
+    virtual bool   IsRunInProgress () const = 0;
+
     //  What the handshake reports about this instance.
     virtual ChannelHello  GetInstance () const = 0;
 };

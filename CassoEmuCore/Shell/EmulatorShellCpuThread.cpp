@@ -4,6 +4,11 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "Debugger/CpuManagerRunDriver.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/DebuggerController.h"
+#include "Core/TextEncoding.h"
+#include "Debugger/Channel/PipeSecurity.h"
+#include "Debugger/Channel/Win32NamedPipeApi.h"
+#include "Debugger/Channel/Win32PipeTransport.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
@@ -201,6 +206,13 @@ void EmulatorShell::OnCpuThreadStart()
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     LoadAudioAssetsForDeviceRate();
+
+    // On the CPU thread, which is where the debugger lives from here on.
+    if (m_openDebuggerAtStart)
+    {
+        hr = OpenDebugger();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 
@@ -295,6 +307,7 @@ Error:
 
 void EmulatorShell::OnCpuThreadStop()
 {
+    CloseDebugger();
     m_wasapiAudio.Shutdown();
 }
 
@@ -722,6 +735,110 @@ void EmulatorShell::NotifyDebugMachineChanged (const std::string & machineName)
     if (m_debugSession != nullptr)
     {
         m_debugSession->OnMachineChanged (machineName);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenDebugger
+//
+//  The pipe, the controller, and the shell's debug pointers at them. Nothing
+//  is attached until the channel has actually opened, so a failure -- another
+//  process holding this instance's pipe name -- leaves the shell exactly as it
+//  was and the emulator running with no debugger.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::OpenDebugger()
+{
+    HRESULT                              hr         = S_OK;
+    std::vector<BYTE>                    userSid;
+    std::unique_ptr<Win32NamedPipeApi>   api;
+    std::unique_ptr<Win32PipeTransport>  transport;
+    std::unique_ptr<DebuggerController>  controller;
+    uint32_t                             processId  = GetCurrentProcessId();
+
+
+
+    BAIL_OUT_IF (m_debugger != nullptr, S_OK);
+
+    hr = PipeSecurityDescriptor::GetCurrentUserSid (userSid);
+    CHR (hr);
+
+    api        = std::make_unique<Win32NamedPipeApi>();
+    transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid));
+    controller = std::make_unique<DebuggerController> (m_machine, m_cpuManager, *transport,
+        [this] (ChannelHello & hello)
+        {
+            hello.title   = TextEncoding::WideToNarrow (m_titlePrefix);
+            hello.machine = m_machine.GetConfig().name;
+        },
+        processId);
+
+    hr = controller->Open();
+    CHR (hr);
+
+    m_pipeApi       = std::move (api);
+    m_pipeTransport = std::move (transport);
+    m_debugger      = std::move (controller);
+
+    SetDebugRunDriver (&m_debugger->GetRunDriver());
+    SetDebugSession   (&m_debugger->GetSession());
+
+Error:
+    if (FAILED (hr))
+    {
+        DEBUGMSG (L"The debug channel could not be opened: 0x%08X\n", hr);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CloseDebugger
+//
+//  Detaches before destroying, so the slice loop and the notifications never
+//  reach a controller that is going away.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::CloseDebugger()
+{
+    SetDebugRunDriver (nullptr);
+    SetDebugSession   (nullptr);
+
+    m_debugger.reset();
+    m_pipeTransport.reset();
+    m_pipeApi.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServiceDebugger
+//
+//  The CPU manager's service tick: once per pass through its loop, paused or
+//  running, so a client is answered either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ServiceDebugger()
+{
+    if (m_debugger != nullptr)
+    {
+        m_debugger->Pump();
     }
 }
 
