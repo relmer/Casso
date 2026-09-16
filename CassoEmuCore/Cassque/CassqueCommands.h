@@ -270,6 +270,8 @@ private:
     //  defines their keystrokes, and the focused control handles them. The
     //  rows still include the accelerator text for the menu.
 
+    void  ApplyToolbarRows (std::span<const ToolbarRow> rows);
+
     Handlers                                   m_handlers;
     std::vector<std::unique_ptr<DxuiCommand>>  m_commands;
 };

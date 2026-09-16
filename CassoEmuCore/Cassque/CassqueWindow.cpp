@@ -1310,9 +1310,11 @@ void CassqueWindow::FileBytes::ReadAt (uint64_t offset, std::span<uint8_t> out) 
 
     position.QuadPart = (LONGLONG) offset;
 
-    if (SetFilePointerEx (m_file, position, nullptr, FILE_BEGIN))
+    //  A failed seek or read leaves the zeros already there.
+    if (SetFilePointerEx (m_file, position, nullptr, FILE_BEGIN) &&
+        !ReadFile (m_file, out.data(), (DWORD) out.size(), &got, nullptr))
     {
-        ReadFile (m_file, out.data(), (DWORD) out.size(), &got, nullptr);
+        return;
     }
 }
 

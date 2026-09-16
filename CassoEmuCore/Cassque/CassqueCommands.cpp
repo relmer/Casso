@@ -60,18 +60,31 @@ CassqueCommands::CassqueCommands (Handlers handlers)
 
     //  The toolbar shows some of the same commands; they carry the glyph,
     //  short label and tip the strip draws.
-    for (const std::span<const ToolbarRow> & rows : { std::span<const ToolbarRow> (kToolbarRows), std::span<const ToolbarRow> (kPreviewToolbarRows) })
+    ApplyToolbarRows (kToolbarRows);
+    ApplyToolbarRows (kPreviewToolbarRows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::ApplyToolbarRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueCommands::ApplyToolbarRows (std::span<const ToolbarRow> rows)
+{
+    for (const ToolbarRow & row : rows)
     {
-        for (const ToolbarRow & row : rows)
+        for (std::unique_ptr<DxuiCommand> & command : m_commands)
         {
-            for (std::unique_ptr<DxuiCommand> & command : m_commands)
+            if (command->id == row.id)
             {
-                if (command->id == row.id)
-                {
-                    command->glyph      = row.glyph;
-                    command->shortLabel = row.shortLabel;
-                    command->tip        = row.tip;
-                }
+                command->glyph      = row.glyph;
+                command->shortLabel = row.shortLabel;
+                command->tip        = row.tip;
             }
         }
     }
