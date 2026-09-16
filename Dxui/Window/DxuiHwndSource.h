@@ -467,6 +467,7 @@ public:
     //  the host must not run a second, competing layout pass.
     //
     void          SetOwnsPaintPumpForTest    (bool ownsPaintPump) { m_ownsPaintPump = ownsPaintPump; }
+    void          SetDpiForTest              (UINT dpi) { m_scaler.SetDpi (dpi); }
     void          RelayoutRootForTest        (const RECT & clientPx) { MaybeRelayoutRoot (clientPx); }
 
     //

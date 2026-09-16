@@ -140,6 +140,7 @@ public:
 
     //  Whether a point is on one of the control's scrollbars. The window lets
     //  a scrollbar at its edge keep the pointer instead of its resize edge.
+    //  The point is in client pixels, as the control's mouse events are.
     virtual bool  IsOverScrollbar (POINT clientDip) const                       { (void) clientDip; return false; }
 
     virtual std::wstring        GetAccessibleName () const                        { return L""; }

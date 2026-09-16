@@ -3985,16 +3985,24 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     //  A scrollbar at the window's edge keeps the pointer over a straight
     //  resize edge, whose band would otherwise cover most of it. The corners
     //  still resize.
+    //
+    //  ASKED IN PIXELS, NOT DIPS. A control's bounds, and the mouse events it
+    //  receives, are in client pixels; only the resize bands and the caption
+    //  here are measured in DIPs. Asking in DIPs matched only at 96 DPI, so at
+    //  any other scale the bar was missed and the edge took the pointer.
     if (claimed && (kind == DxuiHitTestKind::ResizeEdgeLeft || kind == DxuiHitTestKind::ResizeEdgeRight
                  || kind == DxuiHitTestKind::ResizeEdgeTop  || kind == DxuiHitTestKind::ResizeEdgeBottom))
     {
+        POINT  clientPx = { MulDiv (clientDip.x, (int) m_scaler.GetDpi(), (int) s_kDefaultDpi),
+                            MulDiv (clientDip.y, (int) m_scaler.GetDpi(), (int) s_kDefaultDpi) };
+
         n = (GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
 
         for (i = 0; claimed && i < n; i++)
         {
             child = GetRootPanel()->GetChild (i);
 
-            if (child != nullptr && child->IsVisible() && child->IsOverScrollbar (clientDip))
+            if (child != nullptr && child->IsVisible() && child->IsOverScrollbar (clientPx))
             {
                 claimed = false;
                 result  = DxuiHitTestKind::Client;
