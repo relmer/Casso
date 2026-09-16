@@ -434,6 +434,72 @@ bool ControllersPageState::IsTargetInPlay (PaddleTarget target) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+std::wstring ControllersPageState::GetTargetPlayLabel (PaddleTarget target) const
+{
+    static constexpr const wchar_t *  s_kPaddleNames[] = { L"PDL0:", L"PDL1:", L"PDL2:", L"PDL3:" };
+    std::optional<size_t>             player           = FindEditedPlayer();
+    MultiplayerSetup::AxisSet         axes;
+    size_t                            axis             = 0;
+    size_t                            nth              = 0;
+
+
+
+    // Outside the mode the controller drives the port on its own, so its own
+    // targets are what to call them.
+    if (!m_multiplayer.isEnabled || !player.has_value())
+    {
+        return L"";
+    }
+
+    // A player's PB0 bindings drive their own line: player one's is PB0 and
+    // player two's is PB1 (FR-039), so the row is named for the line the
+    // guest reads rather than for the target the profile holds.
+    if (target == PaddleTarget::Pb0)
+    {
+        return (player.value() == 0) ? L"PB0:" : L"PB1:";
+    }
+
+    if (target != PaddleTarget::Pdl0 && target != PaddleTarget::Pdl1)
+    {
+        return L"";
+    }
+
+    // The slot's paddles take the mapping's axis targets in ascending order,
+    // so PDL0 is the first paddle the player holds and PDL1 the second.
+    axes = ControllerSelectionPolicy::GetAxesForPlayer (m_multiplayer, player.value(), m_axisCount);
+    nth  = (target == PaddleTarget::Pdl0) ? 0 : 1;
+
+    for (axis = 0; axis < axes.size(); axis++)
+    {
+        if (!axes.test (axis))
+        {
+            continue;
+        }
+
+        if (nth == 0)
+        {
+            return s_kPaddleNames[axis];
+        }
+
+        nth--;
+    }
+
+    return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTargetLabel
+//
+//  Zero-based throughout, matching what the machine's own software calls
+//  these: a paddle game reads PDL(0).
+//
+////////////////////////////////////////////////////////////////////////////////
+
 std::wstring ControllersPageState::GetTargetLabel (PlayerAxisTarget target)
 {
     switch (target)

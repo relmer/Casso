@@ -29,15 +29,23 @@ public:
     void  SetValues (Byte pdl0, Byte pdl1);
     void  SetActive (bool isActive);
 
+    // What to call the two axes. They are the controller's own PDL0 and PDL1
+    // until two people play, when a player's paddles are whichever the machine
+    // gave their slot -- PDL2 and PDL3 for the second joystick. An empty
+    // second label is an axis this player does not drive.
+    void  SetAxisLabels (const std::wstring & horizontal, const std::wstring & vertical);
+
     void  Layout    (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
 
     DxuiDpiScaler  m_scaler;
-    Byte           m_pdl0     = 127;
-    Byte           m_pdl1     = 127;
-    bool           m_isActive = false;
+    Byte           m_pdl0       = 127;
+    Byte           m_pdl1       = 127;
+    bool           m_isActive   = false;
+    std::wstring   m_horizontal = L"PDL0";
+    std::wstring   m_vertical   = L"PDL1";
 };
 
 

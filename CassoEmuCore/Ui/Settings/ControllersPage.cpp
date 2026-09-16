@@ -455,30 +455,51 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_stick.Layout (MakeRect (x, stickTop, stickSize, stickSize), scaler);
 
-    // The two axes, stacked to the right of the stick.
+    // The two axes, stacked to the right of the stick. An axis this
+    // controller's player does not drive is GONE rather than grayed: a row
+    // that cannot do anything is one more thing to read past.
     for (target = 0; target < kAxisCount; target++)
     {
-        size_t  shown = GetShownRows (target);
+        size_t        shown     = GetShownRows (target);
+        bool          isInPlay  = m_state == nullptr || m_state->IsTargetInPlay (TargetAt (target));
+        std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
-        m_targetLabel[target].SetRect (MakeRect (axesX, axesBottom, labelWidth, rowH));
-        m_targetLabel[target].SetText (s_kTargetNames[target]);
+        m_targetLabel[target].SetVisible (isInPlay);
+        m_targetLabel[target].SetRect    (MakeRect (axesX, axesBottom, labelWidth, rowH));
+
+        // While two play, a row is named for the paddle the guest reads it
+        // on: a player holding the second joystick drives PDL2 and PDL3.
+        m_targetLabel[target].SetText (playLabel.empty() ? s_kTargetNames[target] : playLabel);
 
         for (row = 0; row < kMaxRows; row++)
         {
-            m_rows[target][row].SetVisible (row < shown);
+            m_rows[target][row].SetVisible (isInPlay && row < shown);
             m_rows[target][row].SetRect    (MakeRect (axesX + labelWidth, axesBottom + (int) row * (rowH + gap), rowWidth, rowH));
         }
 
-        m_addRow[target].SetLabel (L"+");
-        m_addRow[target].Layout   (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+        m_addRow[target].SetLabel   (L"+");
+        m_addRow[target].SetVisible (isInPlay);
+        m_addRow[target].Layout     (MakeRect (axesX + labelWidth + rowWidth + gap, axesBottom + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+
+        if (!isInPlay)
+        {
+            m_invert[target].SetVisible   (false);
+            m_response[target].SetVisible (false);
+            m_speed[target].SetVisible    (false);
+            continue;
+        }
 
         axesBottom += (int) shown * (rowH + gap);
 
-        m_invert[target].SetRect  (MakeRect (axesX + labelWidth + indent, axesBottom, optionWidth - indent, rowH));
-        m_invert[target].SetLabel (L"Invert");
+        m_invert[target].SetVisible (true);
+        m_invert[target].SetRect    (MakeRect (axesX + labelWidth + indent, axesBottom, optionWidth - indent, rowH));
+        m_invert[target].SetLabel   (L"Invert");
 
-        m_response[target].SetRect  (MakeRect (axesX + labelWidth + optionWidth, axesBottom, optionWidth, rowH));
-        m_response[target].SetItems ({ L"Position", L"Paddle speed" });
+        m_response[target].SetVisible (true);
+        m_response[target].SetRect    (MakeRect (axesX + labelWidth + optionWidth, axesBottom, optionWidth, rowH));
+        m_response[target].SetItems   ({ L"Position", L"Paddle speed" });
+
+        m_speed[target].SetVisible (true);
 
         // The speed slider starts at the "+" above it so the column edge reads
         // straight, and runs to where that column ends. A slider keeps a fixed
@@ -504,24 +525,32 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     for (target = kAxisCount; target < kTargetCount; target++)
     {
-        size_t  shown = GetShownRows (target);
-        size_t  light = target - kAxisCount;
+        size_t        shown     = GetShownRows (target);
+        size_t        light     = target - kAxisCount;
+        bool          isInPlay  = m_state == nullptr || m_state->IsTargetInPlay (TargetAt (target));
+        std::wstring  playLabel = m_state != nullptr ? m_state->GetTargetPlayLabel (TargetAt (target)) : std::wstring();
 
-        m_lights[light].Layout (MakeRect (x, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
+        m_lights[light].SetVisible (isInPlay);
+        m_lights[light].Layout     (MakeRect (x, y + (rowH - lightSize) / 2, lightSize, lightSize), scaler);
 
-        m_targetLabel[target].SetRect (MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap, rowH));
-        m_targetLabel[target].SetText (s_kTargetNames[target]);
+        m_targetLabel[target].SetVisible (isInPlay);
+        m_targetLabel[target].SetRect    (MakeRect (x + lightSize + gap, y, labelWidth - lightSize - gap, rowH));
+        m_targetLabel[target].SetText    (playLabel.empty() ? s_kTargetNames[target] : playLabel);
 
         for (row = 0; row < kMaxRows; row++)
         {
-            m_rows[target][row].SetVisible (row < shown);
+            m_rows[target][row].SetVisible (isInPlay && row < shown);
             m_rows[target][row].SetRect    (MakeRect (x + labelWidth, y + (int) row * (rowH + gap), rowWidth, rowH));
         }
 
-        m_addRow[target].SetLabel (L"+");
-        m_addRow[target].Layout   (MakeRect (x + labelWidth + rowWidth + gap, y + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
+        m_addRow[target].SetLabel   (L"+");
+        m_addRow[target].SetVisible (isInPlay);
+        m_addRow[target].Layout     (MakeRect (x + labelWidth + rowWidth + gap, y + (int) (shown - 1) * (rowH + gap), addWidth, rowH));
 
-        y += (int) shown * (rowH + gap);
+        if (isInPlay)
+        {
+            y += (int) shown * (rowH + gap);
+        }
     }
 
     m_sharedWarning.SetRect  (MakeRect (x, y, wideWidth + labelWidth + buttonWidth, rowH));
@@ -696,8 +725,44 @@ void ControllersPage::Poll()
 
     reading = m_state->ComputeLiveReading (sample.value());
 
+    // A target this controller does not drive reads as if it were not bound:
+    // the row is grayed out, and a dot or a light that still moved with the
+    // stick said the binding was live when it is not.
+    if (!m_state->IsTargetInPlay (PaddleTarget::Pdl1))
+    {
+        reading.paddle[1].reset();
+    }
+
+    if (!m_state->IsTargetInPlay (PaddleTarget::Pdl0))
+    {
+        reading.paddle[0].reset();
+    }
+
+    for (light = 0; light < kButtonCount; light++)
+    {
+        if (!m_state->IsTargetInPlay (TargetAt (kAxisCount + light)))
+        {
+            reading.buttons.reset (light);
+        }
+    }
+
     m_stick.SetValues (reading.paddle[0].value_or (GamePortState::kPaddleCenter),
                        reading.paddle[1].value_or (GamePortState::kPaddleCenter));
+
+    // The circle names the paddles the guest reads these axes on, which are
+    // the player's own two while two people play.
+    {
+        std::wstring  horizontal = m_state->GetTargetPlayLabel (PaddleTarget::Pdl0);
+        std::wstring  vertical   = m_state->GetTargetPlayLabel (PaddleTarget::Pdl1);
+
+        if (!horizontal.empty()) { horizontal.pop_back(); }
+        if (!vertical.empty())   { vertical.pop_back(); }
+
+        m_stick.SetAxisLabels (horizontal.empty() ? std::wstring (L"PDL0") : horizontal,
+                               m_state->IsTargetInPlay (PaddleTarget::Pdl1)
+                                   ? (vertical.empty() ? std::wstring (L"PDL1") : vertical)
+                                   : std::wstring());
+    }
 
     for (light = 0; light < kButtonCount; light++)
     {
@@ -1154,10 +1219,11 @@ void ControllersPage::RefreshRows()
         PaddleTarget  paddleTarget = TargetAt (target);
         bool          available    = hasUnit && m_state->IsTargetAvailable (paddleTarget);
 
-        // A target the machine has but this controller's player does not
-        // drive: shown with its bindings, and not editable, so the user can
-        // see what the profile holds while two people are playing.
-        bool          isEditable   = available && m_state->IsTargetInPlay (paddleTarget);
+        // A target this controller's player does not drive is not on the page
+        // at all while two people play. Layout leaves its rows out; this has
+        // to agree, or a re-sync puts them back on top of the rows below.
+        bool          isInPlay     = m_state->IsTargetInPlay (paddleTarget);
+        bool          isEditable   = available && isInPlay;
         size_t        count        = GetBindingCount (target);
         size_t        shown        = GetShownRows (target);
 
@@ -1197,9 +1263,10 @@ void ControllersPage::RefreshRows()
                                              : isCapturing ? kPressToAssignItem
                                              : (row < count ? choice : kNoneItem));
             m_rows[target][row].SetEnabled  (isEditable);
-            m_rows[target][row].SetVisible  (row < shown);
+            m_rows[target][row].SetVisible  (isInPlay && row < shown);
         }
 
+        m_addRow[target].SetVisible (isInPlay);
         m_addRow[target].SetEnabled (isEditable && count > 0 && shown < kMaxRows && !m_hasExtraRow[target]);
     }
 

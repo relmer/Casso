@@ -56,6 +56,26 @@ void StickPositionView::SetActive (bool isActive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetAxisLabels
+//
+//  What the two axes are called. A player holding the second joystick drives
+//  PDL2 and PDL3, so the circle has to say so rather than always naming the
+//  controller's own first two targets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StickPositionView::SetAxisLabels (const std::wstring & horizontal, const std::wstring & vertical)
+{
+    m_horizontal = horizontal;
+    m_vertical   = vertical;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,13 +157,13 @@ void StickPositionView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     hr = text.FillEllipse (cx + reach * dx, cy + reach * dy, dot, dot, dotColor);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (std::format (L"PDL0  {}", m_pdl0).c_str(),
+    hr = text.DrawString (std::format (L"{}  {}", m_horizontal, m_pdl0).c_str(),
                           (float) bounds.left, cy + radius, diameter, band,
                           theme.ForegroundMuted(), fontPx, s_kpszReadoutFont,
                           DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (std::format (L"PDL1  {}", m_pdl1).c_str(),
+    hr = text.DrawString (m_vertical.empty() ? L"" : std::format (L"{}  {}", m_vertical, m_pdl1).c_str(),
                           cx + radius + ring * 2.0f, cy - band * 0.5f, band * 3.0f, band,
                           theme.ForegroundMuted(), fontPx, s_kpszReadoutFont,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);

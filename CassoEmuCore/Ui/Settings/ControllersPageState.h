@@ -135,6 +135,12 @@ public:
 
     static std::wstring            GetTargetLabel   (PlayerAxisTarget target);
 
+    // What one of the edited controller's targets drives on THIS machine while
+    // two people play: the paddle its slot lands on, or the player whose
+    // button line it is. Empty outside the mode, where the controller's own
+    // names are the answer.
+    std::wstring                   GetTargetPlayLabel (PaddleTarget target) const;
+
     const ControlMapping &                GetMapping         () const;
     float                                 GetDeadzone        () const;
     void                                  SetDeadzone        (float deadzone);

@@ -1083,6 +1083,40 @@ namespace ControllerTests
         }
 
 
+        TEST_METHOD (MultiplayerRows_AreNamedByThePaddleThePlayerDrives)
+        {
+            ControllersPageState  page;
+            ControllerDeviceInfo  first  = MakeStick ("{A}");
+            ControllerDeviceInfo  second = MakeStick ("{B}");
+            MultiplayerSetup      setup;
+
+            setup.isEnabled         = true;
+            setup.players[0].unit   = first.unit;
+            setup.players[0].target = PlayerAxisTarget::Joystick0;
+            setup.players[1].unit   = second.unit;
+            setup.players[1].target = PlayerAxisTarget::Paddle2;
+
+            page.Load ({ first, second }, {}, {}, true);
+            page.SetMultiplayer (setup, 4);
+
+            // Player one holds a joystick: two paddles, named for what they
+            // drive rather than for the controller's own targets.
+            page.SelectController (0);
+            Assert::AreEqual (std::wstring (L"PDL0:"), page.GetTargetPlayLabel (PaddleTarget::Pdl0));
+            Assert::AreEqual (std::wstring (L"PDL1:"), page.GetTargetPlayLabel (PaddleTarget::Pdl1));
+            Assert::AreEqual (std::wstring (L"PB0:"),  page.GetTargetPlayLabel (PaddleTarget::Pb0));
+
+            // Player two holds ONE paddle, so their second axis row drives
+            // nothing and has nothing to be named after.
+            page.SelectController (1);
+            Assert::AreEqual (std::wstring (L"PDL2:"), page.GetTargetPlayLabel (PaddleTarget::Pdl0));
+            Assert::AreEqual (std::wstring (L""),      page.GetTargetPlayLabel (PaddleTarget::Pdl1));
+            Assert::AreEqual (std::wstring (L"PB1:"),  page.GetTargetPlayLabel (PaddleTarget::Pb0));
+            Assert::IsFalse  (page.IsTargetInPlay (PaddleTarget::Pdl1), L"so its row is grayed and reads nothing live");
+            Assert::IsFalse  (page.IsTargetInPlay (PaddleTarget::Pb1),  L"and only their own button line is in play");
+        }
+
+
         TEST_METHOD (MultiplayerSlots_FillingASlotMovesItOffAPaddleTheOtherHolds)
         {
             ControllersPageState  page;
