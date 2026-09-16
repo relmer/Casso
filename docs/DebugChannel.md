@@ -10,17 +10,21 @@ and the protocol itself, which is everything a client needs.
 
 ## Opening the channel
 
-Start Casso with `--debugger`:
+Start Casso with `--debugger`, or choose **Debug > Debugger...** in a Casso
+that is already running:
 
 ```
 Casso.exe --debugger
 ```
 
-The machine starts normally and is **not** paused. A client can attach to a
-program that is already running and watch it without changing what it does.
+Either way the debugger window opens beside the emulator and the channel opens
+with it. The machine is **not** paused, so a client can attach to a program that
+is already running and watch it without changing what it does.
 
-The channel stays open until Casso exits. Breakpoints a client sets stay armed
-when that client disconnects.
+The channel stays open until the debugger window is closed or Casso exits.
+Closing the window sends `closing` to every client; reopening it opens the
+channel again with the same breakpoints. Breakpoints a client sets also stay
+armed when that client disconnects.
 
 ## From the command line
 
@@ -46,7 +50,7 @@ CassoCli debug --attach 20044 --command "bp FDED" --command g
 >bp FDED
 Breakpoint #0 set at $FDED
 >g
-Stopped: breakpoint at $FDED
+Breakpoint #0 at $FDED
 ```
 
 - A run the script starts is waited for before the next line runs, so each
