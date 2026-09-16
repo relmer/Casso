@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 
 #include "Debugger/DebugSession.h"
+#include "Debugger/MonitorParser.h"
 
 
 
@@ -30,6 +31,8 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
     Word                  codeStart   = 0;
 
 
+
+    snapshot.mode = session.GetMode();
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
     {
@@ -225,6 +228,67 @@ Reply DebuggerViewState::ExecuteLine (DebugSession & session, const std::string 
 
     session.FormatReply (reply, mode);
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetMissingFileVerb
+//
+//  ReadFile or WriteFile when a Monitor line holds an R or W with no file
+//  name, which the window asks for before the line runs. Batch and the pipe
+//  have no one to ask, so there the handler reports the error instead.
+//
+//  The line is parsed against a scratch state: a range comes from the line
+//  itself, and the session's own state must not move for a line that has not
+//  run yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DebugVerb> DebuggerViewState::GetMissingFileVerb (const std::string & line, CommandMode mode)
+{
+    MonitorState        scratch;
+    MonitorParseResult  parsed;
+
+
+
+    if (mode != CommandMode::Monitor)
+    {
+        return std::nullopt;
+    }
+
+    parsed = MonitorParser::Parse (line, scratch);
+
+    for (const DebugCommand & command : parsed.commands)
+    {
+        if ((command.verb == DebugVerb::ReadFile || command.verb == DebugVerb::WriteFile) && command.text.empty())
+        {
+            return command.verb;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetLineWithFileName
+//
+//  Quoted, so a path with spaces stays one name; the Monitor parser takes the
+//  quotes off again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetLineWithFileName (const std::string & line, const std::string & path)
+{
+    return std::format ("{}\"{}\"", line, path);
 }
 
 

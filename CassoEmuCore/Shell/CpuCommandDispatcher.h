@@ -52,6 +52,14 @@ public:
 
     //  The user paused or resumed the machine, told to an attached debugger.
     virtual void     NotifyDebugPauseChanged  (bool paused)                                     = 0;
+
+    //  The debugger window's requests: open and close the channel, pause a run,
+    //  and move a pane. `view` is "code" or "memory"; an empty address means
+    //  the code pane follows the PC again.
+    virtual void     OpenDebugChannel         ()                                                = 0;
+    virtual void     CloseDebugChannel        ()                                                = 0;
+    virtual void     PauseDebugRun            ()                                                = 0;
+    virtual void     SetDebugView             (const std::string & view, std::optional<Word> address) = 0;
 };
 
 
@@ -84,4 +92,5 @@ private:
     static void  DispatchDriveVolumes  (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDrivePan      (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDriveTest     (const std::string & payload, ICpuCommandTarget & target);
+    static void  DispatchDebugView     (const std::string & payload, ICpuCommandTarget & target);
 };

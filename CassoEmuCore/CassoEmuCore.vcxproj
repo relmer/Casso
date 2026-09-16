@@ -202,6 +202,7 @@
     <ClCompile Include="Debugger\CpuManagerRunDriver.cpp" />
     <ClCompile Include="Debugger\DebuggerController.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindow.cpp" />
     <ClCompile Include="Debugger\SynchronousRunDriver.cpp" />
     <ClCompile Include="Debugger\BreakpointTable.cpp" />
     <ClCompile Include="Debugger\WatchpointTable.cpp" />
@@ -456,6 +457,7 @@
     <ClCompile Include="Shell\EmulatorShellScene.cpp" />
     <ClCompile Include="Shell\EmulatorShellPresent.cpp" />
     <ClCompile Include="Shell\EmulatorShellCpuThread.cpp" />
+    <ClCompile Include="Shell\EmulatorShellDebugger.cpp" />
     <ClCompile Include="Shell\EmulatorShellDisks.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrefs.cpp" />
     <ClCompile Include="Shell\EmulatorShellDialogs.cpp" />
@@ -499,6 +501,7 @@
     <ClInclude Include="Debugger\CpuManagerRunDriver.h" />
     <ClInclude Include="Debugger\DebuggerController.h" />
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />
+    <ClInclude Include="Ui\Debugger\DebuggerWindow.h" />
     <ClInclude Include="Debugger\SynchronousRunDriver.h" />
     <ClInclude Include="Debugger\BreakpointTable.h" />
     <ClInclude Include="Debugger\WatchpointTable.h" />

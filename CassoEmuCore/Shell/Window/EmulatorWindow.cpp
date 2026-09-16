@@ -1309,6 +1309,12 @@ int EmulatorShell::RunMessageLoop()
         [this] { OnCpuThreadStop(); });
     CHRA (hr);
 
+    // --debugger: the window opens beside the machine, which opens the channel.
+    if (m_openDebuggerAtStart)
+    {
+        OpenDebuggerWindow();
+    }
+
     // Cold-boot mount window is closed once the UI message loop is
     // ready to deliver user input -- any mount issued from here on
     // is treated as a real, user-initiated swap and fires the

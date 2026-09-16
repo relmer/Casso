@@ -764,7 +764,17 @@ HRESULT EmulatorShell::OpenDebugger()
 
 
 
-    BAIL_OUT_IF (m_debugger != nullptr, S_OK);
+    //  Already built: reopen a channel the window closed. The controller and
+    //  its session were kept, so this is only the pipe.
+    if (m_debugger != nullptr)
+    {
+        BAIL_OUT_IF (m_debugger->IsOpen(), S_OK);
+
+        hr = m_debugger->Open();
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = PipeSecurityDescriptor::GetCurrentUserSid (userSid);
     CHR (hr);
@@ -839,6 +849,7 @@ void EmulatorShell::ServiceDebugger()
     if (m_debugger != nullptr)
     {
         m_debugger->Pump();
+        PublishDebuggerView();
     }
 }
 

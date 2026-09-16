@@ -127,6 +127,22 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             target.NotifyDebugPauseChanged (cmd.payload == "1");
             break;
 
+        case IDM_DEBUG_OPEN:
+            target.OpenDebugChannel();
+            break;
+
+        case IDM_DEBUG_CLOSE:
+            target.CloseDebugChannel();
+            break;
+
+        case IDM_DEBUG_PAUSE:
+            target.PauseDebugRun();
+            break;
+
+        case IDM_DEBUG_VIEW:
+            DispatchDebugView (cmd.payload, target);
+            break;
+
         default:
             break;
     }
@@ -253,4 +269,48 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuC
     {
         target.PlayDriveTestSound (drive, kind);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchDebugView
+//
+//  "code <hex>", "code pc" or "memory <hex>". Anything else asks for nothing:
+//  a pane moved to an address nobody meant is worse than a pane left where it
+//  was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuCommandTarget & target)
+{
+    size_t        space = payload.find (' ');
+    std::string   view  = payload.substr (0, space);
+    std::string   where = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
+    unsigned int  value = 0;
+    size_t        used  = 0;
+
+
+
+    if (view != "code" && view != "memory")
+    {
+        return;
+    }
+
+    if (view == "code" && where == "pc")
+    {
+        target.SetDebugView (view, std::nullopt);
+        return;
+    }
+
+    if (where.empty() || where.size() > 4 || where.find_first_not_of ("0123456789abcdefABCDEF") != std::string::npos)
+    {
+        return;
+    }
+
+    value = std::stoul (where, &used, 16);
+    target.SetDebugView (view, (Word) value);
 }

@@ -980,6 +980,11 @@ bool EmulatorShell::TryPresentUiFrame()
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    if (m_debuggerWindow != nullptr)
+    {
+        m_debuggerWindow->RenderFrame();
+    }
+
     if (m_inputDebugPanel != nullptr)
     {
         hr = m_inputDebugPanel->RenderFrame();

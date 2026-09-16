@@ -423,7 +423,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - the command line executing in the selected mode with the same reply as batch (Story 4 scenario 4);
   - a breakpoint set through `DebugChannelServer` over the in-memory transport appearing in the breakpoint pane, and one set by clicking appearing in a client's `bpl` reply (SC-006).
 - [X] T079 [US4] Implement `CassoEmuCore/Ui/Debugger/DebuggerViewState.h/.cpp`. Makes T078 pass.
-- [ ] T080 [US4] Implement `CassoEmuCore/Ui/Debugger/DebuggerWindow.h/.cpp`, a `DxuiWindow` subclass following `Ui/Disk2DebugPanel`:
+- [X] T080 [US4] Implement `CassoEmuCore/Ui/Debugger/DebuggerWindow.h/.cpp`, a `DxuiWindow` subclass following `Ui/Disk2DebugPanel`:
   - panes built from `DxuiListView`, `DxuiTextInput`, `DxuiToolbar` and `DxuiCommand` (032 widgets);
   - `OnCreate`/`OnWindowClose` drive `DebuggerController` open and close;
   - the `R`/`W` filename prompt when a filename is missing.
@@ -437,7 +437,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - appearance: `BW`, `COLOR`, `FONT`, `HCOLOR`, `MONO`.
 
   Their projection is covered in `DebuggerViewStateTests.cpp`, and in batch and pipe they still return `notAvailable`.
-- [ ] T082 [US4] Validate the window by running Casso in the background with `--title 035-debugger` and capturing it with `PrintWindow`. Run quickstart phase 3 steps 1-4 and attach the screenshots to the commit.
+- [X] T082 [US4] Validate the window by running Casso in the background with `--title 035-debugger` and capturing it with `PrintWindow`. Run quickstart phase 3 steps 1-4 and attach the screenshots to the commit.
 
 **Checkpoint**: All four stories are functional and the full suite is green.
 

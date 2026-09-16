@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/DebuggerController.h"
+#include "Debugger/MonitorParser.h"
 #include "EmuTests/TestMachine.h"
 #include "HandlerTestRig.h"
 #include "InMemoryPipeTransport.h"
@@ -336,6 +337,34 @@ namespace DebuggerViewStateTests
 
             Assert::IsTrue (rig.transport.Written (client).back().find ("\"address\":773") != std::string::npos,
                             L"the clicked breakpoint at $0305 is in the client's list");
+        }
+
+
+
+        //  The window asks for a file name only for a Monitor R or W that has
+        //  none, and the name it adds reaches the command intact.
+        TEST_METHOD (AnROrWWithNoFileNameIsPromptedFor)
+        {
+            MonitorState        state;
+            MonitorParseResult  parsed;
+            std::string         line;
+
+
+
+            Assert::IsTrue (DebuggerViewState::GetMissingFileVerb ("300.3FFR", CommandMode::Monitor) == DebugVerb::ReadFile,  L"R");
+            Assert::IsTrue (DebuggerViewState::GetMissingFileVerb ("300.3FFW", CommandMode::Monitor) == DebugVerb::WriteFile, L"W");
+
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FFR a.bin", CommandMode::Monitor).has_value(), L"named");
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FF",        CommandMode::Monitor).has_value(), L"no R or W");
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("/R",             CommandMode::Monitor).has_value(), L"an AppleWin line");
+            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FFR",       CommandMode::AppleWin).has_value(), L"AppleWin mode");
+
+            line   = DebuggerViewState::GetLineWithFileName ("300.3FFW", "C:\\My Files\\dump.bin");
+            parsed = MonitorParser::Parse (line, state);
+
+            Assert::AreEqual ((size_t) 1, parsed.commands.size());
+            Assert::IsTrue   (parsed.commands[0].verb == DebugVerb::WriteFile);
+            Assert::AreEqual (std::string ("C:\\My Files\\dump.bin"), parsed.commands[0].text);
         }
     };
 }

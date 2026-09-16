@@ -69,6 +69,7 @@ struct DebuggerViewSnapshot
     };
 
     Word                         pc     = 0;
+    CommandMode                  mode   = CommandMode::AppleWin;
     std::vector<CodeLine>        code;
     std::vector<RegisterRow>     registers;
     std::string                  flags;
@@ -129,6 +130,11 @@ public:
     //  A line from the window's command box, run and formatted exactly as batch
     //  mode runs and formats it. CPU thread only.
     static Reply  ExecuteLine (DebugSession & session, const std::string & line, CommandMode mode);
+
+    //  The R or W a line holds with no file name, which the window asks for,
+    //  and the line with the chosen name added.
+    static std::optional<DebugVerb>  GetMissingFileVerb  (const std::string & line, CommandMode mode);
+    static std::string               GetLineWithFileName (const std::string & line, const std::string & path);
 
     static std::string  GetRegionLabel (MemoryRegion region);
 

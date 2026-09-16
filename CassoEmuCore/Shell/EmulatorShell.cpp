@@ -216,6 +216,14 @@ EmulatorShell::~EmulatorShell()
     SetNotifyFunction (nullptr);
     s_pNotifyShell = nullptr;
 
+    // The window posts to the CPU thread through this shell, so it is cut off
+    // before either goes.
+    if (m_debuggerWindow != nullptr)
+    {
+        m_debuggerWindow->DetachHost();
+        m_debuggerWindow.reset();
+    }
+
     m_cpuManager.Stop();
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears

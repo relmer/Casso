@@ -59,6 +59,16 @@
 #define IDM_DEBUG_COMMAND           40075
 #define IDM_DEBUG_PAUSE_CHANGED     40076
 
+//  The debugger window, opened from the Debug menu. Opening it opens the
+//  debug channel; closing it closes the channel. IDM_DEBUG_OPEN, _CLOSE, _PAUSE
+//  and _VIEW carry the window's requests to the CPU thread; _VIEW's payload is
+//  "code <hex>", "code pc" or "memory <hex>".
+#define IDM_VIEW_DEBUGGER           40077
+#define IDM_DEBUG_OPEN              40078
+#define IDM_DEBUG_CLOSE             40079
+#define IDM_DEBUG_PAUSE             40080
+#define IDM_DEBUG_VIEW              40081
+
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031
 #define IDM_VIEW_AMBER              40032

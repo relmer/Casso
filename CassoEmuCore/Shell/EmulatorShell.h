@@ -29,6 +29,7 @@
 #include "Shell/ScreenshotCapture.h"
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
+#include "Ui/Debugger/DebuggerWindow.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
@@ -162,7 +163,8 @@ public:
 class EmulatorShell : public IDxuiHostClient,
                       public IDriveCommandSink,
                       public IDxuiViewportInputSink,
-                      private ICpuCommandTarget
+                      private ICpuCommandTarget,
+                      private IDebuggerWindowHost
 {
 public:
     EmulatorShell();
@@ -474,6 +476,28 @@ private:
     void    CloseDebugger   ();
     void    ServiceDebugger ();
     bool    IsDebuggerOpen  () const { return m_debugger != nullptr; }
+
+    // Shows the debugger window, creating it the first time, and opens the
+    // debug channel. UI thread.
+    void    OpenDebuggerWindow ();
+
+    // The window's requests, carried out on the CPU thread (ICpuCommandTarget).
+    void    OpenDebugChannel   ();
+    void    CloseDebugChannel  ();
+    void    PauseDebugRun      ();
+    void    SetDebugView       (const std::string & view, std::optional<Word> address);
+
+    // Rebuilds the window's snapshot when it is showing and due. CPU thread.
+    void    PublishDebuggerView ();
+
+    // IDebuggerWindowHost, called by the window on the UI thread.
+    void    RunDebuggerCommand       (const std::string & line) override;
+    void    PauseDebugger            () override;
+    void    SetDebuggerCodeAddress   (std::optional<Word> address) override;
+    void    SetDebuggerMemoryAddress (Word address) override;
+    bool    TakeDebuggerUpdate       (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
+                                      std::vector<std::string>                     & consoleLines) override;
+    void    OnDebuggerWindowClosed   () override;
 
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.
@@ -1096,7 +1120,7 @@ private:
     // The operating system's pickers and print experience, behind their
     // seams. The shell owns the Win32 implementations; whoever needs to put
     // one up asks for the interface, and a test hands its own in.
-    IHostDialogs &  GetHostDialogs () noexcept { return m_hostDialogs; }
+    IHostDialogs &  GetHostDialogs () noexcept override { return m_hostDialogs; }
     IPrintDialog &  GetPrintDialog () noexcept { return m_printDialog; }
 
     // Force-refresh the printer panel from the drain worker (race-free, without
@@ -1991,6 +2015,21 @@ private:
     std::unique_ptr<Win32NamedPipeApi>    m_pipeApi;
     std::unique_ptr<Win32PipeTransport>   m_pipeTransport;
     std::unique_ptr<DebuggerController>   m_debugger;
+
+    // The debugger window and what it is shown. The view state and the build
+    // clock belong to the CPU thread; the snapshot and console lines cross to
+    // the UI thread under the mutex.
+    static constexpr ULONGLONG       kDebugViewIntervalMs    = 100;
+    std::unique_ptr<DebuggerWindow>  m_debuggerWindow;
+    DebuggerViewState                m_debugViewState;
+    ULONGLONG                        m_debugViewBuiltAt      = 0;
+    bool                             m_isDebugViewDirty      = true;
+    bool                             m_wasPausedAtDebugBuild = false;
+    std::atomic<bool>                              m_isDebugWindowShown { false };
+    std::mutex                                     m_debugViewMutex;
+    std::shared_ptr<const DebuggerViewSnapshot>    m_debugViewSnapshot;
+    bool                                           m_isDebugViewFresh   = false;
+    std::vector<std::string>                       m_debugConsolePending;
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};

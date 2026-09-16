@@ -230,6 +230,41 @@ public:
     }
 
 
+    TEST_METHOD (TheDebuggerWindowsRequestsReachTheTarget)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_OPEN,  "", target);
+        Dispatch (IDM_DEBUG_PAUSE, "", target);
+        Dispatch (IDM_DEBUG_CLOSE, "", target);
+
+        Assert::AreEqual (std::string ("OpenDebugChannel"),  target.calls[0]);
+        Assert::AreEqual (std::string ("PauseDebugRun"),     target.calls[1]);
+        Assert::AreEqual (std::string ("CloseDebugChannel"), target.calls[2]);
+    }
+
+
+    TEST_METHOD (APaneMovesOnlyToAnAddressItCanRead)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_VIEW, "code 03f0",  target);
+        Dispatch (IDM_DEBUG_VIEW, "memory C000", target);
+        Dispatch (IDM_DEBUG_VIEW, "code pc",    target);
+
+        //  None of these names a pane and an address, so none moves anything.
+        Dispatch (IDM_DEBUG_VIEW, "code",        target);
+        Dispatch (IDM_DEBUG_VIEW, "code 12345",  target);
+        Dispatch (IDM_DEBUG_VIEW, "code zz",     target);
+        Dispatch (IDM_DEBUG_VIEW, "stack 0100",  target);
+
+        Assert::AreEqual ((size_t) 3, target.calls.size());
+        Assert::AreEqual (std::string ("SetDebugView code 03F0"),   target.calls[0]);
+        Assert::AreEqual (std::string ("SetDebugView memory C000"), target.calls[1]);
+        Assert::AreEqual (std::string ("SetDebugView code pc"),     target.calls[2]);
+    }
+
+
     TEST_METHOD (APauseChangeSaysWhichWay)
     {
         Notebook  target;
@@ -344,6 +379,16 @@ private:
         void     NotifyDebugPauseChanged (bool paused) override
         {
             calls.push_back (std::format ("NotifyDebugPauseChanged {}", paused ? "paused" : "resumed"));
+        }
+
+        void     OpenDebugChannel()  override { calls.push_back ("OpenDebugChannel"); }
+        void     CloseDebugChannel() override { calls.push_back ("CloseDebugChannel"); }
+        void     PauseDebugRun()     override { calls.push_back ("PauseDebugRun"); }
+
+        void     SetDebugView (const std::string & view, std::optional<Word> address) override
+        {
+            calls.push_back (address.has_value() ? std::format ("SetDebugView {} {:04X}", view, *address)
+                                                 : std::format ("SetDebugView {} pc", view));
         }
     };
 
