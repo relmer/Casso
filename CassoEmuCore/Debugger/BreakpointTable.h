@@ -63,8 +63,11 @@ public:
 
     bool  TryClear         (int id);
     void  ClearAll         ();
+    void  ClearKind        (BreakpointKind kind);
     bool  TrySetEnabled    (int id, bool enabled);
     bool  TrySetFlags      (int id, bool temporary, bool stops);
+    bool  HasBrk           () const;
+    bool  HasOpcode        (Byte opcode) const;
 
     //  Inserts an entry under the id it carries, for BPEDIT, which keeps a
     //  breakpoint's id across its new definition. Fails if the id is taken.

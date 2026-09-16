@@ -242,6 +242,7 @@
     <ClCompile Include="DebuggerTests\ReplyJsonTests.cpp" />
     <ClCompile Include="DebuggerTests\EffectiveAddressTests.cpp" />
     <ClCompile Include="DebuggerTests\RegisterHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\BreakpointHandlersTests.cpp" />
     <ClCompile Include="CycleReferenceTests.cpp" />
     <ClCompile Include="UtilsTests.cpp" />
     <ClCompile Include="ParserTests.cpp" />

@@ -173,7 +173,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - `LBR`;
   - `TF` (trace to a file through `IFileSystem`);
   - `PROFILE`, `BENCHMARK`/`BENCH`/`EXITBENCH`, `CYCLES` and `RCC`.
-- [ ] T037 [P] [US1] `CassoEmuCore/Debugger/Handlers/BreakpointHandlers.h/.cpp`:
+- [X] T037 [P] [US1] `CassoEmuCore/Debugger/Handlers/BreakpointHandlers.h/.cpp`:
   - setting: `BP`, `BPA`, `BPR`, `BPX`, `BPIO`, `BPM`, `BPMR`, `BPMW`, `BRK`, `BRKOP`, `BRKINT`;
   - managing: `BPC`, `BPD`, `BPE`, `BPL`, `BPEDIT`, `BPCHANGE`;
   - saving: `BPSAVE`.

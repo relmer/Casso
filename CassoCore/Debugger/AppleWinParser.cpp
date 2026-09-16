@@ -509,6 +509,11 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & args, DebugC
 
         return true;
 
+    // A file name keeps its case; BRK's and BRKINT's keywords do not.
+    case DebugVerb::SaveBreakpoints:
+        command.text = args.rest;
+        return true;
+
     default:
         command.text = ToUpper (args.rest);
         return true;

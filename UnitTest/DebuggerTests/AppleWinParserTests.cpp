@@ -397,6 +397,8 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("hello,  world"), ParseOk ("ECHO hello,  world").command.text);
             Assert::AreEqual (std::string ("C:\\disks"),     ParseOk ("CD C:\\disks").command.text);
             Assert::AreEqual (std::string ("script.txt"),    ParseOk ("RUN script.txt").command.text);
+            Assert::AreEqual (std::string ("Bp.txt"),        ParseOk ("BPSAVE Bp.txt").command.text);
+            Assert::AreEqual (std::string ("ALL ON"),        ParseOk ("BRK all on").command.text);
         }
     };
 }
