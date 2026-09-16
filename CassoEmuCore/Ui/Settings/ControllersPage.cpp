@@ -495,8 +495,12 @@ void ControllersPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         m_invert[target].SetRect    (MakeRect (axesX + labelWidth + indent, axesBottom, optionWidth - indent, rowH));
         m_invert[target].SetLabel   (L"Invert");
 
+        // Right-aligned with the mapping drop-down above it: the two option
+        // widths and the row width are the same span in DIPs, but each is
+        // scaled to pixels on its own, so the rounding left the edges a pixel
+        // or two apart. Taking the remainder of the row lands it exactly.
         m_response[target].SetVisible (true);
-        m_response[target].SetRect    (MakeRect (axesX + labelWidth + optionWidth, axesBottom, optionWidth, rowH));
+        m_response[target].SetRect    (MakeRect (axesX + labelWidth + optionWidth, axesBottom, rowWidth - optionWidth, rowH));
         m_response[target].SetItems   ({ L"Position", L"Paddle speed" });
 
         m_speed[target].SetVisible (true);

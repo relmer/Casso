@@ -99,8 +99,13 @@ public:
         Assert::IsFalse (s.OnMouseMove (30, 8));
         Assert::IsTrue  (NearlyEqual (0.0f, s.GetValue()));
 
-        Assert::IsTrue (s.OnLButtonDown (10, 8));
-        Assert::IsTrue (s.OnMouseMove   (80, 8));
+        // The track is inset by the widest puck at each end, so the whole
+        // control stays inside its rect: on this 100-wide slider it runs from
+        // 11 to 89, and a press at 11 is the minimum rather than a tenth in.
+        Assert::IsTrue (s.OnLButtonDown (11, 8));
+        Assert::IsTrue (NearlyEqual (0.0f, s.GetValue()));
+
+        Assert::IsTrue (s.OnMouseMove   (74, 8));
         Assert::IsTrue (NearlyEqual (0.8f, s.GetValue()));
 
         Assert::IsTrue (s.OnLButtonUp (80, 8));
