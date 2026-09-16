@@ -222,6 +222,7 @@
     <ClCompile Include="Debugger\DebugHandlerSet.cpp" />
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
     <ClCompile Include="Debugger\Channel\ChannelProtocol.cpp" />
+    <ClCompile Include="Debugger\Channel\DebugChannelServer.cpp" />
     <ClCompile Include="Debugger\Handlers\MonitorHandlers.cpp" />
     <ClCompile Include="Shell\FileRomSource.cpp" />
     <ClCompile Include="Cli\DebugBatchSink.cpp" />
@@ -513,6 +514,8 @@
     <ClInclude Include="Debugger\MonitorFormatter.h" />
     <ClInclude Include="Debugger\Channel\ChannelProtocol.h" />
     <ClInclude Include="Debugger\Channel\IPipeTransport.h" />
+    <ClInclude Include="Debugger\Channel\IDebugCommandRunner.h" />
+    <ClInclude Include="Debugger\Channel\DebugChannelServer.h" />
     <ClInclude Include="Debugger\Handlers\MonitorHandlers.h" />
     <ClInclude Include="Shell\FileRomSource.h" />
     <ClInclude Include="Cli\DebugBatchSink.h" />
