@@ -310,7 +310,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
     - **A reply the Monitor has no layout for keeps the AppleWin text.** The only way to reach such a command from Monitor mode is to type `/`, and a reader who did that asked for the AppleWin command, so its output is the right answer rather than a gap. `TryFormatData` returning false is what routes it.
     - **The step display is two pieces, not one.** `StopEvent` carries registers but not the instruction's bytes, so the formatter cannot disassemble it. The original ]['s step layout is the instruction line from the step's own reply followed by the register line from the stop, which is how T063 will emit it.
   - The row alignment in `Examine_RowsAlignToEightByteBoundaries` is a property of the rows the command builds, not of this class; the test pins the five-then-eight rendering, and the splitting belongs to T063.
-- [ ] T063 [US2] Implement `CassoEmuCore/Debugger/Handlers/MonitorHandlers.h/.cpp` with the effects in research R-013, applied directly, never by jumping into ROM:
+- [x] T063 [US2] Implement `CassoEmuCore/Debugger/Handlers/MonitorHandlers.h/.cpp` with the effects in research R-013, applied directly, never by jumping into ROM:
   - `I`/`N` set `INVFLG` ($32) to $3F/$FF;
   - `n^K` sets `KSWL/H` ($38/$39) to $Cn00 and `n^P` sets `CSWL/H` ($36/$37) to $Cn00 for slots 1-7; `0^K` restores $FD1B and `0^P` restores $FDF0;
   - `^B`/`^C` run at $E000/$E003, and `^Y` runs at $03F8;
@@ -344,14 +344,24 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 **Independent Test**: Start Casso with `--debugger`, list it, attach, `bpmr C000` (the keyboard read at the `]` prompt), `g`, and receive a `stopped` notification. A second client receives it too (quickstart phase 2)
 
-- [ ] T065 [P] [US3] Write `UnitTest/DebuggerTests/ChannelProtocolTests.cpp` for `contracts/debug-channel-protocol.md`:
+- [x] T065 [P] [US3] Write `UnitTest/DebuggerTests/ChannelProtocolTests.cpp` for `contracts/debug-channel-protocol.md`:
   - framing: LF-terminated lines, CR tolerated on input, lines capped at 1 MiB;
   - `hello` in both directions, including a client `protocol` higher than the server's;
   - `command` requests with optional `mode` and `budget`, and `pause`;
   - replies echo `id`; notifications carry no `id`, and a stop caused by a command carries its `causeId`;
   - an `error` record for malformed input, with unknown fields ignored.
-- [ ] T066 [US3] Implement `CassoEmuCore/Debugger/Channel/ChannelProtocol.h/.cpp`. Makes T065 pass.
-- [ ] T067 [US3] Create `CassoEmuCore/Debugger/Channel/IPipeTransport.h` (listen, accept, read line, write line, close; per-connection ids) and `UnitTest/DebuggerTests/InMemoryPipeTransport.h`.
+- [x] T066 [US3] Implement `CassoEmuCore/Debugger/Channel/ChannelProtocol.h/.cpp`. Makes T065 pass.
+  - The layer is data in and data out, with no pipe, thread or session in it, so the whole contract is testable without any of them. Notes:
+    - **Replies and notifications stay `ReplyJson`'s.** The contract promises the channel's records are the records `--json` prints, and two writers would be two chances to disagree; `WriteReply` and `WriteStopped` already took the optional `id` and `causeId` the channel needs. What this adds is the half `ReplyJson` has no reason to know: reading a request, the handshake, and the error record for a line that never became a request.
+    - **The JSON writer pretty-prints by default**, which would put a raw newline inside every record and break the framing for every reader of the stream. The compact option is not a preference here, it is the frame.
+    - **The server answers with its own protocol version** whatever the client asked for, so a client built against a later contract learns what it is talking to instead of being refused.
+    - An empty drive is `null` rather than an empty string, because "no disk" and "a disk whose path is empty" are different facts.
+  - Tests parse each record back rather than comparing text, so key order and spacing stay free; the one thing asserted about the bytes is that no record holds a raw newline.
+- [x] T067 [US3] Create `CassoEmuCore/Debugger/Channel/IPipeTransport.h` (listen, accept, read line, write line, close; per-connection ids) and `UnitTest/DebuggerTests/InMemoryPipeTransport.h`.
+  - **Pulled rather than pushed.** Every read is a question the server asks when it is ready for an answer, which is what lets commands run one at a time in arrival order without a lock: the server pumps the transport from one thread and no callback arrives from another. It is also why the server's behavior is testable at all, since the double then drives a whole multi-client conversation with no threads and no pipe.
+  - **Lines carry no terminator.** Framing belongs to the transport: the real one appends LF and splits on it, and a line split across two reads or two lines in one read are its problem rather than the server's.
+  - **A write to a client that has gone is not an error.** A client can disappear between the server deciding to answer and the answer being written, and there is nothing useful left to do about it.
+  - The double keeps what each client received per connection rather than merged, because telling a reply that went to one client from a notification that went to all of them is the distinction the contract turns on. Ids are never reused, so a reply cannot reach whoever inherited a closed client's slot.
 - [ ] T068 [P] [US3] Write `UnitTest/DebuggerTests/DebugChannelServerTests.cpp` over the in-memory transport:
   - several clients, with commands run one at a time in arrival order and each reply sent only to its requester;
   - every notification delivered to every client (Story 3 scenario 6);
