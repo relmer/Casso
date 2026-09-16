@@ -340,6 +340,9 @@ private:
     void  ShowHostProperties     (const std::wstring & path);
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
     void  RebuildTree();
+
+    //  Re-reads the tree, keeping what was open, highlighted and on screen.
+    void  RefreshTree();
     void  RunVerb             (CassqueActions::Verb verb);
     void  RunRawVerb          (CassqueActions::Verb verb);
     void  ReportOutcome       (const CassqueActions::Outcome & outcome, const wchar_t * verbName);
@@ -364,6 +367,7 @@ private:
     Win32ShellIcons                              m_shellIcons;
     std::vector<std::unique_ptr<DxuiCommand>>    m_menuCommands;
     std::unique_ptr<FolderWatch>                 m_folderWatch;
+    bool                                         m_refreshingTree    = false;
     std::vector<Win32IntentChannel::Reply>       m_pendingReplies;
     bool                                         m_dragArmed         = false;
     int                                          m_cassoDriveCount   = 0;

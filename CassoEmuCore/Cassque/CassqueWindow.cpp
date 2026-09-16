@@ -364,6 +364,17 @@ void CassqueWindow::ConfigureWidgets()
         FillList();
     });
 
+    //  Opening or closing a folder changes which folders are on screen.
+    m_tree->SetOnExpand ([this] (const std::wstring &, bool)
+    {
+        //  A refresh re-opens folders one at a time; it updates the watches
+        //  once when it is done instead.
+        if (!m_refreshingTree)
+        {
+            UpdateWatchedFolders();
+        }
+    });
+
 
     m_list->SetShowHeader (true);
     m_list->SetColumns (CassqueBrowser::GetColumns());
@@ -4019,6 +4030,89 @@ void CassqueWindow::RebuildTree()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::RefreshTree
+//
+//  Re-reads the tree without closing what was open. The open folders are
+//  opened again in row order, which puts every parent ahead of its children,
+//  so each child's row exists by the time it is looked for. The highlighted
+//  node and where the tree is looking follow RefreshAnchor, as the list's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::RefreshTree()
+{
+    std::vector<std::wstring>  open;
+    std::vector<std::wstring>  keys;
+    RefreshAnchor::Before      before;
+    RefreshAnchor::After       after;
+    std::wstring               highlighted = m_tree->GetHighlightedId();
+    int                        row         = 0;
+
+
+
+    for (row = 0; row < m_tree->GetVisibleCount(); row++)
+    {
+        const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
+        std::wstring          id   = (node != nullptr) ? node->id : std::wstring();
+
+        before.keys.push_back (id);
+
+        if (node != nullptr && node->expanded)
+        {
+            open.push_back (id);
+        }
+    }
+
+    before.topRow   = m_tree->GetTopRow();
+    before.capacity = m_tree->GetRowCap();
+    before.focused  = m_tree->GetHighlight();
+
+    if (before.focused >= 0)
+    {
+        before.selected.push_back (before.focused);
+    }
+
+    m_refreshingTree = true;
+
+    RebuildTree();
+
+    for (const std::wstring & id : open)
+    {
+        int  found = m_tree->FindRowById (id);
+
+        if (found >= 0)
+        {
+            m_tree->SetRowExpanded (found, true);
+        }
+    }
+
+    m_refreshingTree = false;
+    UpdateWatchedFolders();
+
+    for (row = 0; row < m_tree->GetVisibleCount(); row++)
+    {
+        const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
+
+        keys.push_back ((node != nullptr) ? node->id : std::wstring());
+    }
+
+    after = RefreshAnchor::Compute (before, keys);
+
+    if (after.focused >= 0)
+    {
+        m_tree->HighlightRow (after.focused);
+    }
+
+    //  Last, since highlighting scrolls the node into view.
+    m_tree->SetTopRow (after.topRow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::OnActivateApp
 //
 //  Coming back to the window rereads what it shows, since another window,
@@ -4178,15 +4272,9 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
 //
 //  CassqueWindow::UpdateWatchedFolders
 //
-//  The folder the list is showing, and for an image the folder holding it, so
-//  the image being replaced underneath is noticed too.
-//
-//  THE TREE'S OPEN FOLDERS ARE NOT WATCHED, for two reasons that both want
-//  fixing before they are. The watcher takes a thread per directory, which a
-//  deep tree would turn into twenty of them; and rebuilding the tree drops
-//  every node, so a refresh would fold the tree shut while someone is using
-//  it. Both need work of their own: a watcher multiplexing directories onto
-//  one thread, and a rebuild that keeps what is open.
+//  The folder the list is showing -- for an image, the folder holding it --
+//  and every host folder the tree has open, since those are the folders whose
+//  contents are on screen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4194,6 +4282,7 @@ void CassqueWindow::UpdateWatchedFolders()
 {
     std::vector<std::wstring>  folders;
     Location                   showing = m_browser.GetLocation();
+    int                        row     = 0;
 
 
 
@@ -4209,6 +4298,19 @@ void CassqueWindow::UpdateWatchedFolders()
     else if (!showing.path.empty())
     {
         folders.push_back (CassqueBrowser::GetParentFolder (showing.path));
+    }
+
+    for (row = 0; row < m_tree->GetVisibleCount(); row++)
+    {
+        const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
+        Location              at;
+
+        if (node != nullptr && node->expanded
+            && m_browser.TryGetNodeLocation (node->id, at)
+            && at.kind == Location::Kind::HostFolder && !at.path.empty())
+        {
+            folders.push_back (at.path);
+        }
     }
 
     m_folderWatch->SetWatched (folders);
@@ -4244,8 +4346,11 @@ void CassqueWindow::RefreshChangedFolders()
         return;
     }
 
+    RefreshTree();
+
     if (!m_browser.GetBrowserModel().HasTabs())
     {
+        Invalidate();
         return;
     }
 
