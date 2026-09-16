@@ -584,8 +584,11 @@ void SettingsSheet::ShowControllersPage()
     {
         ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
 
+        // Laid out again rather than merely re-synced: the section is not a
+        // value on the page, it is rows that come and go, and every row below
+        // it moves with them.
         m_controllersState.SetMultiplayer (snapshot.multiplayer, snapshot.axisCount);
-        m_controllersPage->Refresh();
+        m_controllersPage->Relayout();
     }
 
     if (index >= 0)
