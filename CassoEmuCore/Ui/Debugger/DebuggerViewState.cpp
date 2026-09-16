@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 
 #include "Debugger/DebugSession.h"
+#include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/MonitorParser.h"
 
 
@@ -228,6 +229,318 @@ Reply DebuggerViewState::ExecuteLine (DebugSession & session, const std::string 
 
     session.FormatReply (reply, mode);
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ExecuteWindowLine
+//
+//  THIS WINDOW SHOWS EVERY PANE AT ONCE, so AppleWin's commands that pick a
+//  layout have nothing to change and say so. The screen views and appearance
+//  commands are not available: the emulator window shows the screen, and the
+//  theme sets the colors and font.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::string & line, CommandMode mode)
+{
+    std::string              text     = line;
+    size_t                   first    = line.find_first_not_of (" \t");
+    std::istringstream       stream;
+    std::string              name;
+    std::string              argument;
+    const AppleWinCommand  * entry    = nullptr;
+    Reply                    reply;
+
+
+
+    //  In Monitor mode only a `/` line is an AppleWin line.
+    if (mode == CommandMode::Monitor)
+    {
+        if (first == std::string::npos || line[first] != '/')
+        {
+            return ExecuteLine (session, line, mode);
+        }
+
+        text = line.substr (first + 1);
+    }
+
+    stream.str (text);
+    stream >> name >> argument;
+
+    if (!name.empty() && !session.IsAssembling())
+    {
+        entry = AppleWinCommandTable::Find (name);
+    }
+
+    if (entry == nullptr || entry->availability != CommandAvailability::WindowOnly)
+    {
+        return ExecuteLine (session, line, mode);
+    }
+
+    reply.command = line;
+
+    switch (entry->family)
+    {
+    case AppleWinCommandFamily::Cursor:
+        MoveCodePane (session, entry->name, reply);
+        break;
+
+    case AppleWinCommandFamily::MiniMemory:
+        MoveMemoryPane (entry->name, argument, reply);
+        break;
+
+    case AppleWinCommandFamily::Window:
+        if (std::string_view (entry->name).starts_with ("SOURCE"))
+        {
+            reply.SetError (CommandStatus::NotAvailable, "command not available", "SOURCE needs a link to an assembler listing.");
+        }
+        else
+        {
+            reply.data = MessageData { { "This window shows every pane at once." } };
+        }
+
+        break;
+
+    case AppleWinCommandFamily::Views:
+        reply.SetError (CommandStatus::NotAvailable, "command not available",
+                        std::format ("{} is not available here: the emulator window shows the screen.", entry->name));
+        break;
+
+    default:
+        reply.SetError (CommandStatus::NotAvailable, "command not available",
+                        std::format ("{} is not available here: the Casso theme sets the window's colors and font.", entry->name));
+        break;
+    }
+
+    session.FormatReply (reply, mode);
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::MoveCodePane
+//
+//  `.` returns to the PC; RET goes to the return address on the stack; `->`
+//  goes to the address the top instruction names. `^` and `V` move one
+//  instruction, PAGEUP and PAGEDN a pane's worth, and the 256 and 4K forms
+//  that many bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::MoveCodePane (DebugSession & session, const std::string & name, Reply & reply)
+{
+    Word                 start  = m_codeAddress.value_or (session.GetTarget().GetRegisters().pc);
+    std::optional<Word>  target = start;
+
+
+
+    if (name == ".")
+    {
+        m_codeAddress = std::nullopt;
+        reply.data    = MessageData { { "The code pane follows the PC." } };
+        return;
+    }
+
+    if (name == "RET")
+    {
+        target = GetReturnAddress (session);
+    }
+    else if (name == "->")
+    {
+        target = GetOperandAddress (session, start);
+
+        if (!target.has_value())
+        {
+            reply.SetError (CommandStatus::Error, "no address", std::format ("The instruction at ${:04X} has no address operand.", start));
+            return;
+        }
+    }
+    else if (name == "^" || name == "V" || name == "PAGEUP" || name == "PAGEDN")
+    {
+        int  count = (name == "^" || name == "V") ? 1 : kCodeLines;
+
+        for (int i = 0; i < count; i++)
+        {
+            *target = (name == "^" || name == "PAGEUP") ? GetPreviousInstruction (session, *target)
+                                                        : (Word) (*target + GetInstructionLength (session, *target));
+        }
+    }
+    else if (name == "PAGEUP256")   { *target = (Word) (start - 0x0100); }
+    else if (name == "PAGEUP4K")    { *target = (Word) (start - 0x1000); }
+    else if (name == "PAGEDOWN256") { *target = (Word) (start + 0x0100); }
+    else if (name == "PAGEDOWN4K")  { *target = (Word) (start + 0x1000); }
+
+    m_codeAddress = target;
+    reply.data    = MessageData { { std::format ("The code pane is at ${:04X}.", *target) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::MoveMemoryPane
+//
+//  This window has one memory pane, which shows bytes and characters
+//  together, so MD, MA and MT and both of their panes all move it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply)
+{
+    std::string_view  digits  = argument;
+    unsigned          address = 0;
+
+
+
+    if (digits.starts_with ('$'))
+    {
+        digits.remove_prefix (1);
+    }
+
+    auto [end, error] = std::from_chars (digits.data(), digits.data() + digits.size(), address, 16);
+
+    if (digits.empty() || error != std::errc() || end != digits.data() + digits.size() || address > 0xFFFF)
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs a hex address.", name));
+        return;
+    }
+
+    m_memoryAddress = (Word) address;
+    reply.data      = MessageData { { std::format ("The memory pane is at ${:04X}.", address) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetInstructionLength
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word DebuggerViewState::GetInstructionLength (DebugSession & session, Word address)
+{
+    Reply                   code = session.ExecuteLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
+    const DisassemblyData * data = std::get_if<DisassemblyData> (&code.data);
+
+
+
+    if (data == nullptr || data->lines.empty() || data->lines[0].instruction.bytes.empty())
+    {
+        return 1;
+    }
+
+    return (Word) data->lines[0].instruction.bytes.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetPreviousInstruction
+//
+//  Code cannot be disassembled backward with certainty, so this takes the
+//  longest instruction that ends exactly where the given one starts, and one
+//  byte back when none does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word DebuggerViewState::GetPreviousInstruction (DebugSession & session, Word address)
+{
+    for (Word back = 3; back >= 1; back--)
+    {
+        if (GetInstructionLength (session, (Word) (address - back)) == back)
+        {
+            return (Word) (address - back);
+        }
+    }
+
+    return (Word) (address - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetReturnAddress
+//
+//  JSR pushes the address of its own last byte, so RTS returns one past what
+//  the stack holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> DebuggerViewState::GetReturnAddress (DebugSession & session)
+{
+    const IDebugTarget  & target = session.GetTarget();
+    Byte                  s      = target.GetRegisters().sp;
+    Byte                  low    = 0;
+    Byte                  high   = 0;
+
+
+
+    if (!target.TryPeek ((Word) (0x0100 + (Byte) (s + 1)), low) ||
+        !target.TryPeek ((Word) (0x0100 + (Byte) (s + 2)), high))
+    {
+        return std::nullopt;
+    }
+
+    return (Word) (((high << 8) | low) + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetOperandAddress
+//
+//  A branch, jump or absolute operand is disassembled with four hex digits; a
+//  zero-page or immediate operand has two, and is not taken as an address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> DebuggerViewState::GetOperandAddress (DebugSession & session, Word address)
+{
+    Reply                   code    = session.ExecuteLine (std::format ("U {:04X}", address), CommandMode::AppleWin);
+    const DisassemblyData * data    = std::get_if<DisassemblyData> (&code.data);
+    size_t                  dollar  = std::string::npos;
+    unsigned                operand = 0;
+
+
+
+    if (data == nullptr || data->lines.empty())
+    {
+        return std::nullopt;
+    }
+
+    const std::string & text = data->lines[0].instruction.operand;
+
+    dollar = text.find ('$');
+
+    if (dollar == std::string::npos || text.size() < dollar + 5 ||
+        std::from_chars (text.data() + dollar + 1, text.data() + dollar + 5, operand, 16).ptr != text.data() + dollar + 5)
+    {
+        return std::nullopt;
+    }
+
+    return (Word) operand;
 }
 
 

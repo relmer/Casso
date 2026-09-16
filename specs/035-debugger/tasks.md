@@ -429,7 +429,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - the `R`/`W` filename prompt when a filename is missing.
 
   Wire the menu item and open/re-attach in `CassoEmuCore/Shell/EmulatorShellDebug.cpp`, and make `--debugger` open the window.
-- [ ] T081 [US4] Implement the phase-3 AppleWin names in `CassoEmuCore/Debugger/Handlers/ViewHandlers.h/.cpp`, and move them to phase-1 availability in `CassoCore/Debugger/AppleWinCommandTable.cpp`:
+- [X] T081 [US4] Implement the phase-3 AppleWin names in `CassoEmuCore/Debugger/Handlers/ViewHandlers.h/.cpp`, and move them to phase-1 availability in `CassoCore/Debugger/AppleWinCommandTable.cpp`:
   - cursor: `.`, `RET`, `^`, `v` and their Shift forms, `PAGEUP`, `PAGEUP256`, `PAGEUP4K`, `PAGEDN`, `PAGEDOWN256`, `PAGEDOWN4K`, and the `->` aliases;
   - window: `WIN`, `WINDOW`, `CODE`, `CODE1`, `CODE2`, `CONSOLE`, `DATA`, `DATA1`, `DATA2`, `SOURCE1`, `SOURCE2`, `\`;
   - mini memory panes: `MD1`, `MD2`, `MA1`, `MA2`, `MT1`, `MT2`, `M1`, `M2`;

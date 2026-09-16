@@ -131,6 +131,10 @@ public:
     //  mode runs and formats it. CPU thread only.
     static Reply  ExecuteLine (DebugSession & session, const std::string & line, CommandMode mode);
 
+    //  The same, except that the AppleWin names batch and the pipe report as
+    //  needing the window are carried out on the panes here. CPU thread only.
+    Reply  ExecuteWindowLine (DebugSession & session, const std::string & line, CommandMode mode);
+
     //  The R or W a line holds with no file name, which the window asks for,
     //  and the line with the chosen name added.
     static std::optional<DebugVerb>  GetMissingFileVerb  (const std::string & line, CommandMode mode);
@@ -139,6 +143,14 @@ public:
     static std::string  GetRegionLabel (MemoryRegion region);
 
 private:
+    void  MoveCodePane   (DebugSession & session, const std::string & name, Reply & reply);
+    void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
+
+    static Word                 GetInstructionLength   (DebugSession & session, Word address);
+    static Word                 GetPreviousInstruction (DebugSession & session, Word address);
+    static std::optional<Word>  GetReturnAddress       (DebugSession & session);
+    static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
+
     std::optional<Word>  m_codeAddress;
     Word                 m_memoryAddress = 0x0000;
 };

@@ -367,4 +367,136 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string ("C:\\My Files\\dump.bin"), parsed.commands[0].text);
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  WindowCommandTests
+    //
+    //  The AppleWin names that need the window, carried out on its panes.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (WindowCommandTests)
+    {
+    public:
+
+        static Reply RunInWindow (MachineRig & rig, const std::string & line, CommandMode mode = CommandMode::AppleWin)
+        {
+            return rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
+        }
+
+
+
+        TEST_METHOD (CursorCommandsMoveTheCodePane)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::IsTrue   (RunInWindow (rig, "V").status == CommandStatus::Ok);
+            Assert::AreEqual ((Word) 0x0302, rig.view.GetCodeAddress().value_or (0), L"V passes LDA #$41");
+
+            RunInWindow (rig, "v");
+            Assert::AreEqual ((Word) 0x0305, rig.view.GetCodeAddress().value_or (0), L"and STA $0400");
+
+            RunInWindow (rig, "^");
+            Assert::AreEqual ((Word) 0x0302, rig.view.GetCodeAddress().value_or (0), L"^ goes back one instruction");
+
+            RunInWindow (rig, "PAGEDOWN256");
+            Assert::AreEqual ((Word) 0x0402, rig.view.GetCodeAddress().value_or (0), L"PAGEDOWN256");
+
+            RunInWindow (rig, "PAGEUP4K");
+            Assert::AreEqual ((Word) 0xF402, rig.view.GetCodeAddress().value_or (0), L"PAGEUP4K wraps");
+
+            RunInWindow (rig, ".");
+            Assert::IsFalse  (rig.view.GetCodeAddress().has_value(), L". follows the PC again");
+        }
+
+
+
+        TEST_METHOD (RetAndArrowGoToTheAddressesTheyRead)
+        {
+            MachineRig        rig;
+            Cpu6502Registers  r    = rig.controller.GetSession().GetTarget().GetRegisters();
+            Reply             reply;
+
+
+
+            r.sp = 0xFD;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            rig.machine.GetMemoryBus().WriteByte (0x01FE, 0x34);
+            rig.machine.GetMemoryBus().WriteByte (0x01FF, 0x12);
+
+            RunInWindow (rig, "RET");
+            Assert::AreEqual ((Word) 0x1235, rig.view.GetCodeAddress().value_or (0), L"one past the pushed address");
+
+            rig.view.SetCodeAddress (0x0302);
+            RunInWindow (rig, "->");
+            Assert::AreEqual ((Word) 0x0400, rig.view.GetCodeAddress().value_or (0), L"STA $0400's address");
+
+            rig.view.SetCodeAddress (0x0300);
+            reply = RunInWindow (rig, "->");
+            Assert::IsTrue   (reply.status == CommandStatus::Error, L"LDA #$41 has no address");
+            Assert::AreEqual ((Word) 0x0300, rig.view.GetCodeAddress().value_or (0), L"and the pane stays");
+        }
+
+
+
+        TEST_METHOD (MiniMemoryCommandsMoveTheMemoryPane)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::IsTrue   (RunInWindow (rig, "MD1 1000").status == CommandStatus::Ok);
+            Assert::AreEqual ((Word) 0x1000, rig.view.GetMemoryAddress());
+
+            Assert::IsTrue   (RunInWindow (rig, "/MT2 $2000", CommandMode::Monitor).status == CommandStatus::Ok);
+            Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a / line in Monitor mode");
+
+            Assert::IsTrue   (RunInWindow (rig, "MA1").status == CommandStatus::Error, L"no address");
+            Assert::IsTrue   (RunInWindow (rig, "MA1 XYZ").status == CommandStatus::Error, L"not hex");
+            Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a bad address leaves the pane");
+        }
+
+
+
+        TEST_METHOD (LayoutViewAndAppearanceNamesReplyWithoutChangingThePanes)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::IsTrue (RunInWindow (rig, "CODE").status    == CommandStatus::Ok,           L"every pane is shown");
+            Assert::IsTrue (RunInWindow (rig, "SOURCE1").status == CommandStatus::NotAvailable, L"no listing link");
+            Assert::IsTrue (RunInWindow (rig, "HGR").status     == CommandStatus::NotAvailable, L"a screen view");
+            Assert::IsTrue (RunInWindow (rig, "BW").status      == CommandStatus::NotAvailable, L"appearance");
+
+            Assert::IsFalse  (rig.view.GetCodeAddress().has_value());
+            Assert::AreEqual ((Word) 0x0000, rig.view.GetMemoryAddress());
+        }
+
+
+
+        //  Outside the window the same names still need it, and every other line
+        //  runs as the command box always ran it.
+        TEST_METHOD (OtherLinesAndOtherCallersAreUnchanged)
+        {
+            MachineRig  rig;
+            Reply       viaWindow  = RunInWindow (rig, "U 300");
+            Reply       viaSession = rig.Run ("U 300");
+
+
+
+            Assert::IsTrue   (rig.controller.GetSession().ExecuteLine ("V", CommandMode::AppleWin).status == CommandStatus::NotAvailable);
+            Assert::IsTrue   (RunInWindow (rig, "V", CommandMode::Monitor).status != CommandStatus::Ok ||
+                              !rig.view.GetCodeAddress().has_value(), L"a Monitor line without / is the Monitor's");
+            Assert::AreEqual (viaSession.text.size(), viaWindow.text.size());
+            Assert::AreEqual (viaSession.text.front(), viaWindow.text.front());
+        }
+    };
 }

@@ -204,8 +204,8 @@ void EmulatorShell::OpenDebugChannel()
             return;
         }
 
-        reply = DebuggerViewState::ExecuteLine (m_debugger->GetSession(), line,
-                                                m_debugger->GetSession().GetMode());
+        reply = m_debugViewState.ExecuteWindowLine (m_debugger->GetSession(), line,
+                                                    m_debugger->GetSession().GetMode());
 
         lines.push_back ((m_debugger->GetSession().GetMode() == CommandMode::Monitor ? "*" : ">") + line);
         lines.insert (lines.end(), reply.text.begin(), reply.text.end());
