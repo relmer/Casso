@@ -282,9 +282,32 @@ Three things this capture settles and one it does not:
   `:EXIT`, `:FINISH`, `:GK`, `:LOOP`, `:MAKNIB`, `:NI`, `:NXT`, `:OK`, `:ON`,
   `:PCHR`, `:ZT`) and none appears. This is a comparison against a known source,
   not an argument from an empty table.
-- **The `M ` flag is unexplained.** `ND`, `NI` and `LP` carry it with real
-  addresses, and the names resemble local labels in the source. What the flag
-  marks is not determined by this capture and must not be guessed at.
+- **The `M ` flag marks a label generated inside a macro expansion.** Settled by
+  assembling the same source with Casso: Merlin's `M  ND =$09C4`, `M  LP =$09F9`
+  and `M  NI =$0A4F` carry the addresses Casso gives its own generated labels
+  `ND0025`, `LP0028` and `NI0030`. Three addresses agreeing is what identifies
+  the flag; the resemblance to local-label names alone would not have.
+
+**Merlin's table holds the source's top-level symbols and no local label.**
+Casso's did list them at first -- locals qualified by their owner
+(`MAIN.BIGLOOP`, `SENDMSG.NXT`) and macro-generated labels under per-invocation
+names (`LP0022`) -- which put about fifteen entries in `MAKE DUMP.S`'s table
+that Merlin never printed, and broke the column grid wherever one of those names
+ran past the eight-column field. Both kinds are now recorded where the stored
+name is built (`AssemblyResult::localSymbols` and `macroSymbols`) and left out
+of the table.
+
+Recorded at creation rather than recognized afterwards, because the finished
+name cannot be classified: the scope separator is a legal label character in
+some dialects, and an ordinary source symbol may end in digits exactly as a
+per-invocation macro label does.
+
+**What still differs, in the other direction.** Against `MAKE DUMP.S`, Casso's
+table now holds nothing Merlin's does not, and Merlin's holds twelve entries
+Casso's does not: its nine `MAC` definitions flagged `MD`, and the three
+macro-generated labels `ND`, `LP` and `NI` flagged `M `. Listing those would
+mean giving macros a value they do not have, and recovering the unnumbered base
+name of a generated label through nested expansions. Neither is done.
 
 **Four entries per row, on an 80-column screen.** Merlin runs the listing in
 80 columns and a full row measures 76 characters, so the count is Merlin's own

@@ -541,6 +541,21 @@ HRESULT ArtifactWriter::WriteListing (const AssemblyResult & result,
         }
     }
 
+    //  Merlin ends a listing with its symbol table and AS65 does not, so this
+    //  turns on the dialect rather than on a flag: asking for a listing in a
+    //  dialect is asking for that dialect's listing.
+    if (options.dialect == DialectId::Merlin)
+    {
+        std::set<std::string>  omit = result.builtinSymbols;
+
+        //  Merlin's table holds the source's top-level symbols. It prints no
+        //  local label, so neither does this.
+        omit.insert (result.localSymbols.begin(),  result.localSymbols.end());
+        omit.insert (result.macroSymbols.begin(),  result.macroSymbols.end());
+
+        *listOut << Assembler::FormatMerlinSymbolTable (result.symbols, omit);
+    }
+
 Error:
     return hr;
 }

@@ -328,6 +328,26 @@ struct AssemblyResult
     // a flat table cannot answer: two outputs may both begin at the same
     // address, and an index built by address over all of them collides.
     std::unordered_map<std::string, int>        symbolLines;
+
+    //  The symbols the assembler defined itself, so a caller listing "the
+    //  source's symbols" can leave them out. `IFDEF __65SC02__` needs them
+    //  defined, which puts them in the same table as the source's own and
+    //  makes them indistinguishable by kind: they are Set, and so is every
+    //  symbol a source assigns with `=`.
+    std::set<std::string>                       builtinSymbols;
+
+    //  Labels that are not the source's own top-level names: a local label,
+    //  stored under the scope it belongs to (`MAIN.BIGLOOP`), and a label a
+    //  macro expansion produced, stored under the per-invocation name that
+    //  keeps two invocations apart (`LP0022`).
+    //
+    //  Recorded where the names are MADE. Neither is recognizable afterwards:
+    //  the scope separator is a legal character in some dialects' labels, and a
+    //  source symbol may end in digits, so a listing that sorted them out by
+    //  spelling would drop real symbols on some sources and keep these on
+    //  others.
+    std::set<std::string>                       localSymbols;
+    std::set<std::string>                       macroSymbols;
     std::vector<AssemblyError>                  errors;
     std::vector<AssemblyError>                  warnings;
     std::vector<AssemblyLine>                   listing;

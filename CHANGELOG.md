@@ -14,6 +14,11 @@ Entries before versioning was introduced use dates only.
   focus ring walks the menu titles, the ten toolbar entries and the drives;
   Enter on an entry activates it, and Enter on Volume opens the flyout with
   the arrow, Home, End and page keys moving the slider until Escape.
+- `CassoCli merlin -l` appends a symbol table to its listing, as Merlin does:
+  the source's symbols in alphabetical order, then again in address order. It
+  goes in the `.lst` file beside the object. Local labels and the assembler's
+  own predefined symbols are left out, so the table holds the source's own
+  top-level symbols.
 
 ### Changed
 

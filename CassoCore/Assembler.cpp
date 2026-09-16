@@ -467,6 +467,128 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatMerlinSymbolRows
+//
+//  Entries across a fixed grid: four to a row, each starting a stride apart.
+//
+//  THE STRIDE IS PADDED TO, NOT COUNTED FROM, because an entry's width varies
+//  with its value -- a zero-page address prints two hex digits and every other
+//  address prints four. Laying the columns out by padding each entry to the
+//  stride keeps the names aligned whatever mixture of the two a row holds.
+//
+//  The last entry in a row is left unpadded, so no row carries trailing spaces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Assembler::FormatMerlinSymbolRows (const std::vector<std::pair<std::string, Word>> & entries)
+{
+    //  Four to a row, twenty columns apart: Merlin's own grid, which fills the
+    //  80-column screen it lists to.
+    static constexpr size_t  kMerlinSymbolColumns = 4;
+    static constexpr size_t  kMerlinSymbolStride  = 20;
+    std::string              output;
+    std::string              row;
+
+
+
+    for (size_t i = 0; i < entries.size(); i++)
+    {
+        //  Two hex digits for zero page and four above it, which is what Merlin
+        //  prints: the width says which page the address is on.
+        std::string  value = entries[i].second < 0x100
+                                 ? std::format ("{:02X}", entries[i].second)
+                                 : std::format ("{:04X}", entries[i].second);
+
+        //  Three leading spaces are the flag field Merlin puts before a name,
+        //  left empty because Casso lists no macros (see FormatMerlinSymbolTable).
+        std::string  entry     = std::format ("   {:<8s}=${}", entries[i].first, value);
+        bool         isRowEnd  = ((i + 1) % kMerlinSymbolColumns == 0) || (i + 1 == entries.size());
+
+        //  A name wider than its field pushes past the stride. It still gets a
+        //  separator, because running one entry into the next would make the
+        //  row unreadable and unparseable at once -- the column grid is already
+        //  lost for that row, and there is nothing to be gained by losing the
+        //  gap as well.
+        if (!isRowEnd)
+        {
+            do
+            {
+                entry += " ";
+            }
+            while (entry.size() < kMerlinSymbolStride);
+        }
+
+        row += entry;
+
+        if (isRowEnd)
+        {
+            output += row + "\n";
+            row.clear();
+        }
+    }
+
+    return output;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatMerlinSymbolTable
+//
+//  Both sections, in Merlin's order: names first, then addresses.
+//
+//  THE TWO SECTIONS HOLD THE SAME SYMBOLS. A reader taking either one has them
+//  all, which is why the importer can stop at the first heading it meets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Assembler::FormatMerlinSymbolTable (const std::unordered_map<std::string, Word> & symbols,
+                                                const std::set<std::string> & omit)
+{
+    std::vector<std::pair<std::string, Word>>  byName;
+    std::vector<std::pair<std::string, Word>>  byValue;
+    std::string                                output;
+
+
+
+    for (const auto & pair : symbols)
+    {
+        if (omit.find (pair.first) == omit.end())
+        {
+            byName.push_back (pair);
+        }
+    }
+
+    byValue = byName;
+
+    std::sort (byName.begin(), byName.end(),
+        [] (const auto & a, const auto & b) { return a.first < b.first; });
+
+    //  Name breaks a tie on address, so two symbols on one address list in a
+    //  fixed order rather than in whichever order the map happened to yield.
+    std::sort (byValue.begin(), byValue.end(),
+        [] (const auto & a, const auto & b)
+        {
+            return a.second != b.second ? a.second < b.second : a.first < b.first;
+        });
+
+    output += "\nSymbol table - alphabetical order:\n\n";
+    output += FormatMerlinSymbolRows (byName);
+    output += "\nSymbol table - numerical order:\n\n";
+    output += FormatMerlinSymbolRows (byValue);
+
+    return output;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatDebugInfo
 //
 ////////////////////////////////////////////////////////////////////////////////

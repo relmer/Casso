@@ -80,8 +80,26 @@ public:
                                           const std::unordered_map<std::string, SymbolKind> & symbolKinds);
     static std::string FormatDebugInfo   (const std::unordered_map<std::string, Word> & symbols);
 
+    //  The symbol table a Merlin listing carries: the same symbols twice, once
+    //  in name order and once in address order, in the layout research R-009
+    //  records from Merlin Pro 2.23.
+    //
+    //  REAL MERLIN ALSO LISTS MACROS, each carrying $8000 -- the default origin
+    //  rather than an address, because a macro has none. No macro appears here,
+    //  and NOT because this filters them: a macro name never becomes a symbol in
+    //  Casso, so there is nothing to leave out. Worth stating because the two
+    //  read alike in the output and only one of them would survive a change to
+    //  how macros are stored.
+    //  `omit` lists symbols to leave out -- the assembler's own builtins, which
+    //  the source did not write and Merlin never printed.
+    static std::string FormatMerlinSymbolTable (const std::unordered_map<std::string, Word> & symbols,
+                                                const std::set<std::string> & omit = {});
+
 private:
     void RecordWarning (AssemblyResult & result, int lineNumber, const std::string & message);
+
+    //  One section's rows, the entries laid out across the fixed column grid.
+    static std::string FormatMerlinSymbolRows (const std::vector<std::pair<std::string, Word>> & entries);
 
     InstructionSetProvider m_instructionSets;
     AssemblerOptions       m_options;

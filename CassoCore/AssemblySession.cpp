@@ -1285,6 +1285,11 @@ void AssemblySession::InjectBuiltin (const std::string & name, int32_t value)
     m_symbolKinds[name] = SymbolKind::Set;
     m_symbolLines[name] = m_lastSourceLine;
     m_exprSymbols[name] = value;
+
+    //  Recorded as the assembler's own here, at the one place they are made.
+    //  A caller that must tell them from the source's symbols cannot do it
+    //  afterwards: nothing about the entry says where it came from.
+    m_result.builtinSymbols.insert (name);
 }
 
 
@@ -3635,6 +3640,17 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
             m_symbolKinds[stored] = SymbolKind::Label;
             m_symbolLines[stored] = m_lastSourceLine;
             m_exprSymbols[stored] = (int32_t) address;
+
+            //  Noted here because this is where the stored name is built and
+            //  where what it was built FROM is still known.
+            if (isLocal)
+            {
+                m_result.localSymbols.insert (stored);
+            }
+            else if (current.macroDepth > 0)
+            {
+                m_result.macroSymbols.insert (stored);
+            }
 
             // Warn if label resembles mnemonic by case
             upper = ToUpperCase (spelled);
