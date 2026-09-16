@@ -744,8 +744,15 @@ bool ControllerProfileStore::ReadProfile (const JsonValue & profileObj, Controll
     if (profileObj.GetType() != JsonType::Object ||
         !profileObj.HasString (s_kpszNameKey, outProfile.name) ||
         outProfile.name.empty() ||
-        !profileObj.HasObject (s_kpszMappingKey, mappingObj) ||
-        mappingObj == nullptr)
+        !profileObj.HasObject (s_kpszMappingKey, mappingObj))
+    {
+        return false;
+    }
+
+    // Tested on its own. Joined to the lookup above by ||, the null test is
+    // one the code analysis on the build server does not carry to the
+    // dereference below.
+    if (mappingObj == nullptr)
     {
         return false;
     }
@@ -807,7 +814,12 @@ bool ControllerProfileStore::ReadAxisBindings (const JsonValue & mappingObj, con
         return true;
     }
 
-    if (!mappingObj.HasArray (pszKey, bindingsArr) || bindingsArr == nullptr)
+    if (!mappingObj.HasArray (pszKey, bindingsArr))
+    {
+        return false;
+    }
+
+    if (bindingsArr == nullptr)
     {
         return false;
     }
@@ -915,7 +927,12 @@ bool ControllerProfileStore::ReadButtonBindings (const JsonValue & mappingObj, c
         return true;
     }
 
-    if (!mappingObj.HasArray (pszKey, bindingsArr) || bindingsArr == nullptr)
+    if (!mappingObj.HasArray (pszKey, bindingsArr))
+    {
+        return false;
+    }
+
+    if (bindingsArr == nullptr)
     {
         return false;
     }
@@ -996,8 +1013,12 @@ bool ControllerProfileStore::ReadCalibration (const std::string & token, const J
 
     if (entry.GetType() != JsonType::Object ||
         !entry.HasString (s_kpszModeKey, mode) ||
-        !entry.HasArray (s_kpszAxesKey, axesArr) ||
-        axesArr == nullptr)
+        !entry.HasArray (s_kpszAxesKey, axesArr))
+    {
+        return false;
+    }
+
+    if (axesArr == nullptr)
     {
         return false;
     }
