@@ -138,6 +138,91 @@ public:
 
 
 
+    //  The file browser's columns: a stretch Name column first, then others.
+    static void  BuildWithStretchName (DxuiListView & list)
+    {
+        DxuiDpiScaler                                 scaler;
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+        int                                           i = 0;
+
+        scaler.SetDpi (96);
+
+        for (i = 0; i < 20; i++)
+        {
+            rows.push_back ({ DxuiListView::Cell { L"file.txt", false }, DxuiListView::Cell { L"TXT", false } });
+        }
+
+        list.SetColumns    ({ DxuiListView::Column { L"Name", 200, true }, DxuiListView::Column { L"Type", 100 } });
+        list.SetShowHeader (true);
+        list.SetRows       (std::move (rows));
+        list.Layout        (RECT { 0, 0, 600, 400 }, scaler);
+    }
+
+
+
+    static int  FindDividerX (const DxuiListView & list, int column)
+    {
+        int  x = 0;
+
+        for (x = 0; x < 600; x++)
+        {
+            if (list.HitTestColumnResize (x, 10, 4) == column)
+            {
+                return x;
+            }
+        }
+
+        return -1;
+    }
+
+
+
+    TEST_METHOD (TheStretchColumnsDividerCanBeGrabbed)
+    {
+        DxuiListView  list;
+        int           x = 0;
+
+        BuildWithStretchName (list);
+
+        x = FindDividerX (list, 0);
+
+        //  Name absorbs the spare width by default, which is no reason it
+        //  cannot be given a width of its own.
+        Assert::IsTrue (x >= 0, L"The Name column's divider can be grabbed");
+        Assert::IsTrue (list.GetCursorForPoint (POINT { x, 10 }) == IDC_SIZEWE, L"and shows the resize cursor");
+    }
+
+
+
+    TEST_METHOD (DraggingTheStretchColumnsDivider_ChangesItsWidth)
+    {
+        DxuiListView    list;
+        DxuiMouseEvent  ev;
+        int             x = 0;
+
+        BuildWithStretchName (list);
+
+        x = FindDividerX (list, 0);
+        Assert::IsTrue (x >= 0);
+
+        ev.button = DxuiMouseButton::Left;
+
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.positionDip = POINT { x, 10 };
+        list.OnMouse (ev);
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = POINT { x - 60, 10 };
+        list.OnMouse (ev);
+
+        ev.kind = DxuiMouseEventKind::Up;
+        list.OnMouse (ev);
+
+        Assert::IsTrue (list.GetColumnOverrideWidthPx (0) > 0, L"The drag gave Name a width of its own");
+    }
+
+
+
     TEST_METHOD (ASinglePressOnADividerFitsNothing)
     {
         Fixture  f;

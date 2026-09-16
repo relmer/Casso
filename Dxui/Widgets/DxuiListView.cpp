@@ -2243,14 +2243,11 @@ int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
             continue;
         }
 
-        // A stretch column's right edge is fill-derived, not user-set; every
-        // other column -- including the last content-fit one -- has a real,
-        // draggable right edge, so only stretch columns are excluded.
-        if (m_columns[c].stretch)
-        {
-            continue;
-        }
-
+        //  EVERY COLUMN'S EDGE CAN BE GRABBED, a stretch column's included. A
+        //  stretch column absorbs the spare width by default, but that is no
+        //  reason it cannot be given a width of its own: the layout keeps a
+        //  width dragged onto one. Excluding it made the file browser's Name
+        //  column, the one most wanted wider, impossible to resize.
         rightEdge = colXPx[c] + colWPx[c];
 
         if (xAdj >= rightEdge - tolerancePx && xAdj <= rightEdge + tolerancePx)
