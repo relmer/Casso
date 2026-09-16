@@ -412,7 +412,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 **Independent Test**: Open the window, click a disassembly line to set a breakpoint, run to it, edit a byte in the memory view, and confirm with `d 300` (quickstart phase 3)
 
-- [ ] T078 [P] [US4] Write `UnitTest/DebuggerTests/DebuggerViewStateTests.cpp` for the projection of session state:
+- [X] T078 [P] [US4] Write `UnitTest/DebuggerTests/DebuggerViewStateTests.cpp` for the projection of session state:
   - disassembly around PC with the current line flagged;
   - register and flag rows;
   - memory rows with region labels;
@@ -422,7 +422,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - step, step over, run and run-to-cursor producing the matching `RunRequest`;
   - the command line executing in the selected mode with the same reply as batch (Story 4 scenario 4);
   - a breakpoint set through `DebugChannelServer` over the in-memory transport appearing in the breakpoint pane, and one set by clicking appearing in a client's `bpl` reply (SC-006).
-- [ ] T079 [US4] Implement `CassoEmuCore/Ui/Debugger/DebuggerViewState.h/.cpp`. Makes T078 pass.
+- [X] T079 [US4] Implement `CassoEmuCore/Ui/Debugger/DebuggerViewState.h/.cpp`. Makes T078 pass.
 - [ ] T080 [US4] Implement `CassoEmuCore/Ui/Debugger/DebuggerWindow.h/.cpp`, a `DxuiWindow` subclass following `Ui/Disk2DebugPanel`:
   - panes built from `DxuiListView`, `DxuiTextInput`, `DxuiToolbar` and `DxuiCommand` (032 widgets);
   - `OnCreate`/`OnWindowClose` drive `DebuggerController` open and close;
