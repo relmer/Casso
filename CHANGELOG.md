@@ -27,6 +27,10 @@ Entries before versioning was introduced use dates only.
   Enter on an entry activates it, and Enter on Volume opens the flyout with
   the arrow, Home, End and page keys moving the slider until Escape.
 
+- A banner appears across the window while the arrow keys or the mouse drive
+  the game port.
+- Double-clicking in a text field selects a word.
+
 ### Changed
 
 - `CassoCli disk list` ends with a "Not bootable" line when the image has no
@@ -43,6 +47,9 @@ Entries before versioning was introduced use dates only.
 - The disk picker opens centered below the drive that was clicked, moving
   only as far as it must to stay on screen. Opened from the menu or the
   keyboard, it centers on the Casso window.
+- Mouse mode is now a toolbar button, and the separate input cluster is gone.
+- Long drop-down lists stop at a fixed height and scroll.
+- The Settings window is a fixed size.
 
 ### Removed
 
@@ -74,6 +81,13 @@ Entries before versioning was introduced use dates only.
 - Escape to leave paddle mode no longer also sends an Escape to the //e.
 - A key that operates an open toolbar picker no longer also reaches the //e.
   Previously, dismissing a picker with Escape sent that Escape to the machine.
+- Toolbar drop-downs open above the toolbar when there isn't room below,
+  instead of running onto the taskbar.
+- Clicking a menu title while a drop-down is open switches to that menu
+  instead of just closing the drop-down.
+- Escape closes an open drop-down first, rather than closing the whole dialog.
+- Switching machines now restores a saved color mode of color.
+- Clicking OK in Settings no longer disconnects a Disk ][ card's second drive.
 
 ## [1.24.2]: The one with the redist dist
 
