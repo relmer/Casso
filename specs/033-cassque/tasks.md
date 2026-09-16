@@ -258,8 +258,8 @@
 - [ ] T077 Walk `quickstart.md` §1 through §6 on a Release x64 build and record outcomes in `specs/033-cassque/validation.md`, including every `fc /b` result
 - [ ] T078 [P] Run `quickstart.md` §7 headless tests Debug and Release and §8 structural checks; record in `validation.md`
 - [ ] T079 [P] Add one line under `[Unreleased]` in `CHANGELOG.md` for the net effect, and a headline line in `README.md`; both shown for approval before push
-- [ ] T080 `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
-- [ ] T081 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for all four configurations; zero warnings
+- [x] T080 `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
+- [x] T081 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for all four configurations; zero warnings
 - [ ] T082 Merge `origin/master`, rebuild, rerun the suite; present every commit subject and the CHANGELOG and README lines for approval before the master merge
 
 ---
