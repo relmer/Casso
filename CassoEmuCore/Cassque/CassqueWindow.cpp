@@ -493,6 +493,7 @@ void CassqueWindow::ConfigureWidgets()
     m_address->SetOnSubmit ([this] (const std::wstring & text) { SubmitAddress (text); });
     m_address->SetOnSeparator ([this] (int index, const RECT & anchor) { ShowAddressMenu (index, anchor); });
     m_address->SetOnOverflow  ([this] (const RECT & anchor) { ShowAddressOverflowMenu (anchor); });
+    m_address->SetOnHistory   ([this] (const RECT & anchor) { ShowAddressHistoryMenu (anchor); });
 
     m_browser.GetTypedPaths().Reset (m_prefs.typedPaths);
     m_browser.RestoreTabs (m_prefs.tabs);
@@ -4113,6 +4114,50 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
             m_address->SetOpenSeparator (-1);
             Invalidate();
         });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowAddressHistoryMenu
+//
+//  The paths typed into the bar, newest first.
+//
+//  EACH PICK GOES BACK THROUGH THE TEXT, not through the location it parses
+//  to. The history records a path where a typed navigation succeeds, so
+//  submitting the text is what moves the pick to the top of the list; handing
+//  the parsed location straight to the browser would navigate correctly and
+//  silently leave the order alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowAddressHistoryMenu (const RECT & anchor)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    m_menuCommands.clear();
+
+    for (const std::wstring & typed : m_browser.GetTypedPaths().GetEntries())
+    {
+        std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+        std::wstring                  text    = typed;
+
+        command->label    = EscapeMnemonics (typed);
+        command->dispatch = [this, text]() { SubmitAddress (text); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    if (!items.empty())
+    {
+        DxuiContextMenu::ShowUnder (*GetPopupHost(), anchor, std::move (items));
     }
 }
 

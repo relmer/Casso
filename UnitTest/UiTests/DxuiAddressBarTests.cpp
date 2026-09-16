@@ -167,6 +167,90 @@ public:
     }
 
 
+    TEST_METHOD (HistoryChevron_ReportsItsRectAtRestAndWhileEditing)
+    {
+        Fixture  f;
+        int      opened = 0;
+        RECT     anchor = {};
+
+        f.LayOut (400);
+        f.bar.SetOnHistory ([&] (const RECT & rc) { opened++; anchor = rc; });
+
+        //  At rest it sits at the trailing end of the bar.
+        f.Click (390);
+
+        Assert::AreEqual (1,    opened);
+        Assert::AreEqual (372L, anchor.left);
+        Assert::AreEqual (400L, anchor.right);
+        Assert::IsFalse  (f.bar.IsEditing(), L"The chevron opens the list rather than the path for editing");
+
+        //  Editing, it steps aside for the clear button and still reports.
+        f.bar.BeginEdit();
+        f.Click (358);
+
+        Assert::AreEqual (2,    opened);
+        Assert::AreEqual (340L, anchor.left);
+        Assert::AreEqual (368L, anchor.right);
+        Assert::IsTrue   (f.bar.IsEditing(), L"and the field stays open");
+    }
+
+
+    TEST_METHOD (HistoryChevron_IsDrawnWhileTheFieldIsOpen)
+    {
+        Fixture          f;
+        MockDxuiPainter  painter;
+        MockDxuiTheme    theme;
+        int              strokes = 0;
+
+        f.LayOut (400);
+        f.bar.SetOnHistory ([] (const RECT &) {});
+        f.bar.BeginEdit();
+        f.bar.Paint (painter, f.text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::DrawLineApprox && call.x >= 340.0f && call.x <= 368.0f)
+            {
+                strokes++;
+            }
+        }
+
+        //  The editing branch returns before the segments are drawn, so a
+        //  chevron painted alongside them would be missing exactly here.
+        Assert::AreEqual (2, strokes, L"Both of the chevron's strokes are drawn while the field is open");
+    }
+
+
+    TEST_METHOD (F4_OpensThePathAndDropsTheList)
+    {
+        Fixture  f;
+        int      opened = 0;
+
+        f.LayOut (400);
+        f.bar.SetOnHistory ([&] (const RECT &) { opened++; });
+
+        Assert::IsTrue   (f.Key (DxuiKeyEventKind::Down, VK_F4));
+        Assert::IsTrue   (f.bar.IsEditing(), L"F4 opens the path for editing");
+        Assert::AreEqual (1, opened, L"and drops the list at the same time, as in Explorer");
+
+        Assert::IsTrue   (f.Key (DxuiKeyEventKind::Down, VK_F4), L"F4 again, with the field already open");
+        Assert::AreEqual (2, opened, L"drops it again");
+    }
+
+
+    TEST_METHOD (WithoutAHistoryCallback_NoChevronTakesRoom)
+    {
+        Fixture  f;
+
+        f.LayOut (400);
+
+        //  The trailing end is blank, so a click there opens the path.
+        f.Click (390);
+
+        Assert::IsTrue (f.bar.IsEditing());
+    }
+
+
     TEST_METHOD (LosingFocus_EndsTheEdit)
     {
         Fixture  f;

@@ -235,6 +235,7 @@ private:
     void  SubmitAddress (const std::wstring & text);
     void  ShowAddressMenu (int index, const RECT & anchor);
     void  ShowAddressOverflowMenu (const RECT & anchor);
+    void  ShowAddressHistoryMenu  (const RECT & anchor);
     void  ShowHistoryMenu (bool forward, const RECT & anchor);
 
     static std::wstring  EscapeMnemonics (const std::wstring & text);

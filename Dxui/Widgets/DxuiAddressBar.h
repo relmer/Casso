@@ -28,6 +28,12 @@
 //  which reports its rect for the host's menu of them, so the location's own
 //  name stays in view.
 //
+//  A chevron at the trailing end reports its rect for the host to hang a list
+//  of previously typed paths from, and F4 opens that list along with the
+//  field. It shows in both states, stepping ahead of the clear button while
+//  the field is open, and a host that sets no callback for it gets neither
+//  the chevron nor the room it takes.
+//
 //  The host decides what a typed path means and ends the edit once it has
 //  gone there; a path it cannot use leaves the field open.
 //
@@ -39,10 +45,11 @@ public:
     using SegmentFn   = std::function<void (int index)>;
     using SeparatorFn = std::function<void (int index, const RECT & anchor)>;
     using OverflowFn  = std::function<void (const RECT & anchor)>;
+    using HistoryFn   = std::function<void (const RECT & anchor)>;
     using SubmitFn    = std::function<void (const std::wstring & text)>;
 
     //  What lies under a point.
-    enum class Part { None, Overflow, Segment, Separator, Blank, Clear };
+    enum class Part { None, Overflow, Segment, Separator, Blank, Clear, History };
 
     struct Hit
     {
@@ -68,6 +75,11 @@ public:
     void  SetOnSegment    (SegmentFn fn)                          { m_onSegment   = std::move (fn); }
     void  SetOnSeparator  (SeparatorFn fn)                        { m_onSeparator = std::move (fn); }
     void  SetOnOverflow   (OverflowFn fn)                         { m_onOverflow  = std::move (fn); }
+
+    //  The chevron at the bar's trailing end, which the host hangs its list of
+    //  typed paths from. No callback set, no chevron drawn and no room taken
+    //  for one, so a bar whose host keeps no history looks as it always did.
+    void  SetOnHistory    (HistoryFn fn)                          { m_onHistory   = std::move (fn); LayoutSegments(); }
     void  SetOnSubmit     (SubmitFn fn)                           { m_onSubmit    = std::move (fn); }
     void  SetTextRenderer (IDxuiTextRenderer * text)              { m_renderer = text; m_input.SetTextRenderer (text); }
     void  SetFont         (const wchar_t * face, float sizeDip)   { m_face = face; m_fontDip = sizeDip; m_input.SetFont (face, sizeDip); LayoutSegments(); }
@@ -110,6 +122,7 @@ private:
     static constexpr int    s_kHoverInsetDip    = 4;
     static constexpr int    s_kOverflowDip      = 32;
     static constexpr int    s_kClearDip         = 32;
+    static constexpr int    s_kHistoryDip       = 28;
     static constexpr float  s_kCancelDip        = 10.0f;
     static constexpr float  s_kTurnMs           = 150.0f;   // a chevron's quarter turn
     static constexpr float  s_kChevronHalfDip   = 4.5f;   // half the chevron's height, measured off Explorer
@@ -122,6 +135,10 @@ private:
     void  PaintChevron   (IDxuiPainter & painter, const RECT & rc, float angleDegrees, uint32_t argb) const;
     RECT  GetClearRect   () const;
 
+    //  The history chevron's rect, empty when no callback is set. It sits at
+    //  the trailing end, ahead of the clear button while the field is open.
+    RECT  GetHistoryRect () const;
+
     std::vector<std::wstring>    m_labels;
     std::vector<RECT>            m_rects;
     std::vector<RECT>            m_separators;
@@ -132,6 +149,7 @@ private:
     SegmentFn                    m_onSegment;
     SeparatorFn                  m_onSeparator;
     OverflowFn                   m_onOverflow;
+    HistoryFn                    m_onHistory;
     SubmitFn                     m_onSubmit;
     IDxuiTextRenderer          * m_renderer    = nullptr;
     const wchar_t              * m_face        = nullptr;

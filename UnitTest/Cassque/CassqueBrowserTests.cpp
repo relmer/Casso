@@ -129,6 +129,25 @@ public:
     }
 
 
+    TEST_METHOD (TypedPaths_RecordASuccessfulNavigationAndPromoteARepeat)
+    {
+        Host  host;
+
+        Assert::IsTrue  (host.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsFalse (host.browser.NavigateToAddress (L"C:\\Nowhere"), L"A path that goes nowhere navigates nowhere");
+
+        Assert::AreEqual ((size_t) 1, host.browser.GetTypedPaths().GetEntries().size(), L"and is not recorded");
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), host.browser.GetTypedPaths().GetEntries()[0]);
+
+        //  What the history dropdown does with a pick: submit the text again.
+        Assert::IsTrue (host.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (host.browser.NavigateToAddress (L"C:\\Disks"));
+
+        Assert::AreEqual ((size_t) 2, host.browser.GetTypedPaths().GetEntries().size(), L"A repeat does not appear twice");
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), host.browser.GetTypedPaths().GetEntries()[0], L"and moves to the top");
+    }
+
+
     TEST_METHOD (SelectFolder_ListsHostEntriesAndFlagsImages)
     {
         Host  host;

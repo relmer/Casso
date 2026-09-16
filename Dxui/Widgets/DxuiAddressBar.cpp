@@ -89,12 +89,21 @@ DxuiAddressBar::Hit DxuiAddressBar::HitTest (int x, int y) const
     if (inside && m_editing)
     {
         hit.part = (x >= GetClearRect().left) ? Part::Clear : Part::Blank;
+
+        if (hit.part == Part::Blank && x >= GetHistoryRect().left && x < GetHistoryRect().right)
+        {
+            hit = Hit { Part::History, -1 };
+        }
     }
     else if (inside)
     {
         hit.part = Part::Blank;
 
-        if (x >= m_overflow.left && x < m_overflow.right)
+        if (x >= GetHistoryRect().left && x < GetHistoryRect().right)
+        {
+            hit = Hit { Part::History, -1 };
+        }
+        else if (x >= m_overflow.left && x < m_overflow.right)
         {
             hit = Hit { Part::Overflow, -1 };
         }
@@ -140,7 +149,12 @@ void DxuiAddressBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     padX = m_scaler.ToPx (s_kPadXDip);
 
-    m_input.Layout (RECT { boundsDip.left + padX, boundsDip.top, boundsDip.right - m_scaler.ToPx (s_kClearDip), boundsDip.bottom }, m_scaler);
+    //  The field stops short of the clear button and of the history chevron,
+    //  so a long path scrolls under neither.
+    m_input.Layout (RECT { boundsDip.left + padX,
+                           boundsDip.top,
+                           boundsDip.right - m_scaler.ToPx (s_kClearDip) - (m_onHistory ? m_scaler.ToPx (s_kHistoryDip) : 0),
+                           boundsDip.bottom }, m_scaler);
     LayoutSegments();
 }
 
@@ -163,7 +177,8 @@ void DxuiAddressBar::LayoutSegments()
     int               segPad   = m_scaler.ToPx (s_kSegmentPadDip);
     int               sep      = m_scaler.ToPx (s_kSeparatorDip);
     int               overflow = m_scaler.ToPx (s_kOverflowDip);
-    int               avail    = (int) (m_boundsDip.right - m_boundsDip.left) - padX * 2;
+    int               history  = m_onHistory ? m_scaler.ToPx (s_kHistoryDip) : 0;
+    int               avail    = (int) (m_boundsDip.right - m_boundsDip.left) - padX * 2 - history;
     int               total    = 0;
     int               x        = (int) m_boundsDip.left + padX;
     int               i        = 0;
@@ -288,6 +303,17 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         painter.OutlineRoundedRect (x, y, w, h, radius, (float) m_scaler.ToPx (2), theme.FocusRing());
     }
 
+    //  Before the editing branch, which returns: the chevron shows in both
+    //  states, and points down as a drop-down's does. Drawn rather than set
+    //  from a font for the reason the separators' chevrons are.
+    if (m_onHistory)
+    {
+        RECT  historyRect = GetHistoryRect();
+
+        PaintHover   (painter, theme, historyRect, Hit { Part::History, -1 });
+        PaintChevron (painter, historyRect, 90.0f, theme.Foreground());
+    }
+
     if (m_editing)
     {
         m_input.Paint (painter, text, theme);
@@ -404,6 +430,35 @@ void DxuiAddressBar::PaintHover (IDxuiPainter & painter, const IDxuiTheme & them
 RECT DxuiAddressBar::GetClearRect() const
 {
     return RECT { m_boundsDip.right - m_scaler.ToPx (s_kClearDip), m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAddressBar::GetHistoryRect
+//
+//  Empty without a callback, so a host that keeps no history neither draws
+//  the chevron nor gives up the room. While the field is open it sits ahead
+//  of the clear button rather than under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiAddressBar::GetHistoryRect() const
+{
+    LONG  width = m_scaler.ToPx (s_kHistoryDip);
+    LONG  right = m_boundsDip.right - (m_editing ? m_scaler.ToPx (s_kClearDip) : 0);
+
+
+
+    if (!m_onHistory)
+    {
+        return RECT {};
+    }
+
+    return RECT { right - width, m_boundsDip.top, right, m_boundsDip.bottom };
 }
 
 
@@ -551,6 +606,23 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
         m_clearPressed = false;
         handled        = true;
     }
+    else if (m_editing && left && ev.kind == DxuiMouseEventKind::Down && hit.part == Part::History)
+    {
+        //  Ahead of the text field, which would otherwise take the press and
+        //  move the caret to the end of the path.
+        m_pressed = hit;
+        handled   = true;
+    }
+    else if (m_editing && left && ev.kind == DxuiMouseEventKind::Up && m_pressed.part == Part::History)
+    {
+        m_pressed = Hit();
+        handled   = true;
+
+        if (hit.part == Part::History && m_onHistory)
+        {
+            m_onHistory (GetHistoryRect());
+        }
+    }
     else if (m_editing)
     {
         if (ev.kind == DxuiMouseEventKind::Down && left)
@@ -567,7 +639,8 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
     }
     else if (ev.kind == DxuiMouseEventKind::Move)
     {
-        hover   = (hit.part == Part::Segment || hit.part == Part::Overflow || (hit.part == Part::Separator && hit.index >= 0)) ? hit : Hit();
+        hover   = (hit.part == Part::Segment || hit.part == Part::Overflow || hit.part == Part::History
+                   || (hit.part == Part::Separator && hit.index >= 0)) ? hit : Hit();
         handled = !(hover == m_hover);
         m_hover = hover;
     }
@@ -588,6 +661,10 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
         else if (hit == pressed && hit.part == Part::Overflow && m_onOverflow)
         {
             m_onOverflow (m_overflow);
+        }
+        else if (hit == pressed && hit.part == Part::History && m_onHistory)
+        {
+            m_onHistory (GetHistoryRect());
         }
         else if (hit == pressed && hit.part == Part::Separator && hit.index >= 0 && m_onSeparator)
         {
@@ -610,9 +687,11 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiAddressBar::OnKey
 //
-//  Enter and F4 open the path for editing. While editing, Enter reports the
-//  text and Escape cancels; Tab is left to the host, and every other key and
-//  character goes to the text field.
+//  Enter and F4 open the path for editing, and F4 drops the list of typed
+//  paths at the same time, as in Explorer; F4 with the field already open
+//  drops it again. While editing, Enter reports the text and Escape cancels;
+//  Tab is left to the host, and every other key and character goes to the
+//  text field.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -629,6 +708,22 @@ bool DxuiAddressBar::OnKey (const DxuiKeyEvent & ev)
         {
             BeginEdit();
             handled = true;
+
+            //  F4 does both, as in Explorer: the path opens for editing and
+            //  the list of typed paths drops at the same time.
+            if (ev.vk == VK_F4 && m_onHistory)
+            {
+                m_onHistory (GetHistoryRect());
+            }
+        }
+    }
+    else if (down && ev.vk == VK_F4)
+    {
+        handled = true;
+
+        if (m_onHistory)
+        {
+            m_onHistory (GetHistoryRect());
         }
     }
     else if (down && ev.vk == VK_RETURN)
