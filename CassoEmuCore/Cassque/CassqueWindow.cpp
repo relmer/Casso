@@ -2058,6 +2058,20 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  A character typed at the file list jumps to a row. It has to reach the
+    //  list before characters are turned away below.
+    if (ev.kind == DxuiKeyEventKind::Char && m_focus == Pane::List)
+    {
+        handled = m_list->OnKey (ev);
+
+        if (handled)
+        {
+            Invalidate();
+        }
+
+        return handled;
+    }
+
     if (ev.kind != DxuiKeyEventKind::Down)
     {
         return false;

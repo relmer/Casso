@@ -3977,6 +3977,80 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::HandleTypeAhead
+//
+//  Characters typed close together build a prefix, so "te" finds Temp ahead
+//  of Tools. The same character typed again steps to the next row starting
+//  with it instead, as Explorer's does. A new search begins below the current
+//  row; a growing prefix starts at the current row, so it stays put while the
+//  row still matches. Either way the search wraps around the end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleTypeAhead (wchar_t ch)
+{
+    int64_t            now    = m_clock ? m_clock() : (int64_t) GetTickCount64();
+    int                rows   = GetRowCount();
+    int                cur    = GetSelectedRow();
+    bool               repeat = false;
+    int                from   = 0;
+    int                step   = 0;
+    std::wstring       prefix;
+    std::vector<Cell>  cells;
+
+
+
+    if (rows <= 0)
+    {
+        return false;
+    }
+
+    if (now - m_typeAheadMs > s_kTypeAheadResetMs)
+    {
+        m_typeAhead.clear();
+    }
+
+    m_typeAheadMs = now;
+    m_typeAhead  += ch;
+
+    //  "aaa" steps through the rows starting with a; "abc" looks for abc.
+    repeat = m_typeAhead.size() > 1
+             && std::all_of (m_typeAhead.begin(), m_typeAhead.end(),
+                             [&] (wchar_t c) { return towlower (c) == towlower (m_typeAhead[0]); });
+    prefix = repeat ? m_typeAhead.substr (0, 1) : m_typeAhead;
+    from   = (m_typeAhead.size() == 1 || repeat) ? cur + 1 : (std::max) (cur, 0);
+
+    for (step = 0; step < rows; step++)
+    {
+        int  row = ((from + step) % rows + rows) % rows;
+
+        ProvideRow (row, cells);
+
+        if (!cells.empty() && cells[0].text.size() >= prefix.size()
+            && _wcsnicmp (cells[0].text.c_str(), prefix.c_str(), prefix.size()) == 0)
+        {
+            SetSelectedRow (row);
+
+            if (m_multiSelect && m_onSelectionChanged)
+            {
+                m_onSelectionChanged (row);
+            }
+
+            break;
+        }
+    }
+
+    //  Taken whether or not a row matched: a character typed at a list is a
+    //  search, not something to hand on.
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListView::OnKey
 //
 //  Opt-in keyboard navigation (SetKeyboardColumnNav). Off: the list is inert
@@ -3992,6 +4066,14 @@ bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
     bool  handled    = false;
 
 
+
+    //  A printable character jumps to a row, as it does in Explorer. With Ctrl
+    //  or Alt down it is a shortcut instead, and is left to the host.
+    if (m_kbColNavEnabled && ev.kind == DxuiKeyEventKind::Char && !ev.ctrl && !ev.alt
+        && ev.vk >= 0x20 && ev.vk != 0x7F)
+    {
+        return HandleTypeAhead ((wchar_t) ev.vk);
+    }
 
     if (dispatches)
     {

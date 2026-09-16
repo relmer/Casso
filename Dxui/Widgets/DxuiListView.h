@@ -336,6 +336,11 @@ public:
     // (Enter / Space) is unaffected.
     void  SetActivateOnDoubleClick (bool enabled)                { m_activateOnDoubleClick = enabled; }
 
+    //  Milliseconds since some fixed point, for type-ahead's reset. Defaults
+    //  to the system tick count; a test supplies its own.
+    using ClockFn = std::function<int64_t()>;
+    void  SetClock (ClockFn clock)                               { m_clock = std::move (clock); }
+
     // By default the selected row only paints while the list itself holds
     // keyboard focus (its focus cue). File-picker-style consumers keep the
     // selection visible regardless, like a real list view.
@@ -397,11 +402,14 @@ private:
     static constexpr int    s_kCellIconGapDip    = 6;
     static constexpr int    s_kMinColWidthDip    = 48;
     static constexpr int    s_kResizeGrabDip     = 4;
-    static constexpr int    s_kHScrollStepDip    = 32;
-    static constexpr int    s_kKbResizeStepDip   = 8;
-    static constexpr int    s_kMinThumbPx        = 16;
-    static constexpr float  s_kFontDip           = 13.0f;
-    static constexpr float  s_kHeaderFontDip     = 13.0f;
+
+    //  A pause this long between characters starts a new search.
+    static constexpr int64_t  s_kTypeAheadResetMs = 1000;
+    static constexpr int      s_kHScrollStepDip   = 32;
+    static constexpr int      s_kKbResizeStepDip  = 8;
+    static constexpr int      s_kMinThumbPx       = 16;
+    static constexpr float    s_kFontDip          = 13.0f;
+    static constexpr float    s_kHeaderFontDip    = 13.0f;
 
     // Scrollbar auto-repeat cadence (ms), mirroring typical key-repeat:
     // a longer delay before the first repeat, then a steady interval.
@@ -481,6 +489,10 @@ private:
 
     //  Applies a width a fit asked for, once the paint pass has measured it.
     void         ApplyPendingFit         ();
+
+    //  Selects the next row whose first column starts with what has been
+    //  typed, as Explorer's list does. True when the character was taken.
+    bool         HandleTypeAhead         (wchar_t ch);
     void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
 
     // Mouse-event dispatch helpers (lx / ly are widget-relative px).
@@ -627,4 +639,9 @@ private:
     int      m_lastDividerCol        = -1;
     int64_t  m_lastDividerMs         = 0;
     int      m_pendingFitCol         = -1;
+
+    //  Characters typed toward a row, and when the last one arrived.
+    std::wstring  m_typeAhead;
+    int64_t       m_typeAheadMs      = 0;
+    ClockFn       m_clock;
 };
