@@ -261,11 +261,11 @@ struct AssemblyLine
     //  refers to does not stand alone, which is the whole point of splitting.
     static constexpr size_t  kSharedByEveryOutput = (size_t) -1;
 
-    int                lineNumber;
-    Word               address;
+    int                lineNumber        = 0;
+    Word               address           = 0;
     std::vector<Byte>  bytes;
     std::string        sourceText;
-    bool               hasAddress;
+    bool               hasAddress        = false;
     bool               isMacroExpansion  = false;
     bool               isConditionalSkip = false;
     Byte               cycleCounts       = 0;
