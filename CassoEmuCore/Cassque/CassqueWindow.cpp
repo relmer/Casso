@@ -966,6 +966,7 @@ void CassqueWindow::FillList()
 
     m_list->SetSelectedRows (m_browser.GetSelectedRows(), m_browser.GetSelectedRows().empty() ? -1 : m_browser.GetSelectedRows()[0]);
 
+
     if (model.HasTabs())
     {
         m_list->SetSortIndicator ((int) model.GetActiveTab().sortColumn, model.GetActiveTab().sortDescending);
@@ -973,7 +974,7 @@ void CassqueWindow::FillList()
 
     if (message.empty() && m_browser.GetRows().empty() && m_browser.GetLocation().kind != Location::Kind::None)
     {
-        message = L"This location is empty.";
+        message = GetEmptyLocationMessage (m_browser.GetLocation().kind);
     }
 
     m_listMessage->SetText (message);
@@ -4114,6 +4115,33 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
             m_address->SetOpenSeparator (-1);
             Invalidate();
         });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetEmptyLocationMessage
+//
+//  What an empty list says, in the words the holding file system uses. ProDOS
+//  calls them directories, which is what the command line's mkdir and rmdir
+//  make, and Windows calls them folders. An empty disk image is worth telling
+//  apart from either: it holds nothing at all, where an empty folder says
+//  nothing about the rest of the disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueWindow::GetEmptyLocationMessage (Location::Kind kind)
+{
+    switch (kind)
+    {
+        case Location::Kind::HostFolder:    return L"This folder is empty.";
+        case Location::Kind::DiskDirectory: return L"This directory is empty.";
+        case Location::Kind::DiskImage:     return L"This disk image is empty.";
+        default:                            return L"This location is empty.";
     }
 }
 

@@ -236,6 +236,9 @@ private:
     void  ShowAddressMenu (int index, const RECT & anchor);
     void  ShowAddressOverflowMenu (const RECT & anchor);
     void  ShowAddressHistoryMenu  (const RECT & anchor);
+
+    //  What an empty list says, named for the kind of thing being looked at.
+    static std::wstring  GetEmptyLocationMessage (Location::Kind kind);
     void  ShowHistoryMenu (bool forward, const RECT & anchor);
 
     static std::wstring  EscapeMnemonics (const std::wstring & text);
