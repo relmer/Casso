@@ -151,10 +151,10 @@ public:
     void  ResetAutoFit              ();
 
     // Opt-in precise auto-fit. When on, auto (widthDip==0) columns size to the
-    // DWrite-measured max(header + sort-glyph reserve, widest cell) and grow
-    // monotonically as rows change, instead of the cheaper glyph-count
-    // estimate. Costs an O(rows) DWrite re-measure per row change, so keep it
-    // off for streaming lists (the default). Default off.
+    // DWrite-measured max(header + sort-glyph reserve, widest cell) instead of
+    // the cheaper glyph-count estimate. The measurement runs once for the
+    // view, not on every SetRows: widths belong to the view, and a divider
+    // double-click re-fits one column on demand. Default off.
     void  SetPreciseAutoFit         (bool enabled)       { m_preciseAutoFit = enabled; }
 
     // Column / row queries.
