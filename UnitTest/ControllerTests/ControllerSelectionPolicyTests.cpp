@@ -26,14 +26,27 @@ namespace ControllerTests
     {
     public:
 
-        static ControllerDeviceInfo MakeXbox()
+        static ControllerDeviceInfo MakeXbox (int slot = 0)
         {
             ControllerDeviceInfo  info;
 
             info.unit.model.kind = ControllerKind::XInput;
+            info.unit.unitId     = std::to_string (slot);
+            info.unit.source     = ControllerUnitSource::XInputSlot;
             info.description     = L"Xbox Controller";
-            info.xinputSlot      = 0;
+            info.xinputSlot      = slot;
             return info;
+        }
+
+
+        // What a preferences file written before XInput units carried a slot
+        // holds: an Xbox-class controller with no slot on it.
+        static ControllerUnitKey MakeSlotlessXbox()
+        {
+            ControllerUnitKey  unit;
+
+            unit.model.kind = ControllerKind::XInput;
+            return unit;
         }
 
 
@@ -262,14 +275,68 @@ namespace ControllerTests
         }
 
 
-        TEST_METHOD (XboxSelection_MatchesWhicheverUnitIsAttached)
+        TEST_METHOD (XboxSelection_KeepsTheSlotItWasMadeOn)
         {
-            ControllerDeviceInfo               xbox     = MakeXbox();
+            ControllerDeviceInfo               xbox     = MakeXbox (1);
             std::vector<ControllerDeviceInfo>  devices  = { xbox };
             auto                               decision = ControllerSelectionPolicy::Evaluate (xbox.unit, devices, true);
 
-            Assert::IsFalse (decision.hasChanged, L"Xbox-class controllers are recognized by model, so any unit is the selected one");
+            Assert::IsFalse (decision.hasChanged, L"the selected controller is attached, so nothing moves");
             Assert::IsTrue  (ControllerSelectionPolicy::IsSelectedAttached (xbox.unit, devices));
+        }
+
+
+        // Two of them are two controllers, so both can be picked and both can
+        // fill a player slot.
+        TEST_METHOD (Xbox_TwoAttachedAreDistinctAndBothSelectable)
+        {
+            ControllerDeviceInfo               first    = MakeXbox (0);
+            ControllerDeviceInfo               second   = MakeXbox (1);
+            std::vector<ControllerDeviceInfo>  devices  = { first, second };
+            MultiplayerSetup                   setup    = MakeTwoPlayers (first.unit, second.unit);
+            auto                               decision = ControllerSelectionPolicy::Evaluate (second.unit, devices, true);
+
+            Assert::IsFalse (first.unit == second.unit,       L"two Xbox controllers are two units");
+            Assert::IsTrue  (first.unit.model == second.unit.model, L"and one model, so they share profiles and deadzone");
+            Assert::IsFalse (decision.hasChanged,             L"the selection stays on the one that was picked");
+            Assert::IsTrue  (decision.selection.value() == second.unit);
+
+            setup = ControllerSelectionPolicy::Normalize (setup);
+
+            Assert::IsTrue  (setup.players[1].unit.has_value(), L"two of them can play as two players");
+            Assert::IsTrue  (ControllerSelectionPolicy::FindPlayer (setup, first.unit).value() == 0);
+            Assert::IsTrue  (ControllerSelectionPolicy::FindPlayer (setup, second.unit).value() == 1);
+        }
+
+
+        // Slots are assigned in connection order and can change across a
+        // replug, so the sole attached Xbox controller is taken to be the
+        // saved one.
+        TEST_METHOD (XboxSelectedAbsent_SoleXboxIsAdopted)
+        {
+            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox (2) };
+            auto                               decision = ControllerSelectionPolicy::Evaluate (MakeXbox (0).unit, devices, true);
+
+            Assert::AreEqual ((int) SelectionChangeReason::Adoption, (int) decision.reason);
+            Assert::IsTrue   (decision.selection.value() == devices.front().unit);
+
+            decision = ControllerSelectionPolicy::Evaluate (MakeSlotlessXbox(), devices, true);
+
+            Assert::AreEqual ((int) SelectionChangeReason::Adoption, (int) decision.reason,
+                L"a selection saved before slots existed adopts the one Xbox controller attached");
+            Assert::IsTrue   (decision.selection.value() == devices.front().unit);
+        }
+
+
+        TEST_METHOD (XboxSelectedAbsent_TwoAttachedIsNotAnAdoption)
+        {
+            std::vector<ControllerDeviceInfo>  devices  = { MakeXbox (1), MakeXbox (2) };
+            auto                               decision = ControllerSelectionPolicy::Evaluate (MakeXbox (0).unit, devices, true);
+
+            // Which one the user had is a coin flip, so the one attached
+            // longest takes over, as for any other controller.
+            Assert::AreEqual ((int) SelectionChangeReason::Replacement, (int) decision.reason);
+            Assert::IsTrue   (decision.selection.value() == devices.front().unit);
         }
 
 

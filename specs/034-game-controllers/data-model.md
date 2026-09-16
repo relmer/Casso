@@ -27,10 +27,11 @@ All types live in `CassoEmuCore/Controllers/` unless stated. All are plain data 
 | Field | Type | Notes |
 |---|---|---|
 | model | `ControllerModelKey` | |
-| unitId | `std::string` | HID serial when nonempty, else `guidInstance` text; empty for XInput. Narrow text, since it is stored in JSON |
-| source | enum `Serial`, `InstanceGuid`, `None` | How `unitId` was obtained |
+| unitId | `std::string` | HID serial when nonempty, else `guidInstance` text; the XInput slot (0-3) for XInput; empty for an XInput unit read from a file written before slots. Narrow text, since it is stored in JSON |
+| source | enum `Serial`, `InstanceGuid`, `XInputSlot`, `None` | How `unitId` was obtained |
 
-- Token form `<model token>/serial:<unitId>` or `<model token>/guid:<unitId>`; a unit with source `None` (every XInput unit, and a DirectInput unit with no identity) is just its model token (FR-018a). The model part ends at the first `/`, so a serial containing `/` round trips.
+- Token form `<model token>/serial:<unitId>` or `<model token>/guid:<unitId>` for DirectInput, and `xinput/slot:<n>` for XInput; a unit with source `None` (a DirectInput unit with no identity, and an XInput unit from a file written before slots) is just its model token. The model part ends at the first `/`, so a serial containing `/` round trips. A bare `xinput` still loads, as an XInput unit with no slot, meaning whichever Xbox-class controller is connected; a slot past 3, a missing slot, `xinput/serial:` and `dinput:.../slot:` are refused.
+- The MODEL token never carries the slot (FR-018a), so profiles, deadzone and calibration stay shared by every Xbox-class controller while two of them are two units.
 - Used as the key for calibration and as the per-machine selection.
 
 ### ControllerDeviceInfo (enumeration result)
@@ -38,8 +39,10 @@ All types live in `CassoEmuCore/Controllers/` unless stated. All are plain data 
 | Field | Type | Notes |
 |---|---|---|
 | unit | `ControllerUnitKey` | |
-| description | `std::wstring` | Product string, or "Xbox Controller" for XInput |
+| description | `std::wstring` | Product string, or "Xbox Controller (045e:0b13)" for XInput, with ` #<slot+1>` appended while more than one is connected |
 | xinputSlot | `int` | 0-3, -1 for DirectInput |
+
+Every connected XInput slot is enumerated as its own device, so two Xbox controllers produce two entries. The appended slot number only keeps the descriptions distinct in a list; which controller is which is settled by moving a stick and watching the Controllers page readout.
 | controls | `std::vector<ControlId>` | Controls the device actually reports (R7) |
 
 ## Samples and controls
@@ -202,7 +205,8 @@ Rules (`ControllerSelectionPolicy`, pure):
 - **Budget.** `GetTargetAxes (target, axisCount)` and `GetAxesForPlayer (setup, player, axisCount)` leave out paddles past the machine's count without changing the slot (FR-034, FR-035). A player with none of their paddles on this machine is not read at all, so neither their paddles nor their button reach a //c.
 - **Choices.** `GetTargetChoices (setup, player, axisCount)` is what the settings page offers one slot: every target the machine has all the paddles for, less what the other player holds. A target the machine can play only half of is not offered, because half a joystick is not a choice anyone made.
 - **Replacement.** When the selection leaves, a controller no player is holding is preferred; one a player holds takes the selection only when no free controller is attached, and goes on playing its own paddles (SC-012).
-- **XInput limit.** Xbox-class controllers share one unit key (FR-018a), so two of them cannot fill the two slots. Two players need at least one DirectInput controller.
+- **Xbox-class units.** Xbox controllers share one model key but have a unit key each, the XInput slot (FR-018a), so two of them can fill the two player slots.
+- **Adoption covers XInput too.** A saved unit that is absent while exactly one unit of its model is attached is adopted. For an Xbox-class selection that means a controller whose slot changed across a replug, and a selection saved before slots existed, are both picked up again.
 
 **How a slot combines with the profile: the slot remaps, the profile binds.** A player's controller plays its own mapping; the paddles its slot maps to, in ascending order, are where the mapping's `pdl0`.. targets land. A slot mapped to `Paddle1` plays only the controller's `pdl0` bindings, there; one mapped to `Joystick1` plays `pdl0`/`pdl1` on PDL2/PDL3. So two players share one Default or Paddles profile with no per-player copy (quickstart 12).
 

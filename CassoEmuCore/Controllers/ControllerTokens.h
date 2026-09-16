@@ -34,6 +34,8 @@ private:
     static constexpr const char *  kpszDirectInputKind = "dinput";
     static constexpr const char *  kpszSerialPrefix    = "serial:";
     static constexpr const char *  kpszGuidPrefix      = "guid:";
+    static constexpr const char *  kpszSlotPrefix      = "slot:";
+    static constexpr int           kXInputSlotLimit    = 4;
 
     static bool  TryParseHexWord      (std::string_view text, Word & outValue);
     static bool  TryParseIndex        (std::string_view text, int & outValue);

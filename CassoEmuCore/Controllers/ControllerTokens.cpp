@@ -125,7 +125,9 @@ Error:
 //  UnitToToken
 //
 //  The model token, then "/serial:<id>" or "/guid:<id>" for a DirectInput
-//  unit with an identity. XInput units have none.
+//  unit with an identity, or "/slot:<n>" for an XInput unit. The model token
+//  itself never carries the slot, so profiles and deadzone stay shared by
+//  every Xbox-class controller.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,6 +145,10 @@ std::string ControllerTokens::UnitToToken (const ControllerUnitKey & unit)
     {
         token += std::format ("/{}{}", kpszGuidPrefix, unit.unitId);
     }
+    else if (unit.source == ControllerUnitSource::XInputSlot)
+    {
+        token += std::format ("/{}{}", kpszSlotPrefix, unit.unitId);
+    }
 
     return token;
 }
@@ -156,21 +162,29 @@ std::string ControllerTokens::UnitToToken (const ControllerUnitKey & unit)
 //  UnitFromToken
 //
 //  The model part ends at the first slash: model tokens never contain one,
-//  while a serial number may.
+//  while a serial number may. A bare "xinput" token, which is what every
+//  preferences file written before XInput units carried a slot holds, parses
+//  as an XInput unit with no slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ControllerTokens::UnitFromToken (std::string_view token, ControllerUnitKey & outUnit)
 {
-    HRESULT             hr          = S_OK;
+    HRESULT             hr           = S_OK;
     ControllerUnitKey   unit;
-    size_t              slash       = token.find ('/');
+    size_t              slash        = token.find ('/');
     std::string_view    identity;
     std::string_view    serialPrefix (kpszSerialPrefix);
     std::string_view    guidPrefix   (kpszGuidPrefix);
-    bool                isSerial    = false;
-    bool                isGuid      = false;
-    bool                hasIdentity = false;
+    std::string_view    slotPrefix   (kpszSlotPrefix);
+    size_t              prefixLength = 0;
+    bool                isXInput     = false;
+    bool                isSerial     = false;
+    bool                isGuid       = false;
+    bool                isSlot       = false;
+    bool                hasIdentity  = false;
+    bool                hasSlot      = false;
+    int                 slot         = 0;
 
 
 
@@ -179,18 +193,40 @@ HRESULT ControllerTokens::UnitFromToken (std::string_view token, ControllerUnitK
 
     if (slash != std::string_view::npos)
     {
-        CBREx (unit.model.kind == ControllerKind::DirectInput, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+        identity = token.substr (slash + 1);
+        isXInput = unit.model.kind == ControllerKind::XInput;
+        isSlot   = isXInput  && identity.starts_with (slotPrefix);
+        isSerial = !isXInput && identity.starts_with (serialPrefix);
+        isGuid   = !isXInput && identity.starts_with (guidPrefix);
 
-        identity    = token.substr (slash + 1);
-        isSerial    = identity.starts_with (serialPrefix);
-        isGuid      = identity.starts_with (guidPrefix);
-        hasIdentity = (isSerial && identity.size() > serialPrefix.size()) ||
-                      (isGuid   && identity.size() > guidPrefix.size());
+        if (isSlot)
+        {
+            prefixLength = slotPrefix.size();
+            unit.source  = ControllerUnitSource::XInputSlot;
+        }
+        else if (isSerial)
+        {
+            prefixLength = serialPrefix.size();
+            unit.source  = ControllerUnitSource::Serial;
+        }
+        else if (isGuid)
+        {
+            prefixLength = guidPrefix.size();
+            unit.source  = ControllerUnitSource::InstanceGuid;
+        }
+
+        hasIdentity = (isSlot || isSerial || isGuid) && identity.size() > prefixLength;
 
         CBREx (hasIdentity, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        unit.source = isSerial ? ControllerUnitSource::Serial : ControllerUnitSource::InstanceGuid;
-        unit.unitId = std::string (identity.substr (isSerial ? serialPrefix.size() : guidPrefix.size()));
+        unit.unitId = std::string (identity.substr (prefixLength));
+
+        if (isSlot)
+        {
+            hasSlot = TryParseIndex (unit.unitId, slot);
+
+            CBREx (hasSlot && slot < kXInputSlotLimit, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+        }
     }
 
     outUnit = unit;

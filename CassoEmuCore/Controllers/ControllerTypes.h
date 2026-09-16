@@ -58,6 +58,7 @@ enum class ControllerUnitSource
     None,
     Serial,
     InstanceGuid,
+    XInputSlot,
 };
 
 
@@ -108,9 +109,12 @@ struct ControllerModelKey
 //
 //  ControllerUnitKey
 //
-//  One physical controller. unitId is empty for XInput controllers, which are
-//  recognized by model only; for DirectInput it holds the HID serial number
-//  when the device reports one, otherwise its instance GUID in text form.
+//  One physical controller. For XInput, unitId holds the slot Windows put the
+//  controller in (0-3), which is all XInput exposes; for DirectInput it holds
+//  the HID serial number when the device reports one, otherwise its instance
+//  GUID in text form. It is empty for a unit read from a preferences file
+//  written before XInput units carried a slot, which means whichever Xbox-class
+//  controller is connected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

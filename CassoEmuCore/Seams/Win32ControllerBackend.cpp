@@ -253,17 +253,19 @@ Error:
 //
 //  EnumerateDevices
 //
-//  Every attached controller exactly once: the Xbox-class controllers first,
-//  as a SINGLE entry backed by the lowest connected XInput slot (they share
-//  one model key, FR-018a), then the DirectInput devices that are not XInput
-//  devices in disguise.
+//  Every attached controller exactly once: one entry per connected XInput
+//  slot, then the DirectInput devices that are not XInput devices in disguise.
+//  Xbox-class controllers share one model key (FR-018a) and are told apart by
+//  their slot, which is all XInput exposes. With more than one connected the
+//  slot goes into the description too, so a list can tell two of the same
+//  controller apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32ControllerBackend::EnumerateDevices (std::vector<ControllerDeviceInfo> & outDevices)
 {
-    HRESULT  hr         = S_OK;
-    int      lowestXbox = -1;
+    HRESULT  hr        = S_OK;
+    size_t   xboxCount = 0;
 
 
 
@@ -278,22 +280,32 @@ HRESULT Win32ControllerBackend::EnumerateDevices (std::vector<ControllerDeviceIn
         if (result == ERROR_SUCCESS)
         {
             m_xinputConnected.set ((size_t) slot);
-
-            if (lowestXbox < 0)
-            {
-                lowestXbox = slot;
-            }
         }
     }
 
-    if (lowestXbox >= 0)
+    xboxCount = m_xinputConnected.count();
+
+    for (int slot = 0; slot < kXInputSlotCount; slot++)
     {
         ControllerDeviceInfo  info;
 
+        if (!m_xinputConnected.test ((size_t) slot))
+        {
+            continue;
+        }
+
         info.unit.model.kind = ControllerKind::XInput;
-        info.description     = GetXInputDescription ((DWORD) lowestXbox);
-        info.xinputSlot      = lowestXbox;
+        info.unit.unitId     = std::to_string (slot);
+        info.unit.source     = ControllerUnitSource::XInputSlot;
+        info.description     = GetXInputDescription ((DWORD) slot);
+        info.xinputSlot      = slot;
         info.controls        = XInputSampleDecoder::ListControls();
+
+        if (xboxCount > 1)
+        {
+            info.description += std::format (L" #{}", slot + 1);
+        }
+
         outDevices.push_back (info);
     }
 
@@ -584,9 +596,11 @@ Error:
 //
 //  ReadXInput
 //
-//  The lowest connected slot backs the single Xbox-class entry. An unchanged
-//  packet number means the state did not change, so the previous sample is
-//  returned without decoding it again.
+//  The unit's own slot, or the lowest connected slot for a unit that carries
+//  none, which is what a preferences file written before XInput units carried
+//  a slot holds and means whichever Xbox-class controller is connected. An
+//  unchanged packet number means the state did not change, so the previous
+//  sample is returned without decoding it again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -594,17 +608,21 @@ HRESULT Win32ControllerBackend::ReadXInput (const ControllerUnitKey & unit, Cont
 {
     HRESULT             hr      = S_OK;
     int                 slot    = -1;
+    bool                hasSlot = unit.source == ControllerUnitSource::XInputSlot;
     XINPUT_STATE        state   = {};
     DWORD               result  = ERROR_DEVICE_NOT_CONNECTED;
     XInputGamepadState  gamepad;
 
 
 
-    UNREFERENCED_PARAMETER (unit);
-
     for (int index = 0; index < kXInputSlotCount && slot < 0; index++)
     {
-        if (m_xinputConnected.test ((size_t) index))
+        if (!m_xinputConnected.test ((size_t) index))
+        {
+            continue;
+        }
+
+        if (!hasSlot || unit.unitId == std::to_string (index))
         {
             slot = index;
         }

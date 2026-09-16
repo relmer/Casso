@@ -19,11 +19,12 @@
 //  changes: the selection stays on the controller in use, and one arriving
 //  does not take it.
 //
-//  With the selected controller gone, the selection moves (FR-008a). A
-//  DirectInput unit that moved to another port comes back under a different
-//  identity, so exactly one attached unit of its model is taken to be it;
-//  with two of that model, which one moved is a coin flip, and they count as
-//  any other controller. Otherwise the longest-attached controller takes over,
+//  With the selected controller gone, the selection moves (FR-008a). A unit
+//  that moved comes back under a different identity, a DirectInput device on
+//  another port and an Xbox-class controller in another XInput slot, so
+//  exactly one attached unit of its model is taken to be it; with two of that
+//  model, which one moved is a coin flip, and they count as any other
+//  controller. Otherwise the longest-attached controller takes over,
 //  and with none attached the selection is cleared. A controller returning
 //  later is only a controller arriving.
 //
@@ -77,14 +78,7 @@ ControllerSelectionPolicy::Decision ControllerSelectionPolicy::Evaluate (
         return decision;
     }
 
-    // Xbox-class controllers are recognized by model alone (FR-018a), so a
-    // selection of one already matched above against whichever unit is
-    // attached. Only DirectInput units can go missing while their replacement
-    // is present under another identity.
-    if (current.value().model.kind == ControllerKind::DirectInput)
-    {
-        found = FindSoleSameModel (devices, current.value().model);
-    }
+    found = FindSoleSameModel (devices, current.value().model);
 
     decision.hasChanged = true;
 

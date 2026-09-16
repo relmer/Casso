@@ -72,13 +72,13 @@ Added to `MachineInputPrefs` (`CassoEmuCore/Config/MachineInputPrefs.h`) beside 
 "multiplayer": {
   "enabled": true,
   "players": [
-    { "controller": "xinput",                           "maps": "joystick0" },
+    { "controller": "xinput/slot:0",                    "maps": "joystick0" },
     { "controller": "dinput:231d:0121/guid:{01661270}", "maps": "joystick1" }
   ]
 }
 ```
 
-- A selection is written as the unit token for DirectInput and the model token for XInput (FR-018a).
+- A selection is written as the unit token: `dinput:044f:b10a/guid:{8E8A...}` for DirectInput and `xinput/slot:<n>` for XInput, where `<n>` is 0-3. The MODEL token stays `xinput` (FR-018a), so profiles and deadzone are unaffected. A file holding a bare `xinput`, which is what every file written before this shipped holds, still loads: it reads as an Xbox-class controller with no slot and matches whichever one is connected.
 - `maps` is one of `joystick0` (PDL0/PDL1), `joystick1` (PDL2/PDL3), `paddle0`, `paddle1`, `paddle2`, `paddle3`. An unknown token reads as `joystick0`, which every machine with a game port can play.
 - The block is always written, with both slots and with `enabled` false when the mode is off, because the block is spliced key by key and an omitted key would leave a setup the user turned off in the file. Absent and `"enabled": false` read the same.
 - An absent block is the default: a machine with only `controller` saved behaves exactly as before (FR-037, FR-038).

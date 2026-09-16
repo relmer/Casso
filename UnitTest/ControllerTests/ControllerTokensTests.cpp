@@ -104,6 +104,41 @@ namespace ControllerTests
         }
 
 
+        // Two Xbox controllers are one model and two units, told apart by the
+        // XInput slot. The model token must not gain the slot, or profiles and
+        // deadzone would split per slot.
+        TEST_METHOD (Unit_XInputSlotRoundTrips)
+        {
+            ControllerUnitKey  first   = { { ControllerKind::XInput, 0, 0 }, "0", ControllerUnitSource::XInputSlot };
+            ControllerUnitKey  second  = { { ControllerKind::XInput, 0, 0 }, "3", ControllerUnitSource::XInputSlot };
+            ControllerUnitKey  parsed;
+            std::string        token   = ControllerTokens::UnitToToken (first);
+            HRESULT            hr      = ControllerTokens::UnitFromToken (token, parsed);
+
+            Assert::AreEqual (std::string ("xinput/slot:0"), token);
+            Assert::AreEqual (std::string ("xinput/slot:3"), ControllerTokens::UnitToToken (second));
+            Assert::AreEqual (std::string ("xinput"),        ControllerTokens::ModelToToken (first.model),
+                L"the model key stays id-less, so every Xbox controller shares its profiles and deadzone");
+            Assert::AreEqual (S_OK, hr);
+            Assert::IsTrue   (parsed == first, L"the slot survives the round trip");
+            Assert::IsFalse  (first == second, L"two slots are two units");
+        }
+
+
+        // Every preferences file written so far holds a bare "xinput", which
+        // means whichever Xbox controller is connected.
+        TEST_METHOD (Unit_BareXInputTokenLoadsWithNoSlot)
+        {
+            ControllerUnitKey  parsed;
+            HRESULT            hr = ControllerTokens::UnitFromToken ("xinput", parsed);
+
+            Assert::AreEqual (S_OK, hr);
+            Assert::IsTrue   (parsed.model.kind == ControllerKind::XInput, L"an old token is still an XInput unit");
+            Assert::IsTrue   (parsed.source == ControllerUnitSource::None, L"and it carries no slot");
+            Assert::IsTrue   (parsed.unitId.empty());
+        }
+
+
         TEST_METHOD (Control_EveryKindRoundTrips)
         {
             const ControlId  controls[] =
@@ -161,6 +196,8 @@ namespace ControllerTests
             {
                 "dinput:044f:b10a/", "dinput:044f:b10a/serial:", "dinput:044f:b10a/guid:",
                 "dinput:044f:b10a/other:x", "xinput:045e:0b13/serial:ABC",
+                "xinput/", "xinput/slot:", "xinput/slot:4", "xinput/slot:x",
+                "xinput/guid:{A}", "xinput/serial:ABC", "dinput:044f:b10a/slot:0",
             };
 
             for (const char * token : tokens)
