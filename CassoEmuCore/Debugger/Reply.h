@@ -392,7 +392,8 @@ struct StopEvent
 //
 //  A run with no budget is unbounded. StepOver completes when PC reaches the
 //  instruction after the JSR with the stack pointer back where it was, so a
-//  recursive subroutine is stepped over as one call.
+//  recursive subroutine is stepped over as one call. A Go or RunTo with a
+//  skip range also ends when PC leaves that range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,6 +413,9 @@ struct RunRequest
     bool                     fullSpeed  = false;
     bool                     hasUntilPc = false;
     Word                     untilPc    = 0;
+    bool                     hasSkip    = false;
+    Word                     skipFirst  = 0;
+    Word                     skipLast   = 0;
     uint32_t                 count      = 1;
     std::optional<uint64_t>  budget;
 };

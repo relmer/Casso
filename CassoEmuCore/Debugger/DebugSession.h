@@ -109,6 +109,11 @@ public:
 
     void   SetInstructionObserver (IInstructionObserver * observer) { m_instructionObserver = observer; }
 
+    // BPV: stop when the video scanline enters the range, once.
+    void   SetVideoBreak         (uint32_t first, uint32_t last);
+    void   ClearVideoBreak       ();
+    bool   HasVideoBreak         () const { return m_videoBreak.has_value(); }
+
     // DebugHook: the stop conditions consulted before each instruction.
     bool   ShouldStopBefore      (Word pc) override;
     bool   HasPendingStop        () const override;
@@ -123,12 +128,19 @@ public:
     bool   TryResolveSymbol      (const std::string & name, Word & address) const override;
 
 private:
+    struct VideoBreak
+    {
+        uint32_t  first = 0;
+        uint32_t  last  = 0;
+    };
+
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
     void   UpdateHookInstalled   ();
     bool   HasStopConditions     () const;
     bool   TryMatchBeforeWatchpoint (Word pc);
+    bool   IsVideoBreakHit       () const;
     void   ClearTemporary        (const StopEvent & stop);
 
     static bool         TryGetRunKind  (DebugVerb verb, RunKind & kind);
@@ -157,6 +169,8 @@ private:
     bool                                  m_hookInstalled = false;
     std::optional<int>                    m_lastBreakpointId;
     std::optional<WatchHit>               m_beforeHit;
+    std::optional<VideoBreak>             m_videoBreak;
+    bool                                  m_videoBreakHit = false;
 
     std::optional<Word>                   m_assemblyAddress;
     std::unique_ptr<OpcodeTable>          m_assemblyOpcodes;

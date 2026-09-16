@@ -166,7 +166,7 @@ description: "Task list for 035-debugger"
 
 Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>HandlersTests.cpp`, using `TestMachine` wherever banking or devices matter. Expected outputs come from AppleWin's documented examples, and argument forms and behavior from research R-014, R-018 and R-019, which were checked against AppleWin's own behavior: `Z` is `DB` and `B` lists data blocks; `BPIO` is an alias of `BPM`; `BPA` sets a program-counter breakpoint and a watchpoint; `BRK` takes `[0|1|2|3|ALL] [ON|OFF]`; `BPCHANGE` takes `E`/`T`/`S` flags; `F` also takes `start end value`; `MEB` writes a value above `$FF` as two bytes; `S`/`SH` share the item syntax with `?` wildcards and `@n` results; `PRINT`, `PRINTF`, `CALC` and `LOG` have the forms in R-014 and R-019; the data directives take `[name] [range]` and name their blocks; `SYM<table>` takes `CLEAR | LOAD | ON | OFF`; and `LBR`, `PROFILE` and `TF` record only during debugger-driven runs.
 
-- [ ] T036 [P] [US1] `CassoEmuCore/Debugger/Handlers/ExecutionHandlers.h/.cpp`:
+- [X] T036 [P] [US1] `CassoEmuCore/Debugger/Handlers/ExecutionHandlers.h/.cpp` (`BENCHMARK` reports not available until the emulator wiring in T070 supplies a host clock):
   - `G`, `GG` (both unthrottled in batch; in the emulator `GG` sets full speed and restores the previous `SpeedMode` on stop), `P` (step over: run until PC is at the instruction after the `JSR` with SP restored, so recursion is one call), `T`, `TL`, `RTS` (step out) and `=`;
   - `BPV` and `VIDEOINFO` from `GetVideoPosition`;
   - `JSR`, `NOP`/`ZAP`, and `KEY` (queued by cycle, R-015);

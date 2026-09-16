@@ -470,7 +470,70 @@ bool DebugSession::ShouldStopBefore (Word pc)
         return true;
     }
 
+    if (IsVideoBreakHit())
+    {
+        m_videoBreakHit = true;
+        return true;
+    }
+
     return TryMatchBeforeWatchpoint (pc);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::SetVideoBreak
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetVideoBreak (uint32_t first, uint32_t last)
+{
+    m_videoBreak = VideoBreak { first, last };
+    UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ClearVideoBreak
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ClearVideoBreak()
+{
+    m_videoBreak.reset();
+    UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::IsVideoBreakHit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::IsVideoBreakHit() const
+{
+    uint32_t  scanline = 0;
+
+
+
+    if (!m_videoBreak.has_value())
+    {
+        return false;
+    }
+
+    scanline = m_target.GetVideoPosition().scanline;
+    return scanline >= m_videoBreak->first && scanline <= m_videoBreak->last;
 }
 
 
@@ -568,6 +631,12 @@ void DebugSession::OnStopped (const StopEvent & stop)
         event.watch = m_watchpoints.GetPendingHit();
     }
 
+    if (m_videoBreakHit)
+    {
+        m_videoBreak.reset();
+        m_videoBreakHit = false;
+    }
+
     m_watchpoints.ClearPending();
     m_lastBreakpointId.reset();
     m_beforeHit.reset();
@@ -575,6 +644,12 @@ void DebugSession::OnStopped (const StopEvent & stop)
 
     ClearTemporary (event);
     UpdateHookInstalled();
+
+    if (m_instructionObserver != nullptr)
+    {
+        m_instructionObserver->OnRunStopped (*this, event);
+    }
+
     m_sink.OnStopped (event);
 }
 
@@ -754,9 +829,10 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
 
 void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 {
-    RunRequest  request;
-    HRESULT     hr      = S_OK;
-    bool        isStep  = false;
+    RunRequest        request;
+    Cpu6502Registers  registers = {};
+    HRESULT           hr        = S_OK;
+    bool              isStep    = false;
 
 
 
@@ -769,16 +845,27 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 
     TryGetRunKind (command.verb, request.kind);
 
-    // G with a stop address runs to it.
+    // G with a stop address runs to it; addrG sets the program counter
+    // first; a skip range ends the run when PC leaves it.
     if (request.kind == RunKind::Go && command.hasA1)
     {
         request.kind = RunKind::RunTo;
+    }
+
+    if (request.kind == RunKind::Go && command.hasA3 && !command.hasA2)
+    {
+        registers    = m_target.GetRegisters();
+        registers.pc = command.a3;
+        m_target.SetRegisters (registers);
     }
 
     isStep             = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
     request.fullSpeed  = command.verb == DebugVerb::GoFullSpeed;
     request.hasUntilPc = command.hasA1 && request.kind == RunKind::RunTo;
     request.untilPc    = command.a1;
+    request.hasSkip    = command.hasA2 && command.hasA3 && !isStep;
+    request.skipFirst  = command.a2;
+    request.skipLast   = command.a3;
     request.count      = (command.count == 0) ? 1 : command.count;
     request.budget     = command.budget.has_value() ? command.budget : m_budget;
 
@@ -834,7 +921,7 @@ void DebugSession::UpdateHookInstalled()
 
 bool DebugSession::HasStopConditions() const
 {
-    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled();
+    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value();
 }
 
 

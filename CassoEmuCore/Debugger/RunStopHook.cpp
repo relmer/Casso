@@ -94,7 +94,7 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     if (m_active && !isFirst && IsRunComplete (pc, sp))
     {
         m_stopped = true;
-        m_reason  = (m_request.kind == RunKind::RunTo) ? StopReason::RunTo : StopReason::Step;
+        m_reason  = (m_request.kind == RunKind::RunTo || m_request.kind == RunKind::Go) ? StopReason::RunTo : StopReason::Step;
     }
     else if (m_conditions != nullptr && !isFirst && m_conditions->ShouldStopBefore (pc))
     {
@@ -182,14 +182,15 @@ StopReason RunStopHook::GetReason() const
 
 bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
 {
-    bool  isComplete = false;
+    bool  isComplete  = false;
+    bool  hasLeftSkip = m_request.hasSkip && (pc < m_request.skipFirst || pc > m_request.skipLast);
 
 
 
     switch (m_request.kind)
     {
     case RunKind::RunTo:
-        isComplete = m_request.hasUntilPc && pc == m_request.untilPc;
+        isComplete = (m_request.hasUntilPc && pc == m_request.untilPc) || hasLeftSkip;
         break;
 
     case RunKind::StepInto:
@@ -206,6 +207,9 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
         break;
 
     case RunKind::Go:
+        isComplete = hasLeftSkip;
+        break;
+
     default:
         break;
     }

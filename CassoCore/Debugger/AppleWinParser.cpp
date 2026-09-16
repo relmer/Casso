@@ -267,7 +267,8 @@ bool AppleWinParser::TryParseArguments (const Arguments & args, DebugCommand & c
     {
     case AppleWinCommandFamily::Cpu:         return TryParseRunArguments        (args, command, error);
     case AppleWinCommandFamily::Flags:       return TryParseFlagArguments       (args, command, error);
-    case AppleWinCommandFamily::Breakpoints: return TryParseBreakpointArguments (args, command, error);
+    case AppleWinCommandFamily::Breakpoints:
+    case AppleWinCommandFamily::Video:       return TryParseBreakpointArguments (args, command, error);
     case AppleWinCommandFamily::Memory:
     case AppleWinCommandFamily::Assembler:   return TryParseMemoryArguments     (args, command, error);
     case AppleWinCommandFamily::Data:        return TryParseDataArguments       (args, command, error);

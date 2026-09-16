@@ -162,9 +162,12 @@ namespace DebuggerTests
             Assert::AreEqual ((uint32_t) 3,          ParseOk ("BPC 3").command.count);
             Assert::AreEqual (std::string ("*"),     ParseOk ("BPC *").command.text);
             Assert::AreEqual (std::string ("ALL ON"), ParseOk ("brk all on").command.text);
+            Assert::AreEqual ((Word) 0x00A0,         ParseOk ("BPV A0").command.a1);
+            Assert::AreEqual ((Word) 0x00AF,         ParseOk ("BPV A0,10").command.a2);
             ParseFails ("BPC x", ParseStatus::Invalid);
             ParseFails ("BPM",   ParseStatus::Invalid);
             ParseFails ("BPA",   ParseStatus::Invalid);
+            ParseFails ("BPV",   ParseStatus::Invalid);
         }
 
 
