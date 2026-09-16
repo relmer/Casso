@@ -297,7 +297,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
     - **The `/` hand-off moved into the parser.** `MonitorParseResult::appleWinLine` carries what followed the slash, which puts the routing decision in one place instead of leaving it in `DebugSession::ExecuteLine`.
     - **Command shapes match the AppleWin handlers**, so one handler serves both modes: `dest<start.endM` fills a3 with the destination and a1/a2 with the source range, exactly as `M dest range` does, and `41<300.3FFS` fills a1/a2 and `values`. `addrG` sets a3 rather than a1, which is the field `ExecuteRun` already reads to set the program counter rather than run to an address.
     - `MonitorState` keeps `a1`-`a4` as the Monitor's own documented model, but the per-line accumulation is local to the scan and nothing reads those four yet. If T063's handlers do not need them either, they should go.
-- [ ] T061 [P] [US2] Write `UnitTest/DebuggerTests/MonitorFormatterTests.cpp`:
+- [x] T061 [P] [US2] Write `UnitTest/DebuggerTests/MonitorFormatterTests.cpp`:
   - examine `0300- A9 00 8D 00 03 60 ...`, rows aligned to 8-byte boundaries (`303.30F` gives `0303-` with five bytes then `0308-` with eight), identical on every machine;
   - list `0300-   A9 00       LDA   #$00`;
   - verify `0303-41 (42)` per difference;
@@ -305,7 +305,11 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   - arithmetic, 8-bit: `FF+FF` gives `=FE`;
   - step and trace display in the original ]['s step output layout;
   - `ERR` followed by the two-line error.
-- [ ] T062 [US2] Implement `CassoEmuCore/Debugger/MonitorFormatter.h/.cpp`. Makes T061 pass.
+- [x] T062 [US2] Implement `CassoEmuCore/Debugger/MonitorFormatter.h/.cpp`. Makes T061 pass.
+  - Two decisions worth recording:
+    - **A reply the Monitor has no layout for keeps the AppleWin text.** The only way to reach such a command from Monitor mode is to type `/`, and a reader who did that asked for the AppleWin command, so its output is the right answer rather than a gap. `TryFormatData` returning false is what routes it.
+    - **The step display is two pieces, not one.** `StopEvent` carries registers but not the instruction's bytes, so the formatter cannot disassemble it. The original ]['s step layout is the instruction line from the step's own reply followed by the register line from the stop, which is how T063 will emit it.
+  - The row alignment in `Examine_RowsAlignToEightByteBoundaries` is a property of the rows the command builds, not of this class; the test pins the five-then-eight rendering, and the splitting belongs to T063.
 - [ ] T063 [US2] Implement `CassoEmuCore/Debugger/Handlers/MonitorHandlers.h/.cpp` with the effects in research R-013, applied directly, never by jumping into ROM:
   - `I`/`N` set `INVFLG` ($32) to $3F/$FF;
   - `n^K` sets `KSWL/H` ($38/$39) to $Cn00 and `n^P` sets `CSWL/H` ($36/$37) to $Cn00 for slots 1-7; `0^K` restores $FD1B and `0^P` restores $FDF0;
