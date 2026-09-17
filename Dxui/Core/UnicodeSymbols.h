@@ -39,6 +39,10 @@ static constexpr LPCWSTR s_kpszLock          = L"\U0001F512";   // U+1F512 LOCK 
 // the "Segoe MDL2 Assets" family).
 static constexpr LPCWSTR s_kpszMdl2Play      = L"\xE768";       // U+E768 Segoe MDL2 Play
 static constexpr LPCWSTR s_kpszMdl2Copy      = L"\xE8C8";       // U+E8C8 Segoe MDL2 Copy
+static constexpr LPCWSTR s_kpszMdl2Cut       = L"\xE8C6";       // U+E8C6 Segoe MDL2 Cut (scissors)
+static constexpr LPCWSTR s_kpszMdl2Paste     = L"\xE77F";       // U+E77F Segoe MDL2 Paste (clipboard)
+static constexpr LPCWSTR s_kpszMdl2Rename    = L"\xE8AC";       // U+E8AC Segoe MDL2 Rename (A in a text box)
+static constexpr LPCWSTR s_kpszMdl2Delete    = L"\xE74D";       // U+E74D Segoe MDL2 Delete (trash can)
 static constexpr LPCWSTR s_kpszMdl2Accept    = L"\xE73E";       // U+E73E Segoe MDL2 Accept (check mark)
 static constexpr LPCWSTR s_kpszMdl2Back      = L"\xE72B";       // U+E72B Segoe MDL2 Back
 static constexpr LPCWSTR s_kpszMdl2Forward   = L"\xE72A";       // U+E72A Segoe MDL2 Forward

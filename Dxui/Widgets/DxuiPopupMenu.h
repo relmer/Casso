@@ -38,6 +38,13 @@ struct DxuiPopupMenuItem
         Command,
         Separator,
         Submenu,
+
+        //  A row of icon buttons, one per child command, as Explorer puts Cut,
+        //  Copy, Paste, Rename and Delete along the edge of its menu nearest
+        //  the pointer. It stays first in the list the caller builds and moves
+        //  to the end, with the separator after it, when the menu opens
+        //  upward. The keyboard passes over it; its commands are elsewhere.
+        IconRow,
     };
 
     Kind                                kind     = Kind::Command;
@@ -47,6 +54,7 @@ struct DxuiPopupMenuItem
     static DxuiPopupMenuItem  ForCommand   (std::shared_ptr<const DxuiCommand> cmd);
     static DxuiPopupMenuItem  ForSeparator ();
     static DxuiPopupMenuItem  ForSubmenu   (std::shared_ptr<const DxuiCommand> cmd, std::vector<DxuiPopupMenuItem> children);
+    static DxuiPopupMenuItem  ForIconRow   (std::vector<std::shared_ptr<const DxuiCommand>> commands);
 };
 
 
@@ -235,6 +243,16 @@ public:
     //  which row is under a point, moving the highlight, and picking a row
     //  outright. The row index is the item index, separators included.
     int   HitTestRow     (int x, int y) const   { return HitTestIndex (x, y); }
+
+    //  Which of an icon row's buttons is under a point, or -1.
+    int  HitTestIconButton (int x, int y) const
+    {
+        int  row = HitTestIndex (x, y);
+
+        return (row >= 0) ? GetIconButtonAt (row, x - m_boundsDip.left) : -1;
+    }
+
+    int  GetIconHighlight () const              { return m_iconHover; }
     void  SetHighlight   (int index)            { SetHover (index); }
     void  HighlightFirst ()                     { SetHover (FindFirstSelectable()); }
     void  ActivateRow    (int index)            { Commit (index); }
@@ -279,6 +297,12 @@ private:
     static constexpr int       s_kMinRowsBelowAnchor   = 5;
     static constexpr int       s_kWheelRows            = 3;
     static constexpr float     s_kThumbWidthDip        = 3.0f;
+
+    //  An icon row's buttons are square, a half again as tall as a command
+    //  row, with their glyph at the toolbar's size.
+    static constexpr int       s_kIconRowScalePct      = 150;
+    static constexpr float     s_kIconGlyphDip         = 16.0f;
+    static constexpr const wchar_t *  s_kIconFace      = L"Segoe Fluent Icons";
 
     //  The hover highlight is a rounded card inset from the menu's edges, not
     //  a full-bleed band: a square band running into the menu's own rounded
@@ -325,6 +349,11 @@ private:
     bool  IsReopenSuppressed (const RECT & anchor) const;
 
     int   GetRowHeightPx     (int index) const;
+    int   GetIconButtonPx    () const;
+    int   GetIconButtonAt    (int index, int localX) const;
+    void  CommitIcon         (int index, int button);
+    void  PlaceIconRow       (bool atBottom);
+    bool  OpensUpward        (int originX, int originY, int heightPx, Anchoring anchoring) const;
     int   GetRowTopPx        (int index) const;
     int   GetContentHeightPx () const;
     int   GetScrollPx        () const;
@@ -356,6 +385,8 @@ private:
     void     PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
     void     PaintRow        (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal,
                               int index, float left, float top, float width, float fontDip) const;
+    void     PaintIconRow    (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal,
+                              int index, float left, float top) const;
     void     PaintUnderline  (IDxuiPainter & painter, IDxuiTextRenderer & text, const std::wstring & stripped,
                               int mnIdx, float labelX, float labelY, float fontDip, uint32_t ink) const;
     void     RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
@@ -379,6 +410,7 @@ private:
     const IDxuiTheme   * m_theme            = nullptr;
     IDxuiTextRenderer  * m_text             = nullptr;
     int                  m_hover            = -1;
+    int                  m_iconHover        = -1;
     int                  m_pressed          = -1;
     bool                 m_visible          = false;
     bool                 m_revealSuppressed = false;

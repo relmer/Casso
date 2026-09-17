@@ -3207,6 +3207,53 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::GetVerbGlyph
+//
+//  The verbs Explorer shows as buttons, with its glyphs; null for the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassqueWindow::GetVerbGlyph (CassqueActions::Verb verb)
+{
+    switch (verb)
+    {
+        case CassqueActions::Verb::Cut:    return s_kpszMdl2Cut;
+        case CassqueActions::Verb::Copy:   return s_kpszMdl2Copy;
+        case CassqueActions::Verb::Paste:  return s_kpszMdl2Paste;
+        case CassqueActions::Verb::Rename: return s_kpszMdl2Rename;
+        case CassqueActions::Verb::Delete: return s_kpszMdl2Delete;
+        default:                           return nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetIconOrder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassqueWindow::GetIconOrder (CassqueActions::Verb verb)
+{
+    switch (verb)
+    {
+        case CassqueActions::Verb::Cut:    return 0;
+        case CassqueActions::Verb::Copy:   return 1;
+        case CassqueActions::Verb::Paste:  return 2;
+        case CassqueActions::Verb::Rename: return 3;
+        default:                           return 4;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::ShowListContextMenu
 //
 //  The rows come from the actions' verb list; each command runs its verb.
@@ -3215,11 +3262,12 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
 
 void CassqueWindow::ShowListContextMenu (int x, int y)
 {
-    std::vector<DxuiPopupMenuItem>  items;
-    Location                        location;
-    std::wstring                    folderForCasso;
-    bool                            known       = false;
-    bool                            moreOptions = false;
+    std::vector<DxuiPopupMenuItem>                   items;
+    Location                                         location;
+    std::wstring                                     folderForCasso;
+    bool                                             known          = false;
+    bool                                             moreOptions    = false;
+    std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
 
 
 
@@ -3244,6 +3292,26 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
         if (verb == CassqueActions::Verb::MoreOptions)
         {
             moreOptions = true;
+            continue;
+        }
+
+        //  A real file's clipboard, rename and delete are Explorer's buttons
+        //  along the menu's edge rather than rows.
+        if (!m_browser.IsImageLocation() && GetVerbGlyph (verb) != nullptr)
+        {
+            command           = std::make_shared<DxuiCommand>();
+            command->id       = (int) verb;
+            command->label    = GetVerbLabel (verb);
+            command->glyph    = GetVerbGlyph (verb);
+            command->dispatch = [this, verb]() { RunVerb (verb); };
+
+            if (verb == CassqueActions::Verb::Paste)
+            {
+                command->isEnabled = [this]() { return m_shellVerbs.ClipboardHasFiles(); };
+            }
+
+            iconCommands.push_back (command);
+            m_menuCommands.push_back (std::move (command));
             continue;
         }
 
@@ -3339,6 +3407,18 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
                 }
             });
         }
+    }
+
+    //  In Explorer's order, whatever order the verbs came in.
+    std::stable_sort (iconCommands.begin(), iconCommands.end(), [] (const auto & a, const auto & b)
+    {
+        return GetIconOrder ((CassqueActions::Verb) a->id) < GetIconOrder ((CassqueActions::Verb) b->id);
+    });
+
+    if (!iconCommands.empty())
+    {
+        items.insert (items.begin(), DxuiPopupMenuItem::ForSeparator());
+        items.insert (items.begin(), DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
     }
 
     //  Last, as Explorer has it: everything else Windows and other programs
