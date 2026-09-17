@@ -115,6 +115,12 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
             verbs.push_back (Verb::Rename);
         }
 
+        //  The share sheet takes files, not folders.
+        if (!row.isDirectory)
+        {
+            verbs.push_back (Verb::Share);
+        }
+
         verbs.push_back (Verb::MoreOptions);
     }
 

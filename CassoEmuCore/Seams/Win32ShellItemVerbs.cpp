@@ -722,3 +722,53 @@ HRESULT Win32ShellItemVerbs::PasteInto (HWND owner, const std::wstring & folder)
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::Share
+//
+//  Invoked by its verb on the items' own menu, so no WinRT is needed here:
+//  the shell's handler talks to the share sheet itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::Share (HWND owner, const std::vector<std::wstring> & paths)
+{
+    HRESULT                 hr     = S_OK;
+    ComPtr<IContextMenu>    menu;
+    HMENU                   popup  = nullptr;
+    CMINVOKECOMMANDINFOEX   invoke = { sizeof (invoke) };
+
+
+
+    hr = GetItemsMenu (owner, paths, &menu);
+    CHR (hr);
+
+    //  Some handlers add their verbs only once asked to fill a menu.
+    popup = CreatePopupMenu();
+    CWR (popup != nullptr);
+
+    hr = menu->QueryContextMenu (popup, 0, s_kFirstCommandId, s_kLastCommandId, CMF_NORMAL);
+    CHR (hr);
+
+    invoke.fMask   = CMIC_MASK_UNICODE;
+    invoke.hwnd    = owner;
+    invoke.lpVerb  = s_kShareVerb;
+    invoke.lpVerbW = s_kShareVerbW;
+    invoke.nShow   = SW_SHOWNORMAL;
+
+    hr = menu->InvokeCommand ((LPCMINVOKECOMMANDINFO) &invoke);
+    CHR (hr);
+
+Error:
+    if (popup != nullptr)
+    {
+        DestroyMenu (popup);
+    }
+
+    return hr;
+}

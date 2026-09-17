@@ -3245,6 +3245,7 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
         case CassqueActions::Verb::Cut:            return L"Cu&t";
         case CassqueActions::Verb::Copy:           return L"&Copy";
         case CassqueActions::Verb::Paste:          return L"&Paste";
+        case CassqueActions::Verb::Share:          return L"&Share";
         default:                                   return L"";
     }
 }
@@ -3270,6 +3271,7 @@ const wchar_t * CassqueWindow::GetVerbGlyph (CassqueActions::Verb verb)
         case CassqueActions::Verb::Paste:  return s_kpszMdl2Paste;
         case CassqueActions::Verb::Rename: return s_kpszMdl2Rename;
         case CassqueActions::Verb::Delete: return s_kpszMdl2Delete;
+        case CassqueActions::Verb::Share:  return s_kpszMdl2Share;
         default:                           return nullptr;
     }
 }
@@ -3292,7 +3294,8 @@ int CassqueWindow::GetIconOrder (CassqueActions::Verb verb)
         case CassqueActions::Verb::Copy:   return 1;
         case CassqueActions::Verb::Paste:  return 2;
         case CassqueActions::Verb::Rename: return 3;
-        default:                           return 4;
+        case CassqueActions::Verb::Share:  return 4;
+        default:                           return 5;
     }
 }
 
@@ -3807,6 +3810,11 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
         case CassqueActions::Verb::Copy:
             m_browser.GetSelectedHostPaths (hostPaths);
             hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), hostPaths, verb == CassqueActions::Verb::Cut);
+            break;
+
+        case CassqueActions::Verb::Share:
+            m_browser.GetSelectedHostPaths (hostPaths);
+            hr = m_shellVerbs.Share (GetHwnd(), hostPaths);
             break;
 
         case CassqueActions::Verb::Paste:

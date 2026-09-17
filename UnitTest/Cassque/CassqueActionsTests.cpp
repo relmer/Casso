@@ -208,6 +208,7 @@ public:
         Assert::IsTrue (has (CassqueActions::Verb::Delete));
         Assert::IsTrue (has (CassqueActions::Verb::Rename));
         Assert::IsFalse (has (CassqueActions::Verb::Paste), L"A file is not somewhere to paste");
+        Assert::IsTrue  (has (CassqueActions::Verb::Share));
 
         //  The folder's background takes a paste.
         host.browser.SetSelectedRows ({});

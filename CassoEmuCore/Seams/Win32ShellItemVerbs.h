@@ -39,11 +39,17 @@ public:
     HRESULT  PlaceOnClipboard    (HWND owner, const std::vector<std::wstring> & paths, bool cut) override;
     bool     ClipboardHasFiles   () override;
     HRESULT  PasteInto           (HWND owner, const std::wstring & folder) override;
+    HRESULT  Share               (HWND owner, const std::vector<std::wstring> & paths) override;
 
 private:
     static constexpr UINT            s_kFirstCommandId = 1;
     static constexpr UINT            s_kLastCommandId  = 0x7FFF;
     static constexpr const wchar_t * s_kClassName      = L"CassqueShellMenuHost";
+
+    //  The canonical verb of Explorer's Share command, which opens the same
+    //  share sheet an app would through the data transfer manager.
+    static constexpr const char    * s_kShareVerb      = "Windows.ModernShare";
+    static constexpr const wchar_t * s_kShareVerbW     = L"Windows.ModernShare";
 
     static LRESULT CALLBACK  MenuHostProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 

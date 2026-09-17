@@ -61,6 +61,7 @@ public:
         Cut,
         Copy,
         Paste,
+        Share,
     };
 
     struct Outcome
