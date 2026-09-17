@@ -789,6 +789,7 @@ int DxuiPopupMenu::GetMaxScrollRow() const
 int DxuiPopupMenu::GetHeightLimitPx (const RECT & anchor, Anchoring anchoring) const
 {
     HWND         owner    = nullptr;
+    POINT        top      = { anchor.left, anchor.top    };
     POINT        bottom   = { anchor.left, anchor.bottom };
     HMONITOR     monitor  = nullptr;
     MONITORINFO  info     = { sizeof (info) };
@@ -809,6 +810,7 @@ int DxuiPopupMenu::GetHeightLimitPx (const RECT & anchor, Anchoring anchoring) c
         return 0;
     }
 
+    ClientToScreen (owner, &top);
     ClientToScreen (owner, &bottom);
     monitor = MonitorFromPoint (bottom, MONITOR_DEFAULTTONEAREST);
 
@@ -817,14 +819,15 @@ int DxuiPopupMenu::GetHeightLimitPx (const RECT & anchor, Anchoring anchoring) c
         return 0;
     }
 
-    below = info.rcWork.bottom - bottom.y;
-
-    if (anchoring == Anchoring::Below && below >= minRoom)
+    if (anchoring != Anchoring::Below)
     {
-        return below;
+        return info.rcWork.bottom - info.rcWork.top;
     }
 
-    return info.rcWork.bottom - info.rcWork.top;
+    below = (int) (info.rcWork.bottom - bottom.y);
+
+    //  Flipped above, the menu has the room above its anchor instead.
+    return (below >= minRoom) ? below : (std::max) (minRoom, (int) (top.y - info.rcWork.top));
 }
 
 
@@ -1874,7 +1877,7 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
         float  fraction = (maxRow > 0) ? (float) m_scrollRow / (float) maxRow : 0.0f;
 
         painter.FillRoundedRect (left + width - thumbW * 2.0f, top + (track - thumbH) * fraction,
-                                 thumbW, thumbH, thumbW * 0.5f, pal.border);
+                                 thumbW, thumbH, thumbW * 0.5f, pal.disabled);
     }
 }
 
