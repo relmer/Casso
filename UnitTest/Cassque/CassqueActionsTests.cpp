@@ -188,6 +188,37 @@ public:
     }
 
 
+    TEST_METHOD (AHostFile_OpensInItsOwnProgram_AndEveryHostItemHasTheShellsMenu)
+    {
+        Host                               host;
+        std::vector<CassqueActions::Verb>  verbs;
+        auto                               has = [&verbs] (CassqueActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+        host.SeedBytes (Bytes ("hello"), L"C:\\Disks\\readme.txt");
+        host.OpenImage();
+        host.browser.GoUp();
+
+        host.browser.SetSelectedRows ({ host.Find (L"readme.txt") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue (has (CassqueActions::Verb::Open));
+        Assert::IsTrue (has (CassqueActions::Verb::OpenWith));
+        Assert::IsTrue (has (CassqueActions::Verb::MoreOptions));
+
+        //  An image opens here, so it gets no program to open it with.
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsFalse (has (CassqueActions::Verb::OpenWith));
+        Assert::IsTrue  (has (CassqueActions::Verb::MoreOptions));
+
+        //  Nothing inside an image is a real file.
+        host.browser.OpenRow (host.Find (L"dos33.dsk"));
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsFalse (has (CassqueActions::Verb::OpenWith));
+        Assert::IsFalse (has (CassqueActions::Verb::MoreOptions));
+    }
+
+
     TEST_METHOD (Delete_RemovesTheEntryAndReportsTheWrite)
     {
         Host  host;

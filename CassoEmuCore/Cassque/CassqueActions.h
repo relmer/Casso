@@ -53,6 +53,11 @@ public:
         ReadBlocks,
         WriteBlocks,
         Refresh,
+
+        //  Windows' own verbs for a real file or folder: the programs that
+        //  open it, and the shell's full context menu.
+        OpenWith,
+        MoreOptions,
     };
 
     struct Outcome

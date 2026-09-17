@@ -87,6 +87,21 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
         verbs.push_back (Verb::Format);
     }
 
+    //  A real file opens in its own program, and anything real has the shell's
+    //  own menu. A folder or an image opens here instead.
+    if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder && selected > 0)
+    {
+        const CatalogRow &  row = m_browser.GetRows()[(size_t) m_browser.GetSelectedRows()[0]];
+
+        if (selected == 1 && !row.isDirectory && !row.isDiskImage)
+        {
+            verbs.push_back (Verb::Open);
+            verbs.push_back (Verb::OpenWith);
+        }
+
+        verbs.push_back (Verb::MoreOptions);
+    }
+
     //  A new image belongs to the folder, not to anything in it, so it is offered
     //  only when the menu is for the folder's background, as Explorer's New is.
     if (!m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder && selected == 0)

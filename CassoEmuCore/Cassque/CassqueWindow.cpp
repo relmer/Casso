@@ -3176,6 +3176,8 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
         case CassqueActions::Verb::ReadBlocks:     return L"Read &blocks to file...";
         case CassqueActions::Verb::WriteBlocks:    return L"Write b&locks from file...";
         case CassqueActions::Verb::Refresh:        return L"&Refresh";
+        case CassqueActions::Verb::OpenWith:       return L"Open wit&h";
+        case CassqueActions::Verb::MoreOptions:    return L"Show more &options";
         default:                                   return L"";
     }
 }
@@ -3197,7 +3199,8 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
     std::vector<DxuiPopupMenuItem>  items;
     Location                        location;
     std::wstring                    folderForCasso;
-    bool                            known = false;
+    bool                            known       = false;
+    bool                            moreOptions = false;
 
 
 
@@ -3218,6 +3221,18 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
     for (CassqueActions::Verb verb : m_actions.GetListVerbs())
     {
         std::shared_ptr<DxuiCommand>  command;
+
+        if (verb == CassqueActions::Verb::MoreOptions)
+        {
+            moreOptions = true;
+            continue;
+        }
+
+        if (verb == CassqueActions::Verb::OpenWith)
+        {
+            AddOpenWithMenu (items);
+            continue;
+        }
 
         if (verb == CassqueActions::Verb::Refresh && !items.empty())
         {
@@ -3302,7 +3317,87 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
         }
     }
 
+    //  Last, as Explorer has it: everything else Windows and other programs
+    //  offer for these items, in the shell's own menu.
+    if (moreOptions)
+    {
+        POINT  screen = { x, y };
+
+        ClientToScreen (GetHwnd(), &screen);
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddMenuCommand (items, GetVerbLabel (CassqueActions::Verb::MoreOptions), [this, screen]()
+        {
+            std::vector<std::wstring>  paths;
+            HRESULT                    hr = S_OK;
+
+            m_browser.GetSelectedHostPaths (paths);
+
+            hr = m_shellVerbs.ShowShellMenu (GetHwnd(), paths, screen);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        });
+    }
+
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::AddOpenWithMenu
+//
+//  The programs Windows recommends for the selected file, then its own
+//  dialog for any other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
+{
+    std::wstring                          path   = GetSelectedImagePath();
+    std::vector<IShellItemVerbs::Handler> handlers;
+    std::vector<DxuiPopupMenuItem>        children;
+    std::shared_ptr<DxuiCommand>          parent = std::make_shared<DxuiCommand>();
+    HRESULT                               hr     = S_OK;
+    size_t                                i      = 0;
+
+
+
+    if (path.empty())
+    {
+        return;
+    }
+
+    hr = m_shellVerbs.GetOpenWithHandlers (path, handlers);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (i = 0; i < handlers.size(); i++)
+    {
+        AddMenuCommand (children, EscapeMnemonics (handlers[i].name).c_str(), [this, path, i]()
+        {
+            HRESULT  opened = m_shellVerbs.OpenWith (GetHwnd(), path, i);
+
+            IGNORE_RETURN_VALUE (opened, S_OK);
+        });
+    }
+
+    if (!children.empty())
+    {
+        children.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
+    AddMenuCommand (children, L"&Choose another app", [this, path]()
+    {
+        HRESULT  chosen = m_shellVerbs.ChooseOtherApp (GetHwnd(), path);
+
+        IGNORE_RETURN_VALUE (chosen, S_OK);
+    });
+
+    parent->label = GetVerbLabel (CassqueActions::Verb::OpenWith);
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (children)));
+    m_menuCommands.push_back (std::move (parent));
 }
 
 
@@ -3358,6 +3453,11 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
             if (!m_browser.GetSelectedRows().empty() && m_browser.OpenRow (m_browser.GetSelectedRows()[0]))
             {
                 FillList();
+            }
+            else if (!GetSelectedImagePath().empty())
+            {
+                //  Not something to browse: a real file, in its own program.
+                hr = m_shellVerbs.Open (GetHwnd(), GetSelectedImagePath());
             }
 
             break;

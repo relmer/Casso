@@ -13,6 +13,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32ProcessLauncher.h"
 #include "Seams/Win32ShellIcons.h"
+#include "Seams/Win32ShellItemVerbs.h"
 #include "Theme/DxuiDarkTheme.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Theme/DxuiLightTheme.h"
@@ -334,6 +335,7 @@ private:
     //  sheet for a host item and the catalog details for an entry in an image.
     void  ShowTabContextMenu     (int x, int y, int index);
     void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"");
+    void  AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
     void  CopySelectedPaths      ();
     void  ShowRowProperties      (int row);
     void  ShowLocationProperties (const Location & location);
@@ -365,6 +367,7 @@ private:
     Win32HostDialogs                             m_dialogs;
     Win32ProcessLauncher                         m_launcher;
     Win32ShellIcons                              m_shellIcons;
+    Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     std::unique_ptr<FolderWatch>                 m_folderWatch;
     bool                                         m_refreshingTree    = false;
