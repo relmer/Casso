@@ -5,7 +5,7 @@
 #include "ICpu.h"
 #include "MemoryBus.h"
 #include "MemoryBusCpu.h"
-#include "Machines/Apple2/Common/IVideoTiming.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 #include "ICycleSink.h"
 
 class Prng;
@@ -68,8 +68,8 @@ public:
     // the //e video timing model stays phase-locked to CPU progress.
     // Null-safe: ][/][+ or unit tests that do not need a video timer
     // simply leave it unset and AddCycles becomes a single forwarder.
-    void             SetVideoTiming      (IVideoTiming * vt) { m_videoTiming = vt; }
-    IVideoTiming *   GetVideoTiming      () const            { return m_videoTiming; }
+    void             SetVideoTiming      (VideoTiming * vt)  { m_videoTiming = vt; }
+    VideoTiming *    GetVideoTiming      () const            { return m_videoTiming; }
 
     // //c mouse sink: an optional second per-AddCycles sink for devices that
     // must observe CPU progress between bus accesses (the IOU mouse's
@@ -139,6 +139,6 @@ private:
     MemoryBus &              m_memoryBus;
     std::unique_ptr<ICpu>    m_cpu;
     Cpu6502 *                m_cpu6502     = nullptr;
-    IVideoTiming *           m_videoTiming = nullptr;
+    VideoTiming *            m_videoTiming = nullptr;
     ICycleSink *             m_cycleSink   = nullptr;
 };

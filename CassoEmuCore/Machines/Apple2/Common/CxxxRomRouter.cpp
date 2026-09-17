@@ -249,6 +249,68 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ResolveByte
+//
+//  Maps an address to the active byte source per audit §8. Out-of-range
+//  addresses and unmapped slots read as the floating bus.
+//
+//  FORCED INLINE, AND DEFINED AHEAD OF READ. Read is the //e's hottest device
+//  read: every fetch from the internal ROM at $C100-$CFFF comes through it, and
+//  the idle Applesoft prompt's keyboard loop runs there. With TryPeek as a
+//  second caller the compiler stopped inlining this into Read, which cost about
+//  5% of emulation speed (Release x64, 50M //e cycles pinned to one core:
+//  287.7 ms called, 273.9 ms inlined, 273.1 ms before TryPeek existed). The
+//  internal-ROM test is written out for the same reason rather than calling
+//  IsInternalRomSelected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__forceinline Byte CxxxRomRouter::ResolveByte (Word address) const
+{
+    HRESULT  hr         = S_OK;
+    Byte     result     = kFloatingBusByte;
+    bool     inSlot3    = false;
+    bool     inExp      = false;
+    bool     isInternal = false;
+    Word     romOffset  = 0;
+    int      slot       = 0;
+    Word     pageOff    = 0;
+
+
+
+    BAIL_OUT_IF (address < kCxxxRouterStart || address > kCxxxRouterEnd, S_OK);
+
+    //  IsInternalRomSelected's test, written out (see above).
+    inSlot3    = (address >= kSlot3PageStart    && address <= kSlot3PageEnd);
+    inExp      = (address >= kExpansionRomStart && address <= kExpansionRomLast);
+    isInternal = m_noExternalSlots || m_mmu.GetIntCxRom() || (inSlot3 && !m_mmu.GetSlotC3Rom()) || (inExp && m_mmu.GetIntC8Rom());
+    romOffset  = static_cast<Word> (address - kCxxxRouterStart);
+    slot       = static_cast<int>  ((address >> kAddressPageShift) & kSlotNibbleMask);
+    pageOff    = static_cast<Word> (address & kPageOffsetMask);
+
+    if (isInternal)
+    {
+        result = (romOffset < m_internal.size()) ? m_internal[romOffset] : kFloatingBusByte;
+    }
+    else if (inExp)
+    {
+        result = kFloatingBusByte;
+    }
+    else if (slot >= kMinSlot && slot <= kMaxSlot && !m_slotRom[slot].empty())
+    {
+        result = (pageOff < m_slotRom[slot].size()) ? m_slotRom[slot][pageOff] : kFloatingBusByte;
+    }
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Read
 //
 //  Resolves the byte then handles the $CFFF post-read side effect
@@ -339,56 +401,6 @@ void CxxxRomRouter::Write (Word address, Byte value)
 
 void CxxxRomRouter::Reset()
 {
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResolveByte
-//
-//  Maps an address to the active byte source per audit §8. Out-of-range
-//  addresses and unmapped slots read as the floating bus.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte CxxxRomRouter::ResolveByte (Word address) const
-{
-    HRESULT  hr         = S_OK;
-    Byte     result     = kFloatingBusByte;
-    bool     inExp      = false;
-    bool     isInternal = false;
-    Word     romOffset  = 0;
-    int      slot       = 0;
-    Word     pageOff    = 0;
-
-
-
-    BAIL_OUT_IF (address < kCxxxRouterStart || address > kCxxxRouterEnd, S_OK);
-
-    inExp      = (address >= kExpansionRomStart && address <= kExpansionRomLast);
-    isInternal = IsInternalRomSelected (address);
-    romOffset  = static_cast<Word> (address - kCxxxRouterStart);
-    slot       = static_cast<int>  ((address >> kAddressPageShift) & kSlotNibbleMask);
-    pageOff    = static_cast<Word> (address & kPageOffsetMask);
-
-    if (isInternal)
-    {
-        result = (romOffset < m_internal.size()) ? m_internal[romOffset] : kFloatingBusByte;
-    }
-    else if (inExp)
-    {
-        result = kFloatingBusByte;
-    }
-    else if (slot >= kMinSlot && slot <= kMaxSlot && !m_slotRom[slot].empty())
-    {
-        result = (pageOff < m_slotRom[slot].size()) ? m_slotRom[slot][pageOff] : kFloatingBusByte;
-    }
-
-Error:
-    return result;
 }
 
 

@@ -23,7 +23,7 @@ class Prng;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class VideoTiming : public IVideoTiming
+class VideoTiming final : public IVideoTiming
 {
 public:
     static constexpr uint32_t   kCyclesPerScanline   = 65;
@@ -52,3 +52,36 @@ public:
 private:
     uint32_t      m_cycleCounter = 0;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VideoTiming::Tick
+//
+//  Advances the cycle-in-frame counter wrapped modulo 17,030. Every emulated
+//  CPU cycle ticks the //e video circuit; EmuCpu::AddCycles fans the
+//  per-instruction count into here so that $C019 readers see the correct
+//  phase of the 262-line frame.
+//
+//  Defined here, and the class final, so EmuCpu::AddCycles -- which holds a
+//  VideoTiming rather than the interface -- inlines it. It runs once per
+//  instruction, and as a virtual call it cost about 2% of emulation speed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+inline void VideoTiming::Tick (uint32_t cpuCycles)
+{
+    uint32_t    total = m_cycleCounter + cpuCycles;
+
+
+
+    // The increment is tiny (<= one instruction's cycles) and m_cycleCounter
+    // is always < kCyclesPerFrame, so the sum almost never crosses a frame
+    // boundary. Take the cheap compare on the common path and only pay the
+    // integer division on the ~once-per-frame wrap (the modulo still handles
+    // any larger increment correctly).
+    m_cycleCounter = (total < kCyclesPerFrame) ? total : (total % kCyclesPerFrame);
+}
