@@ -248,6 +248,45 @@ public:
     }
 
 
+    TEST_METHOD (InsideAProDosSubdirectory_FilesArePutRenamedAndDeleted)
+    {
+        Host                               host;
+        std::vector<CassqueActions::Verb>  verbs;
+        std::vector<DxuiTreeNode>          roots;
+
+        host.SeedFixture ("Cassque/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes   (Bytes ("10 PRINT \"SUB\"\n20 END\n"), L"C:\\In\\subprog.bas");
+
+        host.browser.GetTreeRoots (roots);
+        AssertSucceeded (host.browser.SelectTreeNode (host.browser.GetTreeChildren (roots[0].id)[0].id));
+        Assert::IsTrue  (host.browser.OpenRow (host.Find (L"prodos.po")));
+
+        Assert::IsTrue  (host.actions.CreateFolder (L"NESTED").Succeeded());
+        host.browser.Reload (false);
+        Assert::IsTrue  (host.browser.OpenRow (host.Find (L"NESTED")));
+
+        //  Put goes into the open subdirectory, not the volume directory.
+        Assert::IsTrue      (host.actions.PutFiles ({ L"C:\\In\\subprog.bas" }).Succeeded());
+        Assert::AreNotEqual (-1, host.Find (L"SUBPROG"));
+
+        host.browser.SetSelectedRows ({ host.Find (L"SUBPROG") });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::IsTrue  (std::find (verbs.begin(), verbs.end(), CassqueActions::Verb::Delete) != verbs.end());
+        Assert::IsTrue  (std::find (verbs.begin(), verbs.end(), CassqueActions::Verb::Rename) != verbs.end());
+        Assert::IsFalse (std::find (verbs.begin(), verbs.end(), CassqueActions::Verb::Boot)   != verbs.end(), L"Nothing boots from a subdirectory");
+        Assert::IsFalse (std::find (verbs.begin(), verbs.end(), CassqueActions::Verb::Format) != verbs.end(), L"A subdirectory is not the disk");
+
+        Assert::IsTrue      (host.actions.RenameSelected (L"moved").Succeeded());
+        Assert::AreEqual    (-1, host.Find (L"SUBPROG"));
+        Assert::AreNotEqual (-1, host.Find (L"MOVED"));
+
+        host.browser.SetSelectedRows ({ host.Find (L"MOVED") });
+        Assert::IsTrue   (host.actions.DeleteSelected().Succeeded());
+        Assert::AreEqual (-1, host.Find (L"MOVED"));
+    }
+
+
     TEST_METHOD (NewDiskChoices_MapToTheRunnersNames)
     {
         DiskOperations::NewDiskRequest  request = CassqueNewDiskChoices::MakeRequest (1, 2, L"MYVOL", true);

@@ -51,31 +51,30 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
     {
         m_browser.GetSelectedEntries (entries);
 
-        //  Inside a subdirectory files can be copied out. Writing into one is
-        //  not supported yet, so nothing that would change it is offered there.
         if (!entries.empty())
         {
             verbs.push_back (Verb::Get);
-
-            if (!nested)
-            {
-                verbs.push_back (Verb::Delete);
-            }
+            verbs.push_back (Verb::Delete);
         }
 
-        if (entries.size() == 1 && !nested)
+        if (entries.size() == 1)
         {
             verbs.push_back (Verb::Rename);
 
-            if (!entries[0].isDirectory)
+            //  A boot file is found in the volume directory, so one in a
+            //  subdirectory would never be run.
+            if (!entries[0].isDirectory && !nested)
             {
                 verbs.push_back (Verb::Boot);
             }
         }
 
+        verbs.push_back (Verb::Put);
+
+        //  Formatting takes the whole disk, which is not what a subdirectory
+        //  shows.
         if (!nested)
         {
-            verbs.push_back (Verb::Put);
             verbs.push_back (Verb::Format);
         }
     }
@@ -459,6 +458,7 @@ CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring
     std::wstring   imagePath = m_browser.GetLocation().path;
     std::string    image     = TextEncoding::WideToNarrow (imagePath);
     VolumeKind     kind      = m_browser.GetVolumeKind();
+    std::string    inner     = m_browser.GetLocation().innerPath;
 
 
 
@@ -497,6 +497,10 @@ CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring
         {
             continue;
         }
+
+        //  Into the directory being shown, which is the volume's own unless a
+        //  subdirectory is open.
+        plan.catalogName = inner.empty() ? plan.catalogName : inner + "/" + plan.catalogName;
 
         if (plan.usePayload)
         {
@@ -549,7 +553,7 @@ CassqueActions::Outcome CassqueActions::DeleteSelected()
         }
         else
         {
-            Append (outcome, m_browser.GetOperations().Delete (image, entry.name, entry.catalogIndex));
+            Append (outcome, m_browser.GetOperations().Delete (image, m_browser.GetEntryPath (entry), entry.catalogIndex));
         }
     }
 
@@ -737,7 +741,8 @@ CassqueActions::Outcome CassqueActions::RenameSelected (const std::wstring & new
         }
     }
 
-    Append (outcome, m_browser.GetOperations().Rename (TextEncoding::WideToNarrow (imagePath), entries[0].name, target, entries[0].catalogIndex));
+    Append (outcome, m_browser.GetOperations().Rename (TextEncoding::WideToNarrow (imagePath), m_browser.GetEntryPath (entries[0]), target,
+                                                       entries[0].catalogIndex));
 
     if (outcome.written > 0)
     {
