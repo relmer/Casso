@@ -351,6 +351,7 @@ private:
     std::wstring  GetPasteFolder () const;
     void  CreateDiskFromSelection (const CassqueNewDiskDialog::Outcome & newDisk);
     void  SelectRowNamed         (const std::wstring & name);
+    void  ShowOptions            ();
 
     //  Drag-in: the image location under a drop point, what a drop there
     //  would do, and the drop.
@@ -395,6 +396,7 @@ private:
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     std::unique_ptr<FolderWatch>                 m_folderWatch;
     bool                                         m_refreshingTree    = false;
+    bool                                         m_applyingTheme     = false;
     std::vector<Win32IntentChannel::Reply>       m_pendingReplies;
     bool                                         m_dragArmed         = false;
     int                                          m_cassoDriveCount   = 0;

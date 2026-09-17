@@ -81,6 +81,9 @@ public:
         //  F4: the address opens for editing and its history drops, as in
         //  Explorer. Ctrl+L and Alt+D only open the address.
         kAddressHistory,
+
+        //  The Options dialog, holding the settings that are not views.
+        kOptions,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -201,18 +204,18 @@ private:
         { kThemeRetroTerminal, Menu::View, L"Casso &Retro Terminal", nullptr,  true  },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kLineAddresses,     Menu::View, L"Show &address",           nullptr,  true },
-        { kSeparator,         Menu::View, nullptr,                    nullptr,  false },
-        { kNoData,            Menu::View, L"Show &text only",         nullptr,  true },
-        { kGroup1,            Menu::View, L"&1-byte integer",         nullptr,  true },
-        { kGroup2,            Menu::View, L"&2-byte integer",         nullptr,  true },
-        { kGroup4,            Menu::View, L"&4-byte integer",         nullptr,  true },
-        { kSeparator,         Menu::View, nullptr,                    nullptr,  false },
-        { kFormatHex,         Menu::View, L"&Hexadecimal",            nullptr,  true },
-        { kFormatSigned,      Menu::View, L"&Signed",                 nullptr,  true },
-        { kFormatUnsigned,    Menu::View, L"&Unsigned",               nullptr,  true },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
-        { kNamingDescriptive, Menu::View, L"Descriptive host file &names", nullptr, true },
-        { kNamingCiderPress,  Menu::View, L"&CiderPress host file names", nullptr, true },
+        { kOptions,           Menu::View, L"&Options...",         nullptr,     false },
+
+        //  The hex view's own choices are on its context menu, and nowhere
+        //  else at the top of the window.
+        { kNoData,            Menu::Count, L"Show &text only",         nullptr,  true },
+        { kGroup1,            Menu::Count, L"&1-byte integer",         nullptr,  true },
+        { kGroup2,            Menu::Count, L"&2-byte integer",         nullptr,  true },
+        { kGroup4,            Menu::Count, L"&4-byte integer",         nullptr,  true },
+        { kFormatHex,         Menu::Count, L"&Hexadecimal",            nullptr,  true },
+        { kFormatSigned,      Menu::Count, L"&Signed",                 nullptr,  true },
+        { kFormatUnsigned,    Menu::Count, L"&Unsigned",               nullptr,  true },
         { kBack,              Menu::Go,   L"&Back",               L"Alt+Left", false },
         { kForward,           Menu::Go,   L"&Forward",            L"Alt+Right", false },
         { kUp,                Menu::Go,   L"&Up one level",       L"Alt+Up",   false },

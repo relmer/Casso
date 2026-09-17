@@ -239,7 +239,7 @@
 - [ ] T111 [US2] Cut, Copy, Paste and Delete buttons with Explorer's icons over the file list's selection; New tab, Close tab and Exit removed (FR-042)
 - [ ] T112 [P] [US1] `DxuiListView` views beyond details -- Explorer's extra large, large, medium and small icons, list, tiles and content -- each with selection, keyboard navigation, drag and context menus; headless tests for hit testing and arrow-key movement in each (FR-044)
 - [ ] T113 [US1] Sort and View dropdowns over the list, the view choice persisted through `CassquePrefs`; Preview toggle and Theme dropdown at the bar's trailing end (FR-043, FR-044, FR-027)
-- [ ] T114 [US2] Options dialog opened from View > Options, holding Host file names; commands the preview's context menu offers leave the top level (FR-045, FR-017a)
+- [x] T114 [US2] Options dialog opened from View > Options, holding Host file names; commands the preview's context menu offers leave the top level (FR-045, FR-017a)
 - [x] T115 [P] [US5] Typed path history: the model in CassoEmuCore (ten entries, newest first, a repeat moves to the top, added only after a successful navigation, browsing adds nothing) with headless tests, persisted through `CassquePrefs` (FR-040, SC-013)
 - [x] T116 [US5] `DxuiAddressBar` dropdown offering the typed path history (FR-040)
 - [x] T117 [P] [US2] `ProDosVolume` walks directories: every file operation takes a multi-part `FilePath` (today each refuses anything but one part), creates a subdirectory, grows a subdirectory's blocks as entries are added, and keeps the parent's file count; headless tests on the T001 ProDOS fixture. FR-017b's folder drop onto a ProDOS image needs it too (FR-013b, FR-013d)

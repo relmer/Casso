@@ -4,6 +4,7 @@
 #include "Cassque/CassqueAbout.h"
 #include "Cassque/CassqueDragOut.h"
 #include "Cassque/CassqueNewDiskDialog.h"
+#include "Cassque/CassqueOptionsDialog.h"
 #include "Cassque/Model/CassoTargeting.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Cassque/CassqueShell.h"
@@ -842,9 +843,20 @@ void CassqueWindow::OnThemeChanged()
 {
     DxuiWindow::OnThemeChanged();
 
+    //  Applying a theme announces a theme change to the controls, this one
+    //  included, which must not apply it again.
+    if (m_applyingTheme)
+    {
+        return;
+    }
+
+    m_applyingTheme = true;
+
     DxuiWindowsThemeColors::Instance().Refresh();
     ApplyTheme();
     Invalidate();
+
+    m_applyingTheme = false;
 }
 
 
@@ -2361,8 +2373,6 @@ bool CassqueWindow::IsChecked (int id) const
         case CassqueCommands::kColumns4:          return m_prefs.hexColumns == 4;
         case CassqueCommands::kColumns8:          return m_prefs.hexColumns == 8;
         case CassqueCommands::kColumns16:         return m_prefs.hexColumns == 16;
-        case CassqueCommands::kNamingDescriptive: return m_prefs.hostNaming != CassquePrefs::kNamingCiderPress;
-        case CassqueCommands::kNamingCiderPress:  return m_prefs.hostNaming == CassquePrefs::kNamingCiderPress;
         default:                                  return false;
     }
 }
@@ -3139,8 +3149,7 @@ void CassqueWindow::Dispatch (int id)
         case CassqueCommands::kGroup4: SetHexGrouping (4); break;
         case CassqueCommands::kGroup8: SetHexGrouping (8); break;
 
-        case CassqueCommands::kNamingDescriptive: m_prefs.hostNaming = CassquePrefs::kNamingDescriptive; break;
-        case CassqueCommands::kNamingCiderPress:  m_prefs.hostNaming = CassquePrefs::kNamingCiderPress;  break;
+        case CassqueCommands::kOptions:           ShowOptions(); break;
 
         case CassqueCommands::kBack:    refill = m_browser.GoBack();    break;
         case CassqueCommands::kForward: refill = m_browser.GoForward(); break;
@@ -3957,6 +3966,30 @@ void CassqueWindow::OnDrop (IDataObject * data, int tag, POINT screen)
 
     ReportOutcome (outcome, L"Put");
     RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowOptions()
+{
+    CassqueOptionsDialog::Choices  choices;
+
+
+
+    choices.hostNaming = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress) ? 1 : 0;
+
+    if (CassqueOptionsDialog::Ask (GetHwnd(), m_theme, choices))
+    {
+        m_prefs.hostNaming = (choices.hostNaming == 1) ? CassquePrefs::kNamingCiderPress : CassquePrefs::kNamingDescriptive;
+    }
 }
 
 

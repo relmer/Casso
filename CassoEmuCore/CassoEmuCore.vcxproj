@@ -192,6 +192,7 @@
     <ClCompile Include="Cassque\CassqueDragOut.cpp" />
     <ClCompile Include="Cassque\CassqueNewDiskDialog.cpp" />
     <ClCompile Include="Cassque\CassquePromptDialog.cpp" />
+    <ClCompile Include="Cassque\CassqueOptionsDialog.cpp" />
     <ClCompile Include="Cassque\CassqueWindow.cpp" />
     <ClCompile Include="Cassque\Model\BrowserModel.cpp" />
     <ClCompile Include="Cassque\Model\CassoTargeting.cpp" />
@@ -487,6 +488,7 @@
     <ClInclude Include="Cassque\CassqueNamedControl.h" />
     <ClInclude Include="Cassque\CassqueNewDiskDialog.h" />
     <ClInclude Include="Cassque\CassquePromptDialog.h" />
+    <ClInclude Include="Cassque\CassqueOptionsDialog.h" />
     <ClInclude Include="Cassque\CassqueWindow.h" />
     <ClInclude Include="Cassque\Model\BrowserModel.h" />
     <ClInclude Include="Cassque\Model\CassoTargeting.h" />
