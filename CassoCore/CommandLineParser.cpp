@@ -334,8 +334,8 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--disk2",   " <image>", "Insert this image into drive 2." },
     { "--trace",   " [size]",  "Record a CPU execution trace and write it out on "
                               "exit or on a crash. A size takes a K, M or G suffix." },
-    { "--debugger", "",        "Open the debug channel at start, without pausing, "
-                              "so a debugger client can attach." },
+    { "--debugger", "",        "Open the debugger window and the debug channel at "
+                              "start, without pausing the machine." },
     { "--help",    "",         "Show this message and exit." },
 };
 

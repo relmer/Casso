@@ -20,7 +20,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 DebuggerController::DebuggerController (MachineHost & host, CpuManager & cpuManager, IPipeTransport & transport,
-                                        InstanceDescriber describe, uint32_t processId) :
+                                        IFileSystem & files, InstanceDescriber describe, uint32_t processId) :
     m_host       (host),
     m_cpuManager (cpuManager),
     m_describe   (std::move (describe)),
@@ -31,6 +31,7 @@ DebuggerController::DebuggerController (MachineHost & host, CpuManager & cpuMana
     m_session    (m_target, m_server, cpuManager.IsPaused() ? RunState::Paused : RunState::FreeRunning)
 {
     m_target.SetRunDriver (&m_driver);
+    m_session.SetFileSystem (&files);
     m_handlers.Attach (m_session);
 }
 

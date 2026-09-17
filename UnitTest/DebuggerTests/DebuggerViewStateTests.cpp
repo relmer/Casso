@@ -9,6 +9,7 @@
 #include "MockDebugTarget.h"
 #include "Shell/CpuManager.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "UiTests/InMemoryFileSystem.h"
 
 
 
@@ -38,6 +39,7 @@ namespace DebuggerViewStateTests
         TestMachine            machine;
         CpuManager             cpuManager;
         InMemoryPipeTransport  transport;
+        InMemoryFileSystem     files;
         DebuggerController     controller;
         DebuggerViewState      view;
 
@@ -45,7 +47,7 @@ namespace DebuggerViewStateTests
 
         MachineRig() :
             machine    (std::string ("Apple2e"), TestMachine::Slots::Empty),
-            controller (machine, Paused (cpuManager), transport, nullptr, 1)
+            controller (machine, Paused (cpuManager), transport, files, nullptr, 1)
         {
             //  LDA #$41 / STA $0400 / RTS at $0300, with the PC on it.
             machine.GetMemoryBus().WriteByte (0x0300, 0xA9);

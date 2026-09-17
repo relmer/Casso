@@ -2012,6 +2012,7 @@ private:
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
     bool                                  m_openDebuggerAtStart = false;
+    Win32FileSystem                       m_debugFiles;
     std::unique_ptr<Win32NamedPipeApi>    m_pipeApi;
     std::unique_ptr<Win32PipeTransport>   m_pipeTransport;
     std::unique_ptr<DebuggerController>   m_debugger;

@@ -4,6 +4,7 @@
 #include "EmuTests/TestMachine.h"
 #include "InMemoryPipeTransport.h"
 #include "Shell/CpuManager.h"
+#include "UiTests/InMemoryFileSystem.h"
 
 
 
@@ -36,13 +37,14 @@ namespace DebuggerControllerTests
             TestMachine            machine;
             CpuManager             cpuManager;
             InMemoryPipeTransport  transport;
+            InMemoryFileSystem     files;
             DebuggerController     controller;
 
 
 
             explicit Rig (bool paused = false) :
                 machine    (std::string ("Apple2e"), TestMachine::Slots::Empty),
-                controller (machine, InitCpu (cpuManager, paused), transport,
+                controller (machine, InitCpu (cpuManager, paused), transport, files,
                             [] (ChannelHello & hello) { hello.title = "test"; hello.machine = "Apple2e"; },
                             4242)
             {
@@ -250,6 +252,31 @@ namespace DebuggerControllerTests
 
             Assert::IsTrue (rig.cpuManager.IsPaused());
             Assert::IsTrue (rig.controller.GetSession().GetRunState() == RunState::Paused);
+        }
+
+
+
+        //  A running Casso's debugger reads and writes host files: SYM LOAD in the
+        //  window or from a pipe client goes through the file system it was built
+        //  with, as it does in batch mode.
+        TEST_METHOD (FileCommandsUseTheFileSystemItWasGiven)
+        {
+            Rig    rig (true);
+            Reply  reply;
+
+
+
+            rig.files.WriteAllText (L"C:\\syms\\demo.dbg", "Speak=$6067\n");
+
+            reply = rig.controller.GetSession().ExecuteLine ("SYM LOAD \"C:\\syms\\demo.dbg\"", CommandMode::AppleWin);
+            Assert::IsTrue (reply.status == CommandStatus::Ok, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+
+            reply = rig.controller.GetSession().ExecuteLine ("BSAVE \"C:\\out\\zp.bin\" 0:F", CommandMode::AppleWin);
+            Assert::IsTrue (reply.status == CommandStatus::Ok, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::IsTrue (rig.files.Exists (L"C:\\out\\zp.bin"), L"BSAVE wrote through it");
+
+            reply = rig.controller.GetSession().ExecuteLine ("BP Speak", CommandMode::AppleWin);
+            Assert::IsTrue (reply.status == CommandStatus::Ok, L"the loaded symbol resolves");
         }
     };
 }

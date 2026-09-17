@@ -43,8 +43,10 @@ public:
     //  disks. The rest -- process id, protocol, mode, paused -- it supplies.
     using InstanceDescriber = std::function<void (ChannelHello & hello)>;
 
+    //  `files` is what file commands (SYM LOAD, BLOAD, BSAVE, the Monitor's R
+    //  and W) read and write through; it must outlive the controller.
     DebuggerController (MachineHost & host, CpuManager & cpuManager, IPipeTransport & transport,
-                        InstanceDescriber describe, uint32_t processId);
+                        IFileSystem & files, InstanceDescriber describe, uint32_t processId);
     ~DebuggerController() override;
 
     DebuggerController             (const DebuggerController &) = delete;

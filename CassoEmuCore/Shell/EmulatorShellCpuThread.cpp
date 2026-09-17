@@ -781,7 +781,7 @@ HRESULT EmulatorShell::OpenDebugger()
 
     api        = std::make_unique<Win32NamedPipeApi>();
     transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid));
-    controller = std::make_unique<DebuggerController> (m_machine, m_cpuManager, *transport,
+    controller = std::make_unique<DebuggerController> (m_machine, m_cpuManager, *transport, m_debugFiles,
         [this] (ChannelHello & hello)
         {
             hello.title   = TextEncoding::WideToNarrow (m_titlePrefix);
