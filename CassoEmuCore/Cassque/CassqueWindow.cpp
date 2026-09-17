@@ -274,6 +274,7 @@ void CassqueWindow::OnCreate()
                                 DxuiAddressBar::kFontDip);
     m_toolbar->SetPopupHost    (GetPopupHost());
     m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
+    SetCommandBarDropDowns();
     m_tooltip.SetPopupHost     (GetPopupHost());
 
     //  Explorer's navigation glyphs are in Windows 11's Segoe Fluent Icons.
@@ -2327,6 +2328,16 @@ bool CassqueWindow::IsEnabled (int id) const
         case CassqueCommands::kCloseTab:
         case CassqueCommands::kNextTab:
         case CassqueCommands::kPreviousTab:       return model.GetTabCount() > 1;
+        case CassqueCommands::kCutItems:          return IsListVerbOffered (CassqueActions::Verb::Cut);
+        case CassqueCommands::kCopyItems:         return IsListVerbOffered (CassqueActions::Verb::Copy) || IsListVerbOffered (CassqueActions::Verb::Get);
+        case CassqueCommands::kPasteItems:        return !m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder
+                                                         && m_shellVerbs.ClipboardHasFiles();
+        case CassqueCommands::kRenameItem:        return IsListVerbOffered (CassqueActions::Verb::Rename);
+        case CassqueCommands::kDeleteItems:       return IsListVerbOffered (CassqueActions::Verb::Delete);
+        case CassqueCommands::kNew:               return !m_browser.IsImageLocation() ? m_browser.GetLocation().kind == Location::Kind::HostFolder
+                                                                                      : m_browser.GetVolumeKind() == VolumeKind::ProDos;
+        case CassqueCommands::kNewFolder:         return !m_browser.IsImageLocation() || m_browser.GetVolumeKind() == VolumeKind::ProDos;
+        case CassqueCommands::kNewDisk:           return !m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder;
         default:                                  return true;
     }
 }
@@ -2347,9 +2358,17 @@ bool CassqueWindow::IsChecked (int id) const
 
 
 
+    if (id >= CassqueCommands::kSortByColumn && id < CassqueCommands::kSortByColumn + (int) CassqueBrowser::GetColumns().size())
+    {
+        return model.HasTabs() && (int) model.GetActiveTab().sortColumn == id - CassqueCommands::kSortByColumn;
+    }
+
     switch (id)
     {
         case CassqueCommands::kTogglePreview:     return m_prefs.previewVisible;
+        case CassqueCommands::kSortAscending:     return model.HasTabs() && !model.GetActiveTab().sortDescending;
+        case CassqueCommands::kSortDescending:    return model.HasTabs() && model.GetActiveTab().sortDescending;
+        case CassqueCommands::kViewDetails:       return true;
         case CassqueCommands::kLineAddresses:     return m_prefs.lineAddresses;
         case CassqueCommands::kToggleDisassembly: return model.HasTabs() && model.GetActiveTab().disassemble;
         case CassqueCommands::kThemeLight:        return m_prefs.theme == CassquePrefs::kThemeLight;
@@ -3070,10 +3089,55 @@ void CassqueWindow::Dispatch (int id)
         return;
     }
 
+    if (id >= CassqueCommands::kSortByColumn && id < CassqueCommands::kSortByColumn + (int) CassqueBrowser::GetColumns().size())
+    {
+        //  A new column sorts ascending; the column already in use keeps its
+        //  direction.
+        if (!IsChecked (id))
+        {
+            m_browser.SortByColumn (id - CassqueCommands::kSortByColumn);
+
+            if (m_browser.GetBrowserModel().GetActiveTab().sortDescending)
+            {
+                m_browser.SortByColumn (id - CassqueCommands::kSortByColumn);
+            }
+
+            FillList();
+        }
+
+        return;
+    }
+
     switch (id)
     {
         case CassqueCommands::kExit:
             OnWindowClose();
+            break;
+
+        case CassqueCommands::kCutItems:     RunVerb (CassqueActions::Verb::Cut);    break;
+        case CassqueCommands::kPasteItems:   RunVerb (CassqueActions::Verb::Paste);  break;
+        case CassqueCommands::kRenameItem:   RunVerb (CassqueActions::Verb::Rename); break;
+        case CassqueCommands::kDeleteItems:  RunVerb (CassqueActions::Verb::Delete); break;
+        case CassqueCommands::kNewFolder:    RunVerb (CassqueActions::Verb::NewFolder); break;
+        case CassqueCommands::kNewDisk:      RunVerb (CassqueActions::Verb::NewDisk);   break;
+
+        //  A real file goes on the clipboard; an entry in an image is copied
+        //  out to a folder, which is what Get does.
+        case CassqueCommands::kCopyItems:
+            RunVerb (IsListVerbOffered (CassqueActions::Verb::Copy) ? CassqueActions::Verb::Copy : CassqueActions::Verb::Get);
+            break;
+
+        case CassqueCommands::kSortAscending:
+        case CassqueCommands::kSortDescending:
+            if (!IsChecked (id) && m_browser.GetBrowserModel().HasTabs())
+            {
+                m_browser.SortByColumn ((int) m_browser.GetBrowserModel().GetActiveTab().sortColumn);
+                FillList();
+            }
+
+            break;
+
+        case CassqueCommands::kViewDetails:
             break;
 
         case CassqueCommands::kRefresh:
@@ -3966,6 +4030,76 @@ void CassqueWindow::OnDrop (IDataObject * data, int tag, POINT screen)
 
     ReportOutcome (outcome, L"Put");
     RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::IsListVerbOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::IsListVerbOffered (CassqueActions::Verb verb) const
+{
+    std::vector<CassqueActions::Verb>  verbs = m_actions.GetListVerbs();
+
+
+
+    return std::find (verbs.begin(), verbs.end(), verb) != verbs.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SetCommandBarDropDowns
+//
+//  The rows of New, Sort, View and Theme. They are commands, so each reads
+//  whether it is enabled and checked when the menu draws.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SetCommandBarDropDowns()
+{
+    std::vector<DxuiPopupMenuItem>  newItems;
+    std::vector<DxuiPopupMenuItem>  sortItems;
+    std::vector<DxuiPopupMenuItem>  viewItems;
+    std::vector<DxuiPopupMenuItem>  themeItems;
+    size_t                          column = 0;
+
+
+
+    newItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kNewFolder)));
+    newItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kNewDisk)));
+
+    for (column = 0; column < CassqueBrowser::GetColumns().size(); column++)
+    {
+        sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kSortByColumn + (int) column)));
+    }
+
+    sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
+    sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kSortAscending)));
+    sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kSortDescending)));
+
+    viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kViewDetails)));
+    viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
+    viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kOptions)));
+
+    for (int id : { (int) CassqueCommands::kThemeLight, (int) CassqueCommands::kThemeDark, (int) CassqueCommands::kThemeSystem,
+                    (int) CassqueCommands::kThemeSkeuomorphic, (int) CassqueCommands::kThemeDarkModern, (int) CassqueCommands::kThemeRetroTerminal })
+    {
+        themeItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (id)));
+    }
+
+    m_toolbar->SetDropDownItems (CassqueCommands::kNew,   std::move (newItems));
+    m_toolbar->SetDropDownItems (CassqueCommands::kSort,  std::move (sortItems));
+    m_toolbar->SetDropDownItems (CassqueCommands::kView,  std::move (viewItems));
+    m_toolbar->SetDropDownItems (CassqueCommands::kTheme, std::move (themeItems));
 }
 
 

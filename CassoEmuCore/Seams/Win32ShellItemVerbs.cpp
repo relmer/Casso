@@ -648,7 +648,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win32ShellItemVerbs::ClipboardHasFiles()
+bool Win32ShellItemVerbs::ClipboardHasFiles() const
 {
     return IsClipboardFormatAvailable (CF_HDROP) != FALSE;
 }

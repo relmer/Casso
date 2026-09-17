@@ -236,7 +236,7 @@
 
 - [ ] T109 [US1] Measure File Explorer's command bar at 100% and 200%: buttons, order, icons, labels, spacing, dropdown arrows, and the overflow when the window narrows; record it in `research.md`
 - [ ] T110 [US1] Retire Cassque's menu bar; the command bar takes its row, built on `DxuiToolbar` with Explorer's metrics from T109, including its overflow (FR-041, SC-012)
-- [ ] T111 [US2] Cut, Copy, Paste and Delete buttons with Explorer's icons over the file list's selection; New tab, Close tab and Exit removed (FR-042)
+- [x] T111 [US2] Cut, Copy, Paste and Delete buttons with Explorer's icons over the file list's selection; New tab, Close tab and Exit removed (FR-042)
 - [ ] T112 [P] [US1] `DxuiListView` views beyond details -- Explorer's extra large, large, medium and small icons, list, tiles and content -- each with selection, keyboard navigation, drag and context menus; headless tests for hit testing and arrow-key movement in each (FR-044)
 - [ ] T113 [US1] Sort and View dropdowns over the list, the view choice persisted through `CassquePrefs`; Preview toggle and Theme dropdown at the bar's trailing end (FR-043, FR-044, FR-027)
 - [x] T114 [US2] Options dialog opened from View > Options, holding Host file names; commands the preview's context menu offers leave the top level (FR-045, FR-017a)
@@ -248,7 +248,7 @@
 - [x] T123 [US2] Cassque's directory delete through the same plan, its confirmation showing the list and totals (FR-013e, FR-015)
 - [x] T124 [P] [US1] ProDOS name case: case-free matching, GS/OS lowercase flags read for display and written on create and rename, after confirming the field layout against Apple's IIgs technical note; tests (FR-013g) — entry names only. GS/OS Technical Note #8 puts a volume header's own case bits at +$1A, and CiderPress2's format notes put them at +$16; the two disagree, nothing here reads a volume name's case, so that field is left alone
 - [x] T118 [US2] Context-sensitive New: New folder on host folders and ProDOS locations, a new disk image of each supported container on host folders, disabled on DOS 3.3; an unused default name that opens for renaming; a new image made with host files selected receives them, refused up front when they will not fit (FR-046) -- done 2026-09-17: New submenu, default names opening for rename, a new image receives the selection with a fit check first
-- [ ] T119 [US2] Rename on the command bar under the holding file system's rules, host names included (FR-042, FR-013a) -- status 2026-09-17: rename in place works for host files and entries; the command-bar button waits on T110/T111
+- [x] T119 [US2] Rename on the command bar under the holding file system's rules, host names included (FR-042, FR-013a)
 - [ ] T120 [US1] `DxuiToolbar` See more menu: overflow as the window narrows and items pinned there permanently (FR-047)
 
 ---

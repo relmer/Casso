@@ -37,7 +37,7 @@ public:
     HRESULT  Recycle             (HWND owner, const std::vector<std::wstring> & paths) override;
     HRESULT  RenameItem          (HWND owner, const std::wstring & path, const std::wstring & newName) override;
     HRESULT  PlaceOnClipboard    (HWND owner, const std::vector<std::wstring> & paths, bool cut) override;
-    bool     ClipboardHasFiles   () override;
+    bool     ClipboardHasFiles   () const override;
     HRESULT  PasteInto           (HWND owner, const std::wstring & folder) override;
     HRESULT  CreateFolder        (HWND owner, const std::wstring & parent, const std::wstring & name) override;
     HRESULT  Share               (HWND owner, const std::vector<std::wstring> & paths) override;

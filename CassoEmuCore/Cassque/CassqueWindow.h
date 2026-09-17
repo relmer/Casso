@@ -352,6 +352,8 @@ private:
     void  CreateDiskFromSelection (const CassqueNewDiskDialog::Outcome & newDisk);
     void  SelectRowNamed         (const std::wstring & name);
     void  ShowOptions            ();
+    bool  IsListVerbOffered      (CassqueActions::Verb verb) const;
+    void  SetCommandBarDropDowns ();
 
     //  Drag-in: the image location under a drop point, what a drop there
     //  would do, and the drop.

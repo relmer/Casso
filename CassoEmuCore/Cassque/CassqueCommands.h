@@ -84,6 +84,26 @@ public:
 
         //  The Options dialog, holding the settings that are not views.
         kOptions,
+
+        //  Explorer's command bar: New, the clipboard, Rename and Delete over
+        //  the file list's selection, then Sort, View and the theme.
+        kNew,
+        kCutItems,
+        kCopyItems,
+        kPasteItems,
+        kRenameItem,
+        kDeleteItems,
+        kSort,
+        kView,
+        kTheme,
+        kNewFolder,
+        kNewDisk,
+        kSortAscending,
+        kSortDescending,
+        kViewDetails,
+
+        //  kSortByColumn + the column's index, one per list column.
+        kSortByColumn = 400,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -207,6 +227,28 @@ private:
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kOptions,           Menu::View, L"&Options...",         nullptr,     false },
 
+        //  The command bar's buttons and the rows of its drop-downs.
+        { kNew,               Menu::Count, L"New",                 nullptr,     false },
+        { kCutItems,          Menu::Count, L"Cut",                 L"Ctrl+X",   false },
+        { kCopyItems,         Menu::Count, L"Copy",                L"Ctrl+C",   false },
+        { kPasteItems,        Menu::Count, L"Paste",               L"Ctrl+V",   false },
+        { kRenameItem,        Menu::Count, L"Rename",              L"F2",       false },
+        { kDeleteItems,       Menu::Count, L"Delete",              L"Del",      false },
+        { kSort,              Menu::Count, L"Sort",                nullptr,     false },
+        { kView,              Menu::Count, L"View",                nullptr,     false },
+        { kTheme,             Menu::Count, L"Theme",               nullptr,     false },
+        { kNewFolder,         Menu::Count, L"&Folder",             nullptr,     false },
+        { kNewDisk,           Menu::Count, L"&Disk image...",      nullptr,     false },
+        { kSortAscending,     Menu::Count, L"&Ascending",          nullptr,     true  },
+        { kSortDescending,    Menu::Count, L"&Descending",         nullptr,     true  },
+        { kViewDetails,       Menu::Count, L"&Details",            nullptr,     true  },
+        { kSortByColumn + 0,  Menu::Count, L"&Name",               nullptr,     true  },
+        { kSortByColumn + 1,  Menu::Count, L"&Type",               nullptr,     true  },
+        { kSortByColumn + 2,  Menu::Count, L"&Size",               nullptr,     true  },
+        { kSortByColumn + 3,  Menu::Count, L"A&ddress",            nullptr,     true  },
+        { kSortByColumn + 4,  Menu::Count, L"&Locked",             nullptr,     true  },
+        { kSortByColumn + 5,  Menu::Count, L"&Modified",           nullptr,     true  },
+
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
         { kNoData,            Menu::Count, L"Show &text only",         nullptr,  true },
@@ -231,7 +273,16 @@ private:
         { kForward,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Forward, L"Forward", L"Forward (Alt+Right)",    true  },
         { kUp,            DxuiToolbar::Kind::Command, 0, s_kpszMdl2Up,      L"Up",      L"Up one level (Alt+Up)",  true  },
         { kRefresh,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Refresh, L"Refresh", L"Refresh (F5)",           true  },
-        { kTogglePreview, DxuiToolbar::Kind::Toggle,  3, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)",   false, true },
+        { kNew,           DxuiToolbar::Kind::DropDown, 1, s_kpszMdl2Add,    L"New",     L"New",                    false },
+        { kCutItems,      DxuiToolbar::Kind::Command, 2, s_kpszMdl2Cut,     L"Cut",     L"Cut (Ctrl+X)",           true  },
+        { kCopyItems,     DxuiToolbar::Kind::Command, 2, s_kpszMdl2Copy,    L"Copy",    L"Copy (Ctrl+C)",          true  },
+        { kPasteItems,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Paste,   L"Paste",   L"Paste (Ctrl+V)",         true  },
+        { kRenameItem,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Rename,  L"Rename",  L"Rename (F2)",            true  },
+        { kDeleteItems,   DxuiToolbar::Kind::Command, 2, s_kpszMdl2Delete,  L"Delete",  L"Delete (Del)",           true  },
+        { kSort,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2Sort,   L"Sort",    L"Sort",                   false },
+        { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },
+        { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)",   false, true },
+        { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
     };
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =

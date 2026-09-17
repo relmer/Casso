@@ -52,7 +52,7 @@ public:
     virtual HRESULT  Recycle           (HWND owner, const std::vector<std::wstring> & paths) = 0;
     virtual HRESULT  RenameItem        (HWND owner, const std::wstring & path, const std::wstring & newName) = 0;
     virtual HRESULT  PlaceOnClipboard  (HWND owner, const std::vector<std::wstring> & paths, bool cut) = 0;
-    virtual bool     ClipboardHasFiles () = 0;
+    virtual bool     ClipboardHasFiles () const = 0;
     virtual HRESULT  PasteInto         (HWND owner, const std::wstring & folder) = 0;
     virtual HRESULT  CreateFolder      (HWND owner, const std::wstring & parent, const std::wstring & name) = 0;
 

@@ -90,35 +90,46 @@ public:
     }
 
 
-    TEST_METHOD (Toolbar_ShowsNavigationRefreshAndPreview)
+    TEST_METHOD (Toolbar_ShowsNavigationThenExplorersCommandBar)
     {
         CassqueCommands                  commands ({});
         std::vector<DxuiToolbar::Entry>  entries = commands.BuildToolbarEntries();
-
-        Assert::AreEqual ((size_t) 5, entries.size());
-        Assert::AreEqual ((int) CassqueCommands::kBack, entries[0].command->id);
-        Assert::IsTrue   (entries[4].kind == DxuiToolbar::Kind::Toggle);
-        Assert::AreEqual ((int) CassqueCommands::kTogglePreview, entries[4].command->id);
-        Assert::IsTrue   (entries[4].trailing, L"The preview toggle sits at the toolbar's far end");
-        Assert::IsFalse  (entries[3].trailing);
+        std::vector<int>                 ids;
 
         for (const DxuiToolbar::Entry & entry : entries)
         {
+            ids.push_back (entry.command->id);
+
             Assert::IsNotNull (entry.command->glyph);
             Assert::AreNotEqual ((int) CassqueCommands::kNewTab, entry.command->id, L"A new tab opens from the tab strip, not the toolbar");
             Assert::IsFalse   (entry.command->tip.empty());
         }
 
+        //  Navigation, then Explorer's buttons in its order, then the preview
+        //  toggle and the theme at the far end.
+        Assert::IsTrue (ids == std::vector<int> { CassqueCommands::kBack, CassqueCommands::kForward, CassqueCommands::kUp, CassqueCommands::kRefresh,
+                                                  CassqueCommands::kNew,
+                                                  CassqueCommands::kCutItems, CassqueCommands::kCopyItems, CassqueCommands::kPasteItems,
+                                                  CassqueCommands::kRenameItem, CassqueCommands::kDeleteItems,
+                                                  CassqueCommands::kSort, CassqueCommands::kView,
+                                                  CassqueCommands::kTogglePreview, CassqueCommands::kTheme });
+
         //  Back, Forward, Up and Refresh are one group of icon-only buttons,
-        //  as in Explorer; the new tab button is labeled and starts its own
-        //  group.
+        //  as in Explorer, and so are the clipboard, Rename and Delete.
         for (size_t i = 0; i < 4; i++)
         {
             Assert::IsTrue   (entries[i].iconOnly,              L"The navigation buttons are icons alone");
             Assert::AreEqual (entries[0].group, entries[i].group, L"in one evenly spaced group");
         }
 
-        Assert::IsFalse (entries[4].iconOnly, L"The new tab button keeps its label");
-        Assert::IsTrue  (entries[3].group != entries[4].group);
-    }
-};
+        for (size_t i = 5; i < 10; i++)
+        {
+            Assert::IsTrue   (entries[i].iconOnly, L"The clipboard, Rename and Delete are icons alone");
+            Assert::AreEqual (entries[5].group, entries[i].group);
+        }
+
+        Assert::IsTrue  (entries[4].kind  == DxuiToolbar::Kind::DropDown, L"New opens its choices");
+        Assert::IsTrue  (entries[10].kind == DxuiToolbar::Kind::DropDown && entries[11].kind == DxuiToolbar::Kind::DropDown);
+        Assert::IsTrue  (entries[12].trailing && entries[13].trailing, L"The preview toggle and the theme sit at the far end");
+        Assert::IsFalse (entries[11].trailing);
+    }};
