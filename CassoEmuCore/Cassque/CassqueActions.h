@@ -118,6 +118,13 @@ public:
     //  otherwise why not, for the refusal shown before anything is created.
     std::wstring  CheckFitsNewDisk (VolumeKind kind, const std::vector<std::wstring> & hostPaths);
 
+    //  Entries dragged out of one image into a directory of another, byte for
+    //  byte with their type and addresses, the types mapped when the two file
+    //  systems differ. A ProDOS directory goes with its contents; DOS 3.3
+    //  receives no directories.
+    Outcome  CopyEntriesInto (const std::string & sourceImage, VolumeKind sourceKind, const std::vector<std::string> & catalogPaths,
+                              const std::wstring & targetImage, VolumeKind targetKind, const std::string & directory);
+
     //  The data and structure a file and a directory take, and a new disk's
     //  room for them, by file system. Public so the arithmetic is tested.
     static uint64_t  CountUnitsForFile   (VolumeKind kind, uint64_t sizeBytes);
@@ -232,6 +239,11 @@ private:
     static void  AppendMessage (Outcome & inOutOutcome, HRESULT hr, const std::wstring & message);
 
     bool  IsHostFolder    (const std::wstring & path);
+    void  CopyEntry       (const std::string & sourceImage, VolumeKind sourceKind, const std::string & catalogPath,
+                           const std::string & targetImage, VolumeKind targetKind, const std::string & directory,
+                           int depth, Outcome & inOutOutcome);
+
+    static constexpr int  kMaxCopyDepth = 16;
     bool  TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry);
     void  PutItems     (const std::string & image, VolumeKind kind, const std::string & directory,
                         const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Outcome & inOutOutcome);

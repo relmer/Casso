@@ -146,6 +146,10 @@ public:
     //  faster and steadier to look at.
     static constexpr UINT      kFolderSettleMs       = 200;
 
+    //  Which pane a drop landed on.
+    static constexpr int       kDropTagList          = 0;
+    static constexpr int       kDropTagTree          = 1;
+
 protected:
     void  OnCreate        () override;
     void  OnWindowClose   () override;
@@ -343,6 +347,12 @@ private:
     std::wstring  GetPasteFolder () const;
     void  CreateDiskFromSelection (const CassqueNewDiskDialog::Outcome & newDisk);
     void  SelectRowNamed         (const std::wstring & name);
+
+    //  Drag-in: the image location under a drop point, what a drop there
+    //  would do, and the drop.
+    bool  TryGetDropLocation     (int tag, POINT screen, Location & outLocation);
+    DWORD GetDropEffect          (IDataObject * data, int tag, POINT screen);
+    void  OnDrop                 (IDataObject * data, int tag, POINT screen);
     void  RefreshAfterHostChange ();
     void  CopySelectedPaths      ();
     void  ShowRowProperties      (int row);

@@ -129,13 +129,16 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
     //  The tooltip's dwell runs on a timer: nothing else ticks this window.
     SetTimer (GetHwnd(), kTooltipTimerId, kTooltipTickMs, nullptr);
 
-    //  A file dropped on the list while it shows an image goes into it. A
-    //  failure to register leaves the window without drops, not without a
-    //  window.
+    //  Files and folders dropped on the list or the tree go into the image or
+    //  directory under the pointer, and entries dragged out of another image
+    //  go in with their types. A failure to register leaves the window
+    //  without drops, not without a window.
     {
         HRESULT  hrDrop = m_dropTarget.Initialize (GetHwnd(), &m_dropHits,
-                                                   [this] (int, const std::wstring & path) { OnDropFile (path); },
-                                                   [this] (const std::wstring &) { return m_browser.IsImageLocation(); });
+                                                   [this] (int, const std::wstring & path) { OnDropFile (path); });
+
+        m_dropTarget.SetDataHandlers ([this] (IDataObject * data, int tag, POINT screen) { return GetDropEffect (data, tag, screen); },
+                                      [this] (IDataObject * data, int tag, POINT screen) { OnDrop (data, tag, screen); });
 
         IGNORE_RETURN_VALUE (hrDrop, S_OK);
     }
@@ -787,7 +790,8 @@ void CassqueWindow::RecomputeLayout()
     LayoutStatusFields();
 
     m_dropHits.Clear();
-    m_dropHits.Register (DxuiHitRect { m_list->GetBounds(), DxuiHitSlot::Custom, 0 });
+    m_dropHits.Register (DxuiHitRect { m_list->GetBounds(), DxuiHitSlot::Custom, kDropTagList });
+    m_dropHits.Register (DxuiHitRect { m_tree->GetBounds(), DxuiHitSlot::Custom, kDropTagTree });
 
     Invalidate();
 }
@@ -3756,6 +3760,183 @@ void CassqueWindow::CreateDiskFromSelection (const CassqueNewDiskDialog::Outcome
     ReportOutcome (outcome, L"New disk");
     RefreshAfterHostChange();
     SelectRowNamed (newDisk.fileName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::TryGetDropLocation
+//
+//  On the list: the image folder under the pointer, or the image the list
+//  shows. On the tree: the image or directory node under the pointer. A host
+//  folder takes no drop here; Explorer is for that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::TryGetDropLocation (int tag, POINT screen, Location & outLocation)
+{
+    POINT                 client = screen;
+    int                   row    = -1;
+    RECT                  list   = m_list->GetBounds();
+    const DxuiTreeNode  * node   = nullptr;
+
+
+
+    ScreenToClient (GetHwnd(), &client);
+
+    if (tag == kDropTagTree)
+    {
+        row  = m_tree->HitTestRow (client.x, client.y);
+        node = (row >= 0) ? m_tree->GetNodeAt (row) : nullptr;
+
+        if (node == nullptr || !m_browser.TryGetNodeLocation (node->id, outLocation))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        row = m_list->HitTestRow (client.x - list.left, client.y - list.top);
+
+        if (row < 0 || !m_browser.TryGetRowLocation (row, outLocation) ||
+            outLocation.kind != Location::Kind::DiskDirectory || !m_browser.IsImageLocation())
+        {
+            outLocation = m_browser.GetLocation();
+        }
+    }
+
+    return outLocation.kind == Location::Kind::DiskImage || outLocation.kind == Location::Kind::DiskDirectory;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::GetDropEffect
+//
+//  A copy where the drag carries files or another image's entries and the
+//  image under the pointer can be written; nothing otherwise, so the pointer
+//  says so before the button is let go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD CassqueWindow::GetDropEffect (IDataObject * data, int tag, POINT screen)
+{
+    Location   location;
+    bool       readOnly = false;
+    HRESULT    hr       = S_OK;
+    FORMATETC  hdrop    = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    FORMATETC  entries  = { (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    HRESULT    hasFiles = S_OK;
+    HRESULT    hasEntry = S_OK;
+
+
+
+    if (data == nullptr || !TryGetDropLocation (tag, screen, location))
+    {
+        return DROPEFFECT_NONE;
+    }
+
+    if (m_context.fs != nullptr)
+    {
+        hr = m_context.fs->GetReadOnlyAttribute (location.path, readOnly);
+
+        if (SUCCEEDED (hr) && readOnly)
+        {
+            return DROPEFFECT_NONE;
+        }
+    }
+
+    hasFiles = data->QueryGetData (&hdrop);
+    hasEntry = data->QueryGetData (&entries);
+
+    return (hasFiles == S_OK || hasEntry == S_OK) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::OnDrop
+//
+//  Another image's entries are copied byte for byte when the drag carries
+//  them; otherwise the host files go in by Put's rules.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::OnDrop (IDataObject * data, int tag, POINT screen)
+{
+    Location                   location;
+    FORMATETC                  entries      = { (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM                  medium       = {};
+    HRESULT                    hr           = S_OK;
+    std::vector<std::wstring>  paths;
+    std::string                source;
+    VolumeKind                 sourceKind   = VolumeKind::Unknown;
+    VolumeKind                 targetKind   = VolumeKind::Unknown;
+    std::vector<std::string>   catalogPaths;
+    std::string                inner;
+    VolumeListing              listing;
+    CassqueActions::Outcome    outcome;
+    bool                       decoded      = false;
+
+
+
+    if (!TryGetDropLocation (tag, screen, location))
+    {
+        return;
+    }
+
+    inner = (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string();
+
+    //  What the target is, by listing where the drop goes.
+    if (!m_browser.GetOperations().List (TextEncoding::WideToNarrow (location.path), inner, listing, targetKind).Succeeded())
+    {
+        ShowMessage (L"The disk image could not be read.", MB_ICONWARNING);
+        return;
+    }
+
+    hr = data->GetData (&entries, &medium);
+
+    if (SUCCEEDED (hr))
+    {
+        const char  * bytes = (const char *) GlobalLock (medium.hGlobal);
+        size_t        size  = GlobalSize (medium.hGlobal);
+
+        if (bytes != nullptr)
+        {
+            decoded = DragPayload::DecodeCatalogEntries (std::string (bytes, strnlen (bytes, size)), source, sourceKind, catalogPaths);
+            GlobalUnlock (medium.hGlobal);
+        }
+
+        ReleaseStgMedium (&medium);
+    }
+
+    if (decoded)
+    {
+        outcome = m_actions.CopyEntriesInto (source, sourceKind, catalogPaths, location.path, targetKind, inner);
+    }
+    else
+    {
+        hr = DxuiDragDropTarget::ExtractHDropPaths (data, paths);
+
+        if (FAILED (hr) || paths.empty())
+        {
+            return;
+        }
+
+        outcome = m_actions.PutInto (location.path, targetKind, inner, paths, MakeAddressPrompt());
+    }
+
+    ReportOutcome (outcome, L"Put");
+    RefreshAfterHostChange();
 }
 
 

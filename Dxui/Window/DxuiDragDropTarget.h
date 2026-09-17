@@ -25,6 +25,13 @@ public:
     using DropFn    = std::function<void (int tag, const std::wstring & path)>;
     using FilterFn  = std::function<bool (const std::wstring & path)>;
 
+    //  For a host that looks at the whole drag rather than one file path:
+    //  what a drop at this point would do, asked as the pointer moves, and
+    //  the drop itself. The data object is the drag's own, valid only for
+    //  the call. With these set, the path callbacks are not used.
+    using OverFn     = std::function<DWORD (IDataObject * data, int tag, POINT screenPx)>;
+    using DataDropFn = std::function<void (IDataObject * data, int tag, POINT screenPx)>;
+
     DxuiDragDropTarget  ();
     virtual ~DxuiDragDropTarget();
 
@@ -36,6 +43,7 @@ public:
     HRESULT              AttachAdditionalWindow (HWND hwnd);
     void                 Shutdown               ();
     void                 SetFilter              (FilterFn filter) { m_filter = std::move (filter); }
+    void                 SetDataHandlers        (OverFn over, DataDropFn drop) { m_over = std::move (over); m_dataDrop = std::move (drop); }
 
     STDMETHODIMP         QueryInterface         (REFIID riid, void ** ppv) override;
     STDMETHODIMP_(ULONG) AddRef                 () override;
@@ -56,6 +64,8 @@ public:
 
     static HRESULT    ExtractFirstHDropPath     (IDataObject   * pData,
                                                  std::wstring  & outPath);
+    static HRESULT    ExtractHDropPaths         (IDataObject                * pData,
+                                                 std::vector<std::wstring>  & outPaths);
     static int           PickAtClient           (const DxuiHitTester & hitTester,
                                                  int                   xClient,
                                                  int                   yClient);
@@ -96,4 +106,7 @@ private:
     bool                 m_fDragHasSupportedFile = false;
     bool                 m_fSuppressNextClick    = false;
     std::wstring         m_dragPath;
+    OverFn               m_over;
+    DataDropFn           m_dataDrop;
+    IDataObject        * m_data                  = nullptr;
 };

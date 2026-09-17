@@ -393,6 +393,38 @@ public:
     }
 
 
+    TEST_METHOD (EntriesDraggedBetweenImages_KeepTheirTypeAcrossFileSystems)
+    {
+        Host                     host;
+        CassqueActions::Outcome  outcome;
+        VolumeListing            listing;
+        VolumeKind               kind = VolumeKind::Unknown;
+        FilePayload              payload;
+
+        host.SeedFixture ("Cassque/prodos.po", L"C:\\Disks\\prodos.po");
+
+        //  An Applesoft program from DOS 3.3 lands as a ProDOS BAS file.
+        outcome = host.actions.CopyEntriesInto ("C:\\Disks\\dos33.dsk", VolumeKind::Dos33, { "HELLO" },
+                                                L"C:\\Disks\\prodos.po", VolumeKind::ProDos, "");
+        Assert::IsTrue (outcome.Succeeded());
+        Assert::IsTrue (host.browser.GetOperations().Read ("C:\\Disks\\prodos.po", "HELLO", payload).Succeeded());
+        Assert::AreEqual ((int) 0xFC, (int) payload.type, L"BAS");
+
+        //  A ProDOS directory has nowhere to go on DOS 3.3.
+        Assert::IsTrue (host.browser.GetOperations().Mkdir ("C:\\Disks\\prodos.po", "SUBDIR2").Succeeded());
+        outcome = host.actions.CopyEntriesInto ("C:\\Disks\\prodos.po", VolumeKind::ProDos, { "SUBDIR2" },
+                                                L"C:\\Disks\\dos33.dsk", VolumeKind::Dos33, "");
+        Assert::IsFalse (outcome.Succeeded());
+
+        //  And into another ProDOS directory it goes with its contents.
+        outcome = host.actions.CopyEntriesInto ("C:\\Disks\\prodos.po", VolumeKind::ProDos, { "HELLO" },
+                                                L"C:\\Disks\\prodos.po", VolumeKind::ProDos, "SUBDIR2");
+        Assert::IsTrue (outcome.Succeeded());
+        Assert::IsTrue (host.browser.GetOperations().List ("C:\\Disks\\prodos.po", "SUBDIR2", listing, kind).Succeeded());
+        Assert::AreEqual ((size_t) 1, listing.entries.size());
+    }
+
+
     TEST_METHOD (NewDiskChoices_MapToTheRunnersNames)
     {
         DiskOperations::NewDiskRequest  request = CassqueNewDiskChoices::MakeRequest (1, 2, L"MYVOL", true);

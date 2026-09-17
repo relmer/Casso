@@ -677,6 +677,119 @@ bool CassqueActions::TryGetHostEntry (const std::wstring & path, FileSystemEntry
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueActions::CopyEntriesInto
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::CopyEntriesInto (
+    const std::string                & sourceImage,
+    VolumeKind                         sourceKind,
+    const std::vector<std::string>   & catalogPaths,
+    const std::wstring               & targetImage,
+    VolumeKind                         targetKind,
+    const std::string                & directory)
+{
+    Outcome      outcome;
+    std::string  target = TextEncoding::WideToNarrow (targetImage);
+
+
+
+    for (const std::string & path : catalogPaths)
+    {
+        CopyEntry (sourceImage, sourceKind, path, target, targetKind, directory, 0, outcome);
+    }
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (targetImage);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::CopyEntry
+//
+//  A path that lists is a directory; anything else is read as a file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueActions::CopyEntry (
+    const std::string    & sourceImage,
+    VolumeKind             sourceKind,
+    const std::string    & catalogPath,
+    const std::string    & targetImage,
+    VolumeKind             targetKind,
+    const std::string    & directory,
+    int                    depth,
+    Outcome              & inOutOutcome)
+{
+    size_t                  slash   = catalogPath.find_last_of ('/');
+    std::string             leaf    = (slash == std::string::npos) ? catalogPath : catalogPath.substr (slash + 1);
+    std::string             target  = directory.empty() ? leaf : directory + "/" + leaf;
+    VolumeListing           listing;
+    VolumeKind              listed  = VolumeKind::Unknown;
+    DiskOperations::Result  result;
+    FilePayload             payload;
+    Byte                    mapped  = 0;
+
+
+
+    if (depth > kMaxCopyDepth)
+    {
+        return;
+    }
+
+    if (sourceKind == VolumeKind::ProDos && m_browser.GetOperations().List (sourceImage, catalogPath, listing, listed).Succeeded())
+    {
+        if (targetKind != VolumeKind::ProDos)
+        {
+            AppendMessage (inOutOutcome, E_FAIL, TextEncoding::NarrowToWide (leaf) + L": DOS 3.3 has no folders, so a folder cannot go on this disk.");
+            return;
+        }
+
+        Append (inOutOutcome, m_browser.GetOperations().Mkdir (targetImage, target));
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            CopyEntry (sourceImage, sourceKind, catalogPath + "/" + entry.name, targetImage, targetKind, target, depth + 1, inOutOutcome);
+        }
+
+        return;
+    }
+
+    result = m_browser.GetOperations().Read (sourceImage, catalogPath, payload);
+
+    if (!result.Succeeded())
+    {
+        Append (inOutOutcome, result);
+        return;
+    }
+
+    //  The type means the same thing on the other file system.
+    if (sourceKind == VolumeKind::Dos33 && targetKind == VolumeKind::ProDos)
+    {
+        payload.type = HostFileNaming::MapDos33ToProDosType (payload.type);
+    }
+    else if (sourceKind == VolumeKind::ProDos && targetKind == VolumeKind::Dos33)
+    {
+        payload.type = HostFileNaming::TryMapProDosToDos33 (payload.type, mapped) ? mapped : Dos33Volume::kTypeBinary;
+    }
+
+    Append (inOutOutcome, m_browser.GetOperations().WritePayload (targetImage, target, payload));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueActions::IsHostFolder
 //
 ////////////////////////////////////////////////////////////////////////////////
