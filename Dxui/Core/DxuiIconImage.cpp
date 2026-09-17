@@ -16,8 +16,8 @@
 //  cleared bitmap, and compositing over zero produces color times alpha.
 //  Measured 2026-09-12 on three icons: none of 103 partly transparent pixels
 //  had a color channel above its alpha, which straight alpha would produce at
-//  every light-colored edge. Casso's caption used to multiply by alpha a
-//  second time, which darkened the anti-aliased edges of its icon.
+//  every light-colored edge. A caption that multiplied by alpha a
+//  second time darkened the anti-aliased edges of its icon.
 //
 //  An icon with no alpha channel draws its colors with every alpha at zero;
 //  its mask then indicates which pixels are opaque.
