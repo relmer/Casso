@@ -211,9 +211,9 @@
 - [x] T100 [US5] `DxuiTabStrip`: reach every tab past the point where they stop fitting, and reorder by dragging (FR-036, FR-037, SC-010)
 - [x] T101 [US5] A new tab opens from the strip's own affordance, as a browser opens one, with the toolbar button retired (FR-037)
 - [x] T102 [US1] `DxuiAddressBar`: the location as navigable segments, editable into a typed path, reaching a directory inside an image as readily as a host folder; `BrowserModel` parses and formats both (FR-038, SC-011)
-- [ ] T103 [US5] Let a window put its tab strip outside the toolbar and address bar or inside them, and take the browser's arrangement in Cassque: tabs on top, then the navigation toolbar and address bar on one row, then the command bar (FR-039, FR-049)
+- [x] T103 [US5] Let a window put its tab strip outside the toolbar and address bar or inside them, and take the browser's arrangement in Cassque: tabs on top, then the navigation toolbar and address bar on one row, then the command bar (FR-039, FR-049)
 - [x] T125 [US5] Measure File Explorer's tabs: shape, full and minimum width, icon, label inset, close button, + button, and the selected tab joining the row below; recorded in `research.md` R13 at 120 dpi in the dark theme, light and 200% still to measure
-- [ ] T126 [US5] `DxuiTabStrip` in Explorer's form from T125: fixed width shrinking to the minimum before scrolling, left-aligned cut-off label, icon, close button, and a + button after the scroll arrows (FR-048)
+- [x] T126 [US5] `DxuiTabStrip` in Explorer's form from T125: fixed width shrinking to the minimum before scrolling, left-aligned cut-off label, icon, close button, and a + button after the scroll arrows (FR-048)
 - [x] T127 [US1] Tab icons and labels from the location: the folder's or drive's shell icon and display name, an image's icon and name (FR-048)
 
 **Checkpoint**: the window reads as a native Windows browser, and its tabs and address bar behave as one.
