@@ -177,6 +177,13 @@ public:
     static bool      IsMultiplayerPlayable (const MultiplayerSetup &                   setup,
                                             const std::vector<ControllerDeviceInfo> &  devices);
 
+    // Moves each player slot still naming an Xbox-class controller by XInput
+    // slot, as preferences written before units were keyed by product do,
+    // onto the unit that slot holds now. Returns whether any slot moved, so
+    // the caller can save the result and the move happens once.
+    static bool      AdoptSlotKeyedPlayers (MultiplayerSetup &                         setup,
+                                            const std::vector<ControllerDeviceInfo> &  devices);
+
     // The paddles a target maps to on a machine with axisCount axes. Paddles
     // past the count are left out, not removed from the slot, so a setup saved
     // on a //e plays again on returning to one (FR-035).

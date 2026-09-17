@@ -35,7 +35,11 @@ private:
     static constexpr const char *  kpszSerialPrefix    = "serial:";
     static constexpr const char *  kpszGuidPrefix      = "guid:";
     static constexpr const char *  kpszSlotPrefix      = "slot:";
+    static constexpr const char *  kpszProductPrefix   = "product:";
     static constexpr int           kXInputSlotLimit    = 4;
+
+    // "vvvv:pppp", or "vvvv:pppp:n" for the nth unit of one product, n >= 2.
+    static bool  IsProductIdentity (std::string_view text);
 
     static bool  TryParseHexWord      (std::string_view text, Word & outValue);
     static bool  TryParseIndex        (std::string_view text, int & outValue);

@@ -58,7 +58,17 @@ enum class ControllerUnitSource
     None,
     Serial,
     InstanceGuid,
+
+    //  Superseded by XInputProduct, and still read: a preferences file
+    //  written before it names Xbox-class units by slot, and those are moved
+    //  onto the product identity of whatever is in that slot when one is.
     XInputSlot,
+
+    //  An Xbox-class unit by vendor and product, "045e:0b13", with ":2" and
+    //  on for a second unit of the same product. XInput assigns slots in the
+    //  order controllers connect, so a slot is not a controller: powering two
+    //  on in the other order swapped every setting keyed by it.
+    XInputProduct,
 };
 
 

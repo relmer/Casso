@@ -216,6 +216,68 @@ namespace ControllerTests
         }
 
 
+        //
+        //  Xbox-class identity by product. XInput assigns slots in the order
+        //  controllers connect, so keying by slot swapped two players whenever
+        //  their controllers came on in the other order.
+        //
+
+        TEST_METHOD (ProductIds_DifferentProductsAreKeyedByProductAlone)
+        {
+            std::vector<Win32ControllerBackend::XInputIds>  ids =
+            {
+                std::make_pair ((WORD) 0x045e, (WORD) 0x02e0),
+                std::make_pair ((WORD) 0x045e, (WORD) 0x0b13),
+            };
+            std::vector<Win32ControllerBackend::XInputIds>  swapped = { ids[1], ids[0] };
+
+            std::vector<std::string>  first  = Win32ControllerBackend::AssignXInputProductIds (ids);
+            std::vector<std::string>  second = Win32ControllerBackend::AssignXInputProductIds (swapped);
+
+            Assert::AreEqual (std::string ("045e:02e0"), first[0]);
+            Assert::AreEqual (std::string ("045e:0b13"), first[1]);
+            Assert::AreEqual (std::string ("045e:0b13"), second[0],
+                L"connected in the other order, each controller keeps its own identity");
+            Assert::AreEqual (std::string ("045e:02e0"), second[1]);
+        }
+
+
+        // Nothing XInput exposes tells two controllers of one product apart,
+        // so the later one in slot order carries an ordinal.
+        TEST_METHOD (ProductIds_ASecondUnitOfOneProductIsNumbered)
+        {
+            std::vector<Win32ControllerBackend::XInputIds>  ids =
+            {
+                std::make_pair ((WORD) 0x045e, (WORD) 0x0b13),
+                std::make_pair ((WORD) 0x045e, (WORD) 0x02e0),
+                std::make_pair ((WORD) 0x045e, (WORD) 0x0b13),
+            };
+
+            std::vector<std::string>  assigned = Win32ControllerBackend::AssignXInputProductIds (ids);
+
+            Assert::AreEqual (std::string ("045e:0b13"),   assigned[0]);
+            Assert::AreEqual (std::string ("045e:02e0"),   assigned[1]);
+            Assert::AreEqual (std::string ("045e:0b13:2"), assigned[2]);
+        }
+
+
+        // A slot whose vendor and product cannot be read gets no product
+        // identity, and the caller keys it by slot instead.
+        TEST_METHOD (ProductIds_UnreadableIdsAreLeftEmpty)
+        {
+            std::vector<Win32ControllerBackend::XInputIds>  ids =
+            {
+                Win32ControllerBackend::XInputIds(),
+                std::make_pair ((WORD) 0x045e, (WORD) 0x0b13),
+            };
+
+            std::vector<std::string>  assigned = Win32ControllerBackend::AssignXInputProductIds (ids);
+
+            Assert::IsTrue   (assigned[0].empty());
+            Assert::AreEqual (std::string ("045e:0b13"), assigned[1]);
+        }
+
+
         // An unpadded name is handed back exactly as the device reported it.
         TEST_METHOD (TrimSpace_LeavesAnUnpaddedNameAlone)
         {
