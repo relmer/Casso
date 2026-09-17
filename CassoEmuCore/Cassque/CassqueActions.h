@@ -58,6 +58,9 @@ public:
         //  open it, and the shell's full context menu.
         OpenWith,
         MoreOptions,
+        Cut,
+        Copy,
+        Paste,
     };
 
     struct Outcome

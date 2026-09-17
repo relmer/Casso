@@ -203,6 +203,17 @@ public:
         Assert::IsTrue (has (CassqueActions::Verb::Open));
         Assert::IsTrue (has (CassqueActions::Verb::OpenWith));
         Assert::IsTrue (has (CassqueActions::Verb::MoreOptions));
+        Assert::IsTrue (has (CassqueActions::Verb::Cut));
+        Assert::IsTrue (has (CassqueActions::Verb::Copy));
+        Assert::IsTrue (has (CassqueActions::Verb::Delete));
+        Assert::IsTrue (has (CassqueActions::Verb::Rename));
+        Assert::IsFalse (has (CassqueActions::Verb::Paste), L"A file is not somewhere to paste");
+
+        //  The folder's background takes a paste.
+        host.browser.SetSelectedRows ({});
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassqueActions::Verb::Paste));
+        Assert::IsFalse (has (CassqueActions::Verb::Cut));
 
         //  An image opens here, so it gets no program to open it with.
         host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
@@ -216,6 +227,7 @@ public:
         verbs = host.actions.GetListVerbs();
         Assert::IsFalse (has (CassqueActions::Verb::OpenWith));
         Assert::IsFalse (has (CassqueActions::Verb::MoreOptions));
+        Assert::IsFalse (has (CassqueActions::Verb::Cut), L"Entries in an image are copied out with Get");
     }
 
 

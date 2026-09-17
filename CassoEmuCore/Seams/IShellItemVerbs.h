@@ -45,4 +45,13 @@ public:
     //  folder, at a screen point. Whatever is picked is carried out there,
     //  including by other programs' menu handlers.
     virtual HRESULT  ShowShellMenu (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx) = 0;
+
+    //  Explorer's own file operations, with its progress, conflict and undo
+    //  handling: deleting to the Recycle Bin, renaming, and cut, copy and
+    //  paste through the clipboard other programs share.
+    virtual HRESULT  Recycle           (HWND owner, const std::vector<std::wstring> & paths) = 0;
+    virtual HRESULT  RenameItem        (HWND owner, const std::wstring & path, const std::wstring & newName) = 0;
+    virtual HRESULT  PlaceOnClipboard  (HWND owner, const std::vector<std::wstring> & paths, bool cut) = 0;
+    virtual bool     ClipboardHasFiles () = 0;
+    virtual HRESULT  PasteInto         (HWND owner, const std::wstring & folder) = 0;
 };

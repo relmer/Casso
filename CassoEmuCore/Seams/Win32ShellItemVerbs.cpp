@@ -437,3 +437,288 @@ Error:
 
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::GetItemArray
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::GetItemArray (const std::vector<std::wstring> & paths, IShellItemArray ** outItems)
+{
+    HRESULT                        hr       = S_OK;
+    std::vector<PIDLIST_ABSOLUTE>  pidls;
+    bool                           hasItems = !paths.empty();
+
+
+
+    *outItems = nullptr;
+
+    CBREx (hasItems, E_INVALIDARG);
+
+    for (const std::wstring & path : paths)
+    {
+        PIDLIST_ABSOLUTE  pidl = nullptr;
+
+        hr = SHParseDisplayName (path.c_str(), nullptr, &pidl, 0, nullptr);
+        CHR (hr);
+
+        pidls.push_back (pidl);
+    }
+
+    hr = SHCreateShellItemArrayFromIDLists ((UINT) pidls.size(), (PCIDLIST_ABSOLUTE_ARRAY) pidls.data(), outItems);
+    CHR (hr);
+
+Error:
+    for (PIDLIST_ABSOLUTE pidl : pidls)
+    {
+        CoTaskMemFree (pidl);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::CreateOperation
+//
+//  Undoable, as Explorer's are, and asking before anything is overwritten.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::CreateOperation (HWND owner, IFileOperation ** outOperation)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = CoCreateInstance (CLSID_FileOperation, nullptr, CLSCTX_ALL, IID_PPV_ARGS (outOperation));
+    CHR (hr);
+
+    hr = (*outOperation)->SetOwnerWindow (owner);
+    CHR (hr);
+
+    hr = (*outOperation)->SetOperationFlags (FOF_ALLOWUNDO | FOF_NOCONFIRMMKDIR | FOFX_ADDUNDORECORD);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::Recycle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::Recycle (HWND owner, const std::vector<std::wstring> & paths)
+{
+    HRESULT                  hr = S_OK;
+    ComPtr<IFileOperation>   operation;
+    ComPtr<IShellItemArray>  items;
+
+
+
+    hr = GetItemArray (paths, &items);
+    CHR (hr);
+
+    hr = CreateOperation (owner, &operation);
+    CHR (hr);
+
+    hr = operation->SetOperationFlags (FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE | FOFX_ADDUNDORECORD);
+    CHR (hr);
+
+    hr = operation->DeleteItems (items.Get());
+    CHR (hr);
+
+    hr = operation->PerformOperations();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::RenameItem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::RenameItem (HWND owner, const std::wstring & path, const std::wstring & newName)
+{
+    HRESULT                 hr = S_OK;
+    ComPtr<IFileOperation>  operation;
+    ComPtr<IShellItem>      item;
+
+
+
+    hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
+    CHR (hr);
+
+    hr = CreateOperation (owner, &operation);
+    CHR (hr);
+
+    hr = operation->RenameItem (item.Get(), newName.c_str(), nullptr);
+    CHR (hr);
+
+    hr = operation->PerformOperations();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::PlaceOnClipboard
+//
+//  The shell's own data object for the items, marked as a cut or a copy the
+//  way Explorer marks it, so a paste in Explorer or here moves or copies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::PlaceOnClipboard (HWND owner, const std::vector<std::wstring> & paths, bool cut)
+{
+    HRESULT                  hr     = S_OK;
+    ComPtr<IShellItemArray>  items;
+    ComPtr<IDataObject>      data;
+    FORMATETC                format = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PREFERREDDROPEFFECT), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM                medium = { TYMED_HGLOBAL };
+    DWORD                  * effect = nullptr;
+
+
+
+    (void) owner;
+
+    hr = GetItemArray (paths, &items);
+    CHR (hr);
+
+    hr = items->BindToHandler (nullptr, BHID_DataObject, IID_PPV_ARGS (&data));
+    CHR (hr);
+
+    medium.hGlobal = GlobalAlloc (GMEM_MOVEABLE, sizeof (DWORD));
+    CPR (medium.hGlobal);
+
+    effect  = (DWORD *) GlobalLock (medium.hGlobal);
+    *effect = cut ? DROPEFFECT_MOVE : DROPEFFECT_COPY;
+    GlobalUnlock (medium.hGlobal);
+
+    //  The data object takes the memory.
+    hr = data->SetData (&format, &medium, TRUE);
+    CHRAF (hr, ReleaseStgMedium (&medium));
+
+    hr = OleSetClipboard (data.Get());
+    CHR (hr);
+
+    //  The data stays on the clipboard after this window closes.
+    hr = OleFlushClipboard();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::ClipboardHasFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellItemVerbs::ClipboardHasFiles()
+{
+    return IsClipboardFormatAvailable (CF_HDROP) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::PasteInto
+//
+//  A cut moves and a copy copies, as whoever put the files there asked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::PasteInto (HWND owner, const std::wstring & folder)
+{
+    HRESULT                 hr      = S_OK;
+    ComPtr<IDataObject>     data;
+    ComPtr<IShellItem>      target;
+    ComPtr<IFileOperation>  operation;
+    FORMATETC               format  = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PREFERREDDROPEFFECT), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM               medium  = {};
+    HRESULT                 hasMark = S_OK;
+    DWORD                   effect  = DROPEFFECT_COPY;
+
+
+
+    hr = OleGetClipboard (&data);
+    CHR (hr);
+
+    hasMark = data->GetData (&format, &medium);
+
+    if (SUCCEEDED (hasMark))
+    {
+        DWORD  * marked = (DWORD *) GlobalLock (medium.hGlobal);
+
+        effect = (marked != nullptr) ? *marked : DROPEFFECT_COPY;
+        GlobalUnlock (medium.hGlobal);
+        ReleaseStgMedium (&medium);
+    }
+
+    hr = SHCreateItemFromParsingName (folder.c_str(), nullptr, IID_PPV_ARGS (&target));
+    CHR (hr);
+
+    hr = CreateOperation (owner, &operation);
+    CHR (hr);
+
+    if ((effect & DROPEFFECT_MOVE) != 0)
+    {
+        hr = operation->MoveItems (data.Get(), target.Get());
+    }
+    else
+    {
+        hr = operation->CopyItems (data.Get(), target.Get());
+    }
+
+    CHR (hr);
+
+    hr = operation->PerformOperations();
+    CHR (hr);
+
+    //  A cut is used up by its paste.
+    if ((effect & DROPEFFECT_MOVE) != 0)
+    {
+        hr = OleSetClipboard (nullptr);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}

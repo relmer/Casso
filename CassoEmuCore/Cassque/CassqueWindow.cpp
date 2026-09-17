@@ -2105,13 +2105,29 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    if (ev.vk == VK_F2 && m_focus == Pane::List && m_browser.IsImageLocation() && m_browser.GetSelectedRows().size() == 1)
+    if (m_focus == Pane::List && ev.ctrl && !ev.alt && !m_browser.IsImageLocation()
+        && m_browser.GetLocation().kind == Location::Kind::HostFolder
+        && (ev.vk == 'X' || ev.vk == 'C' || ev.vk == 'V'))
+    {
+        if (ev.vk == 'V')
+        {
+            RunVerb (CassqueActions::Verb::Paste);
+        }
+        else if (!m_browser.GetSelectedRows().empty())
+        {
+            RunVerb (ev.vk == 'X' ? CassqueActions::Verb::Cut : CassqueActions::Verb::Copy);
+        }
+
+        return true;
+    }
+
+    if (ev.vk == VK_F2 && m_focus == Pane::List && m_browser.GetSelectedRows().size() == 1)
     {
         RunVerb (CassqueActions::Verb::Rename);
         return true;
     }
 
-    if (ev.vk == VK_DELETE && m_focus == Pane::List && m_browser.IsImageLocation() && !m_browser.GetSelectedRows().empty())
+    if (ev.vk == VK_DELETE && m_focus == Pane::List && !m_browser.GetSelectedRows().empty())
     {
         RunVerb (CassqueActions::Verb::Delete);
         return true;
@@ -3178,6 +3194,9 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
         case CassqueActions::Verb::Refresh:        return L"&Refresh";
         case CassqueActions::Verb::OpenWith:       return L"Open wit&h";
         case CassqueActions::Verb::MoreOptions:    return L"Show more &options";
+        case CassqueActions::Verb::Cut:            return L"Cu&t";
+        case CassqueActions::Verb::Copy:           return L"&Copy";
+        case CassqueActions::Verb::Paste:          return L"&Paste";
         default:                                   return L"";
     }
 }
@@ -3249,6 +3268,11 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
         if (verb == CassqueActions::Verb::InsertDrive2)
         {
             command->isEnabled = [this]() { return m_cassoDriveCount != 1; };
+        }
+
+        if (verb == CassqueActions::Verb::Paste)
+        {
+            command->isEnabled = [this]() { return m_shellVerbs.ClipboardHasFiles(); };
         }
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
@@ -3406,6 +3430,57 @@ void CassqueWindow::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::GetPasteFolder
+//
+//  A single folder row takes the paste; otherwise the folder being shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueWindow::GetPasteFolder() const
+{
+    Location  location;
+
+
+
+    if (m_browser.GetSelectedRows().size() == 1
+     && m_browser.TryGetRowLocation (m_browser.GetSelectedRows()[0], location)
+     && location.kind == Location::Kind::HostFolder)
+    {
+        return location.path;
+    }
+
+    return m_browser.GetLocation().path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RefreshAfterHostChange
+//
+//  The folder watcher sees the change too, a moment later; rereading now
+//  shows it at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::RefreshAfterHostChange()
+{
+    HRESULT  hr = m_browser.Reload (true);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::GetSelectedImagePath
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3441,6 +3516,7 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
     CassqueActions::Outcome        outcome;
     std::vector<FileEntry>         entries;
     std::wstring                   newName;
+    std::vector<std::wstring>      hostPaths;
     CassqueNewDiskDialog::Outcome  newDisk;
     HostFileNaming::Style    style   = (m_prefs.hostNaming == CassquePrefs::kNamingCiderPress)
                                      ? HostFileNaming::Style::CiderPress : HostFileNaming::Style::Descriptive;
@@ -3484,7 +3560,27 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
 
             break;
 
+        case CassqueActions::Verb::Cut:
+        case CassqueActions::Verb::Copy:
+            m_browser.GetSelectedHostPaths (hostPaths);
+            hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), hostPaths, verb == CassqueActions::Verb::Cut);
+            break;
+
+        case CassqueActions::Verb::Paste:
+            hr = m_shellVerbs.PasteInto (GetHwnd(), GetPasteFolder());
+            RefreshAfterHostChange();
+            break;
+
         case CassqueActions::Verb::Delete:
+            if (!m_browser.IsImageLocation())
+            {
+                //  Windows asks, and the Recycle Bin keeps it.
+                m_browser.GetSelectedHostPaths (hostPaths);
+                hr = m_shellVerbs.Recycle (GetHwnd(), hostPaths);
+                RefreshAfterHostChange();
+                break;
+            }
+
         {
             std::vector<std::wstring>  plan    = m_actions.DescribeDeletePlan();
             std::wstring               message = std::format (L"Delete {} selected item(s) from this disk image? This cannot be undone.",
@@ -3514,6 +3610,21 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
             break;
 
         case CassqueActions::Verb::Rename:
+            if (!m_browser.IsImageLocation())
+            {
+                std::wstring  path = GetSelectedImagePath();
+
+                if (!path.empty()
+                 && CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Rename", L"New name:",
+                                              std::filesystem::path (path).filename().wstring(), MAX_PATH, newName))
+                {
+                    hr = m_shellVerbs.RenameItem (GetHwnd(), path, newName);
+                    RefreshAfterHostChange();
+                }
+
+                break;
+            }
+
             m_browser.GetSelectedEntries (entries);
 
             if (entries.size() == 1

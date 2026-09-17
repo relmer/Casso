@@ -99,7 +99,29 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
             verbs.push_back (Verb::OpenWith);
         }
 
+        verbs.push_back (Verb::Cut);
+        verbs.push_back (Verb::Copy);
+
+        //  Into the folder selected, as Explorer pastes into a folder row.
+        if (selected == 1 && row.isDirectory)
+        {
+            verbs.push_back (Verb::Paste);
+        }
+
+        verbs.push_back (Verb::Delete);
+
+        if (selected == 1)
+        {
+            verbs.push_back (Verb::Rename);
+        }
+
         verbs.push_back (Verb::MoreOptions);
+    }
+
+    //  Into the folder shown, from its background.
+    if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder && selected == 0)
+    {
+        verbs.push_back (Verb::Paste);
     }
 
     //  A new image belongs to the folder, not to anything in it, so it is offered

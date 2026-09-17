@@ -336,6 +336,8 @@ private:
     void  ShowTabContextMenu     (int x, int y, int index);
     void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"");
     void  AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
+    std::wstring  GetPasteFolder () const;
+    void  RefreshAfterHostChange ();
     void  CopySelectedPaths      ();
     void  ShowRowProperties      (int row);
     void  ShowLocationProperties (const Location & location);

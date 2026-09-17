@@ -34,6 +34,11 @@ public:
     HRESULT  OpenWith            (HWND owner, const std::wstring & path, size_t handlerIndex) override;
     HRESULT  ChooseOtherApp      (HWND owner, const std::wstring & path) override;
     HRESULT  ShowShellMenu       (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx) override;
+    HRESULT  Recycle             (HWND owner, const std::vector<std::wstring> & paths) override;
+    HRESULT  RenameItem          (HWND owner, const std::wstring & path, const std::wstring & newName) override;
+    HRESULT  PlaceOnClipboard    (HWND owner, const std::vector<std::wstring> & paths, bool cut) override;
+    bool     ClipboardHasFiles   () override;
+    HRESULT  PasteInto           (HWND owner, const std::wstring & folder) override;
 
 private:
     static constexpr UINT            s_kFirstCommandId = 1;
@@ -45,6 +50,8 @@ private:
     HRESULT  EnumHandlers    (const std::wstring & path, std::vector<IAssocHandler *> & outHandlers);
     HRESULT  CreateMenuHost  (HWND owner);
     HRESULT  GetItemsMenu    (HWND owner, const std::vector<std::wstring> & paths, IContextMenu ** outMenu);
+    HRESULT  GetItemArray    (const std::vector<std::wstring> & paths, IShellItemArray ** outItems);
+    HRESULT  CreateOperation (HWND owner, IFileOperation ** outOperation);
 
     HWND            m_menuHost   = nullptr;
     IContextMenu2 * m_activeMenu = nullptr;
