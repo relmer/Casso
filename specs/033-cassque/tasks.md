@@ -175,8 +175,8 @@
 - [x] T072 [US4] Wire `CassoTargeting` with `ownerAlive` from `IsWindow`, the intent sends and replies, `InsertRefused`, `ReloadConflict` and `ReloadRefused` as dialogs, `Append` to `KnownFolderStore` only for Open in new Casso (the running-instance paths are recorded by Casso in T036), and `Open in new Casso` through `IProcessLauncher`; the reload intent with the sender window after every write to an image -- done 2026-09-17: CassoTargeting chooses the target; every write states ReloadInPlace
 - [x] T073 [US5] Wire tabs (Ctrl+T, Ctrl+W, Ctrl+Tab), back and forward (Alt+Left, Alt+Right, toolbar buttons), open-tab restore from `CassquePrefs` on launch, per-tab preview scroll and disassembly toggle, full keyboard navigation, Shift+F10 and the application key, Alt+P; `CassqueTheme` with the six choices and Follow system on the settings-change notification; Help, About with the cassowary image and the name explanation -- done 2026-09-17: Follow system reacts to WM_SETTINGCHANGE; Alt+P and per-tab disassembly were already in
 - [x] T074 [US1] Set an accessible name and role on every control in the shell
-- [ ] T075 Build Debug and Release x64; run the full suite; run Cassque in the background with `--title 033-cassque` and capture the window with `scripts/CaptureScreenshotMatrix.ps1`'s capture step for a first visual check in each theme
-- [ ] T076 Commit: `feat(cassque): browser shell over the models and command widgets`
+- [x] T075 Build Debug and Release x64; run the full suite; run Cassque in the background with `--title 033-cassque` and capture the window with `scripts/CaptureScreenshotMatrix.ps1`'s capture step for a first visual check in each theme
+- [x] T076 Commit: `feat(cassque): browser shell over the models and command widgets`
 
 **Checkpoint**: every story is reachable in the window.
 

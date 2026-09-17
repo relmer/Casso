@@ -620,6 +620,8 @@ HRESULT Win32ShellItemVerbs::PlaceOnClipboard (HWND owner, const std::vector<std
     CPR (medium.hGlobal);
 
     effect  = (DWORD *) GlobalLock (medium.hGlobal);
+    CPRAF (effect, GlobalFree (medium.hGlobal));
+
     *effect = cut ? DROPEFFECT_MOVE : DROPEFFECT_COPY;
     GlobalUnlock (medium.hGlobal);
 
