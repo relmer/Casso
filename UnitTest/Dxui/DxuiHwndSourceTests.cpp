@@ -343,6 +343,38 @@ public:
     }
 
 
+
+    //  A drag region in the content, 100-200 by 100-150 in pixels, at 120 DPI.
+    std::unique_ptr<DxuiHwndSource>  BuildContentDragRegionHost()
+    {
+        std::unique_ptr<DxuiPanel>       root   = std::make_unique<DxuiPanel>();
+        DxuiDragRegion                 & region = root->Add<DxuiDragRegion>();
+        std::unique_ptr<DxuiHwndSource>  host;
+
+        region.SetBounds (MakeRect (100, 100, 200, 150));
+
+        host = std::make_unique<DxuiHwndSource> (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
+                                                 s_kResizeBorderDip,
+                                                 std::move (root));
+        host->SetDpiForTest (120);
+
+        return host;
+    }
+
+
+
+    TEST_METHOD (ContentDragRegion_IsFoundInPixelsAt120Dpi)
+    {
+        std::unique_ptr<DxuiHwndSource>  host = BuildContentDragRegionHost();
+
+        //  (100, 90) DIPs is (125, 112) pixels: inside the region.
+        Assert::AreEqual ((int) HTCAPTION, (int) DxuiHwndSource::KindToHt (host->ClassifyHitForTest (MakePoint (100, 90))));
+
+        //  (170, 110) DIPs is (212, 137) pixels: past its right edge.
+        Assert::AreEqual ((int) HTCLIENT, (int) DxuiHwndSource::KindToHt (host->ClassifyHitForTest (MakePoint (170, 110))));
+    }
+
+
     TEST_METHOD (ResizeEdges_TopEdgeMidWidth_ReturnsHtTop)
     {
         SyntheticHost    sh   = BuildSyntheticHost();

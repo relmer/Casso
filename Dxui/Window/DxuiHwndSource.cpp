@@ -3964,9 +3964,15 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     IDxuiControl *   child    = nullptr;
     RECT             rc       = {};
     bool             claimed  = false;
+    POINT            clientPx ={ MulDiv (clientDip.x, (int) m_scaler.GetDpi(), (int) s_kDefaultDpi),
+                                  MulDiv (clientDip.y, (int) m_scaler.GetDpi(), (int) s_kDefaultDpi) };
 
 
 
+    //  clientPx: a control's bounds, and the mouse events it receives, are in
+    //  client pixels; only the resize bands and the caption here are measured
+    //  in DIPs. Content controls are asked in pixels, which match DIPs only at
+    //  96 DPI.
     borderPx = (int) m_params.resizeBorderDip;
 
     if (borderPx < s_kMinResizeBorderPx)
@@ -3985,18 +3991,10 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     //  A scrollbar at the window's edge keeps the pointer over a straight
     //  resize edge, whose band would otherwise cover most of it. The corners
     //  still resize.
-    //
-    //  ASKED IN PIXELS, NOT DIPS. A control's bounds, and the mouse events it
-    //  receives, are in client pixels; only the resize bands and the caption
-    //  here are measured in DIPs. Asking in DIPs matched only at 96 DPI, so at
-    //  any other scale the bar was missed and the edge took the pointer.
     if (claimed && (kind == DxuiHitTestKind::ResizeEdgeLeft || kind == DxuiHitTestKind::ResizeEdgeRight
                  || kind == DxuiHitTestKind::ResizeEdgeTop  || kind == DxuiHitTestKind::ResizeEdgeBottom))
     {
-        POINT  clientPx = { MulDiv (clientDip.x, (int) m_scaler.GetDpi(), (int) s_kDefaultDpi),
-                            MulDiv (clientDip.y, (int) m_scaler.GetDpi(), (int) s_kDefaultDpi) };
-
-        n = (GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
+        n =(GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
 
         for (i = 0; claimed && i < n; i++)
         {
@@ -4046,13 +4044,13 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
 
         rc = child->GetBounds();
 
-        if (clientDip.x < rc.left || clientDip.x >= rc.right ||
-            clientDip.y < rc.top  || clientDip.y >= rc.bottom)
+        if (clientPx.x < rc.left || clientPx.x >= rc.right ||
+            clientPx.y < rc.top  || clientPx.y >= rc.bottom)
         {
             continue;
         }
 
-        kind    = child->ClassifyHit (clientDip);
+        kind    = child->ClassifyHit (clientPx);
         claimed = kind != DxuiHitTestKind::None && kind != DxuiHitTestKind::Client;
         result  = claimed ? kind : result;
     }
