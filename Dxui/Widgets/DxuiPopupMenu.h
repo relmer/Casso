@@ -189,6 +189,18 @@ public:
     //  before each show, or one caller's width carries into the next.
     void  SetMinWidthPx (int px)                { m_minWidthPx = (px > 0) ? px : 0; }
 
+    //  The tallest the menu may be, in pixels. A menu taller than this shows
+    //  as many whole rows as fit and scrolls: by the wheel, or by moving the
+    //  highlight past an edge. Unset, a hosted menu takes the room between
+    //  what opened it and the bottom of its monitor, so a long list hangs
+    //  under its anchor rather than flipping above it. A test pins it, since
+    //  it has no monitor.
+    void  SetMaxHeightPx (int px)               { m_maxHeightPx = (px > 0) ? px : 0; }
+
+    int   GetScrollRow   () const               { return m_scrollRow; }
+    bool  IsScrollable   () const               { return m_viewportPx > 0; }
+    void  ScrollByRows   (int rows);
+
     void              SetPopupHost   (DxuiHwndSource * host) { m_popupHost = host; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
@@ -262,6 +274,12 @@ private:
     static constexpr uint64_t  kReopenGuardMs          = 250;
     static constexpr int       kRevealMs               = 150;
 
+    //  Fewer rows than this fit below the anchor, and a hosted menu flips
+    //  above it rather than scroll in a sliver.
+    static constexpr int       s_kMinRowsBelowAnchor   = 5;
+    static constexpr int       s_kWheelRows            = 3;
+    static constexpr float     s_kThumbWidthDip        = 3.0f;
+
     //  The hover highlight is a rounded card inset from the menu's edges, not
     //  a full-bleed band: a square band running into the menu's own rounded
     //  corners reads as a stripe painted across the popup.
@@ -309,6 +327,10 @@ private:
     int   GetRowHeightPx     (int index) const;
     int   GetRowTopPx        (int index) const;
     int   GetContentHeightPx () const;
+    int   GetScrollPx        () const;
+    int   GetMaxScrollRow    () const;
+    int   GetHeightLimitPx   (const RECT & anchor, Anchoring anchoring) const;
+    void  EnsureRowVisible   (int index);
     int   MeasureRunPx       (const std::wstring & run, float fontDip, IDxuiTextRenderer & text) const;
     int   MeasureWidthPx     (IDxuiTextRenderer & text);
     int   GetRowAtOffset     (int relY) const;
@@ -380,6 +402,9 @@ private:
     DxuiPopupHost      * m_activePopup      = nullptr;
     bool                 m_grabsCapture     = true;
     int                  m_minWidthPx       = 0;
+    int                  m_maxHeightPx      = 0;
+    int                  m_viewportPx       = 0;
+    int                  m_scrollRow        = 0;
     bool                 m_reopenGuard      = true;
 
     bool                 m_colorsSet   = false;

@@ -303,10 +303,12 @@ void DxuiPopupMenu::ShowCore (
     IDxuiTextRenderer              & text,
     const RECT                     & hostClient)
 {
-    int  width  = 0;
-    int  height = 0;
-    int  left   = originX;
-    int  top    = originY;
+    int  width   = 0;
+    int  height  = 0;
+    int  limit   = 0;
+    int  visible = 0;
+    int  left    = originX;
+    int  top     = originY;
 
 
 
@@ -333,8 +335,25 @@ void DxuiPopupMenu::ShowCore (
         RefreshMetrics();
     }
 
-    width  = (std::max) (MeasureWidthPx (text), m_minWidthPx);
-    height = GetContentHeightPx();
+    width        = (std::max) (MeasureWidthPx (text), m_minWidthPx);
+    height       = GetContentHeightPx();
+    limit        = GetHeightLimitPx (anchor, anchoring);
+    m_viewportPx = 0;
+    m_scrollRow  = 0;
+
+    //  Too tall: as many whole rows as fit, and the rest scroll.
+    if (limit > 0 && height > limit)
+    {
+        visible = 0;
+
+        while (visible < (int) m_rows.size() && GetRowTopPx (visible + 1) <= limit)
+        {
+            visible++;
+        }
+
+        height       = GetRowTopPx (visible);
+        m_viewportPx = height;
+    }
 
     if (left + width  > hostClient.right)  { left = hostClient.right  - width;  }
     if (top  + height > hostClient.bottom) { top  = hostClient.bottom - height; }
@@ -413,6 +432,7 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     params.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
     params.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
     params.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
+    params.onWheel          = [this] (int delta)     { ScrollByRows (-(delta / WHEEL_DELTA) * s_kWheelRows); };
     params.onClosed         = [this] () { Hide(); };
     params.onClickOutside   = m_onClickOutside;
 
@@ -598,10 +618,14 @@ int DxuiPopupMenu::GetRowAtOffset (int relY) const
 
 
 
-    if (relY < 0)
+    if (relY < 0 || (m_viewportPx > 0 && relY >= m_viewportPx))
     {
         return -1;
     }
+
+    //  The offset is from the menu's visible top; the rows scrolled out above
+    //  it still count.
+    relY += GetScrollPx();
 
     for (int i = 0; i < (int) m_rows.size(); i++)
     {
@@ -698,6 +722,182 @@ int DxuiPopupMenu::GetRowTopPx (int index) const
 int DxuiPopupMenu::GetContentHeightPx() const
 {
     return GetRowTopPx ((int) m_rows.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::GetScrollPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPopupMenu::GetScrollPx() const
+{
+    return (m_viewportPx > 0) ? GetRowTopPx (m_scrollRow) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::GetMaxScrollRow
+//
+//  The first row at which the rest of the list fits the menu's height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPopupMenu::GetMaxScrollRow() const
+{
+    int  content = GetContentHeightPx();
+    int  row     = 0;
+
+
+
+    if (m_viewportPx <= 0)
+    {
+        return 0;
+    }
+
+    while (row < (int) m_rows.size() && content - GetRowTopPx (row) > m_viewportPx)
+    {
+        row++;
+    }
+
+    return row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::GetHeightLimitPx
+//
+//  The pinned limit, or for a hosted menu the room its monitor leaves: below
+//  the anchor for a menu hung under one, and the whole work area otherwise.
+//  Room below too small for a few rows is no room at all, and the popup
+//  host flips such a menu above its anchor instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPopupMenu::GetHeightLimitPx (const RECT & anchor, Anchoring anchoring) const
+{
+    HWND         owner    = nullptr;
+    POINT        bottom   = { anchor.left, anchor.bottom };
+    HMONITOR     monitor  = nullptr;
+    MONITORINFO  info     = { sizeof (info) };
+    int          below    = 0;
+    int          minRoom  = s_kMinRowsBelowAnchor * m_metrics.rowHeightPx;
+
+
+
+    if (m_maxHeightPx > 0)
+    {
+        return m_maxHeightPx;
+    }
+
+    owner = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
+
+    if (owner == nullptr)
+    {
+        return 0;
+    }
+
+    ClientToScreen (owner, &bottom);
+    monitor = MonitorFromPoint (bottom, MONITOR_DEFAULTTONEAREST);
+
+    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
+    {
+        return 0;
+    }
+
+    below = info.rcWork.bottom - bottom.y;
+
+    if (anchoring == Anchoring::Below && below >= minRoom)
+    {
+        return below;
+    }
+
+    return info.rcWork.bottom - info.rcWork.top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::ScrollByRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::ScrollByRows (int rows)
+{
+    int  row = std::clamp (m_scrollRow + rows, 0, GetMaxScrollRow());
+
+
+
+    if (row == m_scrollRow)
+    {
+        return;
+    }
+
+    //  A submenu hangs from its row, which has just moved.
+    CloseChild();
+
+    m_scrollRow = row;
+
+    if (m_activePopup != nullptr)
+    {
+        m_activePopup->MarkDirty();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::EnsureRowVisible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::EnsureRowVisible (int index)
+{
+    int  top    = 0;
+    int  bottom = 0;
+    int  scroll = 0;
+
+
+
+    if (m_viewportPx <= 0 || index < 0 || index >= (int) m_rows.size())
+    {
+        return;
+    }
+
+    if (index < m_scrollRow)
+    {
+        ScrollByRows (index - m_scrollRow);
+        return;
+    }
+
+    top    = GetRowTopPx (index);
+    bottom = top + GetRowHeightPx (index);
+    scroll = m_scrollRow;
+
+    while (scroll < index && bottom - GetRowTopPx (scroll) > m_viewportPx)
+    {
+        scroll++;
+    }
+
+    ScrollByRows (scroll - m_scrollRow);
 }
 
 
@@ -978,6 +1178,10 @@ void DxuiPopupMenu::SetHover (int index)
 
     m_hover = index;
 
+    //  A highlight moved past the menu's edge by a key brings its row into
+    //  view; the pointer can only rest on a row already in view.
+    EnsureRowVisible (index);
+
     if (index >= 0 && m_onHighlight)
     {
         m_onHighlight (index);
@@ -1184,7 +1388,7 @@ void DxuiPopupMenu::OpenChild (int index, bool highlightFirst)
     m_child->m_clock        = m_clock;
     m_child->m_scaler.SetDpi (m_scaler.GetDpi());
 
-    rowTop         = GetRowTopPx (index);
+    rowTop         = GetRowTopPx (index) - GetScrollPx();
     rowRect.left   = m_boundsDip.left;
     rowRect.top    = m_boundsDip.top + rowTop;
     rowRect.right  = m_boundsDip.right;
@@ -1647,9 +1851,30 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
     painter.FillRoundedRect    (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), pal.bg);
     painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), (float) kBorderDip, pal.border);
 
-    for (int i = 0; i < (int) m_rows.size(); i++)
+    //  Only the rows in view. Scrolling moves by whole rows, so none is cut.
+    for (int i = m_scrollRow; i < (int) m_rows.size(); i++)
     {
+        if (m_viewportPx > 0 && GetRowTopPx (i + 1) - GetScrollPx() > m_viewportPx)
+        {
+            break;
+        }
+
         PaintRow (painter, text, pal, i, left, top, width, fontDip);
+    }
+
+    //  A list longer than it shows says so with a thumb down its right edge,
+    //  sized and placed by how much of the list is in view.
+    if (m_viewportPx > 0)
+    {
+        float  track    = (float) m_viewportPx;
+        float  content  = (float) GetContentHeightPx();
+        float  thumbW   = m_scaler.ToPxf (s_kThumbWidthDip);
+        float  thumbH   = (std::max) (thumbW * 4.0f, track * track / content);
+        int    maxRow   = GetMaxScrollRow();
+        float  fraction = (maxRow > 0) ? (float) m_scrollRow / (float) maxRow : 0.0f;
+
+        painter.FillRoundedRect (left + width - thumbW * 2.0f, top + (track - thumbH) * fraction,
+                                 thumbW, thumbH, thumbW * 0.5f, pal.border);
     }
 }
 
@@ -1695,7 +1920,7 @@ void DxuiPopupMenu::PaintRow (
     int                        inset     = m_metrics.separatorInsetPx;
     int                        labelLeft = m_labelLeftPx;
     int                        padTop    = (rowH - m_metrics.lineHeightPx) / 2;
-    float                      y         = top + (float) rowTopPx;
+    float                      y         = top + (float) (rowTopPx - GetScrollPx());
     float                      labelW    = (float) (m_accelLeftPx - labelLeft);
     float                      accelW    = width - (float) m_accelLeftPx - (float) m_metrics.rightPadPx;
     std::wstring               stripped;
