@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/FakeIntentChannel.h"
 #include "Cassque/Model/DiskOperations.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -449,5 +450,35 @@ public:
         Assert::IsFalse (result.Succeeded());
         Assert::IsTrue  (result.message.find ("already the name") != std::string::npos);
         Assert::IsTrue  (io.HasNoTemporaryFiles());
+    }
+
+
+    TEST_METHOD (EveryWrite_TellsARunningEmulatorToReload)
+    {
+        FakeDiskFileIo     io;
+        FakeIntentChannel  channel;
+        DiskOperations     ops (io);
+        VolumeListing      listing;
+        VolumeKind         kind = VolumeKind::Unknown;
+
+        SeedBoth (io);
+        ops.SetIntentChannel (&channel);
+
+        AssertCleanFacade (ops.List (kFacadeImage, listing, kind));
+        Assert::IsTrue (channel.stated.empty(), L"Reading changes nothing");
+
+        //  Through the runner, through the volume layer, and a new directory.
+        AssertCleanFacade (ops.Delete (kFacadeImage, "NOTES"));
+        AssertCleanFacade (ops.Rename (kFacadeImage, "HELLO", "GREETING"));
+        AssertCleanFacade (ops.Mkdir  (kFacadeProDos, "NEWDIR"));
+
+        Assert::AreEqual ((size_t) 3, channel.stated.size());
+
+        for (const FakeIntentChannel::Stated & stated : channel.stated)
+        {
+            Assert::IsTrue (stated.intent == ExternalChangeIntent::ReloadInPlace);
+        }
+
+        Assert::AreEqual (std::string (kFacadeProDos), channel.stated[2].imagePath);
     }
 };

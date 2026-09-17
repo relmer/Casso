@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Seams/IIntentChannel.h"
 
 
 
@@ -38,9 +39,13 @@ CommandLineOptions DiskOperations::MakeOptions (Command command, const std::stri
 
 
 
-    options.subcommand     = CommandLineOptions::Subcommand::Disk;
-    options.disk.command   = command;
-    options.disk.imagePath = imagePath;
+    options.subcommand        = CommandLineOptions::Subcommand::Disk;
+    options.disk.command      = command;
+    options.disk.imagePath    = imagePath;
+
+    //  A running emulator with this image mounted reloads it after a write;
+    //  the runner states the intent only for the verbs that write.
+    options.disk.changeIntent = ExternalChangeIntent::ReloadInPlace;
 
     return options;
 }
@@ -160,11 +165,16 @@ DiskOperations::Result DiskOperations::CommitEdit (
 
 
 
-    UNREFERENCED_PARAMETER (imagePath);
-
     result.hr         = session.SaveAndCommit (opened, edited, command);
     result.exitStatus = command.exitStatus;
     result.message    = command.diagnostics;
+
+    //  A write through the volume layer tells a running emulator the same
+    //  thing the runner's writes do.
+    if (SUCCEEDED (result.hr) && m_intentChannel != nullptr)
+    {
+        m_intentChannel->StateIntent (imagePath, ExternalChangeIntent::ReloadInPlace);
+    }
 
     return result;
 }

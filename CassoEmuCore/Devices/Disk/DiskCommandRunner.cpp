@@ -3553,6 +3553,8 @@ bool DiskCommandRunner::WritesTheImage (CommandLineOptions::DiskOptions::Command
     using Command = CommandLineOptions::DiskOptions::Command;
 
     return command == Command::Put
+        || command == Command::Mkdir
+        || command == Command::Rmdir
         || command == Command::Delete
         || command == Command::Boot
         || command == Command::Create

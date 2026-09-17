@@ -4,6 +4,7 @@
 #include "Cassque/CassqueAbout.h"
 #include "Cassque/CassqueDragOut.h"
 #include "Cassque/CassqueNewDiskDialog.h"
+#include "Cassque/Model/CassoTargeting.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Cassque/CassqueShell.h"
 #include "Cassque/Model/KnownFolderStore.h"
@@ -5671,12 +5672,23 @@ CassqueActions::AddressFn CassqueWindow::MakeAddressPrompt()
 
 HWND CassqueWindow::FindCassoTarget() const
 {
-    if (m_context.owner != nullptr && IsWindow (m_context.owner))
+    std::vector<HWND>  running;
+    HWND               window  = nullptr;
+    CassoTarget        target;
+
+
+
+    //  Top-level windows come back front to back, so the first Casso found
+    //  is the one most recently active.
+    while ((window = FindWindowExW (nullptr, window, Win32IntentChannel::kWindowClass, nullptr)) != nullptr)
     {
-        return m_context.owner;
+        running.push_back (window);
     }
 
-    return FindWindowExW (nullptr, nullptr, Win32IntentChannel::kWindowClass, nullptr);
+    target = CassoTargeting::Choose (m_context.owner, m_context.owner != nullptr && IsWindow (m_context.owner) != FALSE,
+                                     running, MachineConfig());
+
+    return target.hwnd;
 }
 
 
