@@ -399,6 +399,23 @@ public:
     }
 
 
+    TEST_METHOD (AKnownFolder_IsKnownByItsPath_WhateverItsCaseOrTrailingSlash)
+    {
+        Host          host;
+        std::wstring  path = kDisks;
+
+
+
+        Assert::IsTrue  (host.browser.IsKnownFolder (path));
+        Assert::IsTrue  (host.browser.IsKnownFolder (path + L"\\"));
+
+        std::transform (path.begin(), path.end(), path.begin(), ::towupper);
+
+        Assert::IsTrue  (host.browser.IsKnownFolder (path),             L"Folder names are not case-sensitive");
+        Assert::IsFalse (host.browser.IsKnownFolder (L"C:\\Elsewhere"), L"A folder not added is not known");
+    }
+
+
     TEST_METHOD (Tabs_KeepTheirOwnLocationAndSelection)
     {
         Host          host;

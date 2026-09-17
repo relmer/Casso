@@ -78,6 +78,7 @@ public:
     //  Casso's known folders, or remove a known folder from them.
     bool  CanAddToCasso      (const std::wstring & id) const;
     bool  CanRemoveFromCasso (const std::wstring & id) const;
+    bool  IsKnownFolder      (const std::wstring & path) const { return m_tree.IsKnownFolder (path); }
     bool  TryGetNodePath     (const std::wstring & id, std::wstring & outPath) const;
 
     //  Where a tree node or a list row leads, without going there: a folder, a

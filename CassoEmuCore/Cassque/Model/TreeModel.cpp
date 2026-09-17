@@ -45,6 +45,45 @@ void TreeModel::SetKnownFolders (std::vector<std::wstring> folders)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::IsKnownFolder
+//
+//  Case and a trailing separator do not make a different folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsKnownFolder (const std::wstring & path) const
+{
+    std::wstring  wanted = path;
+
+
+
+    while (wanted.size() > 3 && (wanted.back() == L'\\' || wanted.back() == L'/'))
+    {
+        wanted.pop_back();
+    }
+
+    for (std::wstring known : m_knownFolders)
+    {
+        while (known.size() > 3 && (known.back() == L'\\' || known.back() == L'/'))
+        {
+            known.pop_back();
+        }
+
+        if (_wcsicmp (known.c_str(), wanted.c_str()) == 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::SetDrives
 //
 ////////////////////////////////////////////////////////////////////////////////

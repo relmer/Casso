@@ -61,6 +61,7 @@ public:
     explicit TreeModel (IFileSystem & fs);
 
     void  SetKnownFolders   (std::vector<std::wstring> folders);
+    bool  IsKnownFolder     (const std::wstring & path) const;
     void  SetDrives         (std::vector<std::wstring> driveRoots);
     void  SetDirectoryProbe (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
 

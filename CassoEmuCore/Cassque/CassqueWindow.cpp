@@ -3196,6 +3196,8 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>  items;
     Location                        location;
+    std::wstring                    folderForCasso;
+    bool                            known = false;
 
 
 
@@ -3259,6 +3261,28 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
             items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (advanced)));
             m_menuCommands.push_back (std::move (parent));
         }
+    }
+
+    //  Casso's known folders, from a folder row or from the background of the
+    //  folder being shown, as the tree offers them from a node.
+    if (m_browser.GetSelectedRows().size() == 1)
+    {
+        folderForCasso = (m_browser.TryGetRowLocation (m_browser.GetSelectedRows()[0], location) &&
+                          location.kind == Location::Kind::HostFolder) ? location.path : std::wstring();
+    }
+    else if (m_browser.GetSelectedRows().empty() && m_browser.GetLocation().kind == Location::Kind::HostFolder)
+    {
+        folderForCasso = m_browser.GetLocation().path;
+    }
+
+    if (!folderForCasso.empty())
+    {
+        known = m_browser.IsKnownFolder (folderForCasso);
+
+        AddMenuCommand (items, known ? L"&Remove from Casso" : L"&Add to Casso", [this, folderForCasso, known]()
+        {
+            ChangeKnownFolder (folderForCasso, !known);
+        });
     }
 
     if (!m_browser.GetSelectedRows().empty())
