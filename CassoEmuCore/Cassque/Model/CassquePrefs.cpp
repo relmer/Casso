@@ -246,6 +246,7 @@ JsonValue CassquePrefs::ToJson() const
     root.emplace_back ("theme",          JsonValue (theme));
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
+    root.emplace_back ("listView",       JsonValue ((double) listView));
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
@@ -288,6 +289,7 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     int                grouping   = kDefaultHexGrouping;
     int                columns    = 0;
     int                zoom       = kDefaultPreviewZoom;
+    int                view       = 0;
 
 
 
@@ -320,6 +322,11 @@ HRESULT CassquePrefs::FromJson (const JsonValue & root)
     if (root.HasString ("hostNaming", text) && (text == kNamingDescriptive || text == kNamingCiderPress))
     {
         hostNaming = text;
+    }
+
+    if (root.HasInt ("listView", view) && view >= 0 && view < kViewCount)
+    {
+        listView = view;
     }
 
     if (root.HasInt ("hexGrouping", grouping) && IsKnownHexGrouping (grouping))

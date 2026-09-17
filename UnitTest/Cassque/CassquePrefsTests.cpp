@@ -59,6 +59,7 @@ public:
         saved.theme               = CassquePrefs::kThemeDark;
         saved.previewVisible      = false;
         saved.hostNaming          = CassquePrefs::kNamingCiderPress;
+        saved.listView            = 6;
         saved.placement.x         = 10;
         saved.placement.y         = 20;
         saved.placement.w         = 800;
@@ -79,6 +80,7 @@ public:
         Assert::AreEqual (saved.theme, loaded.theme);
         Assert::IsFalse  (loaded.previewVisible);
         Assert::AreEqual (saved.hostNaming, loaded.hostNaming);
+        Assert::AreEqual (6, loaded.listView);
         Assert::AreEqual (10,  loaded.placement.x);
         Assert::AreEqual (600, loaded.placement.h);
         Assert::IsTrue   (loaded.placement.maximized);

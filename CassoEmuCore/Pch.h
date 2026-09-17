@@ -87,6 +87,7 @@
 #include <crtdbg.h>
 #include <shellapi.h>
 #include <shobjidl.h>
+#include <commoncontrols.h>
 #include <ole2.h>
 #include <oleidl.h>
 #include <wrl/event.h>

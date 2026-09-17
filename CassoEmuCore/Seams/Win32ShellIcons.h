@@ -37,6 +37,10 @@ private:
     static constexpr const wchar_t *  kOwnIconExtensions[] = { L".exe", L".lnk", L".ico", L".url" };
 
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon);
+    HICON  LoadLargerForPath (const std::wstring & path, bool isDirectory);
+
+    static constexpr int  s_kLargeIconPx      = 32;
+    static constexpr int  s_kExtraLargeIconPx = 48;
 
     static std::wstring  GetCacheKey  (const std::wstring & path, bool isDirectory);
     static HICON         LoadForPath  (const std::wstring & path, UINT sizeFlag);

@@ -183,6 +183,7 @@
     <ClCompile Include="Widgets\DxuiTimedInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiWarningBadge.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
+    <ClCompile Include="Widgets\DxuiListViewItems.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
     <ClCompile Include="Widgets\DxuiModalScrim.cpp" />
     <ClCompile Include="Widgets\DxuiPopupMenu.cpp" />

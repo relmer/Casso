@@ -1014,6 +1014,12 @@ void DxuiListView::EnsureVisible (int row)
 
 
 
+    if (IsItemsView())
+    {
+        EnsureItemVisible (row);
+        return;
+    }
+
     if (row < 0 || row >= GetRowCount() || cap <= 0)
     {
         return;
@@ -1277,6 +1283,11 @@ DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout() const
 
 
 
+    if (IsItemsView())
+    {
+        return ComputeItemScrollLayout();
+    }
+
     layout.contentW  = GetContentWidthPx();
     layout.viewportW = fullW;
 
@@ -1421,10 +1432,24 @@ Error:
 
 int DxuiListView::GetMaxTopRow() const
 {
-    int  cap  = GetVisibleRowCapacity();
-    int  rows = GetRowCount();
+    int       cap  = GetVisibleRowCapacity();
+    int       rows = GetRowCount();
+    ItemGrid  grid;
 
 
+
+    //  An item view scrolls by whole rows of items; List does not scroll down.
+    if (IsItemsView())
+    {
+        grid = GetItemGrid();
+
+        if (GetItemMetrics (m_view).columns || grid.lines <= grid.visible)
+        {
+            return 0;
+        }
+
+        return (grid.lines - grid.visible) * grid.perLine;
+    }
 
     return (rows > cap) ? (rows - cap) : 0;
 }
@@ -1453,6 +1478,12 @@ void DxuiListView::SetTopRow (int topRow)
     if (topRow > maxTop)
     {
         topRow = maxTop;
+    }
+
+    //  An item view's top is the first item of a row.
+    if (IsItemsView())
+    {
+        topRow -= topRow % (std::max) (1, GetItemGrid().perLine);
     }
 
     m_topRow = topRow;
@@ -1514,7 +1545,16 @@ void DxuiListView::ScrollByWheelDelta (int wheelDelta, int linesPerNotch)
         BAIL_OUT_IF (notches == 0, S_OK);
 
         m_wheelAccumV -= notches * unitPerRow;
-        ScrollByRows (-notches);
+
+        //  An item view moves a row of items per step, or a column in List.
+        if (IsItemsView() && GetItemMetrics (m_view).columns)
+        {
+            SetLeftPx (m_leftPx - notches * GetItemGrid().cellW);
+        }
+        else
+        {
+            ScrollByRows (-notches * (IsItemsView() ? GetItemGrid().perLine : 1));
+        }
     }
 
 Error:
@@ -2356,6 +2396,23 @@ Error:
 
 bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) const
 {
+    RECT  cell = {};
+
+
+
+    //  An item's name is its label, wherever the view puts it.
+    if (IsItemsView())
+    {
+        if (column != 0 || !GetItemRectPx (row, cell))
+        {
+            return false;
+        }
+
+        outRect = GetItemLabelRectPx (cell);
+
+        return true;
+    }
+
     int               rowH    = GetRowHeightPx();
     int               headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
     int               hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
@@ -2413,6 +2470,11 @@ bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) co
 
 int DxuiListView::HitTestRow (int xPx, int yPx) const
 {
+    if (IsItemsView())
+    {
+        return HitTestItem (xPx, yPx);
+    }
+
     HRESULT  hr      = S_OK;
     int      result  = -1;
     int      rowH    = GetRowHeightPx();
@@ -2501,7 +2563,14 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
         PaintHeaderFocusMarkers (painter, pal, x, y, colXPx, colWPx);
     }
 
-    PaintDataRows (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
+    if (IsItemsView())
+    {
+        PaintItems (painter, text, pal, x, y);
+    }
+    else
+    {
+        PaintDataRows (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
+    }
 
     if (clip)
     {
@@ -3480,7 +3549,9 @@ void DxuiListView::DragSelectTo (int ly)
 
 
 
-    if (rowH <= 0 || m_anchorRow < 0 || GetRowCount() == 0)
+    //  A drag in an item view selects nothing more than the press did: rows
+    //  of items have no single top-to-bottom order to extend along.
+    if (rowH <= 0 || m_anchorRow < 0 || GetRowCount() == 0 || IsItemsView())
     {
         return;
     }
@@ -3966,6 +4037,11 @@ bool DxuiListView::HandleKeyboardColumnKey (WPARAM vk)
 
 bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift)
 {
+    if (IsItemsView())
+    {
+        return HandleKeyboardItemNav (vk, shift);
+    }
+
     int   rows  = GetRowCount();
     int   cap   = GetVisibleRowCapacity();
     int   page  = (cap > 1) ? cap : 1;

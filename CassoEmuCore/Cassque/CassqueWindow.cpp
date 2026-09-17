@@ -349,6 +349,7 @@ void CassqueWindow::OnCreate()
     //  handed to the browser before the first nodes and rows are built.
     m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
     m_browser.SetShellIcons (&m_shellIcons);
+    SizeListIcons();
 
     ConfigureWidgets();
 }
@@ -421,6 +422,8 @@ void CassqueWindow::ConfigureWidgets()
         FillPreview();
         FillStatus();
     });
+
+    m_list->SetView ((DxuiListView::View) m_prefs.listView);
 
     m_list->SetOnSortColumn ([this] (int column)
     {
@@ -1059,7 +1062,7 @@ void CassqueWindow::FillList()
 
     for (const CatalogRow & row : m_browser.GetRows())
     {
-        rows.push_back (CassqueBrowser::ToCells (row, location, &m_shellIcons));
+        rows.push_back (CassqueBrowser::ToCells (row, location, &m_listIcons));
     }
 
     m_list->SetRows (std::move (rows));
@@ -2409,12 +2412,16 @@ bool CassqueWindow::IsChecked (int id) const
         return model.HasTabs() && (int) model.GetActiveTab().sortColumn == id - CassqueCommands::kSortByColumn;
     }
 
+    if (id >= CassqueCommands::kViewFirst && id < CassqueCommands::kViewFirst + CassquePrefs::kViewCount)
+    {
+        return m_prefs.listView == id - CassqueCommands::kViewFirst;
+    }
+
     switch (id)
     {
         case CassqueCommands::kTogglePreview:     return m_prefs.previewVisible;
         case CassqueCommands::kSortAscending:     return model.HasTabs() && !model.GetActiveTab().sortDescending;
         case CassqueCommands::kSortDescending:    return model.HasTabs() && model.GetActiveTab().sortDescending;
-        case CassqueCommands::kViewDetails:       return true;
         case CassqueCommands::kLineAddresses:     return m_prefs.lineAddresses;
         case CassqueCommands::kToggleDisassembly: return model.HasTabs() && model.GetActiveTab().disassemble;
         case CassqueCommands::kThemeLight:        return m_prefs.theme == CassquePrefs::kThemeLight;
@@ -3135,6 +3142,16 @@ void CassqueWindow::Dispatch (int id)
         return;
     }
 
+    if (id >= CassqueCommands::kViewFirst && id < CassqueCommands::kViewFirst + CassquePrefs::kViewCount)
+    {
+        m_prefs.listView = id - CassqueCommands::kViewFirst;
+        m_list->SetView ((DxuiListView::View) m_prefs.listView);
+        SizeListIcons();
+        FillList();
+        Invalidate();
+        return;
+    }
+
     if (id >= CassqueCommands::kSortByColumn && id < CassqueCommands::kSortByColumn + (int) CassqueBrowser::GetColumns().size())
     {
         //  A new column sorts ascending; the column already in use keeps its
@@ -3183,8 +3200,6 @@ void CassqueWindow::Dispatch (int id)
 
             break;
 
-        case CassqueCommands::kViewDetails:
-            break;
 
         case CassqueCommands::kRefresh:
             m_browser.GetBrowserModel().InvalidateAllCatalogs();
@@ -4132,7 +4147,12 @@ void CassqueWindow::SetCommandBarDropDowns()
     sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kSortAscending)));
     sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kSortDescending)));
 
-    viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kViewDetails)));
+    //  In Explorer's order.
+    for (int view : { 1, 2, 3, 4, 5, 0, 6, 7 })
+    {
+        viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kViewFirst + view)));
+    }
+
     viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
     viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassqueCommands::kOptions)));
 
@@ -4146,6 +4166,29 @@ void CassqueWindow::SetCommandBarDropDowns()
     m_commandBar->SetDropDownItems (CassqueCommands::kSort,  std::move (sortItems));
     m_commandBar->SetDropDownItems (CassqueCommands::kView,  std::move (viewItems));
     m_commandBar->SetDropDownItems (CassqueCommands::kTheme, std::move (themeItems));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SizeListIcons
+//
+//  The list's icons are drawn at its view's size, so they are fetched at that
+//  size rather than scaled up from the tree's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SizeListIcons()
+{
+    DxuiListView::ItemMetrics  metrics = DxuiListView::GetItemMetrics ((DxuiListView::View) m_prefs.listView);
+    int                        dip     = (m_prefs.listView == 0) ? DxuiTreeView::s_kIconDip : metrics.iconDip;
+
+
+
+    m_listIcons.SetSizePx (MulDiv (dip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
 }
 
 

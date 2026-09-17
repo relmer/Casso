@@ -51,7 +51,60 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForPath (const std::wst
         return found->second;
     }
 
+    //  Past the large icon, the shell's bigger image lists have the art.
+    if (m_sizePx > s_kLargeIconPx)
+    {
+        return Remember (key, LoadLargerForPath (path, isDirectory));
+    }
+
     return Remember (key, LoadForPath (path, flag));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::LoadLargerForPath
+//
+//  The extra-large (48) or jumbo (256) image of the item's system image list
+//  entry, whichever the size calls for; the large icon when neither loads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HICON Win32ShellIcons::LoadLargerForPath (const std::wstring & path, bool isDirectory)
+{
+    SHFILEINFOW          info       = {};
+    DWORD                attributes = isDirectory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
+    UINT                 flags      = SHGFI_SYSICONINDEX;
+    DWORD_PTR            result     = 0;
+    ComPtr<IImageList>   list;
+    HICON                icon       = nullptr;
+    HRESULT              hr         = S_OK;
+    int                  which      = (m_sizePx > s_kExtraLargeIconPx) ? SHIL_JUMBO : SHIL_EXTRALARGE;
+
+
+
+    //  An ordinary file shares its type's image, as the cache assumes.
+    if (!isDirectory && path.rfind (L'.') != std::wstring::npos && GetCacheKey (path, isDirectory).front() == L'.')
+    {
+        flags |= SHGFI_USEFILEATTRIBUTES;
+    }
+
+    result = SHGetFileInfoW (path.c_str(), attributes, &info, sizeof (info), flags);
+
+    if (result != 0)
+    {
+        hr = SHGetImageList (which, IID_PPV_ARGS (&list));
+
+        if (SUCCEEDED (hr))
+        {
+            hr = list->GetIcon (info.iIcon, ILD_TRANSPARENT, &icon);
+        }
+    }
+
+    return (icon != nullptr) ? icon : LoadForPath (path, SHGFI_LARGEICON);
 }
 
 

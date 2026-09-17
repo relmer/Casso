@@ -104,6 +104,9 @@ public:
 
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
+
+        //  kViewFirst + a DxuiListView::View, one per view.
+        kViewFirst    = 500,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -243,7 +246,14 @@ private:
         { kNewDisk,           Menu::Count, L"&Disk image...",      nullptr,     false },
         { kSortAscending,     Menu::Count, L"&Ascending",          nullptr,     true  },
         { kSortDescending,    Menu::Count, L"&Descending",         nullptr,     true  },
-        { kViewDetails,       Menu::Count, L"&Details",            nullptr,     true  },
+        { kViewFirst + 1,     Menu::Count, L"E&xtra large icons",  nullptr,     true  },
+        { kViewFirst + 2,     Menu::Count, L"La&rge icons",        nullptr,     true  },
+        { kViewFirst + 3,     Menu::Count, L"&Medium icons",       nullptr,     true  },
+        { kViewFirst + 4,     Menu::Count, L"&Small icons",        nullptr,     true  },
+        { kViewFirst + 5,     Menu::Count, L"&List",               nullptr,     true  },
+        { kViewFirst + 0,     Menu::Count, L"&Details",            nullptr,     true  },
+        { kViewFirst + 6,     Menu::Count, L"&Tiles",              nullptr,     true  },
+        { kViewFirst + 7,     Menu::Count, L"&Content",            nullptr,     true  },
         { kSortByColumn + 0,  Menu::Count, L"&Name",               nullptr,     true  },
         { kSortByColumn + 1,  Menu::Count, L"&Type",               nullptr,     true  },
         { kSortByColumn + 2,  Menu::Count, L"&Size",               nullptr,     true  },

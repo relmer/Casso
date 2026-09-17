@@ -315,6 +315,30 @@ public:
     int   HitTestHeaderColumn (int xPx, int yPx) const;
     int   HitTestRow          (int xPx, int yPx) const;
 
+    //  Explorer's eight views. Details is the table of columns; the others
+    //  lay the rows out as items with the first cell's icon and text, and
+    //  Tiles and Content add the next cells on the lines below. Selection,
+    //  keyboard movement, hit testing and the callbacks mean the same in each.
+    enum class View { Details, ExtraLargeIcons, LargeIcons, MediumIcons, SmallIcons, List, Tiles, Content };
+
+    //  One item's cell in dips (a zero width spans the list), its icon's size,
+    //  whether items run down columns rather than along rows, whether the
+    //  name sits under the icon, and how many text lines it has.
+    struct ItemMetrics
+    {
+        int   cellWDip   = 0;
+        int   cellHDip   = 0;
+        int   iconDip    = 0;
+        bool  columns    = false;
+        bool  labelBelow = false;
+        int   textLines  = 1;
+    };
+
+    void                SetView          (View view);
+    View                GetView          () const    { return m_view; }
+    static ItemMetrics  GetItemMetrics   (View view);
+    bool                GetItemRectPx    (int item, RECT & outRect) const;
+
     //  Where a visible row's text sits in a column, after its icon, relative
     //  to the list's own top-left: what an edit box laid over the cell covers,
     //  as a rename in place does. False for a row scrolled out of view or a
@@ -475,6 +499,29 @@ private:
     // Fill `out` with row `r`'s cells: from the provider in virtual mode, or
     // a copy of m_rows[r] otherwise. Used by Paint's visible-window pull.
     void         ProvideRow          (int r, std::vector<Cell> & out) const;
+
+    //  The item views' layout in pixels: cell size, items to a line, lines in
+    //  all, and lines in sight.
+    struct ItemGrid
+    {
+        int  cellW   = 0;
+        int  cellH   = 0;
+        int  perLine = 1;
+        int  lines   = 0;
+        int  visible = 1;
+    };
+
+    static constexpr int  s_kItemPadDip  = 6;
+    static constexpr int  s_kItemLineDip = 18;
+
+    bool          IsItemsView             () const { return m_view != View::Details; }
+    ItemGrid      GetItemGrid             () const;
+    ScrollLayout  ComputeItemScrollLayout () const;
+    int           HitTestItem             (int xPx, int yPx) const;
+    void          EnsureItemVisible       (int item);
+    bool          HandleKeyboardItemNav   (WPARAM vk, bool shift);
+    RECT          GetItemLabelRectPx      (const RECT & cell) const;
+    void          PaintItems              (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal, float x, float y) const;
     // Grow the monotonic auto-fit glyph counts from one row's cells (the
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_rows is empty).
@@ -602,6 +649,8 @@ private:
     int                        m_sortColumn        = -1;
     bool                       m_sortDescending    = false;
     bool                       m_showHeader        = false;
+    View                       m_view              = View::Details;
+    bool                       m_detailsHeader     = false;   // the header Details had, while another view shows
     int                        m_topRow            = 0;
     bool                       m_stickyTail        = false;
 

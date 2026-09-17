@@ -39,6 +39,9 @@ struct CassquePrefs
     std::string            theme           = kThemeFollowSystem;
     bool                   previewVisible  = true;
     std::string            hostNaming      = kNamingDescriptive;
+
+    //  The file list's view, as DxuiListView numbers them; Details is 0.
+    int                    listView        = 0;
     Placement              placement;
     int                    treeWidthDip    = kDefaultTreeWidthDip;
     int                    previewWidthDip = kDefaultPreviewWidthDip;
@@ -105,6 +108,7 @@ struct CassquePrefs
 
     static constexpr const wchar_t *  kFileName = L"CassquePrefs.json";
 
+    static constexpr int  kViewCount              = 8;
     static constexpr int  kDefaultHexGrouping     = 1;
     static constexpr int  kDefaultPreviewZoom     = 100;
     static constexpr int  kMinPreviewZoom         = 50;

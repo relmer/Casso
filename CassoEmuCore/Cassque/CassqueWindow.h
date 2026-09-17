@@ -352,6 +352,7 @@ private:
     void  CreateDiskFromSelection (const CassqueNewDiskDialog::Outcome & newDisk);
     void  SelectRowNamed         (const std::wstring & name);
     void  ShowOptions            ();
+    void  SizeListIcons          ();
     bool  IsListVerbOffered      (CassqueActions::Verb verb) const;
     bool  IsToolbarEntryAvailable (int index) const;
 
@@ -397,6 +398,7 @@ private:
     Win32HostDialogs                             m_dialogs;
     Win32ProcessLauncher                         m_launcher;
     Win32ShellIcons                              m_shellIcons;
+    Win32ShellIcons                              m_listIcons;
     Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     std::unique_ptr<FolderWatch>                 m_folderWatch;
