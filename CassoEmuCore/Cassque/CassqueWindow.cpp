@@ -3955,8 +3955,10 @@ bool CassqueWindow::TryGetDropLocation (int tag, POINT screen, Location & outLoc
     {
         row = m_list->HitTestRow (client.x - list.left, client.y - list.top);
 
+        //  A disk image row in a folder, or a directory row in an image, takes
+        //  the drop itself; anywhere else in the list, the location shown does.
         if (row < 0 || !m_browser.TryGetRowLocation (row, outLocation) ||
-            outLocation.kind != Location::Kind::DiskDirectory || !m_browser.IsImageLocation())
+            (outLocation.kind != Location::Kind::DiskDirectory && outLocation.kind != Location::Kind::DiskImage))
         {
             outLocation = m_browser.GetLocation();
         }
