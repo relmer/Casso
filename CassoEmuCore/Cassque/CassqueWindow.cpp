@@ -834,6 +834,25 @@ void CassqueWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::OnThemeChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::OnThemeChanged()
+{
+    DxuiWindow::OnThemeChanged();
+
+    DxuiWindowsThemeColors::Instance().Refresh();
+    ApplyTheme();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::RevealLocationInTree
 //
 //  Expands This PC down to the current location's folder and highlights it,

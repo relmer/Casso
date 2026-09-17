@@ -94,6 +94,10 @@ public:
     bool    OnKey             (const DxuiKeyEvent & ev) override;
     LPCWSTR GetCursorForPoint (POINT clientPx) const override;
 
+    //  Windows changed its light or dark setting or its accent: Follow
+    //  system takes the new one at once, and every theme takes the accent.
+    void    OnThemeChanged    () override;
+
     static constexpr int       kMaxCatalogName     = 30;
     static constexpr UINT_PTR  kTooltipTimerId     = 0x5153;
     static constexpr UINT      kTooltipTickMs      = 16;   // the menus' reveal runs on it too, so display rate
