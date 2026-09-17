@@ -25,7 +25,7 @@
 
 void DxuiListView::SetRect (const RECT & rect)
 {
-    bool  wasSticky = m_followEnd && m_atEnd;
+    bool  wasSticky = m_stickyTail;
     int   maxTop    = 0;
 
 
@@ -43,7 +43,7 @@ void DxuiListView::SetRect (const RECT & rect)
         m_topRow = 0;
     }
 
-    m_atEnd = (m_topRow >= maxTop);
+    m_stickyTail = (m_topRow >= maxTop);
 }
 
 
@@ -82,7 +82,7 @@ void DxuiListView::SetColumns (std::vector<Column> cols)
 
 void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 {
-    bool  wasSticky = m_followEnd && m_atEnd;
+    bool  wasSticky = m_stickyTail;
 
 
 
@@ -130,7 +130,7 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
         m_topRow = 0;
     }
 
-    m_atEnd = (m_topRow >= maxTop);
+    m_stickyTail = (m_topRow >= maxTop);
 
     PruneSelection();
 }
@@ -153,7 +153,7 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
 
 void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
 {
-    bool  wasSticky = m_followEnd && m_atEnd;
+    bool  wasSticky = m_stickyTail;
 
 
 
@@ -177,7 +177,7 @@ void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
 
 void DxuiListView::SetVirtualRowCount (int rowCount)
 {
-    bool  wasSticky = m_followEnd && m_atEnd;
+    bool  wasSticky = m_stickyTail;
 
 
 
@@ -295,7 +295,7 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
 
 void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
 {
-    bool  wasSticky = m_followEnd && m_atEnd;
+    bool  wasSticky = m_stickyTail;
 
 
 
@@ -1456,7 +1456,7 @@ void DxuiListView::SetTopRow (int topRow)
     }
 
     m_topRow = topRow;
-    m_atEnd = (m_topRow >= maxTop);
+    m_stickyTail = (m_topRow >= maxTop);
 }
 
 

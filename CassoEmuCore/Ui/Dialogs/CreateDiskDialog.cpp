@@ -66,6 +66,7 @@ void CreateDiskDialog::OnCreate()
     m_list.SetColumns       (std::move (cols));
     m_list.SetPreciseAutoFit (true);
     m_list.SetKeyboardColumnNav (true);
+    m_list.EnableStickyTail (false);
     m_list.SetActivateOnDoubleClick (true);
     m_list.SetAlwaysShowSelection (true);
     m_list.SetOnSelectionChanged ([this] (int row)

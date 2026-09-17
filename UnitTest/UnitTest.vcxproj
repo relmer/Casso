@@ -477,7 +477,6 @@
     <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTypeAheadTests.cpp" />
-    <ClCompile Include="Dxui\DxuiListViewFillBeforeLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />
     <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />
