@@ -1314,7 +1314,7 @@ namespace CommandLineTests
         //  somewhere other than where it was told to.
         TEST_METHOD (RunValue_ItCouldNotRead_IsRefused)
         {
-            const char *  kFlags[] = { "--load", "--exec", "--stop", "--max-cycles", "--fill" };
+            const char *  kFlags[] = { "--load", "--exec", "--stop", "--max-cycles" };
 
             for (const char * flag : kFlags)
             {
@@ -2053,8 +2053,7 @@ namespace CommandLineTests
 
         TEST_METHOD (Run_AnOptionWithNoValueLeft_IsStillRefused)
         {
-            const char *  kNeedsValue[] = { "-o", "-l", "--fill", "--load", "--exec",
-                                            "--stop", "--max-cycles" };
+            const char *  kNeedsValue[] = { "--load", "--exec", "--stop", "--max-cycles" };
 
             for (const char * flag : kNeedsValue)
             {
@@ -2066,6 +2065,25 @@ namespace CommandLineTests
 
                 Assert::IsTrue (CommandLineParser::IsRunOptionNeedingValue (flag),
                     L"and it is a known option that ran out of arguments, not an unknown one");
+            }
+        }
+
+        //  `-o`, `-l`, `-a` and `--fill` were removed from `run` as dead code:
+        //  it parsed them and never read the values they set.
+        TEST_METHOD (Run_RemovedDeadFlags_AreUnknownOptions)
+        {
+            const char *  kRemoved[] = { "-o", "-l", "-a", "--fill" };
+
+            for (const char * flag : kRemoved)
+            {
+                ArgVector           args = { "CassoCli", "run", "prog.bin", flag };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused,
+                    (std::wstring (L"still accepted: ") + Widen (flag)).c_str());
+
+                Assert::AreEqual (std::string (flag), opts.unrecognizedFlag,
+                    L"reported as an unknown option");
             }
         }
 

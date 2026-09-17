@@ -365,7 +365,7 @@ private:
     Win32HostDialogs                             m_dialogs;
     Win32ProcessLauncher                         m_launcher;
     Win32ShellIcons                              m_shellIcons;
-    std::vector<std::unique_ptr<DxuiCommand>>    m_menuCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     std::unique_ptr<FolderWatch>                 m_folderWatch;
     bool                                         m_refreshingTree    = false;
     std::vector<Win32IntentChannel::Reply>       m_pendingReplies;

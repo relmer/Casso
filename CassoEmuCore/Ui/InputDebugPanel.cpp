@@ -2315,7 +2315,7 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     DxuiHwndSource                            * host = GetPopupHost();
     std::vector<DxuiPopupMenuItem>              items;
-    std::vector<std::unique_ptr<DxuiCommand>>   commands;
+    std::vector<std::shared_ptr<DxuiCommand>>   commands;
     int                                         i    = 0;
 
 
@@ -2328,7 +2328,7 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
     items.reserve (kInputColumnCount);
     for (i = 0; i < kInputColumnCount; i++)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
 
         cmd->label     = m_columnsModel[i].headerText;
         cmd->isChecked = [this, i] () { return m_columnsModel[i].visible; };
@@ -2339,7 +2339,7 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
             PushListViewRows();
         };
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
         commands.push_back (std::move (cmd));
     }
 

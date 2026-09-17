@@ -431,6 +431,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_CONTROLLER_SETTINGS)                           { route = WindowCommandRoute::View; }
     else if (id == IDM_PRINTER_DISCARD)                                    { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_COPY)                                       { route = WindowCommandRoute::Printer; }
     else if (id == IDM_PRINTER_PRINT)                                      { route = WindowCommandRoute::Printer; }
@@ -1001,6 +1002,12 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
 
+        case IDM_VIEW_CONTROLLER_SETTINGS:
+        {
+            m_shell.OpenSettings (true);
+            break;
+        }
+
         case IDM_VIEW_DRIVE_STRIP:
         {
             // Only meaningful in fullscreen; the FSM consumes the edge on its
@@ -1300,7 +1307,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, bool & outMountStarted)
+HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * anchorRectPx, bool & outMountStarted)
 {
     HRESULT                      hr            = S_OK;
     DiskMru                      mru;
@@ -1343,6 +1350,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, bool & outMountSta
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
                                               m_shell.m_hwnd,
                                               drive,
+                                              anchorRectPx,
                                               mruPruned,
                                               diskDir,
                                               m_shell.m_globalPrefs.activeTheme,

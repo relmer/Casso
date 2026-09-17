@@ -59,7 +59,8 @@ void DxuiTextInput::SetMouseHover (int x, int y)
 
 bool DxuiTextInput::OnLButtonDown (int x, int y)
 {
-    bool  isHit = HitTest (x, y);
+    bool  isHit  = HitTest (x, y);
+    int   clicks = 0;
 
 
 
@@ -67,7 +68,9 @@ bool DxuiTextInput::OnLButtonDown (int x, int y)
 
     if (isHit)
     {
-        m_dragging = true;
+        m_dragging     = true;
+        m_wordDragging = false;
+        clicks         = CountClick (x, y);
 
         // Caret placement needs glyph measurement; with the host-supplied
         // renderer the caret lands under the cursor, without one the end of
@@ -75,6 +78,17 @@ bool DxuiTextInput::OnLButtonDown (int x, int y)
         m_caret  = (m_renderer != nullptr) ? CaretFromX (*m_renderer, x)
                                            : m_text.size();
         m_anchor = m_caret;
+
+        if (clicks == kDoubleClickCount && m_renderer != nullptr)
+        {
+            SelectWordAt (GetCharIndexFromX (*m_renderer, x));
+        }
+        else if (clicks == kTripleClickCount)
+        {
+            m_anchor   = 0;
+            m_caret    = m_text.size();
+            m_dragging = false;
+        }
 
         ResetBlink();
     }
@@ -101,9 +115,104 @@ bool DxuiTextInput::OnLButtonUp (int x, int y)
     (void) x;
     (void) y;
 
-    m_dragging = false;
+    m_dragging     = false;
+    m_wordDragging = false;
 
     return wasDragging;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CountClick
+//
+//  Counts a press as the next click of a multi-click when it lands within the
+//  double-click time and rectangle of the previous press, the rule Windows
+//  applies to WM_LBUTTONDBLCLK. Dxui windows do not register CS_DBLCLKS, so
+//  the widget counts for itself. The count wraps after a triple click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextInput::CountClick (int x, int y)
+{
+    constexpr int  kHalf    = 2;
+    int64_t        now      = m_clock ? m_clock() : (int64_t) GetTickCount64();
+    UINT           timeMs   = (m_doubleClickMs != 0) ? m_doubleClickMs : GetDoubleClickTime();
+    int            rectCx   = (m_doubleClickCx != 0) ? m_doubleClickCx : GetSystemMetrics (SM_CXDOUBLECLK);
+    int            rectCy   = (m_doubleClickCy != 0) ? m_doubleClickCy : GetSystemMetrics (SM_CYDOUBLECLK);
+    bool           isRepeat = m_clickCount > 0
+                           && now - m_lastClickMs <= (int64_t) timeMs
+                           && std::abs (x - m_lastClickPt.x) <= rectCx / kHalf
+                           && std::abs (y - m_lastClickPt.y) <= rectCy / kHalf;
+
+
+
+    m_clickCount    = (isRepeat && m_clickCount < kTripleClickCount) ? m_clickCount + 1 : 1;
+    m_lastClickMs   = now;
+    m_lastClickPt.x = x;
+    m_lastClickPt.y = y;
+
+    return m_clickCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectWordAt
+//
+//  Selects the run containing the character and records it as the anchor
+//  of a word drag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::SelectWordAt (size_t charIndex)
+{
+    GetWordSpan (m_text, charIndex, m_wordAnchorStart, m_wordAnchorEnd);
+
+    m_anchor       = m_wordAnchorStart;
+    m_caret        = m_wordAnchorEnd;
+    m_wordDragging = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExtendWordSelection
+//
+//  Word drag: the selection covers the anchor word plus every whole word out
+//  to the one under the pointer. Dragging before the anchor pins the far end
+//  of the anchor word; dragging after it pins the near end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::ExtendWordSelection (size_t charIndex)
+{
+    size_t  start = 0;
+    size_t  end   = 0;
+
+
+
+    GetWordSpan (m_text, charIndex, start, end);
+
+    if (start < m_wordAnchorStart)
+    {
+        m_anchor = m_wordAnchorEnd;
+        m_caret  = start;
+    }
+    else
+    {
+        m_anchor = m_wordAnchorStart;
+        m_caret  = std::max (end, m_wordAnchorEnd);
+    }
 }
 
 
@@ -125,7 +234,15 @@ void DxuiTextInput::OnMouseMove (int x, int y)
 
     if (m_dragging && m_renderer != nullptr)
     {
-        m_caret = CaretFromX (*m_renderer, x);
+        if (m_wordDragging)
+        {
+            ExtendWordSelection (GetCharIndexFromX (*m_renderer, x));
+        }
+        else
+        {
+            m_caret = CaretFromX (*m_renderer, x);
+        }
+
         ResetBlink();
     }
 }
@@ -587,6 +704,122 @@ size_t DxuiTextInput::GetWordBoundary (size_t from, bool forward) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetCharClass
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput::CharClass DxuiTextInput::GetCharClass (wchar_t c)
+{
+    CharClass  cls = CharClass::Punctuation;
+
+
+
+    if (IsWordChar (c))
+    {
+        cls = CharClass::Word;
+    }
+    else if (iswspace (c) != 0)
+    {
+        cls = CharClass::Space;
+    }
+
+    return cls;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetWordSpan
+//
+//  Double-click target: the run of characters sharing the class of the one at
+//  `index`, as a Windows edit control selects it. A click past the end lands
+//  on the last character.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::GetWordSpan (
+    const std::wstring  & text,
+    size_t                index,
+    size_t              & outStart,
+    size_t              & outEnd)
+{
+    size_t     size = text.size();
+    size_t     at   = 0;
+    CharClass  cls  = CharClass::Word;
+
+
+
+    outStart = 0;
+    outEnd   = 0;
+
+    if (size == 0)
+    {
+        return;
+    }
+
+    at       = std::min (index, size - 1);
+    cls      = GetCharClass (text[at]);
+    outStart = at;
+    outEnd   = at + 1;
+
+    while (outStart > 0 && GetCharClass (text[outStart - 1]) == cls) { outStart--; }
+    while (outEnd < size && GetCharClass (text[outEnd]) == cls)      { outEnd++; }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCharIndexFromX
+//
+//  The character UNDER a point, as opposed to CaretFromX's nearest boundary:
+//  a double-click on the right half of a word's last letter must select that
+//  word, not the gap after it. Past the end yields the text length, which
+//  GetWordSpan clamps to the last character.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DxuiTextInput::GetCharIndexFromX (IDxuiTextRenderer & text, int xPx) const
+{
+    HRESULT       hr     = S_OK;
+    float         padL   = m_scaler.ToPxf (s_kPadLeftDip);
+    float         fontPx = m_scaler.ToPxf (m_fontDip);
+    float         target = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
+    float         w      = 0.0f;
+    float         h      = 0.0f;
+    std::wstring  prefix;
+    size_t        index  = 0;
+
+
+
+    for (size_t i = 1; i <= m_text.size(); i++)
+    {
+        prefix.assign (m_text, 0, i);
+        hr = text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (w > target)
+        {
+            break;
+        }
+
+        index = i;
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CaretFromX
 //
 //  Maps a click position to the caret index it should land on.
@@ -992,6 +1225,33 @@ bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::GetCursorForPoint  (IDxuiControl override)
+//
+//  The I-beam over an enabled field, as an edit control shows, so the pointer
+//  says the text can be clicked into and selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiTextInput::GetCursorForPoint (POINT clientPx) const
+{
+    LPCWSTR  cursor = nullptr;
+
+
+
+    if (HitTest (clientPx.x, clientPx.y))
+    {
+        cursor = IDC_IBEAM;
+    }
+
+    return cursor;
 }
 
 

@@ -20,7 +20,7 @@ CassqueCommands::CassqueCommands (Handlers handlers)
 {
     for (const Row & row : kRows)
     {
-        std::unique_ptr<DxuiCommand>  command;
+        std::shared_ptr<DxuiCommand>  command;
         int                           id = row.id;
 
         if (row.id == kSeparator)
@@ -28,7 +28,7 @@ CassqueCommands::CassqueCommands (Handlers handlers)
             continue;
         }
 
-        command = std::make_unique<DxuiCommand>();
+        command = std::make_shared<DxuiCommand>();
 
         command->id          = row.id;
         command->label       = row.label;
@@ -78,7 +78,7 @@ void CassqueCommands::ApplyToolbarRows (std::span<const ToolbarRow> rows)
 {
     for (const ToolbarRow & row : rows)
     {
-        for (std::unique_ptr<DxuiCommand> & command : m_commands)
+        for (std::shared_ptr<DxuiCommand> & command : m_commands)
         {
             if (command->id == row.id)
             {
@@ -176,13 +176,13 @@ int CassqueCommands::GetToolbarCommandId (size_t index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const DxuiCommand * CassqueCommands::Find (int id) const
+std::shared_ptr<const DxuiCommand> CassqueCommands::Find (int id) const
 {
-    for (const std::unique_ptr<DxuiCommand> & command : m_commands)
+    for (const std::shared_ptr<DxuiCommand> & command : m_commands)
     {
         if (command->id == id)
         {
-            return command.get();
+            return command;
         }
     }
 

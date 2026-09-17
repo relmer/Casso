@@ -26,7 +26,9 @@
 #define WM_APP_CHANGE_REPORT   (WM_APP + 0x26)
 #define WM_APP_CHANGE_ASK      (WM_APP + 0x27)
 #define WM_APP_SHOW_NOTICE     (WM_APP + 0x28)
-#define WM_APP_INTENT_REPLY    (WM_APP + 0x29)
+#define WM_APP_GAMEPORT_FLUSH  (WM_APP + 0x29)
+#define WM_APP_CONTROLLER_PICK (WM_APP + 0x2A)
+#define WM_APP_INTENT_REPLY    (WM_APP + 0x2B)
 
 
 
@@ -146,11 +148,6 @@ static constexpr int     s_kSceneDriveLabelGapDp    = 2;
 // a projected box widens and narrows as the orbit turns it, and a label
 // that keeps changing size while it moves reads as chrome coming unglued.
 static constexpr int     s_kSceneDriveLabelWidthDp  = 200;
-
-// The pointer-capture notice: how to get the mouse back, said for as long as
-// it is held. The bar sizes itself to this text; nothing here places it.
-static const wchar_t * const  s_kpszCaptureNotice =
-    L"Press Esc to release the mouse and exit paddle mode";
 
 // The readout sits in the bottom-left corner, inset far enough that its
 // shadow clears the edges.

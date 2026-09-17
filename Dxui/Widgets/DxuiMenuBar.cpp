@@ -723,7 +723,7 @@ bool DxuiMenuBar::ActivateMnemonicRow (wchar_t ch)
 
     for (int i = 0; i < (int) rows.size() && hit < 0; i++)
     {
-        const DxuiCommand *  cmd = rows[(size_t) i].command;
+        const DxuiCommand *  cmd = rows[(size_t) i].command.get();
 
         if (rows[(size_t) i].kind == DxuiPopupMenuItem::Kind::Separator || cmd == nullptr)
         {

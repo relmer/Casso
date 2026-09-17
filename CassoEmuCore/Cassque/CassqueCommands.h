@@ -112,7 +112,7 @@ public:
     //  along the strip can check whether each one is enabled.
     static size_t  GetToolbarEntryCount ();
     static int     GetToolbarCommandId  (size_t index);
-    const DxuiCommand *           Find (int id) const;
+    std::shared_ptr<const DxuiCommand>  Find (int id) const;
 
     //  The command a key reaches, or zero. Alt combinations are included, so
     //  a caller asks before offering Alt to the menu bar's mnemonics.
@@ -273,5 +273,5 @@ private:
     void  ApplyToolbarRows (std::span<const ToolbarRow> rows);
 
     Handlers                                   m_handlers;
-    std::vector<std::unique_ptr<DxuiCommand>>  m_commands;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
 };

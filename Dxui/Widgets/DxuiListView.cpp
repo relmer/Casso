@@ -43,7 +43,7 @@ void DxuiListView::SetRect (const RECT & rect)
         m_topRow = 0;
     }
 
-    m_stickyTail = (m_topRow >= maxTop);
+    m_stickyTail = m_stickyTailEnabled && (m_topRow >= maxTop);
 }
 
 
@@ -130,7 +130,7 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
         m_topRow = 0;
     }
 
-    m_stickyTail = (m_topRow >= maxTop);
+    m_stickyTail = m_stickyTailEnabled && (m_topRow >= maxTop);
 
     PruneSelection();
 }
@@ -1456,7 +1456,7 @@ void DxuiListView::SetTopRow (int topRow)
     }
 
     m_topRow = topRow;
-    m_stickyTail = (m_topRow >= maxTop);
+    m_stickyTail = m_stickyTailEnabled && (m_topRow >= maxTop);
 }
 
 

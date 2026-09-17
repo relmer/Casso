@@ -257,7 +257,6 @@ struct CommandLineOptions
     std::string   inputFile;
     std::string   outputFile;
     std::string   listingFile;                          // -l<file> listing output file
-    std::string   symbolFile;
     std::string   debugFile;                            // -g debug info output file
     Byte          fillByte        = 0xFF;
     Word          loadAddress     = 0x8000;

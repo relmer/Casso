@@ -415,7 +415,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     DxuiHwndSource                            * host  = GetPopupHost();
     std::vector<DxuiPopupMenuItem>              items;
-    std::vector<std::unique_ptr<DxuiCommand>>   commands;
+    std::vector<std::shared_ptr<DxuiCommand>>   commands;
     size_t                                      count = m_eventList->GetColumnCount();
 
 
@@ -432,7 +432,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 
     for (size_t i = 0; i < count; ++i)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
 
         cmd->label     = m_eventList->GetColumnAt (i).title;
         cmd->isChecked = [this, i] () { return m_eventList->IsColumnVisible (i); };
@@ -443,7 +443,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
             m_focusMgr.Rebuild();
         };
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
         commands.push_back (std::move (cmd));
     }
 
@@ -1223,6 +1223,7 @@ void Disk2DebugPanel::ConfigureWidgets()
         SortByColumn (col);
     });
     m_eventList->SetOnColumnResized ([] (int, int) {});
+    m_eventList->EnableStickyTail   (true);   // a live log follows its newest row
 
     // Install the virtual-row provider once: the list pulls only its visible
     // window through FillRow, so a 100k-row live log costs O(visible) per

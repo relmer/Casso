@@ -79,10 +79,27 @@ public:
     void  SetPlaceholderItalic (bool italic)          { m_placeholderItalic = italic; }
     void  SetFont       (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
 
-    const std::wstring & GetText   () const { return m_text;    }
-    const RECT         & GetRect   () const { return m_boundsDip;    }
-    bool                 IsFocused () const { return m_focused; }
-    bool                 IsEnabled () const { return m_enabled; }
+    // Double-click seam. The clock supplies milliseconds for click timing
+    // (GetTickCount64 when unset); the metrics override the system
+    // double-click time and SM_CXDOUBLECLK / SM_CYDOUBLECLK rectangle (a
+    // zero reads the system value).
+    using ClockFn = std::function<int64_t()>;
+
+    void  SetClock              (ClockFn fn)                          { m_clock = std::move (fn); }
+    void  SetDoubleClickMetrics (UINT timeMs, int widthPx, int heightPx) { m_doubleClickMs = timeMs; m_doubleClickCx = widthPx; m_doubleClickCy = heightPx; }
+
+    const std::wstring & GetText           () const { return m_text;    }
+    const RECT         & GetRect           () const { return m_boundsDip;    }
+    bool                 IsFocused         () const { return m_focused; }
+    bool                 IsEnabled         () const { return m_enabled; }
+    size_t               GetCaret          () const { return m_caret; }
+    size_t               GetSelectionStart () const { return std::min (m_caret, m_anchor); }
+    size_t               GetSelectionEnd   () const { return std::max (m_caret, m_anchor); }
+
+    // The run of same-class characters containing `index` (clamped to the
+    // last character): word characters, whitespace, or other punctuation.
+    // Empty text yields an empty span at 0.
+    static void  GetWordSpan (const std::wstring & text, size_t index, size_t & outStart, size_t & outEnd);
 
     bool  HitTest       (int x, int y) const;
     void  SetMouseHover (int x, int y);
@@ -104,6 +121,7 @@ public:
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                InvokeCommand     (DxuiStandardCommand command) override;
     void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 
@@ -113,7 +131,23 @@ private:
     size_t GetWordBoundary (size_t from, bool forward) const;
     const wchar_t *  GetFace () const;
 
-    static bool IsWordChar (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
+    enum class CharClass
+    {
+        Word,
+        Space,
+        Punctuation,
+    };
+
+    static constexpr int  kDoubleClickCount = 2;
+    static constexpr int  kTripleClickCount = 3;
+
+    size_t GetCharIndexFromX   (IDxuiTextRenderer & text, int xPx) const;
+    int    CountClick          (int x, int y);
+    void   SelectWordAt        (size_t charIndex);
+    void   ExtendWordSelection (size_t charIndex);
+
+    static bool      IsWordChar   (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
+    static CharClass GetCharClass (wchar_t c);
     void   DeleteSelection ();
     void   InsertText      (const std::wstring & ins);
     void   CopyToClipboard () const;
@@ -142,6 +176,19 @@ private:
     IDxuiTextRenderer  * m_renderer          = nullptr;   // non-owning
     ChangeFn             m_change;
     DxuiDpiScaler        m_scaler;
+
+    // Click counting and word-drag state. The word anchor is the span of the
+    // double-clicked word, which a word drag always keeps selected.
+    ClockFn             m_clock;
+    UINT                m_doubleClickMs   = 0;
+    int                 m_doubleClickCx   = 0;
+    int                 m_doubleClickCy   = 0;
+    int64_t             m_lastClickMs     = 0;
+    POINT               m_lastClickPt     = {};
+    int                 m_clickCount      = 0;
+    bool                m_wordDragging    = false;
+    size_t              m_wordAnchorStart = 0;
+    size_t              m_wordAnchorEnd   = 0;
 
     // Horizontal scroll offset (pixels) for the rendered text. Paint
     // adjusts this so the caret remains inside the visible inner

@@ -1055,7 +1055,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
             painter.FillRect (left + width - 1.0f, top + (height - dividerH) * 0.5f, 1.0f, dividerH, dividerArgb);
         }
 
-        if (m_focused && isSel)
+        if (m_focused && m_focusCueVisible && isSel)
         {
             painter.OutlineRoundedRect (left + focusInset, top + focusInset,
                                         width - focusInset * 2.0f, height - focusInset * 2.0f,

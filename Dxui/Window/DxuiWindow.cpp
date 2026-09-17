@@ -57,6 +57,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.createNoActivate      = params.createNoActivate;
     hostParams.placement             = params.placement;
     hostParams.placementAnchorHwnd   = params.placementAnchorHwnd;
+    hostParams.placementAnchorRectPx = params.placementAnchorRectPx;
 
     m_source = std::make_unique<DxuiHwndSource>();
     m_source->SetClient (this);
@@ -970,15 +971,26 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
         result = DxuiMessageResult::Handled;
         (void) OnOverlayMouse (ev);
     }
-    else if (OnMouse (ev))
+    else
     {
-        // Repaint immediately when a control consumes the event so drags
-        // (slider thumbs, scrubbing) and hover states track the cursor every
-        // frame instead of only on the ~half-second dialog tick.
-        // InvalidateRect coalesces, so at most one paint lands per frame
-        // regardless of mouse-move rate.
-        result = DxuiMessageResult::Handled;
-        Invalidate();
+        // In a dialog a press focuses the control under it before the control
+        // sees the press, so a drop-down or slider already has focus when it
+        // handles the click, and Tab continues from it.
+        if (kind == DxuiMouseEventKind::Down && m_dialogActive && m_focus.FocusAtPoint (POINT { x, y }))
+        {
+            Invalidate();
+        }
+
+        if (OnMouse (ev))
+        {
+            // Repaint immediately when a control consumes the event so drags
+            // (slider thumbs, scrubbing) and hover states track the cursor every
+            // frame instead of only on the ~half-second dialog tick.
+            // InvalidateRect coalesces, so at most one paint lands per frame
+            // regardless of mouse-move rate.
+            result = DxuiMessageResult::Handled;
+            Invalidate();
+        }
     }
 
     return result;
@@ -1032,6 +1044,16 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
 
 
 
+    // A modal overlay owns every key, Tab / Enter / Escape included. The
+    // modeless pre-translate path (ProcessDialogMessage) arrives here without
+    // passing through OnKeyDown, so the check has to live here too, or Tab
+    // walks the focus of the page hidden behind the overlay.
+    if (HasModalOverlay())
+    {
+        (void) OnOverlayKey (vk);
+        return DxuiMessageResult::Handled;
+    }
+
     switch (vk)
     {
         case VK_TAB:
@@ -1053,6 +1075,14 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
             break;
 
         case VK_ESCAPE:
+            // The focused control gets Escape first, so an open drop-down
+            // closes rather than the dialog. Only a key nothing claims cancels.
+            if (RouteKeyToFocused (vk, shift))
+            {
+                isHandled = true;
+                break;
+            }
+
             if (!IsTriggerButtonById (IDCANCEL))
             {
                 EndDialog (IDCANCEL);
@@ -1066,6 +1096,13 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
             break;
 
         default:
+            // An arrow key is the keyboard in use, so a control focused by a
+            // click shows its focus rectangle from here on.
+            if ((vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN) && m_focus.GetFocusedControl() != nullptr)
+            {
+                m_focus.GetFocusedControl()->SetFocusCueVisible (true);
+            }
+
             isHandled = RouteKeyToFocused (vk, shift);
             break;
     }

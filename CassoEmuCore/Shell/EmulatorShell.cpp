@@ -5,6 +5,7 @@
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
+#include "Controllers/ControllerProfileStore.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Chrome/DriveLabelTruncation.h"
@@ -213,6 +214,26 @@ EmulatorShell::~EmulatorShell()
     SetNotifyFunction (nullptr);
     s_pNotifyShell = nullptr;
 
+    //  THE CONTROLLER STACK GOES BY HAND, HERE, for the same reason. Its
+    //  members are declared after the window, so member-order destruction
+    //  leaves the HWND alive and dispatching messages after the service is
+    //  gone -- and WM_ACTIVATEAPP is exactly the kind that arrives while a
+    //  window is being torn down. OnActivateApp guards on the pointer, but a
+    //  unique_ptr does not null itself as it destroys, so the guard reads a
+    //  stale non-null pointer and calls into freed memory. The crash lands
+    //  on the service's mutex, which is the first thing it touches.
+    //
+    //  In order: the thread stops and joins first, so nothing is inside the
+    //  service when it goes; then the service, then the backend it reads.
+    m_controllerThread.reset();
+
+    // What automatic calibration learned this session, while the service that
+    // holds it still exists and nothing is reading into it.
+    SaveControllerCalibrations();
+
+    m_controllerService.reset();
+    m_controllerBackend.reset();
+
     m_cpuManager.Stop();
 
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
@@ -404,6 +425,92 @@ HRESULT EmulatorShell::Initialize (
     hr = BuildMachineDevices (config);
     CHR (hr);
 
+    // Every paddle and pushbutton write goes through the mixer from here on.
+    // Writes happen on this (the UI) thread; a submission from any other
+    // thread posts a flush back to the window.
+    m_gamePortSink = std::make_unique<MachineGamePortSink> (m_machine.GetLifetimeLock(), [this]
+    {
+        GamePortTargets            targets;
+        const MachineDefinition  * definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
+
+        targets.gamePort    = m_machine.GetRefs().gamePort;
+        targets.iieSwitches = m_machine.GetRefs().iieSoftSwitches;
+        targets.iieKeyboard = m_machine.GetRefs().iieKeyboard;
+
+        if (definition != nullptr)
+        {
+            targets.axisCount = static_cast<size_t> (definition->gamePortAxisCount);
+        }
+
+        return targets;
+    });
+
+    m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_hwnd]
+    {
+        PostMessageW (hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+    });
+
+    m_gamePortMixer.SetSink (m_gamePortSink.get());
+
+    // Physical controllers. The backend is initialized on the controller
+    // thread, which owns the window its device notifications arrive at, so
+    // nothing here touches a device.
+    m_controllerBackend = std::make_unique<Win32ControllerBackend>();
+    m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
+
+    // Saved controller settings and calibrations, before the thread starts
+    // reading. Anything that cannot be used is said once: it falls back to
+    // the default mapping or to automatic calibration, and the next save
+    // drops it, so there is nothing to say again.
+    {
+        ControllerProfileStore    store;
+        std::vector<std::string>  rejected;
+
+        store.FromJson (m_globalPrefs.controllers, rejected);
+        m_controllerService->SetModelSettings (store.models);
+        m_controllerService->SetCalibrations  (store.calibrations);
+
+        if (!rejected.empty())
+        {
+            PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
+        }
+    }
+
+    m_controllerThread  = std::make_unique<ControllerInputThread>();
+
+    m_controllerService->SetSelectionChangedFn (
+        [this] (const ControllerSelectionPolicy::Decision & decision)
+        {
+            {
+                std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+
+                m_controllerPickDescription = decision.departedDescription;
+                m_controllerPickReason      = decision.reason;
+                m_controllerPickHasNotice   = decision.isAnnounced;
+            }
+
+            PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
+        });
+
+    // A connect or disconnect changes who owns the axes but tells the user
+    // nothing, so it takes the same trip to the UI thread without a notice.
+    m_controllerService->SetStateChangedFn ([this]
+    {
+        PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
+    });
+
+    // The Controllers page asking for a controller to be read wakes the
+    // thread, which may be waiting on an event-driven controller that is not
+    // moving.
+    m_controllerService->SetWakeFn ([this]
+    {
+        m_controllerThread->Wake();
+    });
+
+    hr = m_controllerThread->Start (m_controllerBackend.get(), m_controllerService.get(),
+                                    [this] { return m_controllerService->Tick(); });
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     // Mark the display pages so a write into them raises the bus video-dirty
     // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
     // hi-res pages 1/2 ($2000-$5FFF). Aux writes share these page indices (the
@@ -544,7 +651,7 @@ void EmulatorShell::RegisterChromeDock()
 
     // Under the change notice, so a capture that starts while a disk question
     // stands does not push the question off the top of the chrome.
-    m_chromeDock.SetDock (m_captureBand, DxuiDock::Top);
+    m_chromeDock.SetDock (m_standInBand, DxuiDock::Top);
     m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
     // Registered AFTER the drive band so the dock peels the drive bar off the
     // very bottom first and the //c switch strip lands just above it (between
@@ -820,7 +927,6 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     m_mainMenu.SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
     m_switchBar.SetTextRenderer          (&m_uiShell.GetTextRenderer());
     m_toolbar.SetTextRenderer            (&m_uiShell.GetTextRenderer());
-    m_inputCluster.SetTextRenderer       (&m_uiShell.GetTextRenderer());
 
     // Global prefs are already loaded by PrimeChromeThemeEarly, so there is
     // no second LoadAll here. Discover scans the themes directory (an empty
@@ -859,6 +965,36 @@ Error:
 void EmulatorShell::WireToolbarPickers()
 {
     m_toolbar.SetPopupHost (m_host.get());
+
+    //  A CLICK ON A MENU TITLE SWITCHES TO THAT MENU, rather than being spent
+    //  closing the drop-down that was open. The drop-down holds capture, so
+    //  the title never sees the click on its own -- and every other
+    //  application on the desktop rolls from one menu to the next on it.
+    //
+    //  Only the titles. Anywhere else the click closes the picker and stops
+    //  there, which is what a menu does everywhere: dismissing is not a
+    //  reason to fire the button that happened to be underneath.
+    m_toolbar.SetDropDownClickOutsideFn (
+        [this] (POINT screenPx)
+        {
+            POINT  client = screenPx;
+
+            if (m_hwnd == nullptr || !ScreenToClient (m_hwnd, &client))
+            {
+                return;
+            }
+
+            for (int i = 0; i < m_mainMenu.GetMenuCount(); i++)
+            {
+                RECT  title = m_mainMenu.GetMenuRect (i);
+
+                if (PtInRect (&title, client))
+                {
+                    m_mainMenu.Open (i, false);
+                    return;
+                }
+            }
+        });
 
     m_toolbar.SetDropDownSinks (EmulatorCommands::kIdTheme,
         [this] (int index)

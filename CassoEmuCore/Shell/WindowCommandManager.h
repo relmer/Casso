@@ -85,7 +85,7 @@ public:
     // error), so the HRESULT alone cannot tell "mounted" from "canceled",
     // and BrowseForDisk needs the difference to restore the drive door.
     HRESULT  PromptForDiskImage   (int drive, bool & outMountStarted);
-    HRESULT  PromptInsertDiskMru  (int drive, bool & outMountStarted);
+    HRESULT  PromptInsertDiskMru  (int drive, const RECT * anchorRectPx, bool & outMountStarted);
 
     // The create-a-blank-disk flow behind the picker's <Create new disk...>
     // row: dialog -> BlankDiskBuilder -> atomic write -> Mount.

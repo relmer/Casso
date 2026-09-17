@@ -1558,6 +1558,129 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillEllipse
+//
+//  An anti-aliased filled ellipse through the D2D context.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::FillEllipse (float cxDip, float cyDip, float radiusXDip, float radiusYDip, uint32_t argbColor)
+{
+    HRESULT                       hr = S_OK;
+    ComPtr<ID2D1SolidColorBrush>  brush;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
+    CHRA (hr);
+
+    if (m_globalAlpha < 1.0f)
+    {
+        D2D1_COLOR_F  scaled = brush->GetColor();
+
+        scaled.a *= m_globalAlpha;
+        brush->SetColor (scaled);
+    }
+
+    m_d2dContext->FillEllipse (D2D1::Ellipse (D2D1::Point2F (cxDip, cyDip), radiusXDip, radiusYDip), brush.Get());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawEllipse
+//
+//  An anti-aliased ellipse outline through the D2D context.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::DrawEllipse (float cxDip, float cyDip, float radiusXDip, float radiusYDip, float thicknessDip, uint32_t argbColor)
+{
+    HRESULT                       hr = S_OK;
+    ComPtr<ID2D1SolidColorBrush>  brush;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
+    CHRA (hr);
+
+    if (m_globalAlpha < 1.0f)
+    {
+        D2D1_COLOR_F  scaled = brush->GetColor();
+
+        scaled.a *= m_globalAlpha;
+        brush->SetColor (scaled);
+    }
+
+    m_d2dContext->DrawEllipse (D2D1::Ellipse (D2D1::Point2F (cxDip, cyDip), radiusXDip, radiusYDip), brush.Get(), thicknessDip);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawLine
+//
+//  An anti-aliased line through the D2D context.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::DrawLine (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor)
+{
+    HRESULT                       hr = S_OK;
+    ComPtr<ID2D1SolidColorBrush>  brush;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_d2dContext);
+    CBRA (m_drawing);
+
+    hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
+    CHRA (hr);
+
+    if (m_globalAlpha < 1.0f)
+    {
+        D2D1_COLOR_F  scaled = brush->GetColor();
+
+        scaled.a *= m_globalAlpha;
+        brush->SetColor (scaled);
+    }
+
+    m_d2dContext->DrawLine (D2D1::Point2F (x0Dip, y0Dip), D2D1::Point2F (x1Dip, y1Dip), brush.Get(), thicknessDip);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FillRect
 //
 //  Paints a filled axis-aligned rectangle through the D2D context.

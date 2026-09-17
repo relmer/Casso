@@ -2891,8 +2891,8 @@ void CassqueWindow::ShowHexContextMenu (int x, int y)
 
     for (int id : kIds)
     {
-        const DxuiCommand *             command = (id == kSeparatorId) ? nullptr : m_commands.Find (id);
-        std::vector<DxuiPopupMenuItem>  columns;
+        std::shared_ptr<const DxuiCommand>  command = (id == kSeparatorId) ? nullptr : m_commands.Find (id);
+        std::vector<DxuiPopupMenuItem>      columns;
 
         if (id == CassqueCommands::kColumns)
         {
@@ -2933,7 +2933,7 @@ void CassqueWindow::ShowTextContextMenu (int x, int y)
 
     for (int id : { (int) CassqueCommands::kCopy, (int) CassqueCommands::kSelectAll })
     {
-        const DxuiCommand *  command = m_commands.Find (id);
+        std::shared_ptr<const DxuiCommand>  command = m_commands.Find (id);
 
         if (command != nullptr)
         {
@@ -3215,14 +3215,14 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
 
     for (CassqueActions::Verb verb : m_actions.GetListVerbs())
     {
-        std::unique_ptr<DxuiCommand>  command;
+        std::shared_ptr<DxuiCommand>  command;
 
         if (verb == CassqueActions::Verb::Refresh && !items.empty())
         {
             items.push_back (DxuiPopupMenuItem::ForSeparator());
         }
 
-        command           = std::make_unique<DxuiCommand>();
+        command           = std::make_shared<DxuiCommand>();
         command->id       = (int) verb;
         command->label    = GetVerbLabel (verb);
         command->dispatch = [this, verb]() { RunVerb (verb); };
@@ -3234,29 +3234,29 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
             command->isEnabled = [this]() { return m_cassoDriveCount != 1; };
         }
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
         m_menuCommands.push_back (std::move (command));
 
         if (verb == CassqueActions::Verb::Format)
         {
             std::vector<DxuiPopupMenuItem>  advanced;
-            std::unique_ptr<DxuiCommand>    parent = std::make_unique<DxuiCommand>();
+            std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
 
             for (CassqueActions::Verb raw : { CassqueActions::Verb::ReadSectors, CassqueActions::Verb::WriteSectors,
                                               CassqueActions::Verb::ReadBlocks,  CassqueActions::Verb::WriteBlocks })
             {
-                std::unique_ptr<DxuiCommand>  child = std::make_unique<DxuiCommand>();
+                std::shared_ptr<DxuiCommand>  child = std::make_shared<DxuiCommand>();
 
                 child->id       = (int) raw;
                 child->label    = GetVerbLabel (raw);
                 child->dispatch = [this, raw]() { RunRawVerb (raw); };
 
-                advanced.push_back (DxuiPopupMenuItem::ForCommand (child.get()));
+                advanced.push_back (DxuiPopupMenuItem::ForCommand (child));
                 m_menuCommands.push_back (std::move (child));
             }
 
             parent->label = L"&Advanced";
-            items.push_back (DxuiPopupMenuItem::ForSubmenu (parent.get(), std::move (advanced)));
+            items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (advanced)));
             m_menuCommands.push_back (std::move (parent));
         }
     }
@@ -3838,7 +3838,7 @@ void CassqueWindow::ShowTabContextMenu (int x, int y, int index)
 
 void CassqueWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator)
 {
-    std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
 
 
@@ -3846,7 +3846,7 @@ void CassqueWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, cons
     command->accelerator = accelerator;
     command->dispatch    = std::move (dispatch);
 
-    items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+    items.push_back (DxuiPopupMenuItem::ForCommand (command));
     m_menuCommands.push_back (std::move (command));
 }
 
@@ -4260,7 +4260,7 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
 
     for (const BrowserModel::AddressSegment & child : children)
     {
-        std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
         Location                      target  = child.location;
 
         command->label = EscapeMnemonics (child.label);
@@ -4271,7 +4271,7 @@ void CassqueWindow::ShowAddressMenu (int index, const RECT & anchor)
             FillList();
         };
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
         m_menuCommands.push_back (std::move (command));
     }
 
@@ -4489,13 +4489,13 @@ void CassqueWindow::ShowAddressHistoryMenu (const RECT & anchor)
 
     for (const std::wstring & typed : m_browser.GetTypedPaths().GetEntries())
     {
-        std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
         std::wstring                  text    = typed;
 
         command->label    = EscapeMnemonics (typed);
         command->dispatch = [this, text]() { SubmitAddress (text); };
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
         m_menuCommands.push_back (std::move (command));
     }
 
@@ -4533,7 +4533,7 @@ void CassqueWindow::ShowAddressOverflowMenu (const RECT & anchor)
 
     for (i = (std::min) (m_address->GetFirstShown(), (int) m_addressSegments.size()) - 1; i >= 0; i--)
     {
-        std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
         Location                      target  = m_addressSegments[(size_t) i].location;
 
         command->label    = EscapeMnemonics (m_addressSegments[(size_t) i].label);
@@ -4543,7 +4543,7 @@ void CassqueWindow::ShowAddressOverflowMenu (const RECT & anchor)
             FillList();
         };
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
         m_menuCommands.push_back (std::move (command));
     }
 
@@ -4586,7 +4586,7 @@ void CassqueWindow::ShowHistoryMenu (bool forward, const RECT & anchor)
 
     for (i = 0; i < stack.size(); i++)
     {
-        std::unique_ptr<DxuiCommand>  command = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
         size_t                        steps   = i + 1;
 
         command->label    = EscapeMnemonics (CassqueBrowser::GetLocationLabel (stack[stack.size() - 1 - i]));
@@ -4598,7 +4598,7 @@ void CassqueWindow::ShowHistoryMenu (bool forward, const RECT & anchor)
             }
         };
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (command.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
         m_menuCommands.push_back (std::move (command));
     }
 

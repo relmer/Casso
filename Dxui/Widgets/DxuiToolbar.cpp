@@ -330,10 +330,21 @@ void DxuiToolbar::SetFocusIndex (int index)
 
 void DxuiToolbar::ActivateFocused()
 {
-    Slot *               slot = (m_focusIndex >= 0 && m_focusIndex < (int) m_slots.size()) ? &m_slots[(size_t) m_focusIndex] : nullptr;
-    const DxuiCommand *  cmd  = (slot != nullptr) ? slot->entry.command : nullptr;
+    Slot *                              slot = (m_focusIndex >= 0 && m_focusIndex < (int) m_slots.size()) ? &m_slots[(size_t) m_focusIndex] : nullptr;
+    std::shared_ptr<const DxuiCommand>  cmd;
 
 
+
+    // The slot is tested on its own, ahead of the command it carries. A
+    // command reached through the slot is proof enough for a reader that the
+    // slot exists, but not for the analyzer, which reads the switch below as
+    // a dereference of a pointer that was allowed to be null.
+    if (slot == nullptr)
+    {
+        return;
+    }
+
+    cmd = slot->entry.command;
 
     if (cmd == nullptr || !cmd->IsEnabled())
     {
@@ -948,7 +959,7 @@ const wchar_t * DxuiToolbar::GetTooltipAt (int x, int y, RECT & anchor) const
 
     for (const Slot & slot : m_slots)
     {
-        const DxuiCommand *  cmd  = slot.entry.command;
+        const DxuiCommand *  cmd  = slot.entry.command.get();
         bool                 over = false;
 
         if (tip != nullptr)
@@ -1225,9 +1236,9 @@ bool DxuiToolbar::OnToolbarLButtonUp (int x, int y)
 
     for (Slot & slot : m_slots)
     {
-        const DxuiCommand *  cmd        = slot.entry.command;
-        bool                 wasPressed = slot.pressed;
-        bool                 consumed   = false;
+        std::shared_ptr<const DxuiCommand>  cmd        = slot.entry.command;
+        bool                                wasPressed = slot.pressed;
+        bool                                consumed   = false;
 
         slot.pressed = false;
 
@@ -1302,7 +1313,7 @@ void DxuiToolbar::OpenDropDown (int commandId)
 
     for (size_t i = 0; i < it->second.items.size() && it->second.openedOn < 0; i++)
     {
-        const DxuiCommand *  row = it->second.items[i].command;
+        const DxuiCommand *  row = it->second.items[i].command.get();
 
         if (row != nullptr && row->IsChecked())
         {
@@ -1310,8 +1321,16 @@ void DxuiToolbar::OpenDropDown (int commandId)
         }
     }
 
+    // UNDER THE ENTRY, not at a point. A point-placed popup is never flipped,
+    // only slid back onto the monitor, so a window near the bottom of the
+    // screen opened its drop-down downward anyway and left it lying against
+    // the taskbar. Anchored to the entry, it opens above the bar instead when
+    // the room below runs out, the way the menu bar's menus already do.
+    RECT  anchor = { slot->rc.left, m_barRect.top, slot->rc.right, m_barRect.bottom };
+
     m_openPicker = commandId;
-    m_dropdown.ShowAt (slot->rc.left, m_barRect.bottom, it->second.items, *m_textRenderer, m_hostClient);
+    m_dropdown.SetOnClickOutside (m_onDropDownClickOutside);
+    m_dropdown.ShowUnder (anchor, it->second.items, *m_textRenderer, m_hostClient);
 
     if (!m_dropdown.IsVisible())
     {
@@ -1379,7 +1398,7 @@ void DxuiToolbar::PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, c
 void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     HRESULT              hr      = S_OK;
-    const DxuiCommand *  cmd     = slot.entry.command;
+    const DxuiCommand *  cmd     = slot.entry.command.get();
     bool                 enabled = cmd != nullptr && cmd->IsEnabled();
     bool                 checked = slot.entry.kind == Kind::Toggle && cmd != nullptr && cmd->IsChecked();
     bool                 active  = slot.hovered || slot.pressed || checked;

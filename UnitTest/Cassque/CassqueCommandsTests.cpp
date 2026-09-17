@@ -75,7 +75,7 @@ public:
 
         Assert::IsTrue  (commands.Find (CassqueCommands::kExit)->IsEnabled());
         Assert::IsFalse (commands.Find (CassqueCommands::kTogglePreview)->IsChecked());
-        Assert::IsNull  (commands.Find (12345));
+        Assert::IsTrue  (commands.Find (12345) == nullptr);
     }
 
 

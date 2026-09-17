@@ -47,6 +47,7 @@ enum class DxuiWindowPlacement
     BesideOwnerRight,  // flush against the owner's right edge, its left when the right will not fit
     CenteredOnOwner,   // centered on the owner's frame -- where a modal belongs
     CenteredOnScreen,  // centered on the work area, for a window with no owner to sit near
+    BelowAnchorRect,   // centered below placementAnchorRectPx, lifted and shifted only enough to fit
 };
 
 
@@ -233,6 +234,11 @@ public:
         // would z-lock it above Casso forever) yet still wants to open
         // beside it. Defaults to ownerHwnd when null.
         HWND                     placementAnchorHwnd      = nullptr;
+
+        // The screen rect BelowAnchorRect opens under -- a control inside
+        // the owner rather than the owner's whole frame. Ignored by every
+        // other mode.
+        RECT                     placementAnchorRectPx    = {};
     };
 
 
@@ -287,6 +293,16 @@ public:
     //  above the taskbar rather than a half-visible one.
     //
     static POINT  CenterOnOwner    (const RECT & ownerRect, const SIZE & windowSizePx, const RECT & work);
+
+    //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Returns the top-left for a window of `windowSizePx`
+    //  horizontally centered on `anchorRect` with its top at the anchor's
+    //  bottom. A window that would run past the bottom of `work` is lifted
+    //  only as far as it takes to fit, and one that would run past either
+    //  side is shifted only as far as it takes to fit.
+    //
+    static POINT  PlaceBelowRect   (const RECT & anchorRect, const SIZE & windowSizePx, const RECT & work);
 
     //
     //  Adopt mode — wrap an existing HWND that the caller continues
@@ -670,7 +686,8 @@ private:
     // owner or its monitor is, which leaves the caller on its default
     // placement path.
     static bool           TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowSizePx,
-                                                 DxuiWindowPlacement mode, POINT & outTopLeft);
+                                                 DxuiWindowPlacement mode, const RECT & anchorRectPx,
+                                                 POINT & outTopLeft);
 
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();

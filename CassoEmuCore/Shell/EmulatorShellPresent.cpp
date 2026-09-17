@@ -581,10 +581,10 @@ bool EmulatorShell::TryPresentUiFrame()
 
     //  The capture band a lost grab left standing, given back -- here, at the
     //  top of the frame, because re-docking repaints and nothing has been
-    //  composed yet. See SyncCaptureBanner for what sets this.
-    if (m_captureBandStale)
+    //  composed yet. See SyncStandInBanner for what sets this.
+    if (m_standInBandStale)
     {
-        m_captureBandStale = false;
+        m_standInBandStale = false;
         ReflowChromeForChangeBand();
     }
 
@@ -640,7 +640,8 @@ bool EmulatorShell::TryPresentUiFrame()
     // toolbar, and bounds the tick has not written yet put the bar where the
     // strip was last frame -- visibly trailing it through the reveal.
     TickFullscreenTopChrome();
-    SyncCaptureBanner();
+    SyncStandInBanner();
+    TraceControllerState();
     SyncNotice();
     SyncFrameRateReadout();
     SyncSceneViewReadout();
@@ -1423,8 +1424,8 @@ LONG EmulatorShell::ComputeTopOverlayEdgePx (const RECT & client) const
     const IDxuiControl * const  bands[] = { &m_mainMenu,
                                             &m_toolbar,
                                             &m_changeBanner,
-                                            &m_captureBarSurface,
-                                            &m_captureBar };
+                                            &m_standInBarSurface,
+                                            &m_standInBar };
     LONG                        top     = client.top;
     RECT                        rc      = {};
 
@@ -1450,7 +1451,7 @@ LONG EmulatorShell::ComputeTopOverlayEdgePx (const RECT & client) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetCaptureOverlaysHidden
+//  SetStandInOverlaysHidden
 //
 //  HIDE WHAT DESCRIBES THE APPLICATION; CAPTURE WHAT DESCRIBES THE MACHINE.
 //
@@ -1465,7 +1466,7 @@ LONG EmulatorShell::ComputeTopOverlayEdgePx (const RECT & client) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
+void EmulatorShell::SetStandInOverlaysHidden (bool hidden)
 {
     if (hidden)
     {
@@ -1476,8 +1477,8 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
         //  Scene capture takes the viewport, so there it is already out of
         //  frame. In FULLSCREEN there are no bands and the bar hangs off the
         //  top edge, inside the picture -- which is the case this covers.
-        m_captureBar.SetVisible        (false);
-        m_captureBarSurface.SetVisible (false);
+        m_standInBar.SetVisible        (false);
+        m_standInBarSurface.SetVisible (false);
 
         //  Including this one. Two captures inside the notice's few seconds
         //  would otherwise photograph the first one's filename.
@@ -1493,7 +1494,7 @@ void EmulatorShell::SetCaptureOverlaysHidden (bool hidden)
         LayoutSceneCompass();
         SyncFrameRateReadout();
         SyncSceneViewReadout();
-        SyncCaptureBanner();
+        SyncStandInBanner();
         SyncNotice();
     }
 }
@@ -1752,13 +1753,13 @@ void EmulatorShell::TakeScreenshot()
                                         ? CapturePoint::AfterChrome
                                         : CapturePoint::AfterPicture;
 
-            SetCaptureOverlaysHidden (true);
+            SetStandInOverlaysHidden (true);
 
             m_d3dRenderer.MarkRedrawNeeded();
             InvalidateRect (m_hwnd, nullptr, FALSE);
             UpdateWindow   (m_hwnd);
 
-            SetCaptureOverlaysHidden (false);
+            SetStandInOverlaysHidden (false);
 
             if (m_pendingCapture.captured)
             {

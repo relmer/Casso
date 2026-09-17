@@ -2223,6 +2223,7 @@ public:
     void  SetModelRows      (std::vector<ModelRow> rows)                             { m_model = std::move (rows); }
     void  AddButton         (const DialogButton & button)                           { m_buttons.push_back (button); }
     void  SetCloseBoxResult (int code)                                              { m_closeBoxResult = code; }
+    void  SetAnchorRect     (const RECT & anchorRectPx)                             { m_anchorRectPx = anchorRectPx; m_hasAnchor = true; }
     int   Run               ();
 
     static std::int64_t  FileMtimeUnix (const fs::path & path);
@@ -2260,6 +2261,8 @@ private:
     static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
 
     HINSTANCE                  m_hInstance       = nullptr;
+    RECT                       m_anchorRectPx    = {};
+    bool                       m_hasAnchor       = false;
     HWND                       m_hwndParent      = nullptr;
     std::string                m_themeName;
     std::wstring               m_title;
@@ -2403,7 +2406,6 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_list.SetShowHeader             (true);
     m_list.SetColumns                (std::move (cols));
     m_list.SetSortIndicator          (m_sortColumn, m_sortDescending);
-    m_list.EnableStickyTail          (false);
     m_list.SetHorizontalScrollEnabled (true);
     m_list.SetKeyboardColumnNav       (true);   // File-Explorer model: body -> header (Left/Right cycle, Space/Enter sort)
     m_list.SetPreciseAutoFit          (true);   // columns fit max(header + sort glyph, widest cell), grown as rows filter
@@ -2710,10 +2712,17 @@ int DiskMruPickerSession::Run()
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
-    // Beside the emulator on the same side as the Settings sheet: the
-    // picker is a browsing window the user reads WHILE looking at the
-    // drive it will fill, so covering the machine defeats it.
-    params.placement                = DxuiWindowPlacement::BesideOwnerLeft;
+    // Opened from a drive, the picker hangs below that drive so it reads as
+    // coming out of it; opened any other way, it centers on the emulator.
+    if (m_hasAnchor)
+    {
+        params.placement             = DxuiWindowPlacement::BelowAnchorRect;
+        params.placementAnchorRectPx = m_anchorRectPx;
+    }
+    else
+    {
+        params.placement             = DxuiWindowPlacement::CenteredOnOwner;
+    }
 
     hr = dlg.Create (params);
     CHRA (hr);
@@ -2959,6 +2968,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     HINSTANCE                      hInstance,
     HWND                           hwndParent,
     int                            drive,
+    const RECT                   * anchorRectPx,
     const vector<DiskMru::Entry> & mruEntries,
     const fs::path               & diskDir,
     std::string_view               themeName,
@@ -3106,6 +3116,11 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false, true });   // bottom-left
         session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
         session.SetCloseBoxResult (s_kCloseBoxResult);
+
+        if (anchorRectPx != nullptr)
+        {
+            session.SetAnchorRect (*anchorRectPx);
+        }
 
         chosen = session.Run();
 

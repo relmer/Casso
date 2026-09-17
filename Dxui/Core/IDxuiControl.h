@@ -161,6 +161,12 @@ public:
     int   GetTabIndex  () const                                                  { return m_tabIndex; }
     void  SetTabIndex  (int tabIndex);
 
+    // Whether a focused control draws its focus rectangle. Focus given by a
+    // click has it off, as in Windows: the control takes keys, and Tab moves
+    // on from it, but the rectangle waits until the keyboard is used.
+    bool  IsFocusCueVisible  () const                                            { return m_focusCueVisible; }
+    void  SetFocusCueVisible (bool visible)                                      { m_focusCueVisible = visible; }
+
     IDxuiControl *  GetParent () const                                         { return m_parent; }
     void            SetParent (IDxuiControl * parent)                          { m_parent = parent; }
 
@@ -170,10 +176,11 @@ public:
 protected:
     virtual void  OnVisibilityChanged()                                        {}
 
-    IDxuiControl *  m_parent     = nullptr;
-    RECT            m_boundsDip  = {};
-    bool            m_visible    = true;
-    bool            m_enabled    = true;
-    bool            m_focusable  = false;
-    int             m_tabIndex   = kTabIndexGeometry;
+    IDxuiControl  * m_parent          = nullptr;
+    RECT            m_boundsDip       = {};
+    bool            m_visible         = true;
+    bool            m_enabled         = true;
+    bool            m_focusable       = false;
+    int             m_tabIndex        = kTabIndexGeometry;
+    bool            m_focusCueVisible = true;
 };

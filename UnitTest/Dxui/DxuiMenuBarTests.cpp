@@ -43,18 +43,17 @@ public:
     static constexpr UINT  s_kTestDpi           = 96;
 
 
-    //  One command per row, owned by the test instance so the bar's item
-    //  lists can hold pointers for the life of the test. A checkable row is
-    //  one whose command supplies a checked functor.
-    std::vector<std::unique_ptr<DxuiCommand>>  m_commands;
+    //  One command per row, shared with the bar's item lists. A checkable
+    //  row is one whose command supplies a checked functor.
+    std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
 
-    const DxuiCommand *  Cmd (const wchar_t *         label,
-                              const wchar_t *         accel,
-                              std::function<void()>   dispatch  = nullptr,
-                              std::function<bool()>   isChecked = nullptr,
-                              bool                    enabled   = true)
+    std::shared_ptr<const DxuiCommand>  Cmd (const wchar_t *         label,
+                                             const wchar_t *         accel,
+                                             std::function<void()>   dispatch  = nullptr,
+                                             std::function<bool()>   isChecked = nullptr,
+                                             bool                    enabled   = true)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
 
 
 
@@ -69,11 +68,11 @@ public:
         }
 
         m_commands.push_back (std::move (cmd));
-        return m_commands.back().get();
+        return m_commands.back();
     }
 
-    DxuiPopupMenuItem  Row (const DxuiCommand * cmd) { return DxuiPopupMenuItem::ForCommand (cmd); }
-    DxuiPopupMenuItem  Sep()                        { return DxuiPopupMenuItem::ForSeparator();  }
+    DxuiPopupMenuItem  Row (std::shared_ptr<const DxuiCommand> cmd) { return DxuiPopupMenuItem::ForCommand (std::move (cmd)); }
+    DxuiPopupMenuItem  Sep()                                       { return DxuiPopupMenuItem::ForSeparator();              }
 
 
     std::vector<DxuiMenuBarItem>  MakeTestItems()

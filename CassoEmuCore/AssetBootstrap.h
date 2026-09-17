@@ -168,7 +168,8 @@ public:
     // the Win32 IFileOpenDialog for ad-hoc images. Cancel / close box
     // leaves the slot untouched. A stock download that fails is reported
     // in a themed box and the picker comes back, so it is not returned as
-    // a failure.
+    // a failure. A non-null `anchorRectPx` (screen pixels) opens the
+    // picker centered below that rect; null centers it on `hwndParent`.
     //
     // On return:
     //   outDiskPath  = path to mount, or empty if the user canceled
@@ -181,6 +182,7 @@ public:
     static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
                                            int                      drive,
+                                           const RECT             * anchorRectPx,
                                            const vector<DiskMru::Entry> & mruEntries,
                                            const fs::path         & diskDir,
                                            std::string_view         themeName,

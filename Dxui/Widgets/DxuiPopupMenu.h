@@ -18,9 +18,10 @@ class DxuiPopupHost;
 //  DxuiPopupMenuItem
 //
 //  One row of a popup menu: a command, a separator, or a command whose row
-//  opens a child list. The command is held by pointer and the application
-//  owns it, so placing one command in several menus never copies the
-//  declaration.
+//  opens a child list. The item shares ownership of its command, so placing
+//  one command in several menus never copies the declaration, and a menu on
+//  screen keeps its rows alive however the application rebuilds its own
+//  lists in the meantime.
 //
 //  A row is CHECKABLE when its command supplies an `isChecked` functor, and
 //  a list containing any checkable row reserves a check gutter for every row.
@@ -39,13 +40,13 @@ struct DxuiPopupMenuItem
         Submenu,
     };
 
-    Kind                             kind     = Kind::Command;
-    const DxuiCommand              * command  = nullptr;
-    std::vector<DxuiPopupMenuItem>   children;
+    Kind                                kind     = Kind::Command;
+    std::shared_ptr<const DxuiCommand>  command;
+    std::vector<DxuiPopupMenuItem>      children;
 
-    static DxuiPopupMenuItem  ForCommand   (const DxuiCommand * cmd);
+    static DxuiPopupMenuItem  ForCommand   (std::shared_ptr<const DxuiCommand> cmd);
     static DxuiPopupMenuItem  ForSeparator ();
-    static DxuiPopupMenuItem  ForSubmenu   (const DxuiCommand * cmd, std::vector<DxuiPopupMenuItem> children);
+    static DxuiPopupMenuItem  ForSubmenu   (std::shared_ptr<const DxuiCommand> cmd, std::vector<DxuiPopupMenuItem> children);
 };
 
 
@@ -126,6 +127,11 @@ public:
 
     void  SetOnHighlightChange (SelectFn fn)    { m_onHighlight = std::move (fn); }
     void  SetOnClosed          (ClosedFn fn)    { m_onClosed = std::move (fn); }
+
+    // Where a click that dismissed this menu landed, in screen pixels. See
+    // DxuiPopupHost::Params::onClickOutside.
+    void  SetOnClickOutside (std::function<void (POINT screenPx)> fn)
+              { m_onClickOutside = std::move (fn); }
 
     //  Colors an application supplies in place of the theme's, so a host
     //  whose chrome palette differs from the generic mapping lands its
@@ -337,7 +343,7 @@ private:
 
     std::vector<DxuiPopupMenuItem>              m_rows;
     std::vector<Item>                           m_legacyItems;
-    std::vector<std::unique_ptr<DxuiCommand>>   m_ownedCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>   m_ownedCommands;
     std::unique_ptr<DxuiPopupMenu>              m_child;
     DxuiPopupMenu                             * m_parent      = nullptr;
     int                                         m_childRow    = -1;
@@ -345,6 +351,7 @@ private:
     SelectFn             m_onSelect;
     SelectFn             m_onHighlight;
     ClosedFn             m_onClosed;
+    std::function<void (POINT)>  m_onClickOutside;
     ClockFn              m_clock;
     bool                 m_committing       = false;
     const IDxuiTheme   * m_theme            = nullptr;

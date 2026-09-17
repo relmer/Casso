@@ -103,31 +103,31 @@ public:
     //
     struct Fixture
     {
-        DxuiCommand           alpha;
-        DxuiCommand           beta;
-        DxuiCommand           gamma;
-        DxuiCommand           delta;
-        DxuiCommand           eps;
-        DxuiCommand           rowA;
-        DxuiCommand           rowB;
-        DxuiCommand           rowC;
-        int                   dispatched     = 0;
-        int                   lastDispatched = -1;
-        bool                  deltaChecked   = false;
-        bool                  gammaEnabled   = true;
-        int                   checkedRow     = 1;
-        std::vector<int>      previews;
-        std::vector<int>      commits;
-        uint64_t              nowMs          = 10000;
-        DxuiToolbar           bar;
-        MockDxuiTextRenderer  text;
-        MockDxuiPainter       painter;
-        MockDxuiTheme         theme;
-        DxuiDpiScaler         scaler;
+        std::shared_ptr<DxuiCommand>  alpha          = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  beta           = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  gamma          = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  delta          = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  eps            = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  rowA           = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  rowB           = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  rowC           = std::make_shared<DxuiCommand>();
+        int                           dispatched     = 0;
+        int                           lastDispatched = -1;
+        bool                          deltaChecked   = false;
+        bool                          gammaEnabled   = true;
+        int                           checkedRow     = 1;
+        std::vector<int>              previews;
+        std::vector<int>              commits;
+        uint64_t                      nowMs          = 10000;
+        DxuiToolbar                   bar;
+        MockDxuiTextRenderer          text;
+        MockDxuiPainter               painter;
+        MockDxuiTheme                 theme;
+        DxuiDpiScaler                 scaler;
 
         Fixture()
         {
-            DxuiCommand *  cmds[5] = { &alpha, &beta, &gamma, &delta, &eps };
+            DxuiCommand *    cmds[5] = { alpha.get(), beta.get(), gamma.get(), delta.get(), eps.get() };
             const wchar_t *  labels[5] = { L"Alpha", L"Bb", L"Gamma", L"Delta", L"E" };
 
             for (int i = 0; i < 5; i++)
@@ -138,14 +138,14 @@ public:
                 cmds[i]->dispatch = [this, i] () { dispatched++; lastDispatched = i + 1; };
             }
 
-            alpha.tip        = L"Alpha does a thing";
-            gamma.isEnabled  = [this] () { return gammaEnabled; };
-            delta.isChecked  = [this] () { return deltaChecked; };
-            delta.dispatch   = [this] () { deltaChecked = !deltaChecked; dispatched++; lastDispatched = 4; };
+            alpha->tip        = L"Alpha does a thing";
+            gamma->isEnabled  = [this] () { return gammaEnabled; };
+            delta->isChecked  = [this] () { return deltaChecked; };
+            delta->dispatch   = [this] () { deltaChecked = !deltaChecked; dispatched++; lastDispatched = 4; };
 
-            rowA.id = 10; rowA.label = L"Row A"; rowA.isChecked = [this] () { return checkedRow == 0; };
-            rowB.id = 11; rowB.label = L"Row B"; rowB.isChecked = [this] () { return checkedRow == 1; };
-            rowC.id = 12; rowC.label = L"Row C"; rowC.isChecked = [this] () { return checkedRow == 2; };
+            rowA->id = 10; rowA->label = L"Row A"; rowA->isChecked = [this] () { return checkedRow == 0; };
+            rowB->id = 11; rowB->label = L"Row B"; rowB->isChecked = [this] () { return checkedRow == 1; };
+            rowC->id = 12; rowC->label = L"Row C"; rowC->isChecked = [this] () { return checkedRow == 2; };
 
             bar.SetTextRenderer (&text);
             bar.SetClock ([this] () { return nowMs; });
@@ -157,11 +157,11 @@ public:
             std::vector<DxuiToolbar::Entry>  entries (5);
             std::vector<DxuiPopupMenuItem>   rows;
 
-            entries[0].command = &alpha;  entries[0].group = 0;
-            entries[1].command = &beta;   entries[1].group = 0;  entries[1].kind = DxuiToolbar::Kind::DropDown;
-            entries[2].command = &gamma;  entries[2].group = 0;
-            entries[3].command = &delta;  entries[3].group = 1;  entries[3].kind = DxuiToolbar::Kind::Toggle;
-            entries[4].command = &eps;    entries[4].group = 1;  entries[4].kind = DxuiToolbar::Kind::Flyout;
+            entries[0].command = alpha;  entries[0].group = 0;
+            entries[1].command = beta;   entries[1].group = 0;  entries[1].kind = DxuiToolbar::Kind::DropDown;
+            entries[2].command = gamma;  entries[2].group = 0;
+            entries[3].command = delta;  entries[3].group = 1;  entries[3].kind = DxuiToolbar::Kind::Toggle;
+            entries[4].command = eps;    entries[4].group = 1;  entries[4].kind = DxuiToolbar::Kind::Flyout;
 
             if (custom != nullptr)
             {
@@ -169,9 +169,9 @@ public:
                 entries[2].kind   = customKind;
             }
 
-            rows.push_back (DxuiPopupMenuItem::ForCommand (&rowA));
-            rows.push_back (DxuiPopupMenuItem::ForCommand (&rowB));
-            rows.push_back (DxuiPopupMenuItem::ForCommand (&rowC));
+            rows.push_back (DxuiPopupMenuItem::ForCommand (rowA));
+            rows.push_back (DxuiPopupMenuItem::ForCommand (rowB));
+            rows.push_back (DxuiPopupMenuItem::ForCommand (rowC));
 
             bar.SetEntries      (std::move (entries));
             bar.SetDropDownItems (2, std::move (rows));
@@ -234,19 +234,19 @@ public:
         std::vector<DxuiToolbar::Entry>  entries (2);
 
 
-        f.alpha.id = 1;
-        f.gamma.id = 3;
+        f.alpha->id = 1;
+        f.gamma->id = 3;
 
-        entries[0].command  = &f.alpha;
+        entries[0].command  = f.alpha;
         entries[0].iconOnly = true;
-        entries[1].command  = &f.gamma;
+        entries[1].command  = f.gamma;
 
         f.bar.SetEntries (std::move (entries));
         f.LayoutAt (f.FullWidth());
 
-        Assert::IsFalse (f.bar.IsLabeled (f.alpha.id),
+        Assert::IsFalse (f.bar.IsLabeled (f.alpha->id),
             L"An icon-only entry shows no label however wide the strip is");
-        Assert::IsTrue  (f.bar.IsLabeled (f.gamma.id),
+        Assert::IsTrue  (f.bar.IsLabeled (f.gamma->id),
             L"while its neighbor, with room, keeps its own");
     }
 
@@ -259,11 +259,11 @@ public:
         int                              width  = f.FullWidth() + 300;
 
 
-        f.alpha.id = 1;
-        f.gamma.id = 3;
+        f.alpha->id = 1;
+        f.gamma->id = 3;
 
-        entries[0].command  = &f.alpha;
-        entries[1].command  = &f.gamma;
+        entries[0].command  = f.alpha;
+        entries[1].command  = f.gamma;
         entries[1].group    = 1;
         entries[1].trailing = true;
         entries[1].iconOnly = true;   //  so it has a tooltip to find it by
@@ -287,11 +287,11 @@ public:
         RECT                             anchor = {};
 
 
-        f.alpha.id = 1;
-        f.gamma.id = 3;
+        f.alpha->id = 1;
+        f.gamma->id = 3;
 
-        entries[0].command  = &f.alpha;
-        entries[1].command  = &f.gamma;
+        entries[0].command  = f.alpha;
+        entries[1].command  = f.gamma;
         entries[1].group    = 1;
         entries[1].trailing = true;
 
@@ -312,11 +312,11 @@ public:
         int                              width  = f.FullWidth() + 300;
 
 
-        f.alpha.id = 1;
-        f.gamma.id = 3;
+        f.alpha->id = 1;
+        f.gamma->id = 3;
 
-        entries[0].command  = &f.alpha;
-        entries[1].command  = &f.gamma;
+        entries[0].command  = f.alpha;
+        entries[1].command  = f.gamma;
         entries[1].group    = 1;
         entries[1].trailing = true;
 
@@ -794,7 +794,7 @@ public:
         stub.consumeClick = false;
 
         f.Build (&stub, DxuiToolbar::Kind::DropDown);
-        f.bar.SetDropDownItems (3, { DxuiPopupMenuItem::ForCommand (&f.rowA), DxuiPopupMenuItem::ForCommand (&f.rowB) });
+        f.bar.SetDropDownItems (3, { DxuiPopupMenuItem::ForCommand (f.rowA), DxuiPopupMenuItem::ForCommand (f.rowB) });
         f.LayoutAt (s_kBarPadPx * 2 + CollapsedPx() * 5 + s_kBtnGapPx * 3 + s_kGroupGap);
 
         g = POINT { stub.lastRc.left + 17, s_kBandPx / 2 };

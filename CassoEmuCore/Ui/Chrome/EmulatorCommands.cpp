@@ -4,7 +4,7 @@
 
 #include "resource.h"
 #include "Core/UnicodeSymbols.h"
-#include "InputClusterEntry.h"
+
 #include "PrinterStatusLed.h"
 #include "VolumeFlyout.h"
 
@@ -31,6 +31,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
     { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
     { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
+    { 0,                            MainMenuId::Machine, nullptr,                   nullptr          },
+    { IDM_VIEW_CONTROLLER_SETTINGS, MainMenuId::Machine, L"&Controller settings...", nullptr         },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
     { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
     { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
@@ -63,6 +65,13 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
 // toolbar's own. The short label is what the strip draws; the pickers
 // label themselves with their PURPOSE, not with the value they hold, since
 // a label that changes with the value moves every button to its right.
+//
+// The paddle picker is the one exception: it wears the source that is
+// driving, because that answer is worth a permanent place on the strip and
+// having it there is what lets the input cluster stop carrying it. Its width
+// moves as a result, so the strip is laid out again whenever it changes, and
+// the source labels are capped (InputModeRules::kShortLabelLimit) so the
+// movement stays small.
 struct ToolbarRow
 {
     int                id;
@@ -85,6 +94,7 @@ static constexpr const wchar_t * s_kGlyphPrint      = L"\uE749";   // printer (m
 static constexpr const wchar_t * s_kGlyphColor      = L"\uE790";   // artist's palette
 static constexpr const wchar_t * s_kGlyphFullscreen = L"\uE740";   // diagonal arrows, outward
 static constexpr const wchar_t * s_kGlyphRestore    = L"\uE73F";   // diagonal arrows, inward
+static constexpr const wchar_t * s_kGlyphMouse      = L"\uE962";   // mouse: the one input device MDL2 draws better than we can
 
 static constexpr ToolbarRow  s_kToolbarRows[] =
 {
@@ -93,7 +103,9 @@ static constexpr ToolbarRow  s_kToolbarRows[] =
     { EmulatorCommands::kIdColor,  DxuiToolbar::Kind::DropDown, 0, s_kGlyphColor,      L"Color",       L"Color"         },
     { IDM_PRINTER_PREVIEW,         DxuiToolbar::Kind::Command,  0, s_kGlyphPrint,      L"Printer",     nullptr          },
     { EmulatorCommands::kIdVolume, DxuiToolbar::Kind::Flyout,   1, s_kGlyphVolume,     L"Volume",      L"Mute"          },
-    { EmulatorCommands::kIdInput,  DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Input",       L"Input devices" },
+    { EmulatorCommands::kIdPaddle, DxuiToolbar::Kind::DropDown, 2, nullptr,            L"Controller",  L"Joystick and paddle source" },
+    { EmulatorCommands::kIdProfile, DxuiToolbar::Kind::DropDown, 2, nullptr,           L"Default",     L"Controller profile" },
+    { EmulatorCommands::kIdMouse,  DxuiToolbar::Kind::Toggle,   2, s_kGlyphMouse,      L"Mouse",       L"Mouse" },
     { IDM_VIEW_FULLSCREEN,         DxuiToolbar::Kind::Command,  3, s_kGlyphFullscreen, L"Full screen", nullptr          },
     { IDM_EDIT_COPY_SCREENSHOT,    DxuiToolbar::Kind::Command,  3, s_kGlyphScreenshot, L"Screenshot",  nullptr          },
     { IDM_MACHINE_RESET,           DxuiToolbar::Kind::Command,  3, s_kGlyphReset,      L"Reset",       nullptr          },
@@ -133,7 +145,7 @@ EmulatorCommands::EmulatorCommands()
 {
     for (const EmulatorMenuEntry & e : s_kMenuEntries)
     {
-        std::unique_ptr<DxuiCommand>  cmd;
+        std::shared_ptr<DxuiCommand>  cmd;
         WORD                          commandId   = e.commandId;
         std::wstring                  staticLabel;
 
@@ -142,7 +154,7 @@ EmulatorCommands::EmulatorCommands()
             continue;
         }
 
-        cmd              = std::make_unique<DxuiCommand>();
+        cmd              = std::make_shared<DxuiCommand>();
         cmd->id          = commandId;
         cmd->label       = e.label;
         cmd->accelerator = (e.accelerator != nullptr) ? std::wstring (e.accelerator) : std::wstring();
@@ -179,15 +191,15 @@ EmulatorCommands::EmulatorCommands()
 
     for (const ToolbarRow & row : s_kToolbarRows)
     {
-        DxuiCommand *  cmd = FindMutable (row.id);
+        std::shared_ptr<DxuiCommand>  cmd = FindMutable (row.id);
 
         if (cmd == nullptr)
         {
-            std::unique_ptr<DxuiCommand>  own = std::make_unique<DxuiCommand>();
+            std::shared_ptr<DxuiCommand>  own = std::make_shared<DxuiCommand>();
 
             own->id    = row.id;
             own->label = row.label;
-            cmd        = own.get();
+            cmd        = own;
             m_commands.push_back (std::move (own));
         }
 
@@ -195,9 +207,41 @@ EmulatorCommands::EmulatorCommands()
         cmd->shortLabel = row.shortLabel;
     }
 
+    // The paddle picker wears the source that is driving, not the word for
+    // what it is for. With the answer on its face there is nothing left for a
+    // separate indicator to say. It keeps its static label as the fallback
+    // for when nothing is driving the axes at all.
+    {
+        std::shared_ptr<DxuiCommand>  paddle = FindMutable (kIdPaddle);
+
+        if (paddle != nullptr)
+        {
+            paddle->shortLabel.clear();
+            paddle->labelText = [this] () { return GetCheckedPaddleSourceLabel(); };
+
+            // A labeled slot shows only an explicit tip, so the word for what
+            // the picker is for moves there once the face wears the answer.
+            paddle->tip = paddle->label;
+        }
+    }
+
+    // The profile picker wears the active profile's name the same way, and
+    // is disabled rather than removed while no controller is selected.
+    {
+        std::shared_ptr<DxuiCommand>  profile = FindMutable (kIdProfile);
+
+        if (profile != nullptr)
+        {
+            profile->shortLabel.clear();
+            profile->labelText = [this] () { return GetActiveProfileLabel(); };
+            profile->isEnabled = [this] () { return m_isProfileOffered; };
+            profile->tip       = profile->label;
+        }
+    }
+
     for (size_t i = 0; i < std::size (s_kMonitorColorRows); i++)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
 
         cmd->id        = (int) i;
         cmd->label     = s_kMonitorColorRows[i];
@@ -364,13 +408,13 @@ void EmulatorCommands::Dispatch (WORD commandId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const DxuiCommand * EmulatorCommands::Find (int commandId) const
+std::shared_ptr<const DxuiCommand> EmulatorCommands::Find (int commandId) const
 {
-    for (const std::unique_ptr<DxuiCommand> & cmd : m_commands)
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_commands)
     {
         if (cmd->id == commandId)
         {
-            return cmd.get();
+            return cmd;
         }
     }
 
@@ -387,9 +431,17 @@ const DxuiCommand * EmulatorCommands::Find (int commandId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiCommand * EmulatorCommands::FindMutable (int commandId)
+std::shared_ptr<DxuiCommand> EmulatorCommands::FindMutable (int commandId)
 {
-    return const_cast<DxuiCommand *> (static_cast<const EmulatorCommands *> (this)->Find (commandId));
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_commands)
+    {
+        if (cmd->id == commandId)
+        {
+            return cmd;
+        }
+    }
+
+    return nullptr;
 }
 
 
@@ -410,12 +462,12 @@ DxuiCommand * EmulatorCommands::FindMutable (int commandId)
 
 void EmulatorCommands::RebuildActionTips()
 {
-    std::wstring   machine = m_machineName.empty() ? std::wstring (L"machine") : m_machineName;
-    std::wstring   apple   = DxuiTextRenderer::HasSymbolFont()
-                                 ? std::wstring (s_kpszOpenApple)
-                                 : std::wstring (L"Open Apple");
-    DxuiCommand *  reset   = FindMutable (IDM_MACHINE_RESET);
-    DxuiCommand *  power   = FindMutable (IDM_MACHINE_POWERCYCLE);
+    std::wstring                  machine = m_machineName.empty() ? std::wstring (L"machine") : m_machineName;
+    std::wstring                  apple   = DxuiTextRenderer::HasSymbolFont()
+                                                ? std::wstring (s_kpszOpenApple)
+                                                : std::wstring (L"Open Apple");
+    std::shared_ptr<DxuiCommand>  reset   = FindMutable (IDM_MACHINE_RESET);
+    std::shared_ptr<DxuiCommand>  power   = FindMutable (IDM_MACHINE_POWERCYCLE);
 
 
 
@@ -457,7 +509,7 @@ void EmulatorCommands::SetMachineDisplayName (const std::wstring & displayName)
 
 void EmulatorCommands::SetFullscreen (bool fullscreen)
 {
-    DxuiCommand *  cmd = FindMutable (IDM_VIEW_FULLSCREEN);
+    std::shared_ptr<DxuiCommand>  cmd = FindMutable (IDM_VIEW_FULLSCREEN);
 
 
 
@@ -480,7 +532,7 @@ void EmulatorCommands::SetFullscreen (bool fullscreen)
 
 void EmulatorCommands::SetMuted (bool muted)
 {
-    DxuiCommand *  cmd = FindMutable (kIdVolume);
+    std::shared_ptr<DxuiCommand>  cmd = FindMutable (kIdVolume);
 
 
 
@@ -511,7 +563,7 @@ void EmulatorCommands::SetThemeNames (const std::vector<std::wstring> & displayN
 
     for (size_t i = 0; i < displayNames.size(); i++)
     {
-        std::unique_ptr<DxuiCommand>  cmd = std::make_unique<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>  cmd = std::make_shared<DxuiCommand>();
 
         cmd->id        = (int) i;
         cmd->label     = displayNames[i];
@@ -586,9 +638,9 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetThemeItems() const
 
 
 
-    for (const std::unique_ptr<DxuiCommand> & cmd : m_themeRows)
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_themeRows)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
     }
 
     return items;
@@ -610,9 +662,363 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetMonitorItems() const
 
 
 
-    for (const std::unique_ptr<DxuiCommand> & cmd : m_colorRows)
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_colorRows)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (cmd.get()));
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::SetPaddleSources
+//
+//  One row per entry of the paddle-source list, checked while it is the one
+//  driving. The rows carry no ids of their own: a controller comes and goes,
+//  so a row is identified by the entry it was built from, which the dispatch
+//  captures.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::SetPaddleSources (const std::vector<InputModeRules::PaddleSource> & sources)
+{
+    size_t  i = 0;
+
+
+
+    m_paddleSources = sources;
+
+    //  Dropping the previous rows frees only those nothing else holds. A menu
+    //  on screen shares ownership of its rows, and a dispatching surface holds
+    //  the row it is dispatching, so a rebuild during either leaves them alive.
+    m_paddleSourceRows.clear();
+
+    for (i = 0; i < m_paddleSources.size(); i++)
+    {
+        std::shared_ptr<DxuiCommand>  cmd    = std::make_shared<DxuiCommand>();
+        InputModeRules::PaddleSource  source = m_paddleSources[i];
+
+        cmd->id    = (int) i;
+        cmd->label = source.label;
+
+        //  EACH ROW CARRIES ITS OWN SOURCE BY VALUE, rather than an index to
+        //  look up when it is clicked. The list is rebuilt whenever a
+        //  controller comes or goes, and that changes its LENGTH, so an
+        //  index captured when the row was built names a DIFFERENT source
+        //  afterwards. A user picking "Use keys as joystick" off a list built
+        //  a moment earlier landed on "Use mouse as paddle", which takes the
+        //  pointer. A row now does what it says, whatever the list did since.
+        cmd->isChecked = [source] () { return source.isChecked; };
+
+        cmd->dispatch  = [this, source] ()
+        {
+            if (m_onPaddleSourcePicked)
+            {
+                m_onPaddleSourcePicked (source);
+            }
+        };
+
+        m_paddleSourceRows.push_back (std::move (cmd));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::SetProfiles
+//
+//  Default always leads, whether or not the list handed in carries it or
+//  where: the service plays Default for any name its model lacks, so it is
+//  always a real choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::SetProfiles (const std::vector<std::string> & names,
+                                    const std::string              & activeProfile,
+                                    bool                             isOffered)
+{
+    const char *  pszDefault = ControllerProfile::kpszDefaultName;
+
+
+
+    m_isProfileOffered = isOffered;
+    m_activeProfile    = activeProfile;
+
+    m_profileNames.clear();
+    m_profileNames.push_back (pszDefault);
+
+    if (isOffered)
+    {
+        for (const std::string & name : names)
+        {
+            if (_stricmp (name.c_str(), pszDefault) != 0)
+            {
+                m_profileNames.push_back (name);
+            }
+        }
+    }
+
+    // A menu on screen shares ownership of its rows, so dropping ours frees
+    // only the rows nothing else still holds.
+    m_profileRows.clear();
+
+    if (!isOffered)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < m_profileNames.size(); i++)
+    {
+        std::shared_ptr<DxuiCommand>  cmd       = std::make_shared<DxuiCommand>();
+        std::string                   name      = m_profileNames[i];
+        bool                          isDefault = (i == 0);
+        bool                          isChecked = false;
+
+        // An empty active name is Default, and so is a name the model does not
+        // have, which is what the service plays in that case.
+        isChecked = (_stricmp (name.c_str(), GetActiveProfileName().c_str()) == 0);
+
+        cmd->id        = (int) i;
+        cmd->label     = TextEncoding::NarrowToWide (name);
+        cmd->isChecked = [isChecked] () { return isChecked; };
+
+        // The row carries its own name by value rather than an index, so a
+        // row from a list rebuilt since still picks the profile it shows.
+        cmd->dispatch  = [this, name, isDefault] ()
+        {
+            if (m_onProfilePicked)
+            {
+                m_onProfilePicked (isDefault ? std::string() : name);
+            }
+        };
+
+        m_profileRows.push_back (std::move (cmd));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetActiveProfileName
+//
+//  The listed name the active profile resolves to, in the list's own case:
+//  Default when the active name is empty or the model has no such profile.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string EmulatorCommands::GetActiveProfileName() const
+{
+    if (m_isProfileOffered && !m_activeProfile.empty())
+    {
+        for (const std::string & name : m_profileNames)
+        {
+            if (_stricmp (name.c_str(), m_activeProfile.c_str()) == 0)
+            {
+                return name;
+            }
+        }
+    }
+
+    return ControllerProfile::kpszDefaultName;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetActiveProfileLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetActiveProfileLabel() const
+{
+    return TextEncoding::NarrowToWide (GetActiveProfileName());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetProfileItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> EmulatorCommands::GetProfileItems() const
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_profileRows)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::SetMouseModeFns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorCommands::SetMouseModeFns (std::function<bool()> isOn,
+                                        std::function<bool()> isOffered,
+                                        std::function<void()> toggle)
+{
+    std::shared_ptr<DxuiCommand>  mouse = FindMutable (kIdMouse);
+
+
+
+    if (mouse == nullptr)
+    {
+        return;
+    }
+
+    mouse->isChecked = std::move (isOn);
+    mouse->isEnabled = std::move (isOffered);
+    mouse->dispatch  = std::move (toggle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetCheckedPaddleSourceLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetCheckedPaddleSourceLabel() const
+{
+    return InputModeRules::GetPaddleSourceLabel (m_paddleSources);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetCheckedPaddleSourceGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InputMonoGlyphKind EmulatorCommands::GetCheckedPaddleSourceGlyph() const
+{
+    for (const InputModeRules::PaddleSource & source : m_paddleSources)
+    {
+        if (!source.isChecked)
+        {
+            continue;
+        }
+
+        if (source.isArrowKeys)
+        {
+            return InputMonoGlyphKind::Keys;
+        }
+
+        if (source.isMousePaddle)
+        {
+            return InputMonoGlyphKind::Paddle;
+        }
+
+        // A wheel draws as a joystick: an icon for a device almost nobody
+        // will plug into an Apple II is not worth a drawing of its own.
+        return (source.formFactor == ControllerFormFactor::Gamepad)
+                   ? InputMonoGlyphKind::Gamepad
+                   : InputMonoGlyphKind::Joystick;
+    }
+
+    return InputMonoGlyphKind::Gamepad;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetPaddleSourceItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddleSourceItems() const
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    for (const std::shared_ptr<DxuiCommand> & cmd : m_paddleSourceRows)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (cmd));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetPaddlePickerItems
+//
+//  What the paddle picker lists: every source, then Controller settings...
+//  below a separator, so the settings for the controller in use are one
+//  click from where it was chosen.
+//
+//  The two-player row sits below a separator of its own. The rows above it
+//  are the one thing that drives the game port; it is the mode where two
+//  things do, so grouping it with them would read as a third source.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> EmulatorCommands::GetPaddlePickerItems() const
+{
+    std::vector<DxuiPopupMenuItem>      items;
+    std::vector<DxuiPopupMenuItem>      rows     = GetPaddleSourceItems();
+    std::shared_ptr<const DxuiCommand>  settings = Find (IDM_VIEW_CONTROLLER_SETTINGS);
+    size_t                              i        = 0;
+
+
+
+    for (i = 0; i < rows.size(); i++)
+    {
+        if (i < m_paddleSources.size() && m_paddleSources[i].isMultiplayer)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        items.push_back (rows[i]);
+    }
+
+    if (settings != nullptr)
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        items.push_back (DxuiPopupMenuItem::ForCommand (settings));
     }
 
     return items;
@@ -637,12 +1043,11 @@ std::vector<DxuiPopupMenuItem> EmulatorCommands::GetMonitorItems() const
 
 void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
                                      PrinterStatusLed  & led,
-                                     InputClusterEntry & cluster,
                                      VolumeFlyout      & volume)
 {
     std::vector<DxuiToolbar::Entry>  entries;
-    DxuiCommand *                    printer = FindMutable (IDM_PRINTER_PREVIEW);
-    DxuiCommand *                    mute    = FindMutable (kIdVolume);
+    std::shared_ptr<DxuiCommand>     printer = FindMutable (IDM_PRINTER_PREVIEW);
+    std::shared_ptr<DxuiCommand>     mute    = FindMutable (kIdVolume);
 
 
 
@@ -665,7 +1070,28 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
         e.group   = row.group;
 
         if (row.id == IDM_PRINTER_PREVIEW) { e.decoration = led.MakeDecoration(); }
-        if (row.id == kIdInput)            { e.custom     = &cluster; }
+
+        // The picker draws its own icon, because the icon tracks the DEVICE:
+        // a gamepad, a stick, the paddle or the arrow keys (FR-008b). A font
+        // glyph cannot follow that, and MDL2 has no Apple paddle anyway.
+        if (row.id == kIdPaddle)
+        {
+            e.decoration = [this] (IDxuiPainter             & painter,
+                                   const IDxuiTheme         & theme,
+                                   const DxuiToolbarIconBox & icon,
+                                   bool                       collapsed)
+            {
+                RECT  box = { (LONG) icon.x,
+                              (LONG) (icon.top + (icon.rowH - icon.size) * 0.5f),
+                              (LONG) (icon.x + icon.size),
+                              (LONG) (icon.top + (icon.rowH + icon.size) * 0.5f) };
+
+                UNREFERENCED_PARAMETER (collapsed);
+
+                InputMonoGlyphs::Paint (painter, GetCheckedPaddleSourceGlyph(), box, theme.ButtonText());
+            };
+        }
+
 
         entries.push_back (std::move (e));
     }
@@ -674,5 +1100,6 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
     toolbar.SetFlyoutControl (kIdVolume, &volume, VolumeFlyout::kPanelDp);
     toolbar.SetDropDownItems (kIdTheme, GetThemeItems());
     toolbar.SetDropDownItems (kIdColor, GetMonitorItems());
-    toolbar.SetDropDownItems (kIdInput, cluster.GetPickerItems());
+    toolbar.SetDropDownItems (kIdPaddle, GetPaddlePickerItems());
+    toolbar.SetDropDownItems (kIdProfile, GetProfileItems());
 }

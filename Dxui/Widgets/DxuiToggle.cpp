@@ -252,7 +252,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         //  The ring encloses the PILL AND ITS LABEL. Same rule as the
         //  checkbox and the radio: the control is the pair, and an unlabeled
         //  toggle narrates its own state, so there is always a run to ring.
-        if (m_focused)
+        if (m_focused && m_focusCueVisible)
         {
             DxuiFocusRing::AroundRun (painter, text, shown, fontDip, DxuiTheme::kBodyFace,
                                       pillLeft,
