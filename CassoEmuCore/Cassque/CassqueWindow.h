@@ -353,6 +353,9 @@ private:
     void  SelectRowNamed         (const std::wstring & name);
     void  ShowOptions            ();
     bool  IsListVerbOffered      (CassqueActions::Verb verb) const;
+    bool  IsToolbarEntryAvailable (int index) const;
+
+    DxuiToolbar          * m_commandBar      = nullptr;
     void  SetCommandBarDropDowns ();
 
     //  Drag-in: the image location under a drop point, what a drop there

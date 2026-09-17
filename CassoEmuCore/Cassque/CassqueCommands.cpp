@@ -61,6 +61,7 @@ CassqueCommands::CassqueCommands (Handlers handlers)
     //  The toolbar shows some of the same commands; they carry the glyph,
     //  short label and tip the strip draws.
     ApplyToolbarRows (kToolbarRows);
+    ApplyToolbarRows (kCommandBarRows);
     ApplyToolbarRows (kPreviewToolbarRows);
 }
 
@@ -270,19 +271,50 @@ int CassqueCommands::TranslateKey (WPARAM vk, bool ctrl, bool alt, bool shift)
 
 std::vector<DxuiToolbar::Entry> CassqueCommands::BuildToolbarEntries() const
 {
+    return BuildEntries (kToolbarRows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildCommandBarEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildCommandBarEntries() const
+{
+    return BuildEntries (kCommandBarRows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildEntries (std::span<const ToolbarRow> rows) const
+{
     std::vector<DxuiToolbar::Entry>  entries;
 
 
 
-    for (const ToolbarRow & row : kToolbarRows)
+    for (const ToolbarRow & row : rows)
     {
         DxuiToolbar::Entry  entry;
 
         entry.command  = Find (row.id);
         entry.kind     = row.kind;
         entry.group    = row.group;
-        entry.iconOnly = row.iconOnly;
-        entry.trailing = row.trailing;
+        entry.iconOnly    = row.iconOnly;
+        entry.trailing    = row.trailing;
+        entry.seeMoreOnly = row.seeMoreOnly;
 
         entries.push_back (std::move (entry));
     }

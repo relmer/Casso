@@ -125,6 +125,7 @@ public:
     //  The toolbar's entries, in strip order: navigation, refresh, and the
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
+    std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries() const;
 
     //  The preview pane's toolbar: Go to and the byte grouping over a hex
     //  view, or the line address toggle over a BASIC listing.
@@ -170,8 +171,9 @@ private:
         const wchar_t    * glyph;
         const wchar_t    * shortLabel;
         const wchar_t    * tip;
-        bool               iconOnly = false;
-        bool               trailing = false;
+        bool               iconOnly    = false;
+        bool               trailing    = false;
+        bool               seeMoreOnly = false;
     };
 
     struct Key
@@ -273,6 +275,12 @@ private:
         { kForward,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Forward, L"Forward", L"Forward (Alt+Right)",    true  },
         { kUp,            DxuiToolbar::Kind::Command, 0, s_kpszMdl2Up,      L"Up",      L"Up one level (Alt+Up)",  true  },
         { kRefresh,       DxuiToolbar::Kind::Command, 0, s_kpszMdl2Refresh, L"Refresh", L"Refresh (F5)",           true  },
+    };
+
+    //  Explorer's command bar, on its own row under the address bar, where
+    //  the menu bar was.
+    static constexpr ToolbarRow  kCommandBarRows[] =
+    {
         { kNew,           DxuiToolbar::Kind::DropDown, 1, s_kpszMdl2Add,    L"New",     L"New",                    false },
         { kCutItems,      DxuiToolbar::Kind::Command, 2, s_kpszMdl2Cut,     L"Cut",     L"Cut (Ctrl+X)",           true  },
         { kCopyItems,     DxuiToolbar::Kind::Command, 2, s_kpszMdl2Copy,    L"Copy",    L"Copy (Ctrl+C)",          true  },
@@ -281,6 +289,7 @@ private:
         { kDeleteItems,   DxuiToolbar::Kind::Command, 2, s_kpszMdl2Delete,  L"Delete",  L"Delete (Del)",           true  },
         { kSort,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2Sort,   L"Sort",    L"Sort",                   false },
         { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },
+        { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Cassque", L"About Cassque (F1)", false, false, true },
         { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)",   false, true },
         { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
     };
@@ -325,6 +334,7 @@ private:
     //  rows still include the accelerator text for the menu.
 
     void  ApplyToolbarRows (std::span<const ToolbarRow> rows);
+    std::vector<DxuiToolbar::Entry>  BuildEntries (std::span<const ToolbarRow> rows) const;
 
     Handlers                                   m_handlers;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;

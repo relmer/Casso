@@ -90,46 +90,49 @@ public:
     }
 
 
-    TEST_METHOD (Toolbar_ShowsNavigationThenExplorersCommandBar)
+    TEST_METHOD (Toolbar_ShowsNavigationAndCommandBarShowsExplorersCommands)
     {
         CassqueCommands                  commands ({});
-        std::vector<DxuiToolbar::Entry>  entries = commands.BuildToolbarEntries();
+        std::vector<DxuiToolbar::Entry>  nav      = commands.BuildToolbarEntries();
+        std::vector<DxuiToolbar::Entry>  bar      = commands.BuildCommandBarEntries();
         std::vector<int>                 ids;
 
-        for (const DxuiToolbar::Entry & entry : entries)
+        //  The address row: Back, Forward, Up and Refresh, one group of icons.
+        Assert::AreEqual ((size_t) 4, nav.size());
+        Assert::AreEqual ((int) CassqueCommands::kBack, nav[0].command->id);
+
+        for (const DxuiToolbar::Entry & entry : nav)
+        {
+            Assert::IsTrue   (entry.iconOnly, L"The navigation buttons are icons alone");
+            Assert::AreEqual (nav[0].group, entry.group, L"in one evenly spaced group");
+        }
+
+        for (const DxuiToolbar::Entry & entry : bar)
         {
             ids.push_back (entry.command->id);
 
             Assert::IsNotNull (entry.command->glyph);
-            Assert::AreNotEqual ((int) CassqueCommands::kNewTab, entry.command->id, L"A new tab opens from the tab strip, not the toolbar");
+            Assert::AreNotEqual ((int) CassqueCommands::kNewTab, entry.command->id, L"A new tab opens from the tab strip");
             Assert::IsFalse   (entry.command->tip.empty());
         }
 
-        //  Navigation, then Explorer's buttons in its order, then the preview
-        //  toggle and the theme at the far end.
-        Assert::IsTrue (ids == std::vector<int> { CassqueCommands::kBack, CassqueCommands::kForward, CassqueCommands::kUp, CassqueCommands::kRefresh,
-                                                  CassqueCommands::kNew,
+        //  The command bar, in Explorer's order, then the preview toggle and
+        //  the theme at the far end.
+        Assert::IsTrue (ids == std::vector<int> { CassqueCommands::kNew,
                                                   CassqueCommands::kCutItems, CassqueCommands::kCopyItems, CassqueCommands::kPasteItems,
                                                   CassqueCommands::kRenameItem, CassqueCommands::kDeleteItems,
-                                                  CassqueCommands::kSort, CassqueCommands::kView,
+                                                  CassqueCommands::kSort, CassqueCommands::kView, CassqueCommands::kAbout,
                                                   CassqueCommands::kTogglePreview, CassqueCommands::kTheme });
 
-        //  Back, Forward, Up and Refresh are one group of icon-only buttons,
-        //  as in Explorer, and so are the clipboard, Rename and Delete.
-        for (size_t i = 0; i < 4; i++)
+        for (size_t i = 1; i < 6; i++)
         {
-            Assert::IsTrue   (entries[i].iconOnly,              L"The navigation buttons are icons alone");
-            Assert::AreEqual (entries[0].group, entries[i].group, L"in one evenly spaced group");
+            Assert::IsTrue   (bar[i].iconOnly, L"The clipboard, Rename and Delete are icons alone");
+            Assert::AreEqual (bar[1].group, bar[i].group);
         }
 
-        for (size_t i = 5; i < 10; i++)
-        {
-            Assert::IsTrue   (entries[i].iconOnly, L"The clipboard, Rename and Delete are icons alone");
-            Assert::AreEqual (entries[5].group, entries[i].group);
-        }
-
-        Assert::IsTrue  (entries[4].kind  == DxuiToolbar::Kind::DropDown, L"New opens its choices");
-        Assert::IsTrue  (entries[10].kind == DxuiToolbar::Kind::DropDown && entries[11].kind == DxuiToolbar::Kind::DropDown);
-        Assert::IsTrue  (entries[12].trailing && entries[13].trailing, L"The preview toggle and the theme sit at the far end");
-        Assert::IsFalse (entries[11].trailing);
+        Assert::IsTrue  (bar[0].kind == DxuiToolbar::Kind::DropDown, L"New opens its choices");
+        Assert::IsTrue  (bar[6].kind == DxuiToolbar::Kind::DropDown && bar[7].kind == DxuiToolbar::Kind::DropDown);
+        Assert::IsTrue  (bar[8].seeMoreOnly, L"About lives in See more");
+        Assert::IsTrue  (bar[9].trailing && bar[10].trailing, L"The preview toggle and the theme sit at the far end");
+        Assert::IsFalse (bar[7].trailing);
     }};

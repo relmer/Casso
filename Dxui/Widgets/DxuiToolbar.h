@@ -143,12 +143,27 @@ public:
         //  before it, like Explorer's Details button. Trailing entries come
         //  last in the list; with no room to spare they close up normally.
         bool  trailing = false;
+
+        //  Lives in the See more menu whatever the room, never on the strip,
+        //  as Explorer keeps its rarer commands there.
+        bool  seeMoreOnly = false;
     };
 
     DxuiToolbar  ();
     ~DxuiToolbar () override;
 
     void  SetEntries       (std::vector<Entry> entries);
+
+    //  Ends the leading entries in a See more button, as Explorer's command
+    //  bar ends: entries that no longer fit even as icons move into its menu
+    //  from the right as the strip narrows and come back as it widens, and
+    //  entries marked seeMoreOnly are always there. The button shows only
+    //  when its menu has something in it. Call before SetEntries.
+    void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip);
+    bool  IsInSeeMore      (int commandId) const;
+
+    //  The id the See more button's command carries.
+    static constexpr int  kSeeMoreId = -2;
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
     void  SetIconDip       (float dip)                   { m_iconDip = dip; }
 
@@ -197,6 +212,11 @@ public:
     //  gives the hosted control focus, so arrows reach it; Escape closes the
     //  panel and leaves the entry focused.
     int   GetEntryCount    () const                      { return (int) m_slots.size(); }
+
+    //  The command at a strip position, See more's included, and whether the
+    //  entry there is on the strip rather than in See more's menu.
+    int   GetEntryCommandId (int index) const            { return (index >= 0 && index < (int) m_slots.size() && m_slots[(size_t) index].entry.command != nullptr) ? m_slots[(size_t) index].entry.command->id : 0; }
+    bool  IsEntryShown      (int index) const            { return index >= 0 && index < (int) m_slots.size() && !m_slots[(size_t) index].hidden; }
     void  SetFocusIndex    (int index);
     int   GetFocusIndex    () const                      { return m_focusIndex; }
     void  ActivateFocused  ();
@@ -261,6 +281,7 @@ private:
         bool   hovered = false;
         bool   pressed = false;
         bool   labeled = true;
+        bool   hidden  = false;   // in the See more menu rather than on the strip
     };
 
     struct Picker
@@ -291,6 +312,8 @@ private:
     void          OpenFlyout           (bool byKeyboard);
     void          CloseFlyout          ();
     void          OpenDropDown         (int commandId);
+    void          OpenSeeMore          ();
+    void          PlanSeeMore          (int clientWidthPx);
 
     std::function<void (POINT)>  m_onDropDownClickOutside;
     void          WireDropDown         ();
@@ -315,15 +338,16 @@ private:
     RECT                     m_flyoutRc       = {};
     int                      m_focusIndex     = -1;
 
-    IDxuiTextRenderer      * m_textRenderer   = nullptr;
-    const wchar_t          * m_iconFace       = kMdl2IconFace;
-    float                    m_iconDip        = kIconDip;
-    RECT                     m_barRect        = {};
-    RECT                     m_freeRect       = {};
-    RECT                     m_hostClient     = {};
-    DxuiDpiScaler            m_scaler;
-    DxuiMenuMetrics          m_metrics;
-    int                      m_labeledCount   = 0;
+    IDxuiTextRenderer             * m_textRenderer = nullptr;
+    const wchar_t                 * m_iconFace     = kMdl2IconFace;
+    float                           m_iconDip      = kIconDip;
+    RECT                            m_barRect      = {};
+    RECT                            m_freeRect     = {};
+    RECT                            m_hostClient   = {};
+    DxuiDpiScaler                   m_scaler;
+    DxuiMenuMetrics                 m_metrics;
+    int                             m_labeledCount = 0;
+    std::shared_ptr<DxuiCommand>    m_seeMore;
 
     bool                     m_stripColorsSet = false;
     uint32_t                 m_stripOverride  = 0;

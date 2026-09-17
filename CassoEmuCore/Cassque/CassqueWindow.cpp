@@ -274,6 +274,16 @@ void CassqueWindow::OnCreate()
                                 DxuiAddressBar::kFontDip);
     m_toolbar->SetPopupHost    (GetPopupHost());
     m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
+
+    m_commandBar = CreateChild<DxuiToolbar>();
+    m_commandBar->SetTextRenderer (GetTextRenderer());
+    m_commandBar->SetPopupHost    (GetPopupHost());
+    m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
+    m_commandBar->SetEntries      (m_commands.BuildCommandBarEntries());
+    m_commandBar->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
+                                   ? DxuiToolbar::kFluentIconFace
+                                   : DxuiToolbar::kMdl2IconFace);
+    m_commandBar->SetIconDip      (kNavIconDip);
     SetCommandBarDropDowns();
     m_tooltip.SetPopupHost     (GetPopupHost());
 
@@ -360,7 +370,10 @@ void CassqueWindow::ConfigureWidgets()
 
 
 
-    m_menuBar->SetItems (m_commands.BuildMenuItems());
+    //  Cassque has no menu bar: Explorer's command bar takes its place. The
+    //  strip stays, empty and hidden, so its Alt handling finds nothing.
+    m_menuBar->SetItems   ({});
+    m_menuBar->SetVisible (false);
     m_addressRoot = GetProfileRoot();
 
     m_browser.GetTreeRoots (roots);
@@ -618,6 +631,12 @@ void CassqueWindow::ApplyTheme()
     if (m_toolbar != nullptr)
     {
         m_toolbar->SetStripColors (m_theme->navStrip, m_theme->navItemText);
+
+        if (m_commandBar != nullptr)
+        {
+            m_commandBar->SetStripColors (m_theme->navStrip, m_theme->navItemText);
+        }
+
         m_tooltip.SetTheme (*m_theme);
     }
 
@@ -678,7 +697,7 @@ void CassqueWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 
 void CassqueWindow::RecomputeLayout()
 {
-    IDxuiControl *  bands[]  = { &m_tabBand, &m_menuBand, &m_toolbarBand, &m_statusBand, &m_bodyBand };
+    IDxuiControl *  bands[]  = { &m_tabBand, &m_toolbarBand, &m_menuBand, &m_statusBand, &m_bodyBand };
     RECT            body     = {};
     RECT            right    = {};
     RECT            sashRect = {};
@@ -694,10 +713,11 @@ void CassqueWindow::RecomputeLayout()
 
     //  The toolbar's band thickness follows the responsive mode it plans for
     //  the width, so plan it before the bands are docked.
-    m_toolbar->PlanForWidth (m_client.right - m_client.left, m_scaler);
+    m_toolbar->PlanForWidth    (m_client.right - m_client.left, m_scaler);
+    m_commandBar->PlanForWidth (m_client.right - m_client.left, m_scaler);
 
     m_tabBand.SetThickness     (m_scaler.ToPx (kTabHeightDip));
-    m_menuBand.SetThickness    (DxuiMenuBar::GetStripHeightPx (m_scaler.GetDpi()));
+    m_menuBand.SetThickness    (m_scaler.ToPx (m_commandBar->GetBandDp()));
     m_toolbarBand.SetThickness (m_scaler.ToPx (m_toolbar->GetBandDp()));
     m_statusBand.SetThickness  (m_scaler.ToPx (DxuiStatusBar::GetBandDp()));
 
@@ -713,8 +733,8 @@ void CassqueWindow::RecomputeLayout()
     m_tabs->Layout (m_tabBand.GetBounds(), m_scaler);
     FillTabs();
 
-    m_menuBar->SetHostClientRect (m_client);
-    m_menuBar->Layout (m_menuBand.GetBounds(), m_scaler);
+    m_commandBar->SetHostClientRect (m_client);
+    m_commandBar->Layout (m_menuBand.GetBounds(), m_scaler);
 
     m_toolbar->SetHostClientRect (m_client);
     m_toolbar->Layout (m_toolbarBand.GetBounds(), m_scaler);
@@ -1559,6 +1579,32 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::IsToolbarEntryAvailable
+//
+//  An entry on the strip and enabled; See more's button is always enabled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::IsToolbarEntryAvailable (int index) const
+{
+    int  id = m_toolbar->GetEntryCommandId (index);
+
+
+
+    if (!m_toolbar->IsEntryShown (index))
+    {
+        return false;
+    }
+
+    return (id == DxuiToolbar::kSeeMoreId) || IsEnabled (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::BuildFocusStops
 //
 //  A disabled toolbar button, such as Back with no history, is not a stop,
@@ -1573,9 +1619,9 @@ std::vector<FocusStop> CassqueWindow::BuildFocusStops() const
 
 
 
-    for (size_t i = 0; i < CassqueCommands::GetToolbarEntryCount(); i++)
+    for (int i = 0; i < m_toolbar->GetEntryCount(); i++)
     {
-        enabled.push_back (IsEnabled (CassqueCommands::GetToolbarCommandId (i)));
+        enabled.push_back (IsToolbarEntryAvailable (i));
     }
 
     for (int id : (m_previewBarMode != 0) ? CassqueCommands::GetPreviewToolbarCommandIds (m_previewBarMode == 2) : std::vector<int>())
@@ -1653,15 +1699,15 @@ void CassqueWindow::StepToolbarFocus (bool preview, bool forward)
     }
     else
     {
-        for (size_t i = 0; i < CassqueCommands::GetToolbarEntryCount(); i++)
+        for (int i = 0; i < m_toolbar->GetEntryCount(); i++)
         {
-            ids.push_back (CassqueCommands::GetToolbarCommandId (i));
+            ids.push_back (m_toolbar->GetEntryCommandId (i));
         }
     }
 
     while (at >= 0 && at < (int) ids.size())
     {
-        if (IsEnabled (ids[(size_t) at]))
+        if (preview ? IsEnabled (ids[(size_t) at]) : IsToolbarEntryAvailable (at))
         {
             SetFocusStop (FocusStop { preview ? FocusStop::Kind::PreviewToolbarEntry : FocusStop::Kind::ToolbarEntry, at });
             return;
@@ -4096,10 +4142,10 @@ void CassqueWindow::SetCommandBarDropDowns()
         themeItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (id)));
     }
 
-    m_toolbar->SetDropDownItems (CassqueCommands::kNew,   std::move (newItems));
-    m_toolbar->SetDropDownItems (CassqueCommands::kSort,  std::move (sortItems));
-    m_toolbar->SetDropDownItems (CassqueCommands::kView,  std::move (viewItems));
-    m_toolbar->SetDropDownItems (CassqueCommands::kTheme, std::move (themeItems));
+    m_commandBar->SetDropDownItems (CassqueCommands::kNew,   std::move (newItems));
+    m_commandBar->SetDropDownItems (CassqueCommands::kSort,  std::move (sortItems));
+    m_commandBar->SetDropDownItems (CassqueCommands::kView,  std::move (viewItems));
+    m_commandBar->SetDropDownItems (CassqueCommands::kTheme, std::move (themeItems));
 }
 
 
@@ -6140,10 +6186,11 @@ DxuiMessageResult CassqueWindow::OnTimer (UINT_PTR timerId)
     //  Menus slide open and submenus wait out a delay, both on ticks the host
     //  supplies; Casso supplies them from its frame loop, and this window from
     //  its timer.
-    if (m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_previewToolbar->WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
+    if (m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewToolbar->WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
     {
         m_menuBar->TickMenus (GetNowMs());
         m_toolbar->TickMenus (GetNowMs());
+        m_commandBar->TickMenus (GetNowMs());
         m_previewToolbar->TickMenus (GetNowMs());
         GetPopupHost()->GetContextMenu().Tick (GetNowMs());
         Invalidate();
