@@ -3232,8 +3232,8 @@ const wchar_t * CassqueWindow::GetVerbLabel (CassqueActions::Verb verb)
         case CassqueActions::Verb::InsertDrive1:   return L"Insert into drive &1";
         case CassqueActions::Verb::InsertDrive2:   return L"Insert into drive &2";
         case CassqueActions::Verb::OpenInNewCasso: return L"Open in &new Casso";
-        case CassqueActions::Verb::NewDisk:        return L"New disk &image...";
-        case CassqueActions::Verb::NewFolder:      return L"New &folder...";
+        case CassqueActions::Verb::NewDisk:        return L"&Disk image...";
+        case CassqueActions::Verb::NewFolder:      return L"&Folder";
         case CassqueActions::Verb::Format:         return L"&Format disk image...";
         case CassqueActions::Verb::ReadSectors:    return L"Read &sectors to file...";
         case CassqueActions::Verb::WriteSectors:   return L"&Write sectors from file...";
@@ -3319,6 +3319,7 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
     bool                                             known          = false;
     bool                                             moreOptions    = false;
     std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
+    std::vector<DxuiPopupMenuItem>                   newChoices;
 
 
 
@@ -3370,6 +3371,42 @@ void CassqueWindow::ShowListContextMenu (int x, int y)
         {
             AddOpenWithMenu (items);
             continue;
+        }
+
+        //  New's choices go in its own submenu, where the Refresh row starts.
+        if (verb == CassqueActions::Verb::NewFolder || verb == CassqueActions::Verb::NewDisk)
+        {
+            command           = std::make_shared<DxuiCommand>();
+            command->id       = (int) verb;
+            command->label    = GetVerbLabel (verb);
+            command->dispatch = [this, verb]() { RunVerb (verb); };
+
+            if (verb == CassqueActions::Verb::NewFolder)
+            {
+                command->isEnabled = [this]() { return !m_browser.IsImageLocation() || m_browser.GetVolumeKind() == VolumeKind::ProDos; };
+            }
+
+            newChoices.push_back (DxuiPopupMenuItem::ForCommand (command));
+            m_menuCommands.push_back (std::move (command));
+            continue;
+        }
+
+        if (verb == CassqueActions::Verb::Refresh && !newChoices.empty())
+        {
+            std::shared_ptr<DxuiCommand>  parent = std::make_shared<DxuiCommand>();
+            bool                          dos33  = m_browser.IsImageLocation() && m_browser.GetVolumeKind() != VolumeKind::ProDos;
+
+            parent->label     = L"Ne&w";
+            parent->isEnabled = [dos33]() { return !dos33; };
+
+            if (!items.empty())
+            {
+                items.push_back (DxuiPopupMenuItem::ForSeparator());
+            }
+
+            items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (newChoices)));
+            m_menuCommands.push_back (std::move (parent));
+            newChoices.clear();
         }
 
         if (verb == CassqueActions::Verb::Refresh && !items.empty())
@@ -3676,6 +3713,85 @@ void CassqueWindow::EndRename (bool commit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::CreateDiskFromSelection
+//
+//  The selected host files and folders go onto the new disk. Whether they fit
+//  is decided before the image exists, so a refusal leaves nothing behind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::CreateDiskFromSelection (const CassqueNewDiskDialog::Outcome & newDisk)
+{
+    std::vector<std::wstring>  paths;
+    std::wstring               folder = m_browser.GetLocation().path;
+    std::wstring               image  = CassqueBrowser::JoinPath (folder, newDisk.fileName);
+    VolumeKind                 kind   = (newDisk.request.formatName == "prodos") ? VolumeKind::ProDos : VolumeKind::Dos33;
+    std::wstring               refusal;
+    CassqueActions::Outcome    outcome;
+
+
+
+    m_browser.GetSelectedHostPaths (paths);
+
+    if (!paths.empty())
+    {
+        refusal = (newDisk.request.formatName == "none")
+                ? std::wstring (L"A disk with no file system cannot hold files.")
+                : m_actions.CheckFitsNewDisk (kind, paths);
+
+        if (!refusal.empty())
+        {
+            ShowMessage (refusal, MB_ICONWARNING);
+            return;
+        }
+    }
+
+    outcome = m_actions.CreateImage (folder, newDisk.fileName, newDisk.request);
+
+    if (outcome.Succeeded() && !paths.empty())
+    {
+        outcome = m_actions.PutInto (image, kind, "", paths, MakeAddressPrompt());
+    }
+
+    ReportOutcome (outcome, L"New disk");
+    RefreshAfterHostChange();
+    SelectRowNamed (newDisk.fileName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::SelectRowNamed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::SelectRowNamed (const std::wstring & name)
+{
+    const std::vector<CatalogRow> &  rows = m_browser.GetRows();
+
+
+
+    for (size_t i = 0; i < rows.size(); i++)
+    {
+        if (_wcsicmp (rows[i].name.c_str(), name.c_str()) == 0)
+        {
+            m_browser.SetSelectedRows ({ (int) i });
+            m_list->SetSelectedRows ({ (int) i }, (int) i);
+            m_list->EnsureVisible ((int) i);
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::GetPasteFolder
 //
 //  A single folder row takes the paste; otherwise the folder being shown.
@@ -3881,20 +3997,28 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
 
             if (newDisk.confirmed)
             {
-                ReportOutcome (m_actions.CreateImage (m_browser.GetLocation().path, newDisk.fileName, newDisk.request), L"New disk");
-                FillList();
+                CreateDiskFromSelection (newDisk);
             }
 
             break;
 
         case CassqueActions::Verb::NewFolder:
-            if (CassquePromptDialog::Ask (GetHwnd(), m_theme, L"New folder", L"Folder name:",
-                                          L"", kMaxCatalogName, newName))
+            //  An unused default name, open for renaming at once.
+            newName = m_actions.GetNewFolderName();
+
+            if (!m_browser.IsImageLocation())
+            {
+                hr = m_shellVerbs.CreateFolder (GetHwnd(), m_browser.GetLocation().path, newName);
+                RefreshAfterHostChange();
+            }
+            else
             {
                 ReportOutcome (m_actions.CreateFolder (newName), L"New folder");
                 FillList();
             }
 
+            SelectRowNamed (newName);
+            BeginRename();
             break;
 
         case CassqueActions::Verb::Format:

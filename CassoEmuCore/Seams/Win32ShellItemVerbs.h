@@ -39,6 +39,7 @@ public:
     HRESULT  PlaceOnClipboard    (HWND owner, const std::vector<std::wstring> & paths, bool cut) override;
     bool     ClipboardHasFiles   () override;
     HRESULT  PasteInto           (HWND owner, const std::wstring & folder) override;
+    HRESULT  CreateFolder        (HWND owner, const std::wstring & parent, const std::wstring & name) override;
     HRESULT  Share               (HWND owner, const std::vector<std::wstring> & paths) override;
 
 private:

@@ -105,6 +105,42 @@ public:
 
     Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style);
     Outcome  PutFiles       (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {});
+
+    //  Host files and folders into a directory of an image, by Put's rules. A
+    //  folder becomes a ProDOS directory with its contents; DOS 3.3 has no
+    //  directories, so a folder there is refused by name rather than
+    //  flattened. A disk image goes in as a file.
+    Outcome  PutInto        (const std::wstring & imagePath, VolumeKind kind, const std::string & directory,
+                             const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {});
+
+    //  Whether host files and folders fit on a new 140K disk of this kind,
+    //  counted by the blocks or sectors each takes. Empty when they fit;
+    //  otherwise why not, for the refusal shown before anything is created.
+    std::wstring  CheckFitsNewDisk (VolumeKind kind, const std::vector<std::wstring> & hostPaths);
+
+    //  The data and structure a file and a directory take, and a new disk's
+    //  room for them, by file system. Public so the arithmetic is tested.
+    static uint64_t  CountUnitsForFile   (VolumeKind kind, uint64_t sizeBytes);
+    static uint64_t  CountUnitsForFolder (VolumeKind kind);
+    static uint64_t  GetNewDiskFreeUnits (VolumeKind kind);
+
+    //  A name nothing in `taken` has, from `base`: Explorer's "New folder",
+    //  "New folder (2)" on the host, and within ProDOS's fifteen characters,
+    //  "NEW.FOLDER", "NEW.FOLDER.2" in an image. Case does not tell names apart.
+    static std::wstring  MakeUnusedName (const std::wstring & base, const std::vector<std::wstring> & taken, bool host);
+
+    //  The unused name a new folder in the current location takes.
+    std::wstring  GetNewFolderName () const;
+
+    static constexpr const wchar_t *  kHostFolderBase          = L"New folder";
+    static constexpr const wchar_t *  kProDosFolderBase        = L"NEW.FOLDER";
+    static constexpr size_t           kProDosNameMax           = 15;
+    static constexpr uint64_t         kProDosBlockBytes        = 512;
+    static constexpr uint64_t         kProDosIndexEntries      = 256;
+    static constexpr uint64_t         kProDosNewDiskFreeBlocks = 273;   // 280 less 2 boot, 4 directory, 1 bitmap
+    static constexpr uint64_t         kDos33SectorBytes        = 256;
+    static constexpr uint64_t         kDos33ListEntries        = 122;
+    static constexpr uint64_t         kDos33NewDiskFreeSectors = 496;   // 560 less tracks 0-2 and the catalog track
     Outcome  DeleteSelected ();
     Outcome  BootSelected   ();
     Outcome  RenameSelected (const std::wstring & newName);
@@ -193,6 +229,15 @@ public:
     static uint64_t  FindInSource (const ReadFn & read, uint64_t count, const std::vector<Byte> & pattern, bool isText, uint64_t start);
 
 private:
+    static void  AppendMessage (Outcome & inOutOutcome, HRESULT hr, const std::wstring & message);
+
+    bool  IsHostFolder    (const std::wstring & path);
+    bool  TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry);
+    void  PutItems     (const std::string & image, VolumeKind kind, const std::string & directory,
+                        const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Outcome & inOutOutcome);
+    void  PutFolder    (const std::string & image, VolumeKind kind, const std::string & directory,
+                        const std::wstring & hostFolder, const AddressFn & askAddress, Outcome & inOutOutcome);
+
     void  FinishWrite (const std::wstring & imagePath);
 
     static bool  TryParseGoToTarget (const std::wstring & text, int64_t caretAddress, int64_t & outAddress);

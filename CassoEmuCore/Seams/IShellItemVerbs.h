@@ -54,6 +54,7 @@ public:
     virtual HRESULT  PlaceOnClipboard  (HWND owner, const std::vector<std::wstring> & paths, bool cut) = 0;
     virtual bool     ClipboardHasFiles () = 0;
     virtual HRESULT  PasteInto         (HWND owner, const std::wstring & folder) = 0;
+    virtual HRESULT  CreateFolder      (HWND owner, const std::wstring & parent, const std::wstring & name) = 0;
 
     //  Windows' share sheet for the items, as Explorer's Share opens it.
     virtual HRESULT  Share             (HWND owner, const std::vector<std::wstring> & paths) = 0;

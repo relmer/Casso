@@ -6,6 +6,7 @@
 #include "Cassque/CassqueBrowser.h"
 #include "Cassque/CassqueCommands.h"
 #include "Cassque/CassqueNamedControl.h"
+#include "Cassque/CassqueNewDiskDialog.h"
 #include "Cassque/Model/FocusRing.h"
 #include "Cassque/Model/CassquePrefs.h"
 #include "Config/IFileSystem.h"
@@ -340,6 +341,8 @@ private:
     static const wchar_t *  GetVerbGlyph (CassqueActions::Verb verb);
     static int              GetIconOrder (CassqueActions::Verb verb);
     std::wstring  GetPasteFolder () const;
+    void  CreateDiskFromSelection (const CassqueNewDiskDialog::Outcome & newDisk);
+    void  SelectRowNamed         (const std::wstring & name);
     void  RefreshAfterHostChange ();
     void  CopySelectedPaths      ();
     void  ShowRowProperties      (int row);

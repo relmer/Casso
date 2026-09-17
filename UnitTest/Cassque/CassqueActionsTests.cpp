@@ -331,6 +331,68 @@ public:
     }
 
 
+    TEST_METHOD (ANewItemsName_IsTheFirstOneNotInUse)
+    {
+        Assert::AreEqual (std::wstring (L"New folder"),     CassqueActions::MakeUnusedName (L"New folder", { L"a.txt" }, true));
+        Assert::AreEqual (std::wstring (L"New folder (2)"), CassqueActions::MakeUnusedName (L"New folder", { L"new FOLDER" }, true),
+                          L"Case does not tell names apart");
+        Assert::AreEqual (std::wstring (L"New folder (3)"), CassqueActions::MakeUnusedName (L"New folder", { L"New folder", L"New folder (2)" }, true));
+
+        Assert::AreEqual (std::wstring (L"NEW.FOLDER.2"),   CassqueActions::MakeUnusedName (L"NEW.FOLDER", { L"NEW.FOLDER" }, false));
+        Assert::AreEqual (std::wstring (L"ABCDEFGHIJKLM.2"), CassqueActions::MakeUnusedName (L"ABCDEFGHIJKLMNO", { L"ABCDEFGHIJKLMNO" }, false),
+                          L"Within ProDOS's fifteen characters");
+    }
+
+
+    TEST_METHOD (SpaceIsCountedInBlocksAndSectors)
+    {
+        Assert::AreEqual ((uint64_t) 1,   CassqueActions::CountUnitsForFile (VolumeKind::ProDos, 0),      L"A seedling file");
+        Assert::AreEqual ((uint64_t) 1,   CassqueActions::CountUnitsForFile (VolumeKind::ProDos, 512));
+        Assert::AreEqual ((uint64_t) 3,   CassqueActions::CountUnitsForFile (VolumeKind::ProDos, 513),    L"Two data blocks and an index block");
+        Assert::AreEqual ((uint64_t) 2,   CassqueActions::CountUnitsForFile (VolumeKind::Dos33, 100),     L"A sector and its track/sector list");
+        Assert::AreEqual ((uint64_t) 125, CassqueActions::CountUnitsForFile (VolumeKind::Dos33, 123 * 256), L"123 sectors need a second list");
+    }
+
+
+    TEST_METHOD (ASelectionTooLarge_IsRefusedBeforeTheDiskIsMade)
+    {
+        Host  host;
+
+        host.SeedBytes (std::vector<Byte> (200 * 1024, 0x55), L"C:\\In\\big.bin");
+        host.SeedBytes (Bytes ("small"),                       L"C:\\In\\small.txt");
+
+        Assert::IsTrue  (host.actions.CheckFitsNewDisk (VolumeKind::ProDos, { L"C:\\In\\small.txt" }).empty());
+        Assert::IsFalse (host.actions.CheckFitsNewDisk (VolumeKind::ProDos, { L"C:\\In\\big.bin" }).empty());
+        Assert::IsFalse (host.actions.CheckFitsNewDisk (VolumeKind::Dos33,  { L"C:\\In" }).empty(), L"DOS 3.3 has no folders");
+    }
+
+
+    TEST_METHOD (AFolderGoesIntoAProDosImageAsADirectory_AndIsRefusedByDos33)
+    {
+        Host                     host;
+        CassqueActions::Outcome  outcome;
+
+        host.SeedFixture ("Cassque/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes   (Bytes ("10 PRINT \"IN\"\n20 END\n"), L"C:\\In\\Games\\inner.bas");
+
+        outcome = host.actions.PutInto (L"C:\\Disks\\prodos.po", VolumeKind::ProDos, "", { L"C:\\In\\Games" });
+        Assert::IsTrue (outcome.Succeeded());
+
+        {
+            VolumeListing  listing;
+            VolumeKind     kind = VolumeKind::Unknown;
+
+            Assert::IsTrue (host.browser.GetOperations().List ("C:\\Disks\\prodos.po", "GAMES", listing, kind).Succeeded(),
+                            L"The folder became a directory");
+            Assert::AreEqual ((size_t) 1, listing.entries.size(), L"holding the file");
+        }
+
+        outcome = host.actions.PutInto (L"C:\\Disks\\dos33.dsk", VolumeKind::Dos33, "", { L"C:\\In\\Games" });
+        Assert::IsFalse (outcome.Succeeded());
+        Assert::IsTrue  (outcome.message.find (L"no folders") != std::wstring::npos);
+    }
+
+
     TEST_METHOD (NewDiskChoices_MapToTheRunnersNames)
     {
         DiskOperations::NewDiskRequest  request = CassqueNewDiskChoices::MakeRequest (1, 2, L"MYVOL", true);

@@ -772,3 +772,39 @@ Error:
 
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::CreateFolder
+//
+//  Through the file operation, so Explorer's undo takes it back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::CreateFolder (HWND owner, const std::wstring & parent, const std::wstring & name)
+{
+    HRESULT                 hr = S_OK;
+    ComPtr<IFileOperation>  operation;
+    ComPtr<IShellItem>      folder;
+
+
+
+    hr = SHCreateItemFromParsingName (parent.c_str(), nullptr, IID_PPV_ARGS (&folder));
+    CHR (hr);
+
+    hr = CreateOperation (owner, &operation);
+    CHR (hr);
+
+    hr = operation->NewItem (folder.Get(), FILE_ATTRIBUTE_DIRECTORY, name.c_str(), nullptr, nullptr);
+    CHR (hr);
+
+    hr = operation->PerformOperations();
+    CHR (hr);
+
+Error:
+    return hr;
+}

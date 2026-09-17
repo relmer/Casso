@@ -130,16 +130,20 @@ std::vector<CassqueActions::Verb> CassqueActions::GetListVerbs() const
         verbs.push_back (Verb::Paste);
     }
 
-    //  A new image belongs to the folder, not to anything in it, so it is offered
-    //  only when the menu is for the folder's background, as Explorer's New is.
-    if (!m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder && selected == 0)
+    //  New, for what the location can hold. A host folder takes folders and
+    //  disk images, and a new image made with files selected receives them.
+    //  An image takes folders when it is ProDOS; a DOS 3.3 image offers New
+    //  disabled, which the window decides from the volume.
+    if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder)
     {
+        if (selected == 0)
+        {
+            verbs.push_back (Verb::NewFolder);
+        }
+
         verbs.push_back (Verb::NewDisk);
     }
-
-    //  New folder where the file system has folders, which is ProDOS and the
-    //  host. DOS 3.3 has none, so it is not offered there.
-    if (selected == 0 && m_browser.GetVolumeKind() == VolumeKind::ProDos && m_browser.IsImageLocation())
+    else if (m_browser.IsImageLocation() && selected == 0)
     {
         verbs.push_back (Verb::NewFolder);
     }
@@ -497,11 +501,7 @@ CassqueActions::Outcome CassqueActions::GetSelected (const std::wstring & hostFo
 
 CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress)
 {
-    Outcome        outcome;
-    std::wstring   imagePath = m_browser.GetLocation().path;
-    std::string    image     = TextEncoding::WideToNarrow (imagePath);
-    VolumeKind     kind      = m_browser.GetVolumeKind();
-    std::string    inner     = m_browser.GetLocation().innerPath;
+    Outcome  outcome;
 
 
 
@@ -512,17 +512,94 @@ CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring
         return outcome;
     }
 
+    return PutInto (m_browser.GetLocation().path, m_browser.GetVolumeKind(), m_browser.GetLocation().innerPath, hostPaths, askAddress);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::PutInto
+//
+//  The image is reported written once, after everything has gone in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::Outcome CassqueActions::PutInto (
+    const std::wstring               & imagePath,
+    VolumeKind                         kind,
+    const std::string                & directory,
+    const std::vector<std::wstring>  & hostPaths,
+    const AddressFn                  & askAddress)
+{
+    Outcome  outcome;
+
+
+
+    PutItems (TextEncoding::WideToNarrow (imagePath), kind, directory, hostPaths, askAddress, outcome);
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (imagePath);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::AppendMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueActions::AppendMessage (Outcome & inOutOutcome, HRESULT hr, const std::wstring & message)
+{
+    inOutOutcome.hr       = hr;
+    inOutOutcome.message += (inOutOutcome.message.empty() ? L"" : L"\n") + message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::PutItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueActions::PutItems (
+    const std::string                & image,
+    VolumeKind                         kind,
+    const std::string                & directory,
+    const std::vector<std::wstring>  & hostPaths,
+    const AddressFn                  & askAddress,
+    Outcome                          & inOutOutcome)
+{
     for (const std::wstring & hostPath : hostPaths)
     {
         std::string        content;
         std::vector<Byte>  bytes;
         PutPlan            plan;
-        HRESULT            hr = m_fs.ReadAllText (hostPath, content);
+        HRESULT            hr = S_OK;
+
+        if (IsHostFolder (hostPath))
+        {
+            PutFolder (image, kind, directory, hostPath, askAddress, inOutOutcome);
+            continue;
+        }
+
+        hr = m_fs.ReadAllText (hostPath, content);
 
         if (FAILED (hr))
         {
-            outcome.hr       = hr;
-            outcome.message += (outcome.message.empty() ? L"" : L"\n") + GetLeafName (hostPath) + L" could not be read.";
+            AppendMessage (inOutOutcome, hr, GetLeafName (hostPath) + L" could not be read.");
             continue;
         }
 
@@ -531,8 +608,7 @@ CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring
 
         if (!plan.refusal.empty())
         {
-            outcome.hr       = E_FAIL;
-            outcome.message += (outcome.message.empty() ? L"" : L"\n") + GetLeafName (hostPath) + L": " + plan.refusal;
+            AppendMessage (inOutOutcome, E_FAIL, GetLeafName (hostPath) + L": " + plan.refusal);
             continue;
         }
 
@@ -541,27 +617,331 @@ CassqueActions::Outcome CassqueActions::PutFiles (const std::vector<std::wstring
             continue;
         }
 
-        //  Into the directory being shown, which is the volume's own unless a
-        //  subdirectory is open.
-        plan.catalogName = inner.empty() ? plan.catalogName : inner + "/" + plan.catalogName;
+        //  Into the directory named, which is the volume's own when empty.
+        plan.catalogName = directory.empty() ? plan.catalogName : directory + "/" + plan.catalogName;
 
         if (plan.usePayload)
         {
-            Append (outcome, m_browser.GetOperations().WritePayload (image, plan.catalogName, plan.payload));
+            Append (inOutOutcome, m_browser.GetOperations().WritePayload (image, plan.catalogName, plan.payload));
         }
         else
         {
-            Append (outcome, m_browser.GetOperations().Put (image, TextEncoding::WideToNarrow (hostPath), plan.catalogName,
-                                                            plan.typeName, plan.hasLoadAddress, plan.loadAddress, plan.encoding));
+            Append (inOutOutcome, m_browser.GetOperations().Put (image, TextEncoding::WideToNarrow (hostPath), plan.catalogName,
+                                                                 plan.typeName, plan.hasLoadAddress, plan.loadAddress, plan.encoding));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::TryGetHostEntry
+//
+//  An item's entry in its folder's listing, which says whether it is a
+//  folder and how large a file is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry)
+{
+    std::vector<FileSystemEntry>  siblings;
+    std::filesystem::path         item   (path);
+    std::wstring                  leaf   = item.filename().wstring();
+    HRESULT                       hr     = m_fs.EnumerateEntries (item.parent_path().wstring(), siblings);
+
+
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    for (const FileSystemEntry & sibling : siblings)
+    {
+        if (_wcsicmp (sibling.name.c_str(), leaf.c_str()) == 0)
+        {
+            outEntry = sibling;
+            return true;
         }
     }
 
-    if (outcome.written > 0)
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::IsHostFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueActions::IsHostFolder (const std::wstring & path)
+{
+    FileSystemEntry  entry;
+    bool             found = TryGetHostEntry (path, entry);
+
+
+
+    return found && entry.isFolder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::PutFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueActions::PutFolder (
+    const std::string    & image,
+    VolumeKind             kind,
+    const std::string    & directory,
+    const std::wstring   & hostFolder,
+    const AddressFn      & askAddress,
+    Outcome              & inOutOutcome)
+{
+    std::vector<FileSystemEntry>  entries;
+    std::vector<std::wstring>     children;
+    std::string                   name   = MakeCatalogName (GetLeafName (hostFolder), kind);
+    std::string                   target = directory.empty() ? name : directory + "/" + name;
+    HRESULT                       hr     = S_OK;
+
+
+
+    if (kind != VolumeKind::ProDos)
     {
-        FinishWrite (imagePath);
+        AppendMessage (inOutOutcome, E_FAIL, GetLeafName (hostFolder) + L": DOS 3.3 has no folders, so a folder cannot go on this disk.");
+        return;
     }
 
-    return outcome;
+    hr = m_fs.EnumerateEntries (hostFolder, entries);
+
+    if (FAILED (hr))
+    {
+        AppendMessage (inOutOutcome, hr, GetLeafName (hostFolder) + L" could not be read.");
+        return;
+    }
+
+    Append (inOutOutcome, m_browser.GetOperations().Mkdir (image, target));
+
+    for (const FileSystemEntry & entry : entries)
+    {
+        children.push_back (CassqueBrowser::JoinPath (hostFolder, entry.name));
+    }
+
+    PutItems (image, kind, target, children, askAddress, inOutOutcome);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::CountUnitsForFile
+//
+//  ProDOS counts 512-byte blocks: one for a file up to a block, and an index
+//  block for each 256 data blocks beyond that. DOS 3.3 counts 256-byte
+//  sectors: the data, plus a track/sector list for each 122 of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t CassqueActions::CountUnitsForFile (VolumeKind kind, uint64_t sizeBytes)
+{
+    uint64_t  unit  = (kind == VolumeKind::ProDos) ? kProDosBlockBytes : kDos33SectorBytes;
+    uint64_t  data  = (std::max) ((uint64_t) 1, (sizeBytes + unit - 1) / unit);
+    uint64_t  index = 0;
+
+
+
+    if (kind == VolumeKind::ProDos)
+    {
+        index = (data <= 1) ? 0 : (data + kProDosIndexEntries - 1) / kProDosIndexEntries;
+    }
+    else
+    {
+        index = (data + kDos33ListEntries - 1) / kDos33ListEntries;
+    }
+
+    return data + index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::CountUnitsForFolder
+//
+//  A ProDOS directory's key block. DOS 3.3 holds no folders.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t CassqueActions::CountUnitsForFolder (VolumeKind kind)
+{
+    return (kind == VolumeKind::ProDos) ? 1 : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::GetNewDiskFreeUnits
+//
+//  A 140K disk after its file system's own structures: ProDOS keeps its boot
+//  blocks, volume directory and bitmap; DOS 3.3 keeps its three tracks and
+//  the catalog track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t CassqueActions::GetNewDiskFreeUnits (VolumeKind kind)
+{
+    return (kind == VolumeKind::ProDos) ? kProDosNewDiskFreeBlocks : kDos33NewDiskFreeSectors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::CheckFitsNewDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueActions::CheckFitsNewDisk (VolumeKind kind, const std::vector<std::wstring> & hostPaths)
+{
+    uint64_t                   needed  = 0;
+    uint64_t                   free    = GetNewDiskFreeUnits (kind);
+    std::vector<std::wstring>  pending = hostPaths;
+
+
+
+    while (!pending.empty())
+    {
+        std::wstring                  path = pending.back();
+        std::vector<FileSystemEntry>  entries;
+        FileSystemEntry               file;
+        HRESULT                       hr   = S_OK;
+
+        pending.pop_back();
+
+        if (IsHostFolder (path))
+        {
+            if (kind != VolumeKind::ProDos)
+            {
+                return GetLeafName (path) + L" is a folder, and DOS 3.3 has no folders.";
+            }
+
+            needed += CountUnitsForFolder (kind);
+
+            hr = m_fs.EnumerateEntries (path, entries);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            for (const FileSystemEntry & entry : entries)
+            {
+                pending.push_back (CassqueBrowser::JoinPath (path, entry.name));
+            }
+
+            continue;
+        }
+
+        if (TryGetHostEntry (path, file))
+        {
+            needed += CountUnitsForFile (kind, file.sizeBytes);
+        }
+    }
+
+    if (needed > free)
+    {
+        return std::format (L"The selection needs {} {} and a new disk has room for {}.",
+                            needed, (kind == VolumeKind::ProDos) ? L"blocks" : L"sectors", free);
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::MakeUnusedName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueActions::MakeUnusedName (const std::wstring & base, const std::vector<std::wstring> & taken, bool host)
+{
+    std::wstring  candidate = base;
+    int           n         = 1;
+
+
+
+    for (;;)
+    {
+        bool  inUse = false;
+
+        for (const std::wstring & name : taken)
+        {
+            inUse = inUse || _wcsicmp (name.c_str(), candidate.c_str()) == 0;
+        }
+
+        if (!inUse)
+        {
+            return candidate;
+        }
+
+        n++;
+
+        if (host)
+        {
+            candidate = std::format (L"{} ({})", base, n);
+        }
+        else
+        {
+            std::wstring  suffix = std::format (L".{}", n);
+
+            candidate = base.substr (0, kProDosNameMax - suffix.size()) + suffix;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::GetNewFolderName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassqueActions::GetNewFolderName() const
+{
+    std::vector<std::wstring>  taken;
+    bool                       host = !m_browser.IsImageLocation();
+
+
+
+    for (const CatalogRow & row : m_browser.GetRows())
+    {
+        taken.push_back (row.name);
+    }
+
+    return MakeUnusedName (host ? kHostFolderBase : kProDosFolderBase, taken, host);
 }
 
 
