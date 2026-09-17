@@ -2350,6 +2350,59 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetCellTextRectPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) const
+{
+    int               rowH    = GetRowHeightPx();
+    int               headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int               hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
+    int               cap     = GetVisibleRowCapacity();
+    bool              needBar = (GetRowCount() > cap) && (cap > 0);
+    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int               colOff  = m_hScrollEnabled ? -m_leftPx : 0;
+    int               left    = 0;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (row < m_topRow || row >= m_topRow + cap || row >= GetRowCount() || column >= m_columns.size() ||
+        !m_columns[column].visible)
+    {
+        return false;
+    }
+
+    ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    if (colWPx[column] <= 0)
+    {
+        return false;
+    }
+
+    left = colXPx[column] + colOff + m_scaler.ToPx (s_kCellPadLeftDip);
+
+    if (column < GetRowCells (row).size() && GetRowCells (row)[column].icon)
+    {
+        left += m_scaler.ToPx (s_kCellIconDip + s_kCellIconGapDip);
+    }
+
+    outRect.left   = left;
+    outRect.top    = headerH + hdrGap + (row - m_topRow) * rowH;
+    outRect.right  = colXPx[column] + colOff + colWPx[column];
+    outRect.bottom = outRect.top + rowH;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HitTestRow
 //
 //  xPx/yPx are relative to the list's rect.left/top. Returns the

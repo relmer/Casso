@@ -28,6 +28,7 @@
 #include "Widgets/DxuiSplitter.h"
 #include "Widgets/DxuiStatusBar.h"
 #include "Widgets/DxuiTabStrip.h"
+#include "Widgets/DxuiTextInput.h"
 #include "Widgets/DxuiTextView.h"
 #include "Widgets/DxuiToolbar.h"
 #include "Widgets/DxuiToolbarEditBox.h"
@@ -352,6 +353,8 @@ private:
     void  RunVerb             (CassqueActions::Verb verb);
     void  RunRawVerb          (CassqueActions::Verb verb);
     void  ReportOutcome       (const CassqueActions::Outcome & outcome, const wchar_t * verbName);
+    void  BeginRename         ();
+    void  EndRename           (bool commit);
     void  InsertIntoDrive     (const std::wstring & imagePath, int drive);
     void  OpenInNewCasso      (const std::wstring & imagePath);
     HWND  FindCassoTarget     () const;
@@ -400,6 +403,11 @@ private:
     DxuiTreeView         * m_tree            = nullptr;
     DxuiSplitter         * m_treeSplitter    = nullptr;
     DxuiListView         * m_list            = nullptr;
+
+    //  Rename in place: an edit box laid over the row's name, as Explorer's
+    //  F2 opens one. The row being renamed, or -1.
+    DxuiTextInput        * m_renameBox       = nullptr;
+    int                    m_renameRow       = -1;
     DxuiLabel            * m_listMessage     = nullptr;
     DxuiSplitter         * m_previewSplitter = nullptr;
     DxuiListView         * m_previewList     = nullptr;

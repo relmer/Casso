@@ -52,6 +52,10 @@ public:
     //  Selects every character, so a default value is replaced by the first
     //  keystroke.
     void  SelectAll     ()                            { m_anchor = 0; m_caret = m_text.size(); }
+
+    //  Selects [start, end), with the caret at the end, as a rename selects a
+    //  file's name without its extension.
+    void  SetSelection  (size_t start, size_t end)    { m_anchor = (std::min) (start, m_text.size()); m_caret = (std::min) (end, m_text.size()); }
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } ResetBlink(); }
     void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; m_anchor = m_caret; } }
     void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }
@@ -69,6 +73,10 @@ public:
     // input inside it. The text, selection, caret, and placeholder still
     // paint normally.
     void  SetChromeless (bool chromeless)             { m_chromeless = chromeless; }
+
+    //  The field lies over another control's text, as a rename in place lies
+    //  over a list row, and must hide it.
+    void  SetOverText   (bool overText)               { m_overText = overText; }
 
     // Muted prompt text drawn in place of the value while the field is
     // empty (e.g. "Search"). Empty by default.
@@ -168,6 +176,7 @@ private:
     bool                 m_hover             = false;
     bool                 m_dragging          = false;
     bool                 m_chromeless        = false;
+    bool                 m_overText          = false;
     bool                 m_placeholderItalic = false;
     const wchar_t      * m_face              = nullptr;   // null: the theme's body face
     float                m_fontDip           = 13.0f;

@@ -523,6 +523,14 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         }
     }
 
+    //  Over another control's text, the fill goes through the text renderer,
+    //  which draws after every painter fill and would otherwise show that
+    //  text through the field.
+    if (m_overText)
+    {
+        text.FillRect (x + 1.0f, y + 1.0f, w - 2.0f, h - 2.0f, bgArgb);
+    }
+
     if (!m_chromeless)
     {
         painter.FillRoundedRect    (x, y, w, h, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), bgArgb);

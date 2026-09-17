@@ -315,6 +315,12 @@ public:
     int   HitTestHeaderColumn (int xPx, int yPx) const;
     int   HitTestRow          (int xPx, int yPx) const;
 
+    //  Where a visible row's text sits in a column, after its icon, relative
+    //  to the list's own top-left: what an edit box laid over the cell covers,
+    //  as a rename in place does. False for a row scrolled out of view or a
+    //  hidden column.
+    bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const;
+
     // Self-contained mouse input. Forward widget-relative mouse events
     // (positionDip = the point minus the list's own origin) via OnMouse;
     // the list owns scrolling, thumb / column-resize drags, hover, and

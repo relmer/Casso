@@ -251,6 +251,13 @@ void CassqueWindow::OnCreate()
     m_address         = CreateChild<DxuiAddressBar>();
     m_menuBar         = CreateChild<DxuiMenuBar>();
 
+    m_renameBox       = CreateChild<DxuiTextInput>();
+
+    m_renameBox->SetVisible      (false);
+    m_renameBox->SetOverText     (true);
+    m_renameBox->SetHwnd         (GetHwnd());
+    m_renameBox->SetTextRenderer (GetTextRenderer());
+
     m_toolbar->SetTextRenderer (GetTextRenderer());
     m_address->SetTextRenderer (GetTextRenderer());
     m_address->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
@@ -987,6 +994,12 @@ void CassqueWindow::FillList()
 
 
 
+    //  The rows are about to change under it.
+    if (m_renameRow >= 0)
+    {
+        EndRename (false);
+    }
+
     for (const CatalogRow & row : m_browser.GetRows())
     {
         rows.push_back (CassqueBrowser::ToCells (row, location, &m_shellIcons));
@@ -1707,6 +1720,24 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
+    if (m_renameRow >= 0)
+    {
+        if (Contains (m_renameBox->GetBounds(), point) || (ev.kind != DxuiMouseEventKind::Down && ev.kind != DxuiMouseEventKind::Wheel))
+        {
+            m_renameBox->OnMouse (ev);
+            Invalidate();
+
+            if (Contains (m_renameBox->GetBounds(), point))
+            {
+                return true;
+            }
+        }
+        else
+        {
+            EndRename (true);
+        }
+    }
+
     //  A click on the zoom level puts it back to 100%.
     if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left
         && Contains (m_status->GetFieldRect (3), point))
@@ -2032,6 +2063,23 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
     bool  handled = false;
 
 
+
+    //  A rename in place takes every key: Enter keeps the name, Escape puts
+    //  the old one back.
+    if (m_renameRow >= 0)
+    {
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
+        {
+            EndRename (ev.vk == VK_RETURN);
+        }
+        else
+        {
+            m_renameBox->OnKey (ev);
+        }
+
+        Invalidate();
+        return true;
+    }
 
     //  The search box takes keys and characters first while it has focus;
     //  Tab and the keys it has no use for carry on as usual.
@@ -3510,6 +3558,121 @@ void CassqueWindow::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::BeginRename
+//
+//  Over the name, with the name selected up to its extension, as Explorer
+//  selects it; an entry inside an image has no extension to leave out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::BeginRename()
+{
+    RECT          cell  = {};
+    RECT          list  = m_list->GetBounds();
+    int           row   = -1;
+    std::wstring  name;
+    size_t        dot   = std::wstring::npos;
+    bool          host  = !m_browser.IsImageLocation();
+
+
+
+    if (m_browser.GetSelectedRows().size() != 1)
+    {
+        return;
+    }
+
+    row = m_browser.GetSelectedRows()[0];
+    m_list->EnsureVisible (row);
+
+    if (!m_list->GetCellTextRectPx (row, 0, cell))
+    {
+        return;
+    }
+
+    name = m_browser.GetRows()[(size_t) row].name;
+
+    OffsetRect (&cell, list.left, list.top);
+
+    m_renameBox->SetMaxLength (host ? MAX_PATH : kMaxCatalogName);
+    m_renameBox->SetText      (name);
+    m_renameBox->Layout       (cell, m_scaler);
+    m_renameBox->SetVisible   (true);
+    m_renameBox->SetFocused   (true);
+    m_renameBox->SelectAll();
+
+    dot = host ? name.find_last_of (L'.') : std::wstring::npos;
+
+    //  The stem only, so typing keeps the type.
+    if (dot != std::wstring::npos && dot > 0 && !m_browser.GetRows()[(size_t) row].isDirectory)
+    {
+        m_renameBox->SetSelection (0, dot);
+    }
+
+    m_renameRow = row;
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::EndRename
+//
+//  A name left as it was, or emptied, changes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::EndRename (bool commit)
+{
+    HRESULT       hr      = S_OK;
+    int           row     = m_renameRow;
+    std::wstring  newName = m_renameBox->GetText();
+    std::wstring  oldName;
+    std::wstring  path;
+
+
+
+    m_renameRow = -1;
+    m_renameBox->SetFocused (false);
+    m_renameBox->SetVisible (false);
+    Invalidate();
+
+    if (!commit || row < 0 || row >= (int) m_browser.GetRows().size())
+    {
+        return;
+    }
+
+    oldName = m_browser.GetRows()[(size_t) row].name;
+
+    if (newName.empty() || newName == oldName)
+    {
+        return;
+    }
+
+    if (!m_browser.IsImageLocation())
+    {
+        if (m_browser.TryGetRowPath (row, path))
+        {
+            hr = m_shellVerbs.RenameItem (GetHwnd(), path, newName);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        RefreshAfterHostChange();
+        return;
+    }
+
+    ReportOutcome (m_actions.RenameSelected (newName), L"Rename");
+    FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::GetPasteFolder
 //
 //  A single folder row takes the paste; otherwise the folder being shown.
@@ -3690,31 +3853,7 @@ void CassqueWindow::RunVerb (CassqueActions::Verb verb)
             break;
 
         case CassqueActions::Verb::Rename:
-            if (!m_browser.IsImageLocation())
-            {
-                std::wstring  path = GetSelectedImagePath();
-
-                if (!path.empty()
-                 && CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Rename", L"New name:",
-                                              std::filesystem::path (path).filename().wstring(), MAX_PATH, newName))
-                {
-                    hr = m_shellVerbs.RenameItem (GetHwnd(), path, newName);
-                    RefreshAfterHostChange();
-                }
-
-                break;
-            }
-
-            m_browser.GetSelectedEntries (entries);
-
-            if (entries.size() == 1
-             && CassquePromptDialog::Ask (GetHwnd(), m_theme, L"Rename", L"New name:",
-                                          TextEncoding::NarrowToWide (entries[0].name), kMaxCatalogName, newName))
-            {
-                ReportOutcome (m_actions.RenameSelected (newName), L"Rename");
-                FillList();
-            }
-
+            BeginRename();
             break;
 
         case CassqueActions::Verb::InsertDrive1:

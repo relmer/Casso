@@ -223,6 +223,27 @@ public:
 
 
 
+    TEST_METHOD (ACellsTextRect_IsWhereAnEditBoxCoversIt)
+    {
+        DxuiListView  list;
+        RECT          first  = {};
+        RECT          second = {};
+
+        BuildWithStretchName (list);
+
+        Assert::IsTrue (list.GetCellTextRectPx (0, 0, first));
+        Assert::IsTrue (list.GetCellTextRectPx (1, 0, second));
+
+        Assert::AreEqual (second.top - first.top, first.bottom - first.top, L"Rows stack a row apart");
+        Assert::IsTrue   (first.top >= list.GetHeaderHeightPx(), L"below the header");
+        Assert::IsTrue   (first.left > 0 && first.right > first.left, L"inside the Name column, past its padding");
+
+        list.SetTopRow (5);
+        Assert::IsFalse (list.GetCellTextRectPx (0, 0, first), L"A row scrolled out of view has no rect");
+    }
+
+
+
     TEST_METHOD (ASinglePressOnADividerFitsNothing)
     {
         Fixture  f;
