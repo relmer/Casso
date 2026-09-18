@@ -1,0 +1,3 @@
+* Put by INCLUDE.MACRO.S: a routine the main file calls.
+SETUP    LDY #1
+         RTS

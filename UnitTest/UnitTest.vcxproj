@@ -175,6 +175,7 @@
     <ClCompile Include="DebuggerTests\DebugFileReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\LineTableTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugFileWriterTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugFileRoundTripTests.cpp" />
     <ClCompile Include="DebuggerTests\MachineDebugTargetTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />

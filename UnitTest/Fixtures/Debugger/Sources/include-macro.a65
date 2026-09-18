@@ -1,0 +1,20 @@
+; Two-level macro and an include, for the debug-file round trip.
+        .org $0300
+
+clear   macro
+        lda #0
+        endm
+
+store   macro addr
+        clear
+        sta addr
+        endm
+
+start   ldx #3
+loop    store $0400
+        dex
+        bne loop
+        jsr setup
+        rts
+
+        include "include-macro.inc"
