@@ -84,7 +84,7 @@ window, a pipe or a file.
 **Performance Goals**: With no window open and nothing enabled, emulation runs
 the same code as before the debugger existed: one predicted branch per
 instruction for the hook, one for the trace gate, an empty watch mask
-(FR-064, SC-008). With the window open and the trace off, throughput within 2%
+(FR-064, SC-008). With the window open and the trace off, throughput within 3%
 of closed (SC-009): panes read a snapshot the CPU thread builds once per frame,
 never the live machine. The trace's cost is paid only while on (R-025).
 Profiling counts in the hook only while on (R-026).

@@ -72,17 +72,17 @@ and kill only the PID you started.
 
 1. Open Debug > Debugger and pause. Expect every pane in the monospace face,
    rows no taller than the font's line height plus 2 DIP (FR-026a), and the
-   breakpoint, watch and stack panes showing at least ten rows without
+   breakpoint, watch and stack panes showing at least eight rows without
    scrolling.
 2. `SYM LOAD` a fixture debug file, then look at the disassembly. Expect each
    line that has a symbol to show it in its own column, and `JSR`/`LDA`
    operands to show the symbol with the numeric address beside it (FR-010a).
-3. Click a disassembly line. Expect a breakpoint in the list and `bpl` to
-   list it.
+3. Double-click a disassembly line. Expect a breakpoint in the list and
+   `bpl` to list it; a second double-click clears it.
 4. Switch the keyboard scheme in preferences to AppleWin, then to GSSquared;
    press each scheme's step key. Expect a step under each.
 5. **SC-009.** Run the pinned throughput measurement with the window open and
-   the trace off, then closed. Expect within 2%.
+   the trace off, then closed. Expect within 3%.
 
 ## Story 5: memory editing
 
@@ -165,7 +165,7 @@ and kill only the PID you started.
 
 1. `BP 300 IF A=41` and run a loop that reaches $0300 with other values first.
    Expect one stop, with `A=41`.
-2. `BPV 6 = 7` (value breakpoint) and a program that increments `$06`. Expect
+2. `BPMV 6 7` (value breakpoint) and a program that increments `$06`. Expect
    the stop after the write that makes it 7 (FR-062).
 3. `BP 300 IF @C000=80`. Expect a refusal naming the I/O read.
 

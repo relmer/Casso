@@ -528,15 +528,15 @@ with the same command in AppleWin mode.
 1. **Given** GSSquared mode, **When** the user enters `bpd C010 rw`, **Then** a
    read-and-write watchpoint is set on $C010 and is listed by `bp`, in
    GSSquared's listing format.
-4. **Given** GSSquared mode, **When** the user enters `2000.201F`, **Then**
+2. **Given** GSSquared mode, **When** the user enters `2000.201F`, **Then**
    memory prints in GSSquared's dump format, 16 bytes per line with ASCII.
-5. **Given** GSSquared mode, **When** the user sets the output format to
+3. **Given** GSSquared mode, **When** the user sets the output format to
    AppleWin and enters `2000.201F`, **Then** memory prints in AppleWin's
    format; **and when** the user switches the input mode to Monitor, **Then**
    the output format becomes Monitor's.
-2. **Given** GSSquared mode, **When** the user enters `2000:AA 55`, **Then**
+4. **Given** GSSquared mode, **When** the user enters `2000:AA 55`, **Then**
    $2000 and $2001 hold $AA and $55.
-3. **Given** a breakpoint set in GSSquared mode, **When** the user switches to
+5. **Given** a breakpoint set in GSSquared mode, **When** the user switches to
    AppleWin mode and enters `BPL`, **Then** the same breakpoint is listed.
 
 ---
