@@ -6,7 +6,7 @@
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugSession.h"
-#include "Debugger/Disassembler.h"
+#include "Disassembler.h"
 
 
 

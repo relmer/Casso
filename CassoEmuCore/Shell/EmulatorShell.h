@@ -24,6 +24,8 @@
 #include "Print/PrinterWorker.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/IntentReplyTracker.h"
+#include "Seams/Win32IntentChannel.h"
 #include "Shell/AudioSampleBudget.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
@@ -174,7 +176,7 @@ public:
     EmulatorShell();
     ~EmulatorShell();
 
-    // The show state Windows handed wWinMain. Set before Initialize; the
+    // The show state Windows handed wCassoMain. Set before Initialize; the
     // first ShowWindow honors it when the launcher asked for something
     // particular, and falls back to the saved placement when it did not.
     void  SetStartupShowCommand (int nCmdShow) { m_startShowCmd = nCmdShow; }
@@ -826,7 +828,7 @@ public:
 
     // The failure-path counterpart of FlushPendingNotifications. Only
     // CreateEmulatorWindow drains the queue, and a startup that fails before
-    // it never gets there. wWinMain calls this on its failure exit; a system
+    // it never gets there. wCassoMain calls this on its failure exit; a system
     // box is the only surface left. Static because it runs after the shell
     // has given up.
     static void  ShowPendingNotificationsWithoutWindow ();
@@ -1375,6 +1377,28 @@ private:
     // Initialize, before the message loop that would service it is running.
     void    HandleMountCompletion (const MountCompletion & completion);
 
+    // An answer to a tool that asked, carried to the UI thread when the
+    // outcome was known on another one.
+    struct IntentReplyPost
+    {
+        HWND                       target = nullptr;
+        Win32IntentChannel::Reply  reply;
+    };
+
+    // Sends one answer, from the UI thread. A tool that has gone away is
+    // not an error: the send simply finds no window.
+    void    SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
+
+    // Posts one answer to the UI thread from whichever thread knows it.
+    void    PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
+
+    // Records the folder a handed-off disk lives in, in the known-folder
+    // list the disk browser and the picker share.
+    void    RecordKnownFolder (const std::string & imagePath);
+
+    // Wires the store's decision report to the tools waiting on a reload.
+    void    InstallIntentReplies ();
+
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
     // dialog. Nothing had ever installed one, so they all fell through to
@@ -1385,7 +1409,7 @@ private:
     static void  NotifyUser (const wchar_t * message);
 
     // Holds a report raised before there is a window to show it in. Public
-    // and static because wWinMain installs the sink before the shell exists.
+    // and static because wCassoMain installs the sink before the shell exists.
     static void  QueueNotification (const std::wstring & message);
 
     // Shows one notification, marshaling as needed. Callable from any
@@ -1949,6 +1973,10 @@ private:
     // controller.
     DriveWidgetController  m_driveWidgets;
     DxuiDragDropTarget     m_dragDropTarget;
+
+    // Tools waiting on an insert or a reload, and hand-offs whose folder is
+    // recorded once the mount succeeds.
+    IntentReplyTracker     m_intentReplies;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired

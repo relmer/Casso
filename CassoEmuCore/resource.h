@@ -43,6 +43,9 @@
 #define IDM_DISK_SALVAGE1           40070
 #define IDM_DISK_SALVAGE2           40071
 
+// Start the disk browser beside this executable.
+#define IDM_DISK_OPEN_CASSQUE       40080
+
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that
 //  owns disk writes, so it travels as a command like every other mount-path
@@ -58,18 +61,18 @@
 //  IDM_DEBUG_COMMAND carries one command line and the id of the client its
 //  reply goes back to (see DebugCommandPayload). IDM_DEBUG_PAUSE_CHANGED
 //  carries "1" when the user paused the machine and "0" when they resumed it.
-#define IDM_DEBUG_COMMAND           40082
-#define IDM_DEBUG_PAUSE_CHANGED     40076
+#define IDM_DEBUG_COMMAND           40155
+#define IDM_DEBUG_PAUSE_CHANGED     40156
 
 //  The debugger window, opened from the Debug menu. Opening it opens the
 //  debug channel; closing it closes the channel. IDM_DEBUG_OPEN, _CLOSE, _PAUSE
 //  and _VIEW carry the window's requests to the CPU thread; _VIEW's payload is
 //  "code <hex>", "code pc" or "memory <hex>".
-#define IDM_VIEW_DEBUGGER           40077
-#define IDM_DEBUG_OPEN              40078
-#define IDM_DEBUG_CLOSE             40079
-#define IDM_DEBUG_PAUSE             40080
-#define IDM_DEBUG_VIEW              40081
+#define IDM_VIEW_DEBUGGER           40150
+#define IDM_DEBUG_OPEN              40151
+#define IDM_DEBUG_CLOSE             40152
+#define IDM_DEBUG_PAUSE             40153
+#define IDM_DEBUG_VIEW              40154
 
 #define IDM_VIEW_COLOR              40030
 #define IDM_VIEW_GREEN              40031
@@ -142,6 +145,13 @@
 #define IDI_CASSO_FLAT_COLOR_HEAD   105
 #define IDI_CASSO_PHOTOREAL         106
 #define IDI_CASSO                   IDI_CASSO_SILHOUETTE
+// Cassque, the disk-image browser: its application icon, the lowest icon id
+// in its own module, and the cassowary picture its About box shows.
+#define IDI_CASSQUE                 107
+#define IDR_CASSQUE_PICTURE_PNG     600
+#define IDR_CASSQUE_CASK_PNG        601
+#define IDR_CASSQUE_CASSO_PNG       602
+#define IDR_CASSQUE_CASSOWARY_PNG   603
 
 // Embedded default machine configs (RCDATA) — extracted to disk on
 // first run when the user has no Machines/ folder.

@@ -327,6 +327,74 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExtractHDropPaths
+//
+//  Every file path in a CF_HDROP data object.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDragDropTarget::ExtractHDropPaths (IDataObject * pData, std::vector<std::wstring> & outPaths)
+{
+    HRESULT    hr         = S_OK;
+    FORMATETC  fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium     = { };
+    HDROP      hDrop      = nullptr;
+    UINT       cFiles     = 0;
+    bool       fLocked    = false;
+    bool       fGotMedium = false;
+
+
+
+    outPaths.clear();
+
+    CBRAEx (pData != nullptr, E_INVALIDARG);
+
+    hr = pData->GetData (&fmt, &medium);
+    CHR (hr);
+
+    fGotMedium = true;
+
+    hDrop = static_cast<HDROP> (GlobalLock (medium.hGlobal));
+    CWRA (hDrop);
+
+    fLocked = true;
+
+    cFiles = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
+
+    for (UINT i = 0; i < cFiles; i++)
+    {
+        UINT          cch  = DragQueryFileW (hDrop, i, nullptr, 0);
+        std::wstring  path (cch, L'\0');
+
+        if (cch == 0)
+        {
+            continue;
+        }
+
+        DragQueryFileW (hDrop, i, path.data(), cch + 1);
+        outPaths.push_back (std::move (path));
+    }
+
+Error:
+    if (fLocked)
+    {
+        GlobalUnlock (medium.hGlobal);
+    }
+
+    if (fGotMedium)
+    {
+        ReleaseStgMedium (&medium);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DragEnter
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -345,6 +413,27 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
     m_fDragActive           = true;
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
+
+    //  A host that judges the drag itself keeps the data object for DragOver,
+    //  which OLE does not pass again.
+    if (m_over)
+    {
+        if (m_data != nullptr)
+        {
+            m_data->Release();
+        }
+
+        m_data = pData;
+
+        if (m_data != nullptr)
+        {
+            m_data->AddRef();
+        }
+
+        m_fDragHasSupportedFile = m_data != nullptr;
+
+        return DragOver (0, pt, pdwEffect);
+    }
 
     // A drag carrying something other than files is routine, so a failed
     // extract is not propagated -- it just means there is nothing to accept.
@@ -384,6 +473,16 @@ STDMETHODIMP DxuiDragDropTarget::DragOver (
     m_lastHitTag = tag;
     *pdwEffect   = (m_fDragHasSupportedFile && tag >= 0) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
 
+    if (m_over && m_data != nullptr)
+    {
+        *pdwEffect = (tag >= 0) ? m_over (m_data, tag, POINT { pt.x, pt.y }) : DROPEFFECT_NONE;
+
+        if (tag < 0 && m_leave)
+        {
+            m_leave();
+        }
+    }
+
 Error:
     return hr;
 }
@@ -400,10 +499,22 @@ Error:
 
 STDMETHODIMP DxuiDragDropTarget::DragLeave()
 {
+    if (m_data != nullptr)
+    {
+        m_data->Release();
+        m_data = nullptr;
+    }
+
     m_fDragActive           = false;
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
     m_lastHitTag            = -1;
+
+    if (m_leave)
+    {
+        m_leave();
+    }
+
     return S_OK;
 }
 
@@ -418,14 +529,33 @@ STDMETHODIMP DxuiDragDropTarget::DragLeave()
 ////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP DxuiDragDropTarget::Drop (
-    IDataObject * /*pData*/,
+    IDataObject * pData,
     DWORD         /*grfKeyState*/,
     POINTL        pt,
     DWORD       * pdwEffect)
 {
-    int  tag = PickAtScreen (pt);
+    int    tag    = PickAtScreen (pt);
+    DWORD  effect = DROPEFFECT_NONE;
 
 
+
+    if (m_over && pData != nullptr)
+    {
+        effect = (tag >= 0) ? m_over (pData, tag, POINT { pt.x, pt.y }) : DROPEFFECT_NONE;
+
+        if (pdwEffect != nullptr)
+        {
+            *pdwEffect = effect;
+        }
+
+        if (effect != DROPEFFECT_NONE && m_dataDrop)
+        {
+            m_dataDrop (pData, tag, POINT { pt.x, pt.y });
+            m_fSuppressNextClick = true;
+        }
+
+        return DragLeave();
+    }
 
     if (pdwEffect != nullptr)
     {

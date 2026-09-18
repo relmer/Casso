@@ -2,7 +2,7 @@
 
 #include "I6502DebugInfo.h"
 #include "Debugger/DebugCommand.h"
-#include "Debugger/Disassembler.h"
+#include "Disassembler.h"
 
 
 

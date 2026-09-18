@@ -145,6 +145,20 @@ public:
     }
 
 
+    //
+    //  The color fraction `t` of the way from `from` to `to` (0 = from,
+    //  1 = to), channel by channel, with `to`'s alpha.
+    //
+    static uint32_t Mix (uint32_t from, uint32_t to, float t)
+    {
+        uint32_t  r = (uint32_t) ((float) ((from >> 16) & 0xFFu) + ((float) ((to >> 16) & 0xFFu) - (float) ((from >> 16) & 0xFFu)) * t);
+        uint32_t  g = (uint32_t) ((float) ((from >>  8) & 0xFFu) + ((float) ((to >>  8) & 0xFFu) - (float) ((from >>  8) & 0xFFu)) * t);
+        uint32_t  b = (uint32_t) ((float) ( from        & 0xFFu) + ((float) ( to        & 0xFFu) - (float) ( from        & 0xFFu)) * t);
+
+        return (to & 0xFF000000u) | (r << 16) | (g << 8) | b;
+    }
+
+
 private:
     static float ChannelToLinear (uint32_t c8)
     {

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -183,6 +183,7 @@
     <ClCompile Include="Widgets\DxuiTimedInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiWarningBadge.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
+    <ClCompile Include="Widgets\DxuiListViewItems.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
     <ClCompile Include="Widgets\DxuiModalScrim.cpp" />
     <ClCompile Include="Widgets\DxuiPopupMenu.cpp" />
@@ -190,11 +191,25 @@
     <ClCompile Include="Widgets\DxuiScrollbar.cpp" />
     <ClCompile Include="Widgets\DxuiSearchBox.cpp" />
     <ClCompile Include="Widgets\DxuiSlider.cpp" />
+    <ClCompile Include="Widgets\DxuiAddressBar.cpp" />
+    <ClCompile Include="Widgets\DxuiTextView.cpp" />
+    <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
+    <ClCompile Include="Widgets\DxuiFieldError.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
+    <ClCompile Include="Widgets\DxuiSplitter.cpp" />
+    <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
+    <ClCompile Include="Widgets\DxuiFramebufferView.cpp" />
+    <ClCompile Include="Widgets\DxuiHexView.cpp" />
+    <ClCompile Include="Core\DxuiClipboard.cpp" />
+    <ClCompile Include="Core\DxuiStandardCommand.cpp" />
+    <ClCompile Include="Core\DxuiIconImage.cpp" />
+    <ClCompile Include="Window\DxuiDragDropSource.cpp" />
+    <ClCompile Include="Theme\DxuiLightTheme.cpp" />
+    <ClCompile Include="Theme\DxuiDarkTheme.cpp" />
     <ClCompile Include="Window\DxuiDragDropTarget.cpp" />
     <ClCompile Include="Window\DxuiDragRegion.cpp" />
     <ClCompile Include="Window\DxuiCaptionBar.cpp" />
@@ -224,6 +239,7 @@
     <ClInclude Include="Core\DxuiFormLayout.h" />
     <ClInclude Include="Core\DxuiGridLayout.h" />
     <ClInclude Include="Core\DxuiHitTester.h" />
+    <ClInclude Include="Core\DxuiLayoutBand.h" />
     <ClInclude Include="Core\DxuiInput.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
     <ClInclude Include="Core\DxuiPanZoom.h" />
@@ -270,11 +286,26 @@
     <ClInclude Include="Widgets\DxuiSearchBox.h" />
     <ClInclude Include="Widgets\DxuiSlider.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />
+    <ClInclude Include="Widgets\DxuiAddressBar.h" />
+    <ClInclude Include="Widgets\DxuiTextView.h" />
+    <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiTabStrip.h" />
     <ClInclude Include="Widgets\DxuiTextInput.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />
     <ClInclude Include="Widgets\DxuiTooltip.h" />
+    <ClInclude Include="Widgets\DxuiFieldError.h" />
+    <ClInclude Include="Render\DxuiStroke.h" />
     <ClInclude Include="Widgets\DxuiTreeView.h" />
+    <ClInclude Include="Widgets\DxuiSplitter.h" />
+    <ClInclude Include="Widgets\DxuiStatusBar.h" />
+    <ClInclude Include="Widgets\DxuiFramebufferView.h" />
+    <ClInclude Include="Widgets\DxuiHexView.h" />
+    <ClInclude Include="Core\DxuiClipboard.h" />
+    <ClInclude Include="Core\DxuiStandardCommand.h" />
+    <ClInclude Include="Core\DxuiIconImage.h" />
+    <ClInclude Include="Window\DxuiDragDropSource.h" />
+    <ClInclude Include="Theme\DxuiLightTheme.h" />
+    <ClInclude Include="Theme\DxuiDarkTheme.h" />
     <ClInclude Include="Window\DxuiDragDropTarget.h" />
     <ClInclude Include="Window\DxuiDragRegion.h" />
     <ClInclude Include="Window\DxuiCaptionBar.h" />

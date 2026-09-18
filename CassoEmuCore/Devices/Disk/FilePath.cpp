@@ -106,3 +106,49 @@ std::string FilePath::ToString() const
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilePath::FromName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FilePath FilePath::FromName (const std::string & name)
+{
+    FilePath  path;
+
+
+
+    if (!name.empty())
+    {
+        path.m_components.push_back (name);
+    }
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilePath::WithLeafIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FilePath FilePath::WithLeafIndex (size_t index) const
+{
+    FilePath  path (*this);
+
+
+
+    path.m_leafIndex    = index;
+    path.m_hasLeafIndex = true;
+
+    return path;
+}

@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiStandardCommand.h"
 
 
 
@@ -104,10 +105,43 @@ public:
     virtual LPCWSTR  GetCursorForPoint  (POINT clientPx) const                       { (void) clientPx; return nullptr; }
 
     virtual void  OnFocusChanged  (bool focused)                                { (void) focused; }
+
+    // Focus arrived by a Tab walk, forward or backward. A control with stops
+    // INSIDE it (a hex view's two columns, say) starts at the first when Tab
+    // brought focus in and at the last when Shift+Tab did, so walking the
+    // window in reverse runs its insides in reverse too. Controls with no
+    // internal stops ignore it; OnFocusChanged still fires either way.
+    virtual void  OnFocusEntered  (bool forward)                                { (void) forward; }
+
+    // The standard commands (Copy, Select all and the rest), whose behavior
+    // depends on the focused control. A control that handles one implements
+    // both: QueryCommand returns whether the control handles the command and,
+    // if so, whether it is available now; InvokeCommand runs it and returns
+    // true. Both return false by default, and DxuiCommandRouter then tries the
+    // containing control. A menu row and its accelerator both go through these
+    // methods, so their behavior is always the same.
+    virtual bool  QueryCommand  (DxuiStandardCommand command, bool & outEnabled) const
+    {
+        (void) command;
+        (void) outEnabled;
+        return false;
+    }
+
+    virtual bool  InvokeCommand (DxuiStandardCommand command)
+    {
+        (void) command;
+        return false;
+    }
+
     virtual void  OnThemeChanged  ()                                            {}
     virtual void  Tick            (int64_t nowMs)                               { (void) nowMs; }
 
     virtual DxuiHitTestKind  ClassifyHit  (POINT clientDip) const               { (void) clientDip; return DxuiHitTestKind::Client; }
+
+    //  Whether a point is on one of the control's scrollbars. The window lets
+    //  a scrollbar at its edge keep the pointer instead of its resize edge.
+    //  The point is in client pixels, as the control's mouse events are.
+    virtual bool  IsOverScrollbar (POINT clientDip) const                       { (void) clientDip; return false; }
 
     virtual std::wstring        GetAccessibleName () const                        { return L""; }
     virtual DxuiAccessibleRole  GetAccessibleRole () const                        { return DxuiAccessibleRole::Generic; }

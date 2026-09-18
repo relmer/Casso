@@ -228,6 +228,109 @@ public:
     };
 
 
+    TEST_METHOD (IconOnlyEntry_StaysUnlabeledWithRoomToSpare)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+
+
+        f.alpha->id = 1;
+        f.gamma->id = 3;
+
+        entries[0].command  = f.alpha;
+        entries[0].iconOnly = true;
+        entries[1].command  = f.gamma;
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (f.FullWidth());
+
+        Assert::IsFalse (f.bar.IsLabeled (f.alpha->id),
+            L"An icon-only entry shows no label however wide the strip is");
+        Assert::IsTrue  (f.bar.IsLabeled (f.gamma->id),
+            L"while its neighbor, with room, keeps its own");
+    }
+
+
+    TEST_METHOD (TrailingEntry_EndsAtTheStripsFarEnd)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+        RECT                             anchor = {};
+        int                              width  = f.FullWidth() + 300;
+
+
+        f.alpha->id = 1;
+        f.gamma->id = 3;
+
+        entries[0].command  = f.alpha;
+        entries[1].command  = f.gamma;
+        entries[1].group    = 1;
+        entries[1].trailing = true;
+        entries[1].iconOnly = true;   //  so it has a tooltip to find it by
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (width);
+
+        Assert::IsNotNull (f.bar.GetTooltipAt (width - s_kBarPadPx - 2, s_kBandPx / 2, anchor),
+            L"The trailing entry is under the pointer at the strip's far end");
+        Assert::AreEqual  ((LONG) (width - s_kBarPadPx), anchor.right,
+            L"and ends one pad in from the edge");
+        Assert::IsNotNull (f.bar.GetTooltipAt (s_kBarPadPx + 2, s_kBandPx / 2, anchor),
+            L"while the leading entry stays at the start");
+    }
+
+
+    TEST_METHOD (TrailingEntry_WithNoRoomToSpare_ClosesUp)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+        RECT                             anchor = {};
+
+
+        f.alpha->id = 1;
+        f.gamma->id = 3;
+
+        entries[0].command  = f.alpha;
+        entries[1].command  = f.gamma;
+        entries[1].group    = 1;
+        entries[1].trailing = true;
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (40);
+
+        Assert::IsNotNull (f.bar.GetTooltipAt (s_kBarPadPx + CollapsedPx() + s_kGroupGap + 2, s_kBandPx / 2, anchor));
+        Assert::AreEqual  ((LONG) (s_kBarPadPx + CollapsedPx() + s_kGroupGap), anchor.left,
+            L"A strip too narrow for a gap leaves the trailing entry right after the one before it");
+    }
+
+
+    TEST_METHOD (FreeRect_SpansBetweenLeadingAndTrailingEntries)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+        RECT                             span   = {};
+        int                              width  = f.FullWidth() + 300;
+
+
+        f.alpha->id = 1;
+        f.gamma->id = 3;
+
+        entries[0].command  = f.alpha;
+        entries[1].command  = f.gamma;
+        entries[1].group    = 1;
+        entries[1].trailing = true;
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (width);
+        span = f.bar.GetFreeRect();
+
+        Assert::AreEqual ((LONG) (s_kBarPadPx + LabeledPx (L"Alpha") + s_kGroupGap), span.left,
+            L"The free span starts a group gap after the last leading entry");
+        Assert::AreEqual ((LONG) (width - s_kBarPadPx - LabeledPx (L"Gamma") - s_kGroupGap), span.right,
+            L"and ends a group gap before the trailing one");
+    }
+
+
     TEST_METHOD (PlanForWidth_AllLabeledAtFittingWidth)
     {
         Fixture  f;
@@ -699,5 +802,62 @@ public:
 
         Assert::AreEqual (1, stub.clickCalls);
         Assert::IsTrue   (f.bar.IsMenuOpen());
+    }
+
+    TEST_METHOD (SeeMore_IsHiddenWhileEverythingFits)
+    {
+        Fixture  f;
+
+        f.bar.EnableSeeMore (L"m", L"See more");
+        f.Build();
+        f.LayoutAt (f.FullWidth() + 200);
+
+        for (int id = 1; id <= 5; id++)
+        {
+            Assert::IsFalse (f.bar.IsInSeeMore (id));
+        }
+
+        Assert::IsTrue (f.bar.IsInSeeMore (DxuiToolbar::kSeeMoreId), L"An empty See more menu shows no button");
+    }
+
+
+    TEST_METHOD (SeeMore_TakesEntriesFromTheRightAsTheStripNarrows)
+    {
+        Fixture  f;
+        int      allIcons = s_kBarPadPx * 2 + CollapsedPx() * 5 + s_kBtnGapPx * 3 + s_kGroupGap;
+
+        f.bar.EnableSeeMore (L"m", L"See more");
+        f.Build();
+
+        //  Narrower than every entry as an icon: the rightmost go first.
+        f.LayoutAt (allIcons - CollapsedPx());
+
+        Assert::IsTrue  (f.bar.IsInSeeMore (5));
+        Assert::IsFalse (f.bar.IsInSeeMore (1), L"The leftmost stay on the strip longest");
+        Assert::IsFalse (f.bar.IsInSeeMore (DxuiToolbar::kSeeMoreId), L"and the button shows");
+
+        //  Room again: everything comes back.
+        f.LayoutAt (f.FullWidth() + 200);
+        Assert::IsFalse (f.bar.IsInSeeMore (5));
+    }
+
+
+    TEST_METHOD (SeeMore_AlwaysHoldsItsOwnEntries)
+    {
+        Fixture                          f;
+        std::vector<DxuiToolbar::Entry>  entries (2);
+
+        f.bar.EnableSeeMore (L"m", L"See more");
+
+        entries[0].command     = f.alpha;
+        entries[1].command     = f.beta;
+        entries[1].seeMoreOnly = true;
+
+        f.bar.SetEntries (std::move (entries));
+        f.LayoutAt (5000);
+
+        Assert::IsFalse (f.bar.IsInSeeMore (1));
+        Assert::IsTrue  (f.bar.IsInSeeMore (2), L"However wide the strip");
+        Assert::IsFalse (f.bar.IsInSeeMore (DxuiToolbar::kSeeMoreId));
     }
 };

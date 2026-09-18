@@ -44,13 +44,11 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::List,
         "list | cat | catalog | dir | ls",
         "Show what is on the disk",
-        "CassoCli disk list <image>",
-        nullptr,
-        //  NO PARAGRAPH. It used to explain that a ProDOS row carries eof= and
-        //  aux= where a DOS 3.3 row does not, which is a difference the reader
-        //  learns by running the command once. The summary says what the command
-        //  is for and the columns speak for themselves.
-        nullptr,
+        "CassoCli disk list <image> [<dir>] [%Lrecurse]",
+        "  %Lrecurse               Also list everything below <dir>, one full path per row\n",
+        //  The columns still speak for themselves, and the paragraph says only
+        //  what the rows cannot: where a directory goes, and the short forms.
+        "Naming a directory lists that one instead of the volume directory, on a ProDOS disk. -r and -s do what --recurse does.",
         "CassoCli disk list mydisk.dsk" 
     },
 
@@ -58,7 +56,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Get,
         "get | read",
         "Read a file from the disk",
-        "CassoCli disk get <image> <name> [%Lout <file>] [%Ltext | %Lbasic]",
+        "CassoCli disk get <image> <name> [%Lindex <n>] [%Lout <file>] [%Ltext | %Lbasic]",
+        "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n"
         "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead\n"
         "  %Ltext                  Convert Apple high-ASCII encoding and line endings to standard ASCII with Windows line endings\n"
         "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
@@ -98,8 +97,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Delete,
         "delete | del | rm",
         "Delete a file from the disk",
-        "CassoCli disk delete <image> <name>",
-        nullptr,
+        "CassoCli disk delete <image> <name> [%Lindex <n>]",
+        "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n",
         nullptr,
         "CassoCli disk delete mydisk.dsk OLDPROG" 
     },
@@ -108,15 +107,40 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Boot,
         "boot",
         "Set the program that runs when the disk is booted",
-        "CassoCli disk boot <image> <name>",
-        nullptr,
+        "CassoCli disk boot <image> <name> [%Lindex <n>]",
+        "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n",
         "The program has to be on the volume already, and the image must contain the DOS 3.3 or ProDOS operating system; simply"
         " being formatted as DOS 3.3 or ProDOS is not sufficient. On DOS 3.3 disks, the file must be an Applesoft BASIC (type A)"
         " or Integer BASIC (type I) program. On ProDOS disks, the file must be a system file (type SYS), and cannot be the kernel itself.",
         "CassoCli disk boot mydisk.dsk STARTUP" 
     },
 
-    { 
+    {
+        CommandLineOptions::DiskOptions::Command::Mkdir,
+        "mkdir | md",
+        "Make a directory on the disk",
+        "CassoCli disk mkdir <image> <path>",
+        nullptr,
+        "Directories along the path are made as well when they are not there yet, so mkdir GAMES/CHESS/SAVES makes all three."
+        " ProDOS disks only: DOS 3.3 has no directories.",
+        "CassoCli disk mkdir mydisk.po GAMES/CHESS"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Rmdir,
+        "rmdir | rd",
+        "Remove a directory from the disk",
+        "CassoCli disk rmdir <image> <path> [%Lrecurse] [%Lforce] [%Lyes]",
+        "  %Lrecurse               Remove everything below <path> as well\n"
+        "  %Lforce                 Remove locked entries too\n"
+        "  %Lyes                   Answer the confirmation, for a script with nobody at the keyboard\n",
+        "A directory holding anything needs %Lrecurse, and -r and -s do the same. Before removing a subtree, rmdir lists what"
+        " would go, marks the locked entries and totals the blocks, then asks; %Lyes, or -y, answers it in advance."
+        " ProDOS disks only.",
+        "CassoCli disk rmdir mydisk.po GAMES %Lrecurse %Lyes"
+    },
+
+    {
         CommandLineOptions::DiskOptions::Command::Create,
         "create | new",
         "Make a new image file, formatted and ready to use",

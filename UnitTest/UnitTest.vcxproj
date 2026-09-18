@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|Win32">
-      <Configuration>Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|Win32">
-      <Configuration>Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
@@ -35,19 +27,6 @@
     <ProjectSubType>NativeUnitTestProject</ProjectSubType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -79,12 +58,6 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -102,40 +75,6 @@
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpplatest</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <WarningLevel>Level3</WarningLevel>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\include;.;..\CassoEmuCore;..\CassoCore;..\CassoEmuCore\Ui\Chrome;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpplatest</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-    </Link>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -209,8 +148,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
@@ -395,6 +332,37 @@
     <ClCompile Include="EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="EmuTests\GoldenImage.cpp" />
     <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
+    <ClCompile Include="Cassque\CassqueFixtureTests.cpp" />
+    <ClCompile Include="Cassque\CassqueShellTests.cpp" />
+    <ClCompile Include="Cassque\CassqueShellIconsTests.cpp" />
+    <ClCompile Include="Cassque\FocusRingTests.cpp" />
+    <ClCompile Include="Cassque\CassqueBrowserTests.cpp" />
+    <ClCompile Include="Cassque\CassqueCommandsTests.cpp" />
+    <ClCompile Include="Cassque\CassqueActionsTests.cpp" />
+    <ClCompile Include="Cassque\CassqueAboutTests.cpp" />
+    <ClCompile Include="Cassque\CassqueDragOutTests.cpp" />
+    <ClCompile Include="Cassque\CassqueNamedControlTests.cpp" />
+    <ClCompile Include="Cassque\IntegerBasicDetokenizerTests.cpp" />
+    <ClCompile Include="Cassque\DisassemblerListingTests.cpp" />
+    <ClCompile Include="Cassque\HostFileNamingTests.cpp" />
+    <ClCompile Include="Cassque\ContentSnifferTests.cpp" />
+    <ClCompile Include="Cassque\CatalogModelTests.cpp" />
+    <ClCompile Include="Cassque\PreviewDecoderTests.cpp" />
+    <ClCompile Include="Cassque\DiskOperationsTests.cpp" />
+    <ClCompile Include="Cassque\TreeModelTests.cpp" />
+    <ClCompile Include="Cassque\BrowserModelTests.cpp" />
+    <ClCompile Include="Cassque\KnownFolderStoreTests.cpp" />
+    <ClCompile Include="Cassque\CassquePrefsTests.cpp" />
+    <ClCompile Include="Cassque\TypedPathHistoryTests.cpp" />
+    <ClCompile Include="Cassque\FolderWatchTests.cpp" />
+    <ClCompile Include="Cassque\RefreshAnchorTests.cpp" />
+    <ClInclude Include="Cassque\FakeFolderWatcher.h" />
+    <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
+    <ClCompile Include="Cassque\DragPayloadTests.cpp" />
+    <ClCompile Include="UiTests\IntentReplyTests.cpp" />
+    <ClCompile Include="UiTests\KnownFolderPickerTests.cpp" />
+    <ClCompile Include="EmuTests\VolumeRenameTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
     <ClCompile Include="EmuTests\OpenAppleResetTests.cpp" />
     <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />
@@ -499,7 +467,10 @@
     <ClCompile Include="UiTests\DxuiTreeViewTests.cpp" />
     <ClCompile Include="UiTests\DxuiModalScrimTests.cpp" />
     <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
+    <ClCompile Include="UiTests\DxuiAddressBarTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTextViewTests.cpp" />
     <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
+    <ClCompile Include="UiTests\DxuiFieldErrorTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
     <ClCompile Include="UiTests\ChromeToolbarPartsTests.cpp" />
     <ClCompile Include="UiTests\CpuManagerCommandTests.cpp" />
@@ -558,9 +529,29 @@
     <ClCompile Include="Dxui\DxuiPanZoomTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPopupMenuScrollTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPopupMenuIconRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />
+    <ClCompile Include="Dxui\DxuiIconImageTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewScrolledHitTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewScrollKeepTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />
+    <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewTypeAheadTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewViewsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />
+    <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHexViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiStandardCommandTests.cpp" />
+    <ClCompile Include="Dxui\DxuiSystemColorsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
@@ -626,6 +617,7 @@
     <ClInclude Include="ControllerTests\FakeControllerBackend.h" />
     <ClInclude Include="EmuTests\FakeImageWatcher.h" />
     <ClInclude Include="EmuTests\FakeIntentChannel.h" />
+    <ClInclude Include="Cassque\FakeProcessLauncher.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />
     <ClInclude Include="Dxui\MockDxuiControl.h" />
     <ClInclude Include="Dxui\MockDxuiPainter.h" />

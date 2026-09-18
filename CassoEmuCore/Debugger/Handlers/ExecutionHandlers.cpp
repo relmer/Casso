@@ -5,7 +5,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/DebugSession.h"
-#include "Debugger/Disassembler.h"
+#include "Disassembler.h"
 
 
 

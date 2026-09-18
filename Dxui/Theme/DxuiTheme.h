@@ -48,6 +48,30 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  linkHover                = 0;
     uint32_t  panelBg                  = 0;
     uint32_t  panelEdge                = 0;
+
+    //  The background of row surfaces (a list's body, a tree's pane) and of the
+    //  status bar. In Explorer each has its own fill, distinct from the panel
+    //  color and from each other. A zero value falls back to the panel color.
+    uint32_t  contentBg                = 0;
+    uint32_t  statusBg                 = 0;
+
+    //  A control set into a bar, such as an address box. A zero value falls
+    //  back to the dropdown surface.
+    uint32_t  controlBg                = 0;
+
+    //  List column title text, and lines within a content surface (a header's
+    //  underline, the separators between columns). Both are much lower contrast
+    //  than the panel edge: Explorer's are a few levels off its list
+    //  background.
+    uint32_t  headingText              = 0;
+    uint32_t  contentEdge              = 0;
+    uint32_t  splitterHighlight        = 0;
+    uint32_t  contentHover             = 0;
+    uint32_t  contentSelection         = 0;
+
+    //  The outline around a selected row while its list has focus. A zero value
+    //  draws none.
+    uint32_t  contentSelectionEdge     = 0;
     uint32_t  buttonIdle               = 0;
     uint32_t  buttonHover              = 0;
     uint32_t  buttonPressed            = 0;
@@ -61,6 +85,14 @@ struct DxuiTheme : public IDxuiTheme
     // so any Dxui widget paints against this theme through the interface.
     uint32_t  Background          () const override { return panelBg;            }
     uint32_t  BackgroundElevated  () const override { return dropdownBg;         }
+    uint32_t  ContentBackground   () const override { return (contentBg != 0) ? contentBg : panelBg; }
+    uint32_t  ContentEdge         () const override { return (contentEdge != 0) ? contentEdge : panelEdge; }
+    uint32_t  SplitterHighlight   () const override { return (splitterHighlight != 0) ? splitterHighlight : panelEdge; }
+    uint32_t  ContentHover        () const override { return (contentHover != 0) ? contentHover : navHover; }
+    uint32_t  ContentSelection    () const override { return (contentSelection != 0) ? contentSelection : navHover; }
+    uint32_t  ContentSelectionEdge () const override { return contentSelectionEdge; }
+    uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
+    uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
     uint32_t  HoverBackground     () const override { return navHover;           }
     uint32_t  PressedBackground   () const override { return buttonPressed;      }
     uint32_t  SelectionBackground () const override { return navHover;           }
@@ -74,7 +106,7 @@ struct DxuiTheme : public IDxuiTheme
         return (bodyText & 0x00FFFFFFu) | 0x80000000u;
     }
 
-    uint32_t  HeadingForeground   () const override { return titleText;          }
+    uint32_t  HeadingForeground   () const override { return (headingText != 0) ? headingText : titleText; }
     uint32_t  ErrorForeground     () const override { return errorText;          }
 
     uint32_t  Accent              () const override { return link;               }

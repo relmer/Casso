@@ -2,7 +2,7 @@
 
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
-#include "Debugger/Disassembler.h"
+#include "Disassembler.h"
 #include "OpcodeTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

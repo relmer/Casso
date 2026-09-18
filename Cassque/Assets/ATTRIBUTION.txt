@@ -1,0 +1,21 @@
+Cask and casque pictures and application icon
+=============================================
+
+  Cassque.png        (the picture in Cassque's About box)
+  CassqueCask.png    (the bare cask, in the About box's explanation of the name)
+  CassqueCasso.png   (Casso's icon, in the same explanation)
+  Resources/Icons/Cassque.ico   (referenced from Cassque.rc)
+  Resources/Icons/Cassque.png   (the 1024-pixel master)
+
+All are built by Assets/Icon/build_cassque_icon.py. The barrel is drawn by
+that script. The casque on it is the top of the cassowary silhouette in
+Resources/Icons/Casso-0-silhouette.png, and CassqueCasso.png is that icon
+scaled down. Like Casso's own icons, the silhouette is derived from
+"Mrs Cassowary closeup" (c) by Mr. Smiley / BunyipCo, the photograph Casso's
+README shows.
+
+Licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0
+Unported License (CC BY-NC-SA 3.0). To view a copy of this license, visit
+https://creativecommons.org/licenses/by-nc-sa/3.0/
+
+Source: https://bunyipco.blogspot.com/2015/04/cassowary-update.html

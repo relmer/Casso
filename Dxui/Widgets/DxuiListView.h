@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Core/DxuiIconImage.h"
 #include "DxuiScrollbar.h"
 
 
@@ -47,6 +48,14 @@ public:
         // as search-match highlights. Empty = none. Supplied sorted and
         // non-overlapping; honored only for left-aligned columns.
         std::vector<std::pair<int, int>>  matches;
+
+        //  Half-open character ranges drawn in the muted color within text
+        //  that is otherwise not. Sorted, non-overlapping, left-aligned
+        //  columns only, as matches are.
+        std::vector<std::pair<int, int>>  dimRanges;
+
+        //  Drawn at the start of the cell, the text moved along past it.
+        std::shared_ptr<const DxuiIconImage>  icon;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -112,6 +121,14 @@ public:
     void  SetColumnVisible          (size_t idx, bool visible);
     bool  IsColumnVisible           (size_t idx) const     { return (idx < m_columns.size()) && m_columns[idx].visible; }
     void  SetColumnOverrideWidthPx  (size_t idx, int px);
+
+    //  Sets a column's width to what its content wants, as a double-click on
+    //  its divider does in Explorer. The width becomes an override, so it is
+    //  the column's width until something changes it again.
+    //
+    //  Measuring needs the text renderer, which only the paint pass holds, so
+    //  the fit is applied on the next paint rather than here.
+    void  FitColumnToContent        (size_t idx);
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
     int   GetTotalMeasuredWidthPx   () const;
@@ -134,10 +151,10 @@ public:
     void  ResetAutoFit              ();
 
     // Opt-in precise auto-fit. When on, auto (widthDip==0) columns size to the
-    // DWrite-measured max(header + sort-glyph reserve, widest cell) and grow
-    // monotonically as rows change, instead of the cheaper glyph-count
-    // estimate. Costs an O(rows) DWrite re-measure per row change, so keep it
-    // off for streaming lists (the default). Default off.
+    // DWrite-measured max(header + sort-glyph reserve, widest cell) instead of
+    // the cheaper glyph-count estimate. The measurement runs once for the
+    // view, not on every SetRows: widths belong to the view, and a divider
+    // double-click re-fits one column on demand. Default off.
     void  SetPreciseAutoFit         (bool enabled)       { m_preciseAutoFit = enabled; }
 
     // Column / row queries.
@@ -166,6 +183,32 @@ public:
     void  SetFocusedDividerColumn (int c)                  { m_focusedDividerCol = (c < 0) ? -1 : c; }
     void  SetSelectedRow          (int r);
 
+    // Multiple selection, off by default. With it on, a click selects one
+    // row, Ctrl+click toggles a row, Shift+click and Shift+arrow extend from
+    // the anchor, and Ctrl+A selects every row. The selected row reported by
+    // GetSelectedRow is the one the keyboard is on; GetSelectedRows is the
+    // whole set in ascending order, and holds that one row when multiple
+    // selection is off.
+    void                      SetMultiSelect  (bool enabled);
+    bool                      IsMultiSelect   () const   { return m_multiSelect; }
+    const std::vector<int> &  GetSelectedRows () const   { return m_selectedRows; }
+    void                      SetSelectedRows (std::vector<int> rows, int anchor);
+    bool                      IsRowSelected   (int row) const;
+    int                       GetAnchorRow    () const   { return m_anchorRow; }
+
+    // A click that selects, as the mouse delivers it: the modifiers decide
+    // whether it replaces, toggles or extends the selection. Raises the
+    // selection-changed callback with the row the click landed on.
+    void                      ClickRow        (int row, bool ctrl, bool shift);
+
+    // Selects every row, when multiple selection is on.
+    void                      SelectAllRows   ();
+
+    //  Copy is offered once a window to own the clipboard is set: the selected
+    //  rows as text, one to a line, their cells separated by tabs.
+    void                      SetOwnerWindow  (HWND hwnd)    { m_ownerHwnd = hwnd; }
+    std::wstring              GetSelectionText () const;
+
     // Opt-in keyboard column navigation. When enabled, OnKey walks the
     // header / divider sub-stops and the list body via Tab and acts on
     // them (sort on a header, resize on a divider, row moves in the body)
@@ -186,6 +229,15 @@ public:
     // the view to the bottom when new rows arrive while the user is already
     // parked at the tail.
     int   GetScrollbarWidthPx   () const                 { return m_scaler.ToPx (s_kScrollbarWidthDip); }
+
+    //  Whether a point is on a scrollbar, and the hover that widens one. The
+    //  bars' tracks are placed in widget coordinates for input and in client
+    //  coordinates for painting, so either placement counts.
+    bool  IsOverScrollbar   (POINT pt) const override { return IsOverBar (m_vertScroll, pt) || IsOverBar (m_horzScroll, pt); }
+    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (IsOverBar (m_vertScroll, pt), GetBarPoint (m_vertScroll, pt)) | (int) m_horzScroll.SetHover (IsOverBar (m_horzScroll, pt), GetBarPoint (m_horzScroll, pt))) != 0; }
+    bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
+    bool  IsOverBar         (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) || bar.HitTest (pt.x - m_boundsDip.left, pt.y - m_boundsDip.top); }
+    POINT GetBarPoint       (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) ? pt : POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top }; }
     int   GetTopRow             () const                 { return m_topRow; }
     int   GetVisibleRowCapacity () const;
     int   GetMaxTopRow          () const;
@@ -215,7 +267,7 @@ public:
     void             GetPageFromTrackClick        (int yPx);
     void             BeginThumbDrag            (int grabYPx);
     void             UpdateThumbDrag           (int yPx);
-    void             EndThumbDrag              ()                            { m_vertDragging = false; m_vertDragGrab = 0.0f; }
+    void             EndThumbDrag              ()                            { m_vertDragging = false; m_vertDragGrab = 0.0f; m_vertScroll.SetDragOffset (std::nullopt); }
     bool             IsThumbDragging           () const                      { return m_vertDragging; }
 
     // Horizontal scroll (opt-in via SetHorizontalScrollEnabled; default
@@ -226,6 +278,14 @@ public:
     // is the natural total (no stretch fill); GetMaxLeftPx is the excess
     // of that over the viewport content width (which excludes the
     // vertical scrollbar). xPx/yPx for the hit-tests are widget-relative.
+    //  A list of fixed-width text -- a hex dump, a disassembly -- sets the
+    //  monospace face and a row height near the line height, instead of the
+    //  proportional face and the roomy rows a file listing wants.
+    void  SetMonospace                 (bool b)                { m_monospace = b; }
+    bool  IsMonospace                  () const                { return m_monospace; }
+    void  SetRowHeightDip              (int dip)               { m_rowHeightDip = (dip > 0) ? dip : s_kRowHeightDip; }
+    int   GetRowHeightDip              () const                { return m_rowHeightDip; }
+
     void  SetHorizontalScrollEnabled   (bool b)                { m_hScrollEnabled = b; }
     bool  IsHorizontalScrollEnabled    () const                { return m_hScrollEnabled; }
     int   GetContentWidthPx            () const;
@@ -255,6 +315,36 @@ public:
     int   HitTestHeaderColumn (int xPx, int yPx) const;
     int   HitTestRow          (int xPx, int yPx) const;
 
+    //  Explorer's eight views. Details is the table of columns; the others
+    //  lay the rows out as items with the first cell's icon and text, and
+    //  Tiles and Content add the next cells on the lines below. Selection,
+    //  keyboard movement, hit testing and the callbacks mean the same in each.
+    enum class View { Details, ExtraLargeIcons, LargeIcons, MediumIcons, SmallIcons, List, Tiles, Content };
+
+    //  One item's cell in dips (a zero width spans the list), its icon's size,
+    //  whether items run down columns rather than along rows, whether the
+    //  name sits under the icon, and how many text lines it has.
+    struct ItemMetrics
+    {
+        int   cellWDip   = 0;
+        int   cellHDip   = 0;
+        int   iconDip    = 0;
+        bool  columns    = false;
+        bool  labelBelow = false;
+        int   textLines  = 1;
+    };
+
+    void                SetView          (View view);
+    View                GetView          () const    { return m_view; }
+    static ItemMetrics  GetItemMetrics   (View view);
+    bool                GetItemRectPx    (int item, RECT & outRect) const;
+
+    //  Where a visible row's text sits in a column, after its icon, relative
+    //  to the list's own top-left: what an edit box laid over the cell covers,
+    //  as a rename in place does. False for a row scrolled out of view or a
+    //  hidden column.
+    bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const;
+
     // Self-contained mouse input. Forward widget-relative mouse events
     // (positionDip = the point minus the list's own origin) via OnMouse;
     // the list owns scrolling, thumb / column-resize drags, hover, and
@@ -263,6 +353,10 @@ public:
     // repaint and claim focus; IsInteracting is true mid-drag so a Win32
     // host knows to hold mouse capture.
     void  SetOnSelectionChanged (std::function<void (int)>  cb)  { m_onSelectionChanged = std::move (cb); }
+
+    //  Selects nothing and reports it, as a click on the list's empty space
+    //  does in Explorer.
+    void  ClearSelection        ()                               { SetSelectedRows ({}, -1); if (m_onSelectionChanged) { m_onSelectionChanged (-1); } }
     void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
     void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_onSortColumn       = std::move (cb); }
 
@@ -273,17 +367,31 @@ public:
     // (Enter / Space) is unaffected.
     void  SetActivateOnDoubleClick (bool enabled)                { m_activateOnDoubleClick = enabled; }
 
+    //  Milliseconds since some fixed point, for type-ahead's reset. Defaults
+    //  to the system tick count; a test supplies its own.
+    using ClockFn = std::function<int64_t()>;
+    void  SetClock (ClockFn clock)                               { m_clock = std::move (clock); }
+
     // By default the selected row only paints while the list itself holds
     // keyboard focus (its focus cue). File-picker-style consumers keep the
     // selection visible regardless, like a real list view.
     void  SetAlwaysShowSelection   (bool enabled)                { m_alwaysShowSelection = enabled; }
+
+    // Selected rows in the accent selection color a text control uses, as a
+    // preview of a file's contents does, rather than the neutral fill a file
+    // list uses.
+    void  SetTextSelectionColors   (bool enabled)                { m_textSelectionColors = enabled; }
 
     // Raised once when an interactive column-resize drag completes, with
     // the column index and its new effective width in physical pixels.
     // Lets a host that owns a persisted column model (e.g. the debug
     // panels) record the user's width without re-implementing the drag.
     void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
-    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None; }
+    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive; }
+
+    //  The rubber band an item view draws while the pointer drags from empty
+    //  space, in the list's pixels; empty when none is being drawn.
+    RECT  GetSelectionBandPx    () const;
     bool  IsResizingColumn      () const  { return m_resizeColumn >= 0; }
 
     // Auto-repeat for a held scrollbar arrow / track press (like key
@@ -312,24 +420,31 @@ public:
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const       override;
     bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    bool                QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
+    bool                InvokeCommand  (DxuiStandardCommand command) override;
     void                OnFocusChanged (bool focused) override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::ListView; }
 
 private:
     static constexpr int    s_kRowHeightDip      = 30;
-    static constexpr int    s_kHeaderHeightDip   = 26;
+    static constexpr int    s_kHeaderHeightDip   = 32;
     static constexpr int    s_kHeaderGapDip      = 2;
     static constexpr int    s_kCellPadLeftDip    = 12;
     static constexpr int    s_kCellPadRightDip   = 16;
     static constexpr int    s_kSortGlyphWidthDip = 10;
     static constexpr int    s_kScrollbarWidthDip = 10;
+    static constexpr int    s_kCellIconDip       = 16;
+    static constexpr int    s_kCellIconGapDip    = 6;
     static constexpr int    s_kMinColWidthDip    = 48;
     static constexpr int    s_kResizeGrabDip     = 4;
-    static constexpr int    s_kHScrollStepDip    = 32;
-    static constexpr int    s_kKbResizeStepDip   = 8;
-    static constexpr int    s_kMinThumbPx        = 16;
-    static constexpr float  s_kFontDip           = 13.0f;
-    static constexpr float  s_kHeaderFontDip     = 13.0f;
+
+    //  A pause this long between characters starts a new search.
+    static constexpr int64_t  s_kTypeAheadResetMs = 1000;
+    static constexpr int      s_kHScrollStepDip   = 32;
+    static constexpr int      s_kKbResizeStepDip  = 8;
+    static constexpr int      s_kMinThumbPx       = 16;
+    static constexpr float    s_kFontDip          = 13.0f;
+    static constexpr float    s_kHeaderFontDip    = 13.0f;
 
     // Scrollbar auto-repeat cadence (ms), mirroring typical key-repeat:
     // a longer delay before the first repeat, then a steady interval.
@@ -363,6 +478,8 @@ private:
         uint32_t  hdrFg    = 0;
         uint32_t  bgRow    = 0;
         uint32_t  bgHover  = 0;
+        uint32_t  bgSel    = 0;
+        uint32_t  edgeSel  = 0;   // outline on the focused selected row; zero draws none
         uint32_t  bgHeader = 0;
         uint32_t  border   = 0;
         uint32_t  matchBg  = 0;
@@ -386,6 +503,32 @@ private:
     // Fill `out` with row `r`'s cells: from the provider in virtual mode, or
     // a copy of m_rows[r] otherwise. Used by Paint's visible-window pull.
     void         ProvideRow          (int r, std::vector<Cell> & out) const;
+
+    //  The item views' layout in pixels: cell size, items to a line, lines in
+    //  all, and lines in sight.
+    struct ItemGrid
+    {
+        int  cellW   = 0;
+        int  cellH   = 0;
+        int  perLine = 1;
+        int  lines   = 0;
+        int  visible = 1;
+    };
+
+    static constexpr int  s_kItemPadDip  = 6;
+    static constexpr int  s_kItemLineDip = 18;
+
+    bool          IsItemsView             () const { return m_view != View::Details; }
+    ItemGrid      GetItemGrid             () const;
+    ScrollLayout  ComputeItemScrollLayout () const;
+    int           HitTestItem             (int xPx, int yPx) const;
+    void          EnsureItemVisible       (int item);
+    bool          HandleKeyboardItemNav   (WPARAM vk, bool shift);
+    RECT          GetItemLabelRectPx      (const RECT & cell) const;
+    void          PaintItems              (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal, float x, float y) const;
+    POINT         GetItemScrollOffsetPx   () const;
+    void          BeginSelectionBand      (int lx, int ly, bool ctrl);
+    void          UpdateSelectionBand     (int lx, int ly);
     // Grow the monotonic auto-fit glyph counts from one row's cells (the
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_rows is empty).
@@ -400,12 +543,24 @@ private:
     Palette      MakePalette         () const;
     ScrollLayout ComputeScrollLayout () const;
     int          GetColumnNaturalWidthPx (size_t c) const;
+
+    //  What a column's content wants, ignoring any override already on it, so
+    //  fitting a column that has been dragged still measures the content.
+    int          GetColumnContentWidthPx (size_t c) const;
+
+    //  Applies a width a fit asked for, once the paint pass has measured it.
+    void         ApplyPendingFit         ();
+
+    //  Selects the next row whose first column starts with what has been
+    //  typed, as Explorer's list does. True when the character was taken.
+    bool         HandleTypeAhead         (wchar_t ch);
     void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
 
     // Mouse-event dispatch helpers (lx / ly are widget-relative px).
     bool    DispatchMouseDown      (const DxuiMouseEvent & ev, int lx, int ly, bool inside);
     bool    DispatchScrollbarPress (int lx, int ly);
     bool    DispatchMouseMove      (int lx, int ly, bool inside);
+    void    DragSelectTo           (int ly);
     bool    DispatchMouseUp        (int lx, int ly, bool inside);
     bool    DispatchMouseWheel     (const DxuiMouseEvent & ev, bool inside);
 
@@ -449,20 +604,34 @@ private:
     void    ClearColumnFocusMarkers  ();
     void    ReleaseKeyboardColumnFocus ();
     bool    HandleKeyboardColumnKey  (WPARAM vk);
-    bool    HandleKeyboardBodyRowNav (WPARAM vk);
+    bool    HandleKeyboardBodyRowNav (WPARAM vk, bool shift = false);
+
+    // Sets the selection to the rows from the anchor to `row`, inclusive.
+    void    SelectRangeFromAnchor    (int row);
+
+    // Drops selected rows past the end after the row count changes.
+    void    PruneSelection           ();
     bool    OnKeyColumnResizeNav     (const DxuiKeyEvent & ev);
     bool    OnKeyBodyHeaderNav       (const DxuiKeyEvent & ev);
     void    ApplyBodyHeaderFocus     ();
     void    MoveHeaderFocus          (int dir);
-    const IDxuiTheme                * m_theme      = nullptr;
+    const IDxuiTheme                * m_theme     = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
+    HWND                              m_ownerHwnd = nullptr;
     // Per-column pixel width fitted to the header + widest cell via
     // MeasureColumnsPx (DWrite). Monotonic and persists across SetRows so
     // filter/sort don't collapse content-fit columns; reset by SetColumns.
     // Preferred over m_autoMaxChars wherever a non-zero entry exists.
-    mutable std::vector<int>          m_measuredWPx;
-    std::vector<int>                  m_overrideWPx;
+    //  The cells' face and the height of a row, which a fixed-width list
+    //  (a hex dump, a disassembly) changes together.
+    const wchar_t *  GetBodyFace   () const  { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
+    int              GetRowHeightPx() const  { return m_scaler.ToPx (m_rowHeightDip); }
+
+    bool                      m_monospace    = false;
+    int                       m_rowHeightDip = s_kRowHeightDip;
+    mutable std::vector<int>  m_measuredWPx;
+    std::vector<int>          m_overrideWPx;
     // Monotonic max glyph count per auto column (header + widest cell);
     // the cheap fallback used when no DWrite measurement exists (e.g. the
     // debug panels). ComputeColumnLayout turns it into a pixel width at the
@@ -481,9 +650,14 @@ private:
     mutable std::vector<Cell>  m_providerScratch;
     int                        m_hovered           = -1;
     int                        m_selectedRow       = -1;
+    bool                       m_multiSelect       = false;
+    int                        m_anchorRow         = -1;
+    std::vector<int>           m_selectedRows;
     int                        m_sortColumn        = -1;
     bool                       m_sortDescending    = false;
     bool                       m_showHeader        = false;
+    View                       m_view              = View::Details;
+    bool                       m_detailsHeader     = false;   // the header Details had, while another view shows
     int                        m_topRow            = 0;
     bool                       m_stickyTail        = false;
 
@@ -528,6 +702,24 @@ private:
 
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;
-    int      m_lastClickRow          = -1;
-    int64_t  m_lastClickMs           = 0;
+    bool     m_textSelectionColors   = false;
+    bool     m_dragSelecting         = false;
+
+    //  A rubber band in an item view: where the press was, in content pixels
+    //  so it stays put as the view scrolls, where the pointer is now, and the
+    //  selection a Ctrl press began with, which the band adds to.
+    bool              m_bandActive     = false;
+    POINT             m_bandStart      = {};
+    POINT             m_bandEnd        = {};
+    std::vector<int>  m_bandBase;
+    int               m_lastClickRow   = -1;
+    int64_t           m_lastClickMs    = 0;
+    int               m_lastDividerCol = -1;
+    int64_t           m_lastDividerMs  = 0;
+    int               m_pendingFitCol  = -1;
+
+    //  Characters typed toward a row, and when the last one arrived.
+    std::wstring  m_typeAhead;
+    int64_t       m_typeAheadMs      = 0;
+    ClockFn       m_clock;
 };

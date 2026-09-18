@@ -2,9 +2,9 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiTextInput.h"
+#include "Core/DxuiClipboard.h"
 
 
-static constexpr float     s_kFontDip             = 13.0f;
 static constexpr float     s_kPadLeftDip          = 6.0f;
 static constexpr float     s_kPadRightDip         = 6.0f;
 static constexpr float     s_kCaretWidthPx        = 1.0f;
@@ -281,15 +281,25 @@ void DxuiTextInput::OnMouseMove (int x, int y)
 
 bool DxuiTextInput::OnKey (WPARAM vk)
 {
-    HRESULT  hr       = S_OK;
-    bool     consumed = false;
-    bool     shift    = IsShiftKeyDown    ();
-    bool     ctrl     = IsControlKeyDown  ();
-    bool     isActive = m_focused && m_enabled;
+    HRESULT              hr       = S_OK;
+    bool                 consumed = false;
+    bool                 shift    = IsShiftKeyDown    ();
+    bool                 ctrl     = IsControlKeyDown  ();
+    bool                 isActive = m_focused && m_enabled;
+    DxuiStandardCommand  standard = DxuiStandardCommand::None;
 
 
 
     BAIL_OUT_IF (!isActive, S_OK);
+
+    standard = DxuiCommandRouter::TranslateKey (vk, ctrl, IsAltKeyDown(), shift);
+
+    if (standard != DxuiStandardCommand::None)
+    {
+        consumed = InvokeCommand (standard);
+
+        BAIL_OUT_IF (consumed, S_OK);
+    }
 
     switch (vk)
     {
@@ -379,47 +389,8 @@ bool DxuiTextInput::OnKey (WPARAM vk)
             consumed = true;
             break;
 
-        case 'A':
-            if (ctrl)
-            {
-                m_anchor = 0;
-                m_caret  = m_text.size();
-                consumed = true;
-            }
-
-            break;
-
-        case 'C':
-            if (ctrl)
-            {
-                CopyToClipboard();
-                consumed = true;
-            }
-
-            break;
-
-        case 'X':
-            if (ctrl)
-            {
-                CopyToClipboard();
-                if (m_caret != m_anchor)
-                {
-                    DeleteSelection();
-                }
-
-                consumed = true;
-            }
-
-            break;
-
-        case 'V':
-            if (ctrl)
-            {
-                PasteFromClipboard();
-                consumed = true;
-            }
-
-            break;
+        //  Cut, copy, paste and select all go through InvokeCommand, which
+        //  menu commands also call.
 
         default:
             break;
@@ -512,7 +483,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     float        h         = (float) (m_boundsDip.bottom - m_boundsDip.top);
     float        padL      = m_scaler.ToPxf (s_kPadLeftDip);
     float        padR      = m_scaler.ToPxf (s_kPadRightDip);
-    float        fontPx    = m_scaler.ToPxf (s_kFontDip);
+    float        fontPx    = m_scaler.ToPxf (m_fontDip);
     // Floored at zero: a control laid out against a window with no client
     // area yet is zero DIPs wide, and the padding inset would otherwise take
     // that below zero -- a width no clip rect or text box can mean.
@@ -541,6 +512,23 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         selArgb   = m_theme->SelectionBackground();
         edgeArgb  = (fgArgb & 0x00FFFFFFu) | 0x30000000u;
         focusArgb = m_theme->FocusRing();
+
+        //  A disabled field reads as out of use: its text and edge are the
+        //  disabled color and its fill drops back toward the surface behind it.
+        if (!m_enabled)
+        {
+            fgArgb   = m_theme->ForegroundDisabled();
+            edgeArgb = (fgArgb & 0x00FFFFFFu) | 0x20000000u;
+            bgArgb   = m_theme->Background();
+        }
+    }
+
+    //  Over another control's text, the fill goes through the text renderer,
+    //  which draws after every painter fill and would otherwise show that
+    //  text through the field.
+    if (m_overText)
+    {
+        text.FillRect (x + 1.0f, y + 1.0f, w - 2.0f, h - 2.0f, bgArgb);
     }
 
     if (!m_chromeless)
@@ -550,9 +538,9 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     }
 
     caretPrefix.assign (m_text, 0, m_caret);
-    hr = text.MeasureString (caretPrefix.c_str(), fontPx, DxuiTheme::kBodyFace, caretX,    textMeasH);
+    hr = text.MeasureString (caretPrefix.c_str(), fontPx, GetFace(), caretX,    textMeasH);
     IGNORE_RETURN_VALUE (hr, S_OK);
-    hr = text.MeasureString (m_text.c_str(),      fontPx, DxuiTheme::kBodyFace, fullTextW, textMeasH);
+    hr = text.MeasureString (m_text.c_str(),      fontPx, GetFace(), fullTextW, textMeasH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (innerW <= 0.0f)
@@ -572,18 +560,22 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (selStart != selEnd)
     {
-        float bx = 0.0f;
-        float sx = 0.0f;
+        float  bx   = 0.0f;
+        float  sx   = 0.0f;
+        float  selH = 0.0f;
 
         before.assign (m_text, 0, selStart);
         sel.assign    (m_text, selStart, selEnd - selStart);
 
-        hr = text.MeasureString (before.c_str(), fontPx, DxuiTheme::kBodyFace, bx, textMeasH);
+        hr = text.MeasureString (before.c_str(), fontPx, GetFace(), bx, textMeasH);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        hr = text.MeasureString (sel.c_str(),    fontPx, DxuiTheme::kBodyFace, sx, textMeasH);
+        hr = text.MeasureString (sel.c_str(),    fontPx, GetFace(), sx, textMeasH);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        text.FillRect (x + padL + bx - m_scrollPx, y + 2.0f, sx, h - 4.0f, selArgb);
+        //  A line of the text tall, centered as the text is, so a field taller
+        //  than its text keeps the selection clear of its edges.
+        selH = (std::min) ((textMeasH > 1.0f) ? textMeasH : fontPx * 1.3f, h);
+        text.FillRect (x + padL + bx - m_scrollPx, y + (h - selH) * 0.5f, sx, selH, selArgb);
     }
 
     hr = text.DrawString (m_text.c_str(),
@@ -593,7 +585,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                           h,
                           fgArgb,
                           fontPx,
-                          DxuiTheme::kBodyFace,
+                          GetFace(),
                           DxuiTextHAlign::Left,
                           DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,
@@ -602,7 +594,9 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (m_text.empty() && !m_placeholder.empty())
     {
-        uint32_t  phArgb = (m_theme != nullptr) ? m_theme->ForegroundMuted() : s_kFallbackPlaceholder;
+        uint32_t  phArgb = (m_theme == nullptr) ? s_kFallbackPlaceholder
+                         : m_placeholderItalic  ? m_theme->ForegroundDisabled()
+                                                : m_theme->ForegroundMuted();
 
         hr = text.DrawString (m_placeholder.c_str(),
                               x + padL,
@@ -611,10 +605,10 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                               h,
                               phArgb,
                               fontPx,
-                              DxuiTheme::kBodyFace,
+                              GetFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center,
-                              DxuiFontWeight::Normal,
+                              m_placeholderItalic ? DxuiFontWeight::Italic : DxuiFontWeight::Normal,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -802,7 +796,7 @@ size_t DxuiTextInput::GetCharIndexFromX (IDxuiTextRenderer & text, int xPx) cons
 {
     HRESULT       hr     = S_OK;
     float         padL   = m_scaler.ToPxf (s_kPadLeftDip);
-    float         fontPx = m_scaler.ToPxf (s_kFontDip);
+    float         fontPx = m_scaler.ToPxf (m_fontDip);
     float         target = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w      = 0.0f;
     float         h      = 0.0f;
@@ -861,7 +855,7 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
 {
     HRESULT       hr       = S_OK;
     float         padL     = m_scaler.ToPxf (s_kPadLeftDip);
-    float         fontPx   = m_scaler.ToPxf (s_kFontDip);
+    float         fontPx   = m_scaler.ToPxf (m_fontDip);
     float         target   = (float) xPx - (float) m_boundsDip.left - padL + m_scrollPx;
     float         w        = 0.0f;
     float         h        = 0.0f;
@@ -879,7 +873,7 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
             float  dist = 0.0f;
 
             prefix.assign (m_text, 0, i);
-            hr = text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
+            hr = text.MeasureString (prefix.c_str(), fontPx, GetFace(), w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             dist = std::abs (w - target);
@@ -966,76 +960,121 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextInput::QueryCommand  (IDxuiControl override)
+//
+//  Copy and Cut require a selection; Select all requires text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::QueryCommand (DxuiStandardCommand command, bool & outEnabled) const
+{
+    bool  hasSelection = (m_caret != m_anchor);
+
+
+
+    switch (command)
+    {
+    case DxuiStandardCommand::Copy:
+        outEnabled = hasSelection;
+        return true;
+
+    case DxuiStandardCommand::Cut:
+        outEnabled = hasSelection;
+        return true;
+
+    case DxuiStandardCommand::Paste:
+        outEnabled = true;
+        return true;
+
+    case DxuiStandardCommand::SelectAll:
+        outEnabled = !m_text.empty();
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::InvokeCommand  (IDxuiControl override)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
+{
+    bool  enabled = false;
+
+
+
+    if (!QueryCommand (command, enabled) || !enabled)
+    {
+        //  A command this control handles but cannot run now still returns
+        //  true, so the keystroke is not passed to the containing control.
+        return QueryCommand (command, enabled);
+    }
+
+    switch (command)
+    {
+    case DxuiStandardCommand::Copy:
+        CopyToClipboard();
+        break;
+
+    case DxuiStandardCommand::Cut:
+        CopyToClipboard();
+        DeleteSelection();
+        break;
+
+    case DxuiStandardCommand::Paste:
+        PasteFromClipboard();
+        break;
+
+    case DxuiStandardCommand::SelectAll:
+        m_anchor = 0;
+        m_caret  = m_text.size();
+        break;
+
+    default:
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CopyToClipboard
 //
-//  Copies the selection as CF_UNICODETEXT. An empty selection copies nothing
-//  and, importantly, leaves the clipboard ALONE -- Ctrl+C with no selection
-//  must not wipe whatever the user copied earlier.
-//
-//  ownsGlobal tracks who is responsible for the memory. The clipboard takes
-//  ownership only when SetClipboardData succeeds: freeing after a successful
-//  set corrupts the clipboard, and not freeing after a failed one leaks. The
-//  flag is raised at allocation and lowered exactly on success, so the single
-//  cleanup block does the right thing from every exit.
-//
-//  Failures are silent by design. Another application holding the clipboard
-//  open is routine, and an error dialog for a failed Ctrl+C would be worse
-//  than the failure.
+//  Copies the selection. An empty selection copies nothing and leaves the
+//  clipboard alone, so Ctrl+C with nothing selected does not wipe whatever
+//  the user copied earlier.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextInput::CopyToClipboard() const
 {
-    HRESULT       hr         = S_OK;
-    size_t        selStart   = std::min (m_caret, m_anchor);
-    size_t        selEnd     = std::max (m_caret, m_anchor);
+    size_t        selStart = std::min (m_caret, m_anchor);
+    size_t        selEnd   = std::max (m_caret, m_anchor);
     std::wstring  sel;
-    HGLOBAL       hGlobal    = nullptr;
-    void        * pBuf       = nullptr;
-    bool          isOpen     = false;
-    bool          wasEmptied = false;
-    // True while WE still have to free hGlobal; cleared once the clipboard
-    // takes ownership, which is the one path that must not free it.
-    bool          ownsGlobal = false;
 
 
 
-    BAIL_OUT_IF (selStart == selEnd, S_OK);   // nothing selected
+    if (selStart == selEnd)
+    {
+        return;
+    }
 
     sel.assign (m_text, selStart, selEnd - selStart);
 
-    isOpen = OpenClipboard (m_hwnd) != FALSE;
-
-    BAIL_OUT_IF (!isOpen, S_OK);
-
-    wasEmptied = EmptyClipboard() != FALSE;
-
-    BAIL_OUT_IF (!wasEmptied, S_OK);
-
-    hGlobal    = GlobalAlloc (GMEM_MOVEABLE, (sel.size() + 1) * sizeof (wchar_t));
-    ownsGlobal = (hGlobal != nullptr);
-
-    BAIL_OUT_IF (!ownsGlobal, S_OK);
-
-    pBuf = GlobalLock (hGlobal);
-
-    BAIL_OUT_IF (pBuf == nullptr, S_OK);
-
-    memcpy (pBuf, sel.c_str(), (sel.size() + 1) * sizeof (wchar_t));
-    GlobalUnlock (hGlobal);
-
-    ownsGlobal = (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr);
-
-Error:
-    if (ownsGlobal)
-    {
-        GlobalFree (hGlobal);
-    }
-
-    if (isOpen)
-    {
-        CloseClipboard();
-    }
+    DxuiClipboard::SetText (m_hwnd, sel);
 }
 
 
@@ -1046,71 +1085,33 @@ Error:
 //
 //  PasteFromClipboard
 //
-//  Pastes CF_UNICODETEXT at the caret, replacing any selection.
-//
-//  The clipboard text is copied into a local string and the clipboard is
-//  CLOSED before anything is inserted. Insertion fires the change callback,
-//  which runs arbitrary caller code -- and running that while holding the
-//  clipboard open would let a re-entrant copy deadlock against our own lock.
-//
-//  Only CF_UNICODETEXT is requested. Windows synthesizes it from ANSI text,
-//  so asking for the wide format costs no compatibility and avoids a codepage
-//  conversion here.
-//
-//  Length limiting is left to InsertText, so a paste that overflows is
-//  truncated by the same rule that governs typing rather than by a second one
-//  that could disagree.
+//  Pastes at the caret, replacing any selection. Length limiting is left to
+//  InsertText, so a paste that overflows is truncated by the same rule that
+//  governs typing rather than by a second one that could disagree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextInput::PasteFromClipboard()
 {
-    HRESULT       hr      = S_OK;
-    HANDLE        hData   = nullptr;
-    wchar_t     * pBuf    = nullptr;
     std::wstring  ins;
-    bool          isOpen  = false;
-    bool          hasText = false;
 
 
 
-    isOpen = OpenClipboard (m_hwnd) != FALSE;
-
-    BAIL_OUT_IF (!isOpen, S_OK);
-
-    hData = GetClipboardData (CF_UNICODETEXT);
-
-    BAIL_OUT_IF (hData == nullptr, S_OK);
-
-    pBuf = (wchar_t *) GlobalLock (hData);
-
-    BAIL_OUT_IF (pBuf == nullptr, S_OK);
-
-    ins.assign (pBuf);
-    hasText = true;
-    GlobalUnlock (hData);
-
-Error:
-    if (isOpen)
+    if (!DxuiClipboard::GetText (m_hwnd, ins))
     {
-        CloseClipboard();
+        return;
     }
 
-    // Insert AFTER releasing the clipboard: InsertText can raise callbacks,
-    // and holding the clipboard open across them is asking for a deadlock.
-    if (hasText)
+    // Strip newlines for single-line input, which has no place to put them.
+    for (auto & c : ins)
     {
-        // Strip newlines for single-line input.
-        for (auto & c : ins)
+        if (c == L'\r' || c == L'\n' || c == L'\t')
         {
-            if (c == L'\r' || c == L'\n' || c == L'\t')
-            {
-                c = L' ';
-            }
+            c = L' ';
         }
-
-        InsertText (ins);
     }
+
+    InsertText (ins);
 }
 
 
@@ -1289,4 +1290,21 @@ bool DxuiTextInput::OnKey (const DxuiKeyEvent & ev)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::GetFace
+//
+//  The face set for the field, or the theme's body face.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DxuiTextInput::GetFace() const
+{
+    return (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
 }

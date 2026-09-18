@@ -16,6 +16,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
+#include "Cassque/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Window/DxuiMessageBox.h"
 
@@ -294,7 +295,7 @@ static HRESULT LoadMachineConfig (
                           wstring (error.begin(), error.end())).c_str());
 
         // User chose Exit rather than downloading. Stop here with no
-        // config; wWinMain shuts down quietly.
+        // config; wCassoMain shuts down quietly.
         BAIL_OUT_IF (outUserExited, S_OK);
     }
 
@@ -344,6 +345,13 @@ static HRESULT LoadMachineConfig (
                                        return fs::exists (p)
                                               && !AssetBootstrap::IsForeignCheckoutDisk (p);
                                    });
+
+            AssetBootstrap::AppendSiblingDisksFromFolders (
+                KnownFolderStore::LoadPickerFolders (fs_prefs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                     mruPruned,
+                                                     (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                                         std::chrono::system_clock::now().time_since_epoch()).count()),
+                mruPruned);
 
             AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
             AssetBootstrap::AppendBundledDemoDisks (mruPruned);
@@ -568,10 +576,15 @@ static void ReportAssertion (const wchar_t * message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  wWinMain
+//  wCassoMain
 //
 //  Process entry point. Everything here is startup ORDERING -- each step is
 //  placed before something that depends on it.
+//
+//  The name is Casso's own rather than wWinMain because Cassque's entry point
+//  lives in this same library, and a library keeps only one definition of a
+//  symbol. Casso.vcxproj maps the C runtime's call to wWinMain onto this
+//  function with /ALTERNATENAME, which is also why it has C linkage.
 //
 //  DPI awareness is set FIRST, and programmatically rather than through a
 //  manifest entry. Without per-monitor v2, Windows bitmap-scales the whole
@@ -605,7 +618,7 @@ static void ReportAssertion (const wchar_t * message)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int WINAPI wWinMain (
+extern "C" int WINAPI wCassoMain (
     _In_     HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
     _In_     LPWSTR    lpCmdLine,

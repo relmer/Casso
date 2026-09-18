@@ -6,6 +6,7 @@
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiTheme.h"
 #include "Theme/DxuiColor.h"
+#include "Render/DxuiStroke.h"
 
 
 
@@ -895,20 +896,14 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                           DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    // Chevron: stack of horizontal rects forming a downward triangle.
-    for (int row = 0; row < chevronH; row++)
-    {
-        int  inset = (row * chevronW) / (2 * chevronH);
-        int  w     = chevronW - inset * 2;
-
-        if (w <= 0) break;
-
-        painter.FillRect ((float) (chevronX + inset),
-                          (float) (chevronY + row),
-                          (float) w,
-                          1.0f,
-                          textColor);
-    }
+    //  A down caret, two thin smoothed strokes meeting at a point, as the other
+    //  dropdown arrows are drawn, rather than a filled triangle.
+    DxuiStroke::Segment (painter, (float) chevronX, (float) chevronY,
+                         (float) chevronX + (float) chevronW * 0.5f, (float) (chevronY + chevronH),
+                         (std::max) (1.0f, m_scaler.ToPxf (1.0f)), textColor);
+    DxuiStroke::Segment (painter, (float) (chevronX + chevronW), (float) chevronY,
+                         (float) chevronX + (float) chevronW * 0.5f, (float) (chevronY + chevronH),
+                         (std::max) (1.0f, m_scaler.ToPxf (1.0f)), textColor);
 
     if (m_focused && m_focusCueVisible)
     {

@@ -154,6 +154,327 @@ public:
             L"the listing states free space against the volume's capacity");
     }
 
+    TEST_METHOD (List_ShowsAnIndexOnlyBesideNamesSeveralEntriesShare)
+    {
+        // Merlin's disk has ten heading entries of one name and two pairs of
+        // another; those fourteen rows are listed with an index, and no other row is.
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        size_t             marks = 0;
+        size_t             at    = 0;
+
+        SeedRealDisk (io);
+
+        result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List));
+
+        for (at = result.output.find ("  (index "); at != std::string::npos; at = result.output.find ("  (index ", at + 1))
+        {
+            marks++;
+        }
+
+        Assert::AreEqual ((size_t) 14, marks);
+        Assert::IsTrue   (result.output.find ("HELLO  (index") == std::string::npos, L"a unique name shows no index");
+    }
+
+    TEST_METHOD (Get_ByIndex_ReadsThatEntry_AndASharedNameAloneIsRefused)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedRealDisk (io);
+
+        constexpr const char *  kNotAllowed = "--index is only allowed when identifying a specific file with a non-unique name";
+
+        std::string    heading;
+        vector<Byte>   bytes;
+        VolumeListing  listing;
+
+        //  The third entry is one of ten headings that share a name, read from
+        //  the catalog including its padding.
+        {
+            FixtureProvider  fixtures;
+
+            AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proDos2.23.dsk", bytes));
+
+            Dos33Volume  volume (bytes);
+
+            AssertSucceeded (volume.Enumerate (listing));
+
+            heading = listing.entries[2].name;
+        }
+
+        //  Ten entries share the heading's name, so the name alone selects none
+        //  of them.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path = heading;
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("does not identify a specific file because the name is not unique") != std::string::npos);
+
+        //  The name and the index together select that entry.
+        options.disk.hasIndex = true;
+        options.disk.index    = 3;
+        result                = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("--index is only allowed") == std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("does not identify a specific file because the name is not unique") == std::string::npos,
+            L"the index resolves to the heading, regardless of the read result for an entry with no sectors");
+
+        //  --index requires the name as well, so a wrong index cannot select a
+        //  different file on its own.
+        options.disk.path = "";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("<name>") != std::string::npos);
+
+        //  A name given with the index must match that entry.
+        options.disk.path = "MERLIN";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("MERLIN: does not match index 3") != std::string::npos);
+
+        //  HELLO, the fourth entry, is the only entry with its name, so --index
+        //  for it is an error, as is an index past the end of the catalog.
+        options.disk.path  = "HELLO";
+        options.disk.index = 4;
+        result             = runner.Run (options);
+
+        Assert::IsFalse (result.hasPayload);
+        Assert::IsTrue  (result.diagnostics.find (kNotAllowed) != std::string::npos);
+
+        options.disk.index = 500;
+        result             = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find (kNotAllowed) != std::string::npos);
+
+        //  ProDOS names are unique, so --index is an error on a ProDOS disk.
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk");
+
+        options.disk.path  = "PRODOS";
+        options.disk.index = 1;
+        result             = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find (kNotAllowed) != std::string::npos);
+
+        SeedRealDisk (io);
+    }
+
+    //  A ProDOS image with room to make directories on.
+    void SeedProDosDisk (FakeDiskFileIo & io)
+    {
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk");
+    }
+
+
+    TEST_METHOD (Mkdir_MakesEveryDirectoryAlongThePath_AndARepeatIsRefused)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedProDosDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO/DEEP";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, L"both directories are made");
+
+        //  The image the runner wrote is what the next command reads.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.path = "CASSO";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue   (result.output.find ("DEEP") != std::string::npos,
+            L"and the deeper one is inside the first");
+
+        //  Asking again for something that is there in full is an error.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO/DEEP";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("is already on this volume") != std::string::npos);
+    }
+
+
+    TEST_METHOD (Mkdir_OnADos33Disk_SaysTheFilesystemHasNoDirectories)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedRealDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("DOS 3.3, which has none") != std::string::npos);
+    }
+
+
+    TEST_METHOD (Rmdir_ADirectoryHoldingThings_NeedsRecurse_ThenListsAndAsks)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+        std::string         asked;
+
+        SeedProDosDisk (io);
+
+        //  A directory with something in it.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO/DEEP";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        //  Without --recurse it is turned down, and the flag is named.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Rmdir);
+        options.disk.path = "CASSO";
+        result            = runner.Run (options);
+
+        Assert::IsTrue (result.diagnostics.find ("--recurse") != std::string::npos);
+
+        //  With nobody to ask, it is turned down as well, and the list is shown.
+        options.disk.recurse = true;
+        result               = runner.Run (options);
+
+        Assert::IsTrue (result.output.find ("CASSO/DEEP")   != std::string::npos, L"the list names what would go");
+        Assert::IsTrue (result.output.find ("entries, ")    != std::string::npos, L"and totals it");
+        Assert::IsTrue (result.diagnostics.find ("--yes")   != std::string::npos);
+
+        //  An asker that says no leaves the directory where it is.
+        runner.SetConfirmAsker ([&asked] (const std::string & question) { asked = question; return false; });
+
+        result = runner.Run (options);
+
+        Assert::IsTrue (asked.find ("CASSO") != std::string::npos, L"the question names the directory");
+        Assert::IsTrue (result.diagnostics.find ("was not removed") != std::string::npos);
+
+        //  One that says yes removes the subtree.
+        runner.SetConfirmAsker ([] (const std::string &) { return true; });
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.path = "CASSO";
+        result            = runner.Run (options);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus,
+            L"the directory is gone, so listing it fails");
+    }
+
+
+    TEST_METHOD (Rmdir_WithYes_NeedsNobodyToAsk)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedProDosDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "CASSO/DEEP";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::Rmdir);
+        options.disk.path    = "CASSO";
+        options.disk.recurse = true;
+        options.disk.yes     = true;
+        result               = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+    }
+
+
+    TEST_METHOD (List_WithRecurse_WritesAFullPathPerRow)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedProDosDisk (io);
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.recurse = true;
+        result               = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue   (result.output.find ('/') != std::string::npos,
+            L"a row below the volume directory carries the path that reaches it");
+    }
+
+
+    TEST_METHOD (AFullPath_NamesTheVolumeFirst_AndAnotherVolumeIsRefused)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   rooted;
+        DiskCommandResult   relative;
+        DiskCommandResult   wrong;
+        CommandLineOptions  options;
+
+        SeedProDosDisk (io);
+
+        //  `/MERLIN` is this image, so a path through it reaches the volume
+        //  directory exactly as a relative one does.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.path = "/MERLIN";
+        rooted            = runner.Run (options);
+
+        options.disk.path = "";
+        relative          = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, rooted.exitStatus);
+        Assert::AreEqual (relative.output, rooted.output, L"the two forms name one directory");
+
+        //  A full path naming another volume is acting on the wrong disk.
+        options.disk.path = "/NOTTHISONE/SOURCE";
+        wrong             = runner.Run (options);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, wrong.exitStatus);
+        Assert::IsTrue      (wrong.diagnostics.find ("is a path on another volume") != std::string::npos);
+        Assert::IsTrue      (wrong.diagnostics.find ("this image is /MERLIN")       != std::string::npos);
+    }
+
+
+    TEST_METHOD (ADos33NameKeepsItsSlashes)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+        SeedRealDisk (io);
+
+        //  DOS 3.3 has no directories and no volume names, so a leading slash
+        //  is part of the name. This disk holds a file called /HELLO, and
+        //  reading it is the proof that nothing stripped the slash.
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path = "/HELLO";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue   (result.hasPayload);
+        Assert::IsTrue   (result.diagnostics.find ("this image is") == std::string::npos,
+            L"and no volume was read out of the name");
+    }
+
+
     TEST_METHOD (List_SaysNotBootable_OnlyWhenTheBootTracksAreEmpty)
     {
         FakeDiskFileIo     io;
@@ -3880,11 +4201,11 @@ public:
                             == std::string::npos,
             L"and not the old one");
 
-        Assert::IsTrue (result.diagnostics.find ("35 tracks x 16 sectors x 256 bytes")
+        Assert::IsTrue (result.diagnostics.find ("35 tracks, 16 sectors, 256 bytes per sector")
                             != std::string::npos,
             L"the geometry is still knowable and is still worth stating");
 
-        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 holds a boot program")
+        Assert::IsTrue (result.diagnostics.find ("sector 0 contains boot code")
                             != std::string::npos,
             L"and so is the fact that it boots");
 
@@ -3910,7 +4231,7 @@ public:
 
         result = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List, path));
 
-        Assert::IsTrue (result.diagnostics.find ("track 0 sector 0 is blank")
+        Assert::IsTrue (result.diagnostics.find ("sector 0 is blank")
                             != std::string::npos,
             L"an empty first sector is reported as empty, not as bootable");
     }

@@ -3,7 +3,7 @@
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 
 #include "Debugger/DebugSession.h"
-#include "Debugger/Disassembler.h"
+#include "Disassembler.h"
 
 
 

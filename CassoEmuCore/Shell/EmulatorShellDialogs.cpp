@@ -78,7 +78,7 @@ EmulatorShell *  EmulatorShell::s_pNotifyShell = nullptr;
 
 // Reports raised before there is a window to parent a dialog to. File scope
 // rather than a shell member because the sink is installed at the top of
-// wWinMain, before the shell is constructed -- command-line and machine-config
+// wCassoMain, before the shell is constructed -- command-line and machine-config
 // failures happen in that window and must not vanish. Drained once the window
 // exists. The CPU thread can append, hence the lock.
 static std::vector<std::wstring>  s_pendingNotifications;
@@ -292,7 +292,7 @@ void EmulatorShell::FlushPendingNotifications()
 //  The failure-path counterpart of FlushPendingNotifications. Nothing raised
 //  before the window exists is shown until CreateEmulatorWindow replays it,
 //  and a startup that fails never gets there -- LoadMachineConfig's CHRN /
-//  CBRN sites all end in wWinMain's CHR. A system box is the only surface
+//  CBRN sites all end in wCassoMain's CHR. A system box is the only surface
 //  left, so whatever is still queued is shown through one.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -371,19 +371,27 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 
 
 
-    std::unique_ptr<DialogBodyContent>  content   = std::make_unique<DialogBodyContent>();
+    std::unique_ptr<DialogBodyContent>  content    = std::make_unique<DialogBodyContent>();
     MessageDialog                       dlg;
     DxuiWindow::CreateParams            params;
     std::vector<MessageDialog::Button>  buttons;
-    HRESULT                             hr        = S_OK;
-    int                                 heightDip = 0;
-    int                                 widthDip  = 0;
-    int                                 result    = -1;
+    HRESULT                             hr         = S_OK;
+    int                                 heightDip  = 0;
+    int                                 widthDip   = 0;
+    int                                 result     = -1;
+    bool                                imageShown = false;
 
 
     content->SetRuns (def.body);
 
-    if (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat)
+    // A picture takes the app icon's place above the body; a severity glyph
+    // sits beside the body and is unaffected.
+    if (def.image.has_value())
+    {
+        imageShown = content->SetImage (*def.image);
+    }
+
+    if (!imageShown && (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat))
     {
         std::vector<uint32_t>  iconPixels;
         int                    iconW   = 0;

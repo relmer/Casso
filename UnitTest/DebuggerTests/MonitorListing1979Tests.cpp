@@ -2,7 +2,7 @@
 
 #include "TestHelpers.h"
 #include "EmuTests/FixtureProvider.h"
-#include "Debugger/Disassembler.h"
+#include "Disassembler.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

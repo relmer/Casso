@@ -75,11 +75,141 @@ void DxuiToolbar::SetEntries (std::vector<Entry> entries)
     {
         Slot  slot;
 
+        //  The See more button closes the leading entries, before the first
+        //  trailing one.
+        if (m_seeMore != nullptr && e.trailing && (m_slots.empty() || !m_slots.back().entry.trailing))
+        {
+            Slot  more;
+
+            more.entry.command  = m_seeMore;
+            more.entry.group    = kSeeMoreId;
+            more.entry.iconOnly = true;
+            m_slots.push_back (std::move (more));
+        }
+
         slot.entry = std::move (e);
         m_slots.push_back (std::move (slot));
     }
 
+    if (m_seeMore != nullptr && (m_slots.empty() || !m_slots.back().entry.trailing))
+    {
+        Slot  more;
+
+        more.entry.command  = m_seeMore;
+        more.entry.group    = kSeeMoreId;
+        more.entry.iconOnly = true;
+        m_slots.push_back (std::move (more));
+    }
+
     m_labeledCount = (int) m_slots.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::EnableSeeMore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::EnableSeeMore (const wchar_t * glyph, const wchar_t * tip)
+{
+    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+
+
+    command->id       = kSeeMoreId;
+    command->label    = L"See more";
+    command->glyph    = glyph;
+    command->tip      = tip;
+    command->dispatch = [this]() { OpenSeeMore(); };
+
+    m_seeMore = std::move (command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::IsInSeeMore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbar::IsInSeeMore (int commandId) const
+{
+    const Slot *  slot = FindSlot (commandId);
+
+
+
+    return slot != nullptr && slot->hidden;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::PlanSeeMore
+//
+//  Everything the menu always holds goes there first. Then, while the strip
+//  is too wide with every label down to its icon, the rightmost leading
+//  entry still on the strip joins them, and the button appears.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PlanSeeMore (int clientWidthPx)
+{
+    Slot *  moreSlot = nullptr;
+    bool    any      = false;
+
+
+
+    for (Slot & slot : m_slots)
+    {
+        bool  isMore = slot.entry.command != nullptr && slot.entry.command->id == kSeeMoreId;
+
+        if (isMore)
+        {
+            moreSlot = &slot;
+            continue;
+        }
+
+        slot.hidden = slot.entry.seeMoreOnly;
+        any         = any || slot.hidden;
+    }
+
+    if (moreSlot == nullptr)
+    {
+        return;
+    }
+
+    moreSlot->hidden = !any;
+
+    while (GetTotalWidthPx (0) > clientWidthPx)
+    {
+        Slot *  victim = nullptr;
+
+        for (Slot & slot : m_slots)
+        {
+            if (!slot.hidden && !slot.entry.trailing && &slot != moreSlot && slot.entry.custom == nullptr)
+            {
+                victim = &slot;
+            }
+        }
+
+        if (victim == nullptr)
+        {
+            break;
+        }
+
+        victim->hidden   = true;
+        moreSlot->hidden = false;
+    }
 }
 
 
@@ -609,7 +739,7 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
     int           padX    = m_scaler.ToPx (kBtnPadXDp);
     int           iconGap = m_scaler.ToPx (kIconGapDp);
     float         fontPx  = GetChromeFontPx();
-    int           iconW   = (int) (m_scaler.ToPxf (kIconDip) + 0.5f);
+    int           iconW   = (int) (m_scaler.ToPxf (m_iconDip) + 0.5f);
     int           width   = 0;
     std::wstring  label;
 
@@ -620,12 +750,18 @@ int DxuiToolbar::GetEntryWidthPx (const Slot & slot, bool labeled) const
         return slot.entry.custom->GetWidthPx (labeled, m_scaler, m_textRenderer);
     }
 
-    width = padX * 2 + iconW;
+    labeled = labeled || !HasGlyph (slot);
+    width   = padX * 2 + (HasGlyph (slot) ? iconW : 0);
 
     if (labeled && slot.entry.command != nullptr)
     {
         label  = slot.entry.command->GetShortText();
-        width += iconGap + MeasureLabelPx (label.c_str(), fontPx);
+        width += (HasGlyph (slot) ? iconGap : 0) + MeasureLabelPx (label.c_str(), fontPx);
+    }
+
+    if (slot.entry.kind == Kind::DropDown && !HasGlyph (slot))
+    {
+        width += iconGap + m_scaler.ToPx (kChevronDp);
     }
 
     return width;
@@ -654,14 +790,25 @@ int DxuiToolbar::GetTotalWidthPx (int labeledCount) const
 
 
 
+    const Slot *  previous = nullptr;
+
+
+
     for (const Slot & slot : m_slots)
     {
-        width += GetEntryWidthPx (slot, index < labeledCount);
-
-        if (index + 1 < (int) m_slots.size())
+        if (slot.hidden)
         {
-            width += (m_slots[(size_t) index + 1].entry.group != slot.entry.group) ? groupGap : btnGap;
+            index++;
+            continue;
         }
+
+        if (previous != nullptr)
+        {
+            width += (previous->entry.group != slot.entry.group) ? groupGap : btnGap;
+        }
+
+        width   += GetEntryWidthPx (slot, !slot.entry.iconOnly && index < labeledCount);
+        previous = &slot;
 
         index++;
     }
@@ -713,6 +860,7 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
     m_scaler.SetDpi (scaler.GetDpi());
     RefreshMetrics();
+    PlanSeeMore (clientWidthPx);
 
     while (labeled > 0 && GetTotalWidthPx (labeled) > clientWidthPx)
     {
@@ -741,14 +889,17 @@ int DxuiToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 
 void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int   marginY  = 0;
-    int   btnGap   = 0;
-    int   groupGap = 0;
-    int   barPad   = 0;
-    int   x        = 0;
-    int   top      = 0;
-    int   bottom   = 0;
-    int   index    = 0;
+    int           marginY         = 0;
+    int           btnGap          = 0;
+    int           groupGap        = 0;
+    int           barPad          = 0;
+    int           x               = 0;
+    int           top             = 0;
+    int           bottom          = 0;
+    int           index           = 0;
+    int           freeLeft        = 0;
+    int           freeRight       = 0;
+    const Slot  * previousVisible = nullptr;
 
 
 
@@ -769,20 +920,25 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         int   width      = 0;
         bool  wasLabeled = slot.labeled;
 
-        slot.labeled = index < m_labeledCount;
-        width        = GetEntryWidthPx (slot, slot.labeled);
-        slot.rc      = RECT { x, top, x + width, bottom };
-        x           += width;
-
-        if (index + 1 < (int) m_slots.size())
+        if (slot.hidden)
         {
-            x += (m_slots[(size_t) index + 1].entry.group != slot.entry.group) ? groupGap : btnGap;
+            slot.rc      = RECT {};
+            slot.hovered = false;
+            slot.pressed = false;
+            index++;
+            continue;
         }
 
-        if (slot.entry.custom != nullptr)
+        if (previousVisible != nullptr)
         {
-            slot.entry.custom->Layout (slot.rc, slot.labeled, m_scaler);
+            x += (previousVisible->entry.group != slot.entry.group) ? groupGap : btnGap;
         }
+
+        slot.labeled    = !slot.entry.iconOnly && (index < m_labeledCount || !HasGlyph (slot));
+        width           = GetEntryWidthPx (slot, slot.labeled);
+        slot.rc         = RECT { x, top, x + width, bottom };
+        x              += width;
+        previousVisible = &slot;
 
         if (wasLabeled && !slot.labeled && slot.entry.command != nullptr && slot.entry.command->id == m_flyoutId)
         {
@@ -792,8 +948,76 @@ void DxuiToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         index++;
     }
 
+    PlaceTrailingEntries (boundsDip.right - barPad);
+
+    freeLeft  = boundsDip.left + barPad;
+    freeRight = boundsDip.right - barPad;
+
+    for (const Slot & slot : m_slots)
+    {
+        if (slot.hidden)
+        {
+            continue;
+        }
+
+        if (slot.entry.trailing)
+        {
+            freeRight = (std::min) (freeRight, (int) slot.rc.left - groupGap);
+        }
+        else
+        {
+            freeLeft = (std::max) (freeLeft, (int) slot.rc.right + groupGap);
+        }
+    }
+
+    m_freeRect = (freeRight > freeLeft) ? RECT { freeLeft, top, freeRight, bottom } : RECT {};
+
+    for (Slot & slot : m_slots)
+    {
+        if (slot.entry.custom != nullptr)
+        {
+            slot.entry.custom->Layout (slot.rc, slot.labeled, m_scaler);
+        }
+    }
+
     LayoutFlyout();
     SetBounds (m_barRect);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::PlaceTrailingEntries
+//
+//  Moves the trailing entries right so the last one ends at `rightPx`. They
+//  never move left, so a strip too narrow for the gap keeps its order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PlaceTrailingEntries (int rightPx)
+{
+    int  shift = 0;
+
+
+
+    if (m_slots.empty() || !m_slots.back().entry.trailing)
+    {
+        return;
+    }
+
+    shift = (std::max) (0, rightPx - (int) m_slots.back().rc.right);
+
+    for (Slot & slot : m_slots)
+    {
+        if (slot.entry.trailing)
+        {
+            slot.rc.left  += shift;
+            slot.rc.right += shift;
+        }
+    }
 }
 
 
@@ -1221,6 +1445,81 @@ bool DxuiToolbar::OnToolbarLButtonUp (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiToolbar::OpenSeeMore
+//
+//  The entries off the strip in their strip order, a drop-down as a submenu
+//  of its own rows, then the ones that always live here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::OpenSeeMore()
+{
+    const Slot *                    moreSlot = FindSlot (kSeeMoreId);
+    std::vector<DxuiPopupMenuItem>  overflow;
+    std::vector<DxuiPopupMenuItem>  pinned;
+
+
+
+    if (moreSlot == nullptr || m_textRenderer == nullptr)
+    {
+        return;
+    }
+
+    for (const Slot & slot : m_slots)
+    {
+        std::vector<DxuiPopupMenuItem> &  into   = slot.entry.seeMoreOnly ? pinned : overflow;
+        auto                              picker = m_pickers.end();
+
+        if (!slot.hidden || slot.entry.command == nullptr || slot.entry.command->id == kSeeMoreId)
+        {
+            continue;
+        }
+
+        picker = m_pickers.find (slot.entry.command->id);
+
+        if (slot.entry.kind == Kind::DropDown && picker != m_pickers.end())
+        {
+            into.push_back (DxuiPopupMenuItem::ForSubmenu (slot.entry.command, picker->second.items));
+        }
+        else
+        {
+            into.push_back (DxuiPopupMenuItem::ForCommand (slot.entry.command));
+        }
+    }
+
+    if (!overflow.empty() && !pinned.empty())
+    {
+        overflow.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
+    for (DxuiPopupMenuItem & item : pinned)
+    {
+        overflow.push_back (std::move (item));
+    }
+
+    if (overflow.empty())
+    {
+        return;
+    }
+
+    RECT  anchor = { moreSlot->rc.left, m_barRect.top, moreSlot->rc.right, m_barRect.bottom };
+
+    m_openPicker = kSeeMoreId;
+    m_dropdown.SetOnClickOutside (m_onDropDownClickOutside);
+    m_dropdown.ShowUnder (anchor, std::move (overflow), *m_textRenderer, m_hostClient);
+
+    if (!m_dropdown.IsVisible())
+    {
+        m_openPicker = -1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiToolbar::OpenDropDown
 //
 //  Hangs the one menu under a drop-down entry with that entry's rows. The
@@ -1341,7 +1640,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
     float                bw      = (float) (slot.rc.right  - slot.rc.left);
     float                bh      = (float) (slot.rc.bottom - slot.rc.top);
     float                fontDip = GetChromeFontPx();
-    float                iconDip = m_scaler.ToPxf (kIconDip);
+    float                iconDip = m_scaler.ToPxf (m_iconDip);
     int                  padX    = m_scaler.ToPx (kBtnPadXDp);
     int                  iconGap = m_scaler.ToPx (kIconGapDp);
     uint32_t             ink     = m_stripColorsSet ? m_textOverride : theme.ButtonText();
@@ -1405,7 +1704,7 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 
         if (!label.empty())
         {
-            textX = bl + (float) padX + iconDip + (float) iconGap;
+            textX = bl + (float) padX + (HasGlyph (slot) ? iconDip + (float) iconGap : 0.0f);
 
             hr = text.DrawString (label.c_str(), textX, bt,
                                   (float) slot.rc.right - textX, bh,
@@ -1414,6 +1713,17 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
                                   DxuiTextVAlign::CenterOnCapHeight);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
+    }
+
+    if (slot.entry.kind == Kind::DropDown && !HasGlyph (slot))
+    {
+        float  size = m_scaler.ToPxf ((float) kChevronDp);
+        float  pen  = (std::max) (1.0f, m_scaler.ToPxf (1.0f));
+        float  cx   = (float) slot.rc.right - (float) padX - size * 0.5f;
+        float  cy   = bt + bh * 0.5f;
+
+        painter.DrawLineApprox (cx - size * 0.5f, cy - size * 0.25f, cx, cy + size * 0.25f, pen, ink);
+        painter.DrawLineApprox (cx, cy + size * 0.25f, cx + size * 0.5f, cy - size * 0.25f, pen, ink);
     }
 }
 
@@ -1451,11 +1761,14 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     }
 
     painter.FillRect (bl, btTop, bw, bhAll, strip);
-    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.ButtonBorder());
+    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.ContentEdge());
 
     for (Slot & slot : m_slots)
     {
-        PaintSlot (slot, painter, text, theme);
+        if (!slot.hidden)
+        {
+            PaintSlot (slot, painter, text, theme);
+        }
     }
 
     // The flyout paints LAST: it hangs below the bar over whatever is there,
@@ -1511,4 +1824,30 @@ void DxuiToolbar::PaintFlyout (IDxuiPainter & painter, IDxuiTextRenderer & text,
                              strip);
 
     m_flyoutControl->Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::TryGetEntryRect
+//
+//  Where an entry is laid out, for a host hanging a menu from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbar::TryGetEntryRect (int commandId, RECT & outRect) const
+{
+    const Slot *  slot = FindSlot (commandId);
+
+
+
+    if (slot != nullptr)
+    {
+        outRect = slot->rc;
+    }
+
+    return slot != nullptr;
 }

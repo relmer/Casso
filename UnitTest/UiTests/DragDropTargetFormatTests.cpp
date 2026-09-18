@@ -444,4 +444,150 @@ public:
     }
 };
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DragDropTargetDataHandlerTests
+//
+//  A host that judges the whole drag -- Cassque, which takes files and other
+//  images' entries onto a row or tree node -- sets data handlers instead of
+//  the path callbacks. These pin what that host relies on: it is asked with
+//  the drag's own data object wherever the pointer is over a widget that
+//  takes drops, its answer is the effect OLE sees, the drop reaches it only
+//  when it said yes, and it hears the drag go away every way a drag can, so
+//  a lit drop target never stays lit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DragDropTargetDataHandlerTests)
+{
+public:
+
+    struct Calls
+    {
+        int            over   = 0;
+        int            drop   = 0;
+        int            leave  = 0;
+        IDataObject *  seen   = nullptr;
+        POINT          at     = {};
+    };
+
+    static void Wire (DxuiDragDropTarget & target, Calls & calls, DWORD answer, bool overWidget)
+    {
+        target.SetHitTest ([overWidget] (int, int) { return overWidget; });
+        target.SetDataHandlers ([&calls, answer] (IDataObject * data, int, POINT screen) { calls.over++; calls.seen = data; calls.at = screen; return answer; },
+                                [&calls]         (IDataObject *, int, POINT)             { calls.drop++; },
+                                [&calls]         ()                                      { calls.leave++; });
+    }
+
+    TEST_METHOD (DragEnter_OverWidget_AsksHostWithTheDragsData)
+    {
+        DxuiDragDropTarget   target;
+        Calls                calls;
+        DWORD                effect = DROPEFFECT_COPY | DROPEFFECT_MOVE;
+        MockHDropDataObject  obj (L"C:\\Files\\HELLO.TXT");
+
+        Wire (target, calls, DROPEFFECT_COPY, true);
+        Assert::AreEqual (S_OK, target.DragEnter (&obj, 0, POINTL { 40, 50 }, &effect));
+
+        Assert::AreEqual (1, calls.over, L"The host is asked as the drag enters");
+        Assert::IsTrue   (calls.seen == &obj, L"The host sees the drag's own data object");
+        Assert::AreEqual (40L, calls.at.x);
+        Assert::AreEqual (50L, calls.at.y);
+        Assert::AreEqual ((DWORD) DROPEFFECT_COPY, effect, L"The host's answer is the effect");
+    }
+
+    TEST_METHOD (DragOver_HostSaysNo_EffectIsNone)
+    {
+        DxuiDragDropTarget   target;
+        Calls                calls;
+        DWORD                effect = DROPEFFECT_COPY;
+        MockHDropDataObject  obj (L"C:\\Files\\HELLO.TXT");
+
+        Wire (target, calls, DROPEFFECT_NONE, true);
+        (void) target.DragEnter (&obj, 0, POINTL { 1, 1 }, &effect);
+        effect = DROPEFFECT_COPY;
+        Assert::AreEqual (S_OK, target.DragOver (0, POINTL { 2, 2 }, &effect));
+
+        Assert::AreEqual (2, calls.over, L"The host is asked again as the pointer moves");
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect);
+    }
+
+    TEST_METHOD (DragOver_OffEveryWidget_HostHearsLeaveNotOver)
+    {
+        DxuiDragDropTarget   target;
+        Calls                calls;
+        DWORD                effect = DROPEFFECT_COPY;
+        MockHDropDataObject  obj (L"C:\\Files\\HELLO.TXT");
+
+        Wire (target, calls, DROPEFFECT_COPY, false);
+        (void) target.DragEnter (&obj, 0, POINTL { 1, 1 }, &effect);
+
+        Assert::AreEqual (0, calls.over,  L"Off every widget the host is not asked");
+        Assert::AreEqual (1, calls.leave, L"Off every widget the host takes its target down");
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect);
+    }
+
+    TEST_METHOD (Drop_HostSaidYes_ReachesHostThenLeave)
+    {
+        DxuiDragDropTarget   target;
+        Calls                calls;
+        DWORD                effect = DROPEFFECT_COPY;
+        MockHDropDataObject  obj (L"C:\\Files\\HELLO.TXT");
+
+        Wire (target, calls, DROPEFFECT_COPY, true);
+        (void) target.DragEnter (&obj, 0, POINTL { 1, 1 }, &effect);
+        Assert::AreEqual (S_OK, target.Drop (&obj, 0, POINTL { 3, 3 }, &effect));
+
+        Assert::AreEqual (1, calls.drop,  L"An accepted drop reaches the host");
+        Assert::AreEqual (1, calls.leave, L"The drop ends the drag");
+        Assert::AreEqual ((DWORD) DROPEFFECT_COPY, effect);
+        Assert::IsFalse  (target.IsDragInProgress());
+    }
+
+    TEST_METHOD (Drop_HostSaidNo_NeverReachesHost)
+    {
+        DxuiDragDropTarget   target;
+        Calls                calls;
+        DWORD                effect = DROPEFFECT_COPY;
+        MockHDropDataObject  obj (L"C:\\Files\\HELLO.TXT");
+
+        Wire (target, calls, DROPEFFECT_NONE, true);
+        (void) target.DragEnter (&obj, 0, POINTL { 1, 1 }, &effect);
+        (void) target.Drop (&obj, 0, POINTL { 3, 3 }, &effect);
+
+        Assert::AreEqual (0, calls.drop, L"A refused drop does not reach the host");
+        Assert::AreEqual (1, calls.leave);
+        Assert::AreEqual ((DWORD) DROPEFFECT_NONE, effect);
+    }
+
+    TEST_METHOD (DragLeave_HostHearsIt)
+    {
+        DxuiDragDropTarget   target;
+        Calls                calls;
+        DWORD                effect = DROPEFFECT_COPY;
+        MockHDropDataObject  obj (L"C:\\Files\\HELLO.TXT");
+
+        Wire (target, calls, DROPEFFECT_COPY, true);
+        (void) target.DragEnter (&obj, 0, POINTL { 1, 1 }, &effect);
+        Assert::AreEqual (S_OK, target.DragLeave());
+
+        Assert::AreEqual (1, calls.leave);
+        Assert::AreEqual (0, calls.drop);
+    }
+
+    TEST_METHOD (ExtractHDropPaths_ReturnsTheDraggedFile)
+    {
+        std::vector<std::wstring>  paths;
+        MockHDropDataObject        obj (L"C:\\Files\\HELLO.TXT");
+
+        AssertSucceeded (DxuiDragDropTarget::ExtractHDropPaths (&obj, paths), L"ExtractHDropPaths");
+        Assert::AreEqual ((size_t) 1, paths.size());
+        Assert::AreEqual (L"C:\\Files\\HELLO.TXT", paths[0].c_str());
+    }
+};
+
 }   // namespace UiTests

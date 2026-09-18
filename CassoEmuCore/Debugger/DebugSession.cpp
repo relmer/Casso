@@ -5,7 +5,7 @@
 #include "OpcodeTable.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
-#include "Debugger/Disassembler.h"
+#include "Disassembler.h"
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/IDebugNotificationSink.h"

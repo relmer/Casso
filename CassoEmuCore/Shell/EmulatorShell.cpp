@@ -407,7 +407,7 @@ HRESULT EmulatorShell::Initialize (
     m_machine.GetConfig()             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
-    // wWinMain installed the sink already; this just gives it a shell to
+    // wCassoMain installed the sink already; this just gives it a shell to
     // forward to. Anything reported before now is sitting in the queue and
     // is replayed once the window exists.
     s_pNotifyShell = this;
@@ -555,7 +555,7 @@ HRESULT EmulatorShell::Initialize (
     // flash of the restored-size window.
 
     // HONOR WHAT THE LAUNCHER ASKED FOR. Windows carries a requested show
-    // state through CreateProcess into wWinMain, which is how
+    // state through CreateProcess into wCassoMain, which is how
     // Start-Process -WindowStyle Minimized and every scripted launch says
     // "come up, but do not take the screen". Casso discarded it and always
     // activated, so a build-and-run in the background stole focus from
@@ -1145,6 +1145,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     }
 
     InstallChangeReporting();
+    InstallIntentReplies();
     InstallIntentMessageFilter();
 
 Error:
@@ -1191,7 +1192,14 @@ void EmulatorShell::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.GetHitTester(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
+    //  A drop is a hand-off like an insert from another tool: its folder joins
+    //  the known-folder list once the mount succeeds, with nobody to answer.
+    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.GetHitTester(), [this] (int tag, const std::wstring & path)
+                                          {
+                                              m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
+                                              Mount (6, tag, path);
+                                          },
+                                          IsSupportedDiskImageExtension);
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
 
     // UIPI whitelist. When Casso runs at a higher integrity

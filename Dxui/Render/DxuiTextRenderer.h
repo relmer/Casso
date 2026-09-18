@@ -57,6 +57,11 @@ public:
     // names nothing at all.
     static bool  HasSymbolFont () { return s_fontFallback != nullptr; }
 
+    //  Whether a font family with this name is installed. Private-use glyphs
+    //  in a missing face render as nothing, so a caller choosing between icon
+    //  fonts checks first.
+    static bool  IsFontFamilyInstalled (const wchar_t * family);
+
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
                                UINT           dpiY);
@@ -147,13 +152,13 @@ public:
                                float            destXDip,
                                float            destYDip,
                                float            destWidthDip,
-                               float            destHeightDip);
+                               float            destHeightDip) override;
 
-    // Same shape as DrawFramebuffer but uses a SEPARATE cached
-    // ID2D1Bitmap so the emulator framebuffer cache (which gets
-    // refreshed every theme-preview frame) doesn't thrash against
-    // the title-bar icon cache (which is stable for the app's
-    // lifetime). Source pixels MUST be premultiplied BGRA8.
+    // Same shape as DrawFramebuffer but keeps its own cache, one bitmap per
+    // distinct picture, so the emulator framebuffer cache (refreshed every
+    // theme-preview frame) doesn't thrash against icons, and so several
+    // pictures can be drawn in one frame. Source pixels MUST be
+    // premultiplied BGRA8.
     HRESULT  DrawIconBitmap   (const uint32_t * srcBgraPremul,
                                int              srcWidthPx,
                                int              srcHeightPx,
@@ -299,9 +304,29 @@ private:
     ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
     int                               m_framebufferBitmapW = 0;
     int                               m_framebufferBitmapH = 0;
-    ComPtr<ID2D1Bitmap>               m_iconBitmap;
-    int                               m_iconBitmapW        = 0;
-    int                               m_iconBitmapH        = 0;
+    // One cached bitmap per distinct picture. D2D batches the draws of a
+    // frame, so pixels uploaded into a bitmap already drawn once would show
+    // up in that earlier draw as well: every picture of a given size would
+    // come out as whichever was uploaded last.
+    struct IconBitmap
+    {
+        ComPtr<ID2D1Bitmap>  bitmap;
+        uint64_t             key    = 0;
+        int                  width  = 0;
+        int                  height = 0;
+    };
+
+    static constexpr size_t           s_kMaxIconBitmaps    = 64;
+
+    // Creates a bitmap for the picture, uploads it, and adds it to the cache,
+    // dropping the oldest entry once the cache is full.
+    HRESULT  AddIconBitmap (const uint32_t * srcBgraPremul, int srcWidthPx, int srcHeightPx,
+                            uint64_t key, ID2D1Bitmap * & outBitmap);
+
+    // Tells one picture from another; equal pixels share a cache entry.
+    static uint64_t  HashPixels (const uint32_t * pixels, size_t count);
+
+    std::vector<IconBitmap>           m_iconBitmaps;
 
     ComPtr<IDWriteFactory>            m_dwriteFactory;
 

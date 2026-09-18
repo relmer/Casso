@@ -267,31 +267,127 @@ public:
     }
 
 
-    TEST_METHOD (Paint_EmitsTrackAndThumbFills)
+    //  Windows draws a rounded puck and never a track. At rest the puck is
+    //  thin; under the pointer it widens and the arrows appear. The grab band
+    //  does not change with either.
+    TEST_METHOD (Paint_AtRestIsAThinPuckAndNoTrack)
     {
         DxuiScrollbar    bar      = MakeVertical();
         MockDxuiPainter  painter;
-        bool             sawTrack = false;
-        bool             sawThumb = false;
+        int              rects    = 0;
+        int              pucks    = 0;
+        float            widest   = 0.0f;
+
 
         bar.Paint (painter, 0xFFFFFFFFu);
 
         for (const RecordedPaintCall & call : painter.Calls())
         {
-            if (call.kind == RecordedPaintKind::FillRect && call.argb == 0x18FFFFFFu &&
-                call.x == 100.0f && call.width == 10.0f)
+            if (call.kind == RecordedPaintKind::FillRect)
             {
-                sawTrack = true;
+                ++rects;
             }
 
-            if (call.kind == RecordedPaintKind::FillRect && call.argb == 0x80FFFFFFu &&
-                call.x == 101.0f && call.width == 8.0f)
+            if (call.kind == RecordedPaintKind::FillRoundedRect)
             {
-                sawThumb = true;
+                ++pucks;
+                widest = (std::max) (widest, call.width);
             }
         }
 
-        Assert::IsTrue (sawTrack);
-        Assert::IsTrue (sawThumb);
+        Assert::AreEqual (0, rects, L"A bar at rest paints no track");
+        Assert::AreEqual (1, pucks, L"and its puck is one rounded shape");
+        Assert::IsTrue   (widest <= 4.0f,
+            L"a few pixels wide rather than the whole strip");
+    }
+
+
+    TEST_METHOD (Paint_ExpandedWidensThePuckWithoutATrack)
+    {
+        DxuiScrollbar    bar      = MakeVertical();
+        MockDxuiPainter  painter;
+        int              rects    = 0;
+        float            widest   = 0.0f;
+
+
+        bar.SetExpanded (true);
+        bar.Paint (painter, 0xFFFFFFFFu);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::FillRect && call.x == 100.0f && call.width == 10.0f)
+            {
+                ++rects;
+            }
+
+            if (call.kind == RecordedPaintKind::FillRoundedRect)
+            {
+                widest = (std::max) (widest, call.width);
+            }
+        }
+
+        Assert::AreEqual (0, rects, L"The pointer brings no track");
+        Assert::AreEqual (5.0f, widest, L"and the puck widens to half the strip");
+    }
+
+
+    //  The arrows sit on the strip's center line with the puck, on whole
+    //  pixels, whether the strip is an even or an odd number of pixels wide.
+    TEST_METHOD (Paint_ArrowsAreCenteredOnWholePixels)
+    {
+        for (int thickness : { 10, 11 })
+        {
+            DxuiScrollbar    bar;
+            DxuiScrollInfo   info;
+            MockDxuiPainter  painter;
+            int              slices = 0;
+
+            bar.Configure (DxuiScrollbar::Orientation::Vertical, thickness, 16, 1);
+            bar.SetTrack (RECT{ 100, 0, 100 + thickness, 200 });
+
+            info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+            info.nMax  = 100;
+            info.nPage = 20;
+            bar.SetScrollInfo (info);
+            bar.SetExpanded (true);
+            bar.Paint (painter, 0xFFFFFFFFu);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                if (call.kind == RecordedPaintKind::FillRect && call.height == 1.0f)
+                {
+                    ++slices;
+                    Assert::AreEqual (std::floor (call.x), call.x, L"Each arrow slice starts on a whole pixel");
+                    Assert::AreEqual (100.0f + (float) thickness * 0.5f, call.x + call.width * 0.5f, L"and is centered on the strip");
+                }
+            }
+
+            Assert::IsTrue (slices > 0, L"Arrows are drawn on the widened bar");
+        }
+    }
+
+
+    //  A dragged puck follows the pointer one pixel at a time, even though the
+    //  position it reports moves in whole rows. Pressing without moving moves
+    //  nothing.
+    TEST_METHOD (Drag_PuckFollowsThePointerByThePixel)
+    {
+        DxuiScrollbar  bar = MakeVertical();
+        int            y   = 0;
+
+
+        bar.OnMouseDown (105, 20);
+        bar.OnMouseMove (105, 20);
+
+        Assert::AreEqual (10.0f, bar.GetMetrics().thumbStart, L"Pressing leaves the puck where it was");
+        Assert::AreEqual (0,     bar.GetScrollPos(),          L"and the position where it was");
+
+        for (y = 21; y <= 30; y++)
+        {
+            bar.OnMouseMove (105, y);
+            Assert::AreEqual ((float) (y - 10), bar.GetMetrics().thumbStart, L"Each pixel moves the puck one pixel");
+        }
+
+        bar.OnMouseUp();
     }
 };

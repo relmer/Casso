@@ -48,8 +48,16 @@ public:
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }
     void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
+
+    //  Selects every character, so a default value is replaced by the first
+    //  keystroke.
+    void  SelectAll     ()                            { m_anchor = 0; m_caret = m_text.size(); }
+
+    //  Selects [start, end), with the caret at the end, as a rename selects a
+    //  file's name without its extension.
+    void  SetSelection  (size_t start, size_t end)    { m_anchor = (std::min) (start, m_text.size()); m_caret = (std::min) (end, m_text.size()); }
     void  SetFocused    (bool focused)                { m_focused = focused; if (!focused) { m_dragging = false; } ResetBlink(); }
-    void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; } }
+    void  SetEnabled    (bool enabled)                { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_focused = false; m_hover = false; m_dragging = false; m_anchor = m_caret; } }
     void  SetDpi        (UINT dpi)                    { m_scaler.SetDpi (dpi); }
     void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
@@ -66,9 +74,18 @@ public:
     // paint normally.
     void  SetChromeless (bool chromeless)             { m_chromeless = chromeless; }
 
+    //  The field lies over another control's text, as a rename in place lies
+    //  over a list row, and must hide it.
+    void  SetOverText   (bool overText)               { m_overText = overText; }
+
     // Muted prompt text drawn in place of the value while the field is
     // empty (e.g. "Search"). Empty by default.
     void  SetPlaceholder (const std::wstring & text)  { m_placeholder = text; }
+
+    //  Draws the placeholder in italics and the disabled color, as File
+    //  Explorer's search box draws its hint.
+    void  SetPlaceholderItalic (bool italic)          { m_placeholderItalic = italic; }
+    void  SetFont       (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
 
     // Double-click seam. The clock supplies milliseconds for click timing
     // (GetTickCount64 when unset); the metrics override the system
@@ -109,6 +126,8 @@ public:
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
+    bool                InvokeCommand     (DxuiStandardCommand command) override;
     void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
     LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     std::wstring        GetAccessibleName () const override { return m_text; }
@@ -118,6 +137,7 @@ private:
     void   ClampCaret ();
     size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
     size_t GetWordBoundary (size_t from, bool forward) const;
+    const wchar_t *  GetFace () const;
 
     enum class CharClass
     {
@@ -145,21 +165,26 @@ private:
 
     static bool IsShiftKeyDown   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool IsControlKeyDown () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
-    std::wstring        m_text;
-    std::wstring        m_placeholder;
-    size_t              m_maxLen      = 64;
-    size_t              m_caret       = 0;
-    size_t              m_anchor      = 0;
-    bool                m_focused     = false;
-    bool                m_enabled     = true;
-    bool                m_hover       = false;
-    bool                m_dragging    = false;
-    bool                m_chromeless  = false;
-    const IDxuiTheme  * m_theme       = nullptr;
-    HWND                m_hwnd        = nullptr;
-    IDxuiTextRenderer * m_renderer    = nullptr;   // non-owning
-    ChangeFn            m_change;
-    DxuiDpiScaler       m_scaler;
+    static bool IsAltKeyDown     () { return (GetKeyState (VK_MENU)    & 0x8000) != 0; }
+    std::wstring         m_text;
+    std::wstring         m_placeholder;
+    size_t               m_maxLen            = 64;
+    size_t               m_caret             = 0;
+    size_t               m_anchor            = 0;
+    bool                 m_focused           = false;
+    bool                 m_enabled           = true;
+    bool                 m_hover             = false;
+    bool                 m_dragging          = false;
+    bool                 m_chromeless        = false;
+    bool                 m_overText          = false;
+    bool                 m_placeholderItalic = false;
+    const wchar_t      * m_face              = nullptr;   // null: the theme's body face
+    float                m_fontDip           = 13.0f;
+    const IDxuiTheme   * m_theme             = nullptr;
+    HWND                 m_hwnd              = nullptr;
+    IDxuiTextRenderer  * m_renderer          = nullptr;   // non-owning
+    ChangeFn             m_change;
+    DxuiDpiScaler        m_scaler;
 
     // Click counting and word-drag state. The word anchor is the span of the
     // double-clicked word, which a word drag always keeps selected.

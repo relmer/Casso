@@ -56,6 +56,10 @@ public:
     HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const override;
     HRESULT  SetStartupProgram    (const FilePath & path, vector<Byte> & outBuffer) const override;
 
+    HRESULT  Rename    (const FilePath     & from,
+                        const std::string  & to,
+                        vector<Byte>       & outBuffer) const override;
+
     //  The self-check every computed write and delete runs over its own output,
     //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
     //  that disagrees with itself in a way the buffer it was computed from did
@@ -238,6 +242,13 @@ private:
     //  shell is not.
     static bool  TryFindEntry (const vector<RawEntry>  & entries,
                                const std::string       & leaf,
+                               uint16_t                & outOwner);
+
+    //  One entry by path: at its catalog index when the path includes one, whose
+    //  name must still match, and otherwise by a name only one entry has.
+    //  Returns ERROR_DUP_NAME for a name that several entries share.
+    static HRESULT  FindEntry (const vector<RawEntry>  & entries,
+                               const FilePath          & path,
                                uint16_t                & outOwner);
 
     //  A catalog slot is reusable only when its track byte says never-used or

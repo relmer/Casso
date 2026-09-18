@@ -33,6 +33,198 @@ ULONG_PTR Win32IntentChannel::GetMessageId()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32IntentChannel::GetReplyMessageId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ULONG_PTR Win32IntentChannel::GetReplyMessageId()
+{
+    static const UINT  s_kId = RegisterWindowMessageW (L"CassoIntentReply");
+
+
+
+    return (ULONG_PTR) s_kId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32IntentChannel::EncodeInsert
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> Win32IntentChannel::EncodeInsert (const std::string & imagePath, int drive)
+{
+    std::vector<Byte>  bytes;
+
+
+
+    bytes.push_back ((Byte) ExternalChangeIntent::InsertDisk);
+    bytes.push_back ((Byte) drive);
+    bytes.insert (bytes.end(), imagePath.begin(), imagePath.end());
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32IntentChannel::EncodeDescribe
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> Win32IntentChannel::EncodeDescribe()
+{
+    return std::vector<Byte> { (Byte) ExternalChangeIntent::DescribeMachine };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32IntentChannel::EncodeReply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> Win32IntentChannel::EncodeReply (const Reply & reply)
+{
+    std::vector<Byte>  bytes;
+
+
+
+    bytes.push_back ((Byte) reply.kind);
+
+    if (reply.kind == ReplyKind::MachineDescription)
+    {
+        bytes.push_back ((Byte) reply.driveCount);
+    }
+
+    bytes.insert (bytes.end(), reply.text.begin(), reply.text.end());
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32IntentChannel::DecodeReply
+//
+//  The same suspicion as Decode: the bytes came from another process. A kind
+//  this build does not know is refused, a description without its drive
+//  count is refused, and a count past what a Disk ][ card can carry is
+//  refused rather than believed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32IntentChannel::DecodeReply (const Byte * bytes, size_t byteCount, Reply & outReply)
+{
+    bool    wellFormed = false;
+    size_t  textAt     = 1;
+
+
+
+    outReply = Reply();
+
+    if (bytes == nullptr || byteCount < 1 || byteCount > kMaxPayloadBytes)
+    {
+        return false;
+    }
+
+    switch ((ReplyKind) bytes[0])
+    {
+        case ReplyKind::MachineDescription:
+            wellFormed = byteCount >= 2 && bytes[1] <= kMaxDriveCount;
+            textAt     = 2;
+
+            if (wellFormed)
+            {
+                outReply.driveCount = bytes[1];
+            }
+
+            break;
+
+        case ReplyKind::InsertDone:
+        case ReplyKind::InsertRefused:
+        case ReplyKind::ReloadDone:
+        case ReplyKind::ReloadConflict:
+        case ReplyKind::ReloadRefused:
+            wellFormed = true;
+            break;
+
+        default:
+            wellFormed = false;
+            break;
+    }
+
+    if (!wellFormed)
+    {
+        outReply = Reply();
+
+        return false;
+    }
+
+    outReply.kind = (ReplyKind) bytes[0];
+    outReply.text.assign (reinterpret_cast<const char *> (bytes + textAt), byteCount - textAt);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32IntentChannel::SendTo
+//
+//  Sent rather than posted, for the reason every send here is: the buffer has
+//  to outlive the call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32IntentChannel::SendTo (HWND target, HWND sender, ULONG_PTR messageId, const std::vector<Byte> & bytes)
+{
+    COPYDATASTRUCT  data      = {};
+    DWORD_PTR       result    = 0;
+    LRESULT         delivered = 0;
+    bool            fits      = !bytes.empty() && bytes.size() <= kMaxPayloadBytes;
+
+
+
+    if (target == nullptr || !fits)
+    {
+        return false;
+    }
+
+    data.dwData = messageId;
+    data.cbData = (DWORD) bytes.size();
+    data.lpData = (void *) bytes.data();
+
+    delivered = SendMessageTimeoutW (target, WM_COPYDATA, (WPARAM) sender,
+                                     reinterpret_cast<LPARAM> (&data),
+                                     SMTO_ABORTIFHUNG | SMTO_NORMAL,
+                                     kSendTimeoutMs, &result);
+
+    return delivered != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32IntentChannel::Encode
 //
 //  Intent first, then the path.
@@ -78,15 +270,15 @@ std::vector<Byte> Win32IntentChannel::Encode (const std::string & imagePath, Ext
 
 bool Win32IntentChannel::Decode (const Byte * bytes, size_t byteCount, Payload & outPayload)
 {
-    bool  wellFormed = false;
+    bool    wellFormed = false;
+    size_t  pathAt     = 1;
 
 
 
     outPayload = Payload();
 
-    //  One byte of intent plus at least one byte of path, and not more than a
-    //  path could plausibly be.
-    if (bytes == nullptr || byteCount < 2 || byteCount > kMaxPayloadBytes)
+    //  At least the intent byte, and not more than a path could plausibly be.
+    if (bytes == nullptr || byteCount < 1 || byteCount > kMaxPayloadBytes)
     {
         return false;
     }
@@ -100,6 +292,31 @@ bool Win32IntentChannel::Decode (const Byte * bytes, size_t byteCount, Payload &
         wellFormed        = true;
         break;
 
+    case ExternalChangeIntent::InsertDisk:
+        //  A drive byte of 1 or 2 and then the path.
+        outPayload.intent = ExternalChangeIntent::InsertDisk;
+        wellFormed        = byteCount >= 2 && (bytes[1] == 1 || bytes[1] == 2);
+        pathAt            = 2;
+
+        if (wellFormed)
+        {
+            outPayload.drive = bytes[1];
+        }
+
+        break;
+
+    case ExternalChangeIntent::DescribeMachine:
+        //  The one intent that carries no path, and so the one exactly one
+        //  byte long.
+        if (byteCount != 1)
+        {
+            return false;
+        }
+
+        outPayload.intent = ExternalChangeIntent::DescribeMachine;
+
+        return true;
+
     default:
         //  A value this build does not know. Reading the rest would be reading
         //  a message meant for something else.
@@ -109,8 +326,13 @@ bool Win32IntentChannel::Decode (const Byte * bytes, size_t byteCount, Payload &
 
     if (wellFormed)
     {
-        outPayload.imagePath.assign (reinterpret_cast<const char *> (bytes + 1),
-                                     byteCount - 1);
+        wellFormed = byteCount > pathAt;
+    }
+
+    if (wellFormed)
+    {
+        outPayload.imagePath.assign (reinterpret_cast<const char *> (bytes + pathAt),
+                                     byteCount - pathAt);
 
         //  A path of nothing but padding is not a path.
         wellFormed = !outPayload.imagePath.empty()
@@ -137,10 +359,16 @@ bool Win32IntentChannel::Decode (const Byte * bytes, size_t byteCount, Payload &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IntentBroadcast
+{
+    COPYDATASTRUCT  data   = {};
+    HWND            sender = nullptr;
+};
+
 static BOOL CALLBACK SendToOneWindow (HWND window, LPARAM context)
 {
     wchar_t                  className[64] = {};
-    const COPYDATASTRUCT *   data          = reinterpret_cast<const COPYDATASTRUCT *> (context);
+    const IntentBroadcast *  broadcast     = reinterpret_cast<const IntentBroadcast *> (context);
     DWORD_PTR                result        = 0;
     LRESULT                  delivered     = 0;
 
@@ -163,8 +391,8 @@ static BOOL CALLBACK SendToOneWindow (HWND window, LPARAM context)
     //  A FAILED SEND IS NOT REPORTED ANYWHERE, and that is the contract: an
     //  emulator that did not take the hint falls back to asking, which is
     //  correct behavior rather than an error a build should care about.
-    delivered = SendMessageTimeoutW (window, WM_COPYDATA, 0,
-                                     reinterpret_cast<LPARAM> (data),
+    delivered = SendMessageTimeoutW (window, WM_COPYDATA, (WPARAM) broadcast->sender,
+                                     reinterpret_cast<LPARAM> (&broadcast->data),
                                      SMTO_ABORTIFHUNG | SMTO_NORMAL,
                                      Win32IntentChannel::kSendTimeoutMs, &result);
 
@@ -199,7 +427,7 @@ static BOOL CALLBACK SendToOneWindow (HWND window, LPARAM context)
 void Win32IntentChannel::StateIntent (const std::string & imagePath, ExternalChangeIntent intent)
 {
     std::vector<Byte>  bytes      = Encode (imagePath, intent);
-    COPYDATASTRUCT     data       = {};
+    IntentBroadcast    broadcast;
     BOOL               enumerated = FALSE;
 
 
@@ -209,11 +437,12 @@ void Win32IntentChannel::StateIntent (const std::string & imagePath, ExternalCha
         return;
     }
 
-    data.dwData = GetMessageId();
-    data.cbData = (DWORD) bytes.size();
-    data.lpData = bytes.data();
+    broadcast.data.dwData = GetMessageId();
+    broadcast.data.cbData = (DWORD) bytes.size();
+    broadcast.data.lpData = bytes.data();
+    broadcast.sender      = m_sender;
 
-    enumerated = EnumWindows (SendToOneWindow, reinterpret_cast<LPARAM> (&data));
+    enumerated = EnumWindows (SendToOneWindow, reinterpret_cast<LPARAM> (&broadcast));
 
     IGNORE_RETURN_VALUE (enumerated, TRUE);
 

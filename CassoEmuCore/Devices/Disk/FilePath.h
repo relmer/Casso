@@ -31,6 +31,10 @@ public:
     //  doubled separator is tolerated rather than producing a nameless step.
     static FilePath  Parse (const std::string & text);
 
+    //  One component holding the whole name, for a volume with no directories.
+    //  A DOS 3.3 name may contain a slash, which is part of the name.
+    static FilePath  FromName (const std::string & name);
+
     const std::vector<std::string> &  GetComponents () const { return m_components; }
 
     bool  IsRooted () const { return m_isRooted; }
@@ -48,8 +52,18 @@ public:
     //  Rejoined with '/', for messages that quote what the caller asked for.
     std::string  ToString () const;
 
+    //  The same path, identifying the entry at this position in its
+    //  directory's catalog instead of by the leaf's name alone. For DOS 3.3,
+    //  whose names can repeat.
+    FilePath  WithLeafIndex (size_t index) const;
+
+    bool    HasLeafIndex () const { return m_hasLeafIndex; }
+    size_t  GetLeafIndex () const { return m_leafIndex; }
+
 private:
     std::vector<std::string>  m_components;
-    bool                      m_isRooted   = false;
+    bool                      m_isRooted     = false;
+    size_t                    m_leafIndex    = 0;
+    bool                      m_hasLeafIndex = false;
     std::string               m_empty;
 };

@@ -38,6 +38,10 @@ public:
 
     uint32_t  Accent              () const override { return s_kAccent;              }
     uint32_t  FocusRing           () const override { return s_kFocusRing;           }
+
+    //  The interface returns zero for this one, and a widget that guards on
+    //  it draws nothing; a test wanting to see the outline needs a value.
+    uint32_t  ContentSelectionEdge () const override { return s_kContentSelectionEdge; }
     uint32_t  Border              () const override { return s_kBorder;              }
     uint32_t  Divider             () const override { return s_kDivider;             }
 
@@ -73,36 +77,37 @@ public:
 
 
     // Canned values exposed publicly so tests can assert them.
-    static constexpr uint32_t  s_kBackground          = 0xFF101010;
-    static constexpr uint32_t  s_kBackgroundElevated  = 0xFF202020;
-    static constexpr uint32_t  s_kHoverBackground     = 0xFF303030;
-    static constexpr uint32_t  s_kPressedBackground   = 0xFF404040;
-    static constexpr uint32_t  s_kSelectionBackground = 0xFF505050;
-    static constexpr uint32_t  s_kForeground          = 0xFFEEEEEE;
-    static constexpr uint32_t  s_kForegroundMuted     = 0xFFAAAAAA;
-    static constexpr uint32_t  s_kForegroundDisabled  = 0x80EEEEEE;
-    static constexpr uint32_t  s_kHeadingForeground   = 0xFFFFFFFF;
-    static constexpr uint32_t  s_kAccent              = 0xFF3D6FB5;
-    static constexpr uint32_t  s_kFocusRing           = 0xFF3D6FB5;
-    static constexpr uint32_t  s_kBorder              = 0xFF606060;
-    static constexpr uint32_t  s_kDivider             = 0xFF707070;
-    static constexpr uint32_t  s_kButtonIdle          = 0xFF323539;
-    static constexpr uint32_t  s_kButtonHover         = 0xFF45494F;
-    static constexpr uint32_t  s_kButtonPressed       = 0xFF23252A;
-    static constexpr uint32_t  s_kButtonBorder        = 0xFF55595F;
-    static constexpr uint32_t  s_kButtonText          = 0xFFF0F0F0;
-    static constexpr uint32_t  s_kCaptionBackground   = 0xFF181818;
-    static constexpr uint32_t  s_kCaptionForeground   = 0xFFF0F0F0;
-    static constexpr uint32_t  s_kTitleBarTop         = 0xFF202225;
-    static constexpr uint32_t  s_kTitleBarBottom      = 0xFF17181B;
-    static constexpr uint32_t  s_kSystemButtonHover   = 0xFF606060;
-    static constexpr uint32_t  s_kSystemButtonPressed = 0xFF505050;
-    static constexpr uint32_t  s_kSystemCloseHover    = 0xFFC42B1C;
-    static constexpr uint32_t  s_kSystemClosePressed  = 0xFFB02014;
-    static constexpr uint32_t  s_kTooltipBackground   = 0xFF2E3035;
-    static constexpr uint32_t  s_kTooltipBorder       = 0xFF55595F;
-    static constexpr uint32_t  s_kTooltipForeground   = 0xFFF0F0F0;
-    static constexpr uint32_t  s_kErrorForeground     = 0xFFFF6B6B;
+    static constexpr uint32_t  s_kBackground           = 0xFF101010;
+    static constexpr uint32_t  s_kBackgroundElevated   = 0xFF202020;
+    static constexpr uint32_t  s_kHoverBackground      = 0xFF303030;
+    static constexpr uint32_t  s_kPressedBackground    = 0xFF404040;
+    static constexpr uint32_t  s_kSelectionBackground  = 0xFF505050;
+    static constexpr uint32_t  s_kForeground           = 0xFFEEEEEE;
+    static constexpr uint32_t  s_kForegroundMuted      = 0xFFAAAAAA;
+    static constexpr uint32_t  s_kForegroundDisabled   = 0x80EEEEEE;
+    static constexpr uint32_t  s_kHeadingForeground    = 0xFFFFFFFF;
+    static constexpr uint32_t  s_kAccent               = 0xFF3D6FB5;
+    static constexpr uint32_t  s_kFocusRing            = 0xFF3D6FB5;
+    static constexpr uint32_t  s_kContentSelectionEdge = 0xFFC3C3C3;
+    static constexpr uint32_t  s_kBorder               = 0xFF606060;
+    static constexpr uint32_t  s_kDivider              = 0xFF707070;
+    static constexpr uint32_t  s_kButtonIdle           = 0xFF323539;
+    static constexpr uint32_t  s_kButtonHover          = 0xFF45494F;
+    static constexpr uint32_t  s_kButtonPressed        = 0xFF23252A;
+    static constexpr uint32_t  s_kButtonBorder         = 0xFF55595F;
+    static constexpr uint32_t  s_kButtonText           = 0xFFF0F0F0;
+    static constexpr uint32_t  s_kCaptionBackground    = 0xFF181818;
+    static constexpr uint32_t  s_kCaptionForeground    = 0xFFF0F0F0;
+    static constexpr uint32_t  s_kTitleBarTop          = 0xFF202225;
+    static constexpr uint32_t  s_kTitleBarBottom       = 0xFF17181B;
+    static constexpr uint32_t  s_kSystemButtonHover    = 0xFF606060;
+    static constexpr uint32_t  s_kSystemButtonPressed  = 0xFF505050;
+    static constexpr uint32_t  s_kSystemCloseHover     = 0xFFC42B1C;
+    static constexpr uint32_t  s_kSystemClosePressed   = 0xFFB02014;
+    static constexpr uint32_t  s_kTooltipBackground    = 0xFF2E3035;
+    static constexpr uint32_t  s_kTooltipBorder        = 0xFF55595F;
+    static constexpr uint32_t  s_kTooltipForeground    = 0xFFF0F0F0;
+    static constexpr uint32_t  s_kErrorForeground      = 0xFFFF6B6B;
 
     static constexpr float  s_kBodyLineHeightDip = 18.0f;
     static constexpr float  s_kCornerRadiusDip   = 4.0f;

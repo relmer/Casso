@@ -424,6 +424,22 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.disk.block == 6; },
               "--block says which ProDOS block to start at" },
 
+            { "disk", "index", { "CassoCli", "disk", "delete", "d.dsk", "A", "--index", "3" },
+              [] (const CommandLineOptions & o) { return o.disk.hasIndex && o.disk.index == 3; },
+              "--index selects one of several entries that share a name" },
+
+            { "disk", "recurse", { "CassoCli", "disk", "list", "d.po", "GAMES", "--recurse" },
+              [] (const CommandLineOptions & o) { return o.disk.recurse; },
+              "--recurse reaches everything below the directory" },
+
+            { "disk", "force", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--force" },
+              [] (const CommandLineOptions & o) { return o.disk.force; },
+              "--force removes locked entries with the rest" },
+
+            { "disk", "yes", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--yes" },
+              [] (const CommandLineOptions & o) { return o.disk.yes; },
+              "--yes answers the confirmation in advance" },
+
             //
             //  debug
             //

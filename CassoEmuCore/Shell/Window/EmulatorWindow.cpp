@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/DxuiIconImage.h"
+
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -124,13 +126,11 @@ void EmulatorShell::CenterInWorkArea (
 //
 //  EmulatorShell::LoadIconAsPremulBgra
 //
-//  Loads an HICON resource into a CPU-side premultiplied BGRA8
-//  pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
-//  path. Uses a GDI memory DC + 32-bit DIB section to capture the
-//  icon's alpha-channelled pixels (LoadImageW preserves alpha when
-//  LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
-//  pixels in place because D2D's DrawBitmap expects premultiplied
-//  sources.
+//  Loads an HICON resource into a CPU-side premultiplied BGRA8 pixel
+//  buffer for DxuiTextRenderer::DrawIconBitmap, through
+//  DxuiIconImage::FromHicon. It used to multiply by alpha a second time
+//  after DrawIconEx, which already writes premultiplied pixels, and so
+//  darkened every anti-aliased edge of the caption icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,27 +142,15 @@ HRESULT EmulatorShell::LoadIconAsPremulBgra (
     int                   & outW,
     int                   & outH)
 {
-    HRESULT     hr          = S_OK;
-    HICON       hIcon       = nullptr;
-    HDC         screenDc    = nullptr;
-    HDC         memDc       = nullptr;
-    HBITMAP     dib         = nullptr;
-    HBITMAP     oldBitmap   = nullptr;
-    void      * dibBits     = nullptr;
-    BITMAPINFO  bmi         = {};
-    BOOL        drawn       = FALSE;
-    uint32_t  * src         = nullptr;
-    size_t      i           = 0;
-    size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
-    HRESULT     hrGle       = E_FAIL;
+    HRESULT        hr    = S_OK;
+    HICON          hIcon = nullptr;
+    HRESULT        hrGle = E_FAIL;
+    DxuiIconImage  image;
 
 
 
-    // Every failure here is a Win32 one with a real reason behind it -- a
-    // missing resource id reads differently from an exhausted GDI heap -- so
-    // the OS code is carried out rather than flattened to "no icon". The
-    // handles are released at Error:, which every bail below routes through.
-    //
+    // A missing resource id reads differently from an exhausted GDI heap, so
+    // the OS code is carried out rather than flattened to "no icon".
     // GetLastError is read into hrGle BEFORE the check, never inside it: a
     // call in a macro condition is forbidden, and any intervening call could
     // clobber the thread's error code anyway.
@@ -179,68 +167,18 @@ HRESULT EmulatorShell::LoadIconAsPremulBgra (
 
     CBREx (hIcon != nullptr, hrGle);
 
-    screenDc = GetDC (nullptr);
-    memDc    = CreateCompatibleDC (screenDc);
-    CPR (memDc);
+    hr = DxuiIconImage::FromHicon (hIcon, sizePx, image);
+    CHR (hr);
 
-    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth       = sizePx;
-    bmi.bmiHeader.biHeight      = -sizePx;   // top-down DIB
-    bmi.bmiHeader.biPlanes      = 1;
-    bmi.bmiHeader.biBitCount    = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
-
-    dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
-    CPR (dib);
-    CPR (dibBits);
-
-    oldBitmap = (HBITMAP) SelectObject (memDc, dib);
-
-    // Clear the DIB to transparent so the icon's alpha channel composites
-    // against zero instead of the screen DC's garbage contents.
-    memset (dibBits, 0, pixelCount * sizeof (uint32_t));
-
-    drawn = DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL);
-
-    if (!drawn)
-    {
-        hrGle = HRESULT_FROM_WIN32 (GetLastError());
-    }
-
-    CBREx (drawn, hrGle);
-
-    src = (uint32_t *) dibBits;
-    outPixels.assign (pixelCount, 0);
-
-    // Premultiply each BGRA pixel. DIB layout is 0xAARRGGBB in little-endian
-    // uint32 (B,G,R,A in memory order).
-    for (i = 0; i < pixelCount; i++)
-    {
-        uint32_t  px = src[i];
-        uint8_t   a  = (uint8_t) ((px >> 24) & 0xFF);
-        uint8_t   r  = (uint8_t) ((px >> 16) & 0xFF);
-        uint8_t   g  = (uint8_t) ((px >>  8) & 0xFF);
-        uint8_t   b  = (uint8_t) ( px        & 0xFF);
-
-        r = (uint8_t) ((r * a) / 255);
-        g = (uint8_t) ((g * a) / 255);
-        b = (uint8_t) ((b * a) / 255);
-
-        outPixels[i] = ((uint32_t) a << 24) | ((uint32_t) r << 16) |
-                       ((uint32_t) g <<  8) |  (uint32_t) b;
-    }
-
-    outW = sizePx;
-    outH = sizePx;
+    outPixels = std::move (image.bgraPremul);
+    outW      = image.width;
+    outH      = image.height;
 
 Error:
-    // Unwound in reverse acquisition order, each guarded: a bail from any of
-    // the checks above lands here with only some of them owned.
-    if (oldBitmap != nullptr) { SelectObject (memDc, oldBitmap); }
-    if (dib != nullptr)       { DeleteObject (dib); }
-    if (memDc != nullptr)     { DeleteDC (memDc); }
-    if (screenDc != nullptr)  { ReleaseDC (nullptr, screenDc); }
-    if (hIcon != nullptr)     { DestroyIcon (hIcon); }
+    if (hIcon != nullptr)
+    {
+        DestroyIcon (hIcon);
+    }
 
     return hr;
 }
@@ -2520,6 +2458,21 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // An answer for a tool that asked, known on another thread or inside the
+    // tool's own send.
+    if (msg == WM_APP_INTENT_REPLY)
+    {
+        IntentReplyPost *  carried = reinterpret_cast<IntentReplyPost *> (lParam);
+
+        if (carried != nullptr)
+        {
+            SendIntentReply (carried->target, carried->reply);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (msg == WM_APP_DXUI_UPDATE_TITLE)
     {
         UpdateWindowTitle();
@@ -2571,12 +2524,13 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 {
     const COPYDATASTRUCT *       carried    = reinterpret_cast<const COPYDATASTRUCT *> (data);
+    HWND                         replyTo    = reinterpret_cast<HWND> (sender);
     bool                         wellFormed = false;
     Win32IntentChannel::Payload  payload;
+    Win32IntentChannel::Reply    reply;
+    std::wstring                 widePath;
 
 
-
-    UNREFERENCED_PARAMETER (sender);
 
     if (carried == nullptr || carried->dwData != Win32IntentChannel::GetMessageId())
     {
@@ -2588,9 +2542,43 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 
     //  A malformed payload is claimed rather than passed on: it carried our own
     //  id, so it was meant for us and simply was not readable.
-    if (wellFormed)
+    if (!wellFormed)
     {
-        m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent);
+        return DxuiMessageResult::Handled;
+    }
+
+    switch (payload.intent)
+    {
+        case ExternalChangeIntent::InsertDisk:
+            //  Through the drive widget's own mount, so an occupied drive is
+            //  flushed and ejected before the new disk goes in. The answer
+            //  waits for the mount to finish on the CPU thread.
+            widePath = fs::path (std::u8string (payload.imagePath.begin(), payload.imagePath.end())).wstring();
+
+            m_intentReplies.NoteInsert (payload.drive - 1, fs::path (widePath).string(), replyTo);
+            Mount (6, payload.drive - 1, widePath);
+            break;
+
+        case ExternalChangeIntent::DescribeMachine:
+            reply.kind       = Win32IntentChannel::ReplyKind::MachineDescription;
+            reply.driveCount = m_machine.GetConfig().AttachedDiskIiDriveCount();
+            reply.text       = m_machine.GetConfig().name;
+
+            //  Answered after this handler returns: the sender is still inside
+            //  its own send, and a send back to it now would wait on itself.
+            PostIntentReply (replyTo, reply);
+            break;
+
+        default:
+            //  A tool that passed its window wants to hear what came of the
+            //  change; one that did not is the command line, and hears nothing.
+            if (replyTo != nullptr)
+            {
+                m_intentReplies.NoteReload (payload.imagePath, replyTo);
+            }
+
+            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent);
+            break;
     }
 
     return DxuiMessageResult::Handled;

@@ -675,4 +675,57 @@ public:
 
         AssertFailed (ApplesoftTokenizer::Detokenize (program, listing, error));
     }
+
+
+    //  Rewrites every link as though the program had been saved from `base`.
+    static void  Relink (std::vector<Byte> & program, uint32_t base)
+    {
+        size_t  at  = 0;
+        size_t  end = 0;
+
+        while (at + 4 <= program.size() && (program[at] | program[at + 1]) != 0)
+        {
+            end = at + 4;
+
+            while (end < program.size() && program[end] != 0)
+            {
+                end++;
+            }
+
+            program[at]     = (Byte) ((base + end + 1) & 0xFF);
+            program[at + 1] = (Byte) (((base + end + 1) >> 8) & 0xFF);
+            at              = end + 1;
+        }
+    }
+
+
+    TEST_METHOD (Detokenize_AProgramSavedFromAnotherAddress_ListsByItsOwnLinks)
+    {
+        std::vector<Byte>      program = Tokenized ("10 PRINT\n20 END\n");
+        std::string            listing;
+        ApplesoftListingError  error;
+
+        Relink (program, 0x4001);
+
+        AssertSucceeded (ApplesoftTokenizer::Detokenize (program, listing, error),
+            L"a program saved with its links at $4001 lists as it would after LOAD relinks it");
+        Assert::AreEqual (std::string ("10  PRINT\n20  END\n"), listing);
+    }
+
+
+    TEST_METHOD (Detokenize_AFileCutOffInItsLastLine_KeepsTheLinesBeforeIt)
+    {
+        std::vector<Byte>      program = Tokenized ("10 PRINT\n20 END\n");
+        std::string            listing;
+        ApplesoftListingError  error;
+
+        program.resize (program.size() - 4);
+
+        AssertFailed (ApplesoftTokenizer::Detokenize (program, listing, error));
+        Assert::IsTrue   (listing.empty(), L"the listing is still refused");
+        Assert::AreEqual (std::string ("10  PRINT\n"), error.partialListing, L"but the lines before the cut are kept for a caller to show");
+        Assert::AreEqual ((uint32_t) 20, error.lineNumber);
+        Assert::IsTrue   (error.hasLastLineNumber);
+        Assert::AreEqual ((uint32_t) 10, error.lastLineNumber, L"and the last line read whole is known");
+    }
 };

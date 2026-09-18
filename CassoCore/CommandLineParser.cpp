@@ -56,6 +56,10 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "rm",          CommandLineOptions::DiskOptions::Command::Delete      },
     { "del",         CommandLineOptions::DiskOptions::Command::Delete      },
     { "boot",        CommandLineOptions::DiskOptions::Command::Boot        },
+    { "mkdir",       CommandLineOptions::DiskOptions::Command::Mkdir       },
+    { "md",          CommandLineOptions::DiskOptions::Command::Mkdir       },
+    { "rmdir",       CommandLineOptions::DiskOptions::Command::Rmdir       },
+    { "rd",          CommandLineOptions::DiskOptions::Command::Rmdir       },
     { "create",      CommandLineOptions::DiskOptions::Command::Create      },
     { "new",         CommandLineOptions::DiskOptions::Command::Create      },
     { "init",        CommandLineOptions::DiskOptions::Command::Init        },
@@ -252,6 +256,10 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "logical",
     "physical",
     "block",
+    "index",
+    "recurse",
+    "force",
+    "yes",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -974,7 +982,6 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         //  Create and init name an image and nothing else. Everything they take
         //  beyond that arrives as an option, so a second operand is a mistake
         //  and is refused rather than dropped.
-        case CommandLineOptions::DiskOptions::Command::List:
         case CommandLineOptions::DiskOptions::Command::Create:
         case CommandLineOptions::DiskOptions::Command::Init:
         case CommandLineOptions::DiskOptions::Command::SectorRead:
@@ -982,10 +989,15 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
             count = 1;
             break;
 
+        //  `list` takes a directory as its second operand, and takes the volume
+        //  directory when it is left out.
+        case CommandLineOptions::DiskOptions::Command::List:
         case CommandLineOptions::DiskOptions::Command::Get:
         case CommandLineOptions::DiskOptions::Command::Put:
         case CommandLineOptions::DiskOptions::Command::Delete:
         case CommandLineOptions::DiskOptions::Command::Boot:
+        case CommandLineOptions::DiskOptions::Command::Mkdir:
+        case CommandLineOptions::DiskOptions::Command::Rmdir:
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
             count = 2;
@@ -1051,7 +1063,8 @@ const char * CommandLineParser::GetDiskCommandWord (CommandLineOptions::DiskOpti
 bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
     return arg == "--out"  || arg == "--as"   || arg == "--type"
-        || arg == "--load" || arg == "--exec" || arg == "--on-change";
+        || arg == "--load" || arg == "--exec" || arg == "--on-change"
+        || arg == "--index";
 }
 
 
@@ -1296,6 +1309,26 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        //  PowerShell's own words for these, and its short forms with them:
+        //  -r and -s both mean recurse there, and -y answers the question.
+        if (arg == "--recurse" || arg == "-r" || arg == "-s")
+        {
+            options.disk.recurse = true;
+            continue;
+        }
+
+        if (arg == "--force")
+        {
+            options.disk.force = true;
+            continue;
+        }
+
+        if (arg == "--yes" || arg == "-y")
+        {
+            options.disk.yes = true;
+            continue;
+        }
+
         if (arg == "--basic")
         {
             options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
@@ -1313,6 +1346,31 @@ void CommandLineParser::ParseDiskOptions (
         {
             options.disk.path = argv[i + 1];
             i++;
+            continue;
+        }
+
+        //  The catalog position of one of several entries with the same name,
+        //  counting from 1 as `disk list` prints it.
+        if (arg == "--index" && hasValue)
+        {
+            std::string    value  = argv[++i];
+            char         * end    = nullptr;
+            unsigned long  parsed = strtoul (value.c_str(), &end, 10);
+            bool           valid  = !value.empty() && end != nullptr && *end == '\0' && parsed >= 1;
+
+            if (!valid)
+            {
+                Refusal (options) << "Error: illegal " << FormatLongOption ("--index", options.flagPrefix) << " value\n"
+                                  << "       The index must identify a duplicate name, as shown by the 'disk list' command.\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+            else
+            {
+                options.disk.index    = (size_t) parsed;
+                options.disk.hasIndex = true;
+            }
+
             continue;
         }
 

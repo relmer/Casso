@@ -1,0 +1,391 @@
+#include "Pch.h"
+
+#include "Cassque/CassqueCommands.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::CassqueCommands
+//
+//  One command per row, each forwarding to the handlers with its own id. A
+//  missing handler leaves a row enabled, unchecked and inert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueCommands::CassqueCommands (Handlers handlers)
+    : m_handlers (std::move (handlers))
+{
+    for (const Row & row : kRows)
+    {
+        std::shared_ptr<DxuiCommand>  command;
+        int                           id = row.id;
+
+        if (row.id == kSeparator)
+        {
+            continue;
+        }
+
+        command = std::make_shared<DxuiCommand>();
+
+        command->id          = row.id;
+        command->label       = row.label;
+        command->accelerator = (row.accelerator != nullptr) ? row.accelerator : L"";
+
+        command->dispatch = [this, id]()
+        {
+            if (m_handlers.dispatch)
+            {
+                m_handlers.dispatch (id);
+            }
+        };
+
+        command->isEnabled = [this, id]()
+        {
+            return m_handlers.isEnabled ? m_handlers.isEnabled (id) : true;
+        };
+
+        if (row.checkable)
+        {
+            command->isChecked = [this, id]()
+            {
+                return m_handlers.isChecked ? m_handlers.isChecked (id) : false;
+            };
+        }
+
+        m_commands.push_back (std::move (command));
+    }
+
+    //  The toolbar shows some of the same commands; they carry the glyph,
+    //  short label and tip the strip draws.
+    ApplyToolbarRows (kToolbarRows);
+    ApplyToolbarRows (kCommandBarRows);
+    ApplyToolbarRows (kPreviewToolbarRows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::ApplyToolbarRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueCommands::ApplyToolbarRows (std::span<const ToolbarRow> rows)
+{
+    for (const ToolbarRow & row : rows)
+    {
+        for (std::shared_ptr<DxuiCommand> & command : m_commands)
+        {
+            if (command->id == row.id)
+            {
+                command->glyph      = row.glyph;
+                command->shortLabel = row.shortLabel;
+                command->tip        = row.tip;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::GetMenuTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassqueCommands::GetMenuTitle (Menu menu)
+{
+    switch (menu)
+    {
+        case Menu::File: return L"&File";
+        case Menu::Edit: return L"&Edit";
+        case Menu::View: return L"&View";
+        case Menu::Go:   return L"&Go";
+        case Menu::Help: return L"&Help";
+        default:         return L"";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::GetStandardCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiStandardCommand CassqueCommands::GetStandardCommand (int id)
+{
+    for (const Row & row : kRows)
+    {
+        if (row.id == id)
+        {
+            return row.standard;
+        }
+    }
+
+    return DxuiStandardCommand::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::GetToolbarEntryCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassqueCommands::GetToolbarEntryCount()
+{
+    return std::size (kToolbarRows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::GetToolbarCommandId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassqueCommands::GetToolbarCommandId (size_t index)
+{
+    return (index < std::size (kToolbarRows)) ? kToolbarRows[index].id : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::Find
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiCommand> CassqueCommands::Find (int id) const
+{
+    for (const std::shared_ptr<DxuiCommand> & command : m_commands)
+    {
+        if (command->id == id)
+        {
+            return command;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildMenuItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiMenuBarItem> CassqueCommands::BuildMenuItems() const
+{
+    std::vector<DxuiMenuBarItem>  items;
+    int                           menu = 0;
+
+
+
+    for (menu = 0; menu < (int) Menu::Count; menu++)
+    {
+        DxuiMenuBarItem  item;
+
+        item.label = GetMenuTitle ((Menu) menu);
+
+        for (const Row & row : kRows)
+        {
+            if (row.menu != (Menu) menu)
+            {
+                continue;
+            }
+
+            if (row.id == kSeparator)
+            {
+                item.submenu.push_back (DxuiPopupMenuItem::ForSeparator());
+            }
+            else
+            {
+                item.submenu.push_back (DxuiPopupMenuItem::ForCommand (Find (row.id)));
+            }
+        }
+
+        items.push_back (std::move (item));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::TranslateKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassqueCommands::TranslateKey (WPARAM vk, bool ctrl, bool alt, bool shift)
+{
+    for (const Key & key : kKeys)
+    {
+        if (key.vk == vk && key.ctrl == ctrl && key.alt == alt && key.shift == shift)
+        {
+            return key.id;
+        }
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildToolbarEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildToolbarEntries() const
+{
+    return BuildEntries (kToolbarRows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildCommandBarEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildCommandBarEntries() const
+{
+    return BuildEntries (kCommandBarRows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildEntries (std::span<const ToolbarRow> rows) const
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    for (const ToolbarRow & row : rows)
+    {
+        DxuiToolbar::Entry  entry;
+
+        entry.command  = Find (row.id);
+        entry.kind     = row.kind;
+        entry.group    = row.group;
+        entry.iconOnly    = row.iconOnly;
+        entry.trailing    = row.trailing;
+        entry.seeMoreOnly = row.seeMoreOnly;
+
+        entries.push_back (std::move (entry));
+    }
+
+    return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::BuildPreviewToolbarEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> CassqueCommands::BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    for (const ToolbarRow & row : kPreviewToolbarRows)
+    {
+        DxuiToolbar::Entry  entry;
+
+        if ((row.id == kLineAddresses) == hex)
+        {
+            continue;
+        }
+
+        entry.command  = Find (row.id);
+        entry.kind     = row.kind;
+        entry.group    = row.group;
+        entry.trailing = row.trailing;
+        entry.custom   = (row.id == kFind)       ? search
+                       : (row.id == kGoToOffset) ? goTo
+                                                 : nullptr;
+
+        entries.push_back (std::move (entry));
+    }
+
+    return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueCommands::GetPreviewToolbarCommandIds
+//
+//  The preview toolbar's commands in strip order, for the Tab order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> CassqueCommands::GetPreviewToolbarCommandIds (bool hex)
+{
+    std::vector<int>  ids;
+
+
+
+    for (const ToolbarRow & row : kPreviewToolbarRows)
+    {
+        if ((row.id == kLineAddresses) != hex)
+        {
+            ids.push_back (row.id);
+        }
+    }
+
+    return ids;
+}

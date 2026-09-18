@@ -101,7 +101,11 @@ public:
     //
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
     {
-        uint32_t  argb = m_useThemeRole ? (uint32_t) theme.TextColor (m_role) : m_argb;
+        //  A disabled label, such as the one beside a field out of use, takes
+        //  the disabled color whatever its role.
+        uint32_t  argb = !IsEnabled()     ? theme.ForegroundDisabled()
+                       : m_useThemeRole   ? (uint32_t) theme.TextColor (m_role)
+                                          : m_argb;
         float     dip  = (m_fontDip > 0.0f) ? m_fontDip : theme.BodyFont().sizeDip;
 
         DrawResolved (painter, text, argb, dip);

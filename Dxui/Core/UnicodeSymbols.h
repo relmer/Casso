@@ -18,6 +18,7 @@
 
 static constexpr wchar_t s_kchBullet         = L'\x2022';       // U+2022 BULLET (•)
 static constexpr wchar_t s_kchEmDash         = L'\x2014';       // U+2014 EM DASH (—)
+static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for ranges
 static constexpr wchar_t s_kchEllipsis       = L'\x2026';       // U+2026 HORIZONTAL ELLIPSIS (…)
 static constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
 static constexpr wchar_t s_kchDegree         = L'\x00B0';       // U+00B0 DEGREE SIGN (°)
@@ -26,6 +27,8 @@ static constexpr LPCWSTR s_kpszCheckMark     = L"\x2713";       // U+2713 CHECK 
 static constexpr LPCWSTR s_kpszTriangleUp    = L"\x25B2";       // U+25B2 BLACK UP-POINTING TRIANGLE (▲)
 static constexpr LPCWSTR s_kpszTriangleDown  = L"\x25BC";       // U+25BC BLACK DOWN-POINTING TRIANGLE (▼)
 static constexpr LPCWSTR s_kpszTriangleRight = L"\x25B6";       // U+25B6 BLACK RIGHT-POINTING TRIANGLE (▶)
+static constexpr LPCWSTR s_kpszTriangleLeft  = L"\x25C0";       // U+25C0 BLACK LEFT-POINTING TRIANGLE
+static constexpr LPCWSTR s_kpszChevronRight  = L"\x203A";       // U+203A SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
 static constexpr LPCWSTR s_kpszRightArrow    = L"\x2192";       // U+2192 RIGHTWARDS ARROW
 static constexpr LPCWSTR s_kpszMultiplyX     = L"\x00D7";       // U+00D7 MULTIPLICATION SIGN (×), window-close glyph
 static constexpr LPCWSTR s_kpszRocket        = L"\U0001F680";   // U+1F680 ROCKET (🚀)
@@ -36,7 +39,27 @@ static constexpr LPCWSTR s_kpszLock          = L"\U0001F512";   // U+1F512 LOCK 
 // the "Segoe MDL2 Assets" family).
 static constexpr LPCWSTR s_kpszMdl2Play      = L"\xE768";       // U+E768 Segoe MDL2 Play
 static constexpr LPCWSTR s_kpszMdl2Copy      = L"\xE8C8";       // U+E8C8 Segoe MDL2 Copy
+static constexpr LPCWSTR s_kpszMdl2Cut       = L"\xE8C6";       // U+E8C6 Segoe MDL2 Cut (scissors)
+static constexpr LPCWSTR s_kpszMdl2Paste     = L"\xE77F";       // U+E77F Segoe MDL2 Paste (clipboard)
+static constexpr LPCWSTR s_kpszMdl2Rename    = L"\xE8AC";       // U+E8AC Segoe MDL2 Rename (A in a text box)
+static constexpr LPCWSTR s_kpszMdl2Delete    = L"\xE74D";       // U+E74D Segoe MDL2 Delete (trash can)
+static constexpr LPCWSTR s_kpszMdl2Share     = L"\xE72D";       // U+E72D Segoe MDL2 Share (box with arrow)
+static constexpr LPCWSTR s_kpszMdl2Sort      = L"\xE8CB";       // U+E8CB Segoe MDL2 Sort (up and down arrows)
+static constexpr LPCWSTR s_kpszMdl2List      = L"\xE8FD";       // U+E8FD Segoe MDL2 BulletedList (Explorer's View)
+static constexpr LPCWSTR s_kpszMdl2Palette   = L"\xE790";       // U+E790 Segoe MDL2 Color (palette)
+static constexpr LPCWSTR s_kpszMdl2Info      = L"\xE946";       // U+E946 Segoe MDL2 Info (i in a circle)
 static constexpr LPCWSTR s_kpszMdl2Accept    = L"\xE73E";       // U+E73E Segoe MDL2 Accept (check mark)
+static constexpr LPCWSTR s_kpszMdl2Back      = L"\xE72B";       // U+E72B Segoe MDL2 Back
+static constexpr LPCWSTR s_kpszMdl2Forward   = L"\xE72A";       // U+E72A Segoe MDL2 Forward
+static constexpr LPCWSTR s_kpszMdl2Up        = L"\xE74A";       // U+E74A Segoe MDL2 Up
+static constexpr LPCWSTR s_kpszMdl2Refresh   = L"\xE72C";       // U+E72C Segoe MDL2 Refresh
+static constexpr LPCWSTR s_kpszMdl2Add       = L"\xE710";       // U+E710 Segoe MDL2 Add
+static constexpr LPCWSTR s_kpszMdl2Preview   = L"\xE8A1";       // U+E8A1 Segoe MDL2 PreviewLink
+static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";  // U+E76C Segoe MDL2 ChevronRight
+static constexpr LPCWSTR s_kpszMdl2More   = L"\xE712";       // U+E712 Segoe MDL2 More (three dots)
+static constexpr LPCWSTR s_kpszMdl2Cancel = L"\xE711";       // U+E711 Segoe MDL2 Cancel (the clear button's X)
+static constexpr LPCWSTR s_kpszMdl2Search = L"\xE721";       // U+E721 Segoe MDL2 Search (magnifying glass)
+static constexpr LPCWSTR s_kpszMdl2WarningSolid = L"\xE814";  // U+E814 Segoe MDL2 warning triangle, filled
 
 // Xbox controller inputs, as Segoe MDL2 Assets draws them.
 static constexpr LPCWSTR s_kpszMdl2ButtonA       = L"\xF093";   // U+F093 Segoe MDL2 ButtonA (circled A)

@@ -497,11 +497,11 @@ public:
         Assert::IsTrue (listing.entries.size() > 0, L"the volume holds files");
     }
 
-    TEST_METHOD (ProDos_RealDisk_HasSubdirectoriesSoDeeperPathsAreRefused)
+    TEST_METHOD (ProDos_RealDisk_ReadsAFileInsideASubdirectory)
     {
-        // /MERLIN carries real subdirectories, so this exercises the refusal
-        // rather than assuming it. Traversal is not built; a deeper path must
-        // be declined, never reduced to its last component.
+        // /MERLIN carries real subdirectories. A deeper path is walked through
+        // them, and a leaf that is not in the named directory is not found
+        // elsewhere by its last component.
         vector<Byte>   disk = Load (kProDosMerlin);
         ProDosVolume   volume (disk);
         VolumeListing  listing;
@@ -520,9 +520,168 @@ public:
 
         hr = volume.Read (FilePath::Parse ("SOURCE/PI.ADD.S"), got);
 
-        Assert::IsTrue (FAILED (hr), L"a path this reader cannot walk must be refused");
-        Assert::AreEqual (size_t (0), got.bytes.size(), L"and must return nothing");
+        Assert::IsTrue (SUCCEEDED (hr), L"a file inside a subdirectory reads by its path");
+        Assert::IsTrue (got.bytes.size() > 0, L"and returns its contents");
+
+        hr = volume.Read (FilePath::Parse ("NO.SUCH.DIR/PI.ADD.S"), got);
+
+        Assert::IsTrue (FAILED (hr), L"a directory that is not there is not found");
     }
+
+    //  The blocks of a file inside a subdirectory used to look like space
+    //  allocated to nobody, because the pass walked the volume directory alone,
+    //  and the next allocation could hand one of them out.
+    TEST_METHOD (ProDos_RealDisk_ClaimsTheBlocksInsideItsSubdirectories)
+    {
+        vector<Byte>           disk = Load (kProDosMerlin);
+        ProDosVolume           volume (disk);
+        VolumeIntegrityReport  report;
+        VolumeListing          root;
+        VolumeListing          inside;
+        std::string            directory;
+        size_t                 files = 0;
+        size_t                 i     = 0;
+
+        AssertSucceeded (volume.Enumerate (root));
+
+        for (i = 0; i < root.entries.size() && directory.empty(); i++)
+        {
+            if (root.entries[i].isDirectory)
+            {
+                directory = root.entries[i].name;
+            }
+        }
+
+        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+
+        AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
+        AssertSucceeded (volume.BuildIntegrityReport (report));
+
+        for (const FileEntry & entry : inside.entries)
+        {
+            FilePayload  payload;
+
+            if (entry.isDirectory || entry.sizeUnits == 0)
+            {
+                continue;
+            }
+
+            files++;
+
+            AssertSucceeded (volume.Read (FilePath::Parse (directory + "/" + entry.name), payload));
+        }
+
+        Assert::IsTrue (files > 0, L"the subdirectory must hold files for the case to mean anything");
+
+        //  Every block the subdirectory's own chain occupies is claimed, which
+        //  is what keeps the allocator off it.
+        Assert::IsTrue (report.IsClaimed (2), L"the volume directory is claimed");
+        Assert::AreEqual (size_t (0), report.GetCrossLinked().size());
+    }
+
+
+    //  The allocator skips a claimed block, so with the subdirectories' contents
+    //  claimed a new file cannot land on one of them. A block claimed before the
+    //  write belongs to something, and the new file must not be sharing it.
+    TEST_METHOD (ProDos_WriteOntoADiskWithSubdirectories_TakesNoBlockInsideThem)
+    {
+        vector<Byte>           disk = Load (kProDosMerlin);
+        ProDosVolume           volume (disk);
+        vector<Byte>           result;
+        FilePayload            payload;
+        VolumeIntegrityReport  before;
+        VolumeIntegrityReport  after;
+        uint32_t               block = 0;
+        size_t                 fresh = 0;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (600, 'A');
+
+        AssertSucceeded (volume.BuildIntegrityReport (before));
+        AssertSucceeded (volume.Write (FilePath::Parse ("CASSOTEST"), payload, result));
+
+        ProDosVolume  written (result);
+
+        AssertSucceeded (written.BuildIntegrityReport (after));
+
+        for (block = 0; block < before.GetUnitCount(); block++)
+        {
+            bool  wasClaimed = before.IsClaimed (block);
+            bool  nowFree    = !after.IsAllocatedInFreeMap (block);
+
+            //  A block the write took: free before, allocated after.
+            if (!wasClaimed && !nowFree && !before.IsAllocatedInFreeMap (block))
+            {
+                fresh++;
+            }
+
+            Assert::IsFalse (wasClaimed && after.GetClaimantsOf (block).size() > before.GetClaimantsOf (block).size(),
+                L"no block that already belonged to a file may gain a second claimant");
+        }
+
+        Assert::IsTrue   (fresh > 0, L"the new file must have taken blocks of its own");
+        Assert::AreEqual (size_t (0), after.GetCrossLinked().size());
+    }
+
+
+    //  A file written to a path inside a subdirectory lands in that directory:
+    //  its record goes in that directory's own chain, its header tally moves,
+    //  and the volume directory gains nothing.
+    TEST_METHOD (ProDos_WriteIntoASubdirectory_PutsTheFileThereAndNotAtTheRoot)
+    {
+        vector<Byte>   disk = Load (kProDosMerlin);
+        ProDosVolume   volume (disk);
+        vector<Byte>   result;
+        FilePayload    payload;
+        FilePayload    read;
+        VolumeListing  root;
+        VolumeListing  rootAfter;
+        VolumeListing  inside;
+        std::string    directory;
+        size_t         before = 0;
+        size_t         i      = 0;
+        bool           found  = false;
+
+        payload.type = ProDosVolume::kTypeText;
+        payload.bytes.assign (600, 'A');
+
+        AssertSucceeded (volume.Enumerate (root));
+
+        for (i = 0; i < root.entries.size() && directory.empty(); i++)
+        {
+            if (root.entries[i].isDirectory)
+            {
+                directory = root.entries[i].name;
+            }
+        }
+
+        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+
+        AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
+
+        before = inside.entries.size();
+
+        AssertSucceeded (volume.Write (FilePath::Parse (directory + "/CASSOTEST"), payload, result));
+
+        ProDosVolume  written (result);
+
+        AssertSucceeded (written.EnumerateDirectory (FilePath::Parse (directory), inside));
+        AssertSucceeded (written.Enumerate (rootAfter));
+
+        for (const FileEntry & entry : inside.entries)
+        {
+            found = found || entry.name == "CASSOTEST";
+        }
+
+        Assert::IsTrue   (found, L"the file is in the subdirectory it was written to");
+        Assert::AreEqual (before + 1, inside.entries.size());
+        Assert::AreEqual (root.entries.size(), rootAfter.entries.size(), L"and the volume directory gained nothing");
+
+        AssertSucceeded (written.Read (FilePath::Parse (directory + "/CASSOTEST"), read));
+        Assert::AreEqual (payload.bytes.size(), read.bytes.size());
+        Assert::IsTrue   (payload.bytes == read.bytes);
+    }
+
 
     TEST_METHOD (ProDos_NearlyFullVolume_ReportsItsFreeSpace)
     {

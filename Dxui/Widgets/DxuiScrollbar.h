@@ -95,7 +95,24 @@ public:
     bool     OnMouseMove (int xPx, int yPx);
     bool     OnMouseUp();
 
+    //  For a host that runs the thumb drag itself: the puck's distance along
+    //  the track while the drag lasts, or nothing once it ends. The puck is
+    //  drawn there and stays wide, whatever position the host reports.
+    void     SetDragOffset (std::optional<float> offsetPx) { m_dragging = offsetPx.has_value(); m_dragOffset = offsetPx.value_or (0.0f); }
+
     void     Paint (IDxuiPainter & painter, uint32_t foregroundArgb) const;
+
+    //  Widened at once, as Windows widens a scrollbar the pointer is over: the
+    //  puck thickens and the arrows come back. The grab band is the same
+    //  either way.
+    void     SetExpanded (bool expanded)      { m_expanded = expanded; m_hoverAmount = expanded ? 1.0f : 0.0f; }
+
+    //  SetHover starts the bar widening or narrowing and notes the arrow under
+    //  the pointer. Tick carries the change out over a few frames, and reports
+    //  whether it is still under way.
+    bool     SetHover    (bool over, POINT pt = { -1, -1 });
+    bool     Tick        (int64_t nowMs);
+    bool     IsExpanded  () const             { return m_expanded; }
 
     void     SetOnScroll (std::function<void (int sbCode, int pos)> cb)  { m_onScroll = std::move (cb); }
 
@@ -108,6 +125,7 @@ private:
     float  GetThumbLength() const;
     RECT   GetMainRect (int mainStart, int mainExtent) const;
     void   NotifyPos (int sbCode, int newPos);
+    void   PaintThumb (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const;
     void   PaintArrow (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
 
     Orientation                            m_orientation = Orientation::Vertical;
@@ -120,6 +138,12 @@ private:
     int                                    m_page        = 0;
     int                                    m_pos         = 0;
     bool                                   m_dragging    = false;
+    bool                                   m_expanded    = false;
+    float                                  m_hoverAmount = 0.0f;
+    int64_t                                m_lastTickMs  = 0;
+    int                                    m_restThumbPx = 3;
     float                                  m_dragGrab    = 0.0f;
+    float                                  m_dragOffset  = 0.0f;
+    int                                    m_hoverArrow  = 0;
     std::function<void (int sbCode, int pos)>  m_onScroll;
 };

@@ -38,6 +38,10 @@ enum class DxuiFontWeight : int
     Normal   = 400,
     SemiBold = 600,
     Bold     = 700,
+
+    //  Regular weight in the italic style. The bit above the weights carries
+    //  the style, so one parameter holds both.
+    Italic   = 0x10000 | 400,
 };
 
 
@@ -116,6 +120,41 @@ public:
     virtual uint32_t  Background          () const = 0;  // primary panel fill
     virtual uint32_t  BackgroundElevated  () const = 0;  // popup / dropdown / text-input surface
     virtual uint32_t  HoverBackground     () const = 0;  // row / menu-item hover fill
+
+    // The background of list rows and tree items, and of the status bar.
+    // Windows fills each differently from the panel behind it (in dark mode,
+    // Explorer's list is darker than its window, and its status bar differs
+    // again), so a theme that paints all three the same does not look
+    // native. Both default to the panel color.
+    virtual uint32_t  ContentBackground   () const { return Background(); }
+    virtual uint32_t  StatusBackground    () const { return Background(); }
+
+    // The fill of a control set into a bar, such as an address box. Explorer
+    // draws it a step above the bar it sits in, which is a different color
+    // from the popup surface. Defaults to the popup surface.
+    virtual uint32_t  ControlBackground   () const { return BackgroundElevated(); }
+
+    // Lines drawn INSIDE a content surface: a list header's underline, the
+    // separators between its columns, the sash between two panes. Lower
+    // contrast than Border(), which outlines a panel.
+    virtual uint32_t  ContentEdge         () const { return Border(); }
+
+    // The lighter of a splitter's two lines; with the dark line beside it,
+    // the sash appears in relief. Defaults to the panel edge color.
+    virtual uint32_t  SplitterHighlight   () const { return Border(); }
+
+    // Hover and selection fills for rows in a content surface. Both are
+    // neutral in Windows (Explorer's are a few levels off its list
+    // background), while a menu item's hover uses the accent. Separate tokens
+    // because the two surfaces differ; a theme that does not set them falls
+    // back to the menu's colors.
+    virtual uint32_t  ContentHover        () const { return HoverBackground(); }
+    virtual uint32_t  ContentSelection    () const { return SelectionBackground(); }
+
+    // The outline Explorer draws around a selected row while the list has
+    // focus. Zero, the default, draws none.
+    virtual uint32_t  ContentSelectionEdge () const { return 0; }
+
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight
 

@@ -25,9 +25,12 @@
 #include <dcomp.h>
 #include <wincodec.h>
 #include <dwmapi.h>
+#include <uxtheme.h>
+#include <vssym32.h>
 #include <ole2.h>
 #include <oleidl.h>
 #include <shellapi.h>
+#include <shlobj.h>
 
 #include <wrl/client.h>
 

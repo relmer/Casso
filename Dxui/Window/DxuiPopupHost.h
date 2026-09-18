@@ -300,6 +300,10 @@ public:
     //  whole tree when a click lands inside an ancestor popup.
     //
     void              SetParentPopup      (DxuiPopupHost * parent);
+
+    //  Whether a window is another popup with this one's owner, such as a
+    //  submenu that has just taken the mouse.
+    bool              IsSiblingPopup      (HWND hwnd) const;
     DxuiPopupHost  *  GetParentPopup      () const { return m_parent;       }
     DxuiPopupHost  *  GetActiveChildPopup () const { return m_activeChild;  }
 

@@ -1,7 +1,6 @@
 #include "Pch.h"
 
-#include "Debugger/Disassembler.h"
-
+#include "Disassembler.h"
 #include "Microcode.h"
 #include "OpcodeTable.h"
 
@@ -85,24 +84,147 @@ HRESULT Disassembler::DisassembleOne (
     length = GetLength (bytes[0]);
     CBREx (available >= length, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    {
-        const Microcode & microcode = m_instructionSet[bytes[0]];
-
-
-
-        instruction.address    = address;
-        instruction.bytes.assign (bytes.begin(), bytes.begin() + length);
-        instruction.documented = microcode.isLegal && !microcode.assemblerHidden;
-        instruction.mnemonic   = microcode.isLegal ? microcode.instructionName : "???";
-
-        if (microcode.isLegal)
-        {
-            FormatOperand (microcode.globalAddressingMode, address, bytes, instruction);
-        }
-    }
+    Decode (address, bytes.first (length), instruction);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::Decode
+//
+//  The decode itself, once the caller has established that bytes holds the
+//  whole instruction. It cannot fail, which is what lets the buffer walk use
+//  it without an error path for a case it has already ruled out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disassembler::Decode (
+    Word                      address,
+    std::span<const Byte>     bytes,
+    DisassembledInstruction & instruction) const
+{
+    const Microcode & microcode = m_instructionSet[bytes[0]];
+
+
+
+    instruction            = DisassembledInstruction();
+    instruction.address    = address;
+    instruction.bytes.assign (bytes.begin(), bytes.end());
+    instruction.isDefined  = microcode.isLegal;
+    instruction.documented = microcode.isLegal && !microcode.assemblerHidden;
+    instruction.mnemonic   = microcode.isLegal ? microcode.instructionName : kUndefinedMnemonic;
+
+    if (microcode.isLegal)
+    {
+        FormatOperand (microcode.globalAddressingMode, address, bytes, instruction);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::Disassemble
+//
+//  One line per instruction, or per byte the table cannot place. An operand
+//  the buffer ends inside is not guessed at: the bytes that remain become one
+//  undefined line, so the tail of the file is visible without being described
+//  as something it is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disassembler::Disassemble (
+    std::span<const Byte>                   bytes,
+    Word                                    origin,
+    const Microcode                       * instructionSet,
+    std::vector<DisassembledInstruction>  & outLines)
+{
+    Disassembler  decoder (instructionSet);
+    size_t        at    = 0;
+    size_t        count = bytes.size();
+
+
+
+    outLines.clear();
+
+    if (instructionSet == nullptr)
+    {
+        return;
+    }
+
+    while (at < count)
+    {
+        DisassembledInstruction  line;
+        size_t                   length = decoder.GetLength (bytes[at]);
+        Word                     where  = (Word) (origin + at);
+
+        if (at + length > count)
+        {
+            line.address  = where;
+            line.bytes.assign (bytes.begin() + (ptrdiff_t) at, bytes.end());
+            line.mnemonic = kUndefinedMnemonic;
+            outLines.push_back (line);
+            break;
+        }
+
+        decoder.Decode (where, bytes.subspan (at, length), line);
+        outLines.push_back (line);
+        at += length;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::FormatLine
+//
+//  Address, up to three bytes padded to a fixed column, mnemonic, operand.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Disassembler::FormatLine (const DisassembledInstruction & line)
+{
+    constexpr size_t  kBytesColumnWidth = 9;   // "AA BB CC "
+
+
+
+    std::string  text = std::format ("{:04X}  ", (unsigned) line.address);
+    std::string  hex;
+
+
+
+    for (Byte value : line.bytes)
+    {
+        hex += std::format ("{:02X} ", (unsigned) value);
+    }
+
+    while (hex.size() < kBytesColumnWidth)
+    {
+        hex += ' ';
+    }
+
+    text += hex;
+    text += ' ';
+    text += line.mnemonic;
+
+    if (!line.operand.empty())
+    {
+        text += ' ';
+        text += line.operand;
+    }
+
+    return text;
 }
 
 
@@ -115,7 +237,8 @@ Error:
 //
 //  Zero-page operands print two digits and everything else four, as the
 //  Monitor's own listing does. Branches print their destination, not the
-//  displacement.
+//  displacement, because the displacement is the one number nobody reading a
+//  listing wants to add up by hand.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

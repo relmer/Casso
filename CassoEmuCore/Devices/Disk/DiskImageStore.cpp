@@ -2365,6 +2365,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     bool                               held      = false;
     bool                               usable    = false;
     bool                               unchanged = false;
+    bool                               preserved = false;
     ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
     ChangeAuthor                       author    = ChangeAuthor::AnotherProgram;
     ChangeAction                       action    = ChangeAction::Ignore;
@@ -2495,6 +2496,11 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
                 entry.sharedState.ClearPending();
             }
 
+            if (m_decisionSink)
+            {
+                m_decisionSink (entry.path, ChangeAction::Conflict, false, savePath);
+            }
+
             //  ASKED RATHER THAN REPORTED, because "Save as..." is an answer
             //  and a notice has nowhere to put one. The bay is left with the
             //  question outstanding so a second failure does not stack a
@@ -2521,6 +2527,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 
         situation.guestDirty = false;
         action               = ExternalChangePolicy::Decide (situation);
+        preserved            = true;
     }
 
     //  A file that is simply gone gets its own sentence rather than sharing
@@ -2572,6 +2579,11 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         }
 
         return;
+    }
+
+    if (m_decisionSink)
+    {
+        m_decisionSink (entry.path, action, preserved, savePath);
     }
 
     //  THE INTENT THAT DECIDED IS THE INTENT THAT ATTRIBUTES. `intent` was read

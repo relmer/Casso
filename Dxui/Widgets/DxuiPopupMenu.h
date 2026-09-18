@@ -38,6 +38,13 @@ struct DxuiPopupMenuItem
         Command,
         Separator,
         Submenu,
+
+        //  A row of icon buttons, one per child command, as Explorer puts Cut,
+        //  Copy, Paste, Rename and Delete along the edge of its menu nearest
+        //  the pointer. It stays first in the list the caller builds and moves
+        //  to the end, with the separator after it, when the menu opens
+        //  upward. The keyboard passes over it; its commands are elsewhere.
+        IconRow,
     };
 
     Kind                                kind     = Kind::Command;
@@ -47,6 +54,7 @@ struct DxuiPopupMenuItem
     static DxuiPopupMenuItem  ForCommand   (std::shared_ptr<const DxuiCommand> cmd);
     static DxuiPopupMenuItem  ForSeparator ();
     static DxuiPopupMenuItem  ForSubmenu   (std::shared_ptr<const DxuiCommand> cmd, std::vector<DxuiPopupMenuItem> children);
+    static DxuiPopupMenuItem  ForIconRow   (std::vector<std::shared_ptr<const DxuiCommand>> commands);
 };
 
 
@@ -183,6 +191,24 @@ public:
     //  so the strip still sees the pointer and can swap titles on hover.
     void  SetGrabsCapture (bool grabs)          { m_grabsCapture = grabs; }
 
+    //  The narrowest the next show may be, in pixels, so a menu hung from a
+    //  wide control -- an address bar's history -- can match its width. Zero
+    //  lets the content decide, and a shared menu should be given it again
+    //  before each show, or one caller's width carries into the next.
+    void  SetMinWidthPx (int px)                { m_minWidthPx = (px > 0) ? px : 0; }
+
+    //  The tallest the menu may be, in pixels. A menu taller than this shows
+    //  as many whole rows as fit and scrolls: by the wheel, or by moving the
+    //  highlight past an edge. Unset, a hosted menu takes the room between
+    //  what opened it and the bottom of its monitor, so a long list hangs
+    //  under its anchor rather than flipping above it. A test pins it, since
+    //  it has no monitor.
+    void  SetMaxHeightPx (int px)               { m_maxHeightPx = (px > 0) ? px : 0; }
+
+    int   GetScrollRow   () const               { return m_scrollRow; }
+    bool  IsScrollable   () const               { return m_viewportPx > 0; }
+    void  ScrollByRows   (int rows);
+
     void              SetPopupHost   (DxuiHwndSource * host) { m_popupHost = host; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
@@ -217,6 +243,16 @@ public:
     //  which row is under a point, moving the highlight, and picking a row
     //  outright. The row index is the item index, separators included.
     int   HitTestRow     (int x, int y) const   { return HitTestIndex (x, y); }
+
+    //  Which of an icon row's buttons is under a point, or -1.
+    int  HitTestIconButton (int x, int y) const
+    {
+        int  row = HitTestIndex (x, y);
+
+        return (row >= 0) ? GetIconButtonAt (row, x - m_boundsDip.left) : -1;
+    }
+
+    int  GetIconHighlight () const              { return m_iconHover; }
     void  SetHighlight   (int index)            { SetHover (index); }
     void  HighlightFirst ()                     { SetHover (FindFirstSelectable()); }
     void  ActivateRow    (int index)            { Commit (index); }
@@ -256,12 +292,32 @@ private:
     static constexpr uint64_t  kReopenGuardMs          = 250;
     static constexpr int       kRevealMs               = 150;
 
+    //  Fewer rows than this fit below the anchor, and a hosted menu flips
+    //  above it rather than scroll in a sliver.
+    static constexpr int       s_kMinRowsBelowAnchor   = 5;
+    static constexpr int       s_kWheelRows            = 3;
+    static constexpr float     s_kThumbWidthDip        = 3.0f;
+
+    //  An icon row's buttons are square, a half again as tall as a command
+    //  row, with their glyph at the toolbar's size.
+    static constexpr int       s_kIconRowScalePct      = 150;
+    static constexpr float     s_kIconGlyphDip         = 16.0f;
+    static constexpr const wchar_t *  s_kIconFace      = L"Segoe Fluent Icons";
+
     //  The hover highlight is a rounded card inset from the menu's edges, not
     //  a full-bleed band: a square band running into the menu's own rounded
     //  corners reads as a stripe painted across the popup.
     static constexpr int       kHoverInsetXDip         = 4;
     static constexpr int       kHoverInsetYDip         = 2;
     static constexpr float     kHoverRadiusDip         = 4.0f;
+
+    //  A submenu row's chevron, drawn as Explorer draws it: two thin strokes
+    //  meeting at a point, in a box of fixed width at the row's right.
+    static constexpr int       s_kSubmenuChevronBoxDip    = 12;
+    static constexpr float     s_kSubmenuChevronHalfDip   = 4.0f;
+    static constexpr float     s_kSubmenuChevronDepthDip  = 4.0f;
+    static constexpr float     s_kSubmenuChevronStrokeDip = 1.0f;
+    static constexpr float     s_kSubmenuChevronInsetDip  = 4.0f;
 
     struct Palette
     {
@@ -293,8 +349,18 @@ private:
     bool  IsReopenSuppressed (const RECT & anchor) const;
 
     int   GetRowHeightPx     (int index) const;
+    int   GetIconButtonPx    () const;
+    int   GetIconButtonAt    (int index, int localX) const;
+    void  CommitIcon         (int index, int button);
+    void  PlaceIconRow       (bool atBottom);
+    void  DropStraySeparators ();
+    bool  OpensUpward        (int originX, int originY, int heightPx, Anchoring anchoring) const;
     int   GetRowTopPx        (int index) const;
     int   GetContentHeightPx () const;
+    int   GetScrollPx        () const;
+    int   GetMaxScrollRow    () const;
+    int   GetHeightLimitPx   (const RECT & anchor, Anchoring anchoring) const;
+    void  EnsureRowVisible   (int index);
     int   MeasureRunPx       (const std::wstring & run, float fontDip, IDxuiTextRenderer & text) const;
     int   MeasureWidthPx     (IDxuiTextRenderer & text);
     int   GetRowAtOffset     (int relY) const;
@@ -320,6 +386,8 @@ private:
     void     PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
     void     PaintRow        (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal,
                               int index, float left, float top, float width, float fontDip) const;
+    void     PaintIconRow    (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal,
+                              int index, float left, float top) const;
     void     PaintUnderline  (IDxuiPainter & painter, IDxuiTextRenderer & text, const std::wstring & stripped,
                               int mnIdx, float labelX, float labelY, float fontDip, uint32_t ink) const;
     void     RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
@@ -343,6 +411,7 @@ private:
     const IDxuiTheme   * m_theme            = nullptr;
     IDxuiTextRenderer  * m_text             = nullptr;
     int                  m_hover            = -1;
+    int                  m_iconHover        = -1;
     int                  m_pressed          = -1;
     bool                 m_visible          = false;
     bool                 m_revealSuppressed = false;
@@ -365,6 +434,10 @@ private:
     DxuiHwndSource     * m_popupHost        = nullptr;
     DxuiPopupHost      * m_activePopup      = nullptr;
     bool                 m_grabsCapture     = true;
+    int                  m_minWidthPx       = 0;
+    int                  m_maxHeightPx      = 0;
+    int                  m_viewportPx       = 0;
+    int                  m_scrollRow        = 0;
     bool                 m_reopenGuard      = true;
 
     bool                 m_colorsSet   = false;

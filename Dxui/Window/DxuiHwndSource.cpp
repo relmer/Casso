@@ -2737,6 +2737,7 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_LBUTTONUP:     isHandled = IsClaimed (m_client->OnLButtonUp   (wp, lp), RepaintOnClaim::No); break;
         case WM_RBUTTONDOWN:   isHandled = IsClaimed (m_client->OnRButtonDown (wp, lp), RepaintOnClaim::No); break;
         case WM_RBUTTONUP:     isHandled = IsClaimed (m_client->OnRButtonUp   (wp, lp), RepaintOnClaim::No); break;
+        case WM_XBUTTONUP:     isHandled = IsClaimed (m_client->OnXButtonUp   (wp, lp), RepaintOnClaim::No); break;
         case WM_MOUSEMOVE:     isHandled = IsClaimed (m_client->OnMouseMove   (wp, lp), RepaintOnClaim::No); break;
         case WM_MOUSELEAVE:    isHandled = IsClaimed (m_client->OnMouseLeave(),   RepaintOnClaim::No); break;
         case WM_ACTIVATEAPP:   isHandled = IsClaimed (m_client->OnActivateApp (wp != 0), RepaintOnClaim::No); break;
@@ -4013,9 +4014,15 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     IDxuiControl *   child    = nullptr;
     RECT             rc       = {};
     bool             claimed  = false;
+    POINT            clientPx ={ MulDiv (clientDip.x, (int) m_scaler.GetDpi(), (int) s_kDefaultDpi),
+                                  MulDiv (clientDip.y, (int) m_scaler.GetDpi(), (int) s_kDefaultDpi) };
 
 
 
+    //  clientPx: a control's bounds, and the mouse events it receives, are in
+    //  client pixels; only the resize bands and the caption here are measured
+    //  in DIPs. Content controls are asked in pixels, which match DIPs only at
+    //  96 DPI.
     borderPx = (int) m_params.resizeBorderDip;
 
     if (borderPx < s_kMinResizeBorderPx)
@@ -4029,6 +4036,26 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
         kind    = ClassifyResizeEdge (clientDip, clientBoundsDip, borderPx);
         claimed = kind != DxuiHitTestKind::None;
         result  = claimed ? kind : result;
+    }
+
+    //  A scrollbar at the window's edge keeps the pointer over a straight
+    //  resize edge, whose band would otherwise cover most of it. The corners
+    //  still resize.
+    if (claimed && (kind == DxuiHitTestKind::ResizeEdgeLeft || kind == DxuiHitTestKind::ResizeEdgeRight
+                 || kind == DxuiHitTestKind::ResizeEdgeTop  || kind == DxuiHitTestKind::ResizeEdgeBottom))
+    {
+        n =(GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
+
+        for (i = 0; claimed && i < n; i++)
+        {
+            child = GetRootPanel()->GetChild (i);
+
+            if (child != nullptr && child->IsVisible() && child->IsOverScrollbar (clientPx))
+            {
+                claimed = false;
+                result  = DxuiHitTestKind::Client;
+            }
+        }
     }
 
     // Host-owned caption wins over the consumer's root content (it is
@@ -4067,13 +4094,13 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
 
         rc = child->GetBounds();
 
-        if (clientDip.x < rc.left || clientDip.x >= rc.right ||
-            clientDip.y < rc.top  || clientDip.y >= rc.bottom)
+        if (clientPx.x < rc.left || clientPx.x >= rc.right ||
+            clientPx.y < rc.top  || clientPx.y >= rc.bottom)
         {
             continue;
         }
 
-        kind    = child->ClassifyHit (clientDip);
+        kind    = child->ClassifyHit (clientPx);
         claimed = kind != DxuiHitTestKind::None && kind != DxuiHitTestKind::Client;
         result  = claimed ? kind : result;
     }

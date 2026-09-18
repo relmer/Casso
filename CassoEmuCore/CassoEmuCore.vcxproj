@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|Win32">
-      <Configuration>Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|Win32">
-      <Configuration>Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
@@ -34,19 +26,6 @@
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -78,12 +57,6 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -101,32 +74,6 @@
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpplatest</LanguageStandard>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;..\Dxui;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpplatest</LanguageStandard>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;.\Core;.\Ui\Chrome;..\CassoCore;..\Dxui;$(IntDir)Shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -181,8 +128,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
@@ -281,6 +226,39 @@
     <ClCompile Include="Machines\Apple2\Common\Dos33Volume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AssembledFilePlacement.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
+    <ClCompile Include="Cassque\CassqueMain.cpp" />
+    <ClCompile Include="Cassque\CassqueShell.cpp" />
+    <ClCompile Include="Cassque\CassqueAbout.cpp" />
+    <ClCompile Include="Cassque\CassqueActions.cpp" />
+    <ClCompile Include="Cassque\CassqueBrowser.cpp" />
+    <ClCompile Include="Cassque\CassqueCommands.cpp" />
+    <ClCompile Include="Cassque\CassqueDragOut.cpp" />
+    <ClCompile Include="Cassque\CassqueNewDiskDialog.cpp" />
+    <ClCompile Include="Cassque\CassquePromptDialog.cpp" />
+    <ClCompile Include="Cassque\CassqueOptionsDialog.cpp" />
+    <ClCompile Include="Cassque\CassqueWindow.cpp" />
+    <ClCompile Include="Cassque\Model\BrowserModel.cpp" />
+    <ClCompile Include="Cassque\Model\CassoTargeting.cpp" />
+    <ClCompile Include="Cassque\Model\CassquePrefs.cpp" />
+    <ClCompile Include="Cassque\Model\TypedPathHistory.cpp" />
+    <ClCompile Include="Cassque\Model\FolderWatch.cpp" />
+    <ClCompile Include="Cassque\Model\RefreshAnchor.cpp" />
+    <ClCompile Include="Seams\Win32FolderWatcher.cpp" />
+    <ClCompile Include="Cassque\Model\CatalogModel.cpp" />
+    <ClCompile Include="Cassque\Model\ContentSniffer.cpp" />
+    <ClCompile Include="Cassque\Model\DiskOperations.cpp" />
+    <ClCompile Include="Cassque\Model\DragPayload.cpp" />
+    <ClCompile Include="Cassque\Model\HostFileNaming.cpp" />
+    <ClCompile Include="Cassque\Model\KnownFolderStore.cpp" />
+    <ClCompile Include="Cassque\Model\LaunchCommand.cpp" />
+    <ClCompile Include="Cassque\Model\FocusRing.cpp" />
+    <ClCompile Include="Seams\IntentReplyTracker.cpp" />
+    <ClCompile Include="Seams\Win32ProcessLauncher.cpp" />
+    <ClCompile Include="Seams\Win32ShellIcons.cpp" />
+    <ClCompile Include="Seams\Win32ShellItemVerbs.cpp" />
+    <ClCompile Include="Cassque\Model\PicturePreview.cpp" />
+    <ClCompile Include="Cassque\Model\PreviewDecoder.cpp" />
+    <ClCompile Include="Cassque\Model\TreeModel.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandResult.cpp" />
@@ -602,6 +580,44 @@
     <ClInclude Include="Machines\Apple2\Common\AssembledFilePlacement.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Volume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
+    <ClInclude Include="Cassque\CassqueShell.h" />
+    <ClInclude Include="Cassque\CassqueAbout.h" />
+    <ClInclude Include="Cassque\CassqueActions.h" />
+    <ClInclude Include="Cassque\CassqueBrowser.h" />
+    <ClInclude Include="Cassque\CassqueCommands.h" />
+    <ClInclude Include="Cassque\CassqueDragOut.h" />
+    <ClInclude Include="Cassque\CassqueNamedControl.h" />
+    <ClInclude Include="Cassque\CassqueNewDiskDialog.h" />
+    <ClInclude Include="Cassque\CassquePromptDialog.h" />
+    <ClInclude Include="Cassque\CassqueOptionsDialog.h" />
+    <ClInclude Include="Cassque\CassqueWindow.h" />
+    <ClInclude Include="Cassque\Model\BrowserModel.h" />
+    <ClInclude Include="Cassque\Model\CassoTargeting.h" />
+    <ClInclude Include="Cassque\Model\CassquePrefs.h" />
+    <ClInclude Include="Cassque\Model\TypedPathHistory.h" />
+    <ClInclude Include="Cassque\Model\FolderWatch.h" />
+    <ClInclude Include="Cassque\Model\RefreshAnchor.h" />
+    <ClInclude Include="Cassque\Model\IFolderWatcher.h" />
+    <ClInclude Include="Seams\Win32FolderWatcher.h" />
+    <ClInclude Include="Cassque\Model\CatalogModel.h" />
+    <ClInclude Include="Cassque\Model\ContentSniffer.h" />
+    <ClInclude Include="Cassque\Model\DiskOperations.h" />
+    <ClInclude Include="Cassque\Model\DragPayload.h" />
+    <ClInclude Include="Cassque\Model\HostFileNaming.h" />
+    <ClInclude Include="Cassque\Model\KnownFolderStore.h" />
+    <ClInclude Include="Cassque\Model\LaunchCommand.h" />
+    <ClInclude Include="Cassque\Model\FocusRing.h" />
+    <ClInclude Include="Seams\IntentReplyTracker.h" />
+    <ClInclude Include="Seams\IProcessLauncher.h" />
+    <ClInclude Include="Seams\IShellIcons.h" />
+    <ClInclude Include="Seams\Win32ProcessLauncher.h" />
+    <ClInclude Include="Seams\Win32ShellIcons.h" />
+    <ClInclude Include="Seams\IShellItemVerbs.h" />
+    <ClInclude Include="Seams\Win32ShellItemVerbs.h" />
+    <ClInclude Include="Cassque\Model\Location.h" />
+    <ClInclude Include="Cassque\Model\PicturePreview.h" />
+    <ClInclude Include="Cassque\Model\PreviewDecoder.h" />
+    <ClInclude Include="Cassque\Model\TreeModel.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
     <ClInclude Include="Machines\Apple2\Common\VolumeImage.h" />
     <ClInclude Include="Devices\Disk\CommitPlan.h" />

@@ -85,6 +85,11 @@ public:
     // AppendBundledDemoDisks so the scan set is exactly the MRU folders.
     static void     AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable);
 
+    // The same scan over folders the caller chooses -- the shared known-folder
+    // list -- with the same filtering and de-duplication.
+    static void     AppendSiblingDisksFromFolders (const std::vector<fs::path>    & folders,
+                                                   std::vector<DiskMru::Entry>    & mountable);
+
     // True if `p` is a disk belonging to a checkout of this repo OTHER than
     // the one this build runs from (a sibling .claude/worktrees/<name> copy,
     // or the main tree when the running exe lives in a worktree). Used to keep

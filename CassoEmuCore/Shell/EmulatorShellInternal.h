@@ -28,6 +28,7 @@
 #define WM_APP_SHOW_NOTICE     (WM_APP + 0x28)
 #define WM_APP_GAMEPORT_FLUSH  (WM_APP + 0x29)
 #define WM_APP_CONTROLLER_PICK (WM_APP + 0x2A)
+#define WM_APP_INTENT_REPLY    (WM_APP + 0x2B)
 
 
 

@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiTreeView.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -12,10 +15,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  TreeViewTests
 //
-//  Pure-logic coverage for hit-testing, keyboard navigation, and the
-//  capability-flag driven checkbox behavior. Rendering is not
-//  exercised (Paint would require a GPU). The hardware-tree-shape
-//  tests in HardwareTreeTests build on top of these primitives.
+//  Hit-testing, keyboard navigation, and the capability-flag driven checkbox
+//  behavior. Paint is exercised through the painter mock, which records the
+//  primitives rather than drawing them, so no GPU is involved. The
+//  hardware-tree-shape tests in HardwareTreeTests build on these primitives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +58,47 @@ public:
         return tv;
     }
 
+    static int CountRowOutlines (const MockDxuiPainter & painter)
+    {
+        int  outlines = 0;
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::OutlineRoundedRect && call.width == 200.0f)
+            {
+                outlines++;
+            }
+        }
+
+        return outlines;
+    }
+
+
+
+    TEST_METHOD (FocusedTree_OutlinesTheHighlightedRow)
+    {
+        DxuiTreeView          tv = MakeFlatTree();
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+        tv.HighlightRow (1);
+
+        //  Unfocused, the highlight fills but nothing outlines it.
+        tv.SetFocused (false);
+        tv.Paint (painter, text, theme);
+
+        Assert::AreEqual (0, CountRowOutlines (painter), L"An unfocused tree draws no focus outline");
+
+        //  Focused, the same row gains the outline the file list draws.
+        painter.Reset();
+        tv.SetFocused (true);
+        tv.Paint (painter, text, theme);
+
+        Assert::AreEqual (1, CountRowOutlines (painter), L"The focused tree outlines its highlighted row");
+    }
+
+
     TEST_METHOD (Flatten_VisibleCountMatchesNodeCount)
     {
         DxuiTreeView  tv = MakeFlatTree();
@@ -79,6 +123,105 @@ public:
         Assert::AreEqual (2, tv.HitTestRow ( 10, 45));
         Assert::AreEqual (-1, tv.HitTestRow ( 10, 250));
     }
+
+    DxuiTreeView  MakeTallTree (int rows, int heightPx)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  nodes;
+        int                        i = 0;
+
+        for (i = 0; i < rows; i++)
+        {
+            nodes.push_back (MakeNode (L"folder", DxuiTreeCapabilityFlag::Optional, false));
+        }
+
+        tv.SetRect (RECT { 0, 0, 200, heightPx });
+        tv.SetRowHeight (20);
+        tv.SetNodes (std::move (nodes));
+        return tv;
+    }
+
+
+    TEST_METHOD (Scroll_TakesTheRowsPastTheFoldWithinReach)
+    {
+        //  Ten rows of 20 in a 100-high tree: five show, five are below it.
+        DxuiTreeView  tv = MakeTallTree (10, 100);
+
+        Assert::AreEqual (5, tv.GetRowCap());
+        Assert::AreEqual (5, tv.GetMaxTopRow());
+        Assert::IsTrue   (tv.IsScrollbarVisible());
+
+        tv.ScrollRows (3);
+        Assert::AreEqual (3, tv.GetTopRow());
+
+        //  The rows move under the pointer with the view.
+        Assert::AreEqual (3, tv.HitTestRow (10, 5));
+        Assert::AreEqual (7, tv.HitTestRow (10, 85));
+
+        //  Neither end runs past its rows.
+        tv.ScrollRows (99);
+        Assert::AreEqual (5, tv.GetTopRow());
+        tv.ScrollRows (-99);
+        Assert::AreEqual (0, tv.GetTopRow());
+    }
+
+
+    TEST_METHOD (Scroll_IsNotOfferedWhenEveryRowFits)
+    {
+        DxuiTreeView  tv = MakeTallTree (3, 100);
+
+        Assert::IsFalse (tv.IsScrollbarVisible());
+        Assert::AreEqual (0, tv.GetMaxTopRow());
+
+        tv.ScrollRows (2);
+        Assert::AreEqual (0, tv.GetTopRow());
+    }
+
+
+    TEST_METHOD (HorzScroll_ReachesTheWidestRowAndTakesItsStripFromTheRows)
+    {
+        //  Three rows of 20 in a 200 by 100 tree, whose widest row is 500.
+        DxuiTreeView  tv = MakeTallTree (3, 100);
+
+        tv.SetRowsExtentPx (500);
+
+        Assert::IsTrue   (tv.IsHorzScrollbarVisible());
+        Assert::IsFalse  (tv.IsScrollbarVisible(), L"three rows still fit above the bottom bar");
+        Assert::AreEqual (300, tv.GetMaxLeftPx());
+        Assert::AreEqual (4, tv.GetRowCap(), L"the bar's strip is not a row");
+        Assert::AreEqual (-1, tv.HitTestRow (10, 95), L"a press on the bar is not a press on a row");
+
+        //  The twisty moves left with the view, and neither end overruns.
+        Assert::IsTrue   (tv.HitTestTwisty (5, 5, 0));
+        tv.SetLeftPx (999);
+        Assert::AreEqual (300, tv.GetLeftPx());
+        Assert::IsFalse  (tv.HitTestTwisty (5, 5, 0));
+        tv.SetLeftPx (-5);
+        Assert::AreEqual (0, tv.GetLeftPx());
+
+        //  Rows that fit need no bar, and the view returns to the left edge.
+        tv.SetLeftPx (100);
+        tv.SetRowsExtentPx (150);
+        Assert::IsFalse  (tv.IsHorzScrollbarVisible());
+        Assert::AreEqual (0, tv.GetLeftPx());
+    }
+
+
+    TEST_METHOD (EnsureRowVisible_ScrollsTheLeastThatShowsTheRow)
+    {
+        DxuiTreeView  tv = MakeTallTree (10, 100);
+
+        tv.EnsureRowVisible (7);
+        Assert::AreEqual (3, tv.GetTopRow());   // 7 becomes the last row shown
+
+        tv.EnsureRowVisible (2);
+        Assert::AreEqual (2, tv.GetTopRow());   // and now the first
+
+        //  A row already in view moves nothing.
+        tv.EnsureRowVisible (4);
+        Assert::AreEqual (2, tv.GetTopRow());
+    }
+
 
     TEST_METHOD (Click_OnOptionalCheckbox_Toggles)
     {
@@ -189,3 +332,227 @@ public:
     }
 };
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeViewNavigationTests
+//
+//  The navigation-tree additions: ids, children fetched on first expand,
+//  hidden checkboxes, selection reports and arrow keys that walk to a parent.
+//  The checklist tests above run unchanged against the same control.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (TreeViewNavigationTests)
+{
+public:
+
+    static DxuiTreeNode MakeLazy (const wchar_t * id, const wchar_t * label)
+    {
+        DxuiTreeNode  n;
+
+        n.id             = id;
+        n.label          = label;
+        n.expanded       = false;
+        n.childrenLoaded = false;
+
+        return n;
+    }
+
+    static DxuiTreeView MakeNavigationTree (int & outFetches)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        RECT                       rect = { 0, 0, 300, 400 };
+
+        roots.push_back (MakeLazy (L"casso:", L"Casso"));
+        roots.push_back (MakeLazy (L"pc:",    L"This PC"));
+
+        tv.SetRect           (rect);
+        tv.SetRowHeight      (20);
+        tv.SetShowCheckboxes (false);
+        tv.SetNodes          (std::move (roots));
+        tv.SetFocused        (true);
+
+        outFetches = 0;
+
+        return tv;
+    }
+
+    TEST_METHOD (LazyChildren_AreFetchedOnceOnFirstExpand)
+    {
+        int           fetches = 0;
+        DxuiTreeView  tv      = MakeNavigationTree (fetches);
+        std::wstring  askedFor;
+
+        tv.SetChildProvider ([&fetches, &askedFor] (const std::wstring & id)
+        {
+            std::vector<DxuiTreeNode>  children;
+            DxuiTreeNode               folder;
+
+            fetches++;
+            askedFor = id;
+
+            folder.id       = id + L"C:\\Disks";
+            folder.label    = L"Disks";
+            folder.expanded = false;
+            children.push_back (folder);
+
+            return children;
+        });
+
+        Assert::AreEqual (2, tv.GetVisibleCount());
+        Assert::IsTrue   (DxuiTreeView::CanExpand (*tv.GetNodeAt (0)), L"an unasked row shows a twisty");
+
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));
+        Assert::AreEqual (1, fetches);
+        Assert::AreEqual (std::wstring (L"casso:"), askedFor);
+        Assert::AreEqual (3, tv.GetVisibleCount());
+
+        Assert::IsTrue   (tv.OnKey (VK_LEFT));
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));
+        Assert::AreEqual (1, fetches, L"a second expand uses the children already fetched");
+        Assert::AreEqual (std::wstring (L"casso:C:\\Disks"), tv.GetNodeAt (1)->id);
+    }
+
+    TEST_METHOD (LazyChildren_AnEmptyAnswerLeavesNoTwisty)
+    {
+        int           fetches = 0;
+        DxuiTreeView  tv      = MakeNavigationTree (fetches);
+
+        tv.SetChildProvider ([&fetches] (const std::wstring &) { fetches++; return std::vector<DxuiTreeNode>(); });
+
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));
+        Assert::AreEqual (2, tv.GetVisibleCount());
+        Assert::IsFalse  (DxuiTreeView::CanExpand (*tv.GetNodeAt (0)));
+
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));
+        Assert::AreEqual (1, fetches, L"a row known to be empty is not asked again");
+    }
+
+    TEST_METHOD (Selection_IsReportedByIdOnArrowsAndClicks)
+    {
+        int                        fetches = 0;
+        DxuiTreeView               tv      = MakeNavigationTree (fetches);
+        std::vector<std::wstring>  selected;
+
+        tv.SetOnSelect ([&selected] (const std::wstring & id) { selected.push_back (id); });
+
+        Assert::IsTrue   (tv.OnKey (VK_DOWN));
+        Assert::AreEqual (std::wstring (L"pc:"), selected.back());
+        Assert::AreEqual (std::wstring (L"pc:"), tv.GetHighlightedId());
+
+        //  A click on the label of the first row.
+        Assert::IsTrue   (tv.OnLButtonDown (100, 5));
+        Assert::IsTrue   (tv.OnLButtonUp   (100, 5));
+        Assert::AreEqual (std::wstring (L"casso:"), selected.back());
+        Assert::AreEqual (0, tv.FindRowById (L"casso:"));
+        Assert::AreEqual (-1, tv.FindRowById (L"nowhere"));
+    }
+
+    TEST_METHOD (HiddenCheckboxes_AreNotHitAndNeverToggle)
+    {
+        int           fetches = 0;
+        DxuiTreeView  tv      = MakeNavigationTree (fetches);
+        int           toggles = 0;
+
+        tv.SetOnToggle ([&toggles] (const std::wstring &, bool) { toggles++; });
+
+        //  Where the checkbox would be on a checklist tree.
+        Assert::IsFalse (tv.HitTestCheckbox (20, 5, 0));
+
+        Assert::IsTrue  (tv.OnLButtonDown (20, 5));
+        Assert::IsTrue  (tv.OnLButtonUp   (20, 5));
+        Assert::IsTrue  (tv.OnKey (VK_SPACE));
+        Assert::AreEqual (0, toggles);
+        Assert::IsFalse (tv.GetNodeAt (0)->checked);
+    }
+
+    TEST_METHOD (LeftArrow_OnACollapsedChildMovesToItsParent)
+    {
+        int                        fetches = 0;
+        DxuiTreeView               tv      = MakeNavigationTree (fetches);
+        std::vector<std::wstring>  expanded;
+
+        tv.SetChildProvider ([] (const std::wstring & id)
+        {
+            DxuiTreeNode  leaf;
+
+            leaf.id    = id + L"leaf";
+            leaf.label = L"leaf";
+
+            return std::vector<DxuiTreeNode> { leaf };
+        });
+
+        tv.SetOnExpand ([&expanded] (const std::wstring & id, bool isOpen) { if (isOpen) { expanded.push_back (id); } });
+
+        Assert::IsTrue   (tv.OnKey (VK_DOWN));     // This PC
+        Assert::IsTrue   (tv.OnKey (VK_RIGHT));    // expand
+        Assert::AreEqual (std::wstring (L"pc:"), expanded.back());
+        Assert::IsTrue   (tv.OnKey (VK_DOWN));     // the leaf
+        Assert::AreEqual (std::wstring (L"pc:leaf"), tv.GetHighlightedId());
+
+        Assert::IsTrue   (tv.OnKey (VK_LEFT));
+        Assert::AreEqual (std::wstring (L"pc:"), tv.GetHighlightedId(), L"Left on a leaf walks to its parent");
+        Assert::AreEqual (3, tv.GetVisibleCount(), L"and collapses nothing");
+
+        Assert::IsTrue   (tv.OnKey (VK_LEFT));
+        Assert::AreEqual (2, tv.GetVisibleCount(), L"Left on an open parent collapses it");
+    }
+
+    TEST_METHOD (Ids_FindNodesThatAreNotVisible)
+    {
+        int           fetches = 0;
+        DxuiTreeView  tv      = MakeNavigationTree (fetches);
+
+        tv.SetChildProvider ([] (const std::wstring & id)
+        {
+            DxuiTreeNode  child;
+
+            child.id    = id + L"child";
+            child.label = L"child";
+
+            return std::vector<DxuiTreeNode> { child };
+        });
+
+        Assert::IsTrue  (tv.SetRowExpanded (0, true));
+        Assert::IsTrue  (tv.SetRowExpanded (0, false));
+        Assert::IsFalse (tv.SetRowExpanded (0, false), L"already closed");
+
+        Assert::IsNotNull (tv.FindNodeById (L"casso:child"), L"a collapsed child is still in the tree");
+        Assert::AreEqual  (-1, tv.FindRowById (L"casso:child"));
+    }
+
+
+    TEST_METHOD (Divider_IsARowThatCannotBeHitOrSelected)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<std::wstring>  selected;
+        RECT                       rect = { 0, 0, 300, 400 };
+
+        roots.push_back (MakeLazy (L"casso:", L"Casso"));
+        roots.push_back (MakeLazy (L"pc:",    L"This PC"));
+        roots.back().dividerAbove = true;
+
+        tv.SetRect           (rect);
+        tv.SetRowHeight      (20);
+        tv.SetShowCheckboxes (false);
+        tv.SetNodes          (std::move (roots));
+        tv.SetFocused        (true);
+        tv.SetOnSelect       ([&selected] (const std::wstring & id) { selected.push_back (id); });
+
+        Assert::AreEqual (3, tv.GetVisibleCount(), L"The divider is a row of its own");
+        Assert::IsNull   (tv.GetNodeAt (1), L"with no node behind it");
+        Assert::AreEqual (-1, tv.HitTestRow (100, 30), L"A click on the divider hits nothing");
+
+        Assert::IsTrue   (tv.OnKey (VK_DOWN));
+        Assert::AreEqual (std::wstring (L"pc:"), selected.back(), L"Down steps over the divider");
+        Assert::IsTrue   (tv.OnKey (VK_UP));
+        Assert::AreEqual (std::wstring (L"casso:"), selected.back(), L"and so does Up");
+        Assert::AreEqual (2, tv.FindRowById (L"pc:"));
+    }
+};
