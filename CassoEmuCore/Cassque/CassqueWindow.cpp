@@ -1509,6 +1509,7 @@ void CassqueWindow::SetFocusPane (Pane pane)
     m_tabs->OnFocusChanged        (pane == Pane::Tabs);
     m_address->OnFocusChanged     (pane == Pane::Address);
     m_toolbar->SetFocusIndex      (pane == Pane::Toolbar ? m_toolbarFocus : -1);
+    m_commandBar->SetFocusIndex   (pane == Pane::CommandBar ? m_commandBarFocus : -1);
     m_previewToolbar->SetFocusIndex (pane == Pane::PreviewToolbar ? m_previewBarFocus : -1);
     m_searchBox.SetFocused          (pane == Pane::Search);
     m_goToBox.SetFocused            (pane == Pane::GoTo);
@@ -1531,6 +1532,7 @@ FocusStop CassqueWindow::GetFocusStop() const
     switch (m_focus)
     {
         case Pane::Toolbar: return FocusStop { FocusStop::Kind::ToolbarEntry, m_toolbarFocus };
+        case Pane::CommandBar: return FocusStop { FocusStop::Kind::CommandBarEntry, m_commandBarFocus };
         case Pane::PreviewToolbar: return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_previewBarFocus };
         case Pane::Search:         return FocusStop { FocusStop::Kind::PreviewToolbarEntry, GetPreviewStopIndex (CassqueCommands::kFind) };
         case Pane::GoTo:           return FocusStop { FocusStop::Kind::PreviewToolbarEntry, GetPreviewStopIndex (CassqueCommands::kGoToOffset) };
@@ -1559,6 +1561,11 @@ void CassqueWindow::SetFocusStop (const FocusStop & stop)
         case FocusStop::Kind::ToolbarEntry:
             m_toolbarFocus = stop.entry;
             SetFocusPane (Pane::Toolbar);
+            break;
+
+        case FocusStop::Kind::CommandBarEntry:
+            m_commandBarFocus = stop.entry;
+            SetFocusPane (Pane::CommandBar);
             break;
 
         case FocusStop::Kind::PreviewToolbarEntry:
@@ -1608,6 +1615,86 @@ bool CassqueWindow::IsToolbarEntryAvailable (int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueWindow::IsCommandBarEntryAvailable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::IsCommandBarEntryAvailable (int index) const
+{
+    int  id = m_commandBar->GetEntryCommandId (index);
+
+
+
+    if (!m_commandBar->IsEntryShown (index))
+    {
+        return false;
+    }
+
+    return (id == DxuiToolbar::kSeeMoreId) || IsEnabled (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::RouteCommandBarKey
+//
+//  As on the navigation toolbar: an open drop-down takes every key, Enter,
+//  Space and Down press the button, and Left and Right step along the bar to
+//  the next button that can be used, wrapping at the ends as a toolbar does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueWindow::RouteCommandBarKey (const DxuiKeyEvent & ev)
+{
+    int  count = m_commandBar->GetEntryCount();
+    int  step  = (ev.vk == VK_RIGHT) ? 1 : -1;
+    int  at    = m_commandBarFocus;
+    int  tries = 0;
+
+
+
+    if (m_commandBar->OwnsKeyboard())
+    {
+        return m_commandBar->HandleKey (ev.vk);
+    }
+
+    switch (ev.vk)
+    {
+        case VK_RETURN:
+        case VK_SPACE:
+        case VK_DOWN:
+            m_commandBar->ActivateFocused();
+            return true;
+
+        case VK_LEFT:
+        case VK_RIGHT:
+            for (tries = 0; tries < count; tries++)
+            {
+                at = (at + step + count) % count;
+
+                if (IsCommandBarEntryAvailable (at))
+                {
+                    SetFocusStop (FocusStop { FocusStop::Kind::CommandBarEntry, at });
+                    break;
+                }
+            }
+
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueWindow::BuildFocusStops
 //
 //  A disabled toolbar button, such as Back with no history, is not a stop,
@@ -1619,6 +1706,7 @@ std::vector<FocusStop> CassqueWindow::BuildFocusStops() const
 {
     std::vector<bool>  enabled;
     std::vector<bool>  previewEnabled;
+    std::vector<bool>  commandEnabled;
 
 
 
@@ -1632,7 +1720,12 @@ std::vector<FocusStop> CassqueWindow::BuildFocusStops() const
         previewEnabled.push_back (IsEnabled (id));
     }
 
-    return FocusRing::BuildStops (enabled, m_prefs.previewVisible, previewEnabled);
+    for (int i = 0; i < m_commandBar->GetEntryCount(); i++)
+    {
+        commandEnabled.push_back (IsCommandBarEntryAvailable (i));
+    }
+
+    return FocusRing::BuildStops (enabled, m_prefs.previewVisible, previewEnabled, commandEnabled);
 }
 
 
@@ -2299,6 +2392,7 @@ bool CassqueWindow::OnKey (const DxuiKeyEvent & ev)
     switch (m_focus)
     {
         case Pane::Toolbar: handled = RouteToolbarKey (false, ev); break;
+        case Pane::CommandBar: handled = RouteCommandBarKey (ev);  break;
         case Pane::PreviewToolbar: handled = RouteToolbarKey (true, ev); break;
         case Pane::Search:                                               break;
         case Pane::GoTo:                                                 break;

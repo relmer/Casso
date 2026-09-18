@@ -166,7 +166,7 @@ protected:
 private:
     //  Keyboard focus. The toolbar is one pane, with its focused button in
     //  m_toolbarFocus; FocusRing defines the Tab order.
-    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, GoTo, Search, Preview };
+    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, GoTo, Search, Preview, CommandBar };
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -355,6 +355,8 @@ private:
     void  SizeListIcons          ();
     bool  IsListVerbOffered      (CassqueActions::Verb verb) const;
     bool  IsToolbarEntryAvailable (int index) const;
+    bool  IsCommandBarEntryAvailable (int index) const;
+    bool  RouteCommandBarKey      (const DxuiKeyEvent & ev);
 
     DxuiToolbar          * m_commandBar      = nullptr;
     void  SetCommandBarDropDowns ();
@@ -422,6 +424,7 @@ private:
     bool                                         m_treeRevealPending = false;
     Pane                                         m_focus             = Pane::Tree;
     int                                          m_toolbarFocus      = 0;
+    int                                          m_commandBarFocus   = 0;
     std::vector<BrowserModel::AddressSegment>    m_addressSegments;
     BrowserModel::AddressRoot                    m_addressRoot;
 

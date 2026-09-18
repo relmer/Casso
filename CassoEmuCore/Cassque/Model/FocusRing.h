@@ -16,7 +16,7 @@
 
 struct FocusStop
 {
-    enum class Kind { ToolbarEntry, Address, Tabs, Tree, List, PreviewToolbarEntry, Preview };
+    enum class Kind { ToolbarEntry, Address, Tabs, Tree, List, PreviewToolbarEntry, Preview, CommandBarEntry };
 
     Kind  kind  = Kind::Tree;
     int   entry = -1;     // a toolbar entry's index; -1 for every other kind
@@ -53,9 +53,11 @@ public:
     //  The stops in Tab order, leaving out a toolbar button that cannot be
     //  used right now and the preview while it is hidden. The preview's own
     //  toolbar buttons come just before the preview.
+    //  The command bar's buttons come after the address bar, as its row does.
     static std::vector<FocusStop>  BuildStops (const std::vector<bool> & toolbarEnabled,
                                                bool                      previewVisible,
-                                               const std::vector<bool> & previewToolbarEnabled = {});
+                                               const std::vector<bool> & previewToolbarEnabled = {},
+                                               const std::vector<bool> & commandBarEnabled     = {});
 
     //  The stop after `current`, or before it when moving backward, wrapping at
     //  either end. If `current` is not in `stops`, for example a button that was

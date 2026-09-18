@@ -122,4 +122,20 @@ public:
 
         Assert::IsTrue (FocusRing::GetNext (none, Pane (Kind::List), true) == Pane (Kind::List));
     }
+
+    TEST_METHOD (TheCommandBar_FollowsTheAddressBar)
+    {
+        std::vector<FocusStop>  stops = FocusRing::BuildStops ({ true }, false, {}, { true, false, true });
+        size_t                  at    = 0;
+
+        while (at < stops.size() && stops[at].kind != FocusStop::Kind::Address)
+        {
+            at++;
+        }
+
+        Assert::IsTrue (at + 3 < stops.size());
+        Assert::IsTrue (stops[at + 1] == FocusStop { FocusStop::Kind::CommandBarEntry, 0 });
+        Assert::IsTrue (stops[at + 2] == FocusStop { FocusStop::Kind::CommandBarEntry, 2 }, L"A button that cannot be used is passed over");
+        Assert::IsTrue (stops[at + 3].kind == FocusStop::Kind::Tabs);
+    }
 };

@@ -14,7 +14,8 @@
 
 std::vector<FocusStop> FocusRing::BuildStops (const std::vector<bool> & toolbarEnabled,
                                               bool                      previewVisible,
-                                              const std::vector<bool> & previewToolbarEnabled)
+                                              const std::vector<bool> & previewToolbarEnabled,
+                                              const std::vector<bool> & commandBarEnabled)
 {
     std::vector<FocusStop>  stops;
 
@@ -29,6 +30,15 @@ std::vector<FocusStop> FocusRing::BuildStops (const std::vector<bool> & toolbarE
     }
 
     stops.push_back (FocusStop { FocusStop::Kind::Address });
+
+    for (size_t i = 0; i < commandBarEnabled.size(); i++)
+    {
+        if (commandBarEnabled[i])
+        {
+            stops.push_back (FocusStop { FocusStop::Kind::CommandBarEntry, (int) i });
+        }
+    }
+
     stops.push_back (FocusStop { FocusStop::Kind::Tabs });
     stops.push_back (FocusStop { FocusStop::Kind::Tree });
     stops.push_back (FocusStop { FocusStop::Kind::List });
