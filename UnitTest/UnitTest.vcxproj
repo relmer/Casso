@@ -196,6 +196,7 @@
     <ClCompile Include="DebuggerTests\SymbolFileReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\RomSymbolsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceServiceTests.cpp" />
     <ClCompile Include="DebuggerTests\BinaryImageReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugOptionsParseTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugModeTests.cpp" />

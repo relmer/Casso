@@ -224,6 +224,12 @@ struct GlobalUserPrefs
     // screenshotMode; the window reads an unknown name as the default.
     std::string  debuggerKeyScheme        = "VisualStudio";
 
+    // Folders where the debugger found source files, most-recent-first: for
+    // every program, and for each program by its debug file's SHA-1. A
+    // program's own list is searched before the global one.
+    std::vector<std::string>                          debuggerSourceFolders;
+    std::map<std::string, std::vector<std::string>>   debuggerProgramSourceFolders;
+
     // Master output volume (the chrome toolbar's slider + mute): one gain over
     // the completed audio mix, so speaker, drives, printer, and Mockingboard
     // scale together. Mute keeps the slider value; the mix just gets gain 0.
@@ -283,4 +289,6 @@ private:
                                              std::vector<std::string> & recentDisks);
     static void         RecentDiskTimesFromJson (const JsonValue           & loadedArr,
                                                  std::vector<std::int64_t> & loadedAtUnix);
+    static JsonValue    FolderMapToJson   (const std::map<std::string, std::vector<std::string>> & folders);
+    static void         FolderMapFromJson (const JsonValue & object, std::map<std::string, std::vector<std::string>> & folders);
 };

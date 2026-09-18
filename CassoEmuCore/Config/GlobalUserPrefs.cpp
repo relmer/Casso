@@ -83,7 +83,9 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "screenshotMode",
     "screenshotSaveFile",
     "screenshotFolder",
-    "debuggerKeyScheme"
+    "debuggerKeyScheme",
+    "debuggerSourceFolders",
+    "debuggerProgramSourceFolders"
 };
 
 
@@ -831,6 +833,64 @@ void GlobalUserPrefs::RecentDiskTimesFromJson (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GlobalUserPrefs::FolderMapToJson
+//
+//  An object whose keys are programs and whose values are folder lists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue GlobalUserPrefs::FolderMapToJson (const std::map<std::string, std::vector<std::string>> & folders)
+{
+    std::vector<std::pair<std::string, JsonValue>>  members;
+
+
+
+    for (const auto & each : folders)
+    {
+        members.emplace_back (each.first, RecentDisksToJson (each.second));
+    }
+
+    return JsonValue (std::move (members));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::FolderMapFromJson
+//
+//  A member that is not an array is dropped, as is an empty list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::FolderMapFromJson (const JsonValue & object, std::map<std::string, std::vector<std::string>> & folders)
+{
+    for (const auto & member : object.GetObjectEntries())
+    {
+        std::vector<std::string>  list;
+
+        if (member.second.GetType() != JsonType::Array)
+        {
+            continue;
+        }
+
+        RecentDisksFromJson (member.second, list);
+
+        if (!list.empty())
+        {
+            folders[member.first] = std::move (list);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GlobalUserPrefs::GetFilePath
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1129,6 +1189,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("screenshotFolder",   JsonValue (screenshotFolder));
 
     root.emplace_back ("debuggerKeyScheme",  JsonValue (debuggerKeyScheme));
+    root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debuggerSourceFolders));
+    root.emplace_back ("debuggerProgramSourceFolders", FolderMapToJson (debuggerProgramSourceFolders));
 
     // Printer mechanical-audio prefs (FR-034).
     root.emplace_back ("printerAudioEnabled",     JsonValue (printerAudioEnabled));
@@ -1190,14 +1252,16 @@ JsonValue GlobalUserPrefs::ToJson() const
 
 HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 {
-    HRESULT             hr            = S_OK;
-    const JsonValue *   windowSub     = nullptr;
-    const JsonValue *   placementsObj = nullptr;
-    const JsonValue *   recentArr     = nullptr;
-    const JsonValue *   loadedArr     = nullptr;
-    std::string         inputModeStr;
-    std::string         textModeStr;
-    bool                legacyArrows  = false;
+    HRESULT            hr               = S_OK;
+    const JsonValue  * windowSub        = nullptr;
+    const JsonValue  * placementsObj    = nullptr;
+    const JsonValue  * recentArr        = nullptr;
+    const JsonValue  * loadedArr        = nullptr;
+    const JsonValue  * sourceFolderArr  = nullptr;
+    const JsonValue  * programFolderObj = nullptr;
+    std::string        inputModeStr;
+    std::string        textModeStr;
+    bool               legacyArrows     = false;
 
 
 
@@ -1339,6 +1403,18 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     screenshotFolder   = GetStringOpt   (v, "screenshotFolder",   screenshotFolder);
 
     debuggerKeyScheme  = GetStringOpt   (v, "debuggerKeyScheme",  debuggerKeyScheme);
+
+    debuggerSourceFolders.clear();
+    if (v.HasArray ("debuggerSourceFolders", sourceFolderArr))
+    {
+        RecentDisksFromJson (*sourceFolderArr, debuggerSourceFolders);
+    }
+
+    debuggerProgramSourceFolders.clear();
+    if (v.HasObject ("debuggerProgramSourceFolders", programFolderObj))
+    {
+        FolderMapFromJson (*programFolderObj, debuggerProgramSourceFolders);
+    }
 
     // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
     // Legacy pre-toggle files stored the inverse `printerAudioMuted`; fall back

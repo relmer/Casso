@@ -551,7 +551,7 @@ breakpoints, two watches and the stack are visible without scrolling
 
 ### Finding sources
 
-- [ ] T123 [P] [US6] Write `UnitTest/DebuggerTests/SourceServiceTests.cpp` and implement `CassoEmuCore/Debugger/Source/SourceService.h/.cpp` and `SourcePathList.h/.cpp` (R-032) over `IFileSystem` and an in-memory `GlobalUserPrefs`: resolution in FR-058's order (relative to the debug file, the per-program list keyed by the debug file's own SHA-1, the global list, a dragged file); name and size filter before any hash; a hash match resolves silently; a size match with a different hash opens with `Mismatch`; two candidates of the same name and size take the first whose hash matches, else ask; a dragged file that matches no record opens as plain text; a found folder is added most-recent-first to both lists and survives a save and load of the preferences (FR-060).
+- [X] T123 [P] [US6] Write `UnitTest/DebuggerTests/SourceServiceTests.cpp` and implement `CassoEmuCore/Debugger/Source/SourceService.h/.cpp` and `SourcePathList.h/.cpp` (R-032) over `IFileSystem` and an in-memory `GlobalUserPrefs`: resolution in FR-058's order (relative to the debug file, the per-program list keyed by the debug file's own SHA-1, the global list, a dragged file); name and size filter before any hash; a hash match resolves silently; a size match with a different hash opens with `Mismatch`; two candidates of the same name and size take the first whose hash matches, else ask; a dragged file that matches no record opens as plain text; a found folder is added most-recent-first to both lists and survives a save and load of the preferences (FR-060).
 
 ### Stepping
 
