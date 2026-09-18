@@ -183,7 +183,7 @@ bool SourceService::TryFolder (const DebugSourceFile & record, const std::wstrin
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourceLookup SourceService::MatchDropped (const DebugFile & file, const std::wstring & droppedPath,
+SourceLookup SourceService::MatchDropped (const std::vector<DebugSourceFile> & files, const std::wstring & droppedPath,
                                           const std::string & programKey, int & recordIndex)
 {
     SourceLookup  result;
@@ -204,23 +204,23 @@ SourceLookup SourceService::MatchDropped (const DebugFile & file, const std::wst
     result.path = droppedPath;
     hash        = Sha1::ComputeTextHex (result.text);
 
-    for (size_t i = 0; i < file.files.size() && recordIndex < 0; i++)
+    for (size_t i = 0; i < files.size() && recordIndex < 0; i++)
     {
-        if (!file.files[i].sha1.empty() && file.files[i].sha1 == hash)
+        if (!files[i].sha1.empty() && files[i].sha1 == hash)
         {
             recordIndex  = (int) i;
             result.match = SourceMatch::Exact;
         }
     }
 
-    for (size_t i = 0; i < file.files.size() && recordIndex < 0; i++)
+    for (size_t i = 0; i < files.size() && recordIndex < 0; i++)
     {
-        std::wstring  recorded = GetFileName (SourcePathList::Utf8ToWide (file.files[i].name));
+        std::wstring  recorded = GetFileName (SourcePathList::Utf8ToWide (files[i].name));
 
         if (_wcsicmp (recorded.c_str(), fileName.c_str()) == 0)
         {
             recordIndex  = (int) i;
-            result.match = file.files[i].sha1.empty() ? SourceMatch::Unverified : SourceMatch::Mismatch;
+            result.match = files[i].sha1.empty() ? SourceMatch::Unverified : SourceMatch::Mismatch;
         }
     }
 

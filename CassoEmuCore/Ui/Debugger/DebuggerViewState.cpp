@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 
 #include "Debugger/DebugSession.h"
+#include "Debugger/Source/SourcePathList.h"
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/MonitorParser.h"
 
@@ -184,6 +185,8 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
         }
     }
 
+    BuildSource (session, snapshot);
+
     return snapshot;
 }
 
@@ -253,6 +256,96 @@ std::optional<Word> DebuggerViewState::GetMemoryWindowAddress (int id) const
     }
 
     return address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::BuildSource
+//
+//  The source pane's share of the snapshot, when a debug file is loaded: the
+//  line at PC at both ends of any macro nesting, the source line of each code
+//  row, the breakpoints that sit on lines, and the map from lines to
+//  addresses, which is rebuilt only when another debug file is loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    const LineTable                       & table = session.GetLineTable();
+    const DebugFile                       & file  = session.GetDebugFile();
+    const std::vector<SourcePosition>     & atPc  = table.GetPositionsAt (snapshot.pc);
+    DebuggerViewSnapshot::SourceState       state;
+    std::string                             key;
+
+
+
+    if (!session.HasDebugFile())
+    {
+        return;
+    }
+
+    key = session.GetDebugFileKey() + SourcePathList::WideToUtf8 (session.GetDebugFilePath());
+
+    if (m_lineAddresses == nullptr || key != m_lineAddressesKey)
+    {
+        auto  addresses = std::make_shared<std::map<std::pair<int, int>, Word>>();
+
+        for (const DebugLine & line : file.lines)
+        {
+            for (const std::pair<Word, Word> & range : table.GetRanges (line.file, line.line))
+            {
+                auto  found = addresses->find ({ line.file, line.line });
+
+                if (found == addresses->end() || range.first < found->second)
+                {
+                    (*addresses)[{ line.file, line.line }] = range.first;
+                }
+            }
+        }
+
+        m_lineAddresses    = addresses;
+        m_lineAddressesKey = key;
+    }
+
+    state.debugFilePath = session.GetDebugFilePath();
+    state.programKey    = session.GetDebugFileKey();
+    state.files         = file.files;
+    state.stepBySource  = session.IsStepBySource();
+    state.lineAddresses = m_lineAddresses;
+
+    if (!atPc.empty())
+    {
+        state.fileId     = atPc.front().file;
+        state.line       = atPc.front().line;
+        state.bodyFileId = atPc.back().file;
+        state.bodyLine   = atPc.back().line;
+        state.depth      = atPc.back().depth;
+    }
+
+    for (DebuggerViewSnapshot::CodeLine & row : snapshot.code)
+    {
+        const std::vector<SourcePosition> & at = table.GetPositionsAt (row.address);
+
+        if (!at.empty())
+        {
+            row.sourceFileId = at.front().file;
+            row.sourceLine   = at.front().line;
+        }
+    }
+
+    for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
+    {
+        for (const SourcePosition & position : table.GetPositionsAt (bp.address))
+        {
+            state.breakpointLines.emplace_back (position.file, position.line, bp.id);
+        }
+    }
+
+    snapshot.source = std::move (state);
 }
 
 

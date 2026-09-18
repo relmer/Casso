@@ -901,6 +901,64 @@ void DxuiWindow::OnModalLoopTick()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetAcceptsDroppedFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SetAcceptsDroppedFiles (bool accepts)
+{
+    HWND  hwnd = GetHwnd();
+
+
+
+    if (hwnd != nullptr)
+    {
+        DragAcceptFiles (hwnd, accepts ? TRUE : FALSE);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDropFiles
+//
+//  Every path in the drop, then the handle released, whatever the subclass
+//  does with them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnDropFiles (HDROP drop)
+{
+    std::vector<std::wstring>  paths;
+    UINT                       count = DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0);
+    bool                       taken = false;
+
+
+
+    for (UINT i = 0; i < count; i++)
+    {
+        UINT          length = DragQueryFileW (drop, i, nullptr, 0);
+        std::wstring  path (length, L'\0');
+
+        DragQueryFileW (drop, i, path.data(), length + 1);
+        paths.push_back (std::move (path));
+    }
+
+    DragFinish (drop);
+    taken = OnFilesDropped (paths);
+
+    return taken ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnClose
 //
 ////////////////////////////////////////////////////////////////////////////////

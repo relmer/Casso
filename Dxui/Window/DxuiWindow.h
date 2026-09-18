@@ -110,6 +110,10 @@ public:
     // windows that pop up on their own and must not steal keystrokes).
     void     Show        (bool activate = true);
     void     Hide        ();
+
+    //  Whether files dragged from the shell may be dropped here; each drop
+    //  arrives at OnFilesDropped.
+    void     SetAcceptsDroppedFiles (bool accepts);
     void     Close        ();
 
     //
@@ -270,6 +274,12 @@ protected:
     //
     virtual bool  OnMappedCommand (int commandId) { UNREFERENCED_PARAMETER (commandId); return false; }
 
+    //
+    //  Files dragged from the shell and dropped on the window, once
+    //  SetAcceptsDroppedFiles has turned that on. Return true if taken.
+    //
+    virtual bool  OnFilesDropped (const std::vector<std::wstring> & paths) { UNREFERENCED_PARAMETER (paths); return false; }
+
     //  Looks an unclaimed key up in the map and hands a match to
     //  OnMappedCommand. DispatchKey calls it after OnKey declines.
     bool  RouteMappedKey (const DxuiKeyEvent & ev);
@@ -322,6 +332,7 @@ private:
     DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
     void               OnModalLoopTick () override;
     DxuiMessageResult  OnClose       () override;
+    DxuiMessageResult  OnDropFiles   (HDROP drop) override;
     void               OnDestroy     () override;
 
     DxuiMessageResult  DispatchMouse (DxuiMouseEventKind kind,

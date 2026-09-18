@@ -260,7 +260,7 @@ namespace DebuggerTests
             file.files.push_back (Record ("lib.a65",  s_kSource));
             rig.files.WriteAllText (L"C:\\Elsewhere\\renamed.a65", s_kSource);
 
-            Assert::IsTrue   (rig.service.MatchDropped (file, L"C:\\Elsewhere\\renamed.a65", s_kProgram, index).match == SourceMatch::Exact);
+            Assert::IsTrue   (rig.service.MatchDropped (file.files, L"C:\\Elsewhere\\renamed.a65", s_kProgram, index).match == SourceMatch::Exact);
             Assert::AreEqual (1, index, L"the hash, not the name, decides");
             Assert::AreEqual (std::wstring (L"C:\\Elsewhere"), rig.paths.GetProgramFolders (s_kProgram).at (0));
         }
@@ -278,7 +278,7 @@ namespace DebuggerTests
             file.files.push_back (Record ("main.a65", s_kSource));
             rig.files.WriteAllText (L"C:\\Elsewhere\\notes.txt", "hello\r\n");
 
-            found = rig.service.MatchDropped (file, L"C:\\Elsewhere\\notes.txt", s_kProgram, index);
+            found = rig.service.MatchDropped (file.files, L"C:\\Elsewhere\\notes.txt", s_kProgram, index);
 
             Assert::IsTrue   (found.match == SourceMatch::NotFound);
             Assert::AreEqual (-1, index);
@@ -298,7 +298,7 @@ namespace DebuggerTests
             file.files.push_back (Record ("main.a65", s_kSource));
             rig.files.WriteAllText (L"C:\\Elsewhere\\main.a65", s_kEdited);
 
-            Assert::IsTrue   (rig.service.MatchDropped (file, L"C:\\Elsewhere\\main.a65", s_kProgram, index).match == SourceMatch::Mismatch);
+            Assert::IsTrue   (rig.service.MatchDropped (file.files, L"C:\\Elsewhere\\main.a65", s_kProgram, index).match == SourceMatch::Mismatch);
             Assert::AreEqual (0, index);
         }
 

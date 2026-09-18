@@ -10,6 +10,7 @@
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/SourcePane.h"
 
 struct CassoTheme;
 
@@ -50,6 +51,14 @@ public:
     //  the choice survives the window.
     virtual std::string  GetDebuggerKeyScheme ()                           = 0;
     virtual void         SetDebuggerKeyScheme (const std::string & name)   = 0;
+
+    //  A debug file's source file, found by the rules of FR-058, and a file
+    //  the user dropped, matched against the debug file's records. Where a
+    //  file is found goes into the preferences, which the host keeps.
+    virtual SourceLookup  FindDebuggerSource         (const DebugSourceFile & record, const std::wstring & debugFilePath,
+                                                      const std::string & programKey) = 0;
+    virtual SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
+                                                      const std::string & programKey, int & recordIndex) = 0;
 };
 
 
@@ -94,6 +103,7 @@ protected:
     bool     OnMouse         (const DxuiMouseEvent & ev) override;
     bool     OnKey           (const DxuiKeyEvent   & ev) override;
     bool     OnMappedCommand (int commandId) override;
+    bool     OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
@@ -133,6 +143,9 @@ private:
     void     AddMemoryWindow    ();
     void     RemoveMemoryWindow ();
     bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
+    bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
+    void     NoteViewFocus      (bool isSource);
+    void     ApplySource        ();
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
@@ -182,4 +195,12 @@ private:
     DxuiTextInput                                                                  * m_memoryBox          = nullptr;
     DxuiTextInput                                                                  * m_pokeBox            = nullptr;
     DxuiButton                                                                     * m_pokeButton         = nullptr;
+    DxuiTextView                                                                   * m_sourceView         = nullptr;
+    DxuiActionBanner                                                               * m_sourceBanner       = nullptr;
+    std::unique_ptr<SourcePane>                                                      m_sourcePane;
+    bool                                                                             m_sourceShown        = false;
+    bool                                                                             m_sourceBannerShown  = false;
+    std::wstring                                                                     m_sourceBannerKey;
+    uint64_t                                                                         m_sourceClickMs      = 0;
+    POINT                                                                            m_sourceClickAt      = {};
 };

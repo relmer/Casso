@@ -114,6 +114,14 @@ public:
         return 0;
     }
 
+    // WM_DROPFILES, for a window that accepts files dragged from the shell.
+    // The client reads the paths and releases the handle.
+    virtual DxuiMessageResult  OnDropFiles      (HDROP drop)
+    {
+        UNREFERENCED_PARAMETER (drop);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_COPYDATA. wParam = the sending HWND; lParam = COPYDATASTRUCT *.
     //
     // The payload belongs to the SENDER and is valid only for the duration of

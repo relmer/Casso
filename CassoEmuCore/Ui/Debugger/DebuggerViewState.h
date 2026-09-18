@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/DebugFile.h"
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 
@@ -32,6 +33,11 @@ struct DebuggerViewSnapshot
         std::string  label;
         bool         isCurrent     = false;
         bool         hasBreakpoint = false;
+
+        //  The outermost source line that produced this address, where a
+        //  debug file is loaded and one did.
+        int          sourceFileId  = -1;
+        int          sourceLine    = 0;
     };
 
     struct RegisterRow
@@ -79,6 +85,29 @@ struct DebuggerViewSnapshot
         std::string  value;
     };
 
+    //  The loaded debug file, as the source pane needs it.
+    struct SourceState
+    {
+        std::wstring                  debugFilePath;
+        std::string                   programKey;
+        std::vector<DebugSourceFile>  files;
+
+        //  The line at PC: the outermost, which the pane shows, and the
+        //  innermost, which is the macro body line when depth is above 0.
+        int                           fileId       = -1;
+        int                           line         = 0;
+        int                           bodyFileId   = -1;
+        int                           bodyLine     = 0;
+        int                           depth        = 0;
+        bool                          stepBySource = false;
+
+        //  Each breakpoint on a line in any file: file, line, breakpoint id.
+        std::vector<std::tuple<int, int, int>>  breakpointLines;
+
+        //  Every line that produced code, to the first address it produced.
+        //  The same map is shared until another debug file is loaded.
+        std::shared_ptr<const std::map<std::pair<int, int>, Word>>  lineAddresses;
+    };
     Word                         pc     = 0;
     CommandMode                  mode   = CommandMode::AppleWin;
     std::string                  machine;
@@ -90,6 +119,7 @@ struct DebuggerViewSnapshot
     std::vector<StackLine>       stack;
     std::vector<BreakpointLine>  breakpoints;
     std::vector<WatchLine>       watches;
+    std::optional<SourceState>   source;
 };
 
 
@@ -188,6 +218,8 @@ private:
     static DebuggerViewSnapshot::MemoryWindow  ReadMemoryWindow (DebugSession & session, int id, Word address);
     void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
 
+    void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+
     static Word                 GetInstructionLength   (DebugSession & session, Word address);
     static Word                 GetPreviousInstruction (DebugSession & session, Word address);
     static std::optional<Word>  GetReturnAddress       (DebugSession & session);
@@ -197,4 +229,8 @@ private:
     Word                 m_memoryAddress = 0x0000;
 
     std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
+
+    //  The line-to-address map for the loaded debug file, built once per load.
+    mutable std::string                                                  m_lineAddressesKey;
+    mutable std::shared_ptr<const std::map<std::pair<int, int>, Word>>   m_lineAddresses;
 };

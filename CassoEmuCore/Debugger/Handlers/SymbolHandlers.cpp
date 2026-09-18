@@ -6,6 +6,7 @@
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/ReplyJson.h"
+#include "Sha1.h"
 
 
 
@@ -246,7 +247,7 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     }
 
     lines = file.lines.size();
-    session.SetDebugFile (std::move (file), session.ResolvePath (name));
+    session.SetDebugFile (std::move (file), session.ResolvePath (name), Sha1::ComputeTextHex (content));
 
     hr = session.GetSymbols().LoadFrom (table, content, offset, loaded, error);
 

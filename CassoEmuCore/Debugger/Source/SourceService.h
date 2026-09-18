@@ -73,7 +73,7 @@ public:
 
     //  Which record a dropped file is, or -1 when it is none of them; a file
     //  that is none still comes back with its text, to be shown as plain text.
-    SourceLookup  MatchDropped  (const DebugFile & file, const std::wstring & droppedPath,
+    SourceLookup  MatchDropped  (const std::vector<DebugSourceFile> & files, const std::wstring & droppedPath,
                                  const std::string & programKey, int & recordIndex);
 
     static std::string   GetProgramKey (const std::string & debugFileText);

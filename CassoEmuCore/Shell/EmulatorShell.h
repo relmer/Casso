@@ -506,6 +506,10 @@ private:
     void    OnDebuggerWindowClosed   () override;
     std::string  GetDebuggerKeyScheme () override;
     void         SetDebuggerKeyScheme (const std::string & name) override;
+    SourceLookup FindDebuggerSource   (const DebugSourceFile & record, const std::wstring & debugFilePath,
+                                       const std::string & programKey) override;
+    SourceLookup MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
+                                             const std::string & programKey, int & recordIndex) override;
 
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.

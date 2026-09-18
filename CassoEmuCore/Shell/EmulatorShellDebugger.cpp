@@ -111,6 +111,63 @@ void EmulatorShell::SetDebuggerKeyScheme (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindDebuggerSource
+//
+//  A folder where a file was found goes into the preferences, so they are
+//  saved; the next search, in this session or another, looks there first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SourceLookup EmulatorShell::FindDebuggerSource (const DebugSourceFile & record, const std::wstring & debugFilePath,
+                                                const std::string & programKey)
+{
+    SourcePathList  paths   (m_globalPrefs);
+    SourceService   service (m_uiFs, paths);
+    SourceLookup    lookup  = service.Find (record, debugFilePath, programKey);
+
+
+
+    if (lookup.match == SourceMatch::Exact || lookup.match == SourceMatch::Unverified)
+    {
+        SaveGlobalPrefsDeferred();
+    }
+
+    return lookup;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MatchDroppedDebuggerSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SourceLookup EmulatorShell::MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
+                                                        const std::string & programKey, int & recordIndex)
+{
+    SourcePathList  paths   (m_globalPrefs);
+    SourceService   service (m_uiFs, paths);
+    SourceLookup    lookup  = service.MatchDropped (files, path, programKey, recordIndex);
+
+
+
+    if (recordIndex >= 0)
+    {
+        SaveGlobalPrefsDeferred();
+    }
+
+    return lookup;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunDebuggerCommand
 //
 ////////////////////////////////////////////////////////////////////////////////

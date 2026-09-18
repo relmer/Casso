@@ -81,10 +81,11 @@ void DebugSession::LoadRomSymbols()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::SetDebugFile (DebugFile file, const std::wstring & path)
+void DebugSession::SetDebugFile (DebugFile file, const std::wstring & path, const std::string & key)
 {
     m_debugFile     = std::move (file);
     m_debugFilePath = path;
+    m_debugFileKey  = key;
     m_lineTable.Build (m_debugFile);
 }
 
@@ -139,6 +140,7 @@ void DebugSession::ClearDebugFile()
 {
     m_debugFile = DebugFile();
     m_debugFilePath.clear();
+    m_debugFileKey.clear();
     m_lineTable.Clear();
 }
 

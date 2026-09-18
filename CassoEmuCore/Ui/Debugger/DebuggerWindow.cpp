@@ -186,6 +186,21 @@ void DebuggerWindow::OnCreate()
         view->SetVisible (id == 1);
     }
 
+    //  Shown only while a debug file is loaded.
+    m_sourceView   = CreateChild<DxuiTextView>();
+    m_sourceBanner = CreateChild<DxuiActionBanner>();
+    m_sourcePane   = std::make_unique<SourcePane> (
+        m_sourceView, m_sourceBanner,
+        [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
+        {
+            return (m_host != nullptr) ? m_host->FindDebuggerSource (record, path, key) : SourceLookup();
+        },
+        [this] (const std::string & line) { RunCommand (line); },
+        [this] (Word address)             { if (m_host != nullptr) { m_host->SetDebuggerCodeAddress (address); } });
+
+    m_sourceView->SetVisible   (false);
+    m_sourceBanner->SetVisible (false);
+
     ConfigureWidgets();
 }
 
@@ -249,6 +264,18 @@ void DebuggerWindow::ConfigureWidgets()
     {
         pane->Configure (GetHwnd());
     }
+
+    m_sourcePane->Configure (GetHwnd());
+    SetAcceptsDroppedFiles  (true);
+
+    //  A code row selected shows its line in the source pane (FR-054).
+    m_codeList->SetOnSelectionChanged ([this] (int row)
+    {
+        if (m_snapshot != nullptr && row >= 0 && row < (int) m_snapshot->code.size())
+        {
+            m_sourcePane->ShowLine (m_snapshot->code[(size_t) row].sourceFileId, m_snapshot->code[(size_t) row].sourceLine);
+        }
+    });
 
     //  Every column fits its contents and none stretches, so a pane is as wide
     //  as what it shows and no wider (FR-026a). The marker column alone has a
@@ -613,6 +640,191 @@ void DebuggerWindow::RemoveMemoryWindow()
             return;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplySource
+//
+//  The source pane takes the snapshot, and the layout changes when the pane
+//  or its banner comes or goes, or the banner's text or actions change: a new
+//  action has no place until it is laid out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplySource()
+{
+    bool          shown       = false;
+    bool          bannerShown = false;
+    std::wstring  bannerKey;
+
+
+
+    m_sourcePane->Apply (*m_snapshot);
+    bannerKey = m_sourceBanner->GetText() + (m_sourceBanner->GetAction (0) != nullptr ? m_sourceBanner->GetAction (0)->GetAccessibleName() : L"");
+
+    shown       = m_sourcePane->IsActive();
+    bannerShown = shown && m_sourcePane->HasBanner();
+
+    m_sourceView->SetVisible   (shown);
+    m_sourceBanner->SetVisible (bannerShown);
+
+    if (shown != m_sourceShown || bannerShown != m_sourceBannerShown || bannerKey != m_sourceBannerKey)
+    {
+        m_sourceShown       = shown;
+        m_sourceBannerShown = bannerShown;
+        m_sourceBannerKey   = bannerKey;
+        LayoutWidgets();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteSourceMouse
+//
+//  The banner's actions, then the text: a click moves the code pane to the
+//  line, a second click on the same place within the double-click time
+//  toggles the line's breakpoint, and a drag selects text as it does in any
+//  text view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteSourceMouse (const DxuiMouseEvent & ev)
+{
+    POINT     at       = ev.positionDip;
+    RECT      bounds   = m_sourceView->GetBounds();
+    RECT      banner   = m_sourceBanner->GetBounds();
+    bool      inside   = at.x >= bounds.left && at.x < bounds.right && at.y >= bounds.top && at.y < bounds.bottom;
+    bool      onBanner = at.x >= banner.left && at.x < banner.right && at.y >= banner.top && at.y < banner.bottom;
+    uint64_t  now      = GetTickCount64();
+    bool      isDouble = false;
+
+
+
+    if (!m_sourceShown)
+    {
+        return false;
+    }
+
+    if (m_sourceBannerShown && (onBanner || ev.kind == DxuiMouseEventKind::Up || ev.kind == DxuiMouseEventKind::Move))
+    {
+        (void) m_sourceBanner->OnMouse (ev);
+
+        //  An action changes what the pane shows while the machine is paused,
+        //  when no snapshot is coming to show it.
+        if (onBanner && ev.kind == DxuiMouseEventKind::Up && m_snapshot != nullptr)
+        {
+            ApplySource();
+        }
+
+        if (onBanner && ev.kind == DxuiMouseEventKind::Down)
+        {
+            return true;
+        }
+    }
+
+    if (m_sourceView->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
+    {
+        (void) m_sourceView->OnMouse (ev);
+        return true;
+    }
+
+    if (!inside || (ev.kind != DxuiMouseEventKind::Down && ev.kind != DxuiMouseEventKind::Wheel))
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+    {
+        isDouble = (now - m_sourceClickMs) <= (uint64_t) GetDoubleClickTime() &&
+                   std::abs (at.x - m_sourceClickAt.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
+                   std::abs (at.y - m_sourceClickAt.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
+
+        m_sourceClickMs = isDouble ? 0 : now;
+        m_sourceClickAt = at;
+
+        if (isDouble)
+        {
+            m_sourcePane->OnDoubleClick (at);
+        }
+        else
+        {
+            m_sourcePane->OnClick (at);
+        }
+
+        m_focusMgr.SetFocused (m_sourceView);
+        NoteViewFocus (true);
+    }
+
+    (void) m_sourceView->OnMouse (ev);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::NoteViewFocus
+//
+//  Steps follow the view: the source pane steps by source line, the
+//  disassembly by instruction (FR-056). Sent only when it changes, so a click
+//  does not fill the console.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::NoteViewFocus (bool isSource)
+{
+    if (m_host == nullptr || m_snapshot == nullptr || !m_snapshot->source.has_value())
+    {
+        return;
+    }
+
+    if (m_snapshot->source->stepBySource != isSource)
+    {
+        m_host->RunDebuggerCommand (isSource ? "SRC ON" : "SRC OFF");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnFilesDropped
+//
+//  The first file goes to the source pane, matched against the loaded debug
+//  file's records by the host.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
+{
+    SourceLookup  lookup;
+    int           index = -1;
+
+
+
+    if (paths.empty() || m_host == nullptr || m_snapshot == nullptr || !m_snapshot->source.has_value())
+    {
+        return false;
+    }
+
+    lookup = m_host->MatchDroppedDebuggerSource (m_snapshot->source->files, paths.front(), m_snapshot->source->programKey, index);
+    m_sourcePane->ShowDropped (lookup, index);
+    ApplySource();
+
+    return true;
 }
 
 
@@ -989,7 +1201,22 @@ void DebuggerWindow::LayoutWidgets()
 
     m_flagsLabel->Layout (RECT { x + pad, rowY, width - pad, rowY + buttonH }, m_scaler);
 
-    m_codeList->Layout    (RECT { pad, top, pad + leftW, top + codeH }, m_scaler);
+    //  With a debug file loaded, the source pane takes the left of the code
+    //  row and the disassembly the right, with the pane's banner above it.
+    if (m_sourceShown)
+    {
+        int  sourceW = (leftW - pad) * 3 / 5;
+        int  bannerH = m_sourceBannerShown ? (int) m_sourceBanner->GetPreferredHeightPx ((float) sourceW, m_scaler) : 0;
+
+        m_sourceBanner->Layout (RECT { pad, top, pad + sourceW, top + bannerH }, m_scaler);
+        m_sourceView->Layout   (RECT { pad, top + bannerH + (bannerH > 0 ? pad : 0), pad + sourceW, top + codeH }, m_scaler);
+        m_codeList->Layout     (RECT { pad + sourceW + pad, top, pad + leftW, top + codeH }, m_scaler);
+    }
+    else
+    {
+        m_codeList->Layout (RECT { pad, top, pad + leftW, top + codeH }, m_scaler);
+    }
+
     m_consoleList->Layout (RECT { pad, consoleY, pad + leftW, consoleY + consoleH }, m_scaler);
     m_commandBox->Layout  (RECT { pad, consoleY + consoleH + pad, pad + leftW, consoleY + consoleH + pad + boxH }, m_scaler);
 
@@ -1155,6 +1382,7 @@ void DebuggerWindow::ApplySnapshot()
     m_stackList->SetRows (std::move (rows));
 
     ApplyMemoryWindows();
+    ApplySource();
 }
 
 
@@ -1369,7 +1597,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (RouteMemoryMouse (ev))
+    if (RouteMemoryMouse (ev) || RouteSourceMouse (ev))
     {
         return true;
     }
@@ -1423,6 +1651,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
                 handled = ForwardToList (list, ev);
                 m_focusMgr.SetFocused (list);
                 handled = true;
+
+                if (list == m_codeList)
+                {
+                    NoteViewFocus (false);
+                }
             }
         }
 

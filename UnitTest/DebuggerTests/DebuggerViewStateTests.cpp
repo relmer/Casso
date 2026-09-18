@@ -10,6 +10,8 @@
 #include "Shell/CpuManager.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/SourcePane.h"
+#include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
 
 
@@ -775,6 +777,250 @@ namespace DebuggerViewStateTests
         {
             Assert::IsTrue (DebuggerViewState::IsBuildDue (true, true,  true,  1000, 1000));
             Assert::IsTrue (DebuggerViewState::IsBuildDue (true, false, false, 1000, 1000));
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SourcePaneTests
+    //
+    //  The source pane's share of the snapshot and the pane itself (FR-054 to
+    //  FR-059). The debug file matches the rig's program: main.a65 line 2 is
+    //  the LDA, line 3 a macro invocation whose body, macros.inc line 5, is
+    //  the STA, and line 4 the RTS.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static const char * const  s_kMainText = "; main\n        lda #$41\n        store\n        rts\n";
+
+    TEST_CLASS (SourcePaneTests)
+    {
+    public:
+
+        static void LoadDebugFile (MachineRig & rig)
+        {
+            DebugFile  file;
+
+
+
+            file.major = 2;
+            file.files = { { 0, "main.a65", 45, 0, "", 0 }, { 1, "macros.inc", 30, 0, "", 0 } };
+            file.segments.push_back ({ 0, "CODE", 0x0300, 6 });
+            file.spans = { { 0, 0, 0, 2 }, { 1, 0, 2, 3 }, { 2, 0, 5, 1 } };
+            file.lines = { { 0, 0, 2, DebugLineType::Asm,   0, { 0 } },
+                           { 1, 0, 3, DebugLineType::Asm,   0, { 1 } },
+                           { 2, 1, 5, DebugLineType::Macro, 1, { 1 } },
+                           { 3, 0, 4, DebugLineType::Asm,   0, { 2 } } };
+
+            rig.controller.GetSession().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
+        }
+
+
+
+        static void SetPc (MachineRig & rig, Word pc)
+        {
+            Cpu6502Registers  r = rig.controller.GetSession().GetTarget().GetRegisters();
+
+
+
+            r.pc = pc;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+        }
+
+
+
+        TEST_METHOD (NoDebugFileNoSourceState)
+        {
+            MachineRig  rig;
+
+
+
+            Assert::IsFalse (rig.view.Build (rig.controller.GetSession()).source.has_value());
+        }
+
+
+        TEST_METHOD (TheLineAtPcAndEachCodeRowsLine)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            LoadDebugFile (rig);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue   (snapshot.source.has_value());
+            Assert::AreEqual (0, snapshot.source->fileId);
+            Assert::AreEqual (2, snapshot.source->line);
+            Assert::AreEqual (0, snapshot.source->depth);
+            Assert::AreEqual (2, snapshot.code[0].sourceLine);
+            Assert::AreEqual (3, snapshot.code[1].sourceLine, L"the outermost line: the invocation, not the body");
+            Assert::AreEqual (std::wstring (L"C:\\Work\\main.dbg"), snapshot.source->debugFilePath);
+        }
+
+
+        TEST_METHOD (InsideAMacroBothEndsAreGiven)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            LoadDebugFile (rig);
+            SetPc (rig, 0x0302);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual (3, snapshot.source->line);
+            Assert::AreEqual (1, snapshot.source->bodyFileId);
+            Assert::AreEqual (5, snapshot.source->bodyLine);
+            Assert::AreEqual (1, snapshot.source->depth);
+        }
+
+
+        TEST_METHOD (LinesMapToTheirFirstAddress)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            DebuggerViewSnapshot  again;
+
+
+
+            LoadDebugFile (rig);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            again    = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((Word) 0x0302, snapshot.source->lineAddresses->at ({ 0, 3 }));
+            Assert::AreEqual ((Word) 0x0302, snapshot.source->lineAddresses->at ({ 1, 5 }));
+            Assert::AreEqual ((Word) 0x0305, snapshot.source->lineAddresses->at ({ 0, 4 }));
+            Assert::IsTrue   (snapshot.source->lineAddresses == again.source->lineAddresses, L"built once per load");
+        }
+
+
+        TEST_METHOD (ABreakpointMarksEveryLineAtItsAddress)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            int                   id       = 0;
+
+
+
+            LoadDebugFile (rig);
+            rig.Run ("BP 302");
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            id       = snapshot.breakpoints.at (0).id;
+
+            Assert::AreEqual ((size_t) 2, snapshot.source->breakpointLines.size(), L"the invocation and the body line");
+            Assert::AreEqual (std::format ("BPC {}", id), SourcePane::GetToggleLine (*snapshot.source, 0, 3));
+            Assert::AreEqual (std::format ("BPC {}", id), SourcePane::GetToggleLine (*snapshot.source, 1, 5));
+            Assert::AreEqual (std::string ("BP main.a65:4"), SourcePane::GetToggleLine (*snapshot.source, 0, 4));
+        }
+
+
+        TEST_METHOD (SplitLinesExpandsTabsAndEveryLineEnding)
+        {
+            std::vector<std::wstring>  lines = SourcePane::SplitLines ("a\tb\r\nc\rd\n\te");
+
+
+
+            Assert::AreEqual ((size_t) 4,                   lines.size());
+            Assert::AreEqual (std::wstring (L"a       b"),  lines[0], L"to the next multiple of eight, not eight spaces");
+            Assert::AreEqual (std::wstring (L"c"),          lines[1]);
+            Assert::AreEqual (std::wstring (L"        e"),  lines[3]);
+        }
+
+
+        TEST_METHOD (RowsCarryTheMarkersAndLineNumbers)
+        {
+            std::vector<std::wstring>        lines (12, L"x");
+            std::vector<DxuiTextView::Row>   rows  = SourcePane::BuildRows (lines, 3, { 3, 10 });
+
+
+
+            Assert::AreEqual ((size_t) 12, rows.size());
+            Assert::AreEqual (std::wstring (L" 3"), rows[2].cells[1], L"numbers right-aligned to the widest");
+            Assert::AreEqual (std::wstring (1, s_kchBullet) + s_kpszTriangleRight, rows[2].cells[0]);
+            Assert::AreEqual (std::wstring (1, s_kchBullet) + L" ",                rows[9].cells[0]);
+            Assert::AreEqual (std::wstring (L"  "),                                 rows[0].cells[0]);
+        }
+
+
+        TEST_METHOD (TheBannerSaysWhatTheFileNeedsSaid)
+        {
+            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::Exact, "a.s", true, 0, false, "", 0).empty());
+            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::Mismatch, "a.s", true, 0, false, "", 0).find (L"may not match") != std::wstring::npos);
+            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::NotFound, "a.s", false, 0, false, "", 0).find (L"Drop it") != std::wstring::npos);
+            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::NotFound, "a.s", true, 0, false, "", 0).find (L"no line mapping") != std::wstring::npos);
+            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::Exact, "a.s", true, 1, false, "m.inc", 5).find (L"m.inc line 5") != std::wstring::npos);
+        }
+
+
+        TEST_METHOD (ThePaneLoadsTheFileAtPcAndMarksItsLine)
+        {
+            MachineRig            rig;
+            DxuiTextView          view;
+            DxuiActionBanner      banner;
+            int                   finds    = 0;
+            std::string           ran;
+            SourcePane            pane (&view, &banner,
+                                        [&] (const DebugSourceFile & record, const std::wstring &, const std::string &)
+                                        {
+                                            SourceLookup  lookup;
+
+                                            finds++;
+                                            lookup.match = SourceMatch::Exact;
+                                            lookup.text  = (record.id == 0) ? s_kMainText : "; macros\n\n\n\n        sta $0400\n";
+                                            return lookup;
+                                        },
+                                        [&] (const std::string & line) { ran = line; },
+                                        [] (Word) {});
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            LoadDebugFile (rig);
+            SetPc (rig, 0x0302);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            pane.Apply (snapshot);
+            pane.Apply (snapshot);
+
+            Assert::AreEqual (1,          finds,                      L"found once, not every snapshot");
+            Assert::IsTrue   (pane.IsActive());
+            Assert::AreEqual ((size_t) 4, view.GetRows().size());
+            Assert::AreEqual (std::wstring (L" ") + s_kpszTriangleRight, view.GetRows()[2].cells[0], L"the invocation line");
+            Assert::IsTrue   (pane.HasBanner(),                           L"inside a macro");
+
+            pane.ToggleBody();
+            Assert::AreEqual ((size_t) 5, view.GetRows().size(),         L"the body's file");
+            Assert::AreEqual (std::wstring (L" ") + s_kpszTriangleRight, view.GetRows()[4].cells[0]);
+        }
+
+
+        TEST_METHOD (ADroppedFileThatMatchesNothingIsPlainText)
+        {
+            MachineRig            rig;
+            DxuiTextView          view;
+            DxuiActionBanner      banner;
+            SourceLookup          dropped;
+            SourcePane            pane (&view, &banner,
+                                        [] (const DebugSourceFile &, const std::wstring &, const std::string &) { return SourceLookup(); },
+                                        [] (const std::string &) {},
+                                        [] (Word) {});
+
+
+
+            LoadDebugFile (rig);
+            pane.Apply (rig.view.Build (rig.controller.GetSession()));
+            Assert::IsTrue (banner.GetText().find (L"was not found") != std::wstring::npos);
+
+            dropped.text = "hello\nworld\n";
+            pane.ShowDropped (dropped, -1);
+            pane.Apply (rig.view.Build (rig.controller.GetSession()));
+
+            Assert::AreEqual ((size_t) 2, view.GetRows().size(), L"the dropped text stays while the PC is in the same file");
+            Assert::IsTrue   (banner.GetText().find (L"no line mapping") != std::wstring::npos);
         }
     };
 }

@@ -120,11 +120,12 @@ public:
     // The program's debug file, loaded by SYM LOAD, and its lines indexed both
     // ways. The path is where it was read from, so its sources are looked for
     // beside it.
-    void                  SetDebugFile   (DebugFile file, const std::wstring & path);
+    void                  SetDebugFile   (DebugFile file, const std::wstring & path, const std::string & key = {});
     void                  ClearDebugFile ();
     bool                  HasDebugFile   () const { return !m_debugFilePath.empty(); }
     const DebugFile     & GetDebugFile   () const { return m_debugFile; }
     const std::wstring  & GetDebugFilePath () const { return m_debugFilePath; }
+    const std::string   & GetDebugFileKey  () const { return m_debugFileKey; }
     const LineTable     & GetLineTable   () const { return m_lineTable; }
 
     // Whether T, P and RTS, and every dialect's step commands, step by source
@@ -228,6 +229,7 @@ private:
     SymbolTable                           m_symbols;
     DebugFile                             m_debugFile;
     std::wstring                          m_debugFilePath;
+    std::string                           m_debugFileKey;
     LineTable                             m_lineTable;
     bool                                  m_stepBySource  = false;
     std::vector<Word>                     m_searchResults;

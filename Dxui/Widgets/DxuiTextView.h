@@ -83,6 +83,10 @@ public:
     void  SetTopLine   (int line);
     void  ScrollLines  (int delta) { SetTopLine (m_topLine + delta); }
 
+    //  The drawn line a row starts on, which differs from the row once a row
+    //  above it has wrapped. -1 for a row not laid out.
+    int   GetFirstLineOfRow (int row) const;
+
     Position  HitTest (POINT point) const;
 
     void          Select           (Position anchor, Position caret);
