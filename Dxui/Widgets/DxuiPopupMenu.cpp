@@ -362,6 +362,7 @@ void DxuiPopupMenu::ShowCore (
     }
 
     PlaceIconRow (OpensUpward (originX, originY, GetContentHeightPx(), anchoring));
+    DropStraySeparators();
 
     width        = (std::max) (MeasureWidthPx (text), m_minWidthPx);
     height       = GetContentHeightPx();
@@ -803,6 +804,45 @@ void DxuiPopupMenu::CommitIcon (int index, int button)
     {
         cmd->dispatch();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::DropStraySeparators
+//
+//  A caller building a menu from conditional groups can leave a separator
+//  first, last, or beside another; each draws as an empty band, so they go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::DropStraySeparators()
+{
+    std::vector<DxuiPopupMenuItem>  kept;
+
+
+
+    for (DxuiPopupMenuItem & row : m_rows)
+    {
+        bool  isSeparator = row.kind == DxuiPopupMenuItem::Kind::Separator;
+
+        if (isSeparator && (kept.empty() || kept.back().kind == DxuiPopupMenuItem::Kind::Separator))
+        {
+            continue;
+        }
+
+        kept.push_back (std::move (row));
+    }
+
+    while (!kept.empty() && kept.back().kind == DxuiPopupMenuItem::Kind::Separator)
+    {
+        kept.pop_back();
+    }
+
+    m_rows = std::move (kept);
 }
 
 

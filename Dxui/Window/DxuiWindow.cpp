@@ -4,6 +4,7 @@
 
 #include "Core/DxuiEvents.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiPopupMenu.h"
 
 
 static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
@@ -693,6 +694,13 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
     if (HasModalOverlay())
     {
         (void) OnOverlayKey (vk);
+        result = DxuiMessageResult::Handled;
+    }
+    else if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().IsVisible())
+    {
+        //  An open context menu is where the keyboard is, as a Windows menu's
+        //  is: arrows, Enter, Escape and mnemonics act on it, not the page.
+        (void) GetPopupHost()->GetContextMenu().OnKey (vk);
         result = DxuiMessageResult::Handled;
     }
     else
