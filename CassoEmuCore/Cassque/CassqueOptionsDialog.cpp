@@ -71,7 +71,7 @@ bool CassqueOptionsPanel::OnMouse (const DxuiMouseEvent & ev)
 
 std::vector<std::wstring> CassqueOptionsDialog::GetNamingLabels()
 {
-    return { L"Descriptive (HELLO.Applesoft BASIC.txt)", L"CiderPress (HELLO#FC0801)" };
+    return { L"Descriptive (HELLO.Applesoft BASIC.txt)", L"CiderPress (HELLO#FC0801)", L"AppleSingle (HELLO.as)" };
 }
 
 

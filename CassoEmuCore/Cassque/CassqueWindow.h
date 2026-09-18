@@ -356,6 +356,7 @@ private:
     bool  IsListVerbOffered      (CassqueActions::Verb verb) const;
     bool  IsToolbarEntryAvailable (int index) const;
     bool  IsCommandBarEntryAvailable (int index) const;
+    HostFileNaming::Style  GetNamingStyle () const;
     bool  RouteCommandBarKey      (const DxuiKeyEvent & ev);
 
     DxuiToolbar          * m_commandBar      = nullptr;

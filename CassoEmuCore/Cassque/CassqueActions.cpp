@@ -3,6 +3,7 @@
 #include "Cassque/CassqueActions.h"
 #include "Cassque/Model/ContentSniffer.h"
 #include "Cassque/Model/DragPayload.h"
+#include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -298,6 +299,92 @@ std::string CassqueActions::SanitizeCatalogName (const std::wstring & stem, Volu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassqueActions::SetTypedPayload
+//
+//  A file whose type is known goes in as a payload of that type, mapped to
+//  DOS 3.3's when the image is one; on a binary file the aux type is the
+//  load address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueActions::SetTypedPayload (PutPlan & plan, const std::vector<Byte> & bytes, Byte type, bool hasAux, Word aux, bool isDos)
+{
+    Byte  dosType = 0;
+
+
+
+    plan.usePayload    = true;
+    plan.payload.bytes = bytes;
+    plan.payload.type  = type;
+
+    if (isDos && !HostFileNaming::TryMapProDosToDos33 (type, dosType))
+    {
+        plan.refusal = L"DOS 3.3 has no file type matching this file's ProDOS type.";
+        return;
+    }
+
+    if (isDos)
+    {
+        plan.payload.type = dosType;
+    }
+
+    if (hasAux)
+    {
+        plan.payload.hasAuxType     = !isDos;
+        plan.payload.auxType        = aux;
+        plan.payload.hasLoadAddress = plan.payload.type == (isDos ? Dos33Volume::kTypeBinary : ProDosVolume::kTypeBinary);
+        plan.payload.loadAddress    = aux;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::PlanAppleSingle
+//
+//  The data fork under the real name, with the ProDOS type and aux type the
+//  container records and no dialog. A container without them holds a binary
+//  file, at the address a binary put would suggest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassqueActions::PutPlan CassqueActions::PlanAppleSingle (const std::wstring & hostName, const AppleSingleFile & file, VolumeKind kind)
+{
+    PutPlan       plan;
+    std::wstring  name  = TextEncoding::NarrowToWide (file.realName);
+    bool          isDos = kind == VolumeKind::Dos33;
+    Word          load  = (file.data.size() == 8192) ? 0x2000 : 0x0803;
+
+
+
+    if (name.empty())
+    {
+        name = std::filesystem::path (GetLeafName (hostName)).stem().wstring();
+    }
+
+    plan.catalogName = SanitizeCatalogName (name, kind);
+
+    if (file.hasProDosInfo)
+    {
+        SetTypedPayload (plan, file.data, (Byte) file.fileType, true, (Word) file.auxType, isDos);
+    }
+    else
+    {
+        SetTypedPayload (plan, file.data, ProDosVolume::kTypeBinary, true, load, isDos);
+    }
+
+    return plan;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassqueActions::PlanPut
 //
 //  The suffix decides first, since it says what the file was; the content
@@ -313,9 +400,23 @@ CassqueActions::PutPlan CassqueActions::PlanPut (const std::wstring & hostName, 
     bool                     isDos     = kind == VolumeKind::Dos33;
     ContentSniffer::Verdict  verdict   = ContentSniffer::Verdict::Binary;
     Word                     suggested = 0;
-    Byte                     dosType   = 0;
+    AppleSingleFile          single;
+    std::string              error;
+    HRESULT                  hr        = S_OK;
 
 
+
+    //  An AppleSingle container says what it holds, so it goes in as that
+    //  file whatever it is called.
+    if (AppleSingleCodec::IsAppleSingle (std::span<const Byte> (bytes.data(), bytes.size())))
+    {
+        hr = AppleSingleCodec::Decode (std::span<const Byte> (bytes.data(), bytes.size()), single, error);
+
+        if (SUCCEEDED (hr))
+        {
+            return PlanAppleSingle (hostName, single, kind);
+        }
+    }
 
     if (HostFileNaming::Parse (GetLeafName (hostName), parsed))
     {
@@ -335,29 +436,7 @@ CassqueActions::PutPlan CassqueActions::PlanPut (const std::wstring & hostName, 
 
         if (parsed.hasType)
         {
-            plan.usePayload    = true;
-            plan.payload.bytes = bytes;
-            plan.payload.type  = parsed.type;
-
-            if (isDos && !HostFileNaming::TryMapProDosToDos33 (parsed.type, dosType))
-            {
-                plan.refusal = L"DOS 3.3 has no file type matching this file's ProDOS type.";
-                return plan;
-            }
-
-            if (isDos)
-            {
-                plan.payload.type = dosType;
-            }
-
-            if (parsed.hasAux)
-            {
-                plan.payload.hasAuxType     = !isDos;
-                plan.payload.auxType        = parsed.aux;
-                plan.payload.hasLoadAddress = plan.payload.type == (isDos ? Dos33Volume::kTypeBinary : ProDosVolume::kTypeBinary);
-                plan.payload.loadAddress    = parsed.aux;
-            }
-
+            SetTypedPayload (plan, bytes, parsed.type, parsed.hasAux, parsed.aux, isDos);
             return plan;
         }
     }
@@ -482,11 +561,60 @@ CassqueActions::Outcome CassqueActions::GetSelected (const std::wstring & hostFo
             continue;
         }
 
+        if (style == HostFileNaming::Style::AppleSingle)
+        {
+            GetAppleSingle (image, entry, hostPath, outcome);
+            continue;
+        }
+
         Append (outcome, m_browser.GetOperations().Get (image, m_browser.GetEntryPath (entry), GetEncoding (entry, m_browser.GetVolumeKind()),
                                                         TextEncoding::WideToNarrow (hostPath), entry.catalogIndex));
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueActions::GetAppleSingle
+//
+//  The file's bytes as the image holds them, wrapped with its name, type,
+//  aux type and date.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueActions::GetAppleSingle (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome)
+{
+    DiskOperations::Result  result = m_browser.GetOperations().Get (image, m_browser.GetEntryPath (entry), Encoding::Verbatim, "", entry.catalogIndex);
+    AppleSingleFile         single;
+    std::vector<Byte>       bytes;
+    HRESULT                 hr     = S_OK;
+
+
+
+    if (!result.Succeeded())
+    {
+        Append (inOutOutcome, result);
+        return;
+    }
+
+    single      = DragPayload::MakeAppleSingle (entry, m_browser.GetVolumeKind());
+    single.data = std::move (result.payload);
+    AppleSingleCodec::Encode (single, bytes);
+
+    hr = m_fs.WriteAllText (hostPath, std::string (bytes.begin(), bytes.end()));
+
+    if (FAILED (hr))
+    {
+        AppendMessage (inOutOutcome, hr, GetLeafName (hostPath) + L" could not be written.");
+        return;
+    }
+
+    inOutOutcome.written++;
 }
 
 

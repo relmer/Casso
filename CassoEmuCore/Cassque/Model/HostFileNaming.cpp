@@ -394,6 +394,13 @@ std::wstring HostFileNaming::ForRaw (
         return name + kCiderPressMark + FormatHex (proDosType, 2) + FormatHex (aux, 4);
     }
 
+    //  The container carries the type, aux type and dates; the name carries
+    //  nothing else.
+    if (style == Style::AppleSingle)
+    {
+        return name + kAppleSingleExt;
+    }
+
     if (isBinary)
     {
         return name + L"." + kBinaryWord + L".$" + FormatHex (aux, 4) + kRawExtension;

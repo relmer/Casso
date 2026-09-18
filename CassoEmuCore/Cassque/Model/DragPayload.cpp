@@ -48,7 +48,13 @@ std::wstring DragPayload::GetHostName (
 
 
 
-    outConverted = isApplesoft || isInteger || isText;
+    outConverted = (isApplesoft || isInteger || isText) && style != HostFileNaming::Style::AppleSingle;
+
+    if (!outConverted)
+    {
+        return HostFileNaming::ForRaw (entry.name, kind, entry.type, entry.hasLoadAddress || entry.hasAuxType,
+                                       entry.hasLoadAddress ? entry.loadAddress : entry.auxType, style);
+    }
 
     if (isApplesoft)
     {
@@ -60,13 +66,41 @@ std::wstring DragPayload::GetHostName (
         return HostFileNaming::ForConverted (entry.name, ParsedHostName::ConvertedKind::IntegerListing);
     }
 
-    if (isText)
+    return HostFileNaming::ForConverted (entry.name, ParsedHostName::ConvertedKind::Text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DragPayload::MakeAppleSingle
+//
+//  AppleSingle dates count from 2000-01-01 UTC; the catalog's from 1970.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AppleSingleFile DragPayload::MakeAppleSingle (const FileEntry & entry, VolumeKind kind)
+{
+    static constexpr int64_t  kUnixSecondsAt2000 = 946684800;
+    AppleSingleFile           file;
+    bool                      isDos              = kind == VolumeKind::Dos33;
+
+
+
+    file.realName      = entry.name;
+    file.hasProDosInfo = true;
+    file.access        = entry.isLocked ? 0x01 : 0xC3;
+    file.fileType      = isDos ? HostFileNaming::MapDos33ToProDosType (entry.type) : entry.type;
+    file.auxType       = entry.hasLoadAddress ? entry.loadAddress : entry.auxType;
+
+    if (entry.hasModified)
     {
-        return HostFileNaming::ForConverted (entry.name, ParsedHostName::ConvertedKind::Text);
+        file.modifyDate = (int32_t) (entry.modifiedUnix - kUnixSecondsAt2000);
     }
 
-    return HostFileNaming::ForRaw (entry.name, kind, entry.type, entry.hasLoadAddress || entry.hasAuxType,
-                                   entry.hasLoadAddress ? entry.loadAddress : entry.auxType, style);
+    return file;
 }
 
 
@@ -192,6 +226,12 @@ void DragPayload::AppendEntry (
     else
     {
         descriptor.relativePath = relativeFolder + GetHostName (entry, kind, style, descriptor.converted);
+        descriptor.appleSingle  = style == HostFileNaming::Style::AppleSingle;
+
+        if (descriptor.appleSingle)
+        {
+            descriptor.single = MakeAppleSingle (entry, kind);
+        }
     }
 
     inOutDescriptors.push_back (descriptor);

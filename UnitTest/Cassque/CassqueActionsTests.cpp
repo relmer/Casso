@@ -5,6 +5,7 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Cassque/CassqueActions.h"
 #include "Cassque/CassqueNewDiskDialog.h"
+#include "Core/AppleSingleCodec.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -121,6 +122,58 @@ public:
         plan = CassqueActions::PlanPut (L"NOTES.Text.txt", Bytes ("anything"), VolumeKind::ProDos);
         Assert::IsTrue   (plan.encoding == CassqueActions::Encoding::Text);
         Assert::IsFalse  (plan.usePayload);
+    }
+
+
+    TEST_METHOD (PlanPut_AppleSingleGoesInAsTheFileItHolds)
+    {
+        AppleSingleFile          file;
+        std::vector<Byte>        bytes;
+        CassqueActions::PutPlan  pro;
+        CassqueActions::PutPlan  dos;
+
+        file.data          = std::vector<Byte> (300, 0x60);
+        file.realName      = "GAME.OBJ";
+        file.hasProDosInfo = true;
+        file.fileType      = ProDosVolume::kTypeBinary;
+        file.auxType       = 0x6000;
+        AppleSingleCodec::Encode (file, bytes);
+
+        //  Named like a disk image, so no suffix rule can be what decides.
+        pro = CassqueActions::PlanPut (L"C:\\x\\DOWNLOAD.po", bytes, VolumeKind::ProDos);
+        dos = CassqueActions::PlanPut (L"C:\\x\\DOWNLOAD.po", bytes, VolumeKind::Dos33);
+
+        Assert::IsTrue   (pro.usePayload, L"No dialog: the type is the container's");
+        Assert::IsTrue   (pro.refusal.empty());
+        Assert::AreEqual (std::string ("GAME.OBJ"), pro.catalogName);
+        Assert::IsTrue   (pro.payload.bytes == file.data, L"The data fork is the contents");
+        Assert::AreEqual ((int) ProDosVolume::kTypeBinary, (int) pro.payload.type);
+        Assert::IsTrue   (pro.payload.hasAuxType);
+        Assert::AreEqual ((int) 0x6000, (int) pro.payload.auxType);
+
+        Assert::IsTrue   (dos.usePayload);
+        Assert::AreEqual ((int) Dos33Volume::kTypeBinary, (int) dos.payload.type, L"Mapped to DOS 3.3's binary type");
+        Assert::IsTrue   (dos.payload.hasLoadAddress);
+        Assert::AreEqual ((int) 0x6000, (int) dos.payload.loadAddress, L"The aux type is the load address");
+        Assert::IsFalse  (dos.catalogName.empty());
+    }
+
+
+    TEST_METHOD (PlanPut_AppleSingleWithoutProDosInfoIsABinaryUnderItsName)
+    {
+        AppleSingleFile          file;
+        std::vector<Byte>        bytes;
+        CassqueActions::PutPlan  plan;
+
+        file.data = std::vector<Byte> (8192, 0x00);
+        AppleSingleCodec::Encode (file, bytes);
+
+        plan = CassqueActions::PlanPut (L"C:\\x\\PICTURE.as", bytes, VolumeKind::ProDos);
+
+        Assert::IsTrue   (plan.usePayload);
+        Assert::AreEqual (std::string ("PICTURE"), plan.catalogName, L"With no real name, the host name without .as");
+        Assert::AreEqual ((int) ProDosVolume::kTypeBinary, (int) plan.payload.type);
+        Assert::AreEqual ((int) 0x2000, (int) plan.payload.auxType);
     }
 
 

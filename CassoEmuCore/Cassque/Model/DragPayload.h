@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/AppleSingleCodec.h"
 #include "Pch.h"
 
 #include "Cassque/Model/HostFileNaming.h"
@@ -48,6 +49,11 @@ public:
         bool          isDirectory  = false;
         bool          converted    = false;   // rendered through a listing or text conversion
         size_t        catalogIndex = 0;       // catalog position, for a name several entries share
+
+        //  In the AppleSingle style a file leaves wrapped: this is the
+        //  container's name, type, aux type and dates, its data to come.
+        bool             appleSingle  = false;
+        AppleSingleFile  single;
     };
 
     struct Plan
@@ -82,6 +88,11 @@ public:
 
     //  The host name one entry gets: converted for the two BASIC types and
     //  text, raw for everything else.
+    //  What an AppleSingle container of this entry records besides its data:
+    //  the name, the ProDOS type and aux type -- DOS 3.3's mapped to ProDOS's,
+    //  its load address as the aux type -- and the date it was last written.
+    static AppleSingleFile  MakeAppleSingle (const FileEntry & entry, VolumeKind kind);
+
     static std::wstring  GetHostName (const FileEntry & entry, VolumeKind kind, HostFileNaming::Style style, bool & outConverted);
 
     static constexpr const char *  kPrivateFormatName = "CassqueCatalogEntries";

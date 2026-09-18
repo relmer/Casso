@@ -60,7 +60,7 @@ struct ParsedHostName
 class HostFileNaming
 {
 public:
-    enum class Style { Descriptive, CiderPress };
+    enum class Style { Descriptive, CiderPress, AppleSingle };
 
     static std::wstring  ForConverted (const std::string             & catalogName,
                                        ParsedHostName::ConvertedKind   kind);
@@ -98,6 +98,7 @@ public:
     static constexpr const wchar_t *  kProDosWord      = L"ProDOS";
     static constexpr const wchar_t *  kDosWord         = L"DOS";
     static constexpr const wchar_t *  kRawExtension    = L".bin";
+    static constexpr const wchar_t *  kAppleSingleExt  = L".as";
     static constexpr wchar_t          kCiderPressMark  = L'#';
 
 private:
