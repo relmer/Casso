@@ -8,6 +8,11 @@
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
+#include "Controllers/ControllerInputService.h"
+#include "Controllers/GamePortInputMixer.h"
+#include "Seams/Win32ControllerBackend.h"
+#include "Shell/ControllerInputThread.h"
+#include "Shell/MachineGamePortSink.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/EmuCpu.h"
 #include "Core/InterruptController.h"
@@ -39,7 +44,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/InputClusterEntry.h"
 #include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Widgets/DxuiShadowedText.h"
@@ -264,7 +268,7 @@ public:
     // Disk2AudioSource. On subsequent calls: show + bring to front.
     void OpenDisk2DebugDialog();
     void OpenInputDebugDialog();
-    void OpenSettings();
+    void OpenSettings (bool showControllers = false);
 
     // Spec-006 bug 15. SwitchMachine destroys and recreates the
     // controller + audio source while the modeless debug dialog
@@ -628,6 +632,40 @@ private:
     // Stage the emulated joystick fire buttons from the host X / Y keys.
     void    UpdateJoystickButtonsFromKeys ();
 
+    // Hands PDL0/PDL1 to whichever host input mode currently drives them.
+    void    SyncGamePortAxisOwner ();
+
+    // The line the input-mode bar carries while the keys or the mouse drive
+    // the game port, and empty when neither does, which is what decides
+    // whether the bar and its band exist at all.
+    std::wstring  GetStandInBannerText () const;
+
+    // Every step between a controller moving and the game port changing,
+    // once a second to the debugger, while CASSO_CONTROLLER_TRACE is set.
+    void    TraceControllerState ();
+    int64_t m_controllerTraceMs = 0;
+
+    // How tall the bar is at a given width, for the band that reserves the
+    // room and the paint that fills it. One answer, so the two cannot
+    // disagree about whether the band is big enough.
+    int           GetStandInBarHeightPx (float widthPx) const;
+
+    // The controller thread moved the selection, or a controller came or
+    // went: the axis owner, the picker and the prefs follow on the UI thread.
+    void    ApplyControllerSelectionChange (const std::wstring & description, SelectionChangeReason reason, bool hasNotice);
+    // BY VALUE, not by reference. The source arrives from a picker row's
+    // dispatch, and picking rebuilds the rows -- turning the arrows and the
+    // paddle off each re-syncs the picker -- so a reference into the row
+    // would outlive the row it refers to.
+    void    PickPaddleSource       (InputModeRules::PaddleSource source);
+    void    SetControllerSelection (const std::optional<ControllerUnitKey> & selection);
+    void    SaveControllerCalibrations ();
+    void    SyncPaddleSourceList   ();
+    void    SyncProfileList        (const ControllerInputService::Snapshot & snapshot);
+
+    // BY VALUE for the same reason as PickPaddleSource. Empty for Default.
+    void    PickControllerProfile  (std::string profileName);
+
     // Set the host input mapping mode (Off / Joystick / Paddle): persists
     // it, re-syncs the game port (resolving joystick axes / buttons from
     // current keys, centering on leave), and starts or stops mouse capture
@@ -718,7 +756,10 @@ private:
     // path runs it on the CPU thread, and the selector sync measures text
     // through Dxui, which asserts the UI thread. Both callers sync the
     // chrome on the UI thread afterwards.
-    void    AdoptInputModeForMachine   (const JsonValue * uiPrefs);
+    // `machineId` is the machine being ENTERED. The switch path runs these
+    // before it adopts the new config, so m_machine cannot answer for it.
+    void    AdoptInputModeForMachine   (const JsonValue * uiPrefs, const std::string & machineId);
+    void    AdoptControllerForMachine (const JsonValue * uiPrefs, const std::string & machineId);
     void    PersistInputModeForMachine ();
 public:
 
@@ -801,6 +842,10 @@ private:
     // One-line printer summary for the Settings > Printing info banner: what
     // printer this machine emulates and how it connects, or that it has none.
     std::wstring  GetPrinterBannerMessage () const;
+
+    // For the Settings sheet's Controllers page. Null before the shell has
+    // initialized its controller stack and after it has torn it down.
+    ControllerInputService *  GetControllerService () const { return m_controllerService.get(); }
 
     // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
     // text scrape to read the aux half of an 80-column screen.
@@ -1092,7 +1137,7 @@ private:
 
     // The pointer-capture banner and the fullscreen top-edge chrome reveal,
     // both driven from the per-frame UI upkeep.
-    void    SyncCaptureBanner    ();
+    void    SyncStandInBanner    ();
     void    SyncFrameRateReadout ();
 
     // The scene pose across the middle of the picture, so a screenshot of a
@@ -1453,7 +1498,6 @@ private:
     // flyout -- are held by pointer from its entries, so they sit beside it.
     DxuiToolbar         m_toolbar;
     PrinterStatusLed    m_printerLed;
-    InputClusterEntry   m_inputCluster;
     VolumeFlyout        m_volumeFlyout;
 
     // Theme ids in the toolbar picker's row order, so a picked row resolves
@@ -1660,13 +1704,13 @@ private:
     // process. A message bar rather than a caption over the picture: it says
     // something and asks nothing, which is what an info banner is, and the
     // chrome under the command strip is the one place it covers nothing.
-    DxuiInfoBanner             m_captureBar;
+    DxuiInfoBanner             m_standInBar;
 
     // An opaque panel behind it, the way the drive bar has one. The banner's
     // own fill is a tint meant to sit on chrome, and the bar does not: it
     // hangs over the picture, and over the desk scene the monitor read
     // straight through the words.
-    DxuiSurface                m_captureBarSurface;
+    DxuiSurface                m_standInBarSurface;
 
     //  A SCREENSHOT IN FLIGHT.
     //
@@ -1743,7 +1787,7 @@ private:
 
     // Hides (or restores) the overlays that describe the application rather
     // than the machine, for the duration of a capture paint.
-    void  SetCaptureOverlaysHidden (bool hidden);
+    void  SetStandInOverlaysHidden (bool hidden);
 
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.
@@ -1803,7 +1847,7 @@ private:
     // The capture bar's own band, docked directly under the change notice so
     // both sit below the command strip. Zero height whenever the pointer is
     // not held, which is every ordinary session.
-    ChromeBand               m_captureBand;
+    ChromeBand               m_standInBand;
 
     // Whether the one authoritative layout pass (OnSize) is running, so a
     // notice band cannot ask for another from inside it. See
@@ -1814,7 +1858,7 @@ private:
     // and cleared by the re-dock at the top of the next frame. A flag rather
     // than the re-dock itself, because the sync that spots it runs inside the
     // frame the re-dock would repaint.
-    bool                     m_captureBandStale = false;
+    bool                     m_standInBandStale = false;
 
     // When the capture's own band was last docked, on the monotonic clock.
     // The resize that follows bounces WM_CANCELMODE back at whoever holds the
@@ -2111,6 +2155,26 @@ private:
     InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
     bool              m_arrowsJoystick = false;                    // Keys axis
 
+    // The single writer of the paddles and pushbuttons. Every host input
+    // source submits to the mixer; only the sink touches the machine.
+    GamePortInputMixer                    m_gamePortMixer;
+    std::unique_ptr<MachineGamePortSink>  m_gamePortSink;
+
+    // Physical controllers: the devices, the rules that read them, and the
+    // thread they are read on. Declared after the mixer so they are torn down
+    // before it, since the service submits to it.
+    std::unique_ptr<Win32ControllerBackend>  m_controllerBackend;
+    std::unique_ptr<ControllerInputService>  m_controllerService;
+    std::unique_ptr<ControllerInputThread>   m_controllerThread;
+
+    // Written by the controller thread when the policy moves the selection,
+    // read on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting
+    // prefs and raising a notice are both UI-thread work.
+    std::mutex                               m_controllerPickMutex;
+    std::wstring                             m_controllerPickDescription;
+    SelectionChangeReason                    m_controllerPickReason     = SelectionChangeReason::None;
+    bool                                     m_controllerPickHasNotice  = false;
+
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),
     // and the mouse buttons drive the fire buttons. m_paddleAxis* are float
@@ -2118,6 +2182,14 @@ private:
     bool              m_paddleCaptured = false;
     float             m_paddleAxisX    = 127.0f;
     float             m_paddleAxisY    = 127.0f;
+
+    // What the captured mouse asks of the game port: the held paddle axes and
+    // the two mouse buttons, submitted to the mixer together.
+    GamePortContribution  m_mousePaddleContribution;
+
+    // What the //e modifier keys ask of the game port: left Alt as
+    // Open-Apple (PB0), right Alt as Solid-Apple (PB1), Shift as PB2.
+    GamePortContribution  m_appleModifierContribution;
 
     // Keyboard focus ring across the painted chrome ("Z" Tab order, left
     // to right, top to bottom): -1 = guest (//e has focus), 0..6 = the

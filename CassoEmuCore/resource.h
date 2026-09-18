@@ -22,6 +22,7 @@
 #define IDM_MACHINE_ARROWS_JOYSTICK 40018
 #define IDM_MACHINE_ARROWS_PADDLE   40019
 
+
 #define IDM_DISK_INSERT1            40020
 #define IDM_DISK_INSERT2            40021
 #define IDM_DISK_EJECT1             40022
@@ -48,6 +49,7 @@
 //  action. The payload carries the bay and the chosen answer. It is never
 //  sent as WM_COMMAND, so its value is outside the Disk range OnCommand checks.
 #define IDM_DISK_RESOLVE_CHANGE     40074
+#define IDM_VIEW_CONTROLLER_SETTINGS 40075  // Settings, opened on the Controllers tab
 
 //  Debugger work for the CPU thread. Neither is sent as WM_COMMAND: they are
 //  posted to the CPU queue so a debugger command and a user pause run on the
@@ -56,7 +58,7 @@
 //  IDM_DEBUG_COMMAND carries one command line and the id of the client its
 //  reply goes back to (see DebugCommandPayload). IDM_DEBUG_PAUSE_CHANGED
 //  carries "1" when the user paused the machine and "0" when they resumed it.
-#define IDM_DEBUG_COMMAND           40075
+#define IDM_DEBUG_COMMAND           40082
 #define IDM_DEBUG_PAUSE_CHANGED     40076
 
 //  The debugger window, opened from the Debug menu. Opening it opens the

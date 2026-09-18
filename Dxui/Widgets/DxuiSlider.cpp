@@ -188,14 +188,17 @@ float DxuiSlider::ValueFromX (int x) const
     // Must match the showValue logic in Paint() exactly, otherwise the
     // puck draw position and the click-to-value mapping disagree and
     // a click on the puck snaps to a different value.
+    constexpr int  s_kPuckRoomDip = 11;   // s_kPuckRadiusFocDip: the widest the puck is ever drawn
+
     bool   showValue    = m_explicitShowValue ? m_showValue : !m_suffix.empty();
     int    valueAreaPx  = showValue ? (m_scaler.ToPx (s_kValueWidthDip) + m_scaler.ToPx (s_kValueGapDip)) : 0;
-    int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_boundsDip.right - m_boundsDip.left) - valueAreaPx));
+    int    puckRoomPx   = m_scaler.ToPx (s_kPuckRoomDip);
+    int    trackAvailPx = std::max ((LONG) 1, (LONG) ((m_boundsDip.right - m_boundsDip.left) - valueAreaPx - puckRoomPx * 2));
     float  t            = 0.0f;
 
 
 
-    t = (float) (x - m_boundsDip.left) / (float) trackAvailPx;
+    t = (float) (x - m_boundsDip.left - puckRoomPx) / (float) trackAvailPx;
     t = Clamp (t, 0.0f, 1.0f);
 
     return m_min + t * (m_max - m_min);
@@ -467,13 +470,15 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         return;
     }
 
-    uint32_t  accentArgb     = theme.Accent();
+    // A disabled slider grays out whole: the fill, ticks, puck and readout all
+    // take the disabled colors, so it cannot be mistaken for one that works.
+    uint32_t  accentArgb     = m_enabled ? theme.Accent()          : theme.ForegroundDisabled();
     uint32_t  s_kTrack       = DxuiColor::ComputeTintForContrast (theme.Background(), s_kInactiveTrackContrast);
-    uint32_t  s_kTick        = theme.ForegroundMuted();
-    uint32_t  s_kPuckBody    = 0xFFFFFFFF;
-    uint32_t  s_kPuckRing    = theme.Border();
+    uint32_t  s_kTick        = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+    uint32_t  s_kPuckBody    = m_enabled ? 0xFFFFFFFF              : s_kTrack;
+    uint32_t  s_kPuckRing    = m_enabled ? theme.Border()          : theme.ForegroundDisabled();
     uint32_t  s_kPuckCoreDis = theme.ForegroundDisabled();
-    uint32_t  s_kValueText   = theme.Foreground();
+    uint32_t  s_kValueText   = m_enabled ? theme.Foreground()      : theme.ForegroundDisabled();
 
     // All dimensions stored in dp; scaled to physical pixels via the
     // per-widget DxuiDpiScaler (set by SetDpi). DxuiSlider was previously
@@ -502,8 +507,15 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     float    valueAreaW    = showValue ? (valueWidth + valueGap) : 0.0f;
     float    rectW         = (float) (m_boundsDip.right  - m_boundsDip.left);
     float    rectH         = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float    trackLeft     = (float) m_boundsDip.left;
-    float    trackAvailW   = std::max (0.0f, rectW - valueAreaW);
+    // THE CONTROL'S LEFT EDGE IS THE PUCK'S, NOT THE TRACK'S. The puck is
+    // centered on the value's point along the track, so a track starting at
+    // the bounds put half a puck outside them at the minimum and drew the
+    // first tick left of the bar. Insetting the track by the largest puck the
+    // slider ever draws keeps every part of it inside the rect it was given,
+    // which is what lets a caller line one up with the control above it.
+    float    puckRoom      = m_scaler.ToPxf (s_kPuckRadiusFocDip);
+    float    trackLeft     = (float) m_boundsDip.left + puckRoom;
+    float    trackAvailW   = std::max (0.0f, rectW - valueAreaW - puckRoom * 2.0f);
     float    centerY       = (float) m_boundsDip.top + rectH * 0.5f;
     float    t             = 0.0f;
     float    fillWidth     = 0.0f;
@@ -533,15 +545,24 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         fillWidth = std::fabs (puckCx - trackMid);
     }
 
-    if (m_focused)       { puckR = m_scaler.ToPxf (s_kPuckRadiusFocDip); }
+    if (m_focused && m_focusCueVisible) { puckR = m_scaler.ToPxf (s_kPuckRadiusFocDip); }
     else if (m_hover ||
              m_dragging) { puckR = m_scaler.ToPxf (s_kPuckRadiusHovDip); }
 
-    // Track (background + filled portion).
-    painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
-                      trackAvailW, trackHeight, s_kTrack);
-    painter.FillRect (fillLeft, centerY - trackHeight * 0.5f,
-                      fillWidth, trackHeight, accentArgb);
+    // Track (background + filled portion) as capsules: the radius is half the
+    // track's thickness, so the ends are exact semicircles at any length, the
+    // way the scrollbars draw their thumb. Windows has drawn these round since
+    // 11, and square ends read as something other than a slider.
+    //
+    // A fill shorter than its own diameter takes half its width instead, or
+    // the corners meet in the middle and the stub draws as a lump rather than
+    // as the start of a bar.
+    painter.FillRoundedRect (trackLeft, centerY - trackHeight * 0.5f,
+                             trackAvailW, trackHeight,
+                             std::min (trackHeight, trackAvailW) * 0.5f, s_kTrack);
+    painter.FillRoundedRect (fillLeft, centerY - trackHeight * 0.5f,
+                             fillWidth, trackHeight,
+                             std::min (trackHeight, fillWidth) * 0.5f, accentArgb);
 
     // Tick marks below the track.
     tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
@@ -645,13 +666,13 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
 
 
 
-    uint32_t  accentArgb     = theme.Accent();
+    uint32_t  accentArgb     = m_enabled ? theme.Accent()          : theme.ForegroundDisabled();
     uint32_t  s_kTrack       = DxuiColor::ComputeTintForContrast (theme.Background(), s_kInactiveTrackContrast);
-    uint32_t  s_kTick        = theme.ForegroundMuted();
-    uint32_t  s_kPuckBody    = 0xFFFFFFFF;
-    uint32_t  s_kPuckRing    = theme.Border();
+    uint32_t  s_kTick        = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+    uint32_t  s_kPuckBody    = m_enabled ? 0xFFFFFFFF              : s_kTrack;
+    uint32_t  s_kPuckRing    = m_enabled ? theme.Border()          : theme.ForegroundDisabled();
     uint32_t  s_kPuckCoreDis = theme.ForegroundDisabled();
-    uint32_t  s_kValueText   = theme.Foreground();
+    uint32_t  s_kValueText   = m_enabled ? theme.Foreground()      : theme.ForegroundDisabled();
 
     constexpr int              s_kTrackWidthDip    = 4;
     constexpr int              s_kPuckRadiusDip    = 8;
@@ -697,7 +718,7 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
     // spans puck to bottom.
     puckCy = trackTop + trackAvailH * (1.0f - t);
 
-    if (m_focused)
+    if (m_focused && m_focusCueVisible)
     {
         puckR = m_scaler.ToPxf (s_kPuckRadiusFocDip);
     }
@@ -706,10 +727,15 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
         puckR = m_scaler.ToPxf (s_kPuckRadiusHovDip);
     }
 
-    painter.FillRect (centerX - trackWidth * 0.5f, trackTop,
-                      trackWidth, trackAvailH, s_kTrack);
-    painter.FillRect (centerX - trackWidth * 0.5f, puckCy,
-                      trackWidth, trackTop + trackAvailH - puckCy, accentArgb);
+    // Rounded ends, as the horizontal track has: the two orientations are one
+    // control drawn two ways, so a square-ended vertical one would read as a
+    // different widget.
+    painter.FillRoundedRect (centerX - trackWidth * 0.5f, trackTop,
+                             trackWidth, trackAvailH,
+                             std::min (trackWidth, trackAvailH) * 0.5f, s_kTrack);
+    painter.FillRoundedRect (centerX - trackWidth * 0.5f, puckCy,
+                             trackWidth, trackTop + trackAvailH - puckCy,
+                             std::min (trackWidth, trackTop + trackAvailH - puckCy) * 0.5f, accentArgb);
 
     tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
 

@@ -38,6 +38,21 @@ static constexpr LPCWSTR s_kpszMdl2Play      = L"\xE768";       // U+E768 Segoe 
 static constexpr LPCWSTR s_kpszMdl2Copy      = L"\xE8C8";       // U+E8C8 Segoe MDL2 Copy
 static constexpr LPCWSTR s_kpszMdl2Accept    = L"\xE73E";       // U+E73E Segoe MDL2 Accept (check mark)
 
+// Xbox controller inputs, as Segoe MDL2 Assets draws them.
+static constexpr LPCWSTR s_kpszMdl2ButtonA       = L"\xF093";   // U+F093 Segoe MDL2 ButtonA (circled A)
+static constexpr LPCWSTR s_kpszMdl2ButtonB       = L"\xF094";   // U+F094 Segoe MDL2 ButtonB (circled B)
+static constexpr LPCWSTR s_kpszMdl2ButtonY       = L"\xF095";   // U+F095 Segoe MDL2 ButtonY (circled Y)
+static constexpr LPCWSTR s_kpszMdl2ButtonX       = L"\xF096";   // U+F096 Segoe MDL2 ButtonX (circled X)
+static constexpr LPCWSTR s_kpszMdl2LeftStick     = L"\xF108";   // U+F108 Segoe MDL2 LeftStick
+static constexpr LPCWSTR s_kpszMdl2RightStick    = L"\xF109";   // U+F109 Segoe MDL2 RightStick
+static constexpr LPCWSTR s_kpszMdl2TriggerLeft   = L"\xF10A";   // U+F10A Segoe MDL2 TriggerLeft (LT)
+static constexpr LPCWSTR s_kpszMdl2TriggerRight  = L"\xF10B";   // U+F10B Segoe MDL2 TriggerRight (RT)
+static constexpr LPCWSTR s_kpszMdl2BumperLeft    = L"\xF10C";   // U+F10C Segoe MDL2 BumperLeft (LB)
+static constexpr LPCWSTR s_kpszMdl2BumperRight   = L"\xF10D";   // U+F10D Segoe MDL2 BumperRight (RB)
+static constexpr LPCWSTR s_kpszMdl2Dpad          = L"\xF10E";   // U+F10E Segoe MDL2 Dpad (plus shape)
+static constexpr LPCWSTR s_kpszMdl2ButtonMenu    = L"\xEDE3";   // U+EDE3 Segoe MDL2 ButtonMenu (lines in a circle)
+static constexpr LPCWSTR s_kpszMdl2ButtonView    = L"\xEECA";   // U+EECA Segoe MDL2 ButtonView (squares in a circle)
+
 // Casso's own symbol font (Resources/Fonts/CassoSymbols.ttf, embedded and
 // registered by AssetBootstrap::RegisterSymbolFont). These need no family at
 // the call site: the renderer maps the range below onto that font through

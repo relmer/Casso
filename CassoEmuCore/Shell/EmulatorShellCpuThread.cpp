@@ -106,7 +106,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     // Here rather than with the chrome prefs because both read state that is
     // seeded earlier: the mouse device exists by now, and
     // ApplyPersistedChromePrefs has already applied mouseConnected.
-    AdoptInputModeForMachine (uiPrefs);
+    AdoptInputModeForMachine (uiPrefs, m_machine.GetConfig().machineId);
     ApplyDefaultPointerForMachine();
     SyncSelectorState();
 

@@ -114,6 +114,12 @@ struct GlobalUserPrefs
     // front of another machine and it is still tilted the way it was left.
     std::map<std::string, float>  monitorTilt;
 
+    // GAME CONTROLLERS: each DirectInput unit's calibration, and later each
+    // model's profiles and deadzone. Held as the document rather than parsed
+    // here, so ControllerProfileStore owns its layout and a member this build
+    // does not know survives a save. Null when nothing has been saved.
+    JsonValue                     controllers;
+
     // Text color used when the Color monitor is active (the monochrome
     // monitors derive their text from the phosphor tint instead). White is
     // the default; Green / Amber tint only the text; Custom uses the RGB in

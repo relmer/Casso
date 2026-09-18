@@ -310,7 +310,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                               selectedArgb);
         }
 
-        if (m_focused && isSel)
+        if (m_focused && m_focusCueVisible && isSel)
         {
             painter.OutlineRoundedRect ((float) t.rect.left + focusInset,
                                         (float) t.rect.top  + focusInset,

@@ -38,6 +38,10 @@ public:
 
     int   GetSlotCount    () const override { return (0); }
 
+    //  PDL0 and PDL1 only: the lines a //e reads as PDL2 and PDL3 carry the
+    //  //c's mouse.
+    int   GetGamePortAxisCount () const override { return (2); }
+
     //  The 40/80 column and keyboard switches on the case, and the 5.25"
     //  drive soldered behind the disk port.
     bool  HasCaseSwitches () const override { return (true); }

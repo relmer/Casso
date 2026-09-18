@@ -368,7 +368,6 @@ static constexpr const char *  s_kpszRunLongOptions[] =
     "stop",
     "max-cycles",
     "reset-vector",
-    "fill",
     "warn",
     "no-warn",
     "fatal-warnings",
@@ -1074,8 +1073,7 @@ bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 
 bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 {
-    return arg == "-o"     || arg == "-l"     || arg == "--fill" ||
-           arg == "--load" || arg == "--exec" || arg == "--stop" ||
+    return arg == "--load" || arg == "--exec" || arg == "--stop" ||
            arg == "--max-cycles";
 }
 
@@ -2233,9 +2231,9 @@ bool CommandLineParser::IsLongOptionWithValue (const std::string & arg, const st
 //
 //  ParseBoundedHex
 //
-//  Shared by ParseAddress and ParseFillByte, which differ only in their upper
-//  bound. Accepts an optional `$` prefix and requires the whole string to be
-//  consumed, so "12zz" is rejected rather than silently read as $12.
+//  Hex parsing with an upper bound, behind ParseAddress. Accepts an optional `$`
+//  prefix and requires the whole string to be consumed, so "12zz" is rejected
+//  rather than silently read as $12.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2320,32 +2318,6 @@ HRESULT CommandLineParser::ParseDecimal (const char * text, uint32_t & value)
     CBREx (isValid, E_INVALIDARG);
 
     value = (uint32_t) val;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseFillByte
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CommandLineParser::ParseFillByte (const char * text, Byte & fillByte)
-{
-    HRESULT  hr    = S_OK;
-    long     value = 0;
-
-
-
-    hr = ParseBoundedHex (text, 0xFF, value);
-    CHR (hr);
-
-    fillByte = (Byte) value;
 
 Error:
     return hr;
@@ -3852,31 +3824,9 @@ void CommandLineParser::ParseRunOptions (int argc, char * argv[], int argIndex, 
             arg[0] = '-';
         }
 
-        if (arg == "-o" && argIndex + 1 < argc)
-        {
-            options.outputFile = argv[++argIndex];
-        }
-        else if (arg == "-l" && argIndex + 1 < argc)
-        {
-            options.symbolFile = argv[++argIndex];
-        }
-        else if (arg == "-a")
-        {
-            options.generateListing = true;
-        }
-        else if (arg == "-v")
+        if (arg == "-v")
         {
             options.verbose = true;
-        }
-        else if (IsLongOption (arg, "--fill", options) && argIndex + 1 < argc)
-        {
-            hr = ParseFillByte (argv[++argIndex], options.fillByte);
-
-            if (FAILED (hr))
-            {
-                Refusal (options) << "Error: invalid fill byte value\n";
-                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
-            }
         }
         else if (IsLongOption (arg, "--load", options) && argIndex + 1 < argc)
         {

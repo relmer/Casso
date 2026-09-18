@@ -23,6 +23,11 @@ public:
 
     void  SetRect     (const RECT & rect) { SetBounds (rect); }
     void  SetItems    (const std::vector<std::wstring> & items);
+
+    // An optional Segoe MDL2 Assets glyph drawn before each item, index for
+    // index with the items; an empty string, or an item past the end, has
+    // none. SetItems clears them, so set them after the items.
+    void  SetItemGlyphs (const std::vector<std::wstring> & glyphs);
     void  SetSelected (int index);
     void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
     void  SetFocused  (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
@@ -43,6 +48,15 @@ public:
     // from under the menu.
     RECT  GetInWindowMenuRect () const;
     const std::vector<std::wstring> & GetItems () const { return m_items; }
+
+    // Most rows the open list shows at once. A longer list scrolls, by the
+    // wheel or by moving the highlight past an edge, so a device reporting
+    // 128 buttons does not throw a list off the bottom of the screen.
+    static constexpr int  kMaxVisibleRows = 12;
+
+    int   GetVisibleRowCount () const;
+    int   GetScrollTop       () const { return m_scrollTop; }
+    void  ScrollBy           (int rows);
     bool  HitTest       (int x, int y) const;
     int   HitTestItem   (int x, int y) const;
     bool  IsEnabled     () const { return m_enabled; }
@@ -127,12 +141,16 @@ private:
     };
 
     void            Commit          (int index);
+    void            EnsureHighlightVisible ();
     void            RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    float           GetGlyphIndent  (float fontPx) const;
+    void            PaintItemGlyph  (IDxuiTextRenderer & text, int index, float x, float top, float height, uint32_t color, float fontPx) const;
     void            OnPopupMove     (POINT localPx);
     void            OnPopupClick    (POINT localPx);
     ResolvedColors  ResolveColors   () const;
 
     std::vector<std::wstring>    m_items;
+    std::vector<std::wstring>    m_glyphs;
     SelectFn                     m_select;
     SelectFn                     m_highlightChange;
     bool                         m_open            = false;
@@ -140,6 +158,7 @@ private:
     bool                         m_hover           = false;
     int                          m_highlight       = -1;
     int                          m_selected        = -1;
+    int                          m_scrollTop       = 0;
     DxuiDpiScaler                m_scaler;
     bool                         m_enabled         = true;
     bool                         m_focused         = false;

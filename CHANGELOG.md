@@ -6,10 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [Unreleased]
+## [1.25.0]: The one that finally has Xbox controllers
 
 ### Added
 
+- GH #97: Game controllers can now be mapped to the Apple's game ports. Xbox
+  controllers, gamepads, and joysticks appear in the controller picker, and
+  selected devices are saved per machine. A new Controllers page in Settings
+  provides full customization of mapping controller inputs to the Apple's game
+  inputs, as well as dead zone and calibration. These customizations can be
+  stored in profiles so that custom mappings best suited to specific games are
+  just a click away. The existing option of mapping keyboard or mouse to
+  joystick/paddle inputs is still available.
+- Multiplayer mode supports two controllers at once, each mapped to a joystick
+  or to separate paddles, with each player getting one button input. Note that
+  the physical Apple //c hardware only supports two paddle inputs, so it can
+  support multiplayer with paddles but only a single player with a joystick.
 - The toolbar is reachable from the keyboard. F10 or Tab into the chrome
   focus ring walks the menu titles, the ten toolbar entries and the drives;
   Enter on an entry activates it, and Enter on Volume opens the flyout with
@@ -21,6 +33,10 @@ Entries before versioning was introduced use dates only.
   goes in the `.lst` file beside the object. Local labels and the assembler's
   own predefined symbols are left out, so the table holds the source's own
   top-level symbols.
+
+- A banner appears across the window while the arrow keys or the mouse drive
+  the game port.
+- Double-clicking in a text field selects a word.
 
 ### Changed
 
@@ -38,6 +54,14 @@ Entries before versioning was introduced use dates only.
 - The disk picker opens centered below the drive that was clicked, moving
   only as far as it must to stay on screen. Opened from the menu or the
   keyboard, it centers on the Casso window.
+- Mouse mode is now a toolbar button, and the separate input cluster is gone.
+- Long drop-down lists stop at a fixed height and scroll.
+- The Settings window is a fixed size.
+
+### Removed
+
+- `CassoCli run` no longer accepts `-o`, `-l`, `-a` or `--fill`. They were
+  dead code and had no effect.
 
 ### Fixed
 
@@ -66,6 +90,14 @@ Entries before versioning was introduced use dates only.
 - Escape to leave paddle mode no longer also sends an Escape to the //e.
 - A key that operates an open toolbar picker no longer also reaches the //e.
   Previously, dismissing a picker with Escape sent that Escape to the machine.
+- Toolbar drop-downs open above the toolbar when there isn't room below,
+  instead of running onto the taskbar.
+- Clicking a menu title while a drop-down is open switches to that menu
+  instead of just closing the drop-down.
+- Escape closes an open drop-down first, rather than closing the whole dialog.
+- A machine set to color display stays in color after switching to it.
+  Previously, it came back in the monitor's own phosphor, such as green.
+- Clicking OK in Settings no longer disconnects a Disk ][ card's second drive.
 
 ## [1.24.2]: The one with the redist dist
 

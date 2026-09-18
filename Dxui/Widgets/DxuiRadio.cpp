@@ -322,7 +322,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         //  the smallest part of it. The description is left outside: it is
         //  explanatory text, not the control, and a ring two lines tall in a
         //  three-option group is a block, not a mark.
-        if (m_focused && m_selected == i)
+        if (m_focused && m_focusCueVisible && m_selected == i)
         {
             DxuiFocusRing::AroundRun (painter, text, opt.label, fontDip, DxuiTheme::kBodyFace,
                                       boxLeft,

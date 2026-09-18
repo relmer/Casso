@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bitset>
 #include <chrono>
 #include <condition_variable>
 #include <cmath>
@@ -103,6 +104,19 @@
 #include <printpreview.h>
 #include <DispatcherQueue.h>
 #include <bcrypt.h>
+
+//
+//  Game controllers. These come last in this block deliberately: dinput.h
+//  drags in COM headers that leave propvarutil.h without the VARIANT macros
+//  it needs (V_VT, V_UNION) if it is parsed first, which broke MeshCreator,
+//  the one other project that includes this Pch.
+//
+#define DIRECTINPUT_VERSION 0x0800
+#include <dinput.h>
+#include <Xinput.h>
+#include <hidsdi.h>
+#include <hidclass.h>
+#include <dbt.h>
 
 #include "../CassoCore/Ehm.h"
 

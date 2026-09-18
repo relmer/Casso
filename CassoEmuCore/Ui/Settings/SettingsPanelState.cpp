@@ -535,13 +535,19 @@ HRESULT SettingsPanelState::LoadFromMachine (
     // boolean ExtractUiPrefs just read. Both can be on disk at once -- the
     // fold that retires the boolean only runs on a version bump -- and the
     // port is the one Settings writes from here on.
-    for (const SettingsMachinePort & port : m_original.machinePorts)
+    //
+    // A MACHINE WITH A DISK ][ CARD KEEPS ITS SECOND DRIVE ON THE CARD, and
+    // the flag has to be read from there too. Left at the legacy boolean, it
+    // is false for every carded machine that never had one -- and Apply
+    // pushes the flag to the shell on every OK, which detached the card's
+    // second drive and ejected its disk whatever tab the user had been on.
+    // SecondDriveAttached reads whichever store the machine keeps, so it
+    // answers both cases; a machine with neither keeps the boolean.
+    m_current = m_original;
+
+    if (HasSecondDriveStore())
     {
-        if (port.name == kpszDiskPortName)
-        {
-            m_original.prefs.externalDriveConnected = !port.device.empty();
-            break;
-        }
+        m_original.prefs.externalDriveConnected = SecondDriveAttached();
     }
 
     m_current = m_original;
@@ -810,14 +816,49 @@ void SettingsPanelState::SetExternalDriveConnected (bool connected)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SecondDriveAttached
+//  HasSecondDriveStore
 //
-//  The machine's second drive, read from whichever store that machine keeps
+//  Whether the machine keeps a second drive anywhere Settings can read it:
+//  a back-panel disk port, or an enabled Disk ][ card. SecondDriveAttached
+//  below reads it.
+//
+//  The machine's second drive is read from whichever store that machine keeps
 //  it in. A //c has a back-panel disk port; everything else has a Disk ][
 //  card whose second connector is the drive in question.
 //
 //  A card that declares NO ports has not been described rather than emptied,
 //  so it reads as attached -- the two drives it has always behaved as having.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::HasSecondDriveStore() const
+{
+    for (const SettingsMachinePort & port : m_current.machinePorts)
+    {
+        if (port.name == kpszDiskPortName)
+        {
+            return true;
+        }
+    }
+
+    for (const HardwareEntry & entry : m_current.hardware)
+    {
+        if (entry.kind == HardwareEntryKind::Slot && entry.enabled && entry.type == kpszDiskIiDevice)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SecondDriveAttached
 //
 ////////////////////////////////////////////////////////////////////////////////
 

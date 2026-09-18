@@ -138,6 +138,16 @@ private:
                                  float                  availableTextPx,
                                  const DxuiDpiScaler &  scaler) const;
 
+    // Widens the even split until the text really wraps into the line count
+    // the split was worked out for. The split is an ideal width; the renderer
+    // breaks at words, and a box a hair too narrow strands one on a line of
+    // its own. See FitCenteredBoxPx.
+    float  FitCenteredBoxPx (IDxuiTextRenderer   &  text,
+                             float                  availableTextPx,
+                             float                  splitPx,
+                             float                  measuredWidthPx,
+                             const DxuiDpiScaler &  scaler) const;
+
     // The same box from the renderer-free estimate, for a caller that has no
     // renderer to ask. See ResolveCenteredLinePx.
 

@@ -194,7 +194,7 @@ private:
     DxuiButton                                 * m_copyButton        = nullptr;
     DxuiListView                               * m_eventList         = nullptr;
     DxuiTooltip                                  m_tooltip;
-    std::vector<std::unique_ptr<DxuiCommand>>    m_columnCommands;
+    std::vector<std::shared_ptr<DxuiCommand>>    m_columnCommands;
     DxuiFocusManager                             m_focusMgr;
 
     InputFilterState                                     m_filter;

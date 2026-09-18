@@ -24,7 +24,11 @@
 // old width did not have. Every page is left-aligned, so the extra width falls
 // on the right margin and no existing page moves.
 static constexpr int    s_kSheetWidthDip     = 720;
-static constexpr int    s_kSheetHeightDip    = 760;
+// RAISED FOR THE MULTIPLAYER SECTION. The Controllers page grows by a heading
+// and the two player rows while the machine is in that mode, and the sheet is
+// one size for every page and every mode, so it is sized to the taller case.
+// With the mode off the page ends further above OK / Cancel than it used to.
+static constexpr int    s_kSheetHeightDip    = 880;   // the Controllers page in multiplayer, the tallest, ends a section gap above OK / Cancel
 
 
 
@@ -50,6 +54,12 @@ SettingsSheet::~SettingsSheet()
     }
 
     m_compositor.Shutdown();
+
+    // The page is gone, so the controller thread stops reading its controller.
+    if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
+    {
+        m_emuShell->GetControllerService()->SetInspectedUnit (std::nullopt);
+    }
 }
 
 
@@ -74,6 +84,7 @@ void SettingsSheet::OnBuildPages()
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
+    m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
 
     // Amber "press OK to reboot" notice that fills the bottom-bar space left of
     // the OK / Cancel buttons whenever committing would power-cycle the machine
@@ -154,7 +165,7 @@ HRESULT SettingsSheet::OpenModeless (
     params.ownerHwnd                = ownerHwnd;
     params.initialSizeDip           = { s_kSheetWidthDip, s_kSheetHeightDip };
     params.minSizeDip               = { s_kSheetWidthDip, s_kSheetHeightDip };
-    params.resizable                = true;
+    params.resizable                = false;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
@@ -417,6 +428,82 @@ HRESULT SettingsSheet::OpenModeless (
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
+    m_controllersPage->SetPopupHost (GetPopupHost());
+
+    // Controllers page: a copy of what the service holds, edited on the page
+    // and committed or reverted through the apply controller. The service
+    // reads whichever controller the page shows, so it can be assigned and
+    // calibrated without being the selected one.
+    {
+        ControllerInputService *  service = m_emuShell->GetControllerService();
+
+        if (service != nullptr)
+        {
+            ControllerInputService::Snapshot  snapshot = service->GetSnapshot();
+
+            // The page opens on the machine's selected controller and active
+            // profile.
+            m_controllersState.Load (snapshot.devices,
+                                     service->GetModelSettings(),
+                                     service->GetCalibrations(),
+                                     !m_emuShell->MachineHasCaseSwitches(),
+                                     snapshot.activeProfile,
+                                     snapshot.selection);
+            m_controllersState.SetMachineName (std::wstring (m_emuShell->GetMachine().GetConfig().name.begin(),
+                                                             m_emuShell->GetMachine().GetConfig().name.end()));
+
+            // The machine's mode and its axis budget. Unlike the mappings,
+            // these are not copies the page edits and OK commits: they are
+            // machine input settings, so an edit goes to the service and to
+            // the machine's prefs as it is made, exactly as a pick from the
+            // toolbar's paddle picker does.
+            m_controllersState.SetMultiplayer (service->GetLiveMultiplayer(), snapshot.axisCount);
+
+            m_controllersState.SetOnMultiplayerChanged ([this, service] (const MultiplayerSetup & setup)
+            {
+                service->SetMultiplayer (setup);
+                m_emuShell->PersistInputModeForMachine();
+                m_emuShell->SyncPaddleSourceList();
+            });
+
+            m_controllersPage->SetSampleSource ([service] (const ControllerUnitKey & unit)
+            {
+                return service->GetInspectedSample (unit);
+            });
+
+            m_controllersPage->SetOnInspect ([service] (const std::optional<ControllerUnitKey> & unit)
+            {
+                service->SetInspectedUnit (unit);
+            });
+        }
+
+        m_controllersPage->SetState (&m_controllersState);
+        m_controllersPage->GetProfileDialog().SetHwnd (GetHwnd());
+
+        // Rows added or removed on the page change what Tab reaches.
+        m_controllersPage->SetOnLayoutChanged ([this] ()
+        {
+            RefreshFocusOrder (m_controllersPage);
+            Invalidate();
+        });
+        m_apply.BindControllers (&m_controllersState, service);
+
+        // Save on the profile-switch prompt commits through the same prefs
+        // and service the sheet's OK does.
+        m_controllersPage->SetOnCommitProfile ([this] (const std::map<std::string, ControllerModelSettings> & models,
+                                                       const std::map<std::string, ControllerCalibration>   & calibrations)
+        {
+            return m_apply.CommitControllerSettings (models, calibrations);
+        });
+
+        // Laid out again now that the page HAS the machine's mode, not the
+        // default it was built with. The page outlives one opening of the
+        // sheet, so a second opening starts from the layout the first left
+        // behind: a machine already in multiplayer would open showing no
+        // player slots, and the per-tick sync below never corrects it,
+        // because by then the page's mode and the service's agree.
+        m_controllersPage->Relayout();
+    }
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist
     // / revert through the apply controller (SnapshotBaselines captures the
@@ -488,6 +575,42 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShowControllersPage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::ShowControllersPage()
+{
+    int  index = IndexOfPage (m_controllersPage);
+
+
+
+    // The picker's Multiplayer row turns the mode on and then lands here, so
+    // a sheet that was already open would otherwise go on showing the mode as
+    // it stood when it opened, without the section the user came for.
+    if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr && m_controllersPage != nullptr)
+    {
+        ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+
+        // Laid out again rather than merely re-synced: the section is not a
+        // value on the page, it is rows that come and go, and every row below
+        // it moves with them.
+        m_controllersState.SetMultiplayer (m_emuShell->GetControllerService()->GetLiveMultiplayer(), snapshot.axisCount);
+        m_controllersPage->Relayout();
+    }
+
+    if (index >= 0)
+    {
+        SetActivePage (index);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnOk / OnCancel
 //
 //  Commit hooks from DxuiPropertySheet's button row. OnOk runs the apply
@@ -530,6 +653,39 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+
+    // Controllers that came or went while the sheet is open, then the
+    // Controllers page's reading of the one it shows.
+    if (m_controllersPage != nullptr && m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
+    {
+        ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+
+        m_controllersState.UpdateDevices (snapshot.devices);
+
+        // The mode can be turned on from the picker while the sheet is open,
+        // which is exactly what the picker's Multiplayer... row does: it turns
+        // the mode on and opens this page. Without this the page would go on
+        // showing the mode it opened in, and the player slots would stay
+        // hidden until the sheet was closed and opened again.
+        // AS PLAYED, so a player's controller coming or going moves the page
+        // between the two-player and single-player settings the same way it
+        // moves the toolbar picker, even though it never touches the saved
+        // setup (FR-040).
+        MultiplayerSetup  live = m_emuShell->GetControllerService()->GetLiveMultiplayer();
+
+        if (m_controllersState.GetMultiplayer() != live ||
+            m_controllersState.GetAxisCount()   != snapshot.axisCount)
+        {
+            m_controllersState.SetMultiplayer (live, snapshot.axisCount);
+
+            // The section comes and goes with the mode, which moves every row
+            // below it, so the page is laid out again rather than merely
+            // re-synced; its layout-changed hook rebuilds the tab order.
+            m_controllersPage->Relayout();
+        }
+
+        m_controllersPage->Poll();
+    }
 
     // Advance the preview state machine so a keyboard-driven preview idles out;
     // a mouse drag ends explicitly in OnPreview. Either way UpdatePreviewCompose
@@ -849,6 +1005,16 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     DxuiPropertySheet::Layout (boundsPx, scaler);
     m_colorPicker.Layout (boundsPx, scaler);
 
+    // The overlays' text fields need the renderer to place a clicked caret
+    // and to drag a selection; without it a click only jumps to the end.
+    m_colorPicker.SetTextRenderer (GetTextRenderer());
+
+    if (m_controllersPage != nullptr)
+    {
+        m_controllersPage->GetProfileDialog().Layout (boundsPx, scaler);
+        m_controllersPage->GetProfileDialog().SetTextRenderer (GetTextRenderer());
+    }
+
     // Restart notice fills the bottom bar from the left edge to just short of
     // the OK / Cancel group (reserve the widest OK, "OK (reboot)").
     if (m_restartNotice != nullptr)
@@ -954,7 +1120,22 @@ void SettingsSheet::UpdateDiskTabVisibility()
 
 bool SettingsSheet::HasModalOverlay() const
 {
-    return m_colorPicker.IsOpen();
+    return m_colorPicker.IsOpen() || IsProfileDialogOpen() || (m_controllersPage != nullptr && m_controllersPage->IsCapturing());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsProfileDialogOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::IsProfileDialogOpen() const
+{
+    return m_controllersPage != nullptr && m_controllersPage->IsProfileDialogOpen();
 }
 
 
@@ -973,6 +1154,72 @@ void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer
     {
         m_colorPicker.Paint (painter, text, theme);
     }
+    else if (IsProfileDialogOpen())
+    {
+        m_controllersPage->GetProfileDialog().Paint (painter, text, theme);
+    }
+    else if (m_controllersPage != nullptr && m_controllersPage->IsCapturing())
+    {
+        PaintCapturePrompt (text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintCapturePrompt
+//
+//  A card over a dimmed sheet saying what the page is waiting for. Without
+//  it, a click on "+" or "Press to assign..." appears to do nothing until a
+//  control happens to be pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::PaintCapturePrompt (IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    constexpr int  kCardWidthDp  = 440;
+    constexpr int  kCardHeightDp = 110;
+    constexpr int  kFontDp       = 14;
+    RECT           client        = {};
+    UINT           dpi           = GetDpiForWindow (GetHwnd());
+    float          scale         = (float) dpi / 96.0f;
+    float          cardW         = kCardWidthDp  * scale;
+    float          cardH         = kCardHeightDp * scale;
+    float          left          = 0.0f;
+    float          top           = 0.0f;
+    float          border        = std::max (1.0f, scale);
+    HRESULT        hr            = S_OK;
+
+
+
+    GetClientRect (GetHwnd(), &client);
+
+    left = ((float) (client.right - client.left) - cardW) * 0.5f;
+    top  = ((float) (client.bottom - client.top) - cardH) * 0.5f;
+
+    hr = text.FillRect (0.0f, 0.0f, (float) (client.right - client.left), (float) (client.bottom - client.top), 0x80000000u);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillRect (left - border, top - border, cardW + border * 2.0f, cardH + border * 2.0f, theme.Border());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillRect (left, top, cardW, cardH, theme.BackgroundElevated());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (m_controllersPage->GetCapturePrompt().c_str(),
+                          left, top + cardH * 0.2f, cardW, cardH * 0.35f,
+                          theme.Foreground(), kFontDp * scale, L"Segoe UI",
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (L"Press Esc or click to cancel.",
+                          left, top + cardH * 0.55f, cardW, cardH * 0.3f,
+                          theme.ForegroundMuted(), kFontDp * scale * 0.9f, L"Segoe UI",
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -990,9 +1237,41 @@ bool SettingsSheet::OnOverlayMouse (const DxuiMouseEvent & ev)
     // An open color picker is modal over the sheet, so it takes EVERY mouse
     // event -- including the kinds it ignores, which must not reach the
     // controls behind it.
-    bool  isOpen = m_colorPicker.IsOpen();
+    bool  isOpen      = m_colorPicker.IsOpen();
+    bool  isCapturing = m_controllersPage != nullptr && m_controllersPage->IsCapturing();
+    bool  isDialog    = !isOpen && IsProfileDialogOpen();
 
 
+
+    // A profile dialog is modal over the sheet in the same way.
+    if (isDialog)
+    {
+        ProfileDialogOverlay &  dialog = m_controllersPage->GetProfileDialog();
+
+        switch (ev.kind)
+        {
+        case DxuiMouseEventKind::Down:  dialog.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Up:    dialog.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Move:  dialog.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
+        default:                        break;
+        }
+
+        Invalidate();
+        return true;
+    }
+
+    // While the Controllers page waits for a control, the prompt is modal
+    // too: a click anywhere calls the wait off, and nothing reaches the page.
+    if (!isOpen && isCapturing)
+    {
+        if (ev.kind == DxuiMouseEventKind::Down)
+        {
+            m_controllersPage->CancelCapture();
+        }
+
+        Invalidate();
+        return true;
+    }
 
     if (isOpen)
     {
@@ -1027,6 +1306,13 @@ bool SettingsSheet::OnOverlayChar (wchar_t ch)
 
 
 
+    if (!m_colorPicker.IsOpen() && IsProfileDialogOpen())
+    {
+        m_controllersPage->GetProfileDialog().OnChar (ch);
+        Invalidate();
+        return true;
+    }
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
@@ -1051,12 +1337,66 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
 
 
 
+    // A profile dialog takes every key.
+    if (!m_colorPicker.IsOpen() && IsProfileDialogOpen())
+    {
+        m_controllersPage->GetProfileDialog().OnKey (vk);
+        Invalidate();
+        return true;
+    }
+
+    // The capture prompt takes every key; Escape calls the wait off.
+    if (!m_colorPicker.IsOpen() && m_controllersPage != nullptr && m_controllersPage->IsCapturing())
+    {
+        if (vk == VK_ESCAPE)
+        {
+            m_controllersPage->CancelCapture();
+        }
+
+        Invalidate();
+        return true;
+    }
+
+
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR SettingsSheet::GetCursorForPoint (POINT clientPx) const
+{
+    LPCWSTR  cursor = nullptr;
+
+
+
+    if (m_colorPicker.IsOpen())
+    {
+        cursor = m_colorPicker.GetCursorForPoint (clientPx);
+    }
+    else if (IsProfileDialogOpen())
+    {
+        cursor = m_controllersPage->GetProfileDialog().GetCursorForPoint (clientPx);
+    }
+    else if (!HasModalOverlay())
+    {
+        cursor = DxuiPropertySheet::GetCursorForPoint (clientPx);
+    }
+
+    return cursor;
 }
 
 

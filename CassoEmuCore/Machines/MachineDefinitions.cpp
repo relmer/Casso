@@ -125,6 +125,7 @@ std::map<std::string, MachineDefinition> MachineDefinitions::BuildTable()
         definition.keyboardType    = machine->GetKeyboardLayout();
         definition.slotCount       = machine->GetSlotCount();
         definition.hasGamePort     = machine->HasGamePortDevice();
+        definition.gamePortAxisCount = machine->GetGamePortAxisCount();
         definition.hasCaseSwitches = machine->HasCaseSwitches();
         definition.hasBuiltInDrive = machine->HasBuiltInDrive();
 

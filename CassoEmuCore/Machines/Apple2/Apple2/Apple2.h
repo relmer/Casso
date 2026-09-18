@@ -35,8 +35,9 @@ public:
     std::vector<InternalDevice>  GetInternalDevices () const override;
     std::vector<std::string>     GetVideoModes      () const override;
 
-    int   GetSlotCount       () const override { return (7); }
-    bool  HasGamePortDevice  () const override { return (true); }
+    int   GetSlotCount         () const override { return (7); }
+    int   GetGamePortAxisCount () const override { return (4); }
+    bool  HasGamePortDevice    () const override { return (true); }
     bool  HasCaseSwitches    () const override { return (false); }
     bool  HasBuiltInDrive    () const override { return (false); }
 };

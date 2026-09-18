@@ -585,21 +585,20 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  The backing goes in FIRST: the root paints its children in the order
     //  they were adopted, so the panel lands under the words rather than over
     //  them.
-    m_captureBarSurface.SetToken (DxuiSurface::Token::Background);
-    m_host->GetRoot().Adopt (m_captureBarSurface);
-    m_host->GetRoot().Adopt (m_captureBar);
+    m_standInBarSurface.SetToken (DxuiSurface::Token::Background);
+    m_host->GetRoot().Adopt (m_standInBarSurface);
+    m_host->GetRoot().Adopt (m_standInBar);
 
     //  FIXED WORDS, SET ONCE. The bar says the same thing every time it is up,
     //  and its band is measured from that text before the bar has ever been
     //  shown -- so the text cannot wait until the first capture to exist.
-    m_captureBar.SetText     (s_kpszCaptureNotice);
-    m_captureBar.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_standInBar.SetSeverity (DxuiInfoBanner::Severity::Info);
 
     //  CENTERED, because this bar spans the window rather than sitting in a
     //  dialog: one short line held against the leading edge of a wide strip
     //  reads as something that failed to lay out.
-    m_captureBar.SetCentered (true);
-    m_captureBar.SetVisible  (false);
+    m_standInBar.SetCentered (true);
+    m_standInBar.SetVisible  (false);
 
     //  THE NOTICE, ADOPTED AFTER THE CAPTURE BAR so that when both are up the
     //  notice is the one on top -- it is the newer of the two, and the older
@@ -699,12 +698,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // reads, so a click dispatches through HandleCommand like a menu row;
     // the volume group drives the master output gain and persists in
     // GlobalUserPrefs through the coalescing save below.
-    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, m_printerLed, m_inputCluster, m_volumeFlyout);
+    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, m_printerLed, m_volumeFlyout);
 
-    // Input-mode segments route through the same toggle the band selector
-    // used, so the leave-time neutralization of held arrow / X / Z inputs
-    // runs identically.
-    m_inputCluster.SetSink ([this] (InputMappingMode mode) { ToggleInputMappingMode (mode); });
+    // Mouse mode routes through the same toggle the band selector used, so
+    // the leave-time release of a held guest button runs identically. It is
+    // offered only where there is a mouse to drive: the //c.
+    m_mainMenu.GetCommands().SetMouseModeFns (
+        [this] () { return m_pointerMode == InputMappingMode::Mouse; },
+        [this] () { return m_machine.GetMouse() != nullptr && m_mouseConnected; },
+        [this] () { ToggleInputMappingMode (InputMappingMode::Mouse); });
     m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {
         m_globalPrefs.masterVolume = volume01;
@@ -739,6 +741,18 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             default:                          return false;
         }
     });
+
+    m_mainMenu.GetCommands().SetPaddleSourcePickedFn (
+        [this] (const InputModeRules::PaddleSource & source)
+        {
+            PickPaddleSource (source);
+        });
+
+    m_mainMenu.GetCommands().SetProfilePickedFn (
+        [this] (const std::string & profileName)
+        {
+            PickControllerProfile (profileName);
+        });
 
     m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
     {
@@ -1331,6 +1345,10 @@ int EmulatorShell::RunMessageLoop()
         {
             m_settingsSheet.reset();
             m_settingsSheetClosePending = false;
+
+            // The sheet may have created, renamed or deleted profiles, and
+            // the command bar's profile list is built from them.
+            SyncPaddleSourceList();
         }
 
         // Process pending messages, bounded by the drain deadline (see banner):
@@ -1622,6 +1640,14 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
     if (!active)
     {
         StopPaddleCapture();
+    }
+
+    // Controller input follows the application, not one window: the Settings
+    // sheet is Casso too, and XInput was measured still delivering while
+    // another application was in front, so the gate has to be ours.
+    if (m_controllerService != nullptr)
+    {
+        m_controllerService->SetActive (active);
     }
 
     return DxuiMessageResult::NotHandled;
@@ -2428,6 +2454,43 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
             ShowNotice (*carried);
             delete carried;
         }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // Game-port input submitted off the UI thread (the controller thread, or a
+    // machine rebuild) waits here to be written: the device setters report
+    // host input to the input debug panel, which is UI-thread only.
+    if (msg == WM_APP_GAMEPORT_FLUSH)
+    {
+        m_gamePortMixer.FlushPending();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // The controller thread's policy moved the selection, or a controller came
+    // or went. Saying so and writing it to the prefs both belong here, not on
+    // that thread.
+    if (msg == WM_APP_CONTROLLER_PICK)
+    {
+        std::wstring           description;
+        SelectionChangeReason  reason    = SelectionChangeReason::None;
+        bool                   hasNotice = false;
+
+        {
+            std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+
+            description               = m_controllerPickDescription;
+            reason                    = m_controllerPickReason;
+            hasNotice                 = m_controllerPickHasNotice;
+            m_controllerPickReason    = SelectionChangeReason::None;
+            m_controllerPickHasNotice = false;
+        }
+
+        // A device arriving or leaving changes the rows even when it changes
+        // nothing else, so the list is rebuilt on every one of these.
+        ApplyControllerSelectionChange (description, reason, hasNotice);
+        SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;
     }

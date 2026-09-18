@@ -72,6 +72,29 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 The last few releases, in brief. [CHANGELOG.md](CHANGELOG.md) has the granular
 history, and [ARCHITECTURE.md](ARCHITECTURE.md) covers the emulator's internals.
 
+### Game controllers and joysticks (1.25)
+
+Game controllers can now be mapped to the Apple's game ports. Xbox controllers,
+gamepads, and joysticks appear in the controller picker, and selected devices
+are saved per machine. A new Controllers page in Settings provides full
+customization of mapping controller inputs to the Apple's game inputs, as well
+as dead zone and calibration. These customizations can be stored in profiles so
+that custom mappings best suited to specific games are just a click away. The
+existing option of mapping keyboard or mouse to joystick/paddle inputs is still
+available.
+
+Multiplayer mode supports two controllers at once, each mapped to a joystick or
+to separate paddles, with each player getting one button input. Note that the
+physical Apple //c hardware only supports two paddle inputs, so it can support
+multiplayer with paddles but only a single player with a joystick.
+
+<table align="center" width="100%">
+<tr>
+  <td valign="top" width="50%" align="center"><img src="Assets/controllers-single.png" alt="The Controllers page in Settings for one player: a VKB Gladiator joystick with its X and Y axes on PDL0 and PDL1, two buttons on PB0 and PB1, a live stick readout, the deadzone slider and automatic calibration" width="100%" /><br /><sub>One player</sub></td>
+  <td valign="top" width="50%" align="center"><img src="Assets/controllers-multiplayer.png" alt="The Controllers page in Settings for two players: an Xbox One S controller on joystick 0 and an Xbox Series X|S controller on joystick 1, with the first player's stick mapped to PDL0 and PDL1 and the A button on PB0" width="100%" /><br /><sub>Multiplayer</sub></td>
+</tr>
+</table>
+
 ### It finds its voice (1.23)
 
 The Mockingboard's SSI 263A is synthesized from the chip's registers rather
@@ -523,6 +546,11 @@ delay, then steady cadence — rather than leaning on host-OS key repeat, so
 timing-sensitive arrow input behaves the way it did on real hardware. An Input
 Debug panel (**Ctrl+Shift+I**) logs host → guest key events, the `$C000`/`$C010`
 strobe, Open/Closed-Apple state, and synthesized paddle reads.
+
+Physical game controllers — Xbox controllers, gamepads, and joysticks — map onto
+the same paddle and button inputs, configured on the **Controllers** page in
+Settings with per-game profiles, and a multiplayer mode puts two controllers on
+the game port at once.
 
 ### Assembler and CLI
 

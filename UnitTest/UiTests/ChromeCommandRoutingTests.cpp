@@ -50,7 +50,8 @@ public:
 
         IDM_MACHINE_RESET,
         IDM_MACHINE_POWERCYCLE,
-        IDM_MACHINE_ARROWS_JOYSTICK,
+
+
         IDM_MACHINE_PAUSE,
         IDM_MACHINE_STEP,
 
@@ -147,6 +148,7 @@ public:
         { L"IDM_VIEW_DRIVE_STRIP",          IDM_VIEW_DRIVE_STRIP          },
         { L"IDM_VIEW_FRAME_RATE",           IDM_VIEW_FRAME_RATE           },
         { L"IDM_VIEW_SCENE_VIEW",           IDM_VIEW_SCENE_VIEW           },
+        { L"IDM_VIEW_CONTROLLER_SETTINGS",  IDM_VIEW_CONTROLLER_SETTINGS  },
         { L"IDM_HELP_KEYMAP",               IDM_HELP_KEYMAP               },
         { L"IDM_HELP_ABOUT",                IDM_HELP_ABOUT                },
     };
@@ -334,14 +336,19 @@ public:
         // A command on both surfaces is one declaration: the toolbar's
         // Settings entry is the menu's Settings row, with the short label
         // the strip draws and the mnemonic label the menu draws.
-        EmulatorCommands     cmds;
-        const DxuiCommand *  settings = cmds.Find (IDM_VIEW_SETTINGS);
+        EmulatorCommands                    cmds;
+        std::shared_ptr<const DxuiCommand>  settings = cmds.Find (IDM_VIEW_SETTINGS);
 
-        Assert::IsNotNull (settings);
+        Assert::IsNotNull (settings.get());
         Assert::AreEqual  (L"Settings",       settings->GetShortText().c_str());
         Assert::AreEqual  (L"Se&ttings...",   settings->GetLabelText().c_str());
         Assert::IsNotNull (settings->glyph);
-        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdTheme));
-        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdInput));
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdTheme).get());
+
+        // The input cluster's custom entry is gone: what drives the paddle
+        // axes is the picker, and mouse mode is a toggle beside it.
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdPaddle).get());
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdMouse).get());
+        Assert::IsNotNull (cmds.Find (EmulatorCommands::kIdProfile).get());
     }
 };

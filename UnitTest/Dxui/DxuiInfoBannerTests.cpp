@@ -407,5 +407,63 @@ namespace DxuiInfoBannerTests
                             L"the reserved height holds every line the painted box wraps to");
         }
 
+
+        TEST_METHOD (Centered_NarrowBarDoesNotStrandAWordOnALineOfItsOwn)
+        {
+            MockDxuiTextRenderer  text;
+            DxuiInfoBanner        banner (L"Using the mouse for paddle input. Press Esc to exit paddle mode.");
+            DxuiDpiScaler         scaler;
+            float                 lineHeight = 0.0f;
+            float                 wrappedW   = 0.0f;
+            float                 wrappedH   = 0.0f;
+            float                 height     = 0.0f;
+            float                 single     = 0.0f;
+            float                 ignored    = 0.0f;
+
+            scaler.SetDpi (96);
+            banner.SetCentered (true);
+
+            // A bar about as wide as the window in the report: the text needs
+            // two lines, and the even split works out a box that a renderer
+            // breaking at words cannot fill in two -- so it used to paint a
+            // third line carrying "mode." alone.
+            height = banner.GetMeasuredHeightPx (text, 420.0f, scaler);
+
+            text.MeasureString (banner.GetText().c_str(), 13.0f, DxuiTheme::kBodyFace, single, lineHeight);
+            text.MeasureStringWrapped (banner.GetText().c_str(), 13.0f, DxuiTheme::kBodyFace,
+                                       420.0f, wrappedW, ignored);
+
+            Assert::IsTrue (lineHeight > 0.0f);
+
+            // What the banner reserved, against what the text really needs at
+            // the box it chose. Equal means no stranded line.
+            text.MeasureStringWrapped (banner.GetText().c_str(), 13.0f, DxuiTheme::kBodyFace,
+                                       wrappedW, ignored, wrappedH);
+
+            Assert::IsTrue (height >= wrappedH,
+                L"the reserved height must cover the lines the renderer actually produces");
+        }
+
+
+        TEST_METHOD (WordWrap_CountsLinesTheWayARendererBreaksThem)
+        {
+            MockDxuiTextRenderer  text;
+            float                 width  = 0.0f;
+            float                 height = 0.0f;
+            float                 single = 0.0f;
+            float                 oneRow = 0.0f;
+
+            text.MeasureString (L"aaaa bbbb cccc", 13.0f, DxuiTheme::kBodyFace, single, oneRow);
+
+            // Exactly half the single-line width. Dividing the width by the
+            // box calls that two lines; a renderer breaking at spaces needs
+            // three, because no two of these words plus the space between
+            // them fit in half the run.
+            text.MeasureStringWrapped (L"aaaa bbbb cccc", 13.0f, DxuiTheme::kBodyFace,
+                                       single * 0.5f, width, height);
+
+            Assert::AreEqual (3.0f, height / oneRow, 0.01f,
+                L"each word takes a line of its own, which the arithmetic model could not show");
+        }
     };
 }

@@ -260,7 +260,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_focused)
+    if (m_focused && m_focusCueVisible)
     {
         painter.OutlineRoundedRect (x + focusInset,
                                     y + focusInset,

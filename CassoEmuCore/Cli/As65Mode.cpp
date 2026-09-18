@@ -100,19 +100,17 @@ void As65Mode::ReportAssemblySucceeded (const CommandLineOptions & options, cons
 //
 //  As65Mode::WriteExtraArtifacts
 //
-//  The symbol table, the debug file and the symbol file -- the three AS65
-//  writes and Merlin has no flags for.
+//  The symbol table and the debug file -- the two AS65 writes and Merlin has no
+//  flags for.
 //
 //  Each is optional and each fails the same way, so they reduce to a "not
-//  requested, or written successfully" chain. The symbol file names itself in
-//  its failure because it is the only one whose path came from a flag the
-//  reader may have mistyped.
+//  requested, or written successfully" chain.
 //
 //  A SOURCE PRODUCING SEVERAL OUTPUTS GETS SEVERAL OF EACH, on the same rule the
 //  object and the listing follow: one debug file indexed by address cannot
 //  describe two outputs that both begin at $0300, because the entries collide
 //  and one name wins silently. Today only Merlin cuts a source into several
-//  outputs and only AS65 has these three flags, so the loop below runs once in
+//  outputs and only AS65 has these two flags, so the loop below runs once in
 //  practice. It is written this way so the rule lives in one place rather than
 //  becoming a per-dialect special case the day either of those changes.
 //
@@ -125,7 +123,7 @@ HRESULT As65Mode::WriteExtraArtifacts (const CommandLineOptions & options, const
 
 
 
-    BAIL_OUT_IF (isSingle, WriteExtraArtifactsForOutput (options, result, options.debugFile, options.symbolFile));
+    BAIL_OUT_IF (isSingle, WriteExtraArtifactsForOutput (options, result, options.debugFile));
 
     for (size_t i = 0; i < result.savePoints.size(); i++)
     {
@@ -135,11 +133,8 @@ HRESULT As65Mode::WriteExtraArtifacts (const CommandLineOptions & options, const
         std::string         debug  = options.debugFile.empty()
                                          ? std::string()
                                          : ArtifactWriter::ResolveArtifactName (object, ".dbg");
-        std::string         syms   = options.symbolFile.empty()
-                                         ? std::string()
-                                         : ArtifactWriter::ResolveArtifactName (object, ".sym");
 
-        hr = WriteExtraArtifactsForOutput (options, one, debug, syms);
+        hr = WriteExtraArtifactsForOutput (options, one, debug);
         CHR (hr);
     }
 
@@ -155,15 +150,14 @@ Error:
 //
 //  As65Mode::WriteExtraArtifactsForOutput
 //
-//  The three files for one output, under the names it was given.
+//  The two artifacts for one output, under the names it was given.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT As65Mode::WriteExtraArtifactsForOutput (const CommandLineOptions & options, const AssemblyResult & result,
-                                                const std::string & debugFile, const std::string & symbolFile)
+                                                const std::string & debugFile)
 {
-    HRESULT  hr         = S_OK;
-    bool     wasWritten = false;
+    HRESULT  hr = S_OK;
 
 
 
@@ -175,18 +169,6 @@ HRESULT As65Mode::WriteExtraArtifactsForOutput (const CommandLineOptions & optio
     hr = (!options.debugInfo || debugFile.empty())
              ? S_OK
              : ArtifactWriter::WriteDebugInfo (result, debugFile);
-
-    CHR (hr);
-
-    hr         = symbolFile.empty()
-                     ? S_OK
-                     : ArtifactWriter::WriteSymbolFile (symbolFile, result.symbols);
-    wasWritten = SUCCEEDED (hr);
-
-    if (!wasWritten)
-    {
-        std::cerr << "Error: Cannot write symbol file: " << symbolFile << "\n";
-    }
 
     CHR (hr);
 

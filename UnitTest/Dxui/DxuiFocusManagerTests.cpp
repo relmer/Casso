@@ -93,6 +93,32 @@ public:
     }
 
 
+    TEST_METHOD (APress_FocusesWithoutTheRectangle_AndTabMovesOnFromIt)
+    {
+        DxuiPanel          panel;
+        MockDxuiControl &  a = panel.Add<MockDxuiControl>();
+        MockDxuiControl &  b = panel.Add<MockDxuiControl>();
+        MockDxuiControl &  c = panel.Add<MockDxuiControl>();
+        DxuiFocusManager   focus;
+
+
+        a.SetBounds (MakeRect (0,   0, 50,  20));
+        b.SetBounds (MakeRect (60,  0, 110, 20));
+        c.SetBounds (MakeRect (120, 0, 170, 20));
+        focus.SetRowEpsilonDip (32.0f);
+        focus.Attach (&panel);
+
+        Assert::IsFalse  (focus.FocusAtPoint (POINT { 55, 10 }), L"a press between controls focuses nothing");
+        Assert::IsTrue   (focus.FocusAtPoint (POINT { 80, 10 }));
+        Assert::AreEqual (static_cast<void *> (&b), static_cast<void *> (focus.GetFocusedControl()), L"the control pressed takes focus");
+        Assert::IsFalse  (b.IsFocusCueVisible(), L"but draws no focus rectangle");
+
+        Assert::IsTrue   (focus.HandleKey (DxuiFocusKey::Tab));
+        Assert::AreEqual (static_cast<void *> (&c), static_cast<void *> (focus.GetFocusedControl()), L"Tab goes to the control after the one pressed");
+        Assert::IsTrue   (c.IsFocusCueVisible(), L"and the keyboard brings the rectangle back");
+    }
+
+
     TEST_METHOD (ExplicitTabIndex_BeatsGeometry)
     {
         DxuiPanel          panel;
