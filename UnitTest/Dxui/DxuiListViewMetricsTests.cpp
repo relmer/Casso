@@ -161,6 +161,56 @@ public:
     }
 
 
+    TEST_METHOD (HeaderHeight_BelongsToOneInstance)
+    {
+        Fixture  dense;
+        Fixture  roomy;
+
+        dense.Build (L"A");
+        roomy.Build (L"A");
+        dense.list.SetShowHeader      (true);
+        roomy.list.SetShowHeader      (true);
+        dense.list.SetHeaderHeightDip (22);
+
+        Assert::AreEqual (22, dense.list.GetHeaderHeightPx(), L"at 96 DPI a DIP is a pixel");
+        Assert::AreEqual (32, roomy.list.GetHeaderHeightPx());
+
+        dense.list.SetHeaderHeightDip (0);
+        Assert::AreEqual (32, dense.list.GetHeaderHeightPx(), L"a non-positive height restores the default");
+    }
+
+
+    //  A pane whose rows change every refresh has to fit them each time; a file
+    //  list keeps the widths it was first given, which is what saves it
+    //  re-measuring thousands of names on every refill.
+    static int  WidthAfterRefill (bool refit)
+    {
+        Fixture  f;
+
+        f.Build (L"A");
+        f.list.SetPreciseAutoFit  (true);
+        f.list.SetRefitOnSetRows  (refit);
+        (void) f.PaintedCellSize  (L"A");
+
+        f.list.SetRows ({ { DxuiListView::Cell { L"ABCDEFGH", false } } });
+        (void) f.PaintedCellSize  (L"ABCDEFGH");
+
+        return f.list.GetTotalMeasuredWidthPx();
+    }
+
+
+    TEST_METHOD (Refit_WiderRowsWidenTheColumn)
+    {
+        Assert::AreEqual (8 * kCharWidthDip + 12 + 16, WidthAfterRefill (true));
+    }
+
+
+    TEST_METHOD (Refit_OffByDefault_TheColumnKeepsItsWidth)
+    {
+        Assert::AreEqual (1 * kCharWidthDip + 12 + 16, WidthAfterRefill (false));
+    }
+
+
     TEST_METHOD (RowHeight_BelongsToOneInstance)
     {
         Fixture  dense;

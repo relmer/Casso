@@ -219,11 +219,14 @@ void DebuggerWindow::ConfigureWidgets()
 
     m_pokeButton->SetOnClick ([this] { SubmitPokeBox(); });
 
-    m_codeList->SetColumns ({ { L"",            34, false, DxuiTextHAlign::Center },
-                              { L"Address",     90, false, DxuiTextHAlign::Left   },
-                              { L"Bytes",       100, false, DxuiTextHAlign::Left  },
-                              { L"Instruction", 0,  true,  DxuiTextHAlign::Left   },
-                              { L"Symbol",      110, false, DxuiTextHAlign::Left  } });
+    //  Every column fits its contents and none stretches, so a pane is as wide
+    //  as what it shows and no wider (FR-026a). The marker column alone has a
+    //  set width, since its glyphs are not text a fit could measure.
+    m_codeList->SetColumns ({ { L"",            kMarkerColumnDip, false, DxuiTextHAlign::Center },
+                              { L"Address",     0, false, DxuiTextHAlign::Left },
+                              { L"Bytes",       0, false, DxuiTextHAlign::Left },
+                              { L"Label",       0, false, DxuiTextHAlign::Left },
+                              { L"Instruction", 0, false, DxuiTextHAlign::Left } });
 
     //  A single click only selects, so a line can be chosen for Run to Cursor
     //  without also toggling its breakpoint.
@@ -240,18 +243,18 @@ void DebuggerWindow::ConfigureWidgets()
         }
     });
 
-    m_registerList->SetColumns   ({ { L"Reg",   70, false, DxuiTextHAlign::Left },
-                                    { L"Value", 0,  true,  DxuiTextHAlign::Left } });
-    m_breakpointList->SetColumns ({ { L"Breakpoints", 0, true, DxuiTextHAlign::Left } });
-    m_watchList->SetColumns      ({ { L"Watch", 0, true,  DxuiTextHAlign::Left },
-                                    { L"Value", 90, false, DxuiTextHAlign::Left } });
-    m_stackList->SetColumns      ({ { L"Stack", 0, true,  DxuiTextHAlign::Left },
-                                    { L"Value", 90, false, DxuiTextHAlign::Left } });
-    m_memoryList->SetColumns     ({ { L"Address", 90,  false, DxuiTextHAlign::Left },
-                                    { L"Bytes",   0,   true,  DxuiTextHAlign::Left },
-                                    { L"Text",    150, false, DxuiTextHAlign::Left },
-                                    { L"Region",  90,  false, DxuiTextHAlign::Left } });
-    m_consoleList->SetColumns    ({ { L"Console", 0, true, DxuiTextHAlign::Left } });
+    m_registerList->SetColumns   ({ { L"Reg",         0, false, DxuiTextHAlign::Left },
+                                    { L"Value",       0, false, DxuiTextHAlign::Left } });
+    m_breakpointList->SetColumns ({ { L"Breakpoints", 0, false, DxuiTextHAlign::Left } });
+    m_watchList->SetColumns      ({ { L"Watch",       0, false, DxuiTextHAlign::Left },
+                                    { L"Value",       0, false, DxuiTextHAlign::Left } });
+    m_stackList->SetColumns      ({ { L"Stack",       0, false, DxuiTextHAlign::Left },
+                                    { L"Value",       0, false, DxuiTextHAlign::Left } });
+    m_memoryList->SetColumns     ({ { L"Address",     0, false, DxuiTextHAlign::Left },
+                                    { L"Bytes",       0, false, DxuiTextHAlign::Left },
+                                    { L"Text",        0, false, DxuiTextHAlign::Left },
+                                    { L"Region",      0, false, DxuiTextHAlign::Left } });
+    m_consoleList->SetColumns    ({ { L"Console",     0, false, DxuiTextHAlign::Left } });
     m_consoleList->EnableStickyTail (true);
 
     //  Activating a breakpoint in the list clears it.
@@ -265,8 +268,12 @@ void DebuggerWindow::ConfigureWidgets()
 
     for (DxuiListView * list : GetLists())
     {
-        list->SetShowHeader (true);
+        MakeDense (list);
     }
+
+    //  The console can hold thousands of lines, so it fits its column from a
+    //  character count rather than measuring every line it has ever held.
+    m_consoleList->SetPreciseAutoFit (false);
 
     for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
     {
@@ -297,6 +304,31 @@ void DebuggerWindow::ConfigureWidgets()
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_memoryList, m_consoleList };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MakeDense
+//
+//  One setting for every pane, so the panes read as one listing rather than
+//  seven lists that happen to share a window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::MakeDense (DxuiListView * list)
+{
+    list->SetShowHeader      (true);
+    list->SetMonospace       (true);
+    list->SetFontSizeDip     (kPaneFontDip);
+    list->SetRowHeightDip    (kPaneRowDip);
+    list->SetHeaderHeightDip (kPaneHeaderDip);
+    list->SetCellPaddingDip  (kPanePadDip, kPanePadDip);
+    list->SetPreciseAutoFit  (true);
+    list->SetRefitOnSetRows  (true);
 }
 
 
@@ -620,6 +652,7 @@ void DebuggerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 void DebuggerWindow::LayoutWidgets()
 {
     auto  px       = [this] (int dip) { return m_scaler.ToPx (dip); };
+    auto  paneH    = [px] (int rows) { return px (kPaneHeaderDip + rows * kPaneRowDip + kPaneEdgeDip); };
     int   pad      = px (8);
     int   buttonH  = px (30);
     int   boxH     = px (30);
@@ -631,14 +664,14 @@ void DebuggerWindow::LayoutWidgets()
     int   rightW   = px (300);
     int   rightX   = std::max (pad, width - pad - rightW);
     int   leftW    = std::max (px (100), rightX - 2 * pad);
-    int   memoryH  = std::max (px (140), height / 4);
-    int   memoryY  = height - pad - boxH - pad - memoryH;
-    int   middleH  = std::max (px (120), memoryY - pad - top);
-    int   codeH    = (middleH * 3) / 5;
+    int   bottomH  = paneH (kPaneRows);
+    int   bottomY  = std::max (top + px (120), height - pad - boxH - pad - bottomH);
+    int   middleH  = std::max (px (120), bottomY - pad - top);
+    int   codeH    = std::min (paneH (DebuggerViewState::kCodeLines), middleH - pad - boxH - pad - paneH (2));
     int   consoleY = top + codeH + pad;
     int   consoleH = std::max (px (40), middleH - codeH - pad - boxH - pad);
-    int   regH     = std::min (px (270), middleH / 2);
-    int   restH    = std::max (px (60), (middleH - regH - 3 * pad) / 3);
+    int   regH     = paneH (kRegisterRows);
+    int   restH    = std::max (px (60), std::min (paneH (kPaneRows), (middleH - regH - 2 * pad) / 2));
     int   paneY    = top;
     int   x        = pad;
 
@@ -665,15 +698,17 @@ void DebuggerWindow::LayoutWidgets()
 
     m_registerList->Layout   (RECT { rightX, paneY, width - pad, paneY + regH  }, m_scaler);  paneY += regH  + pad;
     m_breakpointList->Layout (RECT { rightX, paneY, width - pad, paneY + restH }, m_scaler);  paneY += restH + pad;
-    m_watchList->Layout      (RECT { rightX, paneY, width - pad, paneY + restH }, m_scaler);  paneY += restH + pad;
-    m_stackList->Layout      (RECT { rightX, paneY, width - pad, top + middleH }, m_scaler);
+    m_watchList->Layout      (RECT { rightX, paneY, width - pad, top + middleH }, m_scaler);
 
-    m_memoryList->Layout (RECT { pad, memoryY, width - pad, memoryY + memoryH }, m_scaler);
+    //  Memory and the stack share the bottom row, so each gets the eight rows
+    //  a pane is owed without the right column having to hold four panes.
+    m_memoryList->Layout (RECT { pad,    bottomY, pad + leftW, bottomY + bottomH }, m_scaler);
+    m_stackList->Layout  (RECT { rightX, bottomY, width - pad, bottomY + bottomH }, m_scaler);
 
     x = pad;
-    m_memoryBox->Layout  (RECT { x, memoryY + memoryH + pad, x + px (170), memoryY + memoryH + pad + boxH }, m_scaler);  x += px (170) + pad;
-    m_pokeBox->Layout    (RECT { x, memoryY + memoryH + pad, x + px (230), memoryY + memoryH + pad + boxH }, m_scaler);  x += px (230) + pad;
-    m_pokeButton->Layout (RECT { x, memoryY + memoryH + pad, x + px (90),  memoryY + memoryH + pad + boxH }, m_scaler);
+    m_memoryBox->Layout  (RECT { x, bottomY + bottomH + pad, x + px (170), bottomY + bottomH + pad + boxH }, m_scaler);  x += px (170) + pad;
+    m_pokeBox->Layout    (RECT { x, bottomY + bottomH + pad, x + px (230), bottomY + bottomH + pad + boxH }, m_scaler);  x += px (230) + pad;
+    m_pokeButton->Layout (RECT { x, bottomY + bottomH + pad, x + px (90),  bottomY + bottomH + pad + boxH }, m_scaler);
 }
 
 
@@ -755,8 +790,8 @@ void DebuggerWindow::ApplySnapshot()
         rows.push_back ({ { marker },
                           { std::format (L"{:04X}", line.address) },
                           { Widen (line.bytes) },
-                          { Widen (line.instruction) },
-                          { Widen (line.label), true } });
+                          { Widen (line.label) },
+                          { Widen (line.instruction) } });
     }
 
     m_codeList->SetRows (std::move (rows));

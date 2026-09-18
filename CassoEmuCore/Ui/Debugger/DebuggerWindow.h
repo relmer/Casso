@@ -96,11 +96,25 @@ protected:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
-    static constexpr int  kPreferredWidthDip  = 1100;
-    static constexpr int  kPreferredHeightDip = 760;
-    static constexpr int  kMinWidthDip        = 760;
-    static constexpr int  kMinHeightDip       = 520;
-    static constexpr int  kConsoleLineLimit   = 2000;
+    static constexpr int    kPreferredWidthDip  = 1100;
+    static constexpr int    kPreferredHeightDip = 840;
+    static constexpr int    kMinWidthDip        = 760;
+    static constexpr int    kMinHeightDip       = 520;
+    static constexpr int    kConsoleLineLimit   = 2000;
+
+    //  Pane metrics (FR-026a): the monospace face at a size whose line height
+    //  a row barely exceeds, small cell padding, and eight rows owed to every
+    //  pane at the default size.
+    static constexpr float  kPaneFontDip        = 12.0f;
+    static constexpr int    kPaneRowDip         = 16;
+    static constexpr int    kPaneHeaderDip      = 22;
+    static constexpr int    kPaneEdgeDip        = 6;
+    static constexpr int    kPanePadDip         = 4;
+    static constexpr int    kPaneRows           = 8;
+    static constexpr int    kRegisterRows       = 6;
+    static constexpr int    kMarkerColumnDip    = 20;
+
+    static void  MakeDense (DxuiListView * list);
 
     void     ConfigureWidgets ();
     void     LayoutWidgets    ();

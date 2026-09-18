@@ -157,6 +157,12 @@ public:
     // double-click re-fits one column on demand. Default off.
     void  SetPreciseAutoFit         (bool enabled)       { m_preciseAutoFit = enabled; }
 
+    // Opt-in re-fit for a list whose rows change on every refresh (a
+    // debugger pane): SetRows asks the next paint to re-measure, and precise
+    // widths only grow. Off by default, because a large list pays for a
+    // re-measure on every refill.
+    void  SetRefitOnSetRows         (bool enabled)       { m_refitOnSetRows = enabled; }
+
     // Column / row queries.
     size_t         GetColumnCount () const                 { return m_columns.size(); }
     const Column & GetColumnAt    (size_t idx) const       { return m_columns[idx]; }
@@ -167,7 +173,8 @@ public:
 
     int   GetHoveredRow            () const                 { return m_hovered; }
     bool  IsHeaderShown            () const                 { return m_showHeader; }
-    int   GetHeaderHeightPx        () const                 { return m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0; }
+    int   GetHeaderHeightPx        () const                 { return m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0; }
+    void  SetHeaderHeightDip       (int dip)                { m_headerHeightDip = (dip > 0) ? dip : s_kHeaderHeightDip; }
     int   GetVisibleColumnCount    () const;
     int   GetNthVisibleColumnIndex (int n) const;
     int   GetVisibleIndexOfColumn  (size_t absCol) const;
@@ -639,6 +646,7 @@ private:
 
     bool                      m_monospace       = false;
     int                       m_rowHeightDip    = s_kRowHeightDip;
+    int                       m_headerHeightDip = s_kHeaderHeightDip;
     int                       m_cellPadLeftDip  = s_kCellPadLeftDip;
     int                       m_cellPadRightDip = s_kCellPadRightDip;
     float                     m_fontDip         = s_kFontDip;
@@ -652,6 +660,7 @@ private:
     // mode (mirrors m_measuredWPx, which is likewise refreshed from Paint).
     mutable std::vector<int>  m_autoMaxChars;
     bool                      m_preciseAutoFit = false;
+    bool                      m_refitOnSetRows = false;
     mutable bool              m_measureDirty   = false;
     DxuiDpiScaler             m_scaler;
     // Virtual (provider) row model — see SetRowProvider. When m_virtual is

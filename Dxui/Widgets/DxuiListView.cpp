@@ -111,10 +111,12 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 
     m_rows = std::move (rows);
 
-    //  NOT RE-MEASURED HERE. Measuring walks every cell of every row through
-    //  the text renderer, and a folder of a few thousand files paid that on
-    //  every refill. Columns are sized once for the view and then left alone,
-    //  as Explorer's are; a divider double-click re-fits one on demand.
+    //  NOT RE-MEASURED HERE, unless asked. Measuring walks every cell of every
+    //  row through the text renderer, and a folder of a few thousand files paid
+    //  that on every refill. Columns are sized once for the view and then left
+    //  alone, as Explorer's are; a divider double-click re-fits one on demand.
+    //  A small list whose rows change every refresh opts in instead.
+    m_measureDirty = m_measureDirty || m_refitOnSetRows;
 
     ClampTopAfterCountChange (wasSticky);
 }
@@ -1296,7 +1298,7 @@ DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout() const
     int           fullH = m_boundsDip.bottom - m_boundsDip.top;
     int           barW  = GetScrollbarWidthPx();
     int           rowH  = GetRowHeightPx();
-    int           hgTop = m_showHeader ? (m_scaler.ToPx (s_kHeaderHeightDip) + m_scaler.ToPx (s_kHeaderGapDip)) : 0;
+    int           hgTop = m_showHeader ? (m_scaler.ToPx (m_headerHeightDip) + m_scaler.ToPx (s_kHeaderGapDip)) : 0;
     int           rows  = GetRowCount();
     int           pass  = 0;
 
@@ -1620,7 +1622,7 @@ void DxuiListView::SyncVertScroll() const
     int             fullW   = m_boundsDip.right - m_boundsDip.left;
     int             barW    = GetScrollbarWidthPx();
     int             hBarH   = layout.hBar ? barW : 0;
-    int             headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int             headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int             hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int             by      = headerH + hdrGap;
     int             bh      = (m_boundsDip.bottom - m_boundsDip.top) - by - hBarH;
@@ -2217,7 +2219,7 @@ int DxuiListView::GetRequiredRowsForHeightPx (int heightPx) const
     HRESULT  hr      = S_OK;
     int      result  = 0;
     int      rowH    = GetRowHeightPx();
-    int      headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int      headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int      hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int      body    = heightPx - headerH - hdrGap;
 
@@ -2248,7 +2250,7 @@ int DxuiListView::GetRequiredHeightPx() const
 {
     int  rows    = GetRowCount();
     int  rowH    = GetRowHeightPx();
-    int  headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int  headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int  hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
 
 
@@ -2277,7 +2279,7 @@ int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
 {
     HRESULT           hr      = S_OK;
     int               result  = -1;
-    int               headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int               headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int               cap     = GetVisibleRowCapacity();
     bool              needBar = (GetRowCount() > cap) && (cap > 0);
     int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
@@ -2369,7 +2371,7 @@ int DxuiListView::HitTestHeaderColumn (int xPx, int yPx) const
 {
     HRESULT          hr      = S_OK;
     int              result  = -1;
-    int              headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int              headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int              cap     = GetVisibleRowCapacity();
     bool             needBar = (GetRowCount() > cap) && (cap > 0);
     int              fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
@@ -2433,7 +2435,7 @@ bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) co
     }
 
     int               rowH    = GetRowHeightPx();
-    int               headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int               headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int               hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int               cap     = GetVisibleRowCapacity();
     bool              needBar = (GetRowCount() > cap) && (cap > 0);
@@ -2497,7 +2499,7 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
     HRESULT  hr      = S_OK;
     int      result  = -1;
     int      rowH    = GetRowHeightPx();
-    int      headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int      headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int      hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int      body    = yPx - headerH - hdrGap;
     int      visIdx  = (body < 0 || rowH <= 0) ? -1 : (body / rowH);
@@ -2668,7 +2670,7 @@ void DxuiListView::PaintHeader (
     const std::vector<int> & colWPx) const
 {
     HRESULT  hr        = S_OK;
-    float    headerH   = (float) m_scaler.ToPx (s_kHeaderHeightDip);
+    float    headerH   = (float) m_scaler.ToPx (m_headerHeightDip);
     float    cellPadL  = (float) m_scaler.ToPx (m_cellPadLeftDip);
     float    cellPadR  = (float) m_scaler.ToPx (m_cellPadRightDip);
     float    hdrFontPx = (float) m_scaler.ToPxf (s_kHeaderFontDip);
@@ -2771,7 +2773,7 @@ void DxuiListView::PaintHeaderFocusMarkers (
     const std::vector<int> & colXPx,
     const std::vector<int> & colWPx) const
 {
-    float     headerH   = (float) m_scaler.ToPx (s_kHeaderHeightDip);
+    float     headerH   = (float) m_scaler.ToPx (m_headerHeightDip);
     uint32_t  focusArgb = (pal.fg & 0x00FFFFFFu) | 0xC0000000u;
     float     colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
     float     clipR     = x + (float) ComputeScrollLayout().viewportW;
@@ -2882,7 +2884,7 @@ void DxuiListView::PaintDataRows (
 {
     HRESULT  hr       = S_OK;
     float    rowH     = (float) GetRowHeightPx();
-    float    headerH  = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0);
+    float    headerH  = (float) (m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0);
     float    hdrGap   = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0);
     float    cellPadL = (float) m_scaler.ToPx (m_cellPadLeftDip);
     float    cellPadR = (float) m_scaler.ToPx (m_cellPadRightDip);
@@ -3079,7 +3081,7 @@ void DxuiListView::PaintScrollbar (
 {
     HRESULT           hr      = S_OK;
     ScrollbarMetrics  m       = GetScrollbarGeometry();
-    int               headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int               headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int               hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int               hBarH   = ComputeScrollLayout().hBar ? GetScrollbarWidthPx() : 0;
     int               by      = headerH + hdrGap;
@@ -3570,7 +3572,7 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
 void DxuiListView::DragSelectTo (int ly)
 {
     int  rowH    = GetRowHeightPx();
-    int  headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
+    int  headerH = m_showHeader ? m_scaler.ToPx (m_headerHeightDip) : 0;
     int  hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int  body    = ly - headerH - hdrGap;
     int  row     = 0;
