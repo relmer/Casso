@@ -171,6 +171,9 @@
     <ClCompile Include="DebuggerTests\DebugMemoryViewPatchTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryEditModelTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryPaneTests.cpp" />
+    <ClCompile Include="DebuggerTests\Sha1Tests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugFileReaderTests.cpp" />
+    <ClCompile Include="DebuggerTests\LineTableTests.cpp" />
     <ClCompile Include="DebuggerTests\MachineDebugTargetTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />
