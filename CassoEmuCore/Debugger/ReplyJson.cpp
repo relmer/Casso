@@ -123,6 +123,17 @@ std::string ReplyJson::WriteStopped (const StopEvent & stop, std::optional<int64
         members.emplace_back ("watch", JsonValue (std::move (watch)));
     }
 
+    if (stop.sourceLine > 0)
+    {
+        Members  source;
+
+
+
+        source.emplace_back ("file", MakeString (stop.sourceFile));
+        source.emplace_back ("line", MakeNumber (stop.sourceLine));
+        members.emplace_back ("source", JsonValue (std::move (source)));
+    }
+
     members.emplace_back ("cycles",    MakeNumber ((int64_t) stop.cycles));
     members.emplace_back ("registers", MakeRegisters (stop.registers));
     return WriteLine (std::move (members));

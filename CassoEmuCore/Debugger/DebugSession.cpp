@@ -94,6 +94,43 @@ void DebugSession::SetDebugFile (DebugFile file, const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::TryGetSourceLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryGetSourceLine (Word address, std::string & file, int & line) const
+{
+    const std::vector<SourcePosition>  & positions = m_lineTable.GetPositionsAt (address);
+    int                                  fileId    = 0;
+
+
+
+    if (positions.empty())
+    {
+        return false;
+    }
+
+    fileId = positions.back().file;
+
+    for (const DebugSourceFile & each : m_debugFile.files)
+    {
+        if (each.id == fileId)
+        {
+            file = each.name;
+            line = positions.back().line;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::ClearDebugFile
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -861,6 +898,8 @@ void DebugSession::OnStopped (const StopEvent & stop)
         event.watch = m_watchpoints.GetPendingHit();
     }
 
+    TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
+
     if (m_videoBreakHit)
     {
         m_videoBreak.reset();
@@ -1032,6 +1071,11 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
         m_target.RequestPause();
         return true;
 
+    case DebugVerb::ShowSource:
+    case DebugVerb::SetSourceStepping:
+        ExecuteSource (command, reply);
+        return true;
+
     default:
         break;
     }
@@ -1043,6 +1087,53 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteSource
+//
+//  SRC gives the source line at PC and how steps go; SRC ON and SRC OFF
+//  choose between source lines and instructions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
+{
+    MessageData  message;
+    std::string  file;
+    int          line      = 0;
+    Word         pc        = m_target.GetRegisters().pc;
+    bool         hasSource = !m_lineTable.IsEmpty();
+
+
+
+    if (command.verb == DebugVerb::SetSourceStepping)
+    {
+        m_stepBySource = command.count != 0;
+    }
+
+    if (!hasSource)
+    {
+        message.lines.push_back ("No debug file is loaded; SYM LOAD reads one.");
+    }
+    else if (TryGetSourceLine (pc, file, line))
+    {
+        message.lines.push_back (std::format ("${:04X} is {} line {}.", pc, file, line));
+    }
+    else
+    {
+        message.lines.push_back (std::format ("No source line produced ${:04X}.", pc));
+    }
+
+    message.lines.push_back ((m_stepBySource && hasSource) ? "Steps go by source line."
+                             : m_stepBySource              ? "Steps go by instruction until a debug file is loaded."
+                             :                               "Steps go by instruction.");
+    reply.data = message;
 }
 
 
@@ -1119,6 +1210,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     request.skipLast   = command.a3;
     request.count      = (command.count == 0) ? 1 : command.count;
     request.budget     = command.budget.has_value() ? command.budget : m_budget;
+    request.lineTable  = (isStep && m_stepBySource && !m_lineTable.IsEmpty()) ? &m_lineTable : nullptr;
 
     m_state = isStep ? RunState::Stepping : RunState::DebugRun;
     UpdateHookInstalled();

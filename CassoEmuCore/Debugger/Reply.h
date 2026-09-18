@@ -4,6 +4,8 @@
 #include "Debugger/DebugCommand.h"
 #include "Disassembler.h"
 
+class LineTable;
+
 
 
 
@@ -394,6 +396,11 @@ struct StopEvent
     std::optional<WatchHit>  watch;
     uint64_t                 cycles    = 0;
     Cpu6502Registers         registers = {};
+
+    //  The source line at pc when a debug file is loaded and a line produced
+    //  it: the innermost, when macros nest. An empty file means none.
+    std::string              sourceFile;
+    int                      sourceLine = 0;
 };
 
 
@@ -432,4 +439,7 @@ struct RunRequest
     Word                     skipLast   = 0;
     uint32_t                 count      = 1;
     std::optional<uint64_t>  budget;
+
+    //  Present when a step goes by source line rather than by instruction.
+    const LineTable        * lineTable  = nullptr;
 };

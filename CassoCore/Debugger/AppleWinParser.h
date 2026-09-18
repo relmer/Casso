@@ -90,6 +90,7 @@ private:
     static bool    TryParseEngineArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryEvaluate        (const std::string & text, const IDebugExpressionContext & context, Word & value, std::string & error);
     static bool    TryParseRange      (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
+    static bool    TryParseSourceLine (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
     static bool    TryParseValues     (const Tokens & tokens, size_t first, ValueWidth width, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool    TryParseSearchItems (const std::string & items, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
     static bool    TryParseSearchWord  (const std::string & word, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);

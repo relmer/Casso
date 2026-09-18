@@ -182,6 +182,18 @@ public:
         return reply;
     }
 
+    Reply RunFails (const std::string & line, const std::string & label)
+    {
+        Reply         reply = Run (line);
+        std::wstring  where (line.begin(), line.end());
+
+
+
+        Microsoft::VisualStudio::CppUnitTestFramework::Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status, where.c_str());
+        Microsoft::VisualStudio::CppUnitTestFramework::Assert::AreEqual (label, reply.error.label, where.c_str());
+        return reply;
+    }
+
     const StopEvent & LastStop()
     {
         Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsFalse (sink.stops.empty(), L"no stop was delivered");

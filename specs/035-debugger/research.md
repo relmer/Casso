@@ -998,6 +998,17 @@ works, because a deeper call lowers `SP` further. Source-level step over
 repeats the rule until the program counter's line changes; step out stops at
 the first instruction after `SP > startSp` without a preceding `JSR` test.
 
+**Refined during implementation: the level alone is not enough.** A routine
+that reads inline parameters with `PLA`, or discards its return address, brings
+the stack back to the caller's level while it is still running, so a step that
+ended on the level alone stopped inside it. A call is over when the stack
+pointer is back at its level before the `JSR` and the instruction just
+executed was a return or a jump (`RTS`, `RTI`, any `JMP`). The
+`PLA`/`PHA` inline-parameter routine then steps over to the instruction
+after its parameters, and a routine that pulls its return address and jumps
+away steps over to where it jumps. Step out uses the same test with the level
+when the step began. Both are in `SourceStepTests.cpp`.
+
 **Granularity follows the view, not a command name.** The session holds a
 step granularity, `instruction` or `source` (`SRC ON|OFF` for batch and
 the pipe); in the window it follows which of the source and disassembly panes

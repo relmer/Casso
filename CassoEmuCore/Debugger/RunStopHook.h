@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/DebugHook.h"
+#include "Debugger/LineTable.h"
 #include "Debugger/Reply.h"
 
 class DebugMemoryView;
@@ -16,9 +17,22 @@ class MachineHost;
 //
 //  The hook MachineHost consults while the debugger has a run in progress or
 //  stop conditions set. It ends a run where the RunRequest says -- the run-to
-//  address, the step count, the return from a stepped-over call, the RTS or
-//  RTI that steps out -- and asks the session's conditions hook about
+//  address, the step count, the return from a stepped-over call, the return
+//  that steps out -- and asks the session's conditions hook about
 //  breakpoints and watchpoints.
+//
+//  CALLS ARE FOLLOWED BY THE STACK POINTER, NOT THE RETURN ADDRESS (R-033). A
+//  call is over once the stack pointer is back at its level before the JSR
+//  and a return or a jump has just executed, so a routine that returns past
+//  inline parameters, a recursive routine and one that discards its return
+//  address and jumps away all end the step. Stepping out ends the same way,
+//  once the stack pointer is above its level when the step began.
+//
+//  A request with a line table steps by source line: into stops at the first
+//  instruction of another line, the innermost one when macros nest; over
+//  runs whole calls and stops when the outermost line changes; out is the
+//  instruction step out. An instruction with no line never ends a source
+//  step, so code without source runs through.
 //
 //  The first instruction of a run always executes, so resuming from a
 //  breakpoint does not stop on the same breakpoint again.
@@ -42,11 +56,17 @@ public:
 
 private:
     static constexpr Byte  kJsr = 0x20;
-    static constexpr Byte  kRts = 0x60;
-    static constexpr Byte  kRti = 0x40;
 
     bool        IsRunComplete    (Word pc, Byte sp) const;
+    bool        IsSourceStepComplete (Word pc, Byte sp) const;
+    void        TrackCall        (Byte sp);
+    static bool IsTransfer       (Byte opcode);
     Byte        PeekOpcode       (Word pc) const;
+
+    //  The line at an address that a source step compares: the innermost for
+    //  a step into, the outermost otherwise. Absent where no line produced
+    //  the address.
+    std::optional<std::pair<int, int>>  GetStepLine (Word pc) const;
 
     MachineHost            & m_host;
     const DebugMemoryView  & m_view;
@@ -60,5 +80,9 @@ private:
     Byte                     m_startSp      = 0;
     Byte                     m_lastOpcode   = 0;
     bool                     m_overCall     = false;
-    Word                     m_returnPc     = 0;
+
+    //  The stack pointer before the outermost call the step is inside, while
+    //  it is inside one, and the line the step began on.
+    std::optional<Byte>                  m_callSp;
+    std::optional<std::pair<int, int>>   m_startLine;
 };

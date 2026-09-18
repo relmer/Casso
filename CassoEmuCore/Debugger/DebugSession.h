@@ -127,6 +127,15 @@ public:
     const std::wstring  & GetDebugFilePath () const { return m_debugFilePath; }
     const LineTable     & GetLineTable   () const { return m_lineTable; }
 
+    // Whether T, P and RTS, and every dialect's step commands, step by source
+    // line. Only while a debug file is loaded; otherwise by instruction.
+    void                  SetStepBySource (bool bySource) { m_stepBySource = bySource; }
+    bool                  IsStepBySource  () const        { return m_stepBySource; }
+
+    // The innermost source line at an address, as file name and line; false
+    // where no loaded line produced it.
+    bool                  TryGetSourceLine (Word address, std::string & file, int & line) const;
+
     // What the Monitor's line scan carries between lines: where the last
     // examine stopped, where a bare `:` stores, and whether `^E` armed the
     // next one to set registers.
@@ -187,6 +196,7 @@ private:
 
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
+    void   ExecuteSource         (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
     Reply  ExecuteMonitorLine    (const std::string & text);
     Reply  ExecuteAppleWinLine   (const std::string & text);
@@ -219,6 +229,7 @@ private:
     DebugFile                             m_debugFile;
     std::wstring                          m_debugFilePath;
     LineTable                             m_lineTable;
+    bool                                  m_stepBySource  = false;
     std::vector<Word>                     m_searchResults;
 
     RunState                              m_state         = RunState::Paused;

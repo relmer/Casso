@@ -18,8 +18,11 @@ AppleWin mode directly and in Monitor mode through `/`.
 | `SWITCHES` | list the soft switches and memory banking (RAMRD, RAMWRT, ALTZP, 80STORE, INTCXROM, SLOTC3ROM, language-card read, write and bank, video switches) as name/value pairs |
 | `STACK` | show SP and the stack page from $01FF down to SP+1 |
 | `PATCH addr value...` | write bytes as a memory window edit does: RAM as a write, ROM into the image the CPU reads from (on the //c, into the current bank's image, so it survives a `$C028` flip), an I/O address refused with a pointer to `OUT`; values above $FF are two bytes, low first, as with `MEB` |
+| `SRC` | the source file and line that produced PC, from the loaded debug file, and whether steps go by source line or by instruction |
+| `SRC ON` / `SRC OFF` | step by source line or by instruction. With `SRC ON` and a debug file loaded, every step command in every mode (`T`, `P`, `RTS`; the Monitor's `S`) steps by source line: into stops at the first instruction of another line, the innermost one inside a macro; over runs calls and whole macro expansions and stops on the next line; out is unchanged. The window sets this from which of its source and disassembly panes has focus |
+| `BP file:line` | a breakpoint on the first instruction of a source line, at each place a macro body line was expanded. A line that produced no code moves to the next one that did, and the reply says so. Told apart from AppleWin's `BP addr:addr` range by its left side, which is not an address, and its decimal right side |
 
-AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK` or `PATCH` command, so
+AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK`, `PATCH` or `SRC` command, so
 these names collide with nothing in its table.
 
 ## AppleWin mode

@@ -27,6 +27,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     switch (command.verb)
     {
     case DebugVerb::SetBreakpoint:              SetAddress    (session, command, reply);                         return true;
+    case DebugVerb::SetSourceBreakpoint:        SetSourceLine (session, command, reply);                         return true;
     case DebugVerb::SetConditionalBreakpoint:
     case DebugVerb::SetRegisterBreakpoint:      SetCondition  (session, command, reply);                         return true;
     case DebugVerb::SetBreakpointAndWatchpoint: SetBoth       (session, command, reply);                         return true;
@@ -195,6 +196,115 @@ void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand 
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetSourceLine
+//
+//  BP file:line. The file is the debug file's record of that name, or of that
+//  name without its folders. A line that produced no code moves to the next
+//  one that did, and the reply says so. A line that produced code in more
+//  than one place, a macro body line, gets a breakpoint at each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    const DebugFile                     & file    = session.GetDebugFile();
+    int                                   line    = (int) command.count;
+    std::optional<int>                    fileId;
+    std::optional<int>                    target;
+    std::vector<std::pair<Word, Word>>    ranges;
+    MessageData                           message;
+
+
+
+    if (!session.HasDebugFile())
+    {
+        reply.SetError (CommandStatus::Error, "no debug file", "A source breakpoint needs a debug file; SYM LOAD reads one.");
+        return;
+    }
+
+    fileId = FindSourceFile (file, command.text);
+
+    if (!fileId.has_value())
+    {
+        reply.SetError (CommandStatus::Error, "no such file", std::format ("The debug file has no source file {}.", command.text));
+        return;
+    }
+
+    target = session.GetLineTable().GetNextLineWithCode (*fileId, line);
+
+    if (!target.has_value())
+    {
+        reply.SetError (CommandStatus::Error, "no code", std::format ("No line from {} onward in {} produced code.", line, command.text));
+        return;
+    }
+
+    ranges = session.GetLineTable().GetRanges (*fileId, *target);
+
+    for (const std::pair<Word, Word> & range : ranges)
+    {
+        int  id = session.GetBreakpoints().AddAddress (range.first, range.first);
+
+        message.lines.push_back (std::format ("Breakpoint #{} at ${:04X}, {} line {}.", id, range.first, command.text, *target));
+    }
+
+    if (*target != line)
+    {
+        message.lines.push_back (std::format ("Line {} produced no code; the breakpoint is on line {}.", line, *target));
+    }
+
+    session.OnStopConditionsChanged();
+    reply.data = message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::FindSourceFile
+//
+//  The whole recorded name first, then the name alone; case does not matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> BreakpointHandlers::FindSourceFile (const DebugFile & file, const std::string & name)
+{
+    auto  isSame   = [] (const std::string & a, const std::string & b) { return _stricmp (a.c_str(), b.c_str()) == 0; };
+    auto  baseName = [] (const std::string & path)
+                     {
+                         size_t  slash = path.find_last_of ("/\\");
+
+                         return (slash == std::string::npos) ? path : path.substr (slash + 1);
+                     };
+
+
+
+    for (const DebugSourceFile & each : file.files)
+    {
+        if (isSame (each.name, name))
+        {
+            return each.id;
+        }
+    }
+
+    for (const DebugSourceFile & each : file.files)
+    {
+        if (isSame (baseName (each.name), baseName (name)))
+        {
+            return each.id;
+        }
+    }
+
+    return std::nullopt;
 }
 
 

@@ -29,16 +29,14 @@ RunStopHook::RunStopHook (MachineHost & host, const DebugMemoryView & view) :
 //
 //  RunStopHook::Begin
 //
-//  A step over a JSR runs until PC is at the instruction after it with the
-//  stack pointer back where it was, so a recursive call is one step. A step
-//  over anything else is a single step.
+//  A step over a JSR is over when the stack pointer is back at its level
+//  before the call; a step over anything else is a single step.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void RunStopHook::Begin (const RunRequest & request)
 {
-    static constexpr Word  kJsrLength = 3;
-    Word                   pc         = m_host.GetCpu()->GetPC();
+    Word  pc = m_host.GetCpu()->GetPC();
 
 
 
@@ -50,7 +48,8 @@ void RunStopHook::Begin (const RunRequest & request)
     m_startSp      = m_host.GetCpu()->GetSP();
     m_lastOpcode   = 0;
     m_overCall     = request.kind == RunKind::StepOver && PeekOpcode (pc) == kJsr;
-    m_returnPc     = (Word) (pc + kJsrLength);
+    m_callSp.reset();
+    m_startLine    = GetStepLine (pc);
 }
 
 
@@ -89,6 +88,11 @@ bool RunStopHook::ShouldStopBefore (Word pc)
     if (m_stopped)
     {
         return true;
+    }
+
+    if (m_active && !isFirst)
+    {
+        TrackCall (sp);
     }
 
     if (m_active && !isFirst && IsRunComplete (pc, sp))
@@ -184,8 +188,14 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
 {
     bool  isComplete  = false;
     bool  hasLeftSkip = m_request.hasSkip && (pc < m_request.skipFirst || pc > m_request.skipLast);
+    bool  isSource    = m_request.lineTable != nullptr && m_request.kind != RunKind::StepOut;
 
 
+
+    if (isSource)
+    {
+        return IsSourceStepComplete (pc, sp);
+    }
 
     switch (m_request.kind)
     {
@@ -199,11 +209,11 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
         break;
 
     case RunKind::StepOver:
-        isComplete = m_overCall ? (pc == m_returnPc && sp == m_startSp) : m_instructions >= 1;
+        isComplete = !m_overCall || !m_callSp.has_value();
         break;
 
     case RunKind::StepOut:
-        isComplete = (m_lastOpcode == kRts || m_lastOpcode == kRti) && sp > m_startSp;
+        isComplete = sp > m_startSp && IsTransfer (m_lastOpcode);
         break;
 
     case RunKind::Go:
@@ -215,6 +225,139 @@ bool RunStopHook::IsRunComplete (Word pc, Byte sp) const
     }
 
     return isComplete;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::IsSourceStepComplete
+//
+//  Into: the first instruction of a line other than the one the step began
+//  on. Over: the same, outside any call the step made, or any instruction
+//  once the routine the step began in has returned.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RunStopHook::IsSourceStepComplete (Word pc, Byte sp) const
+{
+    std::optional<std::pair<int, int>>  line       = GetStepLine (pc);
+    bool                                isNewLine  = line.has_value() && line != m_startLine;
+    bool                                isComplete = false;
+
+
+
+    switch (m_request.kind)
+    {
+    case RunKind::StepInto:
+    case RunKind::Trace:
+        isComplete = isNewLine;
+        break;
+
+    case RunKind::StepOver:
+        isComplete = !m_callSp.has_value() && (isNewLine || sp > m_startSp);
+        break;
+
+    default:
+        break;
+    }
+
+    return isComplete;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::TrackCall
+//
+//  After a JSR the stack pointer is two below its level before it. The call
+//  is over once it is back there and control has left by a return or a jump.
+//  The level alone is not enough: a routine that reads inline parameters or
+//  discards its return address pulls that address itself, which brings the
+//  stack back to the caller's level while it is still running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RunStopHook::TrackCall (Byte sp)
+{
+    static constexpr Byte  kReturnAddressBytes = 2;
+
+
+
+    if (m_callSp.has_value() && sp >= *m_callSp && IsTransfer (m_lastOpcode))
+    {
+        m_callSp.reset();
+    }
+
+    if (!m_callSp.has_value() && m_lastOpcode == kJsr && m_request.kind == RunKind::StepOver)
+    {
+        m_callSp = (Byte) (sp + kReturnAddressBytes);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::IsTransfer
+//
+//  A return, or a jump in any of its forms: the instructions that can take
+//  control back out of a routine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RunStopHook::IsTransfer (Byte opcode)
+{
+    static constexpr Byte  kRts         = 0x60;
+    static constexpr Byte  kRti         = 0x40;
+    static constexpr Byte  kJmp         = 0x4C;
+    static constexpr Byte  kJmpIndirect = 0x6C;
+    static constexpr Byte  kJmpIndexed  = 0x7C;
+
+
+
+    return opcode == kRts || opcode == kRti || opcode == kJmp || opcode == kJmpIndirect || opcode == kJmpIndexed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunStopHook::GetStepLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::pair<int, int>> RunStopHook::GetStepLine (Word pc) const
+{
+    const std::vector<SourcePosition>  * positions = nullptr;
+    const SourcePosition               * chosen    = nullptr;
+
+
+
+    if (m_request.lineTable == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    positions = &m_request.lineTable->GetPositionsAt (pc);
+
+    if (positions->empty())
+    {
+        return std::nullopt;
+    }
+
+    chosen = (m_request.kind == RunKind::StepOver) ? &positions->front() : &positions->back();
+
+    return std::pair<int, int> (chosen->file, chosen->line);
 }
 
 

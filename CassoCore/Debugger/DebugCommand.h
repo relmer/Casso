@@ -186,6 +186,9 @@ enum class DebugVerb
     // Casso engine
     SetMode,
     ShowMode,
+    ShowSource,
+    SetSourceStepping,
+    SetSourceBreakpoint,
 
     // Window-only views, carried by name
     View,

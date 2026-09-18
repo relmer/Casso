@@ -145,6 +145,8 @@ Notifications have no `id` and are sent to every connected client.
 | `pause` | a `pause` request, or the user paused in Casso |
 | `brk`, `invalidOpcode` | `BRK` / `BRKOP` stops |
 
+A stop at an address a loaded debug file maps to a source line carries `source`: `{"file":"main.a65","line":12}`, the file as the debug file records it and the innermost line when macros nest.
+
 - **`closing`** is the last record before the server closes the pipe, because
   the debugger was closed or Casso is exiting. Breakpoints and pause state are
   unaffected.

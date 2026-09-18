@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/BreakpointTable.h"
+#include "Debugger/DebugFile.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/WatchpointTable.h"
 
@@ -43,6 +44,8 @@ private:
     static constexpr int   kMaxLength    = 3;
 
     static void  SetAddress     (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SetSourceLine  (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static std::optional<int>  FindSourceFile (const DebugFile & file, const std::string & name);
     static void  SetCondition   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetWatchpoint  (DebugSession & session, const DebugCommand & command, WatchAccess access, Reply & reply);
     static void  SetBoth        (DebugSession & session, const DebugCommand & command, Reply & reply);

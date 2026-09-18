@@ -85,6 +85,11 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
         text = std::format ("Breakpoint #{} at ${:04X}", *stop.breakpointId, stop.pc);
     }
 
+    if (stop.sourceLine > 0)
+    {
+        text += std::format (", {} line {}", stop.sourceFile, stop.sourceLine);
+    }
+
     return text;
 }
 

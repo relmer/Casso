@@ -465,6 +465,11 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & args, DebugC
             return false;
         }
 
+        if (command.verb == DebugVerb::SetBreakpoint && TryParseSourceLine (args.tokens[0], *args.context, command))
+        {
+            return true;
+        }
+
         return TryParseRange (args.tokens[0], *args.context, command, error);
 
     case DebugVerb::SetMemoryWatchpoint:
@@ -887,6 +892,21 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return true;
     }
 
+    if (command.verb == DebugVerb::ShowSource && !args.tokens.empty())
+    {
+        mode = ToUpper (args.tokens[0]);
+
+        if (mode != "ON" && mode != "OFF")
+        {
+            error = "SRC ON steps by source line, SRC OFF by instruction; SRC alone shows the line at PC.";
+            return false;
+        }
+
+        command.verb  = DebugVerb::SetSourceStepping;
+        command.count = (mode == "ON") ? 1 : 0;
+        return true;
+    }
+
     if (command.verb == DebugVerb::SetBudget)
     {
         if (args.tokens.empty() || args.tokens[0].find_first_not_of ("0123456789") != std::string::npos)
@@ -937,6 +957,50 @@ bool AppleWinParser::TryEvaluate (
     }
 
     value = (Word) result;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseSourceLine
+//
+//  `file:line`, for a breakpoint on a source line. Told apart from AppleWin's
+//  `addr:addr` range by its left side, which does not evaluate as an address,
+//  and its right, which is a decimal line number. The session finds the
+//  line's address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseSourceLine (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command)
+{
+    size_t       colon  = text.rfind (':');
+    std::string  file;
+    std::string  line;
+    std::string  error;
+    Word         unused = 0;
+
+
+
+    if (colon == std::string::npos || colon == 0 || colon + 1 >= text.size())
+    {
+        return false;
+    }
+
+    file = text.substr (0, colon);
+    line = text.substr (colon + 1);
+
+    if (line.find_first_not_of ("0123456789") != std::string::npos || TryEvaluate (file, context, unused, error))
+    {
+        return false;
+    }
+
+    command.verb  = DebugVerb::SetSourceBreakpoint;
+    command.text  = file;
+    command.count = (uint32_t) std::stoul (line);
     return true;
 }
 
