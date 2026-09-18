@@ -310,4 +310,131 @@ void Disassembler::FormatOperand (
     default:
         break;
     }
+
+    SetOperandAddress (mode, zp, absolute, instruction);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::SetOperandAddress
+//
+//  A branch or jump names its destination, which FormatOperand has already
+//  worked out as the target; every other mode that reaches memory names the
+//  address in its operand bytes. Immediate, accumulator and implied modes
+//  name none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disassembler::SetOperandAddress (
+    GlobalAddressingMode::AddressingMode   mode,
+    Byte                                   zp,
+    Word                                   absolute,
+    DisassembledInstruction              & instruction)
+{
+    switch (mode)
+    {
+    case GlobalAddressingMode::ZeroPage:
+    case GlobalAddressingMode::ZeroPageX:
+    case GlobalAddressingMode::ZeroPageY:
+    case GlobalAddressingMode::ZeroPageXIndirect:
+    case GlobalAddressingMode::ZeroPageIndirectY:
+    case GlobalAddressingMode::ZeroPageIndirect:
+        instruction.hasOperandAddress = true;
+        instruction.operandAddress    = zp;
+        break;
+
+    case GlobalAddressingMode::Absolute:
+    case GlobalAddressingMode::AbsoluteX:
+    case GlobalAddressingMode::AbsoluteY:
+    case GlobalAddressingMode::JumpIndirect:
+    case GlobalAddressingMode::JumpIndirectCmos:
+    case GlobalAddressingMode::AbsoluteXIndirect:
+        instruction.hasOperandAddress = true;
+        instruction.operandAddress    = absolute;
+        break;
+
+    default:
+        instruction.hasOperandAddress = instruction.hasTarget;
+        instruction.operandAddress    = instruction.target;
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::SubstituteSymbol
+//
+//  The four-digit form is tried before the two-digit one, and the LAST match
+//  is the one replaced: a bit branch prints its zero-page byte first and its
+//  destination last, and the destination is the address it names.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Disassembler::SubstituteSymbol (const std::string & operand, Word address, const std::string & name)
+{
+    static constexpr Word  kLastZeroPage = 0x00FF;
+    std::string            forms[2]      = { std::format ("${:04X}", address), std::string() };
+    std::string            result        = operand;
+    size_t                 at            = std::string::npos;
+
+
+
+    if (name.empty())
+    {
+        return result;
+    }
+
+    if (address <= kLastZeroPage)
+    {
+        forms[1] = std::format ("${:02X}", address);
+    }
+
+    for (const std::string & form : forms)
+    {
+        at = form.empty() ? std::string::npos : result.rfind (form);
+
+        while (at != std::string::npos && !IsAddressAt (result, at, form.size()))
+        {
+            at = (at == 0) ? std::string::npos : result.rfind (form, at - 1);
+        }
+
+        if (at != std::string::npos)
+        {
+            return result.replace (at, form.size(), name);
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::IsAddressAt
+//
+//  Whether the dollar form at `at` is a whole address: not an immediate
+//  value (which is a number, not a location) and not the front of a longer
+//  hex number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disassembler::IsAddressAt (const std::string & operand, size_t at, size_t length)
+{
+    bool  isImmediate = at > 0 && operand[at - 1] == '#';
+    bool  runsOn      = at + length < operand.size() && std::isxdigit ((unsigned char) operand[at + length]);
+
+
+
+    return !isImmediate && !runsOn;
 }

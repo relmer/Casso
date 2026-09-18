@@ -269,12 +269,19 @@ void AppleWinFormatter::FormatMemory (const MemoryData & data, Lines & lines)
 void AppleWinFormatter::FormatDisassembly (const DisassemblyData & data, Lines & lines)
 {
     static constexpr size_t  kBytesColumn = 9;
+    size_t                   labelWidth   = 0;
 
 
 
     for (const DisassemblyLine & line : data.lines)
     {
+        labelWidth = std::max (labelWidth, line.label.size());
+    }
+
+    for (const DisassemblyLine & line : data.lines)
+    {
         std::string  bytes;
+        std::string  label;
         std::string  text;
 
 
@@ -285,16 +292,18 @@ void AppleWinFormatter::FormatDisassembly (const DisassemblyData & data, Lines &
         }
 
         bytes.resize (std::max (bytes.size(), kBytesColumn), ' ');
-        text = std::format ("{:04X}: {}{:<4} {}", line.instruction.address, bytes, line.instruction.mnemonic, line.instruction.operand);
+
+        if (labelWidth > 0)
+        {
+            label = std::format ("{:<{}} ", line.label, labelWidth);
+        }
+
+        text = std::format ("{:04X}: {}{}{:<4} {}", line.instruction.address, bytes, label,
+                            line.instruction.mnemonic, line.GetShownOperand());
 
         while (!text.empty() && text.back() == ' ')
         {
             text.pop_back();
-        }
-
-        if (!line.symbol.empty())
-        {
-            text += "  ; " + line.symbol;
         }
 
         lines.push_back (text);

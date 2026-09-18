@@ -20,6 +20,10 @@ class Microcode;
 //  #$A0, ($3E),Y); target is the absolute address a branch or jump goes to,
 //  when it has one.
 //
+//  `operandAddress` is the address the operand names, when it names one: the
+//  location for a direct or indexed mode, the pointer for an indirect one, the
+//  destination for a branch or jump. It is what a symbol is looked up by.
+//
 //  `isDefined` is false for an opcode the table has no instruction for and for
 //  an instruction the buffer ends inside. Both render as `???` over the bytes
 //  they cover, so a listing never invents an operand the bytes do not hold.
@@ -30,14 +34,16 @@ class Microcode;
 
 struct DisassembledInstruction
 {
-    Word               address    = 0;
+    Word               address           = 0;
     std::vector<Byte>  bytes;
     std::string        mnemonic;
     std::string        operand;
-    bool               hasTarget  = false;
-    Word               target     = 0;
-    bool               isDefined  = false;
-    bool               documented = false;
+    bool               hasTarget         = false;
+    Word               target            = 0;
+    bool               hasOperandAddress = false;
+    Word               operandAddress    = 0;
+    bool               isDefined         = false;
+    bool               documented        = false;
 };
 
 
@@ -84,15 +90,25 @@ public:
     //  `2000  A9 00     LDA #$00`, one line per instruction.
     static std::string  FormatLine (const DisassembledInstruction & line);
 
+    //  Operand text with the address it names written as a name instead:
+    //  `($06),Y` becomes `(PTR),Y`. The text comes back unchanged when the
+    //  address does not appear in it as an address, or the name is empty.
+    static std::string  SubstituteSymbol (const std::string & operand, Word address, const std::string & name);
+
 private:
     void  Decode (Word                      address,
                   std::span<const Byte>     bytes,
                   DisassembledInstruction & instruction) const;
 
-    static void  FormatOperand (GlobalAddressingMode::AddressingMode   mode,
-                                Word                                   address,
-                                std::span<const Byte>                  bytes,
-                                DisassembledInstruction              & instruction);
+    static void  FormatOperand     (GlobalAddressingMode::AddressingMode   mode,
+                                    Word                                   address,
+                                    std::span<const Byte>                  bytes,
+                                    DisassembledInstruction              & instruction);
+    static void  SetOperandAddress (GlobalAddressingMode::AddressingMode   mode,
+                                    Byte                                   zp,
+                                    Word                                   absolute,
+                                    DisassembledInstruction              & instruction);
+    static bool  IsAddressAt       (const std::string & operand, size_t at, size_t length);
 
     const Microcode * m_instructionSet = nullptr;
 };

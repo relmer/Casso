@@ -28,7 +28,7 @@ struct DebuggerViewSnapshot
         Word         address       = 0;
         std::string  bytes;
         std::string  instruction;
-        std::string  symbol;
+        std::string  label;
         bool         isCurrent     = false;
         bool         hasBreakpoint = false;
     };
@@ -105,8 +105,13 @@ struct DebuggerViewSnapshot
 class DebuggerViewState
 {
 public:
-    static constexpr int  kCodeLines   = 20;
-    static constexpr int  kMemoryRows  = 16;
+    static constexpr int       kCodeLines       = 20;
+    static constexpr int       kMemoryRows      = 16;
+    static constexpr uint64_t  kBuildIntervalMs = 16;   // one frame at 60 Hz
+
+    //  Whether the CPU thread should rebuild the snapshot now: every frame while
+    //  the machine runs, and at once after an action or a stop or start.
+    static bool  IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, uint64_t nowMs, uint64_t builtAtMs);
 
     //  Where the code and memory panes start. The code pane follows the PC
     //  unless the user moved it; the memory pane starts at the zero page.

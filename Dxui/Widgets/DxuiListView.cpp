@@ -52,6 +52,25 @@ void DxuiListView::SetRect (const RECT & rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetCellPaddingDip
+//
+//  Each side falls back to its own default on its own, so a caller that only
+//  wants to tighten one side can pass -1 for the other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetCellPaddingDip (int left, int right)
+{
+    m_cellPadLeftDip  = (left  >= 0) ? left  : s_kCellPadLeftDip;
+    m_cellPadRightDip = (right >= 0) ? right : s_kCellPadRightDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetColumns
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -507,9 +526,9 @@ int DxuiListView::GetTotalMeasuredWidthPx() const
 void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 {
     HRESULT  hr      = S_OK;
-    float    fontDip = (float) m_scaler.ToPxf (s_kFontDip);
+    float    fontDip = (float) m_scaler.ToPxf (m_fontDip);
     float    hdrDip  = (float) m_scaler.ToPxf (s_kHeaderFontDip);
-    int      padPx   = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
+    int      padPx   = m_scaler.ToPx (m_cellPadLeftDip) + m_scaler.ToPx (m_cellPadRightDip);
     float    w       = 0.0f;
     float    h       = 0.0f;
 
@@ -1081,8 +1100,8 @@ void DxuiListView::CenterOnRow (int row)
 int DxuiListView::GetColumnNaturalWidthPx (size_t c) const
 {
     int  wpx       = 0;
-    int  padPx     = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
-    int  perCharPx = (int) std::ceil (m_scaler.ToPxf (s_kFontDip) * s_kAutoCharWidthEm);
+    int  padPx     = m_scaler.ToPx (m_cellPadLeftDip) + m_scaler.ToPx (m_cellPadRightDip);
+    int  perCharPx = (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm);
 
 
 
@@ -1133,8 +1152,8 @@ int DxuiListView::GetColumnNaturalWidthPx (size_t c) const
 
 int DxuiListView::GetColumnContentWidthPx (size_t c) const
 {
-    int  padPx      = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
-    int  perCharPx  = (int) std::ceil (m_scaler.ToPxf (s_kFontDip) * s_kAutoCharWidthEm);
+    int  padPx      = m_scaler.ToPx (m_cellPadLeftDip) + m_scaler.ToPx (m_cellPadRightDip);
+    int  perCharPx  = (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm);
     int  measuredPx = 0;
     int  autoFitPx  = 0;
 
@@ -2439,7 +2458,7 @@ bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) co
         return false;
     }
 
-    left = colXPx[column] + colOff + m_scaler.ToPx (s_kCellPadLeftDip);
+    left = colXPx[column] + colOff + m_scaler.ToPx (m_cellPadLeftDip);
 
     if (column < GetRowCells (row).size() && GetRowCells (row)[column].icon)
     {
@@ -2650,8 +2669,8 @@ void DxuiListView::PaintHeader (
 {
     HRESULT  hr        = S_OK;
     float    headerH   = (float) m_scaler.ToPx (s_kHeaderHeightDip);
-    float    cellPadL  = (float) m_scaler.ToPx (s_kCellPadLeftDip);
-    float    cellPadR  = (float) m_scaler.ToPx (s_kCellPadRightDip);
+    float    cellPadL  = (float) m_scaler.ToPx (m_cellPadLeftDip);
+    float    cellPadR  = (float) m_scaler.ToPx (m_cellPadRightDip);
     float    hdrFontPx = (float) m_scaler.ToPxf (s_kHeaderFontDip);
     float    colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
 
@@ -2865,9 +2884,9 @@ void DxuiListView::PaintDataRows (
     float    rowH     = (float) GetRowHeightPx();
     float    headerH  = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0);
     float    hdrGap   = (float) (m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0);
-    float    cellPadL = (float) m_scaler.ToPx (s_kCellPadLeftDip);
-    float    cellPadR = (float) m_scaler.ToPx (s_kCellPadRightDip);
-    float    fontPx   = (float) m_scaler.ToPxf (s_kFontDip);
+    float    cellPadL = (float) m_scaler.ToPx (m_cellPadLeftDip);
+    float    cellPadR = (float) m_scaler.ToPx (m_cellPadRightDip);
+    float    fontPx   = (float) m_scaler.ToPxf (m_fontDip);
     float    colOff   = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
 
 

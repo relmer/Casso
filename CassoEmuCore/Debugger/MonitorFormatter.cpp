@@ -100,6 +100,10 @@ void MonitorFormatter::FormatMemory (const MemoryData & data, Lines & lines)
 //  column; an instruction with no operand loses its trailing spaces rather
 //  than carrying them to the end of the line.
 //
+//  The Monitor's layout has no label column, so a labeled line is preceded by
+//  a line holding the label, as an assembly listing sets a label on its own
+//  line; the instruction line itself keeps the Monitor's columns.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorFormatter::FormatDisassembly (const DisassemblyData & data, Lines & lines)
@@ -111,6 +115,11 @@ void MonitorFormatter::FormatDisassembly (const DisassemblyData & data, Lines & 
 
 
 
+        if (!line.label.empty())
+        {
+            lines.push_back (line.label + ":");
+        }
+
         for (Byte value : line.instruction.bytes)
         {
             bytes += (bytes.empty() ? "" : " ") + std::format ("{:02X}", value);
@@ -119,7 +128,7 @@ void MonitorFormatter::FormatDisassembly (const DisassemblyData & data, Lines & 
         bytes.resize (std::max (bytes.size(), kBytesColumn), ' ');
 
         text = std::format ("{:04X}-   {}{}   {}",
-                            line.instruction.address, bytes, line.instruction.mnemonic, line.instruction.operand);
+                            line.instruction.address, bytes, line.instruction.mnemonic, line.GetShownOperand());
 
         while (!text.empty() && text.back() == ' ')
         {

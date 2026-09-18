@@ -2092,7 +2092,6 @@ private:
     // The debugger window and what it is shown. The view state and the build
     // clock belong to the CPU thread; the snapshot and console lines cross to
     // the UI thread under the mutex.
-    static constexpr ULONGLONG       kDebugViewIntervalMs    = 100;
     std::unique_ptr<DebuggerWindow>  m_debuggerWindow;
     DebuggerViewState                m_debugViewState;
     ULONGLONG                        m_debugViewBuiltAt      = 0;

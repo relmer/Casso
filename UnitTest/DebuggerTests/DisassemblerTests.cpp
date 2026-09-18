@@ -220,5 +220,108 @@ namespace DebuggerTests
             hr = Disassembler (cpu.GetInstructionSet()).DisassembleOne (0x0300, bytes, instruction);
             Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr);
         }
+
+
+
+        ////////////////////////////////////////////////////////////////////////
+        //
+        //  OperandAddress
+        //
+        //  The address an operand names, which is what a symbol is looked up
+        //  by: the location itself for direct and indexed modes, the pointer
+        //  for indirect ones, and the destination for branches and jumps.
+        //
+        ////////////////////////////////////////////////////////////////////////
+
+        static Word OperandAddress (const Microcode * table, std::initializer_list<Byte> bytes)
+        {
+            DisassembledInstruction  instruction = Decode (table, 0x0300, bytes);
+
+
+
+            Assert::IsTrue (instruction.hasOperandAddress, L"the operand names an address");
+
+            return instruction.operandAddress;
+        }
+
+
+
+        TEST_METHOD (OperandAddress_EveryMemoryMode)
+        {
+            TestCpu  cpu;
+
+
+
+            cpu.InitForTest();
+            Assert::AreEqual ((Word) 0x0006, OperandAddress (cpu.GetInstructionSet(), { 0x85, 0x06 }));         // STA $06
+            Assert::AreEqual ((Word) 0x0006, OperandAddress (cpu.GetInstructionSet(), { 0x95, 0x06 }));         // STA $06,X
+            Assert::AreEqual ((Word) 0x0006, OperandAddress (cpu.GetInstructionSet(), { 0xB6, 0x06 }));         // LDX $06,Y
+            Assert::AreEqual ((Word) 0x0400, OperandAddress (cpu.GetInstructionSet(), { 0x8D, 0x00, 0x04 }));   // STA $0400
+            Assert::AreEqual ((Word) 0x0400, OperandAddress (cpu.GetInstructionSet(), { 0x9D, 0x00, 0x04 }));   // STA $0400,X
+            Assert::AreEqual ((Word) 0x0400, OperandAddress (cpu.GetInstructionSet(), { 0x99, 0x00, 0x04 }));   // STA $0400,Y
+            Assert::AreEqual ((Word) 0x0006, OperandAddress (cpu.GetInstructionSet(), { 0x91, 0x06 }));         // STA ($06),Y
+            Assert::AreEqual ((Word) 0x0006, OperandAddress (cpu.GetInstructionSet(), { 0x81, 0x06 }));         // STA ($06,X)
+            Assert::AreEqual ((Word) 0x0036, OperandAddress (cpu.GetInstructionSet(), { 0x6C, 0x36, 0x00 }));   // JMP ($0036)
+            Assert::AreEqual ((Word) 0xFDED, OperandAddress (cpu.GetInstructionSet(), { 0x20, 0xED, 0xFD }));   // JSR $FDED
+            Assert::AreEqual ((Word) 0x0304, OperandAddress (cpu.GetInstructionSet(), { 0xD0, 0x02 }));         // BNE $0304
+        }
+
+
+
+        TEST_METHOD (OperandAddress_CmosModes)
+        {
+            TestCpu65C02  cpu;
+
+
+
+            cpu.InitForTest();
+            Assert::AreEqual ((Word) 0x0006, OperandAddress (cpu.GetInstructionSet(), { 0xB2, 0x06 }));         // LDA ($06)
+            Assert::AreEqual ((Word) 0x1234, OperandAddress (cpu.GetInstructionSet(), { 0x7C, 0x34, 0x12 }));   // JMP ($1234,X)
+            Assert::AreEqual ((Word) 0x0313, OperandAddress (cpu.GetInstructionSet(), { 0x0F, 0x3E, 0x10 }));   // BBR0 $3E,$0313
+        }
+
+
+
+        TEST_METHOD (OperandAddress_AbsentWhereNoAddressIsNamed)
+        {
+            TestCpu  cpu;
+
+
+
+            cpu.InitForTest();
+            Assert::IsFalse (Decode (cpu.GetInstructionSet(), 0x0300, { 0xA9, 0x06 }).hasOperandAddress, L"immediate");
+            Assert::IsFalse (Decode (cpu.GetInstructionSet(), 0x0300, { 0x4A }).hasOperandAddress,       L"accumulator");
+            Assert::IsFalse (Decode (cpu.GetInstructionSet(), 0x0300, { 0x60 }).hasOperandAddress,       L"implied");
+            Assert::IsFalse (Decode (cpu.GetInstructionSet(), 0x0300, { 0x02 }).hasOperandAddress,       L"undefined");
+        }
+
+
+
+        TEST_METHOD (SubstituteSymbol_ReplacesTheAddressInEveryForm)
+        {
+            Assert::AreEqual (std::string ("PTR"),         Disassembler::SubstituteSymbol ("$06",       0x0006, "PTR"));
+            Assert::AreEqual (std::string ("PTR,X"),       Disassembler::SubstituteSymbol ("$06,X",     0x0006, "PTR"));
+            Assert::AreEqual (std::string ("(PTR),Y"),     Disassembler::SubstituteSymbol ("($06),Y",   0x0006, "PTR"));
+            Assert::AreEqual (std::string ("(PTR,X)"),     Disassembler::SubstituteSymbol ("($06,X)",   0x0006, "PTR"));
+            Assert::AreEqual (std::string ("SCREEN,X"),    Disassembler::SubstituteSymbol ("$0400,X",   0x0400, "SCREEN"));
+            Assert::AreEqual (std::string ("(VECT)"),      Disassembler::SubstituteSymbol ("($0036)",   0x0036, "VECT"));
+            Assert::AreEqual (std::string ("COUT"),        Disassembler::SubstituteSymbol ("$FDED",     0xFDED, "COUT"));
+        }
+
+
+
+        TEST_METHOD (SubstituteSymbol_ABitBranchNamesItsDestination)
+        {
+            Assert::AreEqual (std::string ("$3E,LOOP"), Disassembler::SubstituteSymbol ("$3E,$0313", 0x0313, "LOOP"));
+        }
+
+
+
+        TEST_METHOD (SubstituteSymbol_LeavesTextAloneWithoutAMatch)
+        {
+            Assert::AreEqual (std::string ("#$06"),  Disassembler::SubstituteSymbol ("#$06",  0x0006, "PTR"),  L"an immediate is a value, not an address");
+            Assert::AreEqual (std::string ("$0400"), Disassembler::SubstituteSymbol ("$0400", 0x0401, "X1"));
+            Assert::AreEqual (std::string ("$0400"), Disassembler::SubstituteSymbol ("$0400", 0x0400, ""),    L"no name, no change");
+        }
     };
 }

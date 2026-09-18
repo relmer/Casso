@@ -90,12 +90,64 @@ namespace DebuggerTests
             jsr.instruction.bytes    = { 0x20, 0xED, 0xFD };
             jsr.instruction.mnemonic = "JSR";
             jsr.instruction.operand  = "$FDED";
-            jsr.symbol               = "COUT";
             data.lines               = { lda, jsr };
             text                     = Render (data);
 
-            Assert::AreEqual (std::string ("0300: A9 41    LDA  #$41"),         text[0]);
-            Assert::AreEqual (std::string ("0302: 20 ED FD JSR  $FDED  ; COUT"), text[1]);
+            Assert::AreEqual (std::string ("0300: A9 41    LDA  #$41"),  text[0]);
+            Assert::AreEqual (std::string ("0302: 20 ED FD JSR  $FDED"), text[1]);
+        }
+
+
+
+        TEST_METHOD (Disassembly_OperandSymbolReplacesTheAddress)
+        {
+            DisassemblyData           data;
+            DisassemblyLine           sta;
+            std::vector<std::string>  text;
+
+
+
+            sta.instruction.address           = 0x0300;
+            sta.instruction.bytes             = { 0x91, 0x06 };
+            sta.instruction.mnemonic          = "STA";
+            sta.instruction.operand           = "($06),Y";
+            sta.instruction.hasOperandAddress = true;
+            sta.instruction.operandAddress    = 0x0006;
+            sta.operandSymbol                 = "PTR";
+            data.lines                        = { sta };
+            text                              = Render (data);
+
+            Assert::AreEqual (std::string ("0300: 91 06    STA  (PTR),Y"), text[0]);
+        }
+
+
+
+        TEST_METHOD (Disassembly_LabelsHaveTheirOwnColumn)
+        {
+            DisassemblyData           data;
+            DisassemblyLine           lda;
+            DisassemblyLine           jsr;
+            std::vector<std::string>  text;
+
+
+
+            lda.instruction.address           = 0x0300;
+            lda.instruction.bytes             = { 0xA9, 0x41 };
+            lda.instruction.mnemonic          = "LDA";
+            lda.instruction.operand           = "#$41";
+            lda.label                         = "START";
+            jsr.instruction.address           = 0x0302;
+            jsr.instruction.bytes             = { 0x20, 0xED, 0xFD };
+            jsr.instruction.mnemonic          = "JSR";
+            jsr.instruction.operand           = "$FDED";
+            jsr.instruction.hasOperandAddress = true;
+            jsr.instruction.operandAddress    = 0xFDED;
+            jsr.operandSymbol                 = "COUT";
+            data.lines                        = { lda, jsr };
+            text                              = Render (data);
+
+            Assert::AreEqual (std::string ("0300: A9 41    START LDA  #$41"), text[0]);
+            Assert::AreEqual (std::string ("0302: 20 ED FD       JSR  COUT"), text[1], L"a line without a label keeps the column");
         }
 
 

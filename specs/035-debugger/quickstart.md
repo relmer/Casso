@@ -75,8 +75,11 @@ and kill only the PID you started.
    breakpoint, watch and stack panes showing at least eight rows without
    scrolling.
 2. `SYM LOAD` a fixture debug file, then look at the disassembly. Expect each
-   line that has a symbol to show it in its own column, and `JSR`/`LDA`
-   operands to show the symbol with the numeric address beside it (FR-010a).
+   line that has a symbol to show it in its own column, and each operand that
+   names an address with a symbol to show the symbol in its place (`STA
+   (PTR),Y`, `JSR COUT`), in the window, `U`, Monitor `L` (label on its own
+   line) and the JSON record, which keeps the numeric operand beside
+   `operandSymbol` (FR-010a).
 3. Double-click a disassembly line. Expect a breakpoint in the list and
    `bpl` to list it; a second double-click clears it.
 4. Switch the keyboard scheme in preferences to AppleWin, then to GSSquared;

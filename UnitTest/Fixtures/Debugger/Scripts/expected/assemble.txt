@@ -8,4 +8,4 @@ Assembling at $0300; a blank line ends it.
 Assembly ended.
 >U 300:304
 0300: A9 41    LDA  #$41
-0302: 20 ED FD JSR  $FDED  ; COUT
+0302: 20 ED FD JSR  COUT

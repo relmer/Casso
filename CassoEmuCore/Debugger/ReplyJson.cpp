@@ -720,13 +720,15 @@ JsonValue ReplyJson::MakeDisassembly (const DisassemblyData & data)
             bytes.push_back (MakeNumber (b));
         }
 
-        lines.push_back (JsonValue (Members { { "address",    MakeNumber (line.instruction.address) },
-                                              { "bytes",      JsonValue (std::move (bytes)) },
-                                              { "mnemonic",   MakeString (line.instruction.mnemonic) },
-                                              { "operand",    MakeString (line.instruction.operand) },
-                                              { "target",     line.instruction.hasTarget ? MakeNumber (line.instruction.target) : JsonValue (nullptr) },
-                                              { "symbol",     line.symbol.empty() ? JsonValue (nullptr) : MakeString (line.symbol) },
-                                              { "documented", JsonValue (line.instruction.documented) } }));
+        lines.push_back (JsonValue (Members { { "address",        MakeNumber (line.instruction.address) },
+                                              { "bytes",          JsonValue (std::move (bytes)) },
+                                              { "mnemonic",       MakeString (line.instruction.mnemonic) },
+                                              { "operand",        MakeString (line.instruction.operand) },
+                                              { "operandAddress", line.instruction.hasOperandAddress ? MakeNumber (line.instruction.operandAddress) : JsonValue (nullptr) },
+                                              { "operandSymbol",  line.operandSymbol.empty() ? JsonValue (nullptr) : MakeString (line.operandSymbol) },
+                                              { "target",         line.instruction.hasTarget ? MakeNumber (line.instruction.target) : JsonValue (nullptr) },
+                                              { "label",          line.label.empty() ? JsonValue (nullptr) : MakeString (line.label) },
+                                              { "documented",     JsonValue (line.instruction.documented) } }));
     }
 
     return JsonValue (Members { { "kind", MakeString ("disassembly") }, { "lines", JsonValue (std::move (lines)) } });

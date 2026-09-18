@@ -294,10 +294,8 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
 //
 //  PublishDebuggerView
 //
-//  At most every kDebugViewIntervalMs while the machine runs, and at once
-//  after anything the window did. Each build runs several commands, so a
-//  running machine is not asked for one every frame; a stopped one changes
-//  only when someone acts, which is what marks the view dirty.
+//  Once a frame while the machine runs, and at once after anything the window
+//  did; DebuggerViewState::IsBuildDue says which.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -314,11 +312,8 @@ void EmulatorShell::PublishDebuggerView()
         return;
     }
 
-    //  A change between running and paused is due at once: a breakpoint that
-    //  just stopped the machine has to show where it stopped.
-    isDue = m_isDebugViewDirty ||
-            m_cpuManager.IsPaused() != m_wasPausedAtDebugBuild ||
-            (!m_cpuManager.IsPaused() && now - m_debugViewBuiltAt >= kDebugViewIntervalMs);
+    isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
+                                           now, m_debugViewBuiltAt);
 
     if (!isDue)
     {

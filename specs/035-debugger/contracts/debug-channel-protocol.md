@@ -107,7 +107,7 @@ Clients format them.
 |---|---|
 | `registers` | `a`, `x`, `y`, `p`, `s`, `pc`, `flags` (`{"n":bool,"v":…,"b":…,"d":…,"i":…,"z":…,"c":…}`) |
 | `memory` | `rows`: `[{"address":int,"bytes":[int],"region":"mainRam"|"auxRam"|"lcBank1"|"lcBank2"|"rom"|"slotRom"|"io"}]`; an unreadable I/O byte is `null` |
-| `disassembly` | `lines`: `[{"address":int,"bytes":[int],"mnemonic":str,"operand":str,"target":int|null,"symbol":str|null,"documented":bool}]` |
+| `disassembly` | `lines`: `[{"address":int,"bytes":[int],"mnemonic":str,"operand":str,"operandAddress":int|null,"operandSymbol":str|null,"target":int|null,"label":str|null,"documented":bool}]`. `operand` is always numeric; `operandSymbol` names `operandAddress` when a symbol is loaded, and `label` names `address` (or the data block the line starts). |
 | `breakpointSet`, `breakpointList` | `breakpoint` / `breakpoints`: `{"id","kind","address","last","opcode","condition","access","mode","enabled","hits"}` (absent fields omitted). `mode` is `after` or `before` on a memory watchpoint |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `[{"id","address","enabled","value"}]` |
 | `searchHits` | `addresses`: `[int]` |

@@ -77,9 +77,11 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
             hr = disassembler.DisassembleOne ((Word) address, bytes, line.instruction);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            if (line.instruction.hasTarget)
+            session.GetSymbols().TryFindName ((Word) address, line.label, symbolTable);
+
+            if (line.instruction.hasOperandAddress)
             {
-                session.GetSymbols().TryFindName (line.instruction.target, line.symbol, symbolTable);
+                session.GetSymbols().TryFindName (line.instruction.operandAddress, line.operandSymbol, symbolTable);
             }
         }
 
@@ -338,7 +340,7 @@ void DataDirectiveHandlers::MakeDataLine (IDebugTarget & target, const DataBlock
 
     if (address == block.first)
     {
-        line.symbol = block.name;
+        line.label = block.name;
     }
 }
 

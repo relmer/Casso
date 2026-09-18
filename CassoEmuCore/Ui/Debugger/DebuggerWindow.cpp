@@ -488,7 +488,7 @@ void DebuggerWindow::ApplySnapshot()
                           { std::format (L"{:04X}", line.address) },
                           { Widen (line.bytes) },
                           { Widen (line.instruction) },
-                          { Widen (line.symbol), true } });
+                          { Widen (line.label), true } });
     }
 
     m_codeList->SetRows (std::move (rows));

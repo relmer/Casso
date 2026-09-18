@@ -501,4 +501,61 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (viaSession.text.front(), viaWindow.text.front());
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  CadenceTests
+    //
+    //  When the CPU thread rebuilds the snapshot. A running machine gets one
+    //  every frame, so a device panel or the registers never lag the screen by
+    //  more than that; a stopped one is rebuilt only when something changes it,
+    //  which is an action from a way in or the machine stopping or starting.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (CadenceTests)
+    {
+    public:
+
+        static constexpr ULONGLONG  kFrame = DebuggerViewState::kBuildIntervalMs;
+
+
+
+        TEST_METHOD (ARunningMachineIsRebuiltEveryFrame)
+        {
+            Assert::IsTrue  (DebuggerViewState::IsBuildDue (false, false, false, 1000 + kFrame,     1000));
+            Assert::IsFalse (DebuggerViewState::IsBuildDue (false, false, false, 1000 + kFrame - 1, 1000));
+        }
+
+
+        TEST_METHOD (TheIntervalIsAtMostOneFrame)
+        {
+            //  FR-051: a panel updates at least once per frame, at 60 Hz.
+            Assert::IsTrue (kFrame <= 1000 / 60);
+        }
+
+
+        TEST_METHOD (AStoppedMachineIsNotRebuiltForTimeAlone)
+        {
+            Assert::IsFalse (DebuggerViewState::IsBuildDue (false, true, true, 1000 + 60000, 1000));
+        }
+
+
+        TEST_METHOD (StoppingOrStartingIsDueAtOnce)
+        {
+            Assert::IsTrue (DebuggerViewState::IsBuildDue (false, true,  false, 1000, 1000),  L"a breakpoint just stopped it");
+            Assert::IsTrue (DebuggerViewState::IsBuildDue (false, false, true,  1000, 1000),  L"it was just resumed");
+        }
+
+
+        TEST_METHOD (AnActionIsDueAtOnce)
+        {
+            Assert::IsTrue (DebuggerViewState::IsBuildDue (true, true,  true,  1000, 1000));
+            Assert::IsTrue (DebuggerViewState::IsBuildDue (true, false, false, 1000, 1000));
+        }
+    };
 }

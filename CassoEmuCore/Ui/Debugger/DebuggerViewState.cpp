@@ -12,6 +12,28 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::IsBuildDue
+//
+//  A change between running and paused is due at once: a breakpoint that just
+//  stopped the machine has to show where it stopped. A stopped machine changes
+//  only when someone acts, which is what marks the view dirty, so time alone
+//  never rebuilds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, uint64_t nowMs, uint64_t builtAtMs)
+{
+    return isDirty                 ||
+           isPaused != wasPaused   ||
+           (!isPaused && nowMs - builtAtMs >= kBuildIntervalMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::Build
 //
 //  Each pane's command runs in AppleWin mode whatever mode the user is in, so
@@ -84,8 +106,8 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
             row.address       = line.instruction.address;
             row.bytes         = bytes.empty() ? bytes : bytes.substr (0, bytes.size() - 1);
             row.instruction   = line.instruction.operand.empty() ? line.instruction.mnemonic
-                                                                 : line.instruction.mnemonic + " " + line.instruction.operand;
-            row.symbol        = line.symbol;
+                                                                 : line.instruction.mnemonic + " " + line.GetShownOperand();
+            row.label         = line.label;
             row.isCurrent     = row.address == snapshot.pc;
             row.hasBreakpoint = std::any_of (snapshot.breakpoints.begin(), snapshot.breakpoints.end(),
                                              [&] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.address == row.address; });

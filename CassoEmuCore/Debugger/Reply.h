@@ -105,10 +105,24 @@ struct MemoryData
     std::vector<MemoryRow>  rows;
 };
 
+//  `label` is the name at the line's own address (or the name of the data
+//  block it starts); `operandSymbol` is the name of the address its operand
+//  names. They are kept apart because a listing shows them in different
+//  places: the label in its own column, the operand symbol in the operand.
 struct DisassemblyLine
 {
     DisassembledInstruction  instruction;
-    std::string              symbol;
+    std::string              label;
+    std::string              operandSymbol;
+
+    //  The operand as a listing shows it, with the symbol in place of the
+    //  address it names when one is loaded.
+    std::string  GetShownOperand() const
+    {
+        return instruction.hasOperandAddress
+            ? Disassembler::SubstituteSymbol (instruction.operand, instruction.operandAddress, operandSymbol)
+            : instruction.operand;
+    }
 };
 
 struct DisassemblyData

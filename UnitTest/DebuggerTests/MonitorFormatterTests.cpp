@@ -157,6 +157,35 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (List_ALabelTakesItsOwnLineAndTheOperandIsSymbolic)
+        {
+            DisassemblyData           data;
+            DisassemblyLine           line;
+            Reply                     reply;
+            std::vector<std::string>  lines;
+
+
+
+            line.instruction.address           = 0x0300;
+            line.instruction.bytes             = { 0x91, 0x06 };
+            line.instruction.mnemonic          = "STA";
+            line.instruction.operand           = "($06),Y";
+            line.instruction.hasOperandAddress = true;
+            line.instruction.operandAddress    = 0x0006;
+            line.label                         = "LOOP";
+            line.operandSymbol                 = "PTR";
+
+            data.lines.push_back (line);
+            reply = MakeReply (data);
+            lines = Render (reply);
+
+            Assert::AreEqual (size_t (2), lines.size());
+            Assert::AreEqual (std::string ("LOOP:"),                           lines[0]);
+            Assert::AreEqual (std::string ("0300-   91 06       STA   (PTR),Y"), lines[1]);
+        }
+
+
+
         //  A three-byte instruction and a one-byte instruction keep the
         //  mnemonic in the same column.
         TEST_METHOD (List_KeepsTheMnemonicColumn)

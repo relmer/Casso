@@ -127,6 +127,67 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (Disassembly_CarriesLabelAndOperandSymbol)
+        {
+            DisassemblyData  data;
+            DisassemblyLine  line;
+            JsonValue        root;
+            std::string      text;
+            int              value = 0;
+
+
+
+            line.instruction.address           = 0x0300;
+            line.instruction.bytes             = { 0x91, 0x06 };
+            line.instruction.mnemonic          = "STA";
+            line.instruction.operand           = "($06),Y";
+            line.instruction.hasOperandAddress = true;
+            line.instruction.operandAddress    = 0x0006;
+            line.label                         = "LOOP";
+            line.operandSymbol                 = "PTR";
+            data.lines                         = { line };
+            root                               = ParseRecord (ReplyJson::WriteReply (MakeOk (data), std::nullopt));
+
+            const JsonValue & first = GetArrayMember (GetObjectMember (root, "data"), "lines").GetArrayElement (0);
+
+            Assert::AreEqual (S_OK, first.GetString ("operand", text));
+            Assert::AreEqual (std::string ("($06),Y"), text, L"the operand stays numeric; the symbol is its own field");
+            Assert::AreEqual (S_OK, first.GetInt ("operandAddress", value));
+            Assert::AreEqual (6, value);
+            Assert::AreEqual (S_OK, first.GetString ("operandSymbol", text));
+            Assert::AreEqual (std::string ("PTR"), text);
+            Assert::AreEqual (S_OK, first.GetString ("label", text));
+            Assert::AreEqual (std::string ("LOOP"), text);
+        }
+
+
+
+        TEST_METHOD (Disassembly_AbsentNamesAreNull)
+        {
+            DisassemblyData  data;
+            DisassemblyLine  line;
+            JsonValue        root;
+            std::string      record;
+
+
+
+            line.instruction.address  = 0x0300;
+            line.instruction.bytes    = { 0xA9, 0x06 };
+            line.instruction.mnemonic = "LDA";
+            line.instruction.operand  = "#$06";
+            data.lines                = { line };
+            record                    = ReplyJson::WriteReply (MakeOk (data), std::nullopt);
+            root                      = ParseRecord (record);
+
+            //  Present and null, so a client can tell "nothing to name" from an
+            //  older server that never sent the field.
+            Assert::AreNotEqual (std::string::npos, record.find ("\"label\":null"));
+            Assert::AreNotEqual (std::string::npos, record.find ("\"operandSymbol\":null"));
+            Assert::AreNotEqual (std::string::npos, record.find ("\"operandAddress\":null"));
+        }
+
+
+
         TEST_METHOD (Error_OmitsData_HasErrorObject)
         {
             Reply              reply;

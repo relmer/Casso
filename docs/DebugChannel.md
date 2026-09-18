@@ -182,7 +182,7 @@ already arrived.
 |---|---|
 | `registers` | `a`, `x`, `y`, `p`, `s`, `pc`, and `flags` with `n`, `v`, `b`, `d`, `i`, `z`, `c` as booleans |
 | `memory` | `rows`: `{address, bytes, region}`, where `region` is `mainRam`, `auxRam`, `lcBank1`, `lcBank2`, `rom`, `slotRom` or `io`. An I/O byte that cannot be read without side effects is `null` |
-| `disassembly` | `lines`: `{address, bytes, mnemonic, operand, target, symbol, documented}` |
+| `disassembly` | `lines`: `{address, bytes, mnemonic, operand, operandAddress, operandSymbol, target, label, documented}`. `operand` is always numeric; `operandSymbol` is the name of `operandAddress` and `label` the name of `address`, each `null` when none is loaded. |
 | `breakpointSet`, `breakpointList` | `breakpoint` or `breakpoints`: `{id, kind, address, last, opcode, condition, access, mode, enabled, hits}`, with absent fields left out |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `{id, address, enabled, value}` |
 | `searchHits` | `addresses` |

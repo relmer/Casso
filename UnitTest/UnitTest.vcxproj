@@ -542,6 +542,7 @@
     <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewMetricsTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTypeAheadTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewViewsTests.cpp" />

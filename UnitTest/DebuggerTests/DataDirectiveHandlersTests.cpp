@@ -100,6 +100,26 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (U_ShowsLoadedSymbols)
+        {
+            CpuRig                    rig;
+            std::vector<std::string>  lines;
+
+
+
+            //  $0300: STA ($06),Y / BNE $0300, with a name for each address.
+            Store (rig, 0x0300, { 0x91, 0x06, 0xD0, 0xFC });
+            rig.session.GetSymbols().Add (SymbolTableId::User, "LOOP", 0x0300);
+            rig.session.GetSymbols().Add (SymbolTableId::User, "PTR",  0x0006);
+
+            lines = rig.RunOk ("U 300:303").text;
+            Assert::AreEqual ((size_t) 2, lines.size());
+            Assert::AreEqual (std::string ("0300: 91 06    LOOP STA  (PTR),Y"), lines[0]);
+            Assert::AreEqual (std::string ("0302: D0 FC         BNE  LOOP"),    lines[1]);
+        }
+
+
+
         TEST_METHOD (U_HonorsDataBlocks_AndContinues)
         {
             CpuRig                    rig;
@@ -122,13 +142,13 @@ namespace DebuggerTests
 
             lines = rig.RunOk ("U 300:314").text;
             Assert::AreEqual ((size_t) 7, lines.size());
-            Assert::AreEqual (std::string ("0300: A9 41    LDA  #$41"),                         lines[0]);
-            Assert::AreEqual (std::string ("0302: 01 02 03 04 DB   $01,$02,$03,$04  ; B_0302"), lines[1]);
-            Assert::AreEqual (std::string ("0306: 60       RTS"),                               lines[2]);
-            Assert::AreEqual (std::string ("0307: 34 12 78 56 DW   $1234,$5678  ; W_0307"),     lines[3]);
-            Assert::AreEqual (std::string ("030B: C8 C9 8D ASC  \"HI.\"  ; T_030B"),            lines[4]);
-            Assert::AreEqual (std::string ("030E: ED FD    DA   $FDED  ; A_030E"),              lines[5]);
-            Assert::AreEqual (std::string ("0310: 81 40 00 00 00 DF   1.5  ; F_0310"),          lines[6]);
+            Assert::AreEqual (std::string ("0300: A9 41           LDA  #$41"),                lines[0]);
+            Assert::AreEqual (std::string ("0302: 01 02 03 04 B_0302 DB   $01,$02,$03,$04"), lines[1]);
+            Assert::AreEqual (std::string ("0306: 60              RTS"),                      lines[2]);
+            Assert::AreEqual (std::string ("0307: 34 12 78 56 W_0307 DW   $1234,$5678"),     lines[3]);
+            Assert::AreEqual (std::string ("030B: C8 C9 8D T_030B ASC  \"HI.\""),            lines[4]);
+            Assert::AreEqual (std::string ("030E: ED FD    A_030E DA   $FDED"),              lines[5]);
+            Assert::AreEqual (std::string ("0310: 81 40 00 00 00 F_0310 DF   1.5"),          lines[6]);
 
             lines = rig.RunOk ("U").text;
             Assert::AreEqual ((size_t) 20, lines.size(), L"U alone shows 20 lines");
