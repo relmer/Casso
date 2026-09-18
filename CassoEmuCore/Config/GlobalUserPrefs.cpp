@@ -82,7 +82,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "masterMuted",
     "screenshotMode",
     "screenshotSaveFile",
-    "screenshotFolder"
+    "screenshotFolder",
+    "debuggerKeyScheme"
 };
 
 
@@ -1127,6 +1128,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("screenshotSaveFile", JsonValue (screenshotSaveFile));
     root.emplace_back ("screenshotFolder",   JsonValue (screenshotFolder));
 
+    root.emplace_back ("debuggerKeyScheme",  JsonValue (debuggerKeyScheme));
+
     // Printer mechanical-audio prefs (FR-034).
     root.emplace_back ("printerAudioEnabled",     JsonValue (printerAudioEnabled));
     root.emplace_back ("printerAudioVolume",      JsonValue ((double) printerAudioVolume));
@@ -1334,6 +1337,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     screenshotMode     = GetStringOpt   (v, "screenshotMode",     screenshotMode);
     screenshotSaveFile = TryGetBoolOpt  (v, "screenshotSaveFile", screenshotSaveFile);
     screenshotFolder   = GetStringOpt   (v, "screenshotFolder",   screenshotFolder);
+
+    debuggerKeyScheme  = GetStringOpt   (v, "debuggerKeyScheme",  debuggerKeyScheme);
 
     // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
     // Legacy pre-toggle files stored the inverse `printerAudioMuted`; fall back

@@ -152,6 +152,7 @@
     <ClCompile Include="Core\DxuiAnimation.cpp" />
     <ClCompile Include="Core\DxuiDockLayout.cpp" />
     <ClCompile Include="Core\DxuiFocusManager.cpp" />
+    <ClCompile Include="Core\DxuiKeyMap.cpp" />
     <ClCompile Include="Core\DxuiFormLayout.cpp" />
     <ClCompile Include="Core\DxuiGridLayout.cpp" />
     <ClCompile Include="Core\DxuiHitTester.cpp" />
@@ -236,6 +237,7 @@
     <ClInclude Include="Core\DxuiDpiScaler.h" />
     <ClInclude Include="Core\DxuiEvents.h" />
     <ClInclude Include="Core\DxuiFocusManager.h" />
+    <ClInclude Include="Core\DxuiKeyMap.h" />
     <ClInclude Include="Core\DxuiFormLayout.h" />
     <ClInclude Include="Core\DxuiGridLayout.h" />
     <ClInclude Include="Core\DxuiHitTester.h" />

@@ -128,6 +128,8 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     hr = DxuiWindow::Create (params);
     CHR (hr);
 
+    ApplyKeyScheme (GetSavedKeyScheme());
+
     SetTheme (m_theme);
     Show();
 
@@ -149,10 +151,12 @@ void DebuggerWindow::OnCreate()
 {
     m_stepButton        = CreateChild<DxuiButton>    (L"Step");
     m_stepOverButton    = CreateChild<DxuiButton>    (L"Step Over");
+    m_stepOutButton     = CreateChild<DxuiButton>    (L"Step Out");
     m_runButton         = CreateChild<DxuiButton>    (L"Run");
     m_runToCursorButton = CreateChild<DxuiButton>    (L"Run to Cursor");
     m_pauseButton       = CreateChild<DxuiButton>    (L"Pause");
     m_followPcButton    = CreateChild<DxuiButton>    (L"Follow PC");
+    m_keysButton        = CreateChild<DxuiButton>    (L"Keys");
     m_flagsLabel        = CreateChild<DxuiLabel>     (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_codeList          = CreateChild<DxuiListView>  ();
     m_registerList      = CreateChild<DxuiListView>  ();
@@ -193,6 +197,7 @@ void DebuggerWindow::ConfigureWidgets()
 
     m_stepButton->SetOnClick     ([run] { run (DebuggerViewState::GetStepLine());     });
     m_stepOverButton->SetOnClick ([run] { run (DebuggerViewState::GetStepOverLine()); });
+    m_stepOutButton->SetOnClick  ([run] { run (DebuggerViewState::GetStepOutLine());  });
     m_runButton->SetOnClick      ([run] { run (DebuggerViewState::GetRunLine());      });
 
     //  Pause is not a command line: it is the channel's pause, which stops a
@@ -210,6 +215,7 @@ void DebuggerWindow::ConfigureWidgets()
     });
 
     m_followPcButton->SetOnClick ([this] { if (m_host != nullptr) { m_host->SetDebuggerCodeAddress (std::nullopt); } });
+    m_keysButton->SetOnClick     ([this] { CycleKeyScheme(); });
 
     m_pokeButton->SetOnClick ([this] { SubmitPokeBox(); });
 
@@ -291,6 +297,268 @@ void DebuggerWindow::ConfigureWidgets()
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_memoryList, m_consoleList };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetToolbarButtons
+//
+//  Left to right, in the order they are laid out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiButton *> DebuggerWindow::GetToolbarButtons() const
+{
+    return { m_stepButton, m_stepOverButton, m_stepOutButton, m_runButton, m_runToCursorButton,
+             m_pauseButton, m_followPcButton, m_keysButton };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPressTargets
+//
+//  Every control a mouse press is offered to before the lists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
+{
+    std::vector<IDxuiControl *>  targets;
+
+
+
+    for (DxuiButton * button : GetToolbarButtons())
+    {
+        targets.push_back (button);
+    }
+
+    targets.insert (targets.end(), { m_pokeButton, m_commandBox, m_memoryBox, m_pokeBox });
+
+    return targets;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFocusedBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetFocusedBox() const
+{
+    IDxuiControl  * focused = m_focusMgr.GetFocusedControl();
+
+
+
+    for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
+    {
+        if (focused != nullptr && focused == box)
+        {
+            return box;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunCommand (const std::string & line)
+{
+    if (m_host != nullptr)
+    {
+        m_host->RunDebuggerCommand (line);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetSavedKeyScheme
+//
+//  A name this build does not know reads as the default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerKeyScheme DebuggerWindow::GetSavedKeyScheme() const
+{
+    DebuggerKeyScheme  scheme = DebuggerKeySchemes::kDefault;
+
+
+
+    if (m_host != nullptr && !DebuggerKeySchemes::TryParse (m_host->GetDebuggerKeyScheme(), scheme))
+    {
+        scheme = DebuggerKeySchemes::kDefault;
+    }
+
+    return scheme;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyKeyScheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
+{
+    const DxuiKeyMap &  map = DebuggerKeySchemes::GetMap (scheme);
+
+
+
+    m_keyScheme = scheme;
+    SetKeyMap (&map);
+
+    if (m_keysButton != nullptr)
+    {
+        m_keysButton->SetLabel (L"Keys: " + map.GetName());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CycleKeyScheme
+//
+//  Visual Studio, AppleWin, GSSquared, and round again; the choice is saved at
+//  once, so it holds whether or not the window is closed cleanly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CycleKeyScheme()
+{
+    static constexpr DebuggerKeyScheme  kOrder[] = { DebuggerKeyScheme::VisualStudio,
+                                                     DebuggerKeyScheme::AppleWin,
+                                                     DebuggerKeyScheme::GSSquared };
+    size_t                              next     = 0;
+
+
+
+    for (size_t i = 0; i < std::size (kOrder); ++i)
+    {
+        if (kOrder[i] == m_keyScheme)
+        {
+            next = (i + 1) % std::size (kOrder);
+        }
+    }
+
+    ApplyKeyScheme (kOrder[next]);
+
+    if (m_host != nullptr)
+    {
+        m_host->SetDebuggerKeyScheme (DebuggerKeySchemes::GetName (kOrder[next]));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnMappedCommand
+//
+//  Every action is the command its button sends, except Pause, which is the
+//  channel's pause. A cursor action with no line to act on still consumes the
+//  key, so it does not fall through to anything else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::OnMappedCommand (int commandId)
+{
+    DebuggerKeySchemes::Action  action = (DebuggerKeySchemes::Action) commandId;
+    std::optional<std::string>  line;
+    int                         row    = (m_codeList != nullptr) ? m_codeList->GetSelectedRow() : -1;
+
+
+
+    if (action == DebuggerKeySchemes::Action::Pause)
+    {
+        if (m_host != nullptr)
+        {
+            m_host->PauseDebugger();
+        }
+
+        return true;
+    }
+
+    line = DebuggerViewState::GetActionLine (action, m_snapshot.get(), row);
+
+    if (line.has_value())
+    {
+        RunCommand (*line);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteBoxKey
+//
+//  A key-down in a focused text box that the box does not keep goes to the
+//  scheme first. When the scheme took a Space, the character WM_CHAR delivers
+//  for it is swallowed, or an empty box that stepped would be left holding a
+//  space. Returns true when the key was decided here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
+{
+    DxuiTextInput  * box     = GetFocusedBox();
+    bool             decided = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Char)
+    {
+        decided        = m_swallowSpace && ev.vk == L' ';
+        handled        = decided;
+        m_swallowSpace = false;
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && box != nullptr &&
+             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, box->GetText().empty()) &&
+             RouteMappedKey (ev))
+    {
+        m_swallowSpace = ev.vk == VK_SPACE;
+        handled        = true;
+        decided        = true;
+    }
+
+    return decided;
 }
 
 
@@ -381,9 +649,9 @@ void DebuggerWindow::LayoutWidgets()
         return;
     }
 
-    for (DxuiButton * button : { m_stepButton, m_stepOverButton, m_runButton, m_runToCursorButton, m_pauseButton, m_followPcButton })
+    for (DxuiButton * button : GetToolbarButtons())
     {
-        int  w = px ((button == m_runToCursorButton) ? 120 : 96);
+        int  w = px ((button == m_keysButton) ? 170 : (button == m_runToCursorButton) ? 120 : 96);
 
         button->Layout (RECT { x, rowY, x + w, rowY + buttonH }, m_scaler);
         x += w + pad;
@@ -771,10 +1039,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        for (DxuiButton * button : { m_stepButton, m_stepOverButton, m_runButton, m_runToCursorButton, m_pauseButton, m_followPcButton, m_pokeButton })
+        for (DxuiButton * button : GetToolbarButtons())
         {
             button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
         }
+
+        m_pokeButton->SetMouse (x, y, m_pokeButton->HitTest (x, y) && lbDown);
 
         for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
         {
@@ -789,9 +1059,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             return true;
         }
 
-        for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { m_stepButton, m_stepOverButton, m_runButton, m_runToCursorButton,
-                                                                               m_pauseButton, m_followPcButton, m_pokeButton,
-                                                                               m_commandBox, m_memoryBox, m_pokeBox })
+        for (IDxuiControl * control : GetPressTargets())
         {
             OfferPress (control, ev, handled);
         }
@@ -811,9 +1079,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Up:
-        for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { m_stepButton, m_stepOverButton, m_runButton, m_runToCursorButton,
-                                                                               m_pauseButton, m_followPcButton, m_pokeButton,
-                                                                               m_commandBox, m_memoryBox, m_pokeBox })
+        for (IDxuiControl * control : GetPressTargets())
         {
             control->OnMouse (ev);
         }
@@ -862,6 +1128,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     bool            handled = false;
 
 
+
+    if (RouteBoxKey (ev, handled))
+    {
+        return handled;
+    }
 
     if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN)
     {

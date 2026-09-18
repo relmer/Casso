@@ -504,6 +504,8 @@ private:
     bool    TakeDebuggerUpdate       (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
                                       std::vector<std::string>                     & consoleLines) override;
     void    OnDebuggerWindowClosed   () override;
+    std::string  GetDebuggerKeyScheme () override;
+    void         SetDebuggerKeyScheme (const std::string & name) override;
 
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.

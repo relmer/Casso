@@ -298,6 +298,27 @@ public:
     }
 
 
+    TEST_METHOD (DebuggerKeyScheme_DefaultsToVisualStudioAndRoundTrips)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     saved;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr;
+
+        Assert::AreEqual (string ("VisualStudio"), saved.debuggerKeyScheme);
+
+        saved.debuggerKeyScheme = "AppleWin";
+
+        hr = saved.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (string ("AppleWin"), loaded.debuggerKeyScheme);
+    }
+
+
     TEST_METHOD (Screenshot_MissingKeysKeepDefaults)
     {
         InMemoryFileSystem  fs;

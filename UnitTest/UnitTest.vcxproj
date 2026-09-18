@@ -198,6 +198,7 @@
     <ClCompile Include="DebuggerTests\DebugChannelServerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\InstanceDirectoryTests.cpp" />
     <ClCompile Include="DebuggerTests\Win32PipeTransportTests.cpp" />
     <ClCompile Include="DebuggerTests\EmulatorDebugWiringTests.cpp" />
@@ -543,6 +544,7 @@
     <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewMetricsTests.cpp" />
+    <ClCompile Include="Dxui\DxuiKeyMapTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTypeAheadTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewViewsTests.cpp" />

@@ -1026,7 +1026,36 @@ DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
     ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     ev.alt   = (GetKeyState (VK_MENU)    & 0x8000) != 0;
 
-    return OnKey (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    return (OnKey (ev) || RouteMappedKey (ev)) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RouteMappedKey
+//
+//  Key-downs only: a map binds presses, and a release of a mapped key must
+//  not run its command a second time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::RouteMappedKey (const DxuiKeyEvent & ev)
+{
+    int   commandId = 0;
+    bool  isHandled = false;
+
+
+
+    if (m_keyMap != nullptr && ev.kind == DxuiKeyEventKind::Down &&
+        m_keyMap->TryTranslate (ev.vk, ev.ctrl, ev.alt, ev.shift, commandId))
+    {
+        isHandled = OnMappedCommand (commandId);
+    }
+
+    return isHandled;
 }
 
 

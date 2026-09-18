@@ -7,6 +7,7 @@
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Seams/IHostDialogs.h"
+#include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 
 struct CassoTheme;
@@ -43,6 +44,11 @@ public:
 
     //  The file pickers the R and W prompt opens.
     virtual IHostDialogs &  GetHostDialogs () noexcept                     = 0;
+
+    //  The keyboard scheme preference, by name. Saving it is the host's, so
+    //  the choice survives the window.
+    virtual std::string  GetDebuggerKeyScheme ()                           = 0;
+    virtual void         SetDebuggerKeyScheme (const std::string & name)   = 0;
 };
 
 
@@ -86,6 +92,7 @@ protected:
     void     Layout          (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool     OnMouse         (const DxuiMouseEvent & ev) override;
     bool     OnKey           (const DxuiKeyEvent   & ev) override;
+    bool     OnMappedCommand (int commandId) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
@@ -102,27 +109,39 @@ private:
     void     SubmitPokeBox    ();
     void     SubmitMemoryBox  ();
     void     AppendConsole    (const std::vector<std::string> & lines);
+    void     RunCommand       (const std::string & line);
+    void     ApplyKeyScheme   (DebuggerKeyScheme scheme);
+    DebuggerKeyScheme  GetSavedKeyScheme () const;
+    void     CycleKeyScheme   ();
+    bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
-    std::vector<DxuiListView *>  GetLists () const;
+    std::vector<DxuiListView *>  GetLists          () const;
+    std::vector<DxuiButton *>    GetToolbarButtons () const;
+    std::vector<IDxuiControl *>  GetPressTargets   () const;
+    DxuiTextInput *              GetFocusedBox     () const;
 
-    const CassoTheme     * m_theme     = nullptr;
-    IDebuggerWindowHost  * m_host      = nullptr;
+    const CassoTheme     * m_theme        = nullptr;
+    IDebuggerWindowHost  * m_host         = nullptr;
     DxuiDpiScaler          m_scaler;
-    int                    m_widthDip  = 0;
-    int                    m_heightDip = 0;
+    int                    m_widthDip     = 0;
+    int                    m_heightDip    = 0;
     DxuiFocusManager       m_focusMgr;
+    DebuggerKeyScheme      m_keyScheme    = DebuggerKeySchemes::kDefault;
+    bool                   m_swallowSpace = false;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
 
     DxuiButton                                    * m_stepButton        = nullptr;
     DxuiButton                                    * m_stepOverButton    = nullptr;
+    DxuiButton                                    * m_stepOutButton     = nullptr;
     DxuiButton                                    * m_runButton         = nullptr;
     DxuiButton                                    * m_runToCursorButton = nullptr;
     DxuiButton                                    * m_pauseButton       = nullptr;
     DxuiButton                                    * m_followPcButton    = nullptr;
+    DxuiButton                                    * m_keysButton        = nullptr;
     DxuiLabel                                     * m_flagsLabel        = nullptr;
     DxuiListView                                  * m_codeList          = nullptr;
     DxuiListView                                  * m_registerList      = nullptr;

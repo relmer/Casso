@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/Reply.h"
+#include "Ui/Debugger/DebuggerKeySchemes.h"
 
 class DebugSession;
 
@@ -129,8 +130,17 @@ public:
     static std::string  GetPokeLine             (Word address, Byte value);
     static std::string  GetStepLine             ()             { return "T"; }
     static std::string  GetStepOverLine         ()             { return "P"; }
+    static std::string  GetStepOutLine          ()             { return "RTS"; }
     static std::string  GetRunLine              ()             { return "G"; }
     static std::string  GetRunToCursorLine      (Word address);
+
+    //  The command line a keyboard-scheme action sends, which is the line its
+    //  button sends. The cursor actions use the selected code line (toggling
+    //  falls back to the PC's line); Pause has no line, since it is the
+    //  channel's pause rather than a command.
+    static std::optional<std::string>  GetActionLine (DebuggerKeySchemes::Action   action,
+                                                      const DebuggerViewSnapshot * snapshot,
+                                                      int                          selectedRow);
 
     //  A line from the window's command box, run and formatted exactly as batch
     //  mode runs and formats it. CPU thread only.

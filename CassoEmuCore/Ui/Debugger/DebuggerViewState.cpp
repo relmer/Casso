@@ -182,6 +182,70 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetActionLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::string> DebuggerViewState::GetActionLine (
+    DebuggerKeySchemes::Action   action,
+    const DebuggerViewSnapshot * snapshot,
+    int                          selectedRow)
+{
+    using Action = DebuggerKeySchemes::Action;
+
+    std::optional<std::string>  line;
+    std::optional<Word>         selected;
+    std::optional<Word>         current;
+
+
+
+    if (snapshot != nullptr && selectedRow >= 0 && selectedRow < (int) snapshot->code.size())
+    {
+        selected = snapshot->code[(size_t) selectedRow].address;
+    }
+
+    if (snapshot != nullptr)
+    {
+        current = selected.has_value() ? selected : std::optional<Word> (snapshot->pc);
+    }
+
+    switch (action)
+    {
+    case Action::Run:      line = GetRunLine();      break;
+    case Action::StepInto: line = GetStepLine();     break;
+    case Action::StepOver: line = GetStepOverLine(); break;
+    case Action::StepOut:  line = GetStepOutLine();  break;
+
+    case Action::RunToCursor:
+        if (selected.has_value())
+        {
+            line = GetRunToCursorLine (*selected);
+        }
+
+        break;
+
+    case Action::ToggleBreakpoint:
+        if (current.has_value())
+        {
+            line = GetToggleBreakpointLine (*snapshot, *current);
+        }
+
+        break;
+
+    case Action::Pause:
+    default:
+        break;
+    }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetToggleBreakpointLine
 //
 //  A click sets a breakpoint where there is none and clears the one that is

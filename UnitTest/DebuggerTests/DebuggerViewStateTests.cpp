@@ -8,6 +8,7 @@
 #include "InMemoryPipeTransport.h"
 #include "MockDebugTarget.h"
 #include "Shell/CpuManager.h"
+#include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "UiTests/InMemoryFileSystem.h"
 
@@ -499,6 +500,99 @@ namespace DebuggerViewStateTests
                               !rig.view.GetCodeAddress().has_value(), L"a Monitor line without / is the Monitor's");
             Assert::AreEqual (viaSession.text.size(), viaWindow.text.size());
             Assert::AreEqual (viaSession.text.front(), viaWindow.text.front());
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ActionTests
+    //
+    //  What each keyboard-scheme action sends. A key and the button it stands
+    //  for produce the same command line, so a key is only a faster click.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ActionTests)
+    {
+    public:
+
+        using Action = DebuggerKeySchemes::Action;
+
+
+
+        static DebuggerViewSnapshot TwoLines()
+        {
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            snapshot.pc = 0x0300;
+            snapshot.code.push_back ({ 0x0300, "A9 41",    "LDA #$41",   "", true,  false });
+            snapshot.code.push_back ({ 0x0302, "8D 00 04", "STA $0400",  "", false, false });
+            return snapshot;
+        }
+
+
+
+        TEST_METHOD (RunAndStepsAreTheirCommands)
+        {
+            DebuggerViewSnapshot  snapshot = TwoLines();
+
+
+
+            Assert::AreEqual (DebuggerViewState::GetRunLine(),      *DebuggerViewState::GetActionLine (Action::Run,      &snapshot, -1));
+            Assert::AreEqual (DebuggerViewState::GetStepLine(),     *DebuggerViewState::GetActionLine (Action::StepInto, &snapshot, -1));
+            Assert::AreEqual (DebuggerViewState::GetStepOverLine(), *DebuggerViewState::GetActionLine (Action::StepOver, &snapshot, -1));
+            Assert::AreEqual (std::string ("RTS"),                  *DebuggerViewState::GetActionLine (Action::StepOut,  &snapshot, -1));
+        }
+
+
+        TEST_METHOD (PauseIsNotACommandLine)
+        {
+            DebuggerViewSnapshot  snapshot = TwoLines();
+
+
+
+            Assert::IsFalse (DebuggerViewState::GetActionLine (Action::Pause, &snapshot, 0).has_value());
+        }
+
+
+        TEST_METHOD (CursorActionsUseTheSelectedLine)
+        {
+            DebuggerViewSnapshot  snapshot = TwoLines();
+
+
+
+            Assert::AreEqual (DebuggerViewState::GetRunToCursorLine (0x0302),
+                              *DebuggerViewState::GetActionLine (Action::RunToCursor, &snapshot, 1));
+            Assert::AreEqual (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0302),
+                              *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, 1));
+        }
+
+
+        TEST_METHOD (ToggleWithNothingSelectedUsesThePcLine)
+        {
+            DebuggerViewSnapshot  snapshot = TwoLines();
+
+
+
+            Assert::AreEqual (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300),
+                              *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, -1));
+        }
+
+
+        TEST_METHOD (RunToCursorWithNothingSelectedDoesNothing)
+        {
+            DebuggerViewSnapshot  snapshot = TwoLines();
+
+
+
+            Assert::IsFalse (DebuggerViewState::GetActionLine (Action::RunToCursor, &snapshot, -1).has_value());
+            Assert::IsFalse (DebuggerViewState::GetActionLine (Action::RunToCursor, nullptr,   0).has_value(), L"no snapshot yet");
         }
     };
 

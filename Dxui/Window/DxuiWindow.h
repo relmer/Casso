@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiFocusManager.h"
+#include "Core/DxuiKeyMap.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/IDxuiHostClient.h"
 
@@ -191,6 +192,12 @@ public:
     //  prior control drops its caret / focus cue and the new one arms.
     void     FocusControl    (IDxuiControl * ctl) { m_focus.SetFocused (ctl); }
 
+    //  The map a key-down nothing claimed is looked up in, borrowed; null
+    //  looks nothing up. Swapping it is how an application changes keyboard
+    //  scheme. A match goes to OnMappedCommand.
+    void                SetKeyMap (const DxuiKeyMap * map) { m_keyMap = map; }
+    const DxuiKeyMap *  GetKeyMap () const                 { return m_keyMap; }
+
     bool     IsCreated  () const { return m_source != nullptr; }
     HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
 
@@ -256,6 +263,16 @@ protected:
     //  no-op (a plain dialog has no page tabs).
     //
     virtual bool  OnDialogTabSwitch (bool backward) { UNREFERENCED_PARAMETER (backward); return false; }
+
+    //
+    //  A key-down no control claimed, translated through the key map. Return
+    //  true if the command was carried out. Default: not handled.
+    //
+    virtual bool  OnMappedCommand (int commandId) { UNREFERENCED_PARAMETER (commandId); return false; }
+
+    //  Looks an unclaimed key up in the map and hands a match to
+    //  OnMappedCommand. DispatchKey calls it after OnKey declines.
+    bool  RouteMappedKey (const DxuiKeyEvent & ev);
 
     //
     //  Modal in-content overlay (e.g. the Settings color picker). While
@@ -336,6 +353,7 @@ private:
     HWND                               m_ownerHwnd       = nullptr;
     const IDxuiTheme                 * m_theme           = nullptr;
     IDxuiControl                     * m_initialFocus    = nullptr;
+    const DxuiKeyMap                 * m_keyMap          = nullptr;
     DxuiFocusManager                   m_focus;
     bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
     bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)

@@ -219,6 +219,11 @@ struct GlobalUserPrefs
     bool         screenshotSaveFile       = true;
     std::string  screenshotFolder;
 
+    // The debugger window's keyboard scheme, by name: "VisualStudio",
+    // "AppleWin" or "GSSquared". Stored as the name for the same reason as
+    // screenshotMode; the window reads an unknown name as the default.
+    std::string  debuggerKeyScheme        = "VisualStudio";
+
     // Master output volume (the chrome toolbar's slider + mute): one gain over
     // the completed audio mix, so speaker, drives, printer, and Mockingboard
     // scale together. Mute keeps the slider value; the mix just gets gain 0.
