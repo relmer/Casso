@@ -722,3 +722,290 @@ The test runs each fixture script twice and compares output bytes.
 
 **Rationale**: FR-009, SC-004. Persisted disk writes and the DRAM seed are the
 two inputs that would otherwise drift between runs.
+
+
+## R-020: What the 2026-09-17 comparison found
+
+**Decision**: the engine stays; the work is the window, the trace, device
+panels, and source-level debugging.
+
+**Rationale**: measured against GSSquared's and AppleWin's published
+documentation, the shipped engine is at parity or ahead on command language,
+scripting, attach, symbols, watchpoints and conditional breakpoints (spec
+Overview). The gaps are all in what a user sees: the first window's row
+height, blank symbol column and one-row panes; no retained instruction trace;
+no device panels; no source view.
+
+**Alternatives considered**: shipping the engine and window as they stood and
+doing the rest as a later feature. Rejected by the owner: nothing here is on a
+schedule, and a first release that trails both competitors in the visible
+parts would waste the launch.
+
+## R-021: cc65's debug-info format, version 2
+
+**Decision**: both assemblers emit cc65's format; the reader accepts it from
+any assembler; the earlier `NAME=$ADDR` file is still read.
+
+**Facts, from cc65's reader source (`src/dbginfo/dbginfo.c`) and
+`src/common/lidefs.h`**:
+
+- Records and keys: `version major=2,minor=0`; `info` with per-type counts;
+  `file` with `id`, `name`, `size`, `mtime`, `mod`; `line` with `id`, `file`,
+  `line`, `type`, `count`, `span` (several, joined with `+`); `span` with
+  `id`, `seg`, `start`, `size`, `type`; `seg` with `id`, `name`, `start`,
+  `size`, `addrsize`, `type`, `oname`, `ooffs`; `sym` with `id`, `name`,
+  `addrsize`, `size`, `scope`, `def`, `ref`, `val`, `seg`, `type`, `exp`,
+  `parent`; `scope` with `id`, `name`, `type`, `size`, `parent`, `module`;
+  `mod` with `id`, `name`, `file`, `lib`; `csym` and `type` for C.
+- `span.start` is relative to its segment; `seg.start` places the segment.
+  That is the relocatable form FR-033 asks for.
+- `line.type` is `LI_TYPE_ASM` (0), `LI_TYPE_EXT` (1), `LI_TYPE_MACRO` (2) or
+  `LI_TYPE_MACPARAM` (3), and `line.count` is the macro nesting depth. cc65
+  writes one `line` record for the macro body line (type 2, count n) and
+  another for the invocation line (type 0), both listing the same spans, which
+  is exactly the "map to both" behavior FR-033a asks for.
+- An unknown record type, or an unknown key inside a known record, is skipped
+  with a warning. So a `sha1=` key on `file` records is read by Casso and
+  ignored by cc65-based tools.
+- cc65's linker writes `.dbg` by default, the same extension as Casso's
+  earlier symbol file. `SymbolFileReader::Detect` already recognizes formats
+  from contents, so the extension collision costs nothing.
+- cc65's own wiki says the format is subject to change; this feature pins
+  version 2 and its reader rejects any other major version.
+
+**What Casso emits**: `version`, `info`, `file` (with `sha1`), `line`, `span`,
+`seg`, `sym`, `mod`, `scope`. No `csym` or `type`. One `seg` per output for
+as65's flat model; Merlin's `SAV` outputs become one `mod` each. `sym` records
+carry `val` and `seg`; local and macro-generated labels get `scope` records so
+the source view can tell them from top-level symbols.
+
+**SHA-1**: computed over the file's text with `\r\n` and `\r` normalized to
+`\n`, over UTF-8 bytes. Implemented in `CassoCore/Core/Sha1` from RFC 3174
+(about 120 lines) and tested against the RFC's vectors, rather than through a
+system API seam, because a pure function is what the constitution's
+testability rule asks for and the algorithm is small.
+
+**Alternatives considered**: keeping `NAME=$ADDR` and adding line records to
+it. Rejected: it would be a third private format when a documented one with
+existing readers (Mesen, VS Code extensions) fits.
+
+## R-022: Merlin 8/16 listings as a source view
+
+**Decision**: a Merlin 8/16 listing loads as a debug file whose source is the
+listing; Merlin 32 is GH #153.
+
+**What is known**: R-009 captured a MAKE DUMP.S listing from Merlin Pro 2.23
+under emulation, which fixed the symbol-table layout. The listing body has a
+line number, an address, up to three bytes, and the source text per line,
+with `>` marking macro-expansion lines.
+
+**What is not known**: how a `PUT` or `USE` file appears. The corpus has two
+sources that use them (`PI.ADD.S` with `PUT SENDMSG` and `USE PI.MACS`;
+`PI.START.S` with `USE PI.MACS`) but no captured listing of either. Whether
+Merlin restarts line numbers inside the included file, and whether it prints
+the file name, decides how the listing maps to lines.
+
+**Plan**: capture `PI.ADD.S`'s listing from Merlin under emulation by the
+procedure in `UnitTest/MerlinCorpus/README.md` before the listing importer is
+built, check it in as a fixture under the corpus license, and record the
+layout here. If included lines are not marked, they are mapped to the listing
+itself (the listing is the source) and no `PUT` file is opened, which is still
+correct because the listing carries the text.
+
+## R-023: Moving a pane between windows
+
+**Decision**: a pane's controls are moved, not recreated, when it floats or
+docks back.
+
+**Facts**: `DxuiPanel` owns children through `std::unique_ptr` in `ChildSlot`
+entries and has an owned and a non-owned slot form; controls hold no Direct2D
+or DirectWrite resources (the painter and text renderer own them per window),
+and `DxuiHwndSource` rescales on `WM_DPICHANGED`. So detaching a control's
+`unique_ptr` from one panel and appending it to a panel in another window
+carries no device state across; the receiving window lays it out at its own
+DPI on the next `Layout`. What `DxuiPanel` lacks is a detach that returns the
+`unique_ptr`; that is added.
+
+**Alternatives considered**: recreating a pane's widgets in the target window
+and copying state. Rejected: every pane draws from a snapshot, so recreation
+would work, but moving is cheaper and keeps focus, selection and scroll
+positions.
+
+## R-024: Where a ROM patch lands
+
+**Decision**: `DebugMemoryView` gains a `Patch` for addresses whose region is
+ROM, which writes the loaded image the current banking reads from.
+
+**Facts**: ROM bytes live in three places: `RomDevice::m_data` (system ROM on
+machines without a language card at that range), `LanguageCard::m_romData`
+(the ROM the card shows when its RAM is not selected), and
+`CxxxRomRouter::m_internal` and `m_slotRom[]` (the `$C100-$CFFF` window). Each
+exposes read access; none exposes a write. Each gets a `PatchByte (offset,
+value)` reachable only through the memory view, which already resolves the
+region an address belongs to and so knows which image the CPU reads.
+`Apple2cRomBank` re-points the router's internal image on a `$C028` flip, so a
+patch is applied to the image object, not to a copy, and survives the flip.
+
+## R-025: The instruction trace ring
+
+**Decision**: the debugger's trace is the CPU's existing ring, extended with
+the cycle count and the bus access, filled only while on.
+
+**Facts**: `Cpu` already keeps a ring of `TraceEntry {pc, opcode, op1, op2, a,
+x, y, sp, p, intr}` sized by `EnableTrace (capacity)`, gated by
+`m_traceEnabled` with one predicted branch per step that exists today whether
+or not the debugger is attached, and dumped by `--trace`. It lacks the cycle
+count, the effective address, the direction and the data byte.
+
+**Design**: the entry gains `cycles` (from the CPU's counter) and one access
+record `{address, direction, data}` filled by the bus. While the trace is on,
+every page is published to the bus's watched-page path (the mechanism
+watchpoints use), and the watch sink records the instruction's last access
+into the pending entry. That routes every read and write through the slow
+path while tracing, which is the accepted cost; while off, the bus runs the
+same code as before the debugger existed, because the watch mask is empty.
+The window's trace pane reads a window of entries through a snapshot, never
+the whole ring. `HISTORY SAVE` writes every retained entry through the file
+system seam.
+
+**Alternatives considered**: a separate ring in the debugger fed by the
+per-instruction hook. Rejected: it duplicates the CPU's ring and the hook
+cannot see bus accesses.
+
+## R-026: Profiling and avoidable cycles
+
+**Decision**: profiling counts in the per-instruction hook while on, using
+the CPU's own cycle attribution.
+
+**Facts**: `Cpu::StepOne` already decides, per instruction, whether an
+indexed read crossed a page (`isReadOp` plus the addressing mode and the
+65C02's `crossingAPageCostsACycle`) and whether a branch was taken and
+crossed a page, and adds those cycles to the instruction's base count. The
+decision is made but not exposed.
+
+**Design**: the CPU records the last instruction's penalty kinds (page
+crossing, branch taken, branch crossed) in a byte beside
+`GetLastInstructionCycles`. While profiling is on, the hook adds the
+instruction's base cycles to its opcode-and-mode bucket and its penalty
+cycles to the penalty buckets, and counts cycles per address. `PROFILE LIST`
+renders the buckets; `PROFILE LIST ADDR` the per-address table with symbols;
+`PROFILE SAVE` writes the same rows. Off, nothing is counted and the hook is
+absent, as today.
+
+## R-027: GSSquared's output format
+
+**Decision**: GSSquared's output is fixed by fixtures captured from
+GSSquared, with its documented examples where they exist.
+
+**Facts**: GSSquared's docs give the input grammar in full and a few output
+examples (a 16-byte hex dump with ASCII, breakpoint and watch listings). They
+do not show every reply. GSSquared builds from source on Windows with SDL3;
+capturing its output means building it and running its documented commands
+against a known program.
+
+**Plan**: capture, from a built GSSquared, the replies for each command in
+the mode's table against a small known program, and check them in as
+fixtures under a license note. The formatter is written to those fixtures.
+Where GSSquared prints machine-specific values, the fixture records the
+values from the same program on the same machine type. This is the one
+research item that needs a build of another project; if it cannot be built,
+the documented examples decide the format and the rest follows their style,
+recorded here as a deviation.
+
+## R-028: Layout persistence
+
+**Decision**: the layout is one JSON subtree in the global preferences,
+versioned, with monitors identified the way window placement already does.
+
+**Facts**: `GlobalUserPrefs` is a versioned JSON document loaded and saved by
+`UserConfigStore` with merge and diff, and `WindowPlacementProfile` already
+keys placements by a monitor-topology hash and knows how to fall back onto a
+monitor's work area. The layout tree (split and tab nodes, ratios, pane ids,
+floating pane rectangles and monitors, auto-hidden edges) serializes to JSON
+with a version number; an unknown pane id is dropped on load, an unknown
+version falls back to the default layout, and a floating pane whose monitor
+is absent from the current topology opens on the primary monitor at its saved
+size (FR-044).
+
+## R-029: Dense list panes
+
+**Decision**: `DxuiListView` gets per-instance row height, cell padding and
+font family, and a measured auto-fit that does not stretch.
+
+**Facts**: today every list uses `s_kRowHeightDip = 30`, 12 and 16 DIP cell
+padding, and the theme's body face at 13 DIP; the theme defines
+`kMonoFace = "Cascadia Mono"` but nothing uses it. Auto-fit exists in an
+estimating form and a measured form (`SetPreciseAutoFit`). The debugger's
+lists use the monospace face, a row of the font's line height plus 2 DIP,
+4 DIP padding, measured auto-fit, and no stretch column.
+
+## R-030: The memory editor
+
+**Decision**: a new control, not a list view.
+
+**Rationale**: in-place editing needs a per-cell caret, a partial-value
+state, focus that advances on completion, and a text column whose cells are
+single characters. `DxuiListView` has whole-row selection and no caret.
+`DxuiTextInput` has a caret but is one line. The memory editor is a grid
+control with its own caret, drawing rows from a snapshot and sending each
+completed value through the window host as a poke; undo is a per-window list
+of `{address, written, replaced}`.
+
+## R-031: Keyboard schemes
+
+**Decision**: a scheme is a table from action to key, chosen in preferences.
+
+**Facts**: `DxuiWindow` routes keys to `OnKey`; the debugger window maps a key
+through the active scheme's table to an action, and each scheme is a data
+table (Visual Studio, AppleWin, GSSquared) tested by driving the table, not
+the window.
+
+## R-032: Source files, hashing and the path list
+
+**Decision**: the source service resolves a file by relative path, then the
+program's path list, then the global path list, then a dragged file; size is
+the filter before hashing.
+
+**Facts**: hashing a source file takes well under a millisecond, so the size
+filter exists to avoid opening files, not to save hashing. The path lists
+live in the global preferences, per program keyed by the debug file's own
+hash, and globally as a most-recent-first list. A dragged file is hashed and
+matched against every `file` record; a match adds its folder to both lists.
+Everything reads through the `IFileSystem` seam, so tests use the in-memory
+file system.
+
+## R-033: Step over by stack pointer
+
+**Decision**: `RunStopHook`'s step-over completes when the stack pointer
+rises above its value before the call, then stops at the next instruction
+boundary.
+
+**Facts**: today it records the `JSR`'s return address and stops when the
+program counter reaches it with the stack pointer restored. That fails for a
+call followed by inline parameters (ProDOS MLI) because the routine returns
+past them. The stack-pointer rule needs no return address at all: it watches
+`SP` on each instruction and completes once `SP > startSp`. Recursion still
+works, because a deeper call lowers `SP` further. Source-level step over
+repeats the rule until the program counter's line changes; step out stops at
+the first instruction after `SP > startSp` without a preceding `JSR` test.
+
+## R-034: Device diagnostics
+
+**Decision**: each device publishes rows through one interface; the window
+renders rows generically; three visuals are separate small controls fed by
+typed payloads.
+
+**Facts**: the state exists as getters today: `Apple2eMmu` (every switch),
+`Disk2Controller` (active drive, quarter track, spin-up), `Via6522` (ports,
+timers, IFR, IER), `Ay8910` (registers, envelope, periods), the printer head
+and carriage, `AppleKeyboard`'s latch. GSSquared's equivalent is a per-device
+callback returning lines of text; AppleWin shows the soft switches only.
+
+**Design**: `IDiagnosticsProvider::GetDiagnostics (DiagnosticsSnapshot &)`
+fills groups of `{label, value, bits}` rows plus an optional visual payload
+(memory map pages, disk head position, meter levels). `MachineHost` lists the
+providers of the current machine. The CPU thread builds the snapshot on the
+same cadence as the debugger view, and the panel widget draws rows; the
+memory-map bar, head graphic and meters are three controls that take their
+payload from the same snapshot. A device on a future machine gets a panel by
+implementing the interface.

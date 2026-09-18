@@ -214,3 +214,128 @@ client is disconnected and the listening instance is destroyed.
 
 `{pid, title, machine, disks[], protocolVersion}`, returned by `hello` and
 listed by `debug --list`.
+
+
+## OutputFormat
+
+An enum: `AppleWin`, `Monitor`, `GSSquared`. Session state beside `mode`.
+`MODE x` sets both `mode` and `outputFormat` to `x`; `OUTPUT x` sets
+`outputFormat` alone. Every `Reply.text` is rendered by the formatter for the
+current `outputFormat` (FR-013). `CommandMode` gains `GSSquared`.
+
+## Breakpoint (additions)
+
+| Field | Type | Notes |
+|---|---|---|
+| condition | `Expression` | now also an `IF` expression on an address or watch breakpoint; evaluated only when the location or access hits (FR-061) |
+| value | `std::optional<Byte>` | kind `MemoryValue`: stop when a write leaves `address` holding `value` (FR-062) |
+
+`BreakpointKind` gains `MemoryValue`. A condition that reads an I/O address is
+rejected when set.
+
+## TraceEntry (extended, in `Cpu`)
+
+| Field | Type | Notes |
+|---|---|---|
+| cycles | `uint64_t` | the CPU's cycle counter before the instruction |
+| pc, opcode, op1, op2 | as today | |
+| a, x, y, sp, p | as today | registers before execution |
+| intr | as today | interrupt-entry tag |
+| accessAddress | `Word` | the instruction's last bus access, when `hasAccess` |
+| accessData | `Byte` | |
+| accessIsWrite | `bool` | |
+| hasAccess | `bool` | |
+
+The ring holds up to 100,000 entries while on (R-025). `HISTORY` renders a
+window of entries with the symbol for `pc` and `accessAddress`.
+
+## Profile
+
+| Field | Type | Notes |
+|---|---|---|
+| byOpcode | `[256] {count, cycles}` | keyed by opcode; the formatter groups by mnemonic and addressing mode |
+| penalties | `{pageCross, branchTaken, branchCross} cycles` | R-026 |
+| byAddress | map `Word -> cycles` | the per-address view |
+| totalCycles | `uint64_t` | |
+
+Counted by the hook while `PROFILE ON`; `PROFILE RESET` clears it.
+
+## DebugFile
+
+The in-memory form of a cc65 debug file or of a listing loaded as one.
+
+| Field | Type | Notes |
+|---|---|---|
+| files | `vector<SourceFileRecord>` | |
+| segments | `vector<Segment>` | `{id, name, start, size}` |
+| spans | `vector<Span>` | `{id, segment, start, size}`; `start` is segment-relative |
+| lines | `vector<LineRecord>` | `{id, file, line, type, depth, spans[]}`; `type` is `Asm`, `Macro` or `MacroParameter` |
+| symbols | `vector<SymbolRecord>` | `{name, value, segment, scope}` |
+| modules, scopes | | as cc65 records them |
+| selfHash | `Sha1` | hash of the debug file's own bytes; keys the per-program path list |
+
+## SourceFileRecord
+
+| Field | Type | Notes |
+|---|---|---|
+| id | `int` | |
+| relativePath | `std::string` | as recorded, relative to the debug file |
+| size | `uint64_t` | |
+| sha1 | `Sha1` | of the LF-normalized text; absent for a cc65 file from another assembler |
+| resolvedPath | `std::optional<std::wstring>` | where the file was found, once found |
+| matches | `Match` | `Exact`, `Mismatch` (opened with a warning), `Unresolved` |
+
+## LineTable
+
+Built from a `DebugFile`: address -> the list of `(file, line, type, depth)`
+positions that produced it, ordered outermost first; and `(file, line)` ->
+address ranges. For a listing loaded as a source, the file is the listing
+and each listing line with an address is one entry.
+
+## SourcePathList
+
+`{ perProgram: map<Sha1, vector<folder>>, global: vector<folder> }`, most
+recent first, in the global preferences (R-032).
+
+## MemoryWindow
+
+| Field | Type | Notes |
+|---|---|---|
+| id | `1..4` | |
+| address | `Word` | first shown |
+| grouping | `Bytes`, `Words`, `DoubleWords` | |
+| caret | `{row, column, inText}` | |
+| pending | `std::string` | hex digits typed so far for the current cell |
+| history | `UndoHistory` | |
+
+## UndoHistory
+
+An ordered list of `{address, written, replaced, region}`; undo pops the last
+and writes `replaced` back through the same path (bus write for RAM, patch for
+ROM). Cleared on machine switch.
+
+## DiagnosticsSnapshot
+
+| Field | Type | Notes |
+|---|---|---|
+| device | `std::string` | the panel's title |
+| groups | `vector<{title, rows}>` | |
+| row | `{label, value, bits}` | `bits` is an optional list of `{name, set}` |
+| visual | `variant<none, MemoryMap, DiskHead, Meters>` | `MemoryMap`: 256 pages, each `{readSource, writeSource}`; `DiskHead`: quarter track, phases, motor; `Meters`: named levels 0..1 |
+
+Published by an `IDiagnosticsProvider` per device; built on the CPU thread
+once per frame while the machine runs and once on stop (FR-051).
+
+## Layout
+
+A tree: `SplitNode {orientation, ratio, first, second}`, `TabNode {panes[],
+active}`, `PaneLeaf {paneId}`; plus `floating: vector<{paneId, monitorKey,
+rectDip}>` and `autoHidden: vector<{paneId, edge}>`. Serialized as JSON with a
+version, in the global preferences (R-028). `paneId` is a stable string per
+pane kind plus an index for memory windows (`memory1`..`memory4`).
+
+## KeyScheme
+
+`{name, map<Action, Key>}` for `Run`, `Pause`, `StepInto`, `StepOver`,
+`StepOut`, `ToggleBreakpoint`, `RunToCursor`. Three tables; the chosen name
+is a preference.
