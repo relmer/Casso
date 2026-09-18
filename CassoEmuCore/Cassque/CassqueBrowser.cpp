@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/AppleSingleCodec.h"
 #include "Cassque/CassqueBrowser.h"
 #include "Core/TextEncoding.h"
 
@@ -719,6 +720,11 @@ void CassqueBrowser::UpdatePreview()
     //  from the file as it draws them rather than loading them here.
     if (!m_rows[m_selectedRows[0]].isDiskImage)
     {
+        if (!m_rows[m_selectedRows[0]].isDirectory && TryPreviewAppleSingle (location.path, m_rows[m_selectedRows[0]]))
+        {
+            return;
+        }
+
         if (!m_rows[m_selectedRows[0]].isDirectory)
         {
             m_preview.kind     = PreviewContent::Kind::Hex;
@@ -765,6 +771,61 @@ void CassqueBrowser::UpdatePreview()
     }
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueBrowser::TryPreviewAppleSingle
+//
+//  A host file that is an AppleSingle container previews as the file it
+//  holds. Only a file small enough to be one is read to find out; anything
+//  larger shows its bytes as before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassqueBrowser::TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row)
+{
+    static constexpr uint64_t  kLargestContainer = 16 * 1024 * 1024;
+    std::string                content;
+    AppleSingleFile            file;
+    std::string                error;
+    std::span<const Byte>      bytes;
+    HRESULT                    hr                = S_OK;
+
+
+
+    if (row.sizeBytes > kLargestContainer)
+    {
+        return false;
+    }
+
+    hr = m_fs.ReadAllText (JoinPath (folder, row.name), content);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    bytes = std::span<const Byte> ((const Byte *) content.data(), content.size());
+
+    if (!AppleSingleCodec::IsAppleSingle (bytes))
+    {
+        return false;
+    }
+
+    hr = AppleSingleCodec::Decode (bytes, file, error);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    PreviewDecoder::RenderAppleSingle (file, m_preview);
+    return true;
 }
 
 

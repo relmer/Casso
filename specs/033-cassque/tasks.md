@@ -226,7 +226,7 @@
 - [x] T105 [US2] Put and drag-in: an AppleSingle host file unwraps through `CassqueActions::PlanPut` with its type and aux type and no dialog, and is never taken for a disk image (FR-017c)
 - [x] T106 [US2] Get and drag-out in the AppleSingle style: `HostFileNaming` gains it and the Host file names setting offers it (FR-017a, FR-017c)
 - [ ] T107 [US3] A right-drag out of an image opens a menu choosing the style for that drop (FR-017c)
-- [ ] T108 [US6] The preview of an AppleSingle host file shows the name, type, aux type and dates of the file it holds (FR-017c)
+- [x] T108 [US6] The preview of an AppleSingle host file shows the name, type, aux type and dates of the file it holds (FR-017c)
 
 ---
 
