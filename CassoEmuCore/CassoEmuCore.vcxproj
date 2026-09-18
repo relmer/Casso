@@ -149,6 +149,7 @@
     <ClCompile Include="Debugger\DebuggerController.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerKeySchemes.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\MemoryEditModel.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindow.cpp" />
     <ClCompile Include="Debugger\SynchronousRunDriver.cpp" />
     <ClCompile Include="Debugger\BreakpointTable.cpp" />
@@ -503,6 +504,7 @@
     <ClInclude Include="Debugger\DebuggerController.h" />
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />
     <ClInclude Include="Ui\Debugger\DebuggerKeySchemes.h" />
+    <ClInclude Include="Ui\Debugger\Panes\MemoryEditModel.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindow.h" />
     <ClInclude Include="Debugger\SynchronousRunDriver.h" />
     <ClInclude Include="Debugger\BreakpointTable.h" />

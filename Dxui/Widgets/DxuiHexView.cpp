@@ -1960,6 +1960,8 @@ void DxuiHexView::MoveCaretTo (uint64_t offset, bool extend)
 
 
 
+    m_pending.clear();
+
     if (bytes == 0)
     {
         return;
@@ -2159,6 +2161,11 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
 
 
 
+    if (ev.kind == DxuiKeyEventKind::Char)
+    {
+        return TypeEditChar ((wchar_t) ev.vk);
+    }
+
     if ((ev.kind != DxuiKeyEventKind::Down) || (GetRowCount() == 0))
     {
         return false;
@@ -2214,6 +2221,17 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
         //  the menu row run the same code.
         return InvokeCommand (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift));
 
+    case VK_ESCAPE:
+        //  Escape drops a value typed only in part; with nothing typed it is
+        //  not the view's, so a dialog can still take it.
+        if (m_pending.empty())
+        {
+            return false;
+        }
+
+        m_pending.clear();
+        return true;
+
     case VK_TAB:
         //  Tab moves between the columns while another column remains, and
         //  returns false after the last one, so focus moves on to the next
@@ -2242,6 +2260,184 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::TypeEditChar
+//
+//  A character goes to the column the caret is in. Line mode shows no values
+//  to type into, so it takes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::TypeEditChar (wchar_t ch)
+{
+    if (!m_editable || m_source == nullptr || IsLineMode() || GetRowCount() == 0)
+    {
+        return false;
+    }
+
+    return (m_activeColumn == Column::Text) ? TypeCharacter (ch) : TypeHexDigit (ch);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::TypeHexDigit
+//
+//  The digits are the value as the column shows it, most significant first;
+//  the bytes go to the source low byte first, as the value is read. Decimal
+//  formats are not typed into, since a hex digit would not mean what the
+//  column shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::TypeHexDigit (wchar_t ch)
+{
+    int                   digit  = GetDigitValue (ch);
+    size_t                group  = (size_t) (m_showValues ? m_grouping : 1);
+    uint64_t              value  = 0;
+    std::vector<uint8_t>  bytes;
+
+
+
+    if (digit < 0 || m_format != ValueFormat::Hex)
+    {
+        return false;
+    }
+
+    if (m_pending.empty())
+    {
+        m_editStart = SnapToValue (m_caret, false);
+    }
+
+    m_pending.push_back (GetHexDigit (digit));
+
+    if (m_pending.size() < group * 2)
+    {
+        return true;
+    }
+
+    for (wchar_t each : m_pending)
+    {
+        value = (value << 4) | (uint64_t) GetDigitValue (each);
+    }
+
+    for (size_t index = 0; index < group; index++)
+    {
+        bytes.push_back ((uint8_t) ((value >> (index * 8)) & 0xFF));
+    }
+
+    m_pending.clear();
+    WriteAndAdvance (m_editStart, bytes);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::TypeCharacter
+//
+//  A printable character becomes its byte in the view's encoding: Apple text
+//  sets the high bit, which is how the screen shows a normal character.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::TypeCharacter (wchar_t ch)
+{
+    static constexpr wchar_t  kFirstPrintable = 0x20;
+    static constexpr wchar_t  kLastPrintable  = 0x7E;
+    static constexpr uint8_t  kAppleHighBit   = 0x80;
+    uint8_t                   byte            = 0;
+
+
+
+    if (ch < kFirstPrintable || ch > kLastPrintable)
+    {
+        return false;
+    }
+
+    byte = (uint8_t) ch;
+
+    if (m_encoding == TextEncoding::AppleHighBit)
+    {
+        byte |= kAppleHighBit;
+    }
+
+    WriteAndAdvance (m_caret, std::span<const uint8_t> (&byte, 1));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::WriteAndAdvance
+//
+//  A write the source takes moves the caret past it; one it refuses leaves the
+//  caret on the cell and tells the host.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::WriteAndAdvance (uint64_t offset, std::span<const uint8_t> bytes)
+{
+    if (m_source->WriteBytes (offset, bytes))
+    {
+        MoveCaretTo (offset + bytes.size(), false);
+        return;
+    }
+
+    if (m_onWriteRefused)
+    {
+        m_onWriteRefused (offset);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetDigitValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexView::GetDigitValue (wchar_t ch)
+{
+    int  value = -1;
+
+
+
+    if (ch >= L'0' && ch <= L'9')
+    {
+        value = ch - L'0';
+    }
+    else if (ch >= L'A' && ch <= L'F')
+    {
+        value = ch - L'A' + 10;
+    }
+    else if (ch >= L'a' && ch <= L'f')
+    {
+        value = ch - L'a' + 10;
+    }
+
+    return value;
 }
 
 
@@ -2610,6 +2806,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         uint32_t  argb     = GetByteColor (theme, m_rowMarks[(size_t) first]);
         RECT      cell     = GetCellRect (GetColumnStartCell (Column::Hex) + ((first / m_grouping) * (GetValueCells() + 1)),
                                           row, GetValueCells());
+        std::wstring  shown;
 
         for (int index = 0; index < present; index++)
         {
@@ -2622,7 +2819,16 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
             FillCell (text, GetValueSelectionRect (offset, cell), theme.SelectionBackground());
         }
 
-        DrawCell (text, cell, FormatValue (value, present).c_str(), selected ? theme.Foreground() : argb, font);
+        shown = FormatValue (value, present);
+
+        //  The digits typed so far stand in for the value's leading ones, so the
+        //  cell shows what will be written.
+        if (!m_pending.empty() && offset == m_editStart && m_pending.size() <= shown.size())
+        {
+            shown.replace (0, m_pending.size(), m_pending);
+        }
+
+        DrawCell (text, cell, shown.c_str(), selected ? theme.Foreground() : argb, font);
     }
 
     //  The text column, a byte at a time.

@@ -43,6 +43,16 @@ public:
         (void) offset;
         std::fill (out.begin(), out.end(), uint8_t (0));
     }
+
+    //  Writes an edited value at `offset`, returning whether it was taken. A
+    //  source is read-only unless it overrides this. Const because the source
+    //  object passes the write on rather than holding the bytes it changes.
+    virtual bool  WriteBytes (uint64_t offset, std::span<const uint8_t> bytes) const
+    {
+        (void) offset;
+        (void) bytes;
+        return false;
+    }
 };
 
 
@@ -98,6 +108,9 @@ public:
 
     //  A color for a marked byte, or false to leave it the ordinary one.
     using MarkColorFn = std::function<bool (uint8_t mark, uint32_t & outArgb)>;
+
+    //  Told the offset of a value the source would not take.
+    using WriteRefusedFn = std::function<void (uint64_t offset)>;
 
     //  Asked for a context menu at a point in the same DIPs as the bounds.
     using ContextMenuFn = std::function<void (POINT atDip)>;
@@ -199,6 +212,17 @@ public:
     //  Puts the caret on a byte and scrolls to it.
     void  GoToOffset (uint64_t offset);
 
+    //  Typing edits the bytes when the view is editable. In the hex column,
+    //  digits collect for the value under the caret (the hex format only) and
+    //  the value is written, low byte first, as soon as it has all its digits;
+    //  in the text column each character is written as it is typed, in the
+    //  view's text encoding. The caret moves on after a write the source
+    //  takes. Escape or any caret move drops digits not yet written.
+    void                  SetEditable       (bool editable)     { m_editable = editable; m_pending.clear(); }
+    bool                  IsEditable        () const            { return m_editable; }
+    const std::wstring &  GetPendingDigits  () const            { return m_pending; }
+    void                  SetOnWriteRefused (WriteRefusedFn fn) { m_onWriteRefused = std::move (fn); }
+
     //  Copies the selection to the clipboard in the active column's format.
     //  With nothing selected, the clipboard is not changed.
     void          CopySelection () const;
@@ -268,6 +292,13 @@ private:
     void  MoveCaretTo (uint64_t offset, bool extend);
     void  NotifySelectionChanged ();
     uint64_t  GetLastOffset () const;
+
+    //  Typing. Each returns whether it took the character.
+    bool  TypeEditChar  (wchar_t ch);
+    bool  TypeHexDigit  (wchar_t ch);
+    bool  TypeCharacter (wchar_t ch);
+    void  WriteAndAdvance (uint64_t offset, std::span<const uint8_t> bytes);
+    static int  GetDigitValue (wchar_t ch);
 
     //  One row's bytes and marks, read straight from the source into the
     //  buffers the view reuses frame after frame.
@@ -386,4 +417,8 @@ private:
     std::function<void ()>  m_onSelectionChanged;
     std::vector<uint8_t>    m_rowBytes;
     std::vector<uint8_t>    m_rowMarks;
+    bool                    m_editable  = false;
+    std::wstring            m_pending;
+    uint64_t                m_editStart = 0;
+    WriteRefusedFn          m_onWriteRefused;
 };
