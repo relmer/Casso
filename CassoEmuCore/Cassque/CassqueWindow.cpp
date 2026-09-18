@@ -4894,7 +4894,6 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
 
 
-    UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
     //  A change arrived. Restarting the timer rather than re-reading now is
@@ -4903,6 +4902,16 @@ DxuiMessageResult CassqueWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     if (msg == kFolderChangedMessage)
     {
         SetTimer (GetHwnd(), kFolderTimerId, kFolderSettleMs, nullptr);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == kRunCommandMessage)
+    {
+        if (IsEnabled ((int) wParam))
+        {
+            Dispatch ((int) wParam);
+        }
 
         return DxuiMessageResult::Handled;
     }
