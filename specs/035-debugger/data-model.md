@@ -336,6 +336,7 @@ pane kind plus an index for memory windows (`memory1`..`memory4`).
 
 ## KeyScheme
 
-`{name, map<Action, Key>}` for `Run`, `Pause`, `StepInto`, `StepOver`,
-`StepOut`, `ToggleBreakpoint`, `RunToCursor`. Three tables; the chosen name
-is a preference.
+A `DxuiKeyMap`: `{name, list<{vk, ctrl, alt, shift} -> commandId>}` (the chord
+struct is `CassqueCommands::kKeys`'s) for run, pause, step into, step over,
+step out, toggle breakpoint and run to cursor. Three maps; the chosen name is
+a preference, and the window swaps its active map when it changes.

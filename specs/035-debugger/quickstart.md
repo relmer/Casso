@@ -114,9 +114,10 @@ and kill only the PID you started.
    with the body line indicated, and step into the body (FR-057).
 4. Set a breakpoint on a source line; run. Expect the stop on the first
    instruction of that line (FR-055).
-5. Step over a `JSR` followed by inline parameters (the ProDOS MLI pattern in
-   the fixture) and a recursive call. Expect the next source line in both
-   (SC-011).
+5. With the source pane focused, step over (`F10`, or `P` typed) a `JSR`
+   followed by inline parameters (the ProDOS MLI pattern in the fixture) and a
+   recursive call. Expect the next source line in both (SC-011). Click into
+   the disassembly pane and step again. Expect one instruction.
 6. Move the source folder; reopen. Expect a prompt; drag `main.a65` onto the
    debugger. Expect it matched by hash and the folder remembered; reopening
    finds it without the drag (FR-058, FR-060).

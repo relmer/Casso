@@ -11,12 +11,12 @@ description: "Task list for 035-debugger"
 
 **Tests**: Required. The constitution requires unit tests for all production code (Principle II), and the spec makes FR-027 (ROM command tables), FR-028 (1979 listing) and FR-029 (ROM facts) acceptance requirements. Every test that reads fixtures asserts a non-zero item count first, and fails rather than skipping when data is missing. Each new test is mutation-checked: stub or revert the code it covers and confirm it goes red.
 
-**Organization**: Tasks are grouped by user story. Plan phase 1 (headless engine, both modes, batch) is US1 and US2, plan phase 2 (the pipe) is US3, and plan phase 3 (the window) is US4.
+**Organization**: Tasks are grouped by user story. Phases 1-8 are delivered: the engine (US1), Monitor mode (US2), the channel (US3) and the first window (the delivered part of US4), plus the watchpoint-mode corrections. Phases 9-18 are the 2026-09-18 expansion: US4 finished as a window worth releasing, then US5-US12 in spec priority order, then the release gates.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies on incomplete tasks)
-- **[Story]**: US1-US4 from spec.md
+- **[Story]**: US1-US12 from spec.md
 
 ## Conventions for every task
 
@@ -406,7 +406,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
 
 ---
 
-## Phase 6: User Story 4 - Debug in a window beside the emulator (Priority: P3)
+## Phase 6: User Story 4 - Debug in a window beside the emulator (first window, delivered; finished in Phase 9)
 
 **Goal**: A Dxui debugger window with a command line, disassembly, registers, memory, stack, watches and breakpoints; click-to-set breakpoints; step, step-over, run and run-to-cursor controls; and the phase-3 AppleWin commands
 
@@ -439,7 +439,7 @@ Each handler task adds the family's tests in `UnitTest/DebuggerTests/<Family>Han
   Their projection is covered in `DebuggerViewStateTests.cpp`, and in batch and pipe they still return `notAvailable`.
 - [X] T082 [US4] Validate the window by running Casso in the background with `--title 035-debugger` and capturing it with `PrintWindow`. Run quickstart phase 3 steps 1-4 and attach the screenshots to the commit.
 
-**Checkpoint**: All four stories are functional and the full suite is green.
+**Checkpoint**: The first window works and the full suite is green. Its panes, fonts and symbol column are redone in Phase 9.
 
 ---
 
@@ -478,49 +478,257 @@ own behavior. These run inside US1, before batch mode (T056).
 
 ---
 
+## Phase 9: User Story 4 - Debug in a window beside the emulator (Priority: P1)
+
+**Purpose**: The first window (Phase 6) becomes one worth releasing: dense
+monospace panes, symbolic disassembly, panes sized by content, keyboard
+schemes, and the per-frame snapshot every later pane draws from.
+
+**Goal**: FR-010a, FR-026, FR-026a, FR-026c; SC-009
+
+**Independent Test**: With the speech demo's debug file loaded, stop at
+`Sing` and confirm the disassembly shows `Sing` on its line and `STA PTR`;
+measure the row height against the font's line height; confirm three
+breakpoints, two watches and the stack are visible without scrolling
+(quickstart Story 4).
+
+- [ ] T094 [US4] Merge `origin/033-cassque` into this branch (033's Dxui is stable and 035 builds on `DxuiSplitter`, `DxuiHexView`, `DxuiTextView` and `DxuiCommandRouter`; 033 reaches master first and 035 merges cleanly after it). Expect the accessor renames in CLAUDE.md's hazard; fix every stale call site the compiler surfaces, run `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`, and the full suite in Debug and Release.
+- [ ] T095 [P] [US4] Write `UnitTest/Dxui/DxuiListViewMetricsTests.cpp`: `SetRowHeightDip`, `SetCellPaddingDip (horizontal, vertical)` and `SetFontFamily` change one instance only; the defaults leave every existing list's measurements unchanged (30 DIP rows, 12 and 16 DIP padding, the theme's body face); measured auto-fit (`SetPreciseAutoFit`) sizes each column to its widest cell plus padding and, with stretch off, leaves the remaining width empty. Use `MockDxuiTextRenderer` for measurement.
+- [ ] T096 [US4] Implement the per-instance metrics in `Dxui/Widgets/DxuiListView.h/.cpp` (R-029). Makes T095 pass; every existing `DxuiListView` test must still pass unchanged.
+- [ ] T097 [P] [US4] Write `UnitTest/DebuggerTests/DebugViewSnapshotTests.cpp` for `DebugViewSnapshot` (plan Design "Snapshots"): built from `MockDebugTarget` and a session, it holds registers and flags, the disassembly window around the PC with each line's `label` and `operandSymbol`, the bytes and region of each open memory window, the stack, watches and breakpoints; it is immutable once built; it is built once per frame while running and once on a stop, counted through a recording target; nothing on a second thread touches the target while a snapshot is read.
+- [ ] T098 [US4] Implement `CassoEmuCore/Debugger/DebugViewSnapshot.h/.cpp`, build it on the CPU thread in `CpuManagerRunDriver`'s frame slice and on `OnStopped`, hand it to the UI thread through the existing notification marshal, and change `CassoEmuCore/Ui/Debugger/DebuggerViewState.h/.cpp` to read the snapshot instead of the target. Makes T097 pass, and `DebuggerViewStateTests.cpp` must still pass.
+- [ ] T099 [P] [US4] Symbolic disassembly (FR-010a) in every way in: `DisassembledInstruction` (`CassoCore/Debugger/Disassembler.h`) gains `label` and `operandSymbol`, filled through an `ISymbolResolver` seam; `U` in `AppleWinFormatter` and `L` in `MonitorFormatter` print the label in its own column and the operand as `SYMBOL` with the numeric address beside it; JSON `disassembly` records gain `label` and `operandSymbol`. Tests in `DisassemblerTests.cpp`, `AppleWinFormatterTests.cpp`, `MonitorFormatterTests.cpp` and `ReplyJsonTests.cpp`. Update `contracts/debug-channel-protocol.md` and `docs/DebugChannel.md`.
+- [ ] T100 [P] [US4] Write `UnitTest/Dxui/DxuiKeyMapTests.cpp` and implement `Dxui/Core/DxuiKeyMap.h/.cpp` (R-031): a named table of key chords to application command ids, the chord struct identical to `CassqueCommands::kKeys` (vk, ctrl, alt, shift) so Cassque can move onto it later; `TryTranslate (vk, ctrl, alt, shift, int & outCommandId)`; a `DxuiWindow` holds one active map, swappable at run time, and consults it in `OnKeyDown` after `DxuiCommandRouter::TranslateKey` finds no standard command. Then `CassoEmuCore/Ui/Debugger/DebuggerKeySchemes.h/.cpp`: the three maps `VisualStudio`, `AppleWin` and `GSSquared` with the keys in FR-026c for run, pause, step into, step over, step out, toggle breakpoint and run to cursor, tested in `UnitTest/DebuggerTests/DebuggerKeySchemesTests.cpp`; the chosen scheme name is a `GlobalUserPrefs` field (`CassoEmuCore/Config/GlobalUserPrefs.h/.cpp`) with a round-trip case in `UnitTest/GlobalUserPrefsTests.cpp`, default `VisualStudio`.
+- [ ] T101 [US4] Split `CassoEmuCore/Ui/Debugger/DebuggerWindow.cpp` into panes under `CassoEmuCore/Ui/Debugger/Panes/`: `DebuggerPane.h` (base: draws from the snapshot, sends commands as text through the host), `DisassemblyPane`, `RegistersPane`, `StackPane`, `WatchesPane`, `BreakpointsPane`, `ConsolePane`, each `.h/.cpp`. Every list uses `kMonoFace` at the theme's mono size, a row of the font's line height plus 2 DIP, 4 DIP cell padding, measured auto-fit and no stretch column (FR-026a); each pane's default height shows at least eight rows; double-click on a disassembly line toggles a breakpoint. The window composes them in the fixed layout until US7. Add a metrics case to `DebuggerViewStateTests.cpp` asserting the row height from `MockDxuiTextRenderer`'s line height.
+- [ ] T102 [US4] Route keys through the scheme: `DebuggerWindow` installs the chosen `DxuiKeyMap` and its `DxuiCommand` table dispatches the actions the toolbar buttons use; the scheme is chosen from the window's menu and saved through `GlobalUserPrefs`. Tests drive the lookup and the action dispatch in `DebuggerViewStateTests.cpp`.
+- [ ] T103 [US4] Validate by running Casso in the background with a `--title` that is not a spec name and capturing the window with `PrintWindow`: quickstart Story 4 steps 1-4, and the row height measured on the capture against the font's line height. Attach the captures to the commit.
+- [ ] T104 [US4] Measure SC-009 with the pinned procedure (`start /wait /b /high /affinity 10`, 10 or more runs, round-robin arms): window open with the trace off versus closed. Record the numbers in the commit message; if the difference exceeds 2%, find the cost before continuing.
+
+**Checkpoint**: The window is dense and symbolic, every pane shows its list, and the full suite is green.
+
+---
+
+## Phase 10: User Story 5 - Edit memory in place (Priority: P1)
+
+**Goal**: FR-034 to FR-037; SC-012
+
+**Independent Test**: Open a memory window at $0300, type `A9 41 60` into three consecutive byte cells, confirm memory after each pair, undo twice, and confirm the first byte remains (quickstart Story 5).
+
+- [ ] T105 [P] [US5] Write `UnitTest/DebuggerTests/MemoryEditModelTests.cpp` for data-model `MemoryWindow` and `UndoHistory`. The model is the `IDxuiHexSource` a memory window gives `DxuiHexView`: it reads through the snapshot and writes through a poke callback. Grouping `Bytes`, `Words` (written low byte first), `DoubleWords`; `pending` accumulates typed nibbles and a value is emitted when complete (two, four or eight digits, or one character in the text column); Escape clears `pending`; the history records `{address, written, replaced, region}` and undo pops most recent first and emits the replaced value; undo of one window leaves another's history alone; a write into the `io` region is refused with the message naming `OUT`; the history is cleared on machine switch; the model is pure data.
+- [ ] T106 [US5] Implement `CassoEmuCore/Ui/Debugger/Panes/MemoryEditModel.h/.cpp`. Makes T105 pass.
+- [ ] T107 [P] [US5] Write `UnitTest/DebuggerTests/DebugMemoryViewPatchTests.cpp` (R-024) against `TestMachine`: `Patch` on an address whose region is `rom` changes the byte the CPU reads, in each of `RomDevice`, `LanguageCard`'s ROM and `CxxxRomRouter`'s internal and slot images; on the //c a patch at $C100-$CFFF survives a `$C028` bank flip; `Patch` on `mainRam` is a bus write; `Patch` on `io` is refused; an out-of-range `PatchByte` offset asserts.
+- [ ] T108 [US5] Add `PatchByte (offset, value)` to `CassoEmuCore/Devices/RomDevice.h/.cpp`, `CassoEmuCore/Machines/Apple2/Common/LanguageCard.h/.cpp` and `CxxxRomRouter.h/.cpp`; add `Patch` and `IsIo` to `CassoEmuCore/Debugger/DebugMemoryView.h/.cpp`, `Patch` to `IDebugTarget.h` and `MachineDebugTarget.h/.cpp`, and a `Patch` poke kind to `DebuggerViewState`. Makes T107 pass.
+- [ ] T109 [P] [US5] Add editing to `Dxui/Widgets/DxuiHexView.h/.cpp` (R-030, agreed with 033): `IDxuiHexSource` gains a virtual `WriteBytes` that defaults to refusing, so read-only sources stay read-only; an overwrite caret per nibble in the hex column and per byte in the text column, drawn on the focused cell and advancing on each typed digit or character; a completed value goes to `WriteBytes`; Escape abandons the pending nibbles; a refused write leaves the cell unchanged and reports through a callback. Tests in `UnitTest/Dxui/DxuiHexViewEditingTests.cpp` through `MockDxuiPainter` and a recording source; every existing `DxuiHexView` test must still pass.
+- [ ] T110 [US5] Implement `CassoEmuCore/Ui/Debugger/Panes/MemoryPane.h/.cpp` over `DxuiHexView` with `MemoryEditModel` as its source, with an address box and a grouping picker; up to four (`memory1`-`memory4`) opened from the window menu; each completed value goes through `DebuggerViewState`'s poke (bus write for RAM, `Patch` for ROM); Ctrl+Z undoes; an edit in one window shows in every window at that address on the next snapshot. Tests in `DebuggerViewStateTests.cpp`.
+- [ ] T111 [US5] Validate quickstart Story 5 steps 1-6 by hand and SC-012 (the machine uses the byte within one frame, seen on the emulator screen). Attach captures to the commit.
+
+**Checkpoint**: Bytes, words, double words and text edit in place with undo, ROM patches take, I/O refuses, and the full suite is green.
+
+---
+
+## Phase 11: User Story 6 - Debug at source level (Priority: P1)
+
+**Goal**: FR-033, FR-033a, FR-033b, FR-054 to FR-060, FR-066; SC-010, SC-011, SC-017
+
+**Independent Test**: Assemble the speech demo with `-g`, load the debug file, set a breakpoint on `Sing`'s source line, run, and confirm the source pane marks it; step over a `JSR` with inline parameters and land on the next line; change a byte of the source, drag it on, and see the mismatch warning (quickstart Story 6).
+
+### Hashing and the debug file
+
+- [ ] T112 [P] [US6] Write `UnitTest/DebuggerTests/Sha1Tests.cpp` (RFC 3174's vectors: `abc`, the 56-character string, one million `a`) and `NormalizeLineEndings` cases (`\r\n` and lone `\r` become `\n`; UTF-8 bytes untouched). Implement `CassoCore/Core/Sha1.h/.cpp` from RFC 3174 as class statics: `Sha1::Compute (std::span<const uint8_t>) -> Sha1Digest`, `Sha1::ToHex`, `Sha1::NormalizeLineEndings`.
+- [ ] T113 [P] [US6] Add fixtures under `UnitTest/Fixtures/Debugger/DebugFiles/`: one cc65 v2 file produced by cc65's own linker from a small program (with a `LICENSE` note giving its origin), and hand-written cases for the errors below. Write `UnitTest/DebuggerTests/DebugFileReaderTests.cpp` per `contracts/debug-file-format.md`: every record kind read into `DebugFile`; unknown keys and unknown record types skipped; several spans per `line` joined with `+`; `type` and `count` on macro lines; a `file` with and without `sha1`; a major version other than 2 is an error naming the version found; a `line` whose `file` or `span` id does not exist, or a `span` whose `seg` does not exist, is an error and nothing loads; the record count asserted non-zero.
+- [ ] T114 [US6] Implement `CassoCore/Debugger/DebugFile.h` (data-model `DebugFile`, `SourceFileRecord`, `LineRecord`, `Span`, `Segment`) and `CassoCore/Debugger/DebugFileReader.h/.cpp`. Makes T113 pass.
+- [ ] T115 [P] [US6] Write `UnitTest/DebuggerTests/LineTableTests.cpp` and implement `CassoCore/Debugger/LineTable.h/.cpp` (data-model `LineTable`): address to positions ordered outermost first; `(file, line)` to address ranges resolved through `seg.start + span.start`; a line with no code maps to the next line with code and says so (FR-055); an included file used twice has entries for each inclusion; the SC-010 sweep over the T113 fixture resolves every line that produced code both ways.
+- [ ] T116 [US6] Record the source position stack in `CassoCore/Assembler.h/.cpp`: per emitted byte range, `{fileId, line, macroDepth, invocationLine}`; include files get ids as they open; a macro expansion pushes the body position under the invocation. Tests in `UnitTest/AssemblerDebugRecordsTests.cpp` for as65 and Merlin dialects with an include and a two-level macro.
+- [ ] T117 [P] [US6] Write `UnitTest/DebuggerTests/DebugFileWriterTests.cpp` per `contracts/debug-file-format.md`: the record order; `file` with `size`, `mtime` and `sha1`; `span.start` segment-relative; the invocation line and each body line as their own `line` records over the same spans with `type=2` and `count` (FR-033a); `scope` records for local and macro-generated labels; one `mod` and `seg` per Merlin `SAV` output; the output parses back through `DebugFileReader` to an equal `DebugFile`.
+- [ ] T118 [US6] Implement `CassoCore/Debugger/DebugFileWriter.h/.cpp` and switch `ArtifactWriter::WriteDebugInfo` (used by `CassoEmuCore/Cli/As65Mode.cpp` and `MerlinMode.cpp`) to it, removing the `NAME=$ADDR` writer; keep `-g` and its per-output rule. Update `PerOutputArtifactTests.cpp`, `MerlinCommandLineTests.cpp` and `docs/Assembler.md`. Makes T117 pass.
+- [ ] T119 [US6] FR-066: add `UnitTest/Fixtures/Debugger/Sources/include-macro.a65`, `include-macro.inc` and the Merlin form `INCLUDE.MACRO.S` with a two-level macro; write `UnitTest/DebuggerTests/DebugFileRoundTripTests.cpp` that assembles each with its assembler, writes the debug file, reads it back, and confirms every emitted address resolves to its invocation line and its body line with the right depth. SC-017 (cc65's own reader accepts the file) is a quickstart step run by hand, since cc65 is not a dependency; record the result in the commit.
+- [ ] T120 [US6] `SymbolFileReader::Detect` (`CassoCore/Debugger/SymbolFileReader.cpp`) recognizes a first line of `version` with `major=` as cc65 and `SYMBOL TABLE` as a Merlin listing; `SYM LOAD` and `SymbolHandlers` load symbols and lines from a `DebugFile` into the session, which now holds the `DebugFile` and `LineTable`; the earlier `NAME=$ADDR` file still loads. Cases in `SymbolFileReaderTests.cpp` and `SymbolHandlersTests.cpp`, one of each format.
+
+### Merlin listings
+
+- [ ] T121 [US6] Capture the `PI.ADD.S` listing from Merlin under emulation (R-022) by the procedure in `UnitTest/MerlinCorpus/README.md`, check it in as `UnitTest/Fixtures/Debugger/Merlin/PI.ADD.LST` with a `LICENSE` note, and record in research R-022 how `PUT` and `USE` lines appear and whether line numbers restart.
+- [ ] T122 [US6] Implement the Merlin 8/16 listing form in `DebugFileReader` (FR-033b): every listing line with an address becomes a `line` record for a single `file` that is the listing itself, and the trailing symbol table becomes `sym` records; if T121 found `PUT` lines marked, map them to a second `file`. Tests in `DebugFileReaderTests.cpp` against the fixture, asserting a non-zero line count.
+
+### Finding sources
+
+- [ ] T123 [P] [US6] Write `UnitTest/DebuggerTests/SourceServiceTests.cpp` and implement `CassoEmuCore/Debugger/Source/SourceService.h/.cpp` and `SourcePathList.h/.cpp` (R-032) over `IFileSystem` and an in-memory `GlobalUserPrefs`: resolution in FR-058's order (relative to the debug file, the per-program list keyed by the debug file's own SHA-1, the global list, a dragged file); name and size filter before any hash; a hash match resolves silently; a size match with a different hash opens with `Mismatch`; two candidates of the same name and size take the first whose hash matches, else ask; a dragged file that matches no record opens as plain text; a found folder is added most-recent-first to both lists and survives a save and load of the preferences (FR-060).
+
+### Stepping
+
+- [ ] T124 [P] [US6] Write `UnitTest/DebuggerTests/SourceStepTests.cpp` against `TestMachine` with the T119 fixture program: step over by the stack-pointer rule (R-033) on a `JSR` followed by inline parameters, on a recursive call, and on a routine that discards its return address (SC-011); step out; with granularity `source`, the same `T`, `P` and `RTS` commands stop at the first instruction of a different line, repeat until the line changes, and stop on the line after the call; an IRQ during a source step into lands in the handler; with granularity `instruction` they behave as before.
+- [ ] T125 [US6] Change `CassoEmuCore/Debugger/RunStopHook.h/.cpp` to the stack-pointer rule for step over and step out, so AppleWin `P` and `RTS` and Monitor `S` forms use it too; add the source-step modes; add `CassoEmuCore/Debugger/Handlers/SourceHandlers.h/.cpp` with the engine commands `SRC` (the current file and line), `SRC ON|OFF` (the session's step granularity: source line or instruction) and `BP <file>:<line>` in `AppleWinParser`; the existing step commands in every mode (`T`, `P`, `RTS`; Monitor `S`; GSSquared Space, `o`, `r`) and the window's step actions step by source line while granularity is `source`, so no dialect gains a step name; the stop report carries the source position. Record `SRC` in `contracts/command-modes.md`. Makes T124 pass, and the `P` cases in `ExecutionHandlersTests.cpp` are updated to the new rule.
+
+### The source pane
+
+- [ ] T126 [US6] Implement `CassoEmuCore/Ui/Debugger/Panes/SourcePane.h/.cpp` over `DxuiTextView` (line number and text as its two cells; the row warning mark for a line that moved a breakpoint): the file and line for the PC with the line marked; selection synchronized with `DisassemblyPane` both ways (FR-054); an indicator when the position is inside a macro, with the body line shown on request (FR-057); double-click toggles a line breakpoint, moving to the next line with code and saying so (FR-055); focus entering the source pane sets the session's step granularity to `source` and focus entering the disassembly pane sets it to `instruction`, so the toolbar, the key schemes and typed step commands follow the active view; a `DxuiActionBanner` for the mismatch warning (FR-059); a file dropped on the window (`WM_DROPFILES` in `DxuiWindow`, forwarded to the host) goes to `SourceService`. Tests in `DebuggerViewStateTests.cpp`.
+- [ ] T127 [US6] Validate quickstart Story 6 steps 1-8 by hand, including SC-017 with cc65's `dbginfo` reader, and record the results in the commit.
+
+**Checkpoint**: Both assemblers write cc65 v2, the debugger reads it from any assembler and from a Merlin listing, the source pane follows the machine, and the full suite is green.
+
+---
+
+## Phase 12: User Story 7 - Arrange the debugger like Visual Studio (Priority: P2)
+
+**Goal**: FR-038 to FR-044; SC-014
+
+**Independent Test**: Drag the memory pane to the right edge, tab the trace under it, float the source pane onto a second monitor, reopen the debugger and see the layout restored; remove the monitor and see the pane on the primary (quickstart Story 7).
+
+- [ ] T128 [US7] Merge `origin/033-cassque` again, or master if 033 has reached it, to pick up any `DxuiSplitter` and `DxuiPanel` changes since T094; run `scripts/CheckStyle.ps1 -Mode Tree` after the merge.
+- [ ] T129 [P] [US7] Write `UnitTest/Dxui/DxuiPaneLayoutTests.cpp` and implement `Dxui/Core/DxuiPaneLayout.h/.cpp` (R-028, data-model `Layout`; not `DxuiDockLayout`, the emulator window's edge-band layout): `SplitNode`, `TabNode`, `PaneLeaf`, floating and auto-hidden lists; operations dock-to-side, tab-with, float, dock-back, auto-hide, restore, move within group by arrow, with a drop onto a pane's own position a no-op; split ratios clamped to each pane's minimum; JSON round trip with a version; an unknown pane id dropped on load; an unreadable document falls back to the default tree; a floating pane whose `monitorKey` is absent from the given topology opens on the primary at its saved size (SC-014); a device pane absent from the current machine is closed on restore and keeps its place (FR-044).
+- [ ] T130 [P] [US7] Write `UnitTest/Dxui/DxuiDockDropZonesTests.cpp` and implement `Dxui/Core/DxuiDockDropZones.h/.cpp`: given the tree's laid-out rects, the drop-zone rects for each side of each group, the tab zone, and the window edges; hit-testing a point to a zone; the zone's meaning as a `DxuiPaneLayout` operation.
+- [ ] T131 [P] [US7] Write `UnitTest/Dxui/DxuiTabGroupTests.cpp` and implement `Dxui/Widgets/DxuiTabGroup.h/.cpp`: tabs over a set of children, the active child laid out in the body, tab hit-testing, Ctrl+Tab switching, and a per-tab indicator flag.
+- [ ] T132 [US7] Add `DetachChild (IDxuiControl *) -> std::unique_ptr<IDxuiControl>` to `Dxui/Core/DxuiPanel.h/.cpp` (R-023) with a case in `UnitTest/Dxui/DxuiPanelTests.cpp` that a detached control re-attached to another panel keeps its state and is laid out by the new panel.
+- [ ] T133 [US7] Implement `Dxui/Widgets/DxuiDockSite.h/.cpp`: the control that maps a `DxuiPaneLayout` onto `DxuiSplitter` and `DxuiTabGroup` controls, applies each operation by moving pane controls with `DetachChild`, draws the drop-zone overlay during a drag from `DxuiDockDropZones`, hosts auto-hidden panes as edge tabs, and offers the Dock To menu (each side, each pane to tab with, Float, Auto Hide) and arrow-key moves (FR-042). Tests in `UnitTest/Dxui/DxuiDockSiteTests.cpp` with `MockDxuiControl` panes assert the control tree after each operation.
+- [ ] T134 [US7] Implement `Dxui/Window/DxuiDockedWindow.h/.cpp`, a `DxuiWindow` whose content is one `DxuiDockSite`: the main window holds the whole layout and a floating pane is another `DxuiDockedWindow` holding one pane; dragging a pane past the window edge floats it and dragging a floating window over a drop zone docks it (FR-040); `WM_DPICHANGED` through `DxuiHwndSource` rescales (FR-043); auto-hidden edge tabs slide out on hover or click and hide when focus leaves, with the indicator when content changes (FR-041). Tests in `UnitTest/Dxui/DxuiDockedWindowTests.cpp` drive the float and dock operations without an `HWND`.
+- [ ] T135 [US7] Persist the layout: a versioned `debugger.layout` subtree in `CassoEmuCore/Config/GlobalUserPrefs.h/.cpp` through `UserConfigStore`, with monitors keyed the way `WindowPlacementProfile` keys them; saved when the debugger closes and applied when it opens; `DebuggerWindow` becomes a `DxuiDockedWindow` and composes its panes through its dock site. Round-trip case in `GlobalUserPrefsTests.cpp`.
+- [ ] T136 [US7] Validate quickstart Story 7 steps 1-4 on the two-monitor machine, including the DPI boundary, and record the results in the commit.
+
+**Checkpoint**: Panes split, tab, float, auto-hide and come back where they were, from mouse and keyboard, and the full suite is green.
+
+---
+
+## Phase 13: User Story 8 - Look back at what ran (Priority: P2)
+
+**Goal**: FR-045 to FR-048; SC-013; FR-064 kept
+
+**Independent Test**: Turn tracing on, run the speech demo to a watchpoint on the speech chip's data register, and see the write as the last trace entry with `SPHON`; scroll back through increasing cycle counts (quickstart Story 8).
+
+- [ ] T137 [P] [US8] Write `UnitTest/DebuggerTests/TraceTests.cpp`: the extended `TraceEntry` (data-model) carries `cycles` and the last access `{address, data, isWrite}` per instruction; with capacity 100,000 the ring keeps the newest 100,000 (SC-013); while on, every page is in the bus's watched set and the access is recorded from the watch path; while off, `MemoryBus::GetWatchedPageCount()` is the watchpoints' count alone and `Cpu`'s trace gate is false; steps append; a machine switch clears it; `HISTORY` renders a window of entries with symbols for `pc` and the access address.
+- [ ] T138 [US8] Extend `TraceEntry` in `CassoEmuCore/Core/Cpu.h/.cpp` and fill the access from the bus; add `SetTraceAllPages (bool)` to `CassoEmuCore/Core/MemoryBus.h/.cpp` (R-025: publish every page to the watched path while on, restore the mask when off) and a trace sink; implement `CassoEmuCore/Debugger/TraceController.h/.cpp` (`On`, `Off`, `GetWindow (first, count)`, `Save`), reachable through `IDebugTarget` and `MachineDebugTarget`. Makes T137 pass; every existing `MemoryBusWatchMaskTests` case must still pass.
+- [ ] T139 [P] [US8] `HISTORY ON|OFF|SAVE <file>|<first> [count]` in `AppleWinParser`, `CassoEmuCore/Debugger/Handlers/TraceHandlers.h/.cpp`, the three formatters and a `trace` reply kind in `ReplyJson`; `HISTORY SAVE` writes every retained entry through `IFileSystem`. Tests in `AppleWinParserTests.cpp`, `FormatterTests`, `ReplyJsonTests.cpp` and `TraceHandlersTests.cpp` with the mock file system. Update `contracts/command-modes.md` and `contracts/debug-channel-protocol.md`.
+- [ ] T140 [US8] Implement `CassoEmuCore/Ui/Debugger/Panes/TracePane.h/.cpp`: a virtualized list that requests only the visible window of entries from the snapshot, ends at the most recent, scrolls to any entry (SC-013), and shows symbols; a toolbar toggle for the trace. Tests in `DebuggerViewStateTests.cpp` assert the window requested for a scroll position.
+- [ ] T141 [US8] Validate quickstart Story 8 steps 1-3 by hand, and measure FR-064/SC-008 with the trace off by the pinned procedure against the baseline commit before `9f12ea90`; record both in the commit.
+
+**Checkpoint**: 100,000 instructions are retained with their accesses, the pane scrolls through them, and the idle path is unchanged.
+
+---
+
+## Phase 14: User Story 9 - Inspect a device (Priority: P2)
+
+**Goal**: FR-049 to FR-053; SC-015
+
+**Independent Test**: Boot a disk with the Disk II panel open and watch the quarter track and phases change; stop and see the panel freeze; switch to a machine without a Mockingboard and see that panel gone (quickstart Story 9).
+
+- [ ] T142 [P] [US9] Write `UnitTest/DebuggerTests/DiagnosticsProviderTests.cpp` for `IDiagnosticsProvider` and data-model `DiagnosticsSnapshot`: each provider fills groups of `{label, value, bits}` rows; the Disk II provider's phases, quarter track, motor and spin-up and read state change during a seek on `TestMachine`; the //e MMU provider lists every switch with its bit decode and a `MemoryMap` payload of 256 `{readSource, writeSource}` pages that changes on `$C008`/`$C009`; the video, keyboard, Mockingboard (per 6522 ports, timers, IFR, IER; per AY register set, with `Meters`), printer and clock providers; `MachineHost::GetDiagnosticsProviders` lists only the current machine's (FR-053), and the ][+ has no MMU or Mockingboard entry; the snapshot is built once per frame and once on stop (SC-015).
+- [ ] T143 [US9] Implement `CassoEmuCore/Debugger/IDiagnosticsProvider.h` and `DiagnosticsSnapshot.h` (R-034), the providers on `Disk2Controller`, `Apple2eMmu`, the video device, `AppleKeyboard`, `Via6522` and `Ay8910` (grouped by Mockingboard), the printer and the clock, `MachineHost::GetDiagnosticsProviders`, and the per-open-panel snapshots in `DebugViewSnapshot`. Makes T142 pass.
+- [ ] T144 [P] [US9] Implement `CassoEmuCore/Ui/Debugger/Panes/DiagnosticsPane.h/.cpp`: groups, rows and bit decodes rendered from the snapshot with no device-specific code; the panel menu lists the current providers; a panel closes when its device leaves (machine switch or slot emptied). Tests in `DebuggerViewStateTests.cpp` render a synthetic snapshot.
+- [ ] T145 [P] [US9] Implement the three visuals as controls under `CassoEmuCore/Ui/Debugger/Panes/`: `MemoryMapBar.h/.cpp` (256 pages colored by source), `DiskHeadView.h/.cpp` (quarter-track head position, phases, motor), `MeterBar.h/.cpp` (named levels 0..1). Tests in `UnitTest/DebuggerTests/DiagnosticsVisualsTests.cpp` through `MockDxuiPainter`.
+- [ ] T146 [US9] Add the engine command `PANEL LIST|<name>|CLOSE <name>` to `AppleWinParser` and `ConfigHandlers` so panels open from any way in; it reports not available in batch. Tests in `AppleWinParserTests.cpp` and `ConfigHandlersTests.cpp`; contract in `contracts/command-modes.md`.
+- [ ] T147 [US9] Validate quickstart Story 9 steps 1-4 by hand and SC-015 on a capture sequence; record in the commit.
+
+**Checkpoint**: Seven panels and three visuals update every frame and freeze on stop, and a new device gets a panel by publishing rows.
+
+---
+
+## Phase 15: User Story 10 - Stop on a condition (Priority: P3)
+
+**Goal**: FR-015a, FR-061, FR-062
+
+**Independent Test**: `BP 0300 IF A == 41` on a counting loop stops with A=$41; a value breakpoint on $0400 becoming $C1 stops on the tenth pass with that hit count (quickstart Story 10).
+
+- [ ] T148 [P] [US10] Write `UnitTest/DebuggerTests/ExpressionBreakpointTests.cpp`: `IF <expr>` on `BP`, `BPX`, `BPM`, `BPMR` and `BPMW`; the expression is evaluated only when the address or access hits (a counting evaluator context); false leaves the hit count unchanged and the machine running; true stops and the report carries the expression and its value; an expression that cannot be evaluated when set (unknown symbol) is an error and creates nothing; an expression that reads an I/O address is refused when set; on a watch hit the pseudo-symbols `ACCESS` and `VALUE` name the accessed address and the value; `BPMV <addr> <value>` (`MemoryValue` kind) stops when a write leaves the address holding the value and not on any other write; `BPR A=0`, `BPR A = 0` and `BPR A 0` set the same breakpoint (FR-015a), and `BPR A=` is still an error.
+- [ ] T149 [US10] Implement: `condition` and `value` on `Breakpoint` and the `MemoryValue` kind in `CassoEmuCore/Debugger/BreakpointTable.h/.cpp`; evaluation at hit in `DebugSession` and on the watch path in `WatchpointTable`; `IF`, `BPMV` and the spacing forms in `CassoCore/Debugger/AppleWinParser.cpp`; the stop report in the formatters and `ReplyJson`. Record `IF`, `BPMV`, `ACCESS` and `VALUE` in `contracts/command-modes.md`. Makes T148 pass.
+- [ ] T150 [US10] Add batch scripts and goldens for quickstart Story 10 steps 1-3 under `UnitTest/Fixtures/Debugger/Scripts/` with cases in `DebugModeTests.cpp`.
+
+**Checkpoint**: Conditional and value breakpoints stop where they should and nowhere else.
+
+---
+
+## Phase 16: User Story 11 - Find the expensive code (Priority: P3)
+
+**Goal**: FR-063
+
+**Independent Test**: Profile a loop of `LDA $10FF,X` with X crossing the page half the time and see the page-crossing cycles attributed apart from the base cycles (quickstart Story 11).
+
+- [ ] T151 [P] [US11] Add the penalty byte beside `GetLastInstructionCycles` in `CassoEmuCore/Core/Cpu.h/.cpp` (R-026): page crossing on an indexed read, branch taken, branch crossed a page. Cases in `UnitTest/EmuTests/EmuCpuTests.cpp` and `Cpu65C02Tests.cpp` for each kind on both CPUs, including the 65C02 modes where crossing costs a cycle.
+- [ ] T152 [P] [US11] Write `UnitTest/DebuggerTests/ProfileTableTests.cpp` and implement `CassoEmuCore/Debugger/ProfileTable.h/.cpp` (data-model `Profile`): per-opcode `{count, cycles}`, the three penalty buckets, per-address cycles, the total; `Reset`; counting only while on, through the per-instruction hook, and the hook absent when off (a recording target sees no hook).
+- [ ] T153 [US11] `PROFILE ON|OFF|RESET|LIST [ADDR]|SAVE <file>` in `AppleWinParser` and `CassoEmuCore/Debugger/Handlers/ExecutionHandlers.h/.cpp`: `LIST` grouped by mnemonic and addressing mode with count, cycles and share, and the penalty rows; `LIST ADDR` the hottest addresses with symbols; `SAVE` the same rows through `IFileSystem`; a `profile` reply kind in `ReplyJson`. Tests in `ExecutionHandlersTests.cpp`, `FormatterTests` and `ReplyJsonTests.cpp`; contracts updated.
+- [ ] T154 [US11] Add the `LDA $10FF,X` script and goldens for quickstart Story 11 under `UnitTest/Fixtures/Debugger/Scripts/` with cases in `DebugModeTests.cpp`.
+
+**Checkpoint**: The profile names the cycles by opcode, mode, address and penalty kind.
+
+---
+
+## Phase 17: User Story 12 - Use GSSquared's syntax (Priority: P3)
+
+**Goal**: FR-011, FR-013, FR-022a, FR-022b; SC-016
+
+**Independent Test**: In batch with GSSquared mode, run each command in its list against a fixture machine and compare the engine effect with the same command in AppleWin mode; compare replies to the captured fixtures (quickstart Story 12).
+
+- [ ] T155 [US12] Capture GSSquared's replies (R-027): build GSSquared from source, run each command in `contracts/gssquared-mode.md` against the program in `Scripts/stop.txt` on the same machine type, and check the replies in under `UnitTest/Fixtures/Debugger/GSSquared/` with a `LICENSE` note. If GSSquared cannot be built, use its documented examples, record the deviation in research R-027, and note which fixtures are documentation-derived.
+- [ ] T156 [P] [US12] Write `UnitTest/DebuggerTests/GSSquaredParserTests.cpp` for every row of the contract's command table: `first.last` ranges, deposit, `set`, `move`, `l` with and without an address, `bp`/`bpd`/`bpi`/`nobp`, `watch`/`nowatch`, `load`/`save`, `sload`/`slookup`/`sclear`, `o`, `r`, `s`, an empty line, `g`, `debug`/`nodebug`; case-insensitive; `m`, `x`, `map` and `video` produce `NotAvailable` with their reason; `/` reaches AppleWin commands; a malformed line produces an error and no command.
+- [ ] T157 [US12] Implement `CassoCore/Debugger/GSSquaredParser.h/.cpp` producing `DebugCommand`, add `CommandMode::GSSquared`, `MODE GSSQUARED` and `/mode gssquared`, and route the mode in `DebugSession`. Makes T156 pass.
+- [ ] T158 [P] [US12] Write `UnitTest/DebuggerTests/OutputFormatTests.cpp` (FR-013, data-model `OutputFormat`): `MODE x` sets both mode and output format; `OUTPUT x` sets the format alone; the setting is reachable from batch (`--output` in `contracts/cli-debug.md` and `DebugOptions`), the channel and the window; every reply, including stops, is rendered by the current format. Implement `OUTPUT` in `ConfigHandlers`, the field in `DebugSession`, and the rendering switch in `DebugBatchSink` and the channel's reply path.
+- [ ] T159 [P] [US12] Write `UnitTest/DebuggerTests/GSSquaredFormatterTests.cpp` comparing each reply kind against the T155 fixtures line for line, and implement `CassoEmuCore/Debugger/GSSquaredFormatter.h/.cpp`; a reply kind GSSquared has no form for keeps the AppleWin text, as the Monitor formatter does.
+- [ ] T160 [US12] Write `UnitTest/DebuggerTests/GSSquaredCommandSweepTests.cpp` (SC-016): for every command in the contract's table, the engine effect (tables, memory, registers, run request) equals the AppleWin equivalent's, and every `DebugVerb` reachable from GSSquared mode is in the table.
+- [ ] T161 [US12] In the window's `ConsolePane`, Space steps and Return resumes when the mode is GSSquared and the input line is empty (the contract's batch note); `debug "name"` and `nodebug` map onto `PANEL`. Tests in `DebuggerViewStateTests.cpp`. Record the mode in `contracts/command-modes.md` and `docs/Debugger.md`.
+- [ ] T162 [US12] Add a GSSquared-mode script and goldens for quickstart Story 12 steps 1-3 under `UnitTest/Fixtures/Debugger/Scripts/` with cases in `DebugModeTests.cpp`.
+
+**Checkpoint**: All twelve stories are functional and the full suite is green.
+
+---
+
+## Phase 18: Release
+
+**Purpose**: The material the release needs and the gates before merging to master (FR-065, SC-008, SC-009).
+
+- [ ] T163 [P] Extend `docs/Debugger.md` (T083) with every story: the window and its panes, memory editing, source-level debugging and the debug file, docking, the trace, device panels, conditional and value breakpoints, profiling, GSSquared mode and the output format.
+- [ ] T164 [P] FR-065: assemble `Apple2/Demos/Mockingboard/Speech/mockingboard-speech-demo-dhgr.a65` with `-g`, boot `Apple2/Demos/mockingboard-speech-demo-dhgr.dsk` in a Casso started in the background with a `--title` that is not a spec name, load the debug file, stop on a write to the speech chip's data register with the source pane, the Mockingboard panel, the trace and a memory window open, capture the window, and add it to `README.md` under the Debugger section beside the existing images.
+- [ ] T165 Measure SC-008 and SC-009 with the pinned procedure against the baseline commit before `9f12ea90`, 10 or more runs per arm; record in the merge commit. If either exceeds its bound, find the cost before merging.
+- [ ] T166 Bring `CHANGELOG.md` and `README.md` to the net effect of the whole branch (T084): one `GH #51` entry, headlines only, shown for approval before pushing.
+- [ ] T167 Confirm 033-cassque has merged to master and merge master once more; then run the pre-merge gate (T085's list) on the final head, plus `scripts/CheckStyle.ps1 -Mode Tree` after `git add -A`, and every quickstart section end to end (T086); record the results in the merge commit. The merge to master is the owner's call.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies
 
-- **Setup (Phase 1)**: no dependencies.
-- **Foundational (Phase 2)**: depends on Setup and blocks every story. T007 needs T005 and T006; T016 needs T018 (the shadow tables); T020 needs T016, T018 and T019.
-- **US1 (Phase 3)**: depends on Foundational. T027 needs T022, T024 and T025. The handler families T036-T041 and T052 need T027 and T033. T043 and T044 need T042. T046 needs T042. T051 needs T049. T056 needs T027, T031, T035 and T054.
-- **US2 (Phase 4)**: depends on Foundational and on the US1 session, AppleWin parser and batch runner (T027, T031, T056), because `/` routes to AppleWin mode and scripts run through `DebugMode`. T057 and T058 come first; T063 needs T060 and T062.
-- **US3 (Phase 5)**: depends on US1. T069 needs T066 and T067; T073 needs T067; T075 needs T073.
-- **US4 (Phase 6)**: depends on US3's `DebuggerController` (T072).
-- **Polish**: T083 and T084 run per phase merge; T085 and T086 run before each merge.
+- **Phases 1-8**: delivered; see each phase's checkpoint.
+- **US4 (Phase 9)**: depends on the delivered window (T080) and starts with the 033 merge (T094), which every later phase builds on. T096 needs T095; T098 needs T097; T101 needs T096, T098 and T099; T102 needs T100 and T101; T103 and T104 need T102.
+- **US5 (Phase 10)**: depends on US4's snapshot and panes (T098, T101). T106 needs T105; T108 needs T107; T110 needs T106, T108 and T109.
+- **US6 (Phase 11)**: depends on US4 (T101). T114 needs T113; T115 needs T114; T117 needs T116; T118 needs T112, T114 and T117; T119 needs T118; T120 needs T114; T122 needs T121; T123 needs T112 and T114; T125 needs T124 and T115; T126 needs T120, T123 and T125.
+- **US7 (Phase 12)**: depends on US4 (T101). T133 needs T129, T130, T131 and T132; T134 needs T133; T135 needs T134.
+- **US8 (Phase 13)**: depends on US4's snapshot (T098). T138 needs T137; T139 needs T138; T140 needs T139.
+- **US9 (Phase 14)**: depends on US4's snapshot (T098). T143 needs T142; T144 and T145 need T143; T146 needs T144.
+- **US10 (Phase 15)**: depends on the delivered engine only. T149 needs T148; T150 needs T149.
+- **US11 (Phase 16)**: depends on the delivered engine only. T153 needs T151 and T152; T154 needs T153.
+- **US12 (Phase 17)**: depends on the delivered engine; T161 needs US4 (T101) and US9 (T146). T157 needs T156; T159 needs T155; T160 needs T157 and T158; T161 needs T157.
+- **Release (Phase 18)**: depends on every story. T164 needs US6, US8 and US9.
 
 ### Within each story
 
-Tests are written first and fail, then the implementation makes them pass. After that, each test is mutation-checked.
+Tests are written first and fail, then the implementation makes them pass. After that, each test is mutation-checked. Each story merges to the branch behind the full suite; the branch merges to master when the owner decides.
 
 ## Parallel Examples
 
 ```text
-# Foundational, after T001:
-T004 DisassemblerTests       T006 listing transcription    T008 LineAssemblerTests
-T010 DebugExpressionEvaluatorTests  T012 DebugCommand.h    T013 Reply.h
-T015 DebugMemoryViewTests    T017 DebugHookTests + MemoryBusWatchMaskTests
+# US4, after T094:
+T095 DxuiListViewMetricsTests   T097 DebugViewSnapshotTests   T099 symbolic disassembly   T100 DxuiKeyMap
 
-# US1 handler families, after T027 and T033:
-T036 Execution  T037 Breakpoint  T038 Register  T039 Memory  T040 DataDirective  T041 Config
+# US6, after T101:
+T112 Sha1   T113 DebugFileReaderTests   T115 LineTable   T117 DebugFileWriterTests   T121 Merlin capture   T123 SourceService   T124 SourceStepTests
 
-# US1 formats, independent of the handlers:
-T045 SymbolFileReaderTests  T047 RomSymbols  T048 AppleSingleCodecTests  T050 BinaryImageReaderTests
+# US7, after T128:
+T129 DxuiPaneLayoutTests   T130 DxuiDockDropZonesTests   T131 DxuiTabGroupTests   T132 DetachChild
+
+# Stories with no dependency on each other, after US4:
+US5 memory editing   US8 trace   US9 device panels   US10 conditions   US11 profiling
 ```
 
 ## Implementation Strategy
 
-### MVP first
+### What is done
 
-Phases 1-3 give a working batch debugger in AppleWin syntax: break, inspect, step, symbols, deterministic output. Stop, validate against quickstart phase 1, and merge.
+Phases 1-8: the engine, AppleWin and Monitor modes, batch mode, the channel, and the first window. The branch is green and the engine is at parity or ahead of both competitors (R-020).
 
 ### Incremental delivery
 
-1. **Setup + Foundational**: the verified disassembler and side-effect-free machine access.
-2. **US1**: batch debugger in AppleWin mode. Merge to master.
-3. **US2**: Monitor mode with the ROM verification gates. Merge; plan phase 1 is complete.
-4. **US3**: the named pipe and attach. Merge; plan phase 2 is complete.
-5. **US4**: the window and the phase-3 commands. Merge; plan phase 3 is complete.
+1. **US4** the window worth releasing, and the snapshot every later pane draws from.
+2. **US5** memory editing and **US6** source-level debugging: the two P1 stories that put Casso ahead.
+3. **US8** trace and **US9** device panels: the visible parity items.
+4. **US7** docking.
+5. **US10**, **US11**, **US12**: engine additions with small surfaces, in any order.
+6. **Release**: screenshot, docs, changelog, the measured gates, and the merge to master.
 
-Phase 3 (US1) is large by the owner's decision to cover the whole AppleWin table. It may land as several merges, one per handler family, provided each merge passes the name sweep with the unfinished families still reporting `notAvailable`.
+Each story lands as its own merge to the branch behind the full suite. Nothing merges to master until the release phase, by the owner's decision (R-020), and not before 033-cassque has, since 035 carries its Dxui.

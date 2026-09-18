@@ -941,24 +941,33 @@ lists use the monospace face, a row of the font's line height plus 2 DIP,
 
 ## R-030: The memory editor
 
-**Decision**: a new control, not a list view.
+**Decision**: 033's `DxuiHexView` with editing added, not a new control.
 
 **Rationale**: in-place editing needs a per-cell caret, a partial-value
 state, focus that advances on completion, and a text column whose cells are
-single characters. `DxuiListView` has whole-row selection and no caret.
-`DxuiTextInput` has a caret but is one line. The memory editor is a grid
-control with its own caret, drawing rows from a snapshot and sending each
-completed value through the window host as a poke; undo is a per-window list
-of `{address, written, replaced}`.
+single characters. `DxuiListView` has whole-row selection and no caret;
+`DxuiTextInput` has a caret but is one line. `DxuiHexView` on
+`origin/033-cassque` already has grouping by 1, 2, 4 or 8, hex and text
+columns as tab stops, a host-supplied `IDxuiHexSource` that is asked only
+for the rows it draws, and per-byte marks; it is read-only. Agreed with 033:
+`IDxuiHexSource` gains a `WriteBytes` that defaults to refusing, and the
+view gains an overwrite caret per nibble in the hex column and per byte in
+the text column. The debugger's source is a `MemoryEditModel` that reads
+from the snapshot, writes through the host as a poke, and keeps the
+per-window undo list of `{address, written, replaced}`.
 
 ## R-031: Keyboard schemes
 
-**Decision**: a scheme is a table from action to key, chosen in preferences.
+**Decision**: a scheme is a `DxuiKeyMap`, a generic Dxui table from key
+chord to command id, chosen in preferences and swapped at run time.
 
-**Facts**: `DxuiWindow` routes keys to `OnKey`; the debugger window maps a key
-through the active scheme's table to an action, and each scheme is a data
-table (Visual Studio, AppleWin, GSSquared) tested by driving the table, not
-the window.
+**Facts**: 033's `DxuiCommandRouter` owns one key table for the seven
+standard focus-following commands and nothing else; Cassque keeps a private
+`kKeys` chord table. No generic application key map exists, and 033 has no
+objection to one provided the chord struct matches `kKeys` and a window can
+swap maps. `DxuiWindow` consults its active map in `OnKeyDown` after the
+standard router finds nothing; the three schemes (Visual Studio, AppleWin,
+GSSquared) are data tables tested by driving the map, not the window.
 
 ## R-032: Source files, hashing and the path list
 
@@ -988,6 +997,15 @@ past them. The stack-pointer rule needs no return address at all: it watches
 works, because a deeper call lowers `SP` further. Source-level step over
 repeats the rule until the program counter's line changes; step out stops at
 the first instruction after `SP > startSp` without a preceding `JSR` test.
+
+**Granularity follows the view, not a command name.** The session holds a
+step granularity, `instruction` or `source` (`SRC ON|OFF` for batch and
+the pipe); in the window it follows which of the source and disassembly panes
+has focus. AppleWin's `T`/`P`/`RTS`, the Monitor's `S` and GSSquared's
+Space/`o`/`r` keep their meanings and step by whichever granularity is
+set, so no dialect gains a step command, and GSSquared's Space, which its
+console reads as a key on an empty line rather than as text, needs no second
+form.
 
 ## R-034: Device diagnostics
 

@@ -34,9 +34,12 @@ The approach turns on these facts from research:
   path on for every page while tracing; off, nothing changes.
 - **Dxui can move a control between windows** (R-023): controls hold no
   device resources, so a pane floats by moving its `unique_ptr` into a new
-  `DxuiWindow`'s panel. Docking is a layout tree over `DxuiSplitter` (on
-  `origin/033-cassque`, commit `18cec1b2`; the docking story starts by
-  merging master once 033 has shipped it) and a new tab-group control.
+  `DxuiWindow`'s panel. Docking is a pane layout over `DxuiSplitter` and a
+  new tab-group control, and it is generic, so it lives in `Dxui`.
+- **033-cassque's Dxui is the base.** `DxuiSplitter`, `DxuiHexView`,
+  `DxuiTextView` and `DxuiCommandRouter` are on `origin/033-cassque` (91
+  Dxui commits ahead of master) and stable; 035 merges that branch first,
+  builds on them, and merges to master only after 033 has.
 - **Every device's state is already a getter** (R-034). Diagnostics is one
   interface each device implements to publish rows, rendered by one widget.
 
@@ -52,7 +55,8 @@ without an `HWND`, and the window is wiring over projections, as today.
 **Primary Dependencies**: Windows SDK only. Named pipes and the user-SID DACL
 as before; in-tree `JsonWriter`/`JsonParser`; in-tree `Microcode`/
 `OpcodeTable`/`Assembler`; in-tree `Dxui` (`DxuiWindow`, `DxuiPanel`,
-`DxuiListView`, `DxuiSplitter` from 033, `DxuiTextInput`); DirectWrite for
+`DxuiListView`, `DxuiTextInput`, and from 033 `DxuiSplitter`,
+`DxuiHexView`, `DxuiTextView` and `DxuiCommandRouter`); DirectWrite for
 text measurement inside Dxui; `WM_DPICHANGED` handling already in
 `DxuiHwndSource`. SHA-1 is implemented in-tree from RFC 3174 (R-021).
 **No new third-party dependency.**
@@ -117,14 +121,15 @@ test files across the remaining stories.
 1.11.0 allows no code in an executable at all. Nothing in this feature
 touches `Casso/` or `CassoCli/`:
 
-- Every window, floating window included, is a `DxuiWindow` created in
-  `CassoEmuCore/Ui/Debugger/`. A floating pane is the same `DxuiWindow` class
-  the debugger window is, holding one pane.
-- The layout tree, drop-zone geometry, tab groups, auto-hide state and
-  serialization are a `DockLayout` model in `CassoEmuCore/Ui/Docking/` with
-  no window dependency; the window applies the model's output.
-- The memory editor's caret, pending digits, completion and undo are a
-  `MemoryEditModel`; the control draws it.
+- Every window, floating window included, is a `DxuiDockedWindow`, a
+  `DxuiWindow` whose content is a `DxuiDockSite`; the debugger window
+  holds the whole layout and a floating pane holds one pane.
+- The layout tree, drop-zone geometry, auto-hide state and serialization are
+  a `DxuiPaneLayout` model in `Dxui/Core/` with no window dependency; the
+  dock site applies the model's output.
+- The memory editor's pending digits, completion and undo are a
+  `MemoryEditModel`, the `IDxuiHexSource` behind `DxuiHexView`; the
+  view's caret advances per nibble and the model writes on completion.
 - The source service, line tables, hashing and path lists are in
   `CassoEmuCore/Debugger/Source/`, over `IFileSystem`.
 - Trace, profile and diagnostics are engine tables read through snapshots.
@@ -188,6 +193,9 @@ Standard rules. Points needing attention:
 - The trace's bus hook and the profile's hook run per instruction while on;
   they are small, allocation-free and take no locks.
 - `DxuiPanel`'s detach returns the `unique_ptr`; ownership is never shared.
+- `DxuiKeyMap`'s chord struct matches `CassqueCommands::kKeys` so Cassque
+  can move onto it (agreed with 033); `IDxuiHexSource::WriteBytes` defaults
+  to refusing so read-only sources stay read-only.
 - ROM patch functions take an offset the memory view has already validated;
   an out-of-range offset is a coding error and asserts.
 
@@ -204,7 +212,7 @@ drivable from `UnitTest` without a window or a file. **PASS.**
 
 ```text
  Ways in       CassoCli debug       DebugChannelServer                 DebuggerWindow + floating windows
-               (batch, JSON Lines)  (pipe, JSON Lines)                 (Dxui; DockLayout; panes over snapshots)
+               (batch, JSON Lines)  (pipe, JSON Lines)                 (Dxui; DxuiDockSite; panes over snapshots)
                      \                    |                                 /
  Parsing              AppleWinParser / MonitorParser / GSSquaredParser   (per session mode)
                                      \        |       /
@@ -232,33 +240,44 @@ drivable from `UnitTest` without a window or a file. **PASS.**
   breakpoints, the trace window, the diagnostics, the profile summary) once
   per frame while running and once on a stop. Every pane draws from it.
 - **Run commands** are as before; the step-over rule changes to the stack
-  pointer (R-033) and source steps repeat instruction steps until the line
-  changes.
+  pointer (R-033). Step granularity is session state (`SRC ON|OFF`): with
+  `source` on, every mode's existing step commands and the window's step
+  actions repeat instruction steps until the source line changes, so no
+  dialect gains a step name. In the window, focus entering the source pane
+  or the disassembly pane sets the granularity, as Visual Studio does.
 
 ### The window
 
-- `DebuggerWindow` owns a `DockLayout` and a set of `DebuggerPane`s, one per
-  pane kind: disassembly, source, registers, stack, watches, breakpoints,
+- `DebuggerWindow` is a `DxuiDockedWindow` owning a set of `DebuggerPane`s,
+  one per pane kind: disassembly, source, registers, stack, watches, breakpoints,
   trace, console, device panels (one pane per open device), and memory
   windows 1-4. Each pane is a `DxuiPanel` subclass that draws from the
   snapshot and sends commands as text through the host, so a click on a
   disassembly line and a typed `BP` take the same path.
-- `DockLayout` (R-028, data-model Layout) is a tree of split and tab nodes.
-  `DockHost` maps the tree onto `DxuiSplitter` and `DxuiTabGroup` controls,
-  computes drop zones for a drag, and moves a pane's control between hosts
-  and floating windows (R-023). Keyboard docking is a `Dock To` menu on the
-  pane's tab plus arrow keys over the same operations (FR-042).
-- Floating windows are `DxuiWindow`s; their placement is per-monitor and DPI
-  is the window's own (FR-043). On load, a missing monitor falls back to
-  the primary (FR-044).
+- `DxuiPaneLayout` (R-028, data-model Layout) is a tree of split and tab
+  nodes. It is not `DxuiDockLayout`, which lays the emulator window's edge
+  bands around a center and has no tabs, floating or nesting.
+  `DxuiDockSite` maps the tree onto `DxuiSplitter` and `DxuiTabGroup`
+  controls, computes drop zones for a drag through `DxuiDockDropZones`, and
+  moves a pane's control between sites and floating windows (R-023).
+  Keyboard docking is a `Dock To` menu on the pane's tab plus arrow keys
+  over the same operations (FR-042).
+- Floating windows are `DxuiDockedWindow`s holding one pane; their placement
+  is per-monitor and DPI is the window's own (FR-043). On load, a missing
+  monitor falls back to the primary (FR-044).
 - Dense lists (R-029): `DxuiListView` gains per-instance metrics; the
   debugger's lists use the monospace face at the theme's mono size.
-- The memory editor (R-030) is `DxuiMemoryGrid` over a `MemoryEditModel`;
-  a completed value is a `MEB`-equivalent poke through the host (FR-035),
-  routed to the bus for RAM and to `DebugMemoryView::Patch` for ROM
-  (R-024); the model refuses I/O cells (FR-037).
-- Keyboard schemes (R-031) map keys to actions; the window looks a key up
-  in the active scheme.
+- The memory editor (R-030) is 033's `DxuiHexView` with editing added
+  (`IDxuiHexSource::WriteBytes`, a per-nibble overwrite caret) over a
+  `MemoryEditModel` source; a completed value is a `MEB`-equivalent poke
+  through the host (FR-035), routed to the bus for RAM and to
+  `DebugMemoryView::Patch` for ROM (R-024); the model refuses I/O writes
+  (FR-037).
+- The source pane is 033's `DxuiTextView` with the line number and text as
+  its cells.
+- Keyboard schemes (R-031) are three `DxuiKeyMap` tables; `DxuiWindow`
+  consults its active map after `DxuiCommandRouter` finds no standard
+  command, and the debugger swaps the map when the scheme changes.
 
 ### Trace, profile, diagnostics
 
@@ -287,7 +306,8 @@ drivable from `UnitTest` without a window or a file. **PASS.**
 - `SourceService` (CassoEmuCore) resolves files (R-032), hashes them,
   builds the `LineTable`, and serves the source pane's text; the drag-drop
   path hashes the dropped file and matches it.
-- `RunStopHook` gains the stack-pointer rule and source-step modes (R-033).
+- `RunStopHook` gains the stack-pointer rule and the source-line repeat
+  (R-033); the session's granularity chooses which the step commands use.
 
 ### Threading
 
@@ -308,11 +328,13 @@ close still follow the controller.
 Stories 1-3 and the first window are done. The rest, by spec priority, each
 landing as its own merge to the branch and gated by the full suite:
 
-1. **Window (story 4, P1)**: dense `DxuiListView` metrics and the mono face
+1. **Window (story 4, P1)**: merge `origin/033-cassque` first; then dense
+   `DxuiListView` metrics and the mono face
    (R-029); symbolic disassembly with per-line labels and operand symbols
    (FR-010a); breakpoint, watch and stack panes sized by content; the
    keyboard schemes (R-031); the snapshot cadence and SC-009 measurement.
-2. **Memory editing (story 5, P1)**: `MemoryEditModel`, `DxuiMemoryGrid`,
+2. **Memory editing (story 5, P1)**: `MemoryEditModel`, editing in
+   `DxuiHexView`,
    the four memory windows, `DebugMemoryView::Patch` and the ROM patch paths
    (R-024), per-window undo.
 3. **Source-level (story 6, P1)**: SHA-1; `DebugFileWriter` in both
@@ -320,10 +342,10 @@ landing as its own merge to the branch and gated by the full suite:
    Merlin listing (capture the `PUT` listing first, R-022); `SourceService`
    and the path lists; the source pane; the stack-pointer step-over and
    source steps (R-033); line breakpoints.
-4. **Docking (story 7, P2)**: `DockLayout` and its serialization (R-028);
-   `DxuiTabGroup`; `DockHost` over `DxuiSplitter`; drag with drop zones;
-   floating windows (R-023); auto-hide; keyboard docking; layout save and
-   restore with the fallback monitor.
+4. **Docking (story 7, P2)**: `DxuiPaneLayout` and its serialization
+   (R-028); `DxuiTabGroup`; `DxuiDockSite` over `DxuiSplitter`; drag with
+   `DxuiDockDropZones`; `DxuiDockedWindow` (R-023); auto-hide; keyboard
+   docking; layout save and restore with the fallback monitor.
 5. **Trace (story 8, P2)**: the extended `TraceEntry`, the bus's all-pages
    watched mode, `HISTORY`, the trace pane, `HISTORY SAVE`, SC-013.
 6. **Device panels (story 9, P2)**: `IDiagnosticsProvider`, the seven
@@ -337,7 +359,7 @@ landing as its own merge to the branch and gated by the full suite:
    `BPR` without spaces (FR-015a).
 10. **Release**: the README screenshot on the Mockingboard speech demo
     (FR-065), `docs/Debugger.md` for every story, the changelog, the
-    pre-merge gate, SC-008 measured.
+    pre-merge gate, SC-008 measured, and 033 on master before 035 merges.
 
 ## Risks
 
@@ -348,8 +370,12 @@ landing as its own merge to the branch and gated by the full suite:
 - **GSSquared's output has to be captured from a build of GSSquared**
   (R-027). If it cannot be built, the documented examples fix the format
   and the deviation is recorded; SC-016 then measures against those.
+- **035 carries 033's unmerged Dxui.** Merging `origin/033-cassque` brings
+  199 commits, and 033's own merge waits on its owner's review. The cost is
+  ordering only: 035 cannot merge before 033, which the release phase
+  already requires; if 033's history is rewritten, 035 re-merges.
 - **Docking is the largest UI piece in the tree.** It is kept honest by the
-  `DockLayout` model being pure data with its own tests for every operation
+  `DxuiPaneLayout` model being pure data with its own tests for every operation
   (split, tab, float, dock, auto-hide, keyboard moves, serialization,
   fallback monitor) before any control is drawn, so the controls only draw
   what the model says.
@@ -427,33 +453,33 @@ CassoEmuCore/Debugger/
     ├── ExecutionHandlers.cpp                # CHANGE: PROFILE LIST [ADDR], SAVE, RESET; BPV value form
     └── ConfigHandlers.cpp                   # CHANGE: OUTPUT
 
-CassoEmuCore/Ui/Docking/
-├── DockLayout.h/.cpp                        # NEW: split/tab tree, floating, auto-hide, JSON, fallback monitor
-├── DockHost.h/.cpp                          # NEW: tree -> DxuiSplitter/DxuiTabGroup; drop zones; move pane
-├── DockDragState.h/.cpp                     # NEW: drag geometry and drop-zone hit test, pure data
-└── KeyScheme.h/.cpp                         # NEW: three tables, action lookup
-
 CassoEmuCore/Ui/Debugger/
-├── DebuggerWindow.h/.cpp                    # CHANGE: owns DockLayout, panes, floating windows
+├── DebuggerWindow.h/.cpp                    # CHANGE: a DxuiDockedWindow owning the panes
+├── DebuggerKeySchemes.h/.cpp                # NEW: the three DxuiKeyMap tables
 ├── DebuggerViewState.h/.cpp                 # CHANGE: reads DebugViewSnapshot
 ├── Panes/
 │   ├── DebuggerPane.h                       # NEW: base; draws from snapshot; sends commands through host
 │   ├── DisassemblyPane.h/.cpp               # NEW: labels, symbolic operands, click-to-break
 │   ├── SourcePane.h/.cpp                    # NEW
-│   ├── MemoryPane.h/.cpp                    # NEW: one per memory window, over DxuiMemoryGrid
-│   ├── MemoryEditModel.h/.cpp               # NEW: caret, pending, completion, undo
+│   ├── MemoryPane.h/.cpp                    # NEW: one per memory window, over DxuiHexView
+│   ├── MemoryEditModel.h/.cpp               # NEW: the IDxuiHexSource: pending, completion, undo, refusal
 │   ├── TracePane.h/.cpp                     # NEW
 │   ├── DiagnosticsPane.h/.cpp               # NEW: rows and bits
 │   ├── MemoryMapBar.h/.cpp, DiskHeadView.h/.cpp, MeterBar.h/.cpp  # NEW: visuals
 │   └── RegistersPane, StackPane, WatchesPane, BreakpointsPane, ConsolePane  # NEW: split out of the first window
-└── FloatingPaneWindow.h/.cpp                # NEW: DxuiWindow holding one pane
+└── (floating panes are DxuiDockedWindows; nothing debugger-specific)
 
-Dxui/
+Dxui/                                        # DxuiSplitter, DxuiHexView, DxuiTextView, DxuiCommandRouter come from 033-cassque
 ├── Core/DxuiPanel.h/.cpp                    # CHANGE: DetachChild returns the unique_ptr
+├── Core/DxuiKeyMap.h/.cpp                   # NEW: named chord -> command id table; swappable per window
+├── Core/DxuiPaneLayout.h/.cpp               # NEW: split/tab tree, floating, auto-hide, JSON, fallback monitor
+├── Core/DxuiDockDropZones.h/.cpp            # NEW: drop-zone geometry and hit test, pure data
 ├── Widgets/DxuiListView.h/.cpp              # CHANGE: per-instance row height, padding, font
-├── Widgets/DxuiSplitter.h/.cpp              # from 033-cassque; merged, not written here
+├── Widgets/DxuiHexView.h/.cpp               # CHANGE: IDxuiHexSource::WriteBytes; per-nibble overwrite caret
 ├── Widgets/DxuiTabGroup.h/.cpp              # NEW: tabs over a set of children
-└── Widgets/DxuiMemoryGrid.h/.cpp            # NEW: hex + text grid with a caret
+├── Widgets/DxuiDockSite.h/.cpp              # NEW: tree -> DxuiSplitter/DxuiTabGroup; drag; auto-hide; Dock To
+├── Window/DxuiWindow.h/.cpp                 # CHANGE: consults the active DxuiKeyMap after the standard router
+└── Window/DxuiDockedWindow.h/.cpp           # NEW: DxuiWindow whose content is one DxuiDockSite
 
 CassoEmuCore/Shell/MachineHost.h/.cpp        # CHANGE: diagnostics providers; snapshot build
 CassoEmuCore/Config/GlobalUserPrefs.h/.cpp   # CHANGE: debugger layout, key scheme, source paths
@@ -473,15 +499,18 @@ UnitTest/DebuggerTests/
 ├── DiagnosticsProviderTests.cpp             # each device's rows; SC-015 cadence
 ├── MemoryEditModelTests.cpp                 # SC-012; grouping; text column; undo; I/O refusal; ROM patch
 ├── DebugMemoryViewPatchTests.cpp            # ROM patch lands where the CPU reads, survives $C028
-├── DockLayoutTests.cpp                      # every operation; JSON round trip; SC-014 fallback
-├── DockDragStateTests.cpp                   # drop zones
-├── KeySchemeTests.cpp
+├── DebuggerKeySchemesTests.cpp
 └── DebugViewSnapshotTests.cpp
 
-UnitTest/DxuiTests/
+UnitTest/Dxui/
 ├── DxuiListViewMetricsTests.cpp
+├── DxuiKeyMapTests.cpp
+├── DxuiHexViewEditingTests.cpp
 ├── DxuiTabGroupTests.cpp
-└── DxuiMemoryGridTests.cpp
+├── DxuiPaneLayoutTests.cpp                  # every operation; JSON round trip; SC-014 fallback
+├── DxuiDockDropZonesTests.cpp
+├── DxuiDockSiteTests.cpp
+└── DxuiDockedWindowTests.cpp
 
 UnitTest/Fixtures/Debugger/
 ├── GSSquared/                               # captured replies + LICENSE
@@ -495,10 +524,10 @@ README.md                                    # CHANGE: screenshot (FR-065)
 
 **Structure Decision**: the debug-file reader and writer, the line table and
 the GSSquared parser depend on nothing but strings and CPU tables, so they
-live in `CassoCore/Debugger/`. Docking is UI-library-shaped but debugger-
-specific in its pane model, so the layout model lives in
-`CassoEmuCore/Ui/Docking/` while the two generic controls (`DxuiTabGroup`,
-`DxuiMemoryGrid`) join `Dxui`. Device diagnostics are declared in the
+live in `CassoCore/Debugger/`. Docking, the key map and hex editing have
+nothing debugger-specific in them, so they live in `Dxui`; the debugger
+supplies its pane set, its three key tables and its hex source. Device
+diagnostics are declared in the
 debugger and implemented by each device, so a future machine's devices add
 providers without touching the window. Every new file is listed by hand in
 its `.vcxproj`.
@@ -510,5 +539,5 @@ its `.vcxproj`.
 | A per-instruction hook in `MachineHost`, the hottest loop in the emulator | Breakpoints, opcode breaks and stepping must stop before a given instruction executes | Checking once per `RunCycles` slice misses addresses inside the slice. Rewriting code bytes with `BRK` corrupts guest-visible memory and fails against ROM. The hook is a pointer test when unused (R-004) |
 | A second headless machine builder path (`HeadlessMachineFactory`) | `CassoCli debug` must boot a real machine | Leaving it in UnitTest makes batch mode impossible. The factory is promoted, and `TestMachine` becomes a thin user of it, so there is still one builder |
 | Routing every bus access through the watched-page path while the trace is on | The trace records each instruction's bus access, which only the bus sees | A second, trace-only bus path duplicates the slow path; a per-instruction effective-address recomputation in the hook cannot see the data byte. The cost exists only while on (R-025) |
-| A docking layout model and two new controls | The spec asks for Visual Studio's arrangement operations (FR-038 to FR-044) | Fixed panes with splitters only cannot float, tab or auto-hide; a third-party docking library is not permitted by the constitution's allowlist |
+| A docking layout model and three new Dxui controls | The spec asks for Visual Studio's arrangement operations (FR-038 to FR-044) | Fixed panes with splitters only cannot float, tab or auto-hide; a third-party docking library is not permitted by the constitution's allowlist |
 | Writable ROM images (`PatchByte` on three classes) | FR-037: an edit to a ROM address patches what the CPU reads | Copying ROM into RAM at patch time breaks banking; refusing ROM edits leaves the memory editor unable to patch the Monitor, which AppleWin's can |
