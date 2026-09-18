@@ -365,6 +365,8 @@ private:
     //  would do, and the drop.
     bool  TryGetDropLocation     (int tag, POINT screen, Location & outLocation);
     DWORD GetDropEffect          (IDataObject * data, int tag, POINT screen);
+    void  ShowDropTarget         (int tag, POINT screen, bool accepted);
+    void  ClearDropTarget        ();
     void  OnDrop                 (IDataObject * data, int tag, POINT screen);
     void  RefreshAfterHostChange ();
     void  CopySelectedPaths      ();

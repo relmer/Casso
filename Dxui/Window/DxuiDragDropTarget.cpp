@@ -476,6 +476,11 @@ STDMETHODIMP DxuiDragDropTarget::DragOver (
     if (m_over && m_data != nullptr)
     {
         *pdwEffect = (tag >= 0) ? m_over (m_data, tag, POINT { pt.x, pt.y }) : DROPEFFECT_NONE;
+
+        if (tag < 0 && m_leave)
+        {
+            m_leave();
+        }
     }
 
 Error:
@@ -504,6 +509,12 @@ STDMETHODIMP DxuiDragDropTarget::DragLeave()
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
     m_lastHitTag            = -1;
+
+    if (m_leave)
+    {
+        m_leave();
+    }
+
     return S_OK;
 }
 

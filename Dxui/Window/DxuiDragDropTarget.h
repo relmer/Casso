@@ -28,9 +28,12 @@ public:
     //  For a host that looks at the whole drag rather than one file path:
     //  what a drop at this point would do, asked as the pointer moves, and
     //  the drop itself. The data object is the drag's own, valid only for
-    //  the call. With these set, the path callbacks are not used.
+    //  the call. With these set, the path callbacks are not used. The leave
+    //  callback runs when the drag leaves a widget that takes drops, leaves
+    //  the window, or ends in a drop, so a host can take down what it drew.
     using OverFn     = std::function<DWORD (IDataObject * data, int tag, POINT screenPx)>;
     using DataDropFn = std::function<void (IDataObject * data, int tag, POINT screenPx)>;
+    using LeaveFn    = std::function<void ()>;
 
     DxuiDragDropTarget  ();
     virtual ~DxuiDragDropTarget();
@@ -43,7 +46,8 @@ public:
     HRESULT              AttachAdditionalWindow (HWND hwnd);
     void                 Shutdown               ();
     void                 SetFilter              (FilterFn filter) { m_filter = std::move (filter); }
-    void                 SetDataHandlers        (OverFn over, DataDropFn drop) { m_over = std::move (over); m_dataDrop = std::move (drop); }
+    void                 SetHitTest             (HitTestFn hitTest) { m_hitTest = std::move (hitTest); }
+    void                 SetDataHandlers        (OverFn over, DataDropFn drop, LeaveFn leave = {}) { m_over = std::move (over); m_dataDrop = std::move (drop); m_leave = std::move (leave); }
 
     STDMETHODIMP         QueryInterface         (REFIID riid, void ** ppv) override;
     STDMETHODIMP_(ULONG) AddRef                 () override;
@@ -108,5 +112,6 @@ private:
     std::wstring         m_dragPath;
     OverFn               m_over;
     DataDropFn           m_dataDrop;
+    LeaveFn              m_leave;
     IDataObject        * m_data                  = nullptr;
 };

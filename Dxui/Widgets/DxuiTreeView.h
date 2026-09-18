@@ -142,6 +142,7 @@ public:
     int                           GetRowHeight    () const { return m_rowHeightPx; }
     int                           GetVisibleCount () const { return (int) m_flatRows.size(); }
     int                           GetHoverRow     () const { return m_hoverRow; }
+    void                          SetHoverRow     (int row)  { m_hoverRow = row; }
     bool                          IsEnabled       () const { return m_enabled; }
     bool                          IsFocused       () const { return m_focused; }
 

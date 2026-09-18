@@ -140,7 +140,8 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
                                                    [this] (int, const std::wstring & path) { OnDropFile (path); });
 
         m_dropTarget.SetDataHandlers ([this] (IDataObject * data, int tag, POINT screen) { return GetDropEffect (data, tag, screen); },
-                                      [this] (IDataObject * data, int tag, POINT screen) { OnDrop (data, tag, screen); });
+                                      [this] (IDataObject * data, int tag, POINT screen) { OnDrop (data, tag, screen); },
+                                  [this]                                          { ClearDropTarget(); });
 
         IGNORE_RETURN_VALUE (hrDrop, S_OK);
     }
@@ -4084,11 +4085,13 @@ DWORD CassqueWindow::GetDropEffect (IDataObject * data, int tag, POINT screen)
     FORMATETC  entries  = { (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
     HRESULT    hasFiles = S_OK;
     HRESULT    hasEntry = S_OK;
+    DWORD      effect   = DROPEFFECT_NONE;
 
 
 
     if (data == nullptr || !TryGetDropLocation (tag, screen, location))
     {
+        ShowDropTarget (tag, screen, false);
         return DROPEFFECT_NONE;
     }
 
@@ -4098,14 +4101,83 @@ DWORD CassqueWindow::GetDropEffect (IDataObject * data, int tag, POINT screen)
 
         if (SUCCEEDED (hr) && readOnly)
         {
+            ShowDropTarget (tag, screen, false);
             return DROPEFFECT_NONE;
         }
     }
 
     hasFiles = data->QueryGetData (&hdrop);
     hasEntry = data->QueryGetData (&entries);
+    effect   = (hasFiles == S_OK || hasEntry == S_OK) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
 
-    return (hasFiles == S_OK || hasEntry == S_OK) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+    ShowDropTarget (tag, screen, effect != DROPEFFECT_NONE);
+    return effect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ShowDropTarget
+//
+//  The row or tree node a drop would land on is lit as the pointer moves, as
+//  Explorer lights its drop target. A drop on the list's empty space goes to
+//  the location shown, so nothing is lit there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ShowDropTarget (int tag, POINT screen, bool accepted)
+{
+    POINT     client = screen;
+    RECT      list   = m_list->GetBounds();
+    Location  location;
+    int       row    = -1;
+
+
+
+    ScreenToClient (GetHwnd(), &client);
+    ClearDropTarget();
+
+    if (!accepted)
+    {
+        return;
+    }
+
+    if (tag == kDropTagTree)
+    {
+        m_tree->SetHoverRow (m_tree->HitTestRow (client.x, client.y));
+    }
+    else
+    {
+        row = m_list->HitTestRow (client.x - list.left, client.y - list.top);
+
+        if (row >= 0 && m_browser.TryGetRowLocation (row, location) &&
+            (location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::DiskImage))
+        {
+            m_list->SetHoveredRow (row);
+        }
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassqueWindow::ClearDropTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassqueWindow::ClearDropTarget()
+{
+    m_tree->SetHoverRow   (-1);
+    m_list->SetHoveredRow (-1);
+    Invalidate();
 }
 
 
