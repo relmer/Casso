@@ -182,4 +182,90 @@ public:
         f.list.SetView (View::Details);
         Assert::IsTrue (f.list.GetHeaderHeightPx() > 0);
     }
+
+    void  Drag (DxuiListView & list, POINT from, POINT to, bool ctrl = false)
+    {
+        DxuiMouseEvent  ev;
+
+        ev.button      = DxuiMouseButton::Left;
+        ev.ctrl        = ctrl;
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.positionDip = from;
+        list.OnMouse (ev);
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = to;
+        list.OnMouse (ev);
+
+        ev.kind = DxuiMouseEventKind::Up;
+        list.OnMouse (ev);
+    }
+
+
+    TEST_METHOD (ARubberBand_SelectsEveryItemItTouches)
+    {
+        Fixture                    f (View::MediumIcons);
+        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::MediumIcons);
+        int                        perRow = PerRow (View::MediumIcons);
+        int                        empty  = perRow * m.cellWDip + 5;   // right of the last item in a row
+
+        //  From the empty space right of the first row, down and left across
+        //  two rows of items.
+        Drag (f.list, POINT { empty, 5 }, POINT { 10, m.cellHDip + 5 });
+
+        Assert::AreEqual (2 * perRow, (int) f.list.GetSelectedRows().size());
+        Assert::IsTrue   (f.list.IsRowSelected (0) && f.list.IsRowSelected (2 * perRow - 1));
+        Assert::IsFalse  (f.list.IsRowSelected (2 * perRow), L"The third row is untouched");
+    }
+
+
+    TEST_METHOD (ACtrlRubberBand_AddsToTheSelection)
+    {
+        Fixture                    f (View::MediumIcons);
+        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::MediumIcons);
+        int                        perRow = PerRow (View::MediumIcons);
+        int                        empty  = perRow * m.cellWDip + 5;
+        int                        third  = 2 * perRow;   // first item of the third row
+
+        f.list.SetSelectedRows ({ third }, third);
+
+        Drag (f.list, POINT { empty, 5 }, POINT { 10, 10 }, true);
+
+        Assert::AreEqual (perRow + 1, (int) f.list.GetSelectedRows().size(), L"The first row, and the item kept");
+        Assert::IsTrue   (f.list.IsRowSelected (third));
+    }
+
+
+    TEST_METHOD (CtrlAndShiftClicks_WorkInAnItemView)
+    {
+        Fixture                    f (View::LargeIcons);
+        DxuiListView::ItemMetrics  m = DxuiListView::GetItemMetrics (View::LargeIcons);
+        DxuiMouseEvent             ev;
+
+        ev.button = DxuiMouseButton::Left;
+
+        auto  click = [&] (int item, bool ctrl, bool shift)
+        {
+            RECT  cell = {};
+
+            f.list.GetItemRectPx (item, cell);
+
+            ev.ctrl        = ctrl;
+            ev.shift       = shift;
+            ev.positionDip = POINT { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+            ev.kind        = DxuiMouseEventKind::Down;
+            f.list.OnMouse (ev);
+            ev.kind        = DxuiMouseEventKind::Up;
+            f.list.OnMouse (ev);
+        };
+
+        (void) m;
+
+        click (1, false, false);
+        click (3, true,  false);
+        Assert::AreEqual (2, (int) f.list.GetSelectedRows().size(), L"Ctrl adds an item apart from the first");
+
+        click (6, false, true);
+        Assert::AreEqual (4, (int) f.list.GetSelectedRows().size(), L"Shift selects the run from the item last clicked, 3 to 6, as Explorer does");
+    }
 };

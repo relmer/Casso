@@ -387,7 +387,11 @@ public:
     // Lets a host that owns a persisted column model (e.g. the debug
     // panels) record the user's width without re-implementing the drag.
     void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
-    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting; }
+    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive; }
+
+    //  The rubber band an item view draws while the pointer drags from empty
+    //  space, in the list's pixels; empty when none is being drawn.
+    RECT  GetSelectionBandPx    () const;
     bool  IsResizingColumn      () const  { return m_resizeColumn >= 0; }
 
     // Auto-repeat for a held scrollbar arrow / track press (like key
@@ -522,6 +526,9 @@ private:
     bool          HandleKeyboardItemNav   (WPARAM vk, bool shift);
     RECT          GetItemLabelRectPx      (const RECT & cell) const;
     void          PaintItems              (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal, float x, float y) const;
+    POINT         GetItemScrollOffsetPx   () const;
+    void          BeginSelectionBand      (int lx, int ly, bool ctrl);
+    void          UpdateSelectionBand     (int lx, int ly);
     // Grow the monotonic auto-fit glyph counts from one row's cells (the
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_rows is empty).
@@ -697,11 +704,19 @@ private:
     bool     m_alwaysShowSelection   = false;
     bool     m_textSelectionColors   = false;
     bool     m_dragSelecting         = false;
-    int      m_lastClickRow          = -1;
-    int64_t  m_lastClickMs           = 0;
-    int      m_lastDividerCol        = -1;
-    int64_t  m_lastDividerMs         = 0;
-    int      m_pendingFitCol         = -1;
+
+    //  A rubber band in an item view: where the press was, in content pixels
+    //  so it stays put as the view scrolls, where the pointer is now, and the
+    //  selection a Ctrl press began with, which the band adds to.
+    bool              m_bandActive     = false;
+    POINT             m_bandStart      = {};
+    POINT             m_bandEnd        = {};
+    std::vector<int>  m_bandBase;
+    int               m_lastClickRow   = -1;
+    int64_t           m_lastClickMs    = 0;
+    int               m_lastDividerCol = -1;
+    int64_t           m_lastDividerMs  = 0;
+    int               m_pendingFitCol  = -1;
 
     //  Characters typed toward a row, and when the last one arrived.
     std::wstring  m_typeAhead;

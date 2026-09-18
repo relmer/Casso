@@ -519,4 +519,152 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
+
+    //  The rubber band, over everything it selects.
+    if (m_bandActive)
+    {
+        RECT  band = GetSelectionBandPx();
+
+        OffsetRect (&band, (int) x, (int) y);
+
+        painter.FillRect    ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
+                             (pal.bgSel & 0x00FFFFFFu) | 0x60000000u);
+        painter.OutlineRect ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
+                             1.0f, pal.edgeSel != 0 ? pal.edgeSel : pal.fg);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetItemScrollOffsetPx
+//
+//  How far the item view is scrolled, so a point in the list's pixels can be
+//  turned into one in the items' own space.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiListView::GetItemScrollOffsetPx() const
+{
+    ItemGrid  grid = GetItemGrid();
+
+
+
+    if (GetItemMetrics (m_view).columns)
+    {
+        return POINT { m_leftPx, 0 };
+    }
+
+    return POINT { 0, (grid.perLine > 0) ? (m_topRow / grid.perLine) * grid.cellH : 0 };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::BeginSelectionBand
+//
+//  Without Ctrl the band starts from nothing; with it, the band adds to the
+//  selection the press found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::BeginSelectionBand (int lx, int ly, bool ctrl)
+{
+    POINT  offset = GetItemScrollOffsetPx();
+
+
+
+    m_bandActive = true;
+    m_bandStart  = POINT { lx + offset.x, ly + offset.y };
+    m_bandEnd    = m_bandStart;
+    m_bandBase   = ctrl ? m_selectedRows : std::vector<int>();
+
+    if (!ctrl)
+    {
+        ClearSelection();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::UpdateSelectionBand
+//
+//  Every item the band touches is selected, with what Ctrl kept.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::UpdateSelectionBand (int lx, int ly)
+{
+    POINT             offset = GetItemScrollOffsetPx();
+    RECT              band   = {};
+    std::vector<int>  rows   = m_bandBase;
+    int               last   = -1;
+
+
+
+    m_bandEnd = POINT { lx + offset.x, ly + offset.y };
+
+    band = RECT { (std::min) (m_bandStart.x, m_bandEnd.x), (std::min) (m_bandStart.y, m_bandEnd.y),
+                  (std::max) (m_bandStart.x, m_bandEnd.x), (std::max) (m_bandStart.y, m_bandEnd.y) };
+
+    for (int item = 0; item < GetRowCount(); item++)
+    {
+        RECT  cell = {};
+        RECT  hit  = {};
+
+        if (!GetItemRectPx (item, cell))
+        {
+            continue;
+        }
+
+        OffsetRect (&cell, offset.x, offset.y);
+
+        if (IntersectRect (&hit, &cell, &band))
+        {
+            rows.push_back (item);
+            last = item;
+        }
+    }
+
+    SetSelectedRows (std::move (rows), last);
+
+    if (m_onSelectionChanged && last >= 0)
+    {
+        m_onSelectionChanged (last);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetSelectionBandPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiListView::GetSelectionBandPx() const
+{
+    POINT  offset = GetItemScrollOffsetPx();
+
+
+
+    if (!m_bandActive)
+    {
+        return RECT {};
+    }
+
+    return RECT { (std::min) (m_bandStart.x, m_bandEnd.x) - offset.x, (std::min) (m_bandStart.y, m_bandEnd.y) - offset.y,
+                  (std::max) (m_bandStart.x, m_bandEnd.x) - offset.x, (std::max) (m_bandStart.y, m_bandEnd.y) - offset.y };
 }

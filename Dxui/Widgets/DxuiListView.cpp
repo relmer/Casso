@@ -3420,6 +3420,11 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
         ClickRow (row, ev.ctrl, ev.shift);
         m_dragSelecting = m_multiSelect;
     }
+    else if (IsItemsView() && m_multiSelect)
+    {
+        //  A press between items starts a rubber band, as in Explorer.
+        BeginSelectionBand (lx, ly, ev.ctrl);
+    }
     else if (!ev.ctrl && !ev.shift && !m_selectedRows.empty())
     {
         //  A plain click on the empty space below the rows selects nothing.
@@ -3508,6 +3513,10 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
     else if (m_horzDragging)
     {
         UpdateHorzThumbDrag (lx);
+    }
+    else if (m_bandActive)
+    {
+        UpdateSelectionBand (lx, ly);
     }
     else if (m_dragSelecting)
     {
@@ -3598,7 +3607,13 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     //  them; only a plain click collapses the selection to its row.
     m_dragSelecting = false;
 
-    if (ranged)
+    if (m_bandActive)
+    {
+        m_bandActive = false;
+        m_bandBase.clear();
+        handled = true;
+    }
+    else if (ranged)
     {
         handled = true;
     }
