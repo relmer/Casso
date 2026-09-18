@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Debugger/DebugFile.h"
+
 
 
 
@@ -14,6 +16,7 @@ enum class SymbolFileFormat
 {
     Unknown,
     CassoDebug,       // NAME=$ADDR, with ; comments
+    Cc65Debug,        // cc65's debug-info format, version 2
     MerlinListing,    // the symbol table at the end of a Merlin listing
     AppleWinSym,      // ADDR NAME
     ViceLabels,       // al ADDR .NAME
@@ -33,7 +36,9 @@ struct SymbolFileEntry
 //
 //  SymbolFileReader
 //
-//  Reads a symbol file in any of the four formats, chosen from its content.
+//  Reads a symbol file in any of the five formats, chosen from its content.
+//  A cc65 debug file gives the symbols in its top-level scopes; local labels
+//  and the labels macro expansions made stay out of the table.
 //  A name that appears more than once keeps its first address, so the two
 //  orders a Casso debug file holds give one symbol each.
 //
@@ -56,6 +61,7 @@ private:
     static bool  TryParseHex       (const std::string & text, Word & value);
     static void  AddUnique         (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address);
     static void  ReadCasso         (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
+    static void  ReadCc65          (const DebugFile & file, std::vector<SymbolFileEntry> & symbols);
     static void  ReadMerlinListing (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
     static void  ReadAppleWin      (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
     static void  ReadVice          (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);

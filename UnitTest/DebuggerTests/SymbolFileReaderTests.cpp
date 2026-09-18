@@ -12,7 +12,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  SymbolFileReaderTests
 //
-//  The four symbol file formats, detection from content, and an error for
+//  The five symbol file formats, detection from content, and an error for
 //  a file in none of them. Every read asserts a non-zero count first.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +76,45 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0310, Find (symbols, "ALPHA"));
         }
 
+
+
+        TEST_METHOD (Cc65Debug_TopLevelSymbolsOnly)
+        {
+            static constexpr const char * kFile =
+                "version\tmajor=2,minor=0\n"
+                "file\tid=0,name=\"main.a65\",size=10,mtime=0,mod=0\n"
+                "mod\tid=0,name=\"main\",file=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=4,addrsize=absolute,type=rw\n"
+                "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+                "sym\tid=1,name=\"start.loop\",addrsize=absolute,scope=1,val=0x0302,seg=0,type=lab\n"
+                "sym\tid=2,name=\"limit\",addrsize=absolute,scope=0,val=0x0007,type=equ\n"
+                "scope\tid=0,name=\"\",mod=0\n"
+                "scope\tid=1,name=\"local\",mod=0,parent=0\n";
+
+            std::vector<SymbolFileEntry>  symbols = ReadOk (kFile, SymbolFileFormat::Cc65Debug);
+
+
+
+            Assert::AreEqual ((size_t) 2,    symbols.size(), L"the local label stays out");
+            Assert::AreEqual ((Word) 0x0300, Find (symbols, "start"));
+            Assert::AreEqual ((Word) 0x0007, Find (symbols, "limit"));
+        }
+
+
+
+        TEST_METHOD (Cc65Debug_WrongVersionSaysWhich)
+        {
+            std::vector<SymbolFileEntry>  symbols;
+            SymbolFileFormat              format = SymbolFileFormat::Unknown;
+            std::string                   error;
+            HRESULT                       hr     = SymbolFileReader::Read ("version\tmajor=3,minor=0\n", symbols, format, error);
+
+
+
+            Assert::IsTrue   (FAILED (hr));
+            Assert::AreEqual ((int) SymbolFileFormat::Cc65Debug, (int) format);
+            Assert::IsTrue   (error.find ("version 3") != std::string::npos);
+        }
 
 
         TEST_METHOD (AppleWinSym_AddressThenName)

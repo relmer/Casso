@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/SymbolFileReader.h"
+#include "Debugger/DebugFileReader.h"
 
 
 
@@ -10,7 +11,8 @@
 //
 //  SymbolFileReader::Detect
 //
-//  A Merlin listing is known by its symbol table heading. Otherwise the
+//  A cc65 debug file is known by its version record, and a Merlin listing by
+//  its symbol table heading. Otherwise the
 //  first line that fits one of the line forms decides: NAME=$ADDR is a Casso
 //  debug file, `al` leads a VICE label, and an address first is AppleWin's.
 //
@@ -21,6 +23,11 @@ SymbolFileFormat SymbolFileReader::Detect (const std::string & content)
     std::vector<std::string>  lines;
 
 
+
+    if (DebugFileReader::IsDebugFile (content))
+    {
+        return SymbolFileFormat::Cc65Debug;
+    }
 
     SplitLines (content, lines);
 
@@ -56,6 +63,7 @@ HRESULT SymbolFileReader::Read (const std::string & content, std::vector<SymbolF
 {
     HRESULT                   hr         = S_OK;
     std::vector<std::string>  lines;
+    DebugFile                 debugFile;
     bool                      hasSymbols = false;
 
 
@@ -67,11 +75,18 @@ HRESULT SymbolFileReader::Read (const std::string & content, std::vector<SymbolF
     switch (format)
     {
     case SymbolFileFormat::CassoDebug:    ReadCasso         (lines, symbols); break;
+
+    case SymbolFileFormat::Cc65Debug:
+        hr = DebugFileReader::Read (content, debugFile, error);
+        CHR (hr);
+        ReadCc65 (debugFile, symbols);
+        break;
+
     case SymbolFileFormat::MerlinListing: ReadMerlinListing (lines, symbols); break;
     case SymbolFileFormat::AppleWinSym:   ReadAppleWin      (lines, symbols); break;
     case SymbolFileFormat::ViceLabels:    ReadVice          (lines, symbols); break;
     default:
-        error = "The file is not a symbol file: it is not a Casso debug file, a Merlin listing, an AppleWin .SYM file or a VICE label file.";
+        error = "The file is not a symbol file: it is not a Casso or cc65 debug file, a Merlin listing, an AppleWin .SYM file or a VICE label file.";
         break;
     }
 
@@ -291,6 +306,43 @@ void SymbolFileReader::ReadCasso (const std::vector<std::string> & lines, std::v
         if (IsCassoLine (line) && TryParseHex (Trim (line.substr (equals + 1)), value))
         {
             AddUnique (symbols, Trim (line.substr (0, equals)), value);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::ReadCc65
+//
+//  The symbols in a scope with no parent, which is the module's own; a
+//  symbol with no scope at all is taken too. Local labels and the labels
+//  macro expansions made sit in scopes below it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileEntry> & symbols)
+{
+    std::set<int>  topLevel;
+
+
+
+    for (const DebugScope & scope : file.scopes)
+    {
+        if (scope.parent < 0)
+        {
+            topLevel.insert (scope.id);
+        }
+    }
+
+    for (const DebugSymbol & symbol : file.symbols)
+    {
+        if (symbol.scope < 0 || topLevel.contains (symbol.scope))
+        {
+            AddUnique (symbols, symbol.name, (Word) symbol.value);
         }
     }
 }

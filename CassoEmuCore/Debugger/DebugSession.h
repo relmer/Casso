@@ -6,6 +6,7 @@
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/IRunObserver.h"
+#include "Debugger/LineTable.h"
 #include "Debugger/MonitorState.h"
 #include "Debugger/SymbolTable.h"
 #include "Debugger/WatchTable.h"
@@ -116,6 +117,16 @@ public:
     SymbolTable           & GetSymbols     ()       { return m_symbols; }
     const SymbolTable     & GetSymbols     () const { return m_symbols; }
 
+    // The program's debug file, loaded by SYM LOAD, and its lines indexed both
+    // ways. The path is where it was read from, so its sources are looked for
+    // beside it.
+    void                  SetDebugFile   (DebugFile file, const std::wstring & path);
+    void                  ClearDebugFile ();
+    bool                  HasDebugFile   () const { return !m_debugFilePath.empty(); }
+    const DebugFile     & GetDebugFile   () const { return m_debugFile; }
+    const std::wstring  & GetDebugFilePath () const { return m_debugFilePath; }
+    const LineTable     & GetLineTable   () const { return m_lineTable; }
+
     // What the Monitor's line scan carries between lines: where the last
     // examine stopped, where a bare `:` stores, and whether `^E` armed the
     // next one to set registers.
@@ -205,6 +216,9 @@ private:
     WatchTable                            m_bookmarks;
     DataBlockTable                        m_dataBlocks;
     SymbolTable                           m_symbols;
+    DebugFile                             m_debugFile;
+    std::wstring                          m_debugFilePath;
+    LineTable                             m_lineTable;
     std::vector<Word>                     m_searchResults;
 
     RunState                              m_state         = RunState::Paused;

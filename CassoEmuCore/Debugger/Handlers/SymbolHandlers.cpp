@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/SymbolHandlers.h"
 
 #include "Config/IFileSystem.h"
+#include "Debugger/DebugFileReader.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/ReplyJson.h"
 
@@ -191,6 +192,12 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
         return;
     }
 
+    if (DebugFileReader::IsDebugFile (content))
+    {
+        LoadDebugFile (session, table, name, content, offset, reply);
+        return;
+    }
+
     hr = session.GetSymbols().LoadFrom (table, content, offset, loaded, error);
 
     if (FAILED (hr))
@@ -200,6 +207,57 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
     }
 
     reply.data = MessageData { { std::format ("Loaded {} symbols into {} from {}.", loaded, ReplyJson::GetSymbolTableName (table), name) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::LoadDebugFile
+//
+//  A cc65 debug file gives the session its source lines as well as its
+//  symbols. The offset moves every segment, and so every line, with the
+//  symbols. A file with lines and no top-level symbols still loads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
+                                    const std::string & content, int offset, Reply & reply)
+{
+    DebugFile    file;
+    std::string  error;
+    size_t       loaded = 0;
+    size_t       lines  = 0;
+    HRESULT      hr     = DebugFileReader::Read (content, file, error);
+
+
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "not a debug file", error);
+        return;
+    }
+
+    for (DebugSegment & segment : file.segments)
+    {
+        segment.start = (uint32_t) (Word) (segment.start + offset);
+    }
+
+    lines = file.lines.size();
+    session.SetDebugFile (std::move (file), session.ResolvePath (name));
+
+    hr = session.GetSymbols().LoadFrom (table, content, offset, loaded, error);
+
+    if (FAILED (hr))
+    {
+        session.GetSymbols().Clear (table);
+        loaded = 0;
+    }
+
+    reply.data = MessageData { { std::format ("Loaded {} symbols into {} and {} source lines from {}.",
+                                              loaded, ReplyJson::GetSymbolTableName (table), lines, name) } };
 }
 
 
