@@ -48,6 +48,16 @@ struct DebuggerViewSnapshot
         std::string  region;
     };
 
+    //  One memory window's bytes from `first`, a region for each; an I/O byte
+    //  is empty, since reading one would change the machine.
+    struct MemoryWindow
+    {
+        int                               id    = 0;
+        Word                              first = 0;
+        std::vector<std::optional<Byte>>  bytes;
+        std::vector<MemoryRegion>         regions;
+    };
+
     struct StackLine
     {
         Word  address = 0;
@@ -71,10 +81,12 @@ struct DebuggerViewSnapshot
 
     Word                         pc     = 0;
     CommandMode                  mode   = CommandMode::AppleWin;
+    std::string                  machine;
     std::vector<CodeLine>        code;
     std::vector<RegisterRow>     registers;
     std::string                  flags;
     std::vector<MemoryLine>      memory;
+    std::vector<MemoryWindow>    memoryWindows;
     std::vector<StackLine>       stack;
     std::vector<BreakpointLine>  breakpoints;
     std::vector<WatchLine>       watches;
@@ -110,6 +122,13 @@ public:
     static constexpr int       kMemoryRows      = 16;
     static constexpr uint64_t  kBuildIntervalMs = 16;   // one frame at 60 Hz
 
+    //  Memory windows: the first is always open, and up to three more. Each
+    //  reads this many bytes from a row boundary, enough for the rows a window
+    //  shows and some to scroll into.
+    static constexpr int       kMaxMemoryWindows  = 4;
+    static constexpr int       kMemoryWindowBytes = 512;
+    static constexpr int       kMemoryRowBytes    = 16;
+
     //  Whether the CPU thread should rebuild the snapshot now: every frame while
     //  the machine runs, and at once after an action or a stop or start.
     static bool  IsBuildDue (bool isDirty, bool isPaused, bool wasPaused, uint64_t nowMs, uint64_t builtAtMs);
@@ -121,6 +140,12 @@ public:
 
     std::optional<Word>  GetCodeAddress   () const { return m_codeAddress; }
     Word                 GetMemoryAddress () const { return m_memoryAddress; }
+
+    //  Windows 2 to 4 open at an address or close; window 1 is the memory pane
+    //  above and moves with SetMemoryAddress. Other ids are ignored.
+    void                 OpenMemoryWindow       (int id, Word address);
+    void                 CloseMemoryWindow      (int id);
+    std::optional<Word>  GetMemoryWindowAddress (int id) const;
 
     //  Runs the pane commands against the session. CPU thread only.
     DebuggerViewSnapshot  Build (DebugSession & session) const;
@@ -159,6 +184,8 @@ public:
 
 private:
     void  MoveCodePane   (DebugSession & session, const std::string & name, Reply & reply);
+
+    static DebuggerViewSnapshot::MemoryWindow  ReadMemoryWindow (DebugSession & session, int id, Word address);
     void  MoveMemoryPane (const std::string & name, const std::string & argument, Reply & reply);
 
     static Word                 GetInstructionLength   (DebugSession & session, Word address);
@@ -168,4 +195,6 @@ private:
 
     std::optional<Word>  m_codeAddress;
     Word                 m_memoryAddress = 0x0000;
+
+    std::array<std::optional<Word>, kMaxMemoryWindows - 1>  m_extraWindows;
 };

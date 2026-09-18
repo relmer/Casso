@@ -9,6 +9,7 @@
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
 
 struct CassoTheme;
 
@@ -33,7 +34,7 @@ public:
     virtual void  RunDebuggerCommand      (const std::string & line)       = 0;
     virtual void  PauseDebugger           ()                               = 0;
     virtual void  SetDebuggerCodeAddress  (std::optional<Word> address)    = 0;
-    virtual void  SetDebuggerMemoryAddress (Word address)                  = 0;
+    virtual void  SetDebuggerMemoryWindow (int id, std::optional<Word> address) = 0;
 
     //  The newest snapshot, if one arrived since the last call, and every
     //  console line written since then.
@@ -128,11 +129,19 @@ private:
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     void     CycleKeyScheme   ();
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
+    void     ApplyMemoryWindows ();
+    void     AddMemoryWindow    ();
+    void     RemoveMemoryWindow ();
+    bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;
     std::vector<DxuiButton *>    GetToolbarButtons () const;
+    std::vector<DxuiButton *>    GetMemoryButtons  () const;
+    std::vector<MemoryPane *>    GetOpenMemoryPanes () const;
+    MemoryPane *                 GetActiveMemoryPane () const;
+    MemoryPane *                 GetFocusedMemoryPane () const;
     std::vector<IDxuiControl *>  GetPressTargets   () const;
     DxuiTextInput *              GetFocusedBox     () const;
 
@@ -148,24 +157,29 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
 
-    DxuiButton                                    * m_stepButton        = nullptr;
-    DxuiButton                                    * m_stepOverButton    = nullptr;
-    DxuiButton                                    * m_stepOutButton     = nullptr;
-    DxuiButton                                    * m_runButton         = nullptr;
-    DxuiButton                                    * m_runToCursorButton = nullptr;
-    DxuiButton                                    * m_pauseButton       = nullptr;
-    DxuiButton                                    * m_followPcButton    = nullptr;
-    DxuiButton                                    * m_keysButton        = nullptr;
-    DxuiLabel                                     * m_flagsLabel        = nullptr;
-    DxuiListView                                  * m_codeList          = nullptr;
-    DxuiListView                                  * m_registerList      = nullptr;
-    DxuiListView                                  * m_breakpointList    = nullptr;
-    DxuiListView                                  * m_watchList         = nullptr;
-    DxuiListView                                  * m_stackList         = nullptr;
-    DxuiListView                                  * m_memoryList        = nullptr;
-    DxuiListView                                  * m_consoleList       = nullptr;
-    DxuiTextInput                                 * m_commandBox        = nullptr;
-    DxuiTextInput                                 * m_memoryBox         = nullptr;
-    DxuiTextInput                                 * m_pokeBox           = nullptr;
-    DxuiButton                                    * m_pokeButton        = nullptr;
+    DxuiButton                                                                     * m_stepButton         = nullptr;
+    DxuiButton                                                                     * m_stepOverButton     = nullptr;
+    DxuiButton                                                                     * m_stepOutButton      = nullptr;
+    DxuiButton                                                                     * m_runButton          = nullptr;
+    DxuiButton                                                                     * m_runToCursorButton  = nullptr;
+    DxuiButton                                                                     * m_pauseButton        = nullptr;
+    DxuiButton                                                                     * m_followPcButton     = nullptr;
+    DxuiButton                                                                     * m_keysButton         = nullptr;
+    DxuiLabel                                                                      * m_flagsLabel         = nullptr;
+    DxuiListView                                                                   * m_codeList           = nullptr;
+    DxuiListView                                                                   * m_registerList       = nullptr;
+    DxuiListView                                                                   * m_breakpointList     = nullptr;
+    DxuiListView                                                                   * m_watchList          = nullptr;
+    DxuiListView                                                                   * m_stackList          = nullptr;
+    std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>    m_memoryPanes;
+    DxuiButton                                                                     * m_groupButton        = nullptr;
+    DxuiButton                                                                     * m_addMemoryButton    = nullptr;
+    DxuiButton                                                                     * m_removeMemoryButton = nullptr;
+    MemoryPane                                                                     * m_activePane         = nullptr;
+    std::string                                                                      m_machine;
+    DxuiListView                                                                   * m_consoleList        = nullptr;
+    DxuiTextInput                                                                  * m_commandBox         = nullptr;
+    DxuiTextInput                                                                  * m_memoryBox          = nullptr;
+    DxuiTextInput                                                                  * m_pokeBox            = nullptr;
+    DxuiButton                                                                     * m_pokeButton         = nullptr;
 };

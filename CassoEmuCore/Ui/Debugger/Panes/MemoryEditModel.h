@@ -50,6 +50,10 @@ public:
     void      ReadMarks    (uint64_t offset, std::span<uint8_t> out) const override;
     bool      WriteBytes   (uint64_t offset, std::span<const uint8_t> bytes) const override;
 
+    //  The region of a byte this window was shown, for saying why an edit there
+    //  was refused.
+    std::optional<MemoryRegion>  TryGetRegion (Word address) const;
+
     bool  Undo         ();
     bool  CanUndo      () const { return !m_history.empty(); }
     void  ClearHistory ()       { m_history.clear(); }

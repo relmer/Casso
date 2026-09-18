@@ -47,6 +47,31 @@ bool MemoryEditModel::TryGetShown (uint64_t address, size_t & outIndex) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryEditModel::TryGetRegion
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<MemoryRegion> MemoryEditModel::TryGetRegion (Word address) const
+{
+    std::optional<MemoryRegion>  region;
+    size_t                       index = 0;
+
+
+
+    if (TryGetShown (address, index) && index < m_regions.size())
+    {
+        region = m_regions[index];
+    }
+
+    return region;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryEditModel::ReadBytes
 //
 ////////////////////////////////////////////////////////////////////////////////

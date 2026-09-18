@@ -279,28 +279,30 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuC
 //
 //  DispatchDebugView
 //
-//  "code <hex>", "code pc" or "memory <hex>". Anything else asks for nothing:
-//  a pane moved to an address nobody meant is worse than a pane left where it
-//  was.
+//  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
+//  "memory2" to "memory4" with a hex address or "close" for the others, which
+//  is passed on as no address. Anything else asks for nothing: a pane moved to
+//  an address nobody meant is worse than a pane left where it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuCommandTarget & target)
 {
-    size_t        space = payload.find (' ');
-    std::string   view  = payload.substr (0, space);
-    std::string   where = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
-    unsigned int  value = 0;
-    size_t        used  = 0;
+    size_t        space      = payload.find (' ');
+    std::string   view       = payload.substr (0, space);
+    std::string   where      = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
+    bool          isExtraWin = view == "memory2" || view == "memory3" || view == "memory4";
+    unsigned int  value      = 0;
+    size_t        used       = 0;
 
 
 
-    if (view != "code" && view != "memory")
+    if (view != "code" && view != "memory" && !isExtraWin)
     {
         return;
     }
 
-    if (view == "code" && where == "pc")
+    if ((view == "code" && where == "pc") || (isExtraWin && where == "close"))
     {
         target.SetDebugView (view, std::nullopt);
         return;

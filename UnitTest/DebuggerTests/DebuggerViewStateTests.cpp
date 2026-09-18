@@ -203,6 +203,131 @@ namespace DebuggerViewStateTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  MemoryWindowTests
+    //
+    //  Up to four memory windows (FR-034), each read on the CPU thread from its
+    //  own address into the snapshot, a region for every byte.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (MemoryWindowTests)
+    {
+    public:
+
+        static const DebuggerViewSnapshot::MemoryWindow & Window (const DebuggerViewSnapshot & snapshot, int id)
+        {
+            for (const DebuggerViewSnapshot::MemoryWindow & window : snapshot.memoryWindows)
+            {
+                if (window.id == id)
+                {
+                    return window;
+                }
+            }
+
+            Assert::Fail (L"no such window in the snapshot");
+            return snapshot.memoryWindows.front();
+        }
+
+
+
+        TEST_METHOD (TheFirstWindowIsAlwaysThere)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot = rig.view.Build (rig.controller.GetSession());
+
+
+
+            Assert::AreEqual ((size_t) 1, snapshot.memoryWindows.size());
+            Assert::AreEqual (1,          snapshot.memoryWindows[0].id);
+            Assert::AreEqual ((size_t) DebuggerViewState::kMemoryWindowBytes, snapshot.memoryWindows[0].bytes.size());
+            Assert::AreEqual (snapshot.memoryWindows[0].bytes.size(),         snapshot.memoryWindows[0].regions.size());
+        }
+
+
+        TEST_METHOD (MoreWindowsOpenAndClose)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.view.OpenMemoryWindow (2, 0x0300);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((size_t) 2,     snapshot.memoryWindows.size());
+            Assert::AreEqual ((Word) 0x0300,  Window (snapshot, 2).first);
+            Assert::AreEqual ((Byte) 0xA9,    *Window (snapshot, 2).bytes[0]);
+            Assert::AreEqual ((Byte) 0x8D,    *Window (snapshot, 2).bytes[2]);
+
+            rig.view.CloseMemoryWindow (2);
+            Assert::AreEqual ((size_t) 1, rig.view.Build (rig.controller.GetSession()).memoryWindows.size());
+        }
+
+
+        TEST_METHOD (OnlyWindowsTwoToFourOpenAndClose)
+        {
+            MachineRig  rig;
+
+
+
+            rig.view.OpenMemoryWindow  (5, 0x0300);
+            rig.view.CloseMemoryWindow (1);
+
+            Assert::IsFalse (rig.view.GetMemoryWindowAddress (5).has_value());
+            Assert::IsTrue  (rig.view.GetMemoryWindowAddress (1).has_value(), L"the first window cannot be closed");
+        }
+
+
+        TEST_METHOD (AWindowStartsOnARowBoundary)
+        {
+            MachineRig  rig;
+
+
+
+            rig.view.OpenMemoryWindow (2, 0x0305);
+
+            Assert::AreEqual ((Word) 0x0300, Window (rig.view.Build (rig.controller.GetSession()), 2).first);
+        }
+
+
+        TEST_METHOD (IoBytesAreEmptyAndMarked)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.view.OpenMemoryWindow (2, 0xC000);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (Window (snapshot, 2).bytes[0].has_value(), L"reading I/O would change the machine");
+            Assert::IsTrue  (Window (snapshot, 2).regions[0] == MemoryRegion::Io);
+        }
+
+
+        TEST_METHOD (AnEditShowsInEveryWindowAtThatAddress)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.view.SetMemoryAddress (0x0300);
+            rig.view.OpenMemoryWindow (2, 0x0300);
+            rig.Run ("PATCH 0300 5A");
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((Byte) 0x5A, *Window (snapshot, 1).bytes[0]);
+            Assert::AreEqual ((Byte) 0x5A, *Window (snapshot, 2).bytes[0]);
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  ControlTests
     //
     ////////////////////////////////////////////////////////////////////////////////

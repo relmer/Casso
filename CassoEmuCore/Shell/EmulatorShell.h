@@ -500,7 +500,7 @@ private:
     void    RunDebuggerCommand       (const std::string & line) override;
     void    PauseDebugger            () override;
     void    SetDebuggerCodeAddress   (std::optional<Word> address) override;
-    void    SetDebuggerMemoryAddress (Word address) override;
+    void    SetDebuggerMemoryWindow  (int id, std::optional<Word> address) override;
     bool    TakeDebuggerUpdate       (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
                                       std::vector<std::string>                     & consoleLines) override;
     void    OnDebuggerWindowClosed   () override;

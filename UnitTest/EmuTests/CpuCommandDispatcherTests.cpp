@@ -265,6 +265,26 @@ public:
     }
 
 
+    TEST_METHOD (MemoryWindowsTwoToFourOpenMoveAndClose)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_VIEW, "memory2 0300", target);
+        Dispatch (IDM_DEBUG_VIEW, "memory4 F800", target);
+        Dispatch (IDM_DEBUG_VIEW, "memory3 close", target);
+
+        //  There is no fifth window, no closing the first, and no other word.
+        Dispatch (IDM_DEBUG_VIEW, "memory5 0300", target);
+        Dispatch (IDM_DEBUG_VIEW, "memory close", target);
+        Dispatch (IDM_DEBUG_VIEW, "memory2 shut", target);
+
+        Assert::AreEqual ((size_t) 3, target.calls.size());
+        Assert::AreEqual (std::string ("SetDebugView memory2 0300"), target.calls[0]);
+        Assert::AreEqual (std::string ("SetDebugView memory4 F800"), target.calls[1]);
+        Assert::AreEqual (std::string ("SetDebugView memory3 pc"),   target.calls[2], L"no address closes the window");
+    }
+
+
     TEST_METHOD (APauseChangeSaysWhichWay)
     {
         Notebook  target;

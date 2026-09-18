@@ -55,7 +55,8 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
 
 
 
-    snapshot.mode = session.GetMode();
+    snapshot.mode    = session.GetMode();
+    snapshot.machine = session.GetTarget().GetMachineInfo().name;
 
     if (const RegistersData * data = std::get_if<RegistersData> (&registers.data))
     {
@@ -156,6 +157,16 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
         }
     }
 
+    for (int id = 1; id <= kMaxMemoryWindows; id++)
+    {
+        std::optional<Word>  address = GetMemoryWindowAddress (id);
+
+        if (address.has_value())
+        {
+            snapshot.memoryWindows.push_back (ReadMemoryWindow (session, id, *address));
+        }
+    }
+
     if (const StackData * data = std::get_if<StackData> (&stack.data))
     {
         for (const StackEntry & entry : data->entries)
@@ -174,6 +185,113 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session) const
     }
 
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::OpenMemoryWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::OpenMemoryWindow (int id, Word address)
+{
+    if (id == 1)
+    {
+        m_memoryAddress = address;
+    }
+    else if (id >= 2 && id <= kMaxMemoryWindows)
+    {
+        m_extraWindows[(size_t) (id - 2)] = address;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::CloseMemoryWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::CloseMemoryWindow (int id)
+{
+    if (id >= 2 && id <= kMaxMemoryWindows)
+    {
+        m_extraWindows[(size_t) (id - 2)].reset();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetMemoryWindowAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> DebuggerViewState::GetMemoryWindowAddress (int id) const
+{
+    std::optional<Word>  address;
+
+
+
+    if (id == 1)
+    {
+        address = m_memoryAddress;
+    }
+    else if (id >= 2 && id <= kMaxMemoryWindows)
+    {
+        address = m_extraWindows[(size_t) (id - 2)];
+    }
+
+    return address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ReadMemoryWindow
+//
+//  Through D, like the other panes, so a window shows exactly what the command
+//  would; each row's region is given to every byte in it, which is exact
+//  because rows start on eight-byte boundaries and no region changes inside
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerViewSnapshot::MemoryWindow DebuggerViewState::ReadMemoryWindow (DebugSession & session, int id, Word address)
+{
+    DebuggerViewSnapshot::MemoryWindow  window;
+    Word                                first = (Word) (address & ~(kMemoryRowBytes - 1));
+    Word                                last  = (Word) std::min<uint32_t> ((uint32_t) first + kMemoryWindowBytes - 1, 0xFFFF);
+    Reply                               reply = session.ExecuteLine (std::format ("D {:04X}:{:04X}", first, last), CommandMode::AppleWin);
+
+
+
+    window.id    = id;
+    window.first = first;
+
+    if (const MemoryData * data = std::get_if<MemoryData> (&reply.data))
+    {
+        for (const MemoryRow & row : data->rows)
+        {
+            window.bytes.insert (window.bytes.end(), row.bytes.begin(), row.bytes.end());
+            window.regions.insert (window.regions.end(), row.bytes.size(), row.region);
+        }
+    }
+
+    return window;
 }
 
 

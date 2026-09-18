@@ -163,12 +163,28 @@ void DebuggerWindow::OnCreate()
     m_breakpointList    = CreateChild<DxuiListView>  ();
     m_watchList         = CreateChild<DxuiListView>  ();
     m_stackList         = CreateChild<DxuiListView>  ();
-    m_memoryList        = CreateChild<DxuiListView>  ();
     m_consoleList       = CreateChild<DxuiListView>  ();
     m_commandBox        = CreateChild<DxuiTextInput> ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_pokeBox           = CreateChild<DxuiTextInput> ();
     m_pokeButton        = CreateChild<DxuiButton>    (L"Poke");
+    m_groupButton       = CreateChild<DxuiButton>    (L"Bytes");
+    m_addMemoryButton   = CreateChild<DxuiButton>    (L"+ Memory");
+    m_removeMemoryButton = CreateChild<DxuiButton>   (L"- Memory");
+
+    //  All four windows exist from the start; the ones not open are hidden.
+    for (int id = 1; id <= DebuggerViewState::kMaxMemoryWindows; id++)
+    {
+        DxuiHexView  * view = CreateChild<DxuiHexView>();
+
+        m_memoryPanes[(size_t) (id - 1)] = std::make_unique<MemoryPane> (
+            id, view,
+            [this] (int window, Word first)          { if (m_host != nullptr) { m_host->SetDebuggerMemoryWindow (window, first); } },
+            [this] (const std::string & line)        { RunCommand (line); },
+            [this] (const std::string & line)        { AppendConsole ({ line }); });
+
+        view->SetVisible (id == 1);
+    }
 
     ConfigureWidgets();
 }
@@ -219,6 +235,21 @@ void DebuggerWindow::ConfigureWidgets()
 
     m_pokeButton->SetOnClick ([this] { SubmitPokeBox(); });
 
+    m_groupButton->SetOnClick ([this]
+    {
+        static const wchar_t * const  kNames[] = { L"", L"Bytes", L"Words", L"", L"Longs" };
+
+        m_groupButton->SetLabel (kNames[GetActiveMemoryPane()->CycleGrouping()]);
+    });
+
+    m_addMemoryButton->SetOnClick    ([this] { AddMemoryWindow();    });
+    m_removeMemoryButton->SetOnClick ([this] { RemoveMemoryWindow(); });
+
+    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+    {
+        pane->Configure (GetHwnd());
+    }
+
     //  Every column fits its contents and none stretches, so a pane is as wide
     //  as what it shows and no wider (FR-026a). The marker column alone has a
     //  set width, since its glyphs are not text a fit could measure.
@@ -250,10 +281,6 @@ void DebuggerWindow::ConfigureWidgets()
                                     { L"Value",       0, false, DxuiTextHAlign::Left } });
     m_stackList->SetColumns      ({ { L"Stack",       0, false, DxuiTextHAlign::Left },
                                     { L"Value",       0, false, DxuiTextHAlign::Left } });
-    m_memoryList->SetColumns     ({ { L"Address",     0, false, DxuiTextHAlign::Left },
-                                    { L"Bytes",       0, false, DxuiTextHAlign::Left },
-                                    { L"Text",        0, false, DxuiTextHAlign::Left },
-                                    { L"Region",      0, false, DxuiTextHAlign::Left } });
     m_consoleList->SetColumns    ({ { L"Console",     0, false, DxuiTextHAlign::Left } });
     m_consoleList->EnableStickyTail (true);
 
@@ -303,7 +330,7 @@ void DebuggerWindow::ConfigureWidgets()
 
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
-    return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_memoryList, m_consoleList };
+    return { m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_consoleList };
 }
 
 
@@ -372,9 +399,274 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
         targets.push_back (button);
     }
 
-    targets.insert (targets.end(), { m_pokeButton, m_commandBox, m_memoryBox, m_pokeBox });
+    for (DxuiButton * button : GetMemoryButtons())
+    {
+        targets.push_back (button);
+    }
+
+    targets.insert (targets.end(), { m_commandBox, m_memoryBox, m_pokeBox });
 
     return targets;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMemoryButtons
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiButton *> DebuggerWindow::GetMemoryButtons() const
+{
+    return { m_pokeButton, m_groupButton, m_addMemoryButton, m_removeMemoryButton };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetOpenMemoryPanes
+//
+//  In window order, which is the order they are laid out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<MemoryPane *> DebuggerWindow::GetOpenMemoryPanes() const
+{
+    std::vector<MemoryPane *>  open;
+
+
+
+    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+    {
+        if (pane != nullptr && pane->GetView()->IsVisible())
+        {
+            open.push_back (pane.get());
+        }
+    }
+
+    return open;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetActiveMemoryPane
+//
+//  The window last clicked in, which the memory box and the grouping button
+//  act on; the first window until another is clicked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MemoryPane * DebuggerWindow::GetActiveMemoryPane() const
+{
+    return (m_activePane != nullptr) ? m_activePane : m_memoryPanes[0].get();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFocusedMemoryPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MemoryPane * DebuggerWindow::GetFocusedMemoryPane() const
+{
+    IDxuiControl  * focused = m_focusMgr.GetFocusedControl();
+
+
+
+    for (MemoryPane * pane : GetOpenMemoryPanes())
+    {
+        if (focused != nullptr && focused == pane->GetView())
+        {
+            return pane;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyMemoryWindows
+//
+//  The snapshot says which windows are open: each one it holds is shown and
+//  given its bytes, and the rest are hidden. A different machine clears every
+//  window's undo, since the addresses it would restore belonged to the old
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyMemoryWindows()
+{
+    std::array<bool, DebuggerViewState::kMaxMemoryWindows>  open    = {};
+    bool                                                    changed = false;
+
+
+
+    if (m_snapshot->machine != m_machine)
+    {
+        m_machine = m_snapshot->machine;
+
+        for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+        {
+            pane->ClearHistory();
+        }
+    }
+
+    for (const DebuggerViewSnapshot::MemoryWindow & window : m_snapshot->memoryWindows)
+    {
+        if (window.id >= 1 && window.id <= DebuggerViewState::kMaxMemoryWindows)
+        {
+            open[(size_t) (window.id - 1)] = true;
+            m_memoryPanes[(size_t) (window.id - 1)]->Apply (window);
+        }
+    }
+
+    for (size_t i = 0; i < m_memoryPanes.size(); i++)
+    {
+        DxuiHexView  * view = m_memoryPanes[i]->GetView();
+
+        if (view->IsVisible() != open[i])
+        {
+            view->SetVisible (open[i]);
+            changed = true;
+        }
+
+        if (!open[i] && m_activePane == m_memoryPanes[i].get())
+        {
+            m_activePane = nullptr;
+        }
+    }
+
+    if (changed)
+    {
+        LayoutWidgets();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddMemoryWindow
+//
+//  The lowest-numbered closed window opens where the active one is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddMemoryWindow()
+{
+    Word  at = (Word) (GetActiveMemoryPane()->GetView()->GetTopRow() * DebuggerViewState::kMemoryRowBytes);
+
+
+
+    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+    {
+        if (!pane->GetView()->IsVisible() && m_host != nullptr)
+        {
+            m_host->SetDebuggerMemoryWindow (pane->GetId(), at);
+            return;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RemoveMemoryWindow
+//
+//  The highest-numbered open window closes; the first never does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RemoveMemoryWindow()
+{
+    for (size_t i = m_memoryPanes.size(); i > 1; i--)
+    {
+        MemoryPane  * pane = m_memoryPanes[i - 1].get();
+
+        if (pane->GetView()->IsVisible() && m_host != nullptr)
+        {
+            m_host->SetDebuggerMemoryWindow (pane->GetId(), std::nullopt);
+            return;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteMemoryMouse
+//
+//  A drag in a window keeps its events until it ends; a press or the wheel goes
+//  to the window under it, and a press makes it the active one. Releases reach
+//  every window, so none is left thinking a drag is still on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteMemoryMouse (const DxuiMouseEvent & ev)
+{
+    POINT  at = ev.positionDip;
+
+
+
+    for (MemoryPane * pane : GetOpenMemoryPanes())
+    {
+        DxuiHexView  * view   = pane->GetView();
+        RECT           bounds = view->GetBounds();
+        bool           inside = at.x >= bounds.left && at.x < bounds.right && at.y >= bounds.top && at.y < bounds.bottom;
+
+        if (view->IsDragging() && ev.kind != DxuiMouseEventKind::Down)
+        {
+            (void) view->OnMouse (ev);
+            return true;
+        }
+
+        if (inside && (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel))
+        {
+            (void) view->OnMouse (ev);
+
+            if (ev.kind == DxuiMouseEventKind::Down)
+            {
+                m_focusMgr.SetFocused (view);
+                m_activePane = pane;
+            }
+
+            return true;
+        }
+
+        if (ev.kind == DxuiMouseEventKind::Up)
+        {
+            (void) view->OnMouse (ev);
+        }
+    }
+
+    return false;
 }
 
 
@@ -562,7 +854,8 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 //  DebuggerWindow::RouteBoxKey
 //
 //  A key-down in a focused text box that the box does not keep goes to the
-//  scheme first. When the scheme took a Space, the character WM_CHAR delivers
+//  scheme first. A memory window counts as a box that is never empty, since
+//  every character typed into it is an edit. When the scheme took a Space, the character WM_CHAR delivers
 //  for it is swallowed, or an empty box that stepped would be left holding a
 //  space. Returns true when the key was decided here.
 //
@@ -570,8 +863,9 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 
 bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
 {
-    DxuiTextInput  * box     = GetFocusedBox();
-    bool             decided = false;
+    DxuiTextInput  * box      = GetFocusedBox();
+    bool             inMemory = GetFocusedMemoryPane() != nullptr;
+    bool             decided  = false;
 
 
 
@@ -581,8 +875,8 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
         handled        = decided;
         m_swallowSpace = false;
     }
-    else if (ev.kind == DxuiKeyEventKind::Down && box != nullptr &&
-             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, box->GetText().empty()) &&
+    else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) &&
+             !DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, box != nullptr && box->GetText().empty()) &&
              RouteMappedKey (ev))
     {
         m_swallowSpace = ev.vk == VK_SPACE;
@@ -653,27 +947,30 @@ void DebuggerWindow::LayoutWidgets()
 {
     auto  px       = [this] (int dip) { return m_scaler.ToPx (dip); };
     auto  paneH    = [px] (int rows) { return px (kPaneHeaderDip + rows * kPaneRowDip + kPaneEdgeDip); };
-    int   pad      = px (8);
-    int   buttonH  = px (30);
-    int   boxH     = px (30);
-    int   width    = m_widthDip;
-    int   height   = m_heightDip;
-    int   captionH = GetCaptionHeightPx();
-    int   rowY     = captionH + pad;
-    int   top      = rowY + buttonH + pad;
-    int   rightW   = px (300);
-    int   rightX   = std::max (pad, width - pad - rightW);
-    int   leftW    = std::max (px (100), rightX - 2 * pad);
-    int   bottomH  = paneH (kPaneRows);
-    int   bottomY  = std::max (top + px (120), height - pad - boxH - pad - bottomH);
-    int   middleH  = std::max (px (120), bottomY - pad - top);
-    int   codeH    = std::min (paneH (DebuggerViewState::kCodeLines), middleH - pad - boxH - pad - paneH (2));
-    int   consoleY = top + codeH + pad;
-    int   consoleH = std::max (px (40), middleH - codeH - pad - boxH - pad);
-    int   regH     = paneH (kRegisterRows);
-    int   restH    = std::max (px (60), std::min (paneH (kPaneRows), (middleH - regH - 2 * pad) / 2));
-    int   paneY    = top;
-    int   x        = pad;
+    int                        pad       = px (8);
+    int                        buttonH   = px (30);
+    int                        boxH      = px (30);
+    int                        width     = m_widthDip;
+    int                        height    = m_heightDip;
+    int                        captionH  = GetCaptionHeightPx();
+    int                        rowY      = captionH + pad;
+    int                        top       = rowY + buttonH + pad;
+    int                        rightW    = px (300);
+    int                        rightX    = std::max (pad, width - pad - rightW);
+    int                        leftW     = std::max (px (100), rightX - 2 * pad);
+    int                        bottomH   = paneH (kPaneRows);
+    int                        bottomY   = std::max (top + px (120), height - pad - boxH - pad - bottomH);
+    int                        middleH   = std::max (px (120), bottomY - pad - top);
+    int                        codeH     = std::min (paneH (DebuggerViewState::kCodeLines), middleH - pad - boxH - pad - paneH (2));
+    int                        consoleY  = top + codeH + pad;
+    int                        consoleH  = std::max (px (40), middleH - codeH - pad - boxH - pad);
+    int                        regH      = paneH (kRegisterRows);
+    int                        restH     = std::max (px (60), std::min (paneH (kPaneRows), (middleH - regH - 2 * pad) / 2));
+    int                        paneY     = top;
+    int                        x         = pad;
+    std::vector<MemoryPane *>  openPanes = GetOpenMemoryPanes();
+    int                        paneW     = (leftW - ((int) std::max<size_t> (openPanes.size(), 1) - 1) * pad) /
+                                           (int) std::max<size_t> (openPanes.size(), 1);
 
 
 
@@ -702,13 +999,26 @@ void DebuggerWindow::LayoutWidgets()
 
     //  Memory and the stack share the bottom row, so each gets the eight rows
     //  a pane is owed without the right column having to hold four panes.
-    m_memoryList->Layout (RECT { pad,    bottomY, pad + leftW, bottomY + bottomH }, m_scaler);
+    //  The open memory windows share the bottom row's left part side by side.
+    x = pad;
+
+    for (MemoryPane * pane : openPanes)
+    {
+        pane->GetView()->Layout (RECT { x, bottomY, x + paneW, bottomY + bottomH }, m_scaler);
+        x += paneW + pad;
+    }
+
     m_stackList->Layout  (RECT { rightX, bottomY, width - pad, bottomY + bottomH }, m_scaler);
 
     x = pad;
     m_memoryBox->Layout  (RECT { x, bottomY + bottomH + pad, x + px (170), bottomY + bottomH + pad + boxH }, m_scaler);  x += px (170) + pad;
     m_pokeBox->Layout    (RECT { x, bottomY + bottomH + pad, x + px (230), bottomY + bottomH + pad + boxH }, m_scaler);  x += px (230) + pad;
-    m_pokeButton->Layout (RECT { x, bottomY + bottomH + pad, x + px (90),  bottomY + bottomH + pad + boxH }, m_scaler);
+
+    for (DxuiButton * button : GetMemoryButtons())
+    {
+        button->Layout (RECT { x, bottomY + bottomH + pad, x + px (90), bottomY + bottomH + pad + boxH }, m_scaler);
+        x += px (90) + pad;
+    }
 }
 
 
@@ -750,6 +1060,12 @@ void DebuggerWindow::RenderFrame()
     for (DxuiListView * list : GetLists())
     {
         list->Tick (now);
+    }
+
+    for (MemoryPane * pane : GetOpenMemoryPanes())
+    {
+        pane->FollowScroll();
+        (void) pane->GetView()->TickScrollbars (now);
     }
 
     Invalidate();
@@ -838,17 +1154,7 @@ void DebuggerWindow::ApplySnapshot()
 
     m_stackList->SetRows (std::move (rows));
 
-    rows.clear();
-
-    for (const DebuggerViewSnapshot::MemoryLine & line : m_snapshot->memory)
-    {
-        rows.push_back ({ { std::format (L"{:04X}", line.address) },
-                          { Widen (line.bytes) },
-                          { Widen (line.characters) },
-                          { Widen (line.region), true } });
-    }
-
-    m_memoryList->SetRows (std::move (rows));
+    ApplyMemoryWindows();
 }
 
 
@@ -888,6 +1194,7 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
     }
 
     m_consoleList->SetRows (std::move (rows));
+    m_consoleList->UpdateAutoFitFromRows();
     m_consoleList->EnsureVisible ((int) m_console.size() - 1);
 }
 
@@ -955,9 +1262,9 @@ void DebuggerWindow::SubmitMemoryBox()
 
 
 
-    if (m_host != nullptr && TryParseHexWord (m_memoryBox->GetText(), address))
+    if (TryParseHexWord (m_memoryBox->GetText(), address))
     {
-        m_host->SetDebuggerMemoryAddress (address);
+        GetActiveMemoryPane()->GoTo (address);
     }
 }
 
@@ -1062,6 +1369,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    if (RouteMemoryMouse (ev))
+    {
+        return true;
+    }
+
     for (DxuiListView * list : GetLists())
     {
         if (list->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
@@ -1079,7 +1391,10 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
         }
 
-        m_pokeButton->SetMouse (x, y, m_pokeButton->HitTest (x, y) && lbDown);
+        for (DxuiButton * button : GetMemoryButtons())
+        {
+            button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
+        }
 
         for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_pokeBox })
         {
@@ -1176,9 +1491,21 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         else if (focused == m_pokeBox)    { SubmitPokeBox();    return true; }
     }
 
+    if (ev.kind == DxuiKeyEventKind::Char && GetFocusedMemoryPane() != nullptr)
+    {
+        return focused->OnKey (ev);
+    }
+
     if (ev.kind == DxuiKeyEventKind::Char)
     {
         return m_commandBox->OnKey (ev) || m_memoryBox->OnKey (ev) || m_pokeBox->OnKey (ev);
+    }
+
+    //  Ctrl+Z in a memory window undoes that window's last edit.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'Z' && GetFocusedMemoryPane() != nullptr)
+    {
+        (void) GetFocusedMemoryPane()->Undo();
+        return true;
     }
 
     if (ev.kind == DxuiKeyEventKind::Down)

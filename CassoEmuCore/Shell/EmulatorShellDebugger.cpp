@@ -157,13 +157,21 @@ void EmulatorShell::SetDebuggerCodeAddress (std::optional<Word> address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDebuggerMemoryAddress
+//  SetDebuggerMemoryWindow
+//
+//  Window 1 is the "memory" view; 2 to 4 are "memory2" and on, and no
+//  address closes one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerMemoryAddress (Word address)
+void EmulatorShell::SetDebuggerMemoryWindow (int id, std::optional<Word> address)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("memory {:04X}", address));
+    std::string  view = (id == 1) ? std::string ("memory") : std::format ("memory{}", id);
+
+
+
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("{} {:04X}", view, *address)
+                                                                 : view + " close");
 }
 
 
@@ -312,6 +320,19 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
     else if (view == "memory" && address.has_value())
     {
         m_debugViewState.SetMemoryAddress (*address);
+    }
+    else if (view.starts_with ("memory") && view.size() == 7)
+    {
+        int  id = view.back() - '0';
+
+        if (address.has_value())
+        {
+            m_debugViewState.OpenMemoryWindow (id, *address);
+        }
+        else
+        {
+            m_debugViewState.CloseMemoryWindow (id);
+        }
     }
 
     m_isDebugViewDirty = true;
