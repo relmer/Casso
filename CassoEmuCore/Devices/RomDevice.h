@@ -28,6 +28,10 @@ public:
 
     const Byte * GetData () const { return m_data.data (); }
 
+    // The debugger's ROM patch: replaces one byte of the image, so the CPU
+    // reads the new value. False for an address outside the image.
+    bool TryPatch (Word address, Byte value);
+
     static unique_ptr<MemoryDevice> CreateFromFile (
         Word start, Word end, const string & filePath, string & outError);
 

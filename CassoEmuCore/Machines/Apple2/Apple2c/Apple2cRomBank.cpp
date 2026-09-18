@@ -97,3 +97,39 @@ void Apple2cRomBank::ResetRomBank()
 {
     ApplyBank (0);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cRomBank::TryPatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cRomBank::TryPatch (Word address, Byte value)
+{
+    HRESULT         hr      = S_OK;
+    bool            patched = false;
+    bool            inCxxx  = address >= kCxxxStart  && address <  kCxxxStart + kCxxxSize;
+    bool            inLcRom = address >= kLcRomStart;
+    size_t          offset  = 0;
+    vector<Byte>  & image   = m_bank[m_current];
+
+
+
+    BAIL_OUT_IF (!inCxxx && !inLcRom, S_OK);
+
+    offset = inCxxx ? kCxxxOffset  + (size_t) (address - kCxxxStart)
+                    : kLcRomOffset + (size_t) (address - kLcRomStart);
+
+    BAIL_OUT_IF (offset >= image.size(), S_OK);
+
+    image[offset] = value;
+    patched       = inCxxx ? m_mmu.GetCxxxRouter()->TryPatch (address, value)
+                           : m_lc.TryPatchRom (address, value);
+
+Error:
+    return patched;
+}

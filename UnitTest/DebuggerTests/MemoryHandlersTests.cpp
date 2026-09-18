@@ -99,6 +99,32 @@ namespace DebuggerTests
 
 
 
+        //  PATCH is what a memory window sends for an edit: it reaches ROM, which
+        //  MEB does not, and it refuses I/O by name, pointing at OUT.
+        TEST_METHOD (Patch_RamAndRom_IoRefused)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            reply = rig.RunOk ("PATCH 300 A9 41");
+            Assert::AreEqual ((Byte) 0xA9, rig.target.memory[0x0300]);
+            Assert::AreEqual ((Byte) 0x41, rig.target.memory[0x0301]);
+            Assert::AreEqual (std::string ("0300: A9 41                    )A"), reply.text.at (0), L"replies with the rows, as MEB does");
+
+            rig.RunOk ("PATCH F800 EA");
+            Assert::AreEqual ((Byte) 0xEA, rig.target.memory[0xF800], L"ROM takes the patch");
+
+            reply = rig.RunFails ("PATCH C030 00", "memory not writable");
+            Assert::IsTrue   (reply.error.detail.find ("OUT") != std::string::npos, L"the refusal says how to write I/O");
+            Assert::AreEqual ((size_t) 0, rig.target.ioWrites.size(), L"and nothing reached the device");
+
+            rig.RunFails ("PATCH 300", "invalid arguments");
+        }
+
+
+
         TEST_METHOD (Move_Compare_Fill)
         {
             Rig    rig;

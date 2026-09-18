@@ -73,6 +73,19 @@ public:
         return true;
     }
 
+    //  RAM and ROM alike are one array here, so a patch is a store anywhere
+    //  outside the I/O page.
+    bool TryPatch (Word address, Byte value) override
+    {
+        if (address >= kIoFirst && address <= kIoLast)
+        {
+            return false;
+        }
+
+        memory[address] = value;
+        return true;
+    }
+
     MemoryRegion GetRegion (Word address) const override
     {
         if (address >= kRomFirst)

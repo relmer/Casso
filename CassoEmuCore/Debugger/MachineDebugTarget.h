@@ -34,6 +34,7 @@ public:
 
     bool                TryPeek           (Word address, Byte & value) const override;
     bool                TryPoke           (Word address, Byte value) override;
+    bool                TryPatch          (Word address, Byte value) override;
     MemoryRegion        GetRegion         (Word address) const override;
     Byte                ReadIo            (Word address) override;
     void                WriteIo           (Word address, Byte value) override;

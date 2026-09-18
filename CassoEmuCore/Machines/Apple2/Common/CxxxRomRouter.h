@@ -78,6 +78,11 @@ public:
     // I/O device is not readable this way, since reading a device has effects.
     bool TryPeek (Word address, Byte & value) const;
 
+    // The debugger's ROM patch: one byte of whichever image the switches
+    // select for address, internal or slot, so TryPeek and the CPU then read
+    // it. False where no image answers (a device page, the floating bus).
+    bool TryPatch (Word address, Byte value);
+
     // True when address resolves to the internal ROM image rather than a slot
     // ROM or the floating bus, under the current MMU switches.
     bool IsInternalRomSelected (Word address) const;

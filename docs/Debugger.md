@@ -54,6 +54,7 @@ These are Casso's own, alongside AppleWin's names.
 | `BUDGET n` | limits every later run to `n` cycles (decimal); `BUDGET 0` removes the limit |
 | `SWITCHES` | lists the soft switches and whether each is on |
 | `STACK` | shows the stack pointer and the stack page above it |
+| `PATCH addr value...` | writes bytes the way a memory window edit does: into RAM, or into ROM so the machine runs the patched code; it will not write an I/O address, which is what `OUT` is for |
 
 ## Running and stopping
 

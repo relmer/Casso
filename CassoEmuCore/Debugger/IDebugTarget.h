@@ -64,6 +64,10 @@ public:
 
     virtual bool                TryPeek           (Word address, Byte & value) const = 0;
     virtual bool                TryPoke           (Word address, Byte value) = 0;
+
+    //  A memory window's edit: RAM as a write, ROM into the image the CPU
+    //  reads from, I/O refused.
+    virtual bool                TryPatch          (Word address, Byte value) = 0;
     virtual MemoryRegion        GetRegion         (Word address) const = 0;
     virtual Byte                ReadIo            (Word address) = 0;
     virtual void                WriteIo           (Word address, Byte value) = 0;

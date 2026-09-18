@@ -460,3 +460,52 @@ bool CxxxRomRouter::TryPeek (Word address, Byte & value) const
 
     return !isDevicePage;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPatch
+//
+//  The same choice of image ResolveByte makes, spelled with
+//  IsInternalRomSelected: this is not on the read path, so it need not be
+//  written out for speed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CxxxRomRouter::TryPatch (Word address, Byte value)
+{
+    HRESULT         hr        = S_OK;
+    bool            patched   = false;
+    size_t          romOffset = static_cast<size_t> (address - kCxxxRouterStart);
+    int             slot      = static_cast<int>    ((address >> kAddressPageShift) & kSlotNibbleMask);
+    size_t          pageOff   = static_cast<size_t> (address & kPageOffsetMask);
+    vector<Byte>  * image     = nullptr;
+    size_t          offset    = 0;
+
+
+
+    BAIL_OUT_IF (address < kCxxxRouterStart || address > kCxxxRouterEnd, S_OK);
+    BAIL_OUT_IF (GetSlotIoDevice (address) != nullptr, S_OK);
+
+    if (IsInternalRomSelected (address))
+    {
+        image  = &m_internal;
+        offset = romOffset;
+    }
+    else if (address < kExpansionRomStart && slot >= kMinSlot && slot <= kMaxSlot)
+    {
+        image  = &m_slotRom[slot];
+        offset = pageOff;
+    }
+
+    BAIL_OUT_IF (image == nullptr || offset >= image->size(), S_OK);
+
+    (*image)[offset] = value;
+    patched          = true;
+
+Error:
+    return patched;
+}

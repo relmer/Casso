@@ -245,6 +245,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BUDGET",      V::SetBudget,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SWITCHES",    V::ShowSwitches,             F::Engine,      A::Headless,     nullptr,     nullptr },
     { "STACK",       V::ShowStack,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "PATCH",       V::PatchBytes,               F::Memory,      A::Headless,     nullptr,     nullptr },
 
     // Window only: cursor
     { ".",           V::View,                     F::Cursor,      A::WindowOnly,   nullptr,     nullptr },

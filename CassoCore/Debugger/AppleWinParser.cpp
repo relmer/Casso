@@ -625,6 +625,7 @@ bool AppleWinParser::TryParseMemoryArguments (const Arguments & args, DebugComma
 
     case DebugVerb::EnterBytes:
     case DebugVerb::EnterWords:
+    case DebugVerb::PatchBytes:
         command.hasA1 = count > 0;
         return count >= 2 &&
                TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&

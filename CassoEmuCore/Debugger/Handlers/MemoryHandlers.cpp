@@ -23,6 +23,7 @@ bool MemoryHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::DumpMemory:        Dump         (session, command, reply); return true;
     case DebugVerb::EnterBytes:
     case DebugVerb::EnterWords:        Enter        (session, command, reply); return true;
+    case DebugVerb::PatchBytes:        Patch        (session, command, reply); return true;
     case DebugVerb::MoveMemory:        Move         (session, command, reply); return true;
     case DebugVerb::CompareMemory:     Compare      (session, command, reply); return true;
     case DebugVerb::FillMemory:        Fill         (session, command, reply); return true;
@@ -136,6 +137,52 @@ void MemoryHandlers::Enter (DebugSession & session, const DebugCommand & command
     {
         reply.data = MakeRows (session.GetTarget(), command.a1, last);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::Patch
+//
+//  A memory window's edit, and a command a person can type: RAM takes it as a
+//  write and ROM into the image the CPU reads from. An I/O address stops it,
+//  because writing one has effects only OUT should cause.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryHandlers::Patch (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    IDebugTarget  & target = session.GetTarget();
+    Word            last   = (Word) (command.a1 + command.values.size() - 1);
+
+
+
+    if (command.values.empty())
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "PATCH takes an address and one or more values.");
+        return;
+    }
+
+    for (size_t i = 0; i < command.values.size(); ++i)
+    {
+        Word  address = (Word) (command.a1 + i);
+
+
+
+        if (!target.TryPatch (address, command.values[i]))
+        {
+            reply.SetError (CommandStatus::Error, "memory not writable",
+                            target.GetRegion (address) == MemoryRegion::Io
+                                ? std::format ("${:04X} is I/O, which an edit does not write; use OUT.", address)
+                                : std::format ("${:04X} cannot be written; {} of {} bytes were.", address, i, command.values.size()));
+            return;
+        }
+    }
+
+    reply.data = MakeRows (target, command.a1, last);
 }
 
 

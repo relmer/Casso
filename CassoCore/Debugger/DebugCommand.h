@@ -92,6 +92,7 @@ enum class DebugVerb
     DumpMemory,
     EnterBytes,
     EnterWords,
+    PatchBytes,
     MoveMemory,
     CompareMemory,
     FillMemory,

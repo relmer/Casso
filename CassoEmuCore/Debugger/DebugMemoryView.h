@@ -25,6 +25,7 @@ public:
 
     bool          TryPeek   (Word address, Byte & value) const;
     bool          TryPoke   (Word address, Byte value);
+    bool          TryPatch  (Word address, Byte value);
     MemoryRegion  GetRegion (Word address) const;
 
 private:
@@ -36,6 +37,7 @@ private:
     static constexpr size_t  kAuxRamSize   = 0x10000;
 
     bool          TryPeekRomDevice (Word address, Byte & value) const;
+    bool          TryPatchRom      (Word address, Byte value);
     bool          IsAuxPage        (const Byte * page) const;
 
     MachineHost & m_host;

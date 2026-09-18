@@ -394,6 +394,31 @@ Byte LanguageCard::ReadRom (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPatchRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool LanguageCard::TryPatchRom (Word address, Byte value)
+{
+    size_t  offset = (address >= kLcWindowStart) ? static_cast<size_t> (address - kLcWindowStart) : m_romData.size();
+    bool    inside = offset < m_romData.size();
+
+
+
+    if (inside)
+    {
+        m_romData[offset] = value;
+    }
+
+    return inside;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RebindWindow
 //
 //  Maps the bus read-page table for $D000-$FFFF to the current byte source.

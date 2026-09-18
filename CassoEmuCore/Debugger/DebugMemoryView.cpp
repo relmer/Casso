@@ -3,6 +3,7 @@
 #include "Debugger/DebugMemoryView.h"
 
 #include "Devices/RomDevice.h"
+#include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
@@ -108,6 +109,101 @@ bool DebugMemoryView::TryPoke (Word address, Byte value)
     page[address & kPageMask] = value;
     bus.MarkVideoDirty();
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugMemoryView::TryPatch
+//
+//  What a memory window's edit does (FR-037): RAM and language-card RAM take
+//  it as a poke, ROM takes it into the image the CPU reads from, and an I/O
+//  address refuses it, since writing one is a side effect only OUT may cause.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugMemoryView::TryPatch (Word address, Byte value)
+{
+    MemoryRegion  region  = GetRegion (address);
+    bool          patched = false;
+
+
+
+    switch (region)
+    {
+    case MemoryRegion::Io:
+        break;
+
+    case MemoryRegion::Rom:
+    case MemoryRegion::SlotRom:
+        patched = TryPatchRom (address, value);
+        break;
+
+    default:
+        patched = TryPoke (address, value);
+        break;
+    }
+
+    if (patched)
+    {
+        m_host.GetMemoryBus().MarkVideoDirty();
+    }
+
+    return patched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugMemoryView::TryPatchRom
+//
+//  The //c's bank switcher goes first, because a patch there has to reach the
+//  bank's own image as well as the live copies. Otherwise the router answers
+//  for $C100-$CFFF, the language card for $D000-$FFFF, and a ROM device for a
+//  machine with neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugMemoryView::TryPatchRom (Word address, Byte value)
+{
+    Apple2cRomBank  * romBank = m_host.GetApple2cRomBank();
+    Apple2eMmu      * mmu     = m_host.GetMmu();
+    LanguageCard    * lc      = m_host.GetRefs().languageCard;
+    RomDevice       * rom     = nullptr;
+
+
+
+    if (romBank != nullptr)
+    {
+        return romBank->TryPatch (address, value);
+    }
+
+    if (address >= kSlotRomFirst && address <= kSlotRomLast)
+    {
+        return mmu != nullptr && mmu->GetCxxxRouter()->TryPatch (address, value);
+    }
+
+    if (lc != nullptr && lc->TryPatchRom (address, value))
+    {
+        return true;
+    }
+
+    for (const BusEntry & entry : m_host.GetMemoryBus().GetEntries())
+    {
+        if (address >= entry.start && address <= entry.end)
+        {
+            rom = dynamic_cast<RomDevice *> (entry.device);
+            return rom != nullptr && rom->TryPatch (address, value);
+        }
+    }
+
+    return false;
 }
 
 

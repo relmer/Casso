@@ -53,6 +53,7 @@ private:
     static void  ReadIo       (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  WriteIo      (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ShowSwitches (DebugSession & session, Reply & reply);
+    static void  Patch        (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryPokeRange (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);
     static bool  TryGetFiles  (DebugSession & session, Reply & reply, IFileSystem *& files);

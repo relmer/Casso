@@ -17,8 +17,9 @@ AppleWin mode directly and in Monitor mode through `/`.
 | `BUDGET <n>` | set the cycle budget for later runs in this session; `BUDGET 0` makes them unbounded, which is the default outside batch and `--attach` |
 | `SWITCHES` | list the soft switches and memory banking (RAMRD, RAMWRT, ALTZP, 80STORE, INTCXROM, SLOTC3ROM, language-card read, write and bank, video switches) as name/value pairs |
 | `STACK` | show SP and the stack page from $01FF down to SP+1 |
+| `PATCH addr value...` | write bytes as a memory window edit does: RAM as a write, ROM into the image the CPU reads from (on the //c, into the current bank's image, so it survives a `$C028` flip), an I/O address refused with a pointer to `OUT`; values above $FF are two bytes, low first, as with `MEB` |
 
-AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES` or `STACK` command, so
+AppleWin has no `MODE`, `PAUSE`, `BUDGET`, `SWITCHES`, `STACK` or `PATCH` command, so
 these names collide with nothing in its table.
 
 ## AppleWin mode

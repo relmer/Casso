@@ -45,6 +45,11 @@ public:
 
     int  GetCurrentBank () const { return m_current; }
 
+    // The debugger's ROM patch at $C100-$FFFF: written into the current
+    // bank's own image, which a flip re-slices from, and into the live copies
+    // the router and the language card read, so it holds across flips.
+    bool TryPatch (Word address, Byte value);
+
 private:
     void ApplyBank     (int bank);
 

@@ -71,6 +71,10 @@ public:
     void SetRomData (const vector<Byte> & rom) { m_romData = rom; }
     Byte ReadRom    (Word address) const;
 
+    // The debugger's ROM patch: one byte of the $D000-$FFFF ROM image, which
+    // the read pages point into, so the CPU reads the new value at once.
+    bool TryPatchRom (Word address, Byte value);
+
     // Point the bus read-page table for $D000-$FFFF at the live byte source
     // (LC RAM per bank/aux when READRAM, else ROM) so instruction fetches from
     // the language-card window hit the inline fast path instead of the virtual
