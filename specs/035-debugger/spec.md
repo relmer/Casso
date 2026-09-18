@@ -4,9 +4,11 @@
 
 **Created**: 2026-09-13
 
+**Updated**: 2026-09-18
+
 **Status**: Draft
 
-**Input**: User description: "Casso debugger (GH #51): an engine that breaks into the running emulator, AppleWin and Apple II Monitor command modes, batch scripting, named-pipe protocol, and GUI debugger window"
+**Input**: User description: "Casso debugger (GH #51): an engine that breaks into the running emulator, AppleWin and Apple II Monitor command modes, batch scripting, named-pipe protocol, and GUI debugger window." Expanded 2026-09-18: when released, the debugger is at least at parity with AppleWin's and GSSquared's, and ahead of both where Casso can be: a window worth releasing, in-place memory editing, Visual Studio-style docking, an instruction trace ring, device diagnostic panels, source-level debugging on a cc65-compatible debug file, expression and value breakpoints, a GSSquared command mode, and cycle profiling.
 
 ## Overview
 
@@ -20,12 +22,23 @@ emulator: every mature emulator debugger (AppleWin, VICE, MAME, Mesen, Stella)
 is built into the running emulator. GH #59 (the GUI panel) is merged into this
 feature.
 
-One engine, two command modes, three ways in:
+One engine, three command modes, three ways in:
 
-- **Command modes**: AppleWin (default) and the Apple II System Monitor.
+- **Command modes**: AppleWin (default), the Apple II System Monitor, and
+  GSSquared.
 - **Ways in**: a GUI debugger window with a command line, a batch mode in the
   command-line tool, and a debug channel that lets another program attach to a
   running Casso.
+
+**Where this stands.** Stories 1 to 3 and the first version of the window are
+implemented on the feature branch. A comparison against AppleWin and GSSquared
+(2026-09-17) found the engine at parity or ahead: both syntaxes, batch
+scripting with exit codes, an attach channel, symbol import from four formats,
+watchpoints that stop before or after an access, and conditional breakpoints.
+The gaps are the window itself, an instruction trace, device panels, and
+source-level debugging. This feature does not release until those are closed:
+there is no schedule pressure, and a first release that trails both
+competitors in the parts a user sees first would waste the launch.
 
 ## Clarifications
 
@@ -38,9 +51,25 @@ One engine, two command modes, three ways in:
 - Q: How many clients may attach to one instance at once? → A: Any number; commands run one at a time in arrival order, and every client receives every notification.
 - Q: Which symbol and binary file formats must the debugger load? → A: Symbols: Casso's `-g` debug file, the symbol table in a Merlin assembly listing, AppleWin `.SYM`, and VICE label files. Binaries: raw bytes with an address, DOS 3.3 binary, Intel HEX, Motorola S-record, and AppleSingle. Casso's Merlin mode must first produce symbol output.
 
+### Session 2026-09-18
+
+- Q: Does the window ship as it stands, with the rest in a later feature? → A: No. Fonts, in-place memory editing, docking, the trace ring, device panels and source-level debugging are all part of this feature's release.
+- Q: What does a memory edit write to? → A: RAM is written through. ROM is patched in the loaded image, and the patch is undoable. I/O addresses are not edited from a memory window; the explicit `OUT` command performs a bus write.
+- Q: What is the scope of undo? → A: Per memory window. Writes made from the command line or by an attached client are not undoable.
+- Q: Which debug file format do Casso's assemblers emit? → A: cc65's debug-info format, version 2 (`file`, `line`, `span`, `seg`, `sym`, `mod`, `scope` records), with an added `sha1` key on each `file` record. The current `NAME=$ADDR` file is a Casso construct that never shipped; the reader keeps accepting it.
+- Q: How is a source file recognized as the one the program was built from? → A: By the SHA-1 of its text with line endings normalized to LF. Size is the filter before hashing; timestamps are a hint only, since copies, checkouts and editors change them.
+- Q: How is a source file found when it is not beside the debug file? → A: By the path recorded relative to the debug file, then in a remembered list of folders where sources were found before (per program, then global), then by a file the user drags onto the debugger, matched by hash.
+- Q: What does step over do on a `JSR`? → A: Runs until the stack pointer rises back above its value before the call, then stops at the next instruction. That handles inline parameters after the `JSR` (ProDOS MLI calls) and recursion, which a breakpoint on the next instruction does not.
+- Q: What happens when an interrupt fires during a source-level step into? → A: The step lands in the interrupt handler. That is correct and is documented, not a defect.
+- Q: How do macros appear in the source view? → A: Each expanded address range maps to both its invocation line and the macro body line, with nesting, so the view shows the invocation and can step into the body, the way C++ debuggers treat inlined functions.
+- Q: Is the GSSquared syntax a third mode or aliases in AppleWin mode? → A: A third command mode, so its names (`bp`, `l`) do not collide with AppleWin's.
+- Q: Does the channel change to a binary protocol? → A: No. JSON records over a named pipe stay; a binary frame may be added later for streaming the trace ring.
+- Q: Does the trace ring stay on during normal use? → A: It is opt-in. When off, the emulation path is the same code as before the debugger existed.
+- Q: Are expression breakpoints evaluated on every instruction? → A: No. An expression is attached to an address or an access and evaluated only when that location or access hits.
+
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Break into a running program from a script (Priority: P1)
+### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
 
 A developer, or an automated session diagnosing a bug, runs a disk headlessly,
 stops at an address, inspects registers and memory, steps a few instructions,
@@ -77,7 +106,7 @@ structured form.
 
 ---
 
-### User Story 2 - Use Apple II Monitor syntax (Priority: P1)
+### User Story 2 - Use Apple II Monitor syntax (Priority: P1, delivered)
 
 A user fluent in the Apple II Monitor switches the debugger to Monitor mode and
 works exactly as at a `*` prompt: `300.3FF`, `300L`, `300: A9 00`,
@@ -112,7 +141,7 @@ with the Monitor's documented output format.
 
 ---
 
-### User Story 3 - Attach to a running Casso (Priority: P2)
+### User Story 3 - Attach to a running Casso (Priority: P2, delivered)
 
 A tool running outside Casso -- a script, or the VS Code debug adapter in a
 later feature -- connects to an instance the user is already using, sends
@@ -137,7 +166,7 @@ reaches the address.
    open, **When** a client lists instances and connects to one process ID,
    **Then** it reaches exactly that instance and the other is unaffected.
 4. **Given** a Casso run by a different user account, **When** a client
-   connects, **Then** the connection is refused.
+   connects, **Then** the connection is not accepted.
 5. **Given** a Casso whose debugger window is closed, **When** a client tries
    to connect, **Then** no channel exists and the instance is not listed.
 6. **Given** two connected clients, **When** one sets a breakpoint and the
@@ -145,33 +174,355 @@ reaches the address.
 
 ---
 
-### User Story 4 - Debug in a window beside the emulator (Priority: P3)
+### User Story 4 - Debug in a window beside the emulator (Priority: P1)
 
 A user opens a debugger window beside the running emulator and debugs with the
-mouse and a command line: disassembly with the current line highlighted,
-registers, an editable memory view, stack, watches, breakpoints set by clicking
-in the disassembly, and buttons for step, step over, run and run to cursor.
+mouse and a command line: disassembly with the current line marked, each
+line's own label and symbolic operands, registers, stack, watches, breakpoints
+set by double-clicking in the disassembly, and buttons for step, step over,
+step out, run and run to cursor. The panes are dense: a monospace font, rows
+no taller than the text needs, columns sized to their contents with minor
+padding, and every pane tall enough to show its list.
 
-**Why this priority**: It is the primary interactive experience, but it depends
-on the command widgets being introduced by `032-dxui-command-widgets`, so it
-is delivered last. Stories 1-3 deliver a working debugger without it.
+**Why this priority**: The window is what a user sees first, and the first
+version's oversized rows, blank symbol column and one-row breakpoint pane read
+as unfinished beside AppleWin. Everything else in this feature is shown
+through these panes.
 
-**Independent Test**: With a disk running, open the window, click a line in the
-disassembly to set a breakpoint, run to it, edit a byte in the memory view, and
-confirm the machine sees the change.
+**Independent Test**: With the Mockingboard speech demo running and its debug
+file loaded, open the window, stop at `Sing`, and confirm the disassembly
+shows `Sing` on its line and `STA PTR` rather than `STA $06`; confirm the
+breakpoint, watch and stack panes show every entry; measure the row height
+against the font's line height.
 
 **Acceptance Scenarios**:
 
 1. **Given** a running machine, **When** the user opens the debugger window and
    pauses, **Then** disassembly around the program counter, registers, flags,
-   stack and memory are shown and the current line is highlighted.
-2. **Given** the window is open, **When** the user clicks a disassembly line,
-   **Then** a breakpoint is set there and shown in the breakpoint list.
-3. **Given** the machine is paused, **When** the user edits a byte in the memory
-   view, **Then** the machine's memory contains the new value.
-4. **Given** the window's command line, **When** the user enters any command
+   stack, breakpoints, watches and memory are shown, and the current line is
+   marked.
+2. **Given** symbols are loaded, **When** the disassembly shows an instruction
+   at a symbol's address, **Then** the symbol is shown on that line, and an
+   operand equal to a symbol's address is shown as the symbol.
+3. **Given** the window is open, **When** the user double-clicks a disassembly
+   line, **Then** a breakpoint is set there and shown in the breakpoint list;
+   a second double-click clears it.
+4. **Given** three breakpoints, two watches and a stack, **When** the window
+   is at its default size, **Then** all of them are visible without scrolling.
+5. **Given** the window's command line, **When** the user enters any command
    valid in the selected mode, **Then** it behaves exactly as it does in batch
-   mode.
+   mode, and the reply appears in the console pane.
+6. **Given** a Monitor-mode `R` or `W` with no file name, **When** the user
+   enters it in the window, **Then** a file picker opens and the command runs
+   with the chosen file.
+
+---
+
+### User Story 5 - Edit memory in place (Priority: P1)
+
+A user opens up to four memory windows, each at its own address, chooses bytes,
+words or double words, clicks a cell and types a new value. Each value is
+written the moment it is complete and focus moves to the next cell, so a run
+of bytes can be typed straight through. The text column beside the hex is
+editable the same way. A mistake is undone with the usual key.
+
+**Why this priority**: Poking memory through a separate box is the first
+version's most visible shortcut. Direct editing is how every desktop debugger
+works, and the speech demo's parameter tables are the kind of data a user
+wants to change while watching the result.
+
+**Independent Test**: Open a memory window at $0300, type `A9 41 60` into
+three consecutive byte cells, confirm the machine's memory holds those bytes
+after each keystroke pair, undo twice, and confirm the first byte remains and
+the other two are restored.
+
+**Acceptance Scenarios**:
+
+1. **Given** a memory window showing bytes, **When** the user clicks a cell and
+   types two hex digits, **Then** the byte is written to the machine and focus
+   moves to the next cell.
+2. **Given** a memory window showing words, **When** the user types four hex
+   digits, **Then** the word is written low byte first and focus moves to the
+   next word.
+3. **Given** a memory window's text column, **When** the user types a
+   character over a cell, **Then** the corresponding byte becomes that
+   character's code and focus moves to the next character.
+4. **Given** edits were made in a window, **When** the user presses undo,
+   **Then** the most recent edit's previous value is written back, one edit at
+   a time, in reverse order.
+5. **Given** a cell in ROM, **When** the user edits it, **Then** the value shows
+   in the window and in disassembly and the machine reads the patched value;
+   undo restores the original.
+6. **Given** a cell in the I/O range, **When** the user tries to edit it,
+   **Then** the cell is not editable and the window says how to write an I/O
+   address.
+7. **Given** four memory windows, **When** each is set to a different address
+   and grouping, **Then** each shows its own view and edits in one appear in
+   any other showing the same address.
+
+---
+
+### User Story 6 - Debug at source level (Priority: P1)
+
+A user assembles a program with Casso's assembler, loads the debug file, and
+debugs against the source: a source window follows the program counter as the
+machine stops and steps, breakpoints are set on source lines, and step into,
+step over and step out move by source line. A program built with another
+assembler that writes cc65's debug format debugs the same way. A program
+whose only artifact is a listing from real Merlin debugs against the listing.
+
+**Why this priority**: Neither AppleWin nor GSSquared has it, and Casso is the
+only Apple II emulator that ships its own assembler. Live memory beside the
+user's own source is the feature the others cannot copy without first writing
+an assembler.
+
+**Independent Test**: Assemble the Mockingboard speech demo with `-g`, load its
+debug file, set a breakpoint on the source line of `Sing`, run, and confirm
+the source window shows that line marked; step over a `JSR` with inline
+parameters after it and confirm the step lands on the next source line;
+change one byte of the source, drag it onto the debugger, and confirm the
+mismatch warning.
+
+**Acceptance Scenarios**:
+
+1. **Given** a debug file whose source files are beside it, **When** the user
+   loads it and the machine stops, **Then** the source window shows the file
+   and line for the program counter with the line marked, and the disassembly
+   pane shows the same instruction.
+2. **Given** the source window, **When** the user steps into, over or out,
+   **Then** the machine stops at the first instruction of a different source
+   line (into), the next source line in the same routine after any calls
+   return (over), or the line after the call that entered the routine (out).
+3. **Given** a `JSR` followed by inline parameter bytes, **When** the user
+   steps over it, **Then** the machine stops on the source line after the
+   parameters, not inside them.
+4. **Given** a recursive routine, **When** the user steps over its `JSR` to
+   itself, **Then** the machine stops when that call returns, not when a deeper
+   call reaches the same address.
+5. **Given** a macro invocation, **When** the machine stops inside its
+   expansion, **Then** the source window shows the invocation line, marks that
+   the position is inside a macro, and can show the body line on request.
+6. **Given** a source file is not beside the debug file, **When** the debug
+   file is loaded, **Then** the folders where sources were found before are
+   searched, and a file with the recorded name, size and hash is used without
+   asking.
+7. **Given** no matching file is found, **When** the user drags a source file
+   onto the debugger, **Then** it is matched by hash to the debug file's entry
+   and its folder is remembered for later.
+8. **Given** a file whose text differs from the one the program was built
+   from, **When** it is opened, **Then** the source window opens it with a
+   visible warning that lines may not match.
+9. **Given** a debug file written by another assembler in cc65's format,
+   **When** it is loaded, **Then** its files, lines and symbols work exactly as
+   Casso's own.
+10. **Given** a listing from real Merlin and no source files, **When** it is
+    loaded, **Then** the listing itself is the source view, with its addresses
+    mapped to its lines.
+
+---
+
+### User Story 7 - Arrange the debugger like Visual Studio (Priority: P2)
+
+A user drags the panes into the layout they want: side by side, stacked,
+tabbed together, or floated onto a second monitor. A pane can be pinned to
+auto-hide at an edge. The layout is saved and restored, and the whole thing
+works from the keyboard for a user who does not drag.
+
+**Why this priority**: Every pane in this feature is useful on its own, but
+real work needs several visible at once in an order the user chooses. A fixed
+layout makes the source window, four memory windows, the trace and the device
+panels compete for one grid.
+
+**Independent Test**: Drag the memory pane to the right edge, tab the trace
+under it, float the source pane onto a second monitor, close and reopen the
+debugger, and confirm the layout is restored; unplug the second monitor and
+confirm the floated pane comes back onto the primary one.
+
+**Acceptance Scenarios**:
+
+1. **Given** the debugger window, **When** the user drags a pane's title,
+   **Then** drop zones appear for each side of each group and for tabbing, and
+   dropping places the pane there.
+2. **Given** two panes side by side, **When** the user drags the splitter
+   between them, **Then** both resize, and neither shrinks below its minimum.
+3. **Given** a docked pane, **When** the user drags it outside the window or
+   chooses Float, **Then** it becomes its own top-level window, and it can be
+   dragged back into a drop zone.
+4. **Given** a pane, **When** the user pins it to auto-hide, **Then** it
+   collapses to a tab on the window edge and slides out on hover or click.
+5. **Given** a pane, **When** the user opens its Dock To menu, **Then** it can
+   be docked to any side, tabbed with any listed pane, or floated without the
+   mouse; arrow keys move it within its group.
+6. **Given** a floated pane on a monitor with a different scale factor,
+   **When** it is dragged across the boundary, **Then** it renders at each
+   monitor's scale with no blurring.
+7. **Given** a saved layout, **When** the debugger is reopened, **Then** the
+   layout is restored; a pane whose monitor is absent opens on the primary
+   monitor.
+
+---
+
+### User Story 8 - Look back at what ran (Priority: P2)
+
+A user turns on tracing, lets a program run to a crash or a breakpoint, and
+scrolls back through the instructions that led there: for each, the cycle
+count, program counter, opcode bytes, registers, the address read or written,
+the direction, the data byte, and the symbol at that address.
+
+**Why this priority**: Retrospective debugging answers "how did it get here",
+which breakpoints cannot. GSSquared retains 100,000 instructions; AppleWin
+only writes a trace to a file. Every field is already computed by the
+cycle-accurate core.
+
+**Independent Test**: Turn tracing on, run the speech demo to a watchpoint on
+the speech chip's data register, and confirm the trace pane shows the write
+that stopped it as its last entry, with the register values and the symbol
+`SPHON`; scroll back and confirm entries are in execution order with
+increasing cycle counts.
+
+**Acceptance Scenarios**:
+
+1. **Given** tracing is off, **When** the machine runs, **Then** emulation
+   speed is the same as before the debugger existed.
+2. **Given** tracing is on, **When** the machine runs 100,000 instructions or
+   more, **Then** the most recent 100,000 are retained and older ones are
+   dropped.
+3. **Given** a retained trace, **When** the machine stops, **Then** the trace
+   pane shows the entries ending at the stop, and the user can scroll to any
+   earlier entry.
+4. **Given** a trace entry that read or wrote memory, **When** it is shown,
+   **Then** it carries the address, the direction and the data byte, and the
+   symbol for that address when one is loaded.
+5. **Given** a retained trace, **When** the user saves it, **Then** a file with
+   every retained entry is written.
+
+---
+
+### User Story 9 - Inspect a device (Priority: P2)
+
+A user opens a panel for a device and watches its state: the Disk II's phase
+magnets, quarter track, motor and read state; the MMU's soft switches and
+which bank each page reads and writes from; the video mode; the keyboard
+latch and modifiers; the Mockingboard's timers and sound registers; the
+printer's head; the cycle counters. The panels update while the machine runs
+and freeze when it stops.
+
+**Why this priority**: GSSquared ships nine such panels and AppleWin shows the
+soft switches; Casso has none. The state already exists in the device models,
+several of which are richer than either competitor's.
+
+**Independent Test**: Boot a disk with the Disk II panel open and watch the
+quarter track and phases change during the boot; stop, and confirm the panel
+freezes on the stopped state; switch to a machine without a Mockingboard and
+confirm that panel is not offered.
+
+**Acceptance Scenarios**:
+
+1. **Given** the debugger window, **When** the user opens the panel list,
+   **Then** every device in the current machine that publishes diagnostics is
+   listed, and only those.
+2. **Given** an open device panel and a running machine, **When** the device's
+   state changes, **Then** the panel shows the new state within one frame.
+3. **Given** a register shown with a bit decode, **When** its value changes,
+   **Then** each bit's label and state are shown.
+4. **Given** the MMU panel, **When** the user views the memory map, **Then** a
+   bar shows every page colored by what it reads from and writes to.
+5. **Given** the Disk II panel, **When** the drive seeks, **Then** the head
+   graphic moves across the tracks at quarter-track resolution.
+6. **Given** a machine is switched, **When** the new machine has different
+   devices, **Then** the panel list changes to match and panels for absent
+   devices close.
+
+---
+
+### User Story 10 - Stop on a condition (Priority: P3)
+
+A user sets a breakpoint that stops only when an expression is true at that
+address, such as `BP Loop IF X == 3 && [PTR] != 0`, and a value breakpoint
+that stops when a memory location becomes a given value. `BPR A=0` works with
+or without spaces.
+
+**Why this priority**: AppleWin's register conditions set the bar and Casso
+already matches them. Expressions over memory and symbols put Casso ahead of
+both competitors, and the expression evaluator already exists.
+
+**Independent Test**: In batch, set `BP 0300 IF A == 41` on a loop that
+counts A up, run, and confirm the stop reports A as $41; set a value
+breakpoint on $0400 becoming $C1, run a program that stores $C1 there on its
+tenth pass, and confirm the stop's hit count.
+
+**Acceptance Scenarios**:
+
+1. **Given** a breakpoint with an expression, **When** the machine reaches the
+   address and the expression is false, **Then** the machine does not stop and
+   the breakpoint's hit count does not change.
+2. **Given** the same breakpoint, **When** the expression is true, **Then** the
+   machine stops and the stop reports the expression and its value.
+3. **Given** an expression that cannot be evaluated (an unknown symbol), **When**
+   the breakpoint is set, **Then** the command reports the error and no
+   breakpoint is created.
+4. **Given** a value breakpoint on an address, **When** a write leaves the
+   address holding the given value, **Then** the machine stops; a write of any
+   other value does not stop it.
+5. **Given** `BPR A=0`, **When** entered without spaces, **Then** it sets the
+   same breakpoint as `BPR A 0`.
+
+---
+
+### User Story 11 - Find the expensive code (Priority: P3)
+
+A user profiles a run and reads which opcodes and addressing modes consumed
+the cycles, which addresses ran hottest, and how many cycles were avoidable
+penalties: indexed reads that crossed a page, taken branches, and branches
+that crossed a page.
+
+**Why this priority**: AppleWin's `PROFILE LIST` reports cycles by opcode;
+GSSquared has nothing. Attributing avoidable penalties is a step past both,
+and it matches how Casso's own performance work is done.
+
+**Independent Test**: Profile a loop of `LDA $10FF,X` with X crossing the
+page half the time, and confirm the histogram attributes the page-crossing
+cycles separately from the instruction's base cycles.
+
+**Acceptance Scenarios**:
+
+1. **Given** profiling is on, **When** the machine runs, **Then** `PROFILE
+   LIST` shows, per opcode and addressing mode, the count, the cycles and the
+   share of the total.
+2. **Given** profiling is on, **When** the user asks for the per-address view,
+   **Then** the addresses that consumed the most cycles are listed with their
+   symbols.
+3. **Given** a run with page crossings and taken branches, **When** the user
+   lists the profile, **Then** the penalty cycles are shown apart from base
+   cycles, by kind.
+4. **Given** a profile, **When** the user saves it, **Then** a file with the
+   same content is written.
+
+---
+
+### User Story 12 - Use GSSquared's syntax (Priority: P3)
+
+A user coming from GSSquared switches the debugger to its command mode and
+uses its words: `bp C000.C0FF`, `bpd C010 rw`, `bpi C010 rw`, `nobp 3`,
+`watch 40.4F`, `l C000`, `sload "labels.lbl"`, `load`, `save`, `set`, `move`,
+and `o` and `r` to step over and out.
+
+**Why this priority**: It is a third parser over the same engine, small and
+independent, and it removes the last reason a GSSquared user would need to
+learn new words.
+
+**Independent Test**: In batch with the GSSquared mode selected, run each
+command in its command list against a fixture machine and compare the effect
+with the same command in AppleWin mode.
+
+**Acceptance Scenarios**:
+
+1. **Given** GSSquared mode, **When** the user enters `bpd C010 rw`, **Then** a
+   read-and-write watchpoint is set on $C010 and is listed by `bp`.
+2. **Given** GSSquared mode, **When** the user enters `2000:AA 55`, **Then**
+   $2000 and $2001 hold $AA and $55.
+3. **Given** a breakpoint set in GSSquared mode, **When** the user switches to
+   AppleWin mode and enters `BPL`, **Then** the same breakpoint is listed.
 
 ---
 
@@ -197,11 +548,68 @@ confirm the machine sees the change.
   breakpoints and watches persist.
 - **Machine reset or machine switch while paused**: the session reports the
   event; breakpoints survive a reset and are cleared by a machine switch.
+  Memory-window undo histories are cleared by a machine switch, since their
+  addresses belonged to the old machine.
 - **Client disconnects while the machine is paused**: the machine stays paused
   until resumed from another way in.
 - **Debugger window closed while clients are attached**: the channel closes and
   every client is disconnected; breakpoints and the paused state are unchanged.
 - **Lowercase input in Monitor mode**: accepted for commands and hex.
+- **Interrupt during a source-level step into**: the step stops in the
+  interrupt handler, which has a source line of its own or none. This is
+  correct: the machine did execute the handler.
+- **Step over a call that never returns**: the run continues until a
+  breakpoint, a pause, or the budget in batch; the window's Pause ends it.
+- **Step over a routine that discards its return address**: the stack pointer
+  rises above its pre-call level when the address is popped, so the step stops
+  at the instruction after the pop, wherever it is.
+- **Source line with no code** (a comment, a directive, an equate): a
+  breakpoint set there moves to the next line that has code, and the window
+  says so.
+- **One address in several source lines** (a macro body used by several
+  invocations): the source view shows the invocation on the current stack,
+  and the body line on request.
+- **Included file used by several modules**: each inclusion has its own line
+  entries; the view opens the file once.
+- **Debug file from a linker with several segments**: line entries are
+  segment-relative and resolve through the segment table; a segment placed
+  at a different address by a later link resolves correctly.
+- **Source file found by name and size but with a different hash**: it is
+  opened with the mismatch warning, since a same-size edit is common.
+- **Two candidate files with the same name and size**: the first whose hash
+  matches wins; if none matches, the user is asked.
+- **A file dragged onto the debugger that matches no entry**: it opens as a
+  plain text view with no line mapping, and the window says so.
+- **Editing memory while the machine runs**: the write lands between
+  instructions, as a poke from the command line does.
+- **ROM patch on a machine that switches ROM banks** (the //c): the patch is
+  applied to the loaded image the bank comes from, so it survives a bank
+  flip.
+- **Undo after the machine has changed the same byte**: undo restores the
+  edit's previous value regardless, since that is what undo means; the window
+  shows the value it wrote.
+- **Trace ring while stepping**: each step adds its instructions; the ring
+  does not clear on a stop.
+- **Trace ring across a machine switch**: cleared, since its addresses and
+  symbols belonged to the old machine.
+- **Expression breakpoint whose expression reads an I/O address**: setting it
+  reports an error, since evaluating the expression would change the machine.
+- **Expression breakpoint on a watchpoint access**: the expression may refer
+  to the accessed address and the value read or written.
+- **Device panel for a device that is removed at run time** (a card slot
+  emptied in settings): the panel closes.
+- **Saved layout from an older version**: unknown pane ids are dropped and the
+  rest is restored; an unreadable layout falls back to the default.
+- **Floating pane's monitor absent at restore**: the pane opens on the
+  primary monitor at its saved size.
+- **Drop zone under a pane's own group**: dropping a pane onto itself is a
+  no-op.
+- **Auto-hidden pane while its content changes**: the tab shows an indicator;
+  the pane does not slide out on its own.
+- **GSSquared mode and Monitor deposit syntax**: `2000:AA 55` and `2000.201F`
+  mean the same in both modes.
+- **`BPR` register condition with no value**: still an error, in either
+  spacing.
 
 ## Requirements *(mandatory)*
 
@@ -212,8 +620,11 @@ confirm the machine sees the change.
 - **FR-001**: The debugger MUST break into the machine Casso is running,
   without restarting it or loading a program under a separate debugger.
 - **FR-002**: Users MUST be able to pause, resume, step one instruction
-  (entering subroutines), step over a subroutine call, and run to a chosen
-  address.
+  (entering subroutines), step over a subroutine call, step out of a
+  subroutine, and run to a chosen address. Step over MUST run until the stack
+  pointer rises back above its value before the call and then stop at the
+  next instruction, so a call followed by inline parameters, and a recursive
+  call, both step over correctly.
 - **FR-003**: Users MUST be able to set, list, enable, disable and clear
   breakpoints by address, by opcode, and by condition on registers or memory.
 - **FR-004**: Users MUST be able to set watchpoints that stop execution on a
@@ -258,13 +669,17 @@ confirm the machine sees the change.
 - **FR-010**: The debugger MUST render any single instruction at any address as
   disassembly, for both 6502 and 65C02, including the undocumented opcodes Casso
   already implements.
+- **FR-010a**: Disassembly MUST show, for each line, the symbol at that
+  address when one is loaded, and MUST show an operand as a symbol when the
+  operand's address has one, in every way in.
 
 **Command modes**
 
-- **FR-011**: The debugger MUST provide two command modes, AppleWin and Apple
-  II Monitor, selected by the user; AppleWin MUST be the default.
-- **FR-012**: Both modes MUST operate on the same session state: a breakpoint,
-  watch or register change made in one mode MUST be visible in the other.
+- **FR-011**: The debugger MUST provide three command modes, AppleWin, Apple
+  II Monitor and GSSquared, selected by the user; AppleWin MUST be the
+  default.
+- **FR-012**: All modes MUST operate on the same session state: a breakpoint,
+  watch or register change made in one mode MUST be visible in the others.
 - **FR-013**: Each mode MUST produce output in that mode's own format.
 - **FR-014**: Monitor mode MUST provide a prefix that reaches debugger commands
   with no Monitor equivalent, including switching modes.
@@ -276,6 +691,8 @@ confirm the machine sees the change.
   command whose phase has not shipped, or that needs hardware or a feature
   Casso lacks, MUST report that it is not available and change nothing; it
   MUST NOT be reported as an unknown command.
+- **FR-015a**: `BPR` MUST accept its register, comparison and value with or
+  without spaces between them (`BPR A=0`, `BPR A = 0`, `BPR A 0`).
 
 **Apple II Monitor mode**
 
@@ -293,10 +710,25 @@ confirm the machine sees the change.
   independent of the ROM routine that implements it on real hardware.
 - **FR-019**: Control-character commands MUST be accepted both as the control
   character and as `^` followed by the letter.
-- **FR-020**: `R` and `W` MUST read and write a host file named by an optional
+- **FR-020**: `R` and `W` MUST read and write the host file given by an optional
   trailing filename, as raw bytes; `R` MUST read the smaller of file and range
   and report a length mismatch.
 - **FR-021**: Monitor mode MUST accept lowercase and uppercase input.
+
+**GSSquared mode**
+
+- **FR-022a**: GSSquared mode MUST accept GSSquared's debugger commands with
+  their documented arguments: `bp` (address or range, or list), `bpd` (data
+  breakpoint, `r`, `w` or `rw`), `bpi` (I/O breakpoint, same arguments),
+  `nobp` (by id or address), `watch` and `nowatch`, `l` (disassemble, with
+  and without an address), `sload`, `slookup`, `sclear`, `load`, `save`,
+  `set`, `move`, memory read (`C000`), deposit (`2000:AA 55`), dump
+  (`2000.201F`), and the step commands (`o` step over, `r` step out). Each
+  MUST map onto the same engine operation the equivalent AppleWin command
+  performs.
+- **FR-022b**: GSSquared commands that need hardware Casso lacks (`m` and `x`
+  register width, `map` on a machine with no IIgs MMU) MUST report that they
+  are not available and change nothing.
 
 **Ways in**
 
@@ -307,43 +739,207 @@ confirm the machine sees the change.
   restricted to the current user, one channel per running instance, identified
   by process ID. The channel MUST exist only while that instance's debugger
   window is open; closing the window MUST close the channel and disconnect its
-  clients. Until the window ships, the command-line switch that opens the
-  window MUST open the channel instead.
+  clients.
 - **FR-024**: Over the channel, clients MUST be able to send any command,
   receive a structured reply with the same content as batch structured output,
   and receive notifications for breakpoint hits, stops and resets. Any number
   of clients MAY be connected at once; their commands MUST run one at a time in
   arrival order, and every connected client MUST receive every notification.
+- **FR-025**: The channel's message format MUST be documented well enough for
+  an independent client (the planned VS Code debug adapter) to be written from
+  the documentation alone. The format is one structured text record per line
+  over a named pipe; it MUST NOT change to a binary framing in this feature.
 - **FR-030**: The command-line tool MUST list the running Casso instances whose
   channel is open, giving each one's process ID, title label, machine and
   disks, and MUST connect to the instance whose process ID is given.
 
-**Symbols and binaries**
+**Symbols, debug files and binaries**
 
 - **FR-031**: The symbol commands MUST load symbol files in these formats:
-  Casso's `-g` debug file (`NAME=$ADDR`), the symbol table at the end of a
-  Merlin assembly listing, AppleWin `.SYM` (`ADDR NAME`), and VICE label files
-  (`al ADDR .NAME`). The shipped ROM symbol tables MUST be authored from Apple's
-  published entry-point names, never taken from another emulator's symbol
-  files.
+  cc65's debug-info format version 2, Casso's earlier `-g` file
+  (`NAME=$ADDR`), the symbol table at the end of a Merlin assembly listing,
+  AppleWin `.SYM` (`ADDR NAME`), and VICE label files (`al ADDR .NAME`). The
+  format MUST be recognized from the file's contents, not its extension. The
+  shipped ROM symbol tables MUST be authored from Apple's published
+  entry-point names, never taken from another emulator's symbol files.
 - **FR-032**: Loading a binary (`BLOAD`, and batch mode's load option) MUST
   accept raw bytes at a given address, DOS 3.3 binary (4-byte address and
   length header), Intel HEX, Motorola S-record, and AppleSingle. Intel HEX,
   S-record and AppleSingle MUST be detected from content; raw and DOS 3.3
   binary MUST be selectable explicitly, since their contents cannot be told
   apart reliably. `BSAVE` and Monitor `W` write raw bytes.
-- **FR-033**: `CassoCli merlin` MUST write a debug file (`.dbg`) per output object in
-  the `-g` format, and MUST end each `-l` listing with a symbol table in
-  Merlin's own listing format. That format MUST be verified against a listing
-  produced by Merlin itself, checked in as a fixture.
-- **FR-025**: The channel's message format MUST be documented well enough for
-  an independent client (the planned VS Code debug adapter) to be written from
-  the documentation alone.
+- **FR-033**: `CassoCli as65 -g` and `CassoCli merlin -g` MUST write one debug
+  file per output object in cc65's debug-info format version 2, carrying
+  `file`, `line`, `span`, `seg`, `sym`, `mod` and `scope` records, with an
+  added `sha1` key on each `file` record holding the SHA-1 of that file's text
+  with line endings normalized to LF. Addresses in `span` records MUST be
+  segment-relative, so a later linker can relocate them. Every source file,
+  including included files, MUST have a `file` record. Each `-l` listing MUST
+  end with a symbol table in Merlin's own listing format, verified against a
+  listing produced by Merlin itself, checked in as a fixture.
+- **FR-033a**: A macro expansion's address ranges MUST map to both the
+  invocation line and the macro body line, with the nesting depth, so a
+  source view can show either.
+- **FR-033b**: A listing produced by real Merlin MUST be loadable as a debug
+  file whose source is the listing itself: each listing line with an address
+  maps to that address, and the listing's symbol table provides the symbols.
+
+**Window**
+
 - **FR-026**: Casso MUST provide a debugger window beside the emulator with a
-  command line in the selected mode, disassembly with the current line
-  highlighted, registers and flags, an editable memory view, stack, watches,
-  a breakpoint list, click-to-set breakpoints, and controls for step, step
-  over, run and run to cursor.
+  command line in the selected mode and a console for its replies,
+  disassembly with the current line marked and breakpoints marked, registers
+  and flags, memory windows, a stack pane, a watch pane, a breakpoint pane, a
+  trace pane, a source pane, device panels, double-click to set and clear
+  breakpoints, and controls for step, step over, step out, run, run to cursor
+  and pause.
+- **FR-026a**: Every pane MUST use a monospace font; rows MUST be no taller
+  than the font's line height plus minor padding; columns MUST be sized to
+  their contents with minor padding, and MUST NOT stretch to fill unused
+  width; a pane MUST be tall enough by default to show at least eight entries.
+- **FR-026b**: A Monitor-mode `R` or `W` entered in the window with no file
+  name MUST open a file picker and run the command with the chosen file.
+
+**Memory editing**
+
+- **FR-034**: The window MUST offer up to four memory windows, each with its
+  own start address and grouping (8, 16 or 32 bits per value), each showing
+  hex values and their text interpretation side by side.
+- **FR-035**: A user MUST be able to click a hex cell or a text cell and type
+  a new value; the value MUST be written to the machine as soon as it is
+  complete (two, four or eight hex digits, or one character), and focus MUST
+  move to the next cell. Escape MUST abandon a partly typed value.
+- **FR-036**: Each memory window MUST keep an undo history of its own edits;
+  undo MUST restore an edit's previous value, most recent first. The history
+  MUST be cleared by a machine switch. Writes from the command line or from
+  an attached client are not part of any history.
+- **FR-037**: A write to RAM MUST go through as a bus write. A write to ROM
+  MUST patch the loaded ROM image so the machine reads the new value; the
+  patch MUST survive a ROM bank switch on machines that have one, and undo
+  MUST restore the original byte. An I/O address MUST NOT be editable from a
+  memory window; the `OUT` command remains the way to write one.
+
+**Docking**
+
+- **FR-038**: Panes MUST be arrangeable as a tree of split groups and tab
+  groups, nested to any depth, with a resizable splitter between the panes of
+  a split group that enforces each pane's minimum size.
+- **FR-039**: A pane MUST be movable by dragging its title, with drop zones
+  shown for each side of each group and for tabbing into a group; dropping a
+  pane onto its own position changes nothing.
+- **FR-040**: A pane MUST be floatable as its own top-level window, by
+  dragging it out or by command, and dockable again by dragging it into a drop
+  zone or by command.
+- **FR-041**: A pane MUST be pinnable to auto-hide: collapsed to a tab on the
+  nearest window edge, shown on hover or click, and hidden again when focus
+  leaves it.
+- **FR-042**: Every docking operation MUST be reachable from the keyboard: a
+  Dock To menu on each pane offering each side, each pane to tab with, float
+  and auto-hide, and arrow keys to move a pane within its group.
+- **FR-043**: Floating panes MUST render at the scale of the monitor they are
+  on and MUST rescale when dragged across a boundary between monitors of
+  different scale.
+- **FR-044**: The layout MUST be saved when the debugger closes and restored
+  when it opens, including floating panes' monitors, positions and sizes; a
+  pane whose monitor is absent MUST open on the primary monitor; a layout the
+  debugger cannot read MUST fall back to the default layout.
+
+**Instruction trace**
+
+- **FR-045**: The debugger MUST offer an instruction trace that, while on,
+  retains the most recent 100,000 executed instructions, each with its cycle
+  count, program counter, opcode bytes, registers before execution, and, for
+  an instruction that accessed memory, the address, the direction and the
+  data byte.
+- **FR-046**: The trace MUST be off by default and switchable from the window,
+  from a command, and over the channel. While it is off, emulation MUST run
+  the same code path it ran before the debugger existed, with no per-
+  instruction test for it.
+- **FR-047**: The trace pane MUST show the retained entries ending at the
+  most recent, MUST let the user scroll to any entry, and MUST show the
+  symbol for an entry's address and accessed address when one is loaded.
+- **FR-048**: The retained trace MUST be savable to a file with every entry.
+
+**Device panels**
+
+- **FR-049**: Each device model that publishes diagnostics MUST do so as
+  named groups of rows, each row a label and a value, with an optional bit
+  decode giving each bit a label. The window MUST render any such panel
+  without device-specific code, so a device on a future machine gets a panel
+  by publishing rows.
+- **FR-050**: The first release MUST publish panels for: the Disk II
+  controller (phase magnets, quarter track, motor state and spin-up, the read
+  state), the //e MMU and soft switches (every switch, and for each page which
+  bank it reads and writes from), the video mode, the keyboard (latch, strobe,
+  modifiers), the Mockingboard (each 6522's ports, timers and interrupt
+  registers; each sound chip's registers), the printer (head position and
+  state), and the clock (cycle counters and speed).
+- **FR-051**: A panel MUST update at least once per frame while the machine
+  runs and MUST show the stopped state when the machine stops.
+- **FR-052**: Three visuals MUST be available in addition to rows: a memory
+  map bar showing every page colored by its read and write source, a disk
+  head-position graphic at quarter-track resolution, and level meters for the
+  sound chips' channels and the 6522 timers.
+- **FR-053**: The panel list MUST offer only the devices present in the
+  current machine and MUST change when the machine changes.
+
+**Source-level debugging**
+
+- **FR-054**: The window MUST provide a source pane that shows the file and
+  line for the program counter whenever the machine stops, marks that line,
+  and stays synchronized with the disassembly pane: selecting a line in
+  either selects the corresponding position in the other.
+- **FR-055**: Users MUST be able to set and clear breakpoints on source lines;
+  a line with no code MUST move the breakpoint to the next line with code and
+  say so.
+- **FR-056**: Users MUST be able to step into, over and out by source line:
+  into stops at the first instruction of a different source line; over stops
+  at the next source line in the same routine, running calls to completion by
+  the stack-pointer rule of FR-002; out stops at the line after the call that
+  entered the current routine.
+- **FR-057**: When the machine stops inside a macro expansion, the source pane
+  MUST show the invocation line, indicate that the position is inside a
+  macro, and MUST be able to show the body line on request.
+- **FR-058**: The debugger MUST find a source file by, in order: the path
+  recorded relative to the debug file; the folders where sources for this
+  program were found before; the folders where any sources were found before;
+  a file the user drags onto the debugger. A candidate MUST match the
+  recorded file name and size before its hash is computed, and MUST match the
+  recorded hash to be used without a warning.
+- **FR-059**: A source file whose hash differs from the recorded one MUST
+  open with a visible warning that lines may not match. A file that matches
+  no entry MUST open as plain text with no line mapping.
+- **FR-060**: The folders where sources were found MUST be remembered across
+  sessions, per program and globally.
+
+**Breakpoints and profiling**
+
+- **FR-061**: A breakpoint or watchpoint MUST accept an expression condition
+  (`IF <expression>`) over registers, flags, symbols, and memory reads; the
+  expression MUST be evaluated only when the breakpoint's address or access
+  hits, and the machine MUST stop only when it is true. An expression that
+  cannot be evaluated when set MUST be reported and MUST NOT create the
+  breakpoint. An expression MUST NOT read an I/O address.
+- **FR-062**: A value breakpoint MUST stop the machine when a write leaves a
+  given address holding a given value.
+- **FR-063**: `PROFILE LIST` MUST report, for the profiled run, the count, the
+  cycles and the share of total cycles per opcode and addressing mode; a
+  per-address form MUST report the hottest addresses with their symbols; and
+  avoidable cycles MUST be reported apart from base cycles by kind:
+  page-crossing penalties on indexed reads, taken branches, and branches
+  crossing a page. `PROFILE SAVE` MUST write the same content to a file.
+
+**Performance**
+
+- **FR-064**: With no debugger window open and no trace, watch or hook
+  active, emulation MUST run the same code path and at the same speed as
+  before this feature, within measurement noise.
+
+**Release material**
+
+- **FR-065**: The README MUST show a screenshot of the debugger stopped in the
+  Mockingboard speech demo with its symbols loaded, taken from a Casso whose
+  window title is not a spec name.
 
 **Verification**
 
@@ -358,24 +954,47 @@ confirm the machine sees the change.
   the fixture ROMs before being relied on. `F666G` is Casso's alias for `!` on
   every machine; $F666 is the mini-assembler only in the original Apple ]['s
   Integer BASIC ROM.
+- **FR-066**: A test MUST assemble a source with an include file and a
+  two-level macro with both Casso assemblers and confirm the debug file's
+  line entries resolve every emitted address to its invocation line and its
+  body line, and that cc65's own reader accepts the file.
 
 ### Key Entities
 
 - **Debug session**: The debugger's attachment to one running machine; holds
   breakpoints, watchpoints, the selected mode and the paused/running state.
-- **Breakpoint**: A stop condition by address, by opcode, or by an expression
-  over registers and memory; can be enabled or disabled.
+- **Breakpoint**: A stop condition by address, by opcode, by a register
+  comparison, by a memory value, or by an expression evaluated when the
+  location hits; can be enabled or disabled.
 - **Watchpoint**: A stop condition on a read or write of an address or range,
   stopping either after the access (the default, which reports the value and
-  the value a write replaced) or before the instruction that would make it.
-- **Command mode**: AppleWin or Apple II Monitor; determines how a command line
-  is read and how output is written.
+  the value a write replaced) or before the instruction that would make it;
+  may carry an expression condition.
+- **Command mode**: AppleWin, Apple II Monitor or GSSquared; determines how a
+  command line is read and how output is written.
 - **Command**: One line of input in a mode; produces a reply.
 - **Reply**: The result of a command, in text and in structured form.
 - **Notification**: An unsolicited message to an attached client: breakpoint
   hit, stop, reset.
 - **Cycle budget**: The maximum number of emulated CPU cycles a run may
   execute. Always set for batch and `--attach` runs; optional otherwise.
+- **Debug file**: A cc65-format file describing a program: its source files
+  with their sizes and hashes, its segments, the address spans each source
+  line produced, its symbols, and its modules and scopes.
+- **Line table**: The mapping from addresses to source lines and back, built
+  from a debug file or a listing; carries macro nesting.
+- **Source path list**: The remembered folders where source files were found,
+  per program and globally.
+- **Memory window**: One view of memory at an address with a grouping, with
+  its own undo history.
+- **Undo history**: The ordered list of a memory window's edits, each with the
+  address, the value written and the value replaced.
+- **Trace entry**: One executed instruction's record: cycle count, program
+  counter, opcode bytes, registers, and any memory access.
+- **Diagnostic panel**: A device's published state as groups of labeled rows,
+  optionally with bit decodes and a visual.
+- **Layout**: The tree of split groups, tab groups, floating panes and
+  auto-hidden panes, with sizes and monitors, saved between sessions.
 
 ## Success Criteria *(mandatory)*
 
@@ -396,6 +1015,30 @@ confirm the machine sees the change.
   correct instruction in 100% of test cases, and is visible from the other two.
 - **SC-007**: An independent client written only from the channel
   documentation can set a breakpoint, resume, and receive the stop notification.
+- **SC-008**: With the debugger window closed, emulation throughput is within
+  1% of the release before this feature, measured the same way on the same
+  machine.
+- **SC-009**: With the debugger window open and the trace off, emulation
+  throughput is within 3% of that baseline.
+- **SC-010**: Every source line that produced code in the fixture programs
+  resolves to its address and back, including lines inside included files
+  and macro expansions, in 100% of cases.
+- **SC-011**: A source-level step over lands on the next source line in 100%
+  of the fixture cases, including a call with inline parameters and a
+  recursive call.
+- **SC-012**: A user can edit a byte in a memory window and see the machine
+  use it within one frame, and undo it, without touching the command line.
+- **SC-013**: The trace retains 100,000 instructions, and the trace pane shows
+  any retained entry within one second of the user scrolling to it.
+- **SC-014**: A layout with two floating panes on a second monitor is
+  restored exactly after closing and reopening the debugger, and restored
+  onto the primary monitor when the second is absent.
+- **SC-015**: Every device panel in FR-050 updates within one frame of the
+  state it shows changing.
+- **SC-016**: Every command in GSSquared's command list produces the same
+  engine effect as its AppleWin equivalent in 100% of test cases.
+- **SC-017**: A debug file written by `CassoCli as65 -g` is read without
+  error by cc65's own debug-info reader.
 
 ## Assumptions
 
@@ -430,62 +1073,112 @@ confirm the machine sees the change.
       `SD` `SB` `SR` `SV` `SN`, `D`, `ME8`, `ME16`, `MM`, `MS`, `P0`-`P4`,
       `REGISTER`, `TRACE`, `SYMDOS`, `SYMPRO`, `ZAP`.
     - Deprecated: `BENCH`, `EXITBENCH`, `MDB`.
-  - **Phase 3 (with the window)**, commands whose only effect is on a display:
+  - **Phase 3 (with the window; delivered)**, commands whose only effect is on
+    a display:
     - Cursor: `.`, `RET`, `^`, `v` and their Shift forms, `PAGEUP`,
       `PAGEUP256`, `PAGEUP4K`, `PAGEDN`, `PAGEDOWN256`, `PAGEDOWN4K`, and the
       `->` cursor aliases.
     - Window: `WIN`, `WINDOW`, `CODE`, `CODE1`, `CODE2`, `CONSOLE`, `DATA`,
-      `DATA1`, `DATA2`, `SOURCE1`, `SOURCE2`, `\`.
-    - Mini memory panes: `MD1`, `MD2`, `MA1`, `MA2`, `MT1`, `MT2`, `M1`, `M2`.
+      `DATA1`, `DATA2`, `SOURCE1`, `SOURCE2`, `\`. With docking, `CODE`,
+      `DATA`, `CONSOLE`, `SOURCE1` and `SOURCE2` bring the matching pane to
+      the front; the numbered forms select a memory window.
+    - Mini memory panes: `MD1`, `MD2`, `MA1`, `MA2`, `MT1`, `MT2`, `M1`, `M2`:
+      each moves a memory window and sets its grouping and text column.
     - Views: `TEXT`, `TEXT1`, `TEXT2`, `TEXT80`, `TEXT81`, `TEXT82`, `TEXT40`,
       `TEXT41`, `TEXT42`, `GR`, `GR1`, `GR2`, `DGR`, `DGR1`, `DGR2`, `HGR`,
-      `HGR0`-`HGR8`, `DHGR`, `DHGR1`, `DHGR2`.
-    - Appearance: `BW`, `COLOR`, `FONT`, `HCOLOR`, `MONO`.
+      `HGR0`-`HGR8`, `DHGR`, `DHGR1`, `DHGR2`: not available; the emulator
+      window shows the screen.
+    - Appearance: `BW`, `COLOR`, `FONT`, `HCOLOR`, `MONO`: not available; the
+      Casso theme sets the window's colors and font.
   - **Not available** (accepted, reported as not available, and tracked as
-    follow-ups): `SHR` (needs a IIgs), `SOURCE` and `SYNC` (need an
-    assembler-listing link), `NTSC` (AppleWin's palette file has no Casso
-    equivalent). `BPV` and `VIDEOINFO` are phase 1, served from the machine's
-    video timing.
+    follow-ups): `SHR` (needs a IIgs), `SYNC` (needs an assembler-listing
+    link beyond what the source pane provides), `NTSC` (AppleWin's palette
+    file has no Casso equivalent). `BPV` and `VIDEOINFO` are phase 1, served
+    from the machine's video timing. `SOURCE` becomes the source pane.
   - The table is consulted for names and behavior only; `RUN` runs a script of
     commands through the same engine batch mode uses.
+- **GSSquared command coverage** is taken from its published debugger
+  documentation, not its source; its syntax is consulted for names and
+  behavior only.
 - **No standalone console**: interactive command entry is through the window's
   command line; scripting is through batch mode and the channel.
-- **The window builds on `032-dxui-command-widgets`**, which has merged; the
-  window is still delivered last.
+- **The window builds on `032-dxui-command-widgets`** (merged) and on the
+  resizable-pane control delivered by `033-cassque`; the docking framework is
+  new to this feature and belongs to the UI library so other windows can use
+  it.
+- **cc65's debug-info format** is version 2 as written by its linker. Its
+  reader skips unknown keys and record types with a warning, so the `sha1`
+  key on `file` records is read by Casso and ignored by cc65-based tools. The
+  format's own documentation calls it subject to change; this feature pins
+  version 2. cc65's linker writes `.dbg` by default, the same extension as
+  Casso's earlier symbol file, which is why formats are recognized from
+  contents. The `mtime` and `size` keys cc65 writes are kept for
+  compatibility; only `size` and `sha1` decide a match.
+- **Listings from real Merlin** carry line numbers, addresses, bytes and
+  source text but no file records. Whether an included (`PUT`) file is marked
+  in the listing, and how its lines are numbered, is verified against the
+  Merlin corpus during planning.
+- **Macros in cc65's format**: a `line` record's `type` and `count` keys
+  carry the macro nesting; the exact values are verified against cc65's
+  reader during planning.
 - **Casso has no cassette device**, so `R`/`W` use host files. `.wav` is
   reserved for cassette audio in a later feature; this feature does not produce
   audio.
 - **There is no promise to leave guest state untouched**: commands such as `I`,
   `N`, `^K`, `^P` and `:` change guest memory by design.
-- **The CPU's registers are the single truth in both modes.** The real
+- **The CPU's registers are the single truth in all modes.** The real
   Monitor keeps a copy at $45-$49 and reloads it on `G`; Casso's `^E` and `:`
   write both the registers and $45-$49, and `G`, `S` and `T` never reload from
   memory, so a register set in AppleWin mode survives a Monitor `G`.
 - **The command mode is session state**: it starts as AppleWin each time Casso
-  or the batch tool starts, and is not saved in preferences.
+  or the batch tool starts, and is not saved in preferences. The layout is
+  saved in preferences.
 - **`GG` in the emulator** runs at full speed and restores the previous speed
   setting when the run stops. In batch, every run is unthrottled.
-- **Debug channel**: a Windows named pipe, named for the process ID, carrying
-  one structured record per line, per the Windows-only platform scope. A per-instance channel is required
-  because users run several Casso instances from different worktrees at once.
+- **Debug channel**: a Windows named pipe whose name holds the process ID, carrying
+  one structured record per line, per the Windows-only platform scope. A
+  per-instance channel is required because users run several Casso instances
+  from different worktrees at once.
+- **Trace cost while on** is accepted: the emulator is throttled to 1 MHz in
+  normal use, and the cost shows only at full speed.
+- **Memory-window edits and I/O**: an I/O write changes banking and switches
+  under the running program, so a stray keystroke in a memory window must not
+  do it; `OUT` exists for the deliberate case.
+- **Docking targets**: a pane's minimum size is what shows one row of its
+  content; the default layout is the first version's arrangement with the
+  source pane tabbed with the disassembly and the trace tabbed with the
+  console.
 - **Out of scope**: cdb/WinDbg syntax (its `.` and `!` command families depend
   on host processes, modules and threads a 6502 lacks, and collide with Monitor
-  `.` and `!`); gdb syntax; the VS Code debug adapter (separate feature);
-  whole-program disassembly (GH #121); the IIgs, C64 and NES monitors, which
-  arrive with those machines as additional modes.
+  `.` and `!`); gdb syntax; the VS Code debug adapter (GH #54); whole-program
+  disassembly (GH #121); the IIgs, C64 and NES monitors, which arrive with
+  those machines as additional modes; beam-position debugging (a crosshair at
+  the emulated beam position over a partial frame), deferred until the color
+  video model; the 6502's dummy reads and double writes (GH #150); the `$C3xx`
+  write latch (GH #151); command lists attached to breakpoints (GH #152); a
+  binary channel framing.
 - **Existing starting points**: the CPU's instruction trace and the windowless
   host used by the command-line tool.
-- **Clean-room**: AppleWin is consulted for command names and behavior only;
-  its implementation is not read or copied.
+- **Clean-room**: AppleWin and GSSquared are consulted for command names and
+  behavior only; their implementations are not read or copied.
 
 ### References
 
 - GH #51 (debugger), GH #59 (merged into #51), GH #121 (whole-program
-  disassembly), GH #148 (boot sector listing), GH #54 (VS Code extension).
+  disassembly), GH #148 (boot sector listing), GH #54 (VS Code extension),
+  GH #150 (dummy reads), GH #151 (`$C3xx` write latch), GH #152 (breakpoint
+  command lists).
 - AppleWin debugger tutorial:
   https://github.com/AppleWin/AppleWin/blob/master/help/dbg-toc-intro.html
 - AppleWin command table:
   https://github.com/AppleWin/AppleWin/blob/master/source/Debugger/Debugger_Commands.cpp
+- AppleWin symbol tables:
+  https://github.com/AppleWin/AppleWin/blob/master/help/dbg-symbols.html
+- GSSquared debugger:
+  https://github.com/jawaidbazyar2/gssquared/blob/main/Docs/UsingTheDebugger.md
+  and https://github.com/jawaidbazyar2/gssquared/blob/main/Docs/Debugger.md
+- cc65 debug-info format, reader source (record keys and lookups):
+  https://github.com/cc65/cc65/blob/master/src/dbginfo/dbginfo.c
 - Apple II System Monitor, *Apple II Reference Manual* (1979), chapter 3:
   https://archive.org/details/Apple_II_Reference_Manual_1979_Apple
 - Woz Monitor (Apple-1), a subset of the Apple II Monitor's syntax:
