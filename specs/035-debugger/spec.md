@@ -67,6 +67,14 @@ competitors in the parts a user sees first would waste the launch.
 - Q: Does the trace ring stay on during normal use? → A: It is opt-in. When off, the emulation path is the same code as before the debugger existed.
 - Q: Are expression breakpoints evaluated on every instruction? → A: No. An expression is attached to an address or an access and evaluated only when that location or access hits.
 
+### Session 2026-09-18 (clarify)
+
+- Q: Can a device diagnostic panel change device state, or is it read-only? -> A: Read-only. Panels show state; changes go through commands (`OUT`, `MEB`, `R`).
+- Q: Must GSSquared mode print replies in GSSquared's own output format? -> A: The output format is a setting of its own, separate from the input mode: AppleWin, Monitor or GSSquared. Changing the input mode sets the output format to match it; the user can then change the output format alone. GSSquared's output format is verified against its documented examples and, where the documentation shows none, against a capture from GSSquared itself, checked in as a fixture. A Casso-native output format is not defined in this feature.
+- Q: Is the saved layout one for all machines, or one per machine type? -> A: One layout. A pane for a device the current machine lacks is closed on restore and keeps its saved place, so it reopens there when that machine returns.
+- Q: Which keyboard shortcuts drive stepping and running in the window? -> A: Three selectable schemes, saved in preferences and independent of the command mode: Visual Studio's by default (F5 run, F10 step over, F11 step into, Shift+F11 step out, F9 toggle breakpoint, Shift+F5 pause), AppleWin's (Space step, Ctrl+Space step over, Enter run, and its function keys), and GSSquared's (Space step, Return resume, O step over, R step out).
+- Q: Which Merlin listings must import as a source view? -> A: Merlin 8/16 listings, verified against the corpus. Merlin 32 listings are a follow-up, tracked as a GitHub issue.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -438,7 +446,7 @@ confirm that panel is not offered.
 ### User Story 10 - Stop on a condition (Priority: P3)
 
 A user sets a breakpoint that stops only when an expression is true at that
-address, such as `BP Loop IF X == 3 && [PTR] != 0`, and a value breakpoint
+address, such as `BP Loop IF X == 3 & *PTR != 0`, and a value breakpoint
 that stops when a memory location becomes a given value. `BPR A=0` works with
 or without spaces.
 
@@ -518,7 +526,14 @@ with the same command in AppleWin mode.
 **Acceptance Scenarios**:
 
 1. **Given** GSSquared mode, **When** the user enters `bpd C010 rw`, **Then** a
-   read-and-write watchpoint is set on $C010 and is listed by `bp`.
+   read-and-write watchpoint is set on $C010 and is listed by `bp`, in
+   GSSquared's listing format.
+4. **Given** GSSquared mode, **When** the user enters `2000.201F`, **Then**
+   memory prints in GSSquared's dump format, 16 bytes per line with ASCII.
+5. **Given** GSSquared mode, **When** the user sets the output format to
+   AppleWin and enters `2000.201F`, **Then** memory prints in AppleWin's
+   format; **and when** the user switches the input mode to Monitor, **Then**
+   the output format becomes Monitor's.
 2. **Given** GSSquared mode, **When** the user enters `2000:AA 55`, **Then**
    $2000 and $2001 hold $AA and $55.
 3. **Given** a breakpoint set in GSSquared mode, **When** the user switches to
@@ -680,7 +695,11 @@ with the same command in AppleWin mode.
   default.
 - **FR-012**: All modes MUST operate on the same session state: a breakpoint,
   watch or register change made in one mode MUST be visible in the others.
-- **FR-013**: Each mode MUST produce output in that mode's own format.
+- **FR-013**: The debugger MUST have an output format, AppleWin, Monitor or
+  GSSquared, separate from the input mode. Changing the input mode MUST set
+  the output format to that mode's own; the user MUST then be able to change
+  the output format alone, from any way in, and every reply MUST be written
+  in the current output format.
 - **FR-014**: Monitor mode MUST provide a prefix that reaches debugger commands
   with no Monitor equivalent, including switching modes.
 
@@ -725,7 +744,9 @@ with the same command in AppleWin mode.
   `set`, `move`, memory read (`C000`), deposit (`2000:AA 55`), dump
   (`2000.201F`), and the step commands (`o` step over, `r` step out). Each
   MUST map onto the same engine operation the equivalent AppleWin command
-  performs.
+  performs. GSSquared's output format MUST be verified against its documented
+  examples and, where the documentation shows none, against a capture from
+  GSSquared checked in as a fixture.
 - **FR-022b**: GSSquared commands that need hardware Casso lacks (`m` and `x`
   register width, `map` on a machine with no IIgs MMU) MUST report that they
   are not available and change nothing.
@@ -780,9 +801,11 @@ with the same command in AppleWin mode.
 - **FR-033a**: A macro expansion's address ranges MUST map to both the
   invocation line and the macro body line, with the nesting depth, so a
   source view can show either.
-- **FR-033b**: A listing produced by real Merlin MUST be loadable as a debug
-  file whose source is the listing itself: each listing line with an address
-  maps to that address, and the listing's symbol table provides the symbols.
+- **FR-033b**: A listing produced by Merlin 8/16 on the Apple II MUST be
+  loadable as a debug file whose source is the listing itself: each listing
+  line with an address maps to that address, and the listing's symbol table
+  provides the symbols. The listing layout is verified against the Merlin
+  corpus. Listings from the Merlin 32 cross-assembler are a follow-up.
 
 **Window**
 
@@ -799,6 +822,12 @@ with the same command in AppleWin mode.
   width; a pane MUST be tall enough by default to show at least eight entries.
 - **FR-026b**: A Monitor-mode `R` or `W` entered in the window with no file
   name MUST open a file picker and run the command with the chosen file.
+- **FR-026c**: The window's step, step over, step out, run, pause and toggle-
+  breakpoint actions MUST have keyboard shortcuts in one of three selectable
+  schemes: Visual Studio's (the default: F5, F10, F11, Shift+F11, Shift+F5,
+  F9), AppleWin's (Space, Ctrl+Space, Enter, and its function keys) and
+  GSSquared's (Space, Return, O, R). The scheme is saved in preferences and
+  is independent of the command mode.
 
 **Memory editing**
 
@@ -842,7 +871,10 @@ with the same command in AppleWin mode.
 - **FR-044**: The layout MUST be saved when the debugger closes and restored
   when it opens, including floating panes' monitors, positions and sizes; a
   pane whose monitor is absent MUST open on the primary monitor; a layout the
-  debugger cannot read MUST fall back to the default layout.
+  debugger cannot read MUST fall back to the default layout. There is one
+  layout for every machine: a device panel the current machine lacks MUST be
+  closed on restore and MUST keep its saved place, so it reopens there when a
+  machine that has the device is loaded.
 
 **Instruction trace**
 
@@ -866,7 +898,8 @@ with the same command in AppleWin mode.
   named groups of rows, each row a label and a value, with an optional bit
   decode giving each bit a label. The window MUST render any such panel
   without device-specific code, so a device on a future machine gets a panel
-  by publishing rows.
+  by publishing rows. Panels are read-only: a panel MUST NOT change device
+  state; changes go through commands.
 - **FR-050**: The first release MUST publish panels for: the Disk II
   controller (phase magnets, quarter track, motor state and spin-up, the read
   state), the //e MMU and soft switches (every switch, and for each page which
@@ -971,7 +1004,9 @@ with the same command in AppleWin mode.
   the value a write replaced) or before the instruction that would make it;
   may carry an expression condition.
 - **Command mode**: AppleWin, Apple II Monitor or GSSquared; determines how a
-  command line is read and how output is written.
+  command line is read.
+- **Output format**: AppleWin, Monitor or GSSquared; determines how replies
+  are written. Follows the command mode when it changes, and can be set alone.
 - **Command**: One line of input in a mode; produces a reply.
 - **Reply**: The result of a command, in text and in structured form.
 - **Notification**: An unsolicited message to an attached client: breakpoint
@@ -1114,7 +1149,7 @@ with the same command in AppleWin mode.
   Casso's earlier symbol file, which is why formats are recognized from
   contents. The `mtime` and `size` keys cc65 writes are kept for
   compatibility; only `size` and `sha1` decide a match.
-- **Listings from real Merlin** carry line numbers, addresses, bytes and
+- **Listings from Merlin 8/16** carry line numbers, addresses, bytes and
   source text but no file records. Whether an included (`PUT`) file is marked
   in the listing, and how its lines are numbered, is verified against the
   Merlin corpus during planning.
@@ -1130,9 +1165,10 @@ with the same command in AppleWin mode.
   Monitor keeps a copy at $45-$49 and reloads it on `G`; Casso's `^E` and `:`
   write both the registers and $45-$49, and `G`, `S` and `T` never reload from
   memory, so a register set in AppleWin mode survives a Monitor `G`.
-- **The command mode is session state**: it starts as AppleWin each time Casso
-  or the batch tool starts, and is not saved in preferences. The layout is
-  saved in preferences.
+- **The command mode and output format are session state**: both start as
+  AppleWin each time Casso or the batch tool starts, and neither is saved in
+  preferences. The layout is saved in preferences. The batch tool's mode
+  option sets both; a separate option sets the output format alone.
 - **`GG` in the emulator** runs at full speed and restores the previous speed
   setting when the run stops. In batch, every run is unthrottled.
 - **Debug channel**: a Windows named pipe whose name holds the process ID, carrying
@@ -1154,7 +1190,7 @@ with the same command in AppleWin mode.
   disassembly (GH #121); the IIgs, C64 and NES monitors, which arrive with
   those machines as additional modes; beam-position debugging (a crosshair at
   the emulated beam position over a partial frame), deferred until the color
-  video model; the 6502's dummy reads and double writes (GH #150); the `$C3xx`
+  video model; importing Merlin 32 listings (follow-up issue); the 6502's dummy reads and double writes (GH #150); the `$C3xx`
   write latch (GH #151); command lists attached to breakpoints (GH #152); a
   binary channel framing.
 - **Existing starting points**: the CPU's instruction trace and the windowless
