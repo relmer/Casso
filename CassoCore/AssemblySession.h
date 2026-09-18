@@ -89,6 +89,10 @@ struct LineInfo
     // on here" would leave pass 2 recomputing the half of the answer it can no
     // longer see.
     bool             jumpOptimizedToBranch = false;
+
+    //  Every source line that produced this one, outermost first, for the
+    //  debug file's line records. See PendingLine::macroFrames.
+    std::vector<SourceFrame>  positions;
 };
 
 
@@ -100,6 +104,11 @@ struct PendingLine
     int         macroDepth;
     int         includeDepth;
     std::string sourceFile;
+
+    //  For a line a macro expansion produced: the invocation, then each body
+    //  line down to this one, outermost first. Empty for a line of the source
+    //  or an include, whose position is sourceFile and sourceLineNumber alone.
+    std::vector<SourceFrame>  positions;
 };
 
 
@@ -290,7 +299,8 @@ private:
     HRESULT SubstituteMacroParams      (const MacroDefinition & macroDef,
                                         const std::vector<std::string> & args,
                                         const std::string & uniqueSuffix,
-                                        std::vector<std::string> & expandedLines);
+                                        std::vector<std::string> & expandedLines,
+                                        std::vector<int> & bodyIndices);
     HRESULT HandleColonlessLabel       (const PendingLine & current, LineInfo & info, bool & handled);
     void    NormalizeBitOp             (const PendingLine & current, LineInfo & info);
     HRESULT ClassifyAndResolve         (const PendingLine & current, LineInfo & info);

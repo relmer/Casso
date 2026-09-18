@@ -2,6 +2,7 @@
 
 #include "AssemblerTypes.h"
 #include "CommandLineOptions.h"
+#include "Debugger/DebugFileWriter.h"
 #include "DialectReporting.h"
 
 
@@ -140,11 +141,19 @@ public:
     //  The symbol table, to stdout.
     static void     WriteSymbolTable (const AssemblyResult & result);
 
-    //  The debug file: addresses by name and again by address.
+    //  The debug file, in cc65's format: source lines, spans and symbols. Its
+    //  file records name each source relative to the debug file's folder.
     static HRESULT  WriteDebugInfo   (const AssemblyResult & result,
-                                      const std::string & debugFile);
+                                      const std::string & debugFile,
+                                      const std::string & inputFile);
 
 private:
+    //  How each assembled file is recorded: its path from the debug file's
+    //  folder, and its last-write time.
+    static std::map<std::string, DebugSourceName>  GetDebugSourceNames (const AssemblyResult & result,
+                                                                         const std::string & debugFile,
+                                                                         const std::string & inputFile);
+
     //  Which of the four formats this invocation asked for, extension included.
     static CommandLineOptions::OutputFormat  ResolveOutputFormat   (const CommandLineOptions & options);
 

@@ -245,7 +245,7 @@ namespace PerOutputArtifactTests
         TEST_METHOD (TheDebugFileLeavesTheAssemblersOwnSymbolsOut)
         {
             AssemblyResult  result = Fixture::Assemble (TwoOutputSource());
-            std::string     debug  = Assembler::FormatDebugInfo (result.symbols, result.builtinSymbols);
+            std::string     debug  = DebugFileWriter::Format (DebugFileWriter::Build (result, {}));
 
 
 

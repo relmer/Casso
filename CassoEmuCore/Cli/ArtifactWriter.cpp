@@ -297,6 +297,17 @@ AssemblyResult ArtifactWriter::ForOutput (const AssemblyResult & result, size_t 
     one.bytes        = span.bytes;
     one.startAddress = span.loadAddress;
     one.endAddress   = (Word) (span.loadAddress + span.bytes.size());
+    one.sourceTexts  = result.sourceTexts;
+
+    for (const DebugLineRecord & record : result.debugLines)
+    {
+        bool beyond = (record.outputIndex >= result.savePoints.size()) && isLast;
+
+        if (beyond || record.outputIndex == index)
+        {
+            one.debugLines.push_back (record);
+        }
+    }
 
     for (const AssemblyLine & line : result.listing)
     {
@@ -587,11 +598,13 @@ void ArtifactWriter::WriteSymbolTable (const AssemblyResult & result)
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ArtifactWriter::WriteDebugInfo (const AssemblyResult & result,
-                                           const std::string & debugFile)
+                                        const std::string & debugFile,
+                                        const std::string & inputFile)
 {
-    HRESULT  hr     = S_OK;
-    bool     isOpen = false;
-    std::ofstream  dbgFile (debugFile);
+    HRESULT        hr     = S_OK;
+    bool           isOpen = false;
+    std::ofstream  dbgFile (debugFile, std::ios::binary);
+    DebugFile      debug  = DebugFileWriter::Build (result, GetDebugSourceNames (result, debugFile, inputFile));
 
 
 
@@ -603,8 +616,56 @@ HRESULT ArtifactWriter::WriteDebugInfo (const AssemblyResult & result,
 
     CBR (isOpen);
 
-    dbgFile << Assembler::FormatDebugInfo (result.symbols, result.builtinSymbols);
+    dbgFile << DebugFileWriter::Format (debug);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArtifactWriter::GetDebugSourceNames
+//
+//  The top-level input is the file the command line named; an include is
+//  found beside it, as the assembler found it. Each is recorded relative to
+//  the debug file's folder, so the pair can move together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, DebugSourceName> ArtifactWriter::GetDebugSourceNames (const AssemblyResult & result,
+                                                                           const std::string & debugFile,
+                                                                           const std::string & inputFile)
+{
+    std::map<std::string, DebugSourceName>  names;
+    std::error_code                         ec;
+    fs::path                                input    = fs::absolute (fs::path (inputFile), ec);
+    fs::path                                debugDir = fs::absolute (fs::path (debugFile), ec).parent_path();
+
+
+
+    for (const auto & text : result.sourceTexts)
+    {
+        fs::path            source    = text.first.empty() ? input : input.parent_path() / fs::path (text.first);
+        std::error_code     nameError;
+        std::error_code     timeError;
+        fs::path            relative  = fs::relative (source, debugDir, nameError);
+        fs::file_time_type  written   = fs::last_write_time (source, timeError);
+        DebugSourceName     each;
+
+        each.name = (nameError || relative.empty()) ? source.generic_string() : relative.generic_string();
+
+        if (!timeError)
+        {
+            each.mtime = (uint64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                             std::chrono::clock_cast<std::chrono::system_clock> (written).time_since_epoch()).count();
+        }
+
+        names[text.first] = each;
+    }
+
+    return names;
 }

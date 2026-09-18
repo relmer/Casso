@@ -100,11 +100,11 @@ static constexpr CommandLineParser::DialectFlag  s_kMerlinFlags[] =
            "Verbose: an assembly summary on stderr" },
     //  NO FILENAME, for the reason the listing row above gives: one name cannot
     //  serve the several objects a Merlin source may cut itself into, so each
-    //  symbol file takes the name of the object it describes.
+    //  debug file takes the name of the object it describes.
     { "g", CommandLineParser::ValueKind::Filename, CommandLineParser::Attachment::AttachedOnly,
            nullptr,
            CommandLineParser::FlagCategory::AssembledCode, "",
-           "Write a symbol file (.dbg) for each object assembled" },
+           "Write a debug file (.dbg) for each object assembled" },
 
     //  Merlin asks the operator for a keyboard-input symbol and waits. A batch
     //  assembly has nobody to ask, so the answer has to arrive with the

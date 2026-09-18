@@ -147,6 +147,7 @@
     <ClCompile Include="Sha1.cpp" />
     <ClCompile Include="Debugger\DebugFileReader.cpp" />
     <ClCompile Include="Debugger\LineTable.cpp" />
+    <ClCompile Include="Debugger\DebugFileWriter.cpp" />
     <ClCompile Include="IntegerBasicDetokenizer.cpp" />
     <ClCompile Include="OutputFormats.cpp" />
     <ClCompile Include="As65Dialect.cpp" />
@@ -212,6 +213,7 @@
     <ClInclude Include="Debugger\DebugFile.h" />
     <ClInclude Include="Debugger\DebugFileReader.h" />
     <ClInclude Include="Debugger\LineTable.h" />
+    <ClInclude Include="Debugger\DebugFileWriter.h" />
     <ClInclude Include="IntegerBasicDetokenizer.h" />
     <ClInclude Include="OutputFormats.h" />
     <ClInclude Include="As65Dialect.h" />

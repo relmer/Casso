@@ -12,6 +12,7 @@ the modern conveniences are opt-in.
 - [Invocation](#invocation)
 - [Assembler flags](#assembler-flags)
 - [Output formats](#output-formats)
+- [Debug files](#debug-files)
 - [Running code](#running-code)
 - [One source, one image](#one-source-one-image)
 - [Language reference](#language-reference)
@@ -126,7 +127,7 @@ shipped, and their opcode slots behave as NOPs.
 | `-p` | Generate a pass 1 listing. |
 | `-t` | Print the symbol table to stdout: each symbol with its address in hex and decimal, and a `*` on a redefinable one. |
 | `-w [<width>]` | Wrap the listing at `<width>` columns. Default `79`; `-w` alone means `133`; `0` disables wrapping. AS65 documents the range as 60 to 200; Casso does not enforce it. Continuations indent to the source column, so wrapped text lines up under the text rather than under the address and bytes. |
-| `-g <file>` | Write symbol addresses as `NAME=$ADDR`, **twice**: once ordered by address under a `; by address` heading, then again ordered by symbol name, case-insensitively, under `; by symbol`. Reading a debug file is two questions: what is at an address, and where a name went, and each order answers one. Casso's own format; no standard is being followed. |
+| `-g <file>` | Write a debug file in cc65's debug-info format, version 2: the source lines that produced each byte, and the symbols. See [Debug files](#debug-files). |
 
 #### What `-c` counts
 
@@ -231,6 +232,34 @@ Put another way: `--flat` answers "what is in memory", and the other four
 answer "what was assembled". Three of those four know where it goes (the DOS
 header, the S-record address field, the HEX address field) and the default is
 the one that does not.
+
+---
+
+## Debug files
+
+`-g` writes cc65's debug-info format, version 2: the format cc65's linker
+writes, so a tool that reads one reads the other. Both dialects write it.
+
+- **Files.** One `file` record per source file assembled, top-level input
+  first. `name` is the path from the debug file's folder, with `/` separators.
+  `size` is the byte count and `mtime` the last-write time. Casso adds `sha1`:
+  the SHA-1 of the file's text with every line ending made `\n`, which is how
+  the debugger tells that a file on disk is the one that was assembled. cc65's
+  own reader skips the key.
+- **Segments and spans.** One segment per output, placed at its lowest
+  address. Each run of bytes a line produced is a span, relative to its
+  segment.
+- **Lines.** Every source line that produced bytes is a `line` record over
+  their spans. A macro expansion's bytes belong to the invocation line and to
+  each body line down to the one that assembled them. The body lines carry
+  `type=2` and their nesting depth as `count`, so a debugger can show the
+  invocation and still step into the body.
+- **Symbols.** Labels are `lab` and carry their segment; equates are `equ`.
+  Local labels and the labels a macro expansion made are in a scope of their
+  own. The symbols the assembler predefines so `IFDEF` has an answer are left
+  out.
+
+The debugger's `SYM LOAD` still reads the earlier `NAME=$ADDR` symbol files.
 
 ---
 
@@ -429,7 +458,7 @@ CassoCli merlin <source> [flags]
 |---|---|
 | `-o <file>` | Rename output file. Default: `<source>.bin`, unless the source names one itself. |
 | `-l` | Generate a listing beside each object, named after it. Takes no filename. |
-| `-g` | Write a symbol file with the `.dbg` extension for each object, named after it. |
+| `-g` | Write a debug file with the `.dbg` extension for each object, named after it. See [Debug files](#debug-files). |
 | `-d <symbol>[=<value>]` | Define a symbol the source expects. Without a value it is defined as `1`. |
 | `-v` | Verbose: an assembly summary on stderr. |
 | `--dos-bin` | Write the bytes behind a 4-byte DOS 3.3 header (origin + length), ready to `BLOAD`. |
@@ -508,15 +537,14 @@ listings, and the objects already supply the names. `as65 -l` is unchanged: it
 keeps its filename and its standard-output default, and an as65 source has no
 directive that could produce a second output.
 
-`-g` follows the same rule, for a sharper reason. A symbol file is indexed by
+`-g` follows the same rule, for a sharper reason. A debug file is indexed by
 address, so one file describing two outputs that both begin at `$0300` has
 entries that collide and a symbol that wins silently. `SAV LOADER` produces
-`LOADER`, `LOADER.lst` and `LOADER.dbg`, each carrying the symbols defined in
-the span it belongs to.
+`LOADER`, `LOADER.lst` and `LOADER.dbg`, each carrying the lines and symbols
+of the span it belongs to.
 
-The file holds symbols and nothing else: each one twice, once ordered by address
-and once by symbol. It carries no source line numbers, so `.dbg` names the
-extension as65 established rather than a format with debug information in it.
+The file is in cc65's debug-info format, version 2, described under
+[Debug files](#debug-files).
 
 The three symbols the assembler predefines so `IFDEF` has an answer --
 `ERRORS`, `__65SC02__` and `__6502X__` -- are left out. All three sit at

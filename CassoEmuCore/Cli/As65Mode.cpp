@@ -168,7 +168,7 @@ HRESULT As65Mode::WriteExtraArtifactsForOutput (const CommandLineOptions & optio
 
     hr = (!options.debugInfo || debugFile.empty())
              ? S_OK
-             : ArtifactWriter::WriteDebugInfo (result, debugFile);
+             : ArtifactWriter::WriteDebugInfo (result, debugFile, options.inputFile);
 
     CHR (hr);
 

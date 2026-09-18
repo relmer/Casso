@@ -311,6 +311,32 @@ struct SavePoint
 
 
 
+//  One source line: the file it is in and its 1-based number there. An empty
+//  file is the top-level input, as it is for diagnostics.
+struct SourceFrame
+{
+    std::string  file;
+    int          line = 0;
+};
+
+
+
+//  One run of bytes and every source line that produced it, outermost first.
+//  A line in the source proper or an included file has one position; a line a
+//  macro expansion produced has the invocation and then each body line down
+//  to the one that assembled the bytes.
+struct DebugLineRecord
+{
+    Word                      address     = 0;
+    size_t                    size        = 0;
+    size_t                    outputIndex = 0;
+    std::vector<SourceFrame>  positions;
+};
+
+
+
+
+
 // Scalars carry defaults so a plain `AssemblyResult r;` means "failed, nothing
 // assembled" rather than garbage. The containers default themselves; only the
 // PODs need saying. Matches AssemblyLine above and ExprResult.
@@ -358,6 +384,16 @@ struct AssemblyResult
     //  its size is zero on an ordinary assembly and says nothing about the
     //  work done.
     size_t                                      linesAssembled = 0;
+
+    //  Which source lines produced which bytes, for a debug file. Recorded on
+    //  every assembly, listing or not: a line that emitted no bytes has none.
+    std::vector<DebugLineRecord>                debugLines;
+
+    //  The text of every source file assembled, by the name its positions use:
+    //  empty for the top-level input, the include's name as written otherwise.
+    //  A debug file hashes these, so the key matches what was assembled rather
+    //  than what is on disk by the time it is written.
+    std::map<std::string, std::string>          sourceTexts;
 
     //  What the assembly's object should be called, once the caller's answer
     //  and the source's have been reconciled. Empty when neither named one.

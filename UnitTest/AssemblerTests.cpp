@@ -1851,50 +1851,6 @@ namespace AssemblerTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
-        //  DebugInfo_TwoOrders
-        //
-        //  Reading a debug file is two questions -- "what is at $0310" and
-        //  "where did FOO go" -- so both orders are written.
-        //
-        ////////////////////////////////////////////////////////////////////////////////
-
-        TEST_METHOD (DebugInfo_ListsSymbolsByAddressAndAgainByName)
-        {
-            std::unordered_map<std::string, Word>  symbols;
-
-            symbols["zebra"] = 0x0300;
-            symbols["ALPHA"] = 0x0310;
-            symbols["mid"]   = 0x0308;
-
-            std::string  text      = Assembler::FormatDebugInfo (symbols);
-            size_t       byAddress = text.find ("; by address");
-            size_t       bySymbol  = text.find ("; by symbol");
-
-            Assert::IsTrue (byAddress != std::string::npos, L"the address-ordered table must be labeled");
-            Assert::IsTrue (bySymbol  != std::string::npos, L"and so must the name-ordered one");
-            Assert::IsTrue (byAddress < bySymbol,           L"address order first, as it always was");
-
-            //  In the first table zebra ($0300) precedes ALPHA ($0310); in the
-            //  second, case-insensitive order puts ALPHA first. Asserting both
-            //  is what distinguishes two orders from the same order printed
-            //  twice.
-            std::string  first  = text.substr (byAddress, bySymbol - byAddress);
-            std::string  second = text.substr (bySymbol);
-
-            Assert::IsTrue (first.find ("zebra") < first.find ("ALPHA"),
-                            L"the first table is ordered by address");
-            Assert::IsTrue (second.find ("ALPHA") < second.find ("mid"),
-                            L"the second is ordered by name, case-insensitively");
-            Assert::IsTrue (second.find ("mid") < second.find ("zebra"),
-                            L"so `mid` sorts between ALPHA and zebra rather than after both");
-        }
-
-
-
-
-
-        ////////////////////////////////////////////////////////////////////////////////
-        //
         //  Listing_ColumnLayout_MatchesAS65
         //
         //  Pins the listing's field positions against the AS65 layout, column

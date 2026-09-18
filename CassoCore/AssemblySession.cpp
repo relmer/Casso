@@ -1429,7 +1429,8 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
     m_pass1Ctx.extraSymbolCharacters  = m_dialect.GetExtraSymbolCharacters();
     m_pass2Ctx.extraSymbolCharacters  = m_dialect.GetExtraSymbolCharacters();
 
-    m_lines = Parser::SplitLines (sourceText);
+    m_lines                  = Parser::SplitLines (sourceText);
+    m_result.sourceTexts[""] = sourceText;
 
     InjectBuiltin ("ERRORS",     0);
     InjectBuiltin ("__65SC02__", 0);
@@ -1642,6 +1643,12 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     info.macroDepth        = current.macroDepth;
     info.conditionalSkip   = false;
     info.listingSuppressed = (m_listingLevel <= 0);
+    info.positions         = current.positions;
+
+    if (info.positions.empty())
+    {
+        info.positions.push_back ({ current.sourceFile, current.sourceLineNumber });
+    }
 
     // Before any stage reads the line: local labels and local references become
     // the scoped names everything downstream will look up.
@@ -5551,6 +5558,15 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
                 pl.macroDepth    = current.macroDepth;
                 pl.includeDepth  = current.includeDepth + 1;
                 pl.sourceFile    = filename;
+                pl.positions     = current.positions;
+
+                // Bytes the assembler made from a binary file belong to the
+                // line that included it.
+                if (pl.positions.empty())
+                {
+                    pl.positions.push_back ({ current.sourceFile, current.sourceLineNumber });
+                }
+
                 m_pendingLines.push_front (pl);
             }
         }
@@ -5558,6 +5574,8 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
               && ext != ".s37" && ext != ".hex")
         {
             auto includeLines = Parser::SplitLines (fr.contents);
+
+            m_result.sourceTexts[filename] = fr.contents;
 
             for (int il = (int) includeLines.size() - 1; il >= 0; il--)
             {
@@ -5567,6 +5585,14 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
                 pl.macroDepth    = current.macroDepth;
                 pl.includeDepth  = current.includeDepth + 1;
                 pl.sourceFile    = filename;
+
+                // An include inside a macro body keeps the expansion around it.
+                if (!current.positions.empty())
+                {
+                    pl.positions = current.positions;
+                    pl.positions.push_back ({ filename, il + 1 });
+                }
+
                 m_pendingLines.push_front (pl);
             }
         }
@@ -5834,6 +5860,8 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
     std::string               name      = info.parsed.mnemonic;
     std::vector<std::string>  args;
     std::vector<std::string>  expandedLines;
+    std::vector<int>          bodyIndices;
+    std::vector<SourceFrame>  outer     = current.positions;
     std::string               uniqueSuffix;
     int                       highest   = 0;
     int                       supplied  = 0;
@@ -5842,6 +5870,11 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
 
 
     handled = false;
+
+    if (outer.empty())
+    {
+        outer.push_back ({ current.sourceFile, current.sourceLineNumber });
+    }
 
     // The argument separator is the dialect's. Merlin's is a semicolon, which is
     // also why the field scanner refuses to treat one inside the operand as a
@@ -5886,18 +5919,23 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
     m_macroUniqueCounter++;
     uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
 
-    hr = SubstituteMacroParams (m_macros[name], args, uniqueSuffix, expandedLines);
+    hr = SubstituteMacroParams (m_macros[name], args, uniqueSuffix, expandedLines, bodyIndices);
     CHR (hr);
 
-    // Insert expanded lines at the FRONT of the queue (reverse order)
+    // Insert expanded lines at the FRONT of the queue (reverse order). A body
+    // line's number is the one after the macro keyword plus its place in the
+    // body.
     for (int bi = (int) expandedLines.size() - 1; bi >= 0; bi--)
     {
-        PendingLine  pl = {};
+        const MacroDefinition &  def = m_macros[name];
+        PendingLine              pl  = {};
 
         pl.text             = expandedLines[bi];
         pl.sourceLineNumber = current.sourceLineNumber;
         pl.sourceFile       = current.sourceFile;
         pl.macroDepth       = current.macroDepth + 1;
+        pl.positions        = outer;
+        pl.positions.push_back ({ def.sourceFile, def.lineNumber + 1 + bodyIndices[bi] });
         m_pendingLines.push_front (pl);
     }
 
@@ -5998,7 +6036,8 @@ int AssemblySession::GetHighestParameterReferenced (const MacroDefinition & macr
 HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef,
                                                  const std::vector<std::string> & args,
                                                  const std::string & uniqueSuffix,
-                                                 std::vector<std::string> & expandedLines)
+                                                 std::vector<std::string> & expandedLines,
+                                                 std::vector<int> & bodyIndices)
 {
     HRESULT       hr           = S_OK;
     std::string   localKeyword = m_dialect.GetMacroSyntax().localKeyword;
@@ -6033,6 +6072,7 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
             for (int ed = 0; ed < ifDepth; ed++)
             {
                 expandedLines.push_back ("                " + closer);
+                bodyIndices.push_back (bi);
             }
 
             break;
@@ -6055,6 +6095,7 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
         CHR (hr);
 
         expandedLines.push_back (expanded);
+        bodyIndices.push_back (bi);
     }
 
 Error:
@@ -6446,6 +6487,8 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
             pl.text          = "    " + info.parsed.operand;
             pl.sourceLineNumber = current.sourceLineNumber;
             pl.macroDepth    = current.macroDepth;
+            pl.sourceFile    = current.sourceFile;
+            pl.positions     = current.positions;
             m_pendingLines.push_front (pl);
         }
 
@@ -7045,6 +7088,13 @@ HRESULT AssemblySession::RunPass2()
         }
 
         NoteSpanEmission (info, emitPCStart, emitPC);
+
+        // Every assembly, listing or not: the debug file is written from these.
+        if (emitPC != emitPCStart)
+        {
+            m_result.debugLines.push_back ({ info.pc, (size_t) (Word) (emitPC - emitPCStart),
+                                             m_lineOutput, info.positions });
+        }
 
         hr = BuildListingEntry (info, emitPCStart, emitPC, lineHasAddress);
         CHR (hr);

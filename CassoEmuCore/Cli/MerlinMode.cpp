@@ -94,7 +94,8 @@ HRESULT MerlinMode::WriteExtraArtifacts (const CommandLineOptions & options, con
 
     BAIL_OUT_IF (isSingle, ArtifactWriter::WriteDebugInfo (
                                result,
-                               ArtifactWriter::ResolveArtifactName (ResolveOutputName (options, result), ".dbg")));
+                               ArtifactWriter::ResolveArtifactName (ResolveOutputName (options, result), ".dbg"),
+                               options.inputFile));
 
     for (size_t i = 0; i < result.savePoints.size(); i++)
     {
@@ -102,7 +103,7 @@ HRESULT MerlinMode::WriteExtraArtifacts (const CommandLineOptions & options, con
         const std::string & given  = result.savePoints[i].name;
         std::string         object = given.empty() ? ResolveOutputName (options, result) : given;
 
-        hr = ArtifactWriter::WriteDebugInfo (one, ArtifactWriter::ResolveArtifactName (object, ".dbg"));
+        hr = ArtifactWriter::WriteDebugInfo (one, ArtifactWriter::ResolveArtifactName (object, ".dbg"), options.inputFile);
         CHR (hr);
     }
 
