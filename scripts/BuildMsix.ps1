@@ -134,16 +134,20 @@ function Find-SdkTool
 
     $hostArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
 
-    $candidates = foreach ($root in $kitRoots)
+    # Sorted across every root rather than within each one. Both Program Files
+    # directories can hold SDKs, and taking the first root's newest would pick
+    # an older SDK than one sitting in the other.
+    $tool = @(foreach ($root in $kitRoots)
     {
         Get-ChildItem $root -Directory |
             Where-Object { $_.Name -match '^10\.\d+\.\d+\.\d+$' } |
-            Sort-Object { [version] $_.Name } -Descending |
-            ForEach-Object { Join-Path $_.FullName "$hostArch\$name" } |
-            Where-Object { Test-Path $_ }
-    }
-
-    $tool = $candidates | Select-Object -First 1
+            ForEach-Object { [pscustomobject] @{
+                Version = [version] $_.Name
+                Path    = Join-Path $_.FullName "$hostArch\$name"
+            } }
+    }) | Where-Object { Test-Path $_.Path } |
+         Sort-Object Version -Descending |
+         Select-Object -First 1 -ExpandProperty Path
     if (-not $tool)
     {
         throw "$name not found. Install the Windows 10 SDK (it ships in the " +
