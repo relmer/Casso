@@ -47,6 +47,7 @@ private:
     static void  FormatDataBlocks   (const DataBlockListData  & data, Lines & lines);
     static void  FormatProfile      (const ProfileData        & data, Lines & lines);
     static void  FormatCalc         (const CalcData           & data, Lines & lines);
+    static void  FormatStepFilter   (const StepFilterData     & data, Lines & lines);
 
     static void  FormatProfileTable (const char * heading, uint64_t total, const std::vector<ProfileEntry> & entries, Lines & lines);
 

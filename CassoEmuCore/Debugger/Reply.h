@@ -5,6 +5,7 @@
 #include "Disassembler.h"
 
 class LineTable;
+class StepFilter;
 
 
 
@@ -299,6 +300,20 @@ struct CalcData
     Word  value = 0;
 };
 
+// SKIP: a routine a step into runs as a step over. name is the symbol it was
+// given by, empty when it was given as an address or a range.
+struct StepFilterEntry
+{
+    std::string  name;
+    Word         first = 0;
+    Word         last  = 0;
+};
+
+struct StepFilterData
+{
+    std::vector<StepFilterEntry>  entries;
+};
+
 using ReplyData = std::variant<MessageData,
                                RegistersData,
                                MemoryData,
@@ -318,7 +333,8 @@ using ReplyData = std::variant<MessageData,
                                VideoInfoData,
                                BranchRecordData,
                                ProfileData,
-                               CalcData>;
+                               CalcData,
+                               StepFilterData>;
 
 
 
@@ -442,4 +458,7 @@ struct RunRequest
 
     //  Present when a step goes by source line rather than by instruction.
     const LineTable        * lineTable  = nullptr;
+
+    //  The routines a step into runs as a step over, when there are any.
+    const StepFilter       * stepFilter = nullptr;
 };

@@ -877,6 +877,11 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
 
 
 
+    if (command.verb == DebugVerb::ListStepFilter)
+    {
+        return TryParseSkipArguments (args, command, error);
+    }
+
     if (command.verb == DebugVerb::ShowMode && !args.tokens.empty())
     {
         mode = ToUpper (args.tokens[0]);
@@ -916,6 +921,126 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         }
 
         command.count = (uint32_t) std::stoul (args.tokens[0]);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseSkipArguments
+//
+//  SKIP lists the step filter; SKIP name|addr|first.last adds to it; SKIP -
+//  name removes one; SKIP CLEAR empties it. A name is resolved here, so one
+//  no symbol table holds is an error. The text keeps the name as typed, and
+//  is empty for an address or a range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseSkipArguments (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    static constexpr const char * kNumberChars = "0123456789ABCDEFabcdef$.";
+    std::string                   first;
+    std::string                   ignored;
+
+
+
+    if (args.tokens.empty())
+    {
+        return true;
+    }
+
+    first = args.tokens[0];
+
+    if (ToUpper (first) == "CLEAR")
+    {
+        command.verb = DebugVerb::ClearStepFilter;
+        return true;
+    }
+
+    if (first.starts_with ('-'))
+    {
+        command.verb = DebugVerb::RemoveStepFilter;
+        command.text = (first.size() > 1) ? first.substr (1) : (args.tokens.size() > 1) ? args.tokens[1] : std::string();
+
+        if (command.text.empty())
+        {
+            error = "SKIP - takes the name, address or range to remove.";
+            return false;
+        }
+
+        //  A name whose symbol is gone still removes by name, so a failure to
+        //  evaluate here is not an error.
+        if (!TryParseSkipRange (command.text, *args.context, command, ignored))
+        {
+            command.hasA1 = false;
+            command.hasA2 = false;
+        }
+
+        return true;
+    }
+
+    command.verb = DebugVerb::AddStepFilter;
+
+    if (first.find_first_not_of (kNumberChars) != std::string::npos)
+    {
+        command.text = first;
+    }
+
+    return TryParseSkipRange (first, *args.context, command, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseSkipRange
+//
+//  `addr` or `first.last`, into a1 and a2; a single address is a range of
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseSkipRange (
+    const std::string              & text,
+    const IDebugExpressionContext  & context,
+    DebugCommand                   & command,
+    std::string                    & error)
+{
+    size_t  period = text.find ('.');
+
+
+
+    command.hasA1 = true;
+    command.hasA2 = true;
+
+    if (period == std::string::npos)
+    {
+        if (!TryEvaluate (text, context, command.a1, error))
+        {
+            return false;
+        }
+
+        command.a2 = command.a1;
+        return true;
+    }
+
+    if (!TryEvaluate (text.substr (0, period), context, command.a1, error) ||
+        !TryEvaluate (text.substr (period + 1), context, command.a2, error))
+    {
+        return false;
+    }
+
+    if (command.a2 < command.a1)
+    {
+        error = std::format ("{} ends before it begins.", text);
+        return false;
     }
 
     return true;

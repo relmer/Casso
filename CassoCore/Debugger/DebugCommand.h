@@ -189,6 +189,10 @@ enum class DebugVerb
     ShowSource,
     SetSourceStepping,
     SetSourceBreakpoint,
+    ListStepFilter,
+    AddStepFilter,
+    RemoveStepFilter,
+    ClearStepFilter,
 
     // Window-only views, carried by name
     View,

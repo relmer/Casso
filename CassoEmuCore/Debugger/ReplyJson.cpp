@@ -556,6 +556,7 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
 
     if (auto * v = std::get_if<CompareData>       (&data)) { return MakeCompare    (*v); }
     if (auto * v = std::get_if<DataBlockListData> (&data)) { return MakeDataBlocks (*v); }
+    if (auto * v = std::get_if<StepFilterData>    (&data)) { return MakeStepFilter (*v); }
     if (auto * v = std::get_if<ProfileData>       (&data)) { return MakeProfile    (*v); }
 
     if (auto * v = std::get_if<VideoInfoData> (&data))
@@ -633,6 +634,34 @@ JsonValue ReplyJson::MakeDataBlocks (const DataBlockListData & data)
     }
 
     return JsonValue (Members { { "kind", MakeString ("dataBlocks") }, { "blocks", JsonValue (std::move (blocks)) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeStepFilter
+//
+//  An entry given as an address or a range has an empty name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeStepFilter (const StepFilterData & data)
+{
+    std::vector<JsonValue>  entries;
+
+
+
+    for (const StepFilterEntry & entry : data.entries)
+    {
+        entries.push_back (JsonValue (Members { { "name",  MakeString (entry.name) },
+                                                { "first", MakeNumber (entry.first) },
+                                                { "last",  MakeNumber (entry.last) } }));
+    }
+
+    return JsonValue (Members { { "kind", MakeString ("stepFilter") }, { "entries", JsonValue (std::move (entries)) } });
 }
 
 
