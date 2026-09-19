@@ -87,6 +87,52 @@ public:
     }
 
 
+    //  R-023: a pane moves between dock sites, and between windows, as the same
+    //  control, keeping whatever state it holds.
+    TEST_METHOD (DetachChild_MovesTheSameControlToAnotherPanel)
+    {
+        DxuiPanel                      from;
+        DxuiPanel                      to;
+        DxuiDpiScaler                  scaler;
+        MockDxuiControl              * child    = from.CreateChild<MockDxuiControl>();
+        std::unique_ptr<IDxuiControl>  detached;
+
+
+
+        child->tickCount = 7;
+        detached         = from.DetachChild (child);
+
+        Assert::IsTrue   (detached.get() == child,     L"the same control, not a copy");
+        Assert::AreEqual ((size_t) 0, from.GetChildCount());
+        Assert::IsNull   (child->GetParent());
+
+        to.AttachChild (std::move (detached));
+        to.Layout      (RECT { 0, 0, 100, 50 }, scaler);
+
+        Assert::IsTrue   (to.GetChild (0) == child);
+        Assert::IsTrue   (child->GetParent() == &to);
+        Assert::AreEqual (7, child->tickCount,         L"its state came with it");
+        Assert::IsTrue   (child->layoutCount > 0,      L"laid out by the new panel");
+    }
+
+
+    TEST_METHOD (DetachChild_OfAChildNotOwnedIsNull)
+    {
+        DxuiPanel        panel;
+        MockDxuiControl  adopted;
+        MockDxuiControl  stranger;
+
+
+
+        panel.Adopt (adopted);
+
+        Assert::IsNull   (panel.DetachChild (&adopted).get(), L"an adopted child belongs to its caller");
+        Assert::IsNull   (panel.DetachChild (&stranger).get());
+        Assert::AreEqual ((size_t) 1, panel.GetChildCount());
+        panel.ClearAdopted();
+    }
+
+
     TEST_METHOD (Clear_DropsAllChildren)
     {
         DxuiPanel  panel;

@@ -235,6 +235,69 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DetachChild
+//
+//  Takes an owned child out of this panel and hands its ownership back,
+//  unparented, so it can be attached to another panel, in this window or
+//  another, without being rebuilt (R-023). Controls hold no device resources,
+//  so nothing about the old window travels with it; the new panel lays it
+//  out at its own DPI on its next layout. Null for a child this panel does
+//  not own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IDxuiControl> DxuiPanel::DetachChild (IDxuiControl * child)
+{
+    std::unique_ptr<IDxuiControl>  detached;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    for (auto it = m_children.begin(); it != m_children.end(); ++it)
+    {
+        if (it->raw == child && it->owned != nullptr)
+        {
+            detached = std::move (it->owned);
+            m_children.erase (it);
+            detached->SetParent (nullptr);
+            MarkDirty();
+            break;
+        }
+    }
+
+    return detached;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachChild
+//
+//  Takes ownership of a control, detached from another panel or new, and
+//  returns the observer pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * DxuiPanel::AttachChild (std::unique_ptr<IDxuiControl> child)
+{
+    IDxuiControl  * raw = child.get();
+
+
+
+    AppendChild (std::move (child));
+    return raw;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Clear
 //
 ////////////////////////////////////////////////////////////////////////////////

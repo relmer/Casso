@@ -87,6 +87,12 @@ public:
     void     ClearAdopted  ();
 
     HRESULT  Remove        (IDxuiControl * child);
+
+    //  Moves an owned child out with its ownership, and in again, so a control
+    //  can pass between panels or windows intact (R-023). DetachChild returns
+    //  null for a child this panel does not own.
+    std::unique_ptr<IDxuiControl>  DetachChild (IDxuiControl * child);
+    IDxuiControl *                 AttachChild (std::unique_ptr<IDxuiControl> child);
     void     Clear         ();
     void     SetLayout     (std::unique_ptr<IDxuiLayout> layout);
 
