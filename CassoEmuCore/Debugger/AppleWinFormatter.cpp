@@ -587,8 +587,13 @@ void AppleWinFormatter::FormatProfile (const ProfileData & data, Lines & lines)
         return;
     }
 
-    FormatProfileTable ("Opcode", data.instructions, data.opcodes, lines);
-    FormatProfileTable ("Mode",   data.instructions, data.modes,   lines);
+    if (data.isByAddress)
+    {
+        FormatProfileAddresses (data, lines);
+        return;
+    }
+
+    FormatProfileOpcodes (data, lines);
 }
 
 
@@ -597,26 +602,66 @@ void AppleWinFormatter::FormatProfile (const ProfileData & data, Lines & lines)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinFormatter::FormatProfileTable
+//  AppleWinFormatter::FormatProfileOpcodes
+//
+//  Count, base cycles and share per mnemonic and addressing mode, then the
+//  avoidable cycles by kind. Each share is of the total, penalties included,
+//  so the rows add up to 100%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleWinFormatter::FormatProfileTable (
-    const char                       * heading,
-    uint64_t                           total,
-    const std::vector<ProfileEntry>  & entries,
-    Lines                            & lines)
+void AppleWinFormatter::FormatProfileOpcodes (const ProfileData & data, Lines & lines)
+{
+    lines.push_back (std::format ("{:<6} {:<20} {:>10} {:>10} {:>7}", "Opcode", "Mode", "Count", "Cycles", "Percent"));
+
+    for (const ProfileEntry & entry : data.opcodes)
+    {
+        lines.push_back (std::format ("{:<6} {:<20} {:>10} {:>10} {:>6.1f}%", entry.mnemonic, entry.mode, entry.count, entry.cycles, GetShare (entry.cycles, data.cycles)));
+    }
+
+    lines.push_back (std::format ("{:<38} {:>10} {:>7}", "Penalty", "Cycles", "Percent"));
+    lines.push_back (std::format ("{:<38} {:>10} {:>6.1f}%", "Page crossing",            data.pageCross,   GetShare (data.pageCross,   data.cycles)));
+    lines.push_back (std::format ("{:<38} {:>10} {:>6.1f}%", "Taken branches",           data.branchTaken, GetShare (data.branchTaken, data.cycles)));
+    lines.push_back (std::format ("{:<38} {:>10} {:>6.1f}%", "Branches crossing a page", data.branchCross, GetShare (data.branchCross, data.cycles)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatProfileAddresses
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatProfileAddresses (const ProfileData & data, Lines & lines)
+{
+    lines.push_back (std::format ("{:<7} {:<20} {:>10} {:>7}", "Address", "Symbol", "Cycles", "Percent"));
+
+    for (const ProfileAddressEntry & entry : data.addresses)
+    {
+        lines.push_back (std::format ("{:<7} {:<20} {:>10} {:>6.1f}%", std::format ("${:04X}", entry.address), entry.symbol, entry.cycles, GetShare (entry.cycles, data.cycles)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::GetShare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double AppleWinFormatter::GetShare (uint64_t part, uint64_t total)
 {
     static constexpr double  kPercent = 100.0;
 
 
 
-    lines.push_back (std::format ("{:<8} {:>10} {:>7}", heading, "Count", "Percent"));
-
-    for (const ProfileEntry & entry : entries)
-    {
-        lines.push_back (std::format ("{:<8} {:>10} {:>6.1f}%", entry.name, entry.count, (double) entry.count * kPercent / (double) total));
-    }
+    return total == 0 ? 0.0 : (double) part * kPercent / (double) total;
 }
 
 

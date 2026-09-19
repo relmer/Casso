@@ -117,6 +117,7 @@ Clients format them.
 | `cycles` | `count` |
 | `mode` | `mode` |
 | `fileIo` | `path`, `requested`, `transferred`, `mismatch`: bool |
+| `profile` | `on`: bool, `instructions`, `cycles` (penalties included), `opcodes`: `[{"mnemonic","mode","count","cycles"}]` with base cycles only, `penalties`: `{"pageCross","branchTaken","branchCross"}` in cycles, `addresses`: `[{"address","symbol","cycles"}]` with `symbol` null where none holds the address (filled by `PROFILE LIST ADDR`, the hottest twenty) |
 | `message` | no fields beyond `text` |
 
 New kinds may be added; a client that does not recognize a kind uses `text`.

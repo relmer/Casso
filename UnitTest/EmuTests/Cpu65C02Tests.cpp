@@ -74,6 +74,7 @@ namespace Cpu65C02TestNs
 
         Cpu6502Registers    Regs()   { return m_cpu.GetRegisters(); }
         Byte                Cycles() { return m_cpu.GetLastInstructionCycles(); }
+        Byte                Penalties() { return m_cpu.GetLastPenalties(); }
         Word                PC()     { return m_cpu.GetPC(); }
         void                Step()   { m_cpu.StepOne(); }
 
@@ -161,6 +162,63 @@ namespace Cpu65C02TestNs
             // PC after the 2-byte instruction is $0202; +4 = $0206.
             Assert::AreEqual<Word> (0x0206, h.PC());
             Assert::AreEqual<Byte> (3, h.Cycles());   // 2 base + 1 taken
+        }
+
+
+        TEST_METHOD (Penalties_RecordPageCrossingAndBranches)
+        {
+            Harness h;
+
+            h.SetRegs (0, 0x01, 0x01, 0);
+            h.Poke (0x0010, 0xFF);
+            h.Poke (0x0011, 0x10);
+            h.Load ({ 0xBD, 0xFF, 0x10,     // LDA $10FF,X: crosses
+                      0xB1, 0x10,           // LDA ($10),Y: crosses
+                      0x1E, 0xFF, 0x10,     // ASL $10FF,X: the CMOS part pays only on a crossing
+                      0x1E, 0x00, 0x10,     // ASL $1000,X: no crossing, no cycle
+                      0x80, 0x00 });        // BRA +0: taken, same page
+
+            h.Step();
+            Assert::AreEqual<Byte> (5, h.Cycles());
+            Assert::AreEqual<Byte> (Cpu::kPenaltyPageCross, h.Penalties());
+            h.Step();
+            Assert::AreEqual<Byte> (6, h.Cycles());
+            Assert::AreEqual<Byte> (Cpu::kPenaltyPageCross, h.Penalties());
+            h.Step();
+            Assert::AreEqual<Byte> (7, h.Cycles());
+            Assert::AreEqual<Byte> (Cpu::kPenaltyPageCross, h.Penalties());
+            h.Step();
+            Assert::AreEqual<Byte> (6, h.Cycles());
+            Assert::AreEqual<Byte> (0, h.Penalties());
+            h.Step();
+            Assert::AreEqual<Byte> (3, h.Cycles());
+            Assert::AreEqual<Byte> (Cpu::kPenaltyBranchTaken, h.Penalties());
+        }
+
+
+        TEST_METHOD (Penalties_BranchCrossingAPage)
+        {
+            Harness h;
+
+            h.SetRegs (0, 0, 0, kFlagZero);
+            h.Load ({ 0xF0, 0x7F });        // BEQ +$7F from $0202: taken into $0281, same page
+            h.Step();
+            Assert::AreEqual<Byte> (Cpu::kPenaltyBranchTaken, h.Penalties());
+
+            h.Poke (0x0281, 0xD0);          // BNE +$7F from $0283 to $0302: crosses
+            h.Poke (0x0282, 0x7F);
+            h.SetRegs (0, 0, 0, 0);
+            h.Step();
+            Assert::AreEqual<Word> (0x0302, h.PC());
+            Assert::AreEqual<Byte> (4, h.Cycles());
+            Assert::AreEqual<Byte> (Cpu::kPenaltyBranchTaken | Cpu::kPenaltyBranchCross, h.Penalties());
+
+            h.Poke (0x0302, 0xD0);          // BNE not taken with Z set: no penalty
+            h.Poke (0x0303, 0x10);
+            h.SetRegs (0, 0, 0, kFlagZero);
+            h.Step();
+            Assert::AreEqual<Byte> (2, h.Cycles());
+            Assert::AreEqual<Byte> (0, h.Penalties());
         }
 
 

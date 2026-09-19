@@ -79,7 +79,8 @@ public:
             MarkTraceInterrupt (kTraceIntrNmi);
             DispatchVector (nmiVector, false);
 
-            m_lastCycles = 7;
+            m_lastCycles    = 7;
+            m_lastPenalties = 0;
             return true;
         }
 
@@ -88,7 +89,8 @@ public:
             MarkTraceInterrupt (kTraceIntrIrq);
             DispatchVector (irqVector, false);
 
-            m_lastCycles = 7;
+            m_lastCycles    = 7;
+            m_lastPenalties = 0;
             return true;
         }
 

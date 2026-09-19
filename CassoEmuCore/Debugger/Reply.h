@@ -280,18 +280,36 @@ struct BranchRecordData
     std::optional<Word>  address;
 };
 
+// One mnemonic in one addressing mode. The cycles are the base cycles only;
+// the avoidable penalties are ProfileData's own rows.
 struct ProfileEntry
 {
-    std::string  name;
-    uint64_t     count = 0;
+    std::string  mnemonic;
+    std::string  mode;
+    uint64_t     count  = 0;
+    uint64_t     cycles = 0;
 };
 
+struct ProfileAddressEntry
+{
+    Word         address = 0;
+    std::string  symbol;
+    uint64_t     cycles  = 0;
+};
+
+// PROFILE LIST, or with isByAddress PROFILE LIST ADDR. The cycles total
+// includes the penalties.
 struct ProfileData
 {
-    uint64_t                   instructions = 0;
-    uint64_t                   cycles       = 0;
-    std::vector<ProfileEntry>  opcodes;
-    std::vector<ProfileEntry>  modes;
+    bool                              isOn         = false;
+    bool                              isByAddress  = false;
+    uint64_t                          instructions = 0;
+    uint64_t                          cycles       = 0;
+    uint64_t                          pageCross    = 0;
+    uint64_t                          branchTaken  = 0;
+    uint64_t                          branchCross  = 0;
+    std::vector<ProfileEntry>         opcodes;
+    std::vector<ProfileAddressEntry>  addresses;
 };
 
 struct CalcData

@@ -48,7 +48,9 @@ private:
     static void  FormatProfile      (const ProfileData        & data, Lines & lines);
     static void  FormatCalc         (const CalcData           & data, Lines & lines);
 
-    static void  FormatProfileTable (const char * heading, uint64_t total, const std::vector<ProfileEntry> & entries, Lines & lines);
+    static void  FormatProfileOpcodes   (const ProfileData & data, Lines & lines);
+    static void  FormatProfileAddresses (const ProfileData & data, Lines & lines);
+    static double  GetShare             (uint64_t part, uint64_t total);
 
     static std::string  DescribeBreakpoint (const BreakpointInfo & breakpoint);
 

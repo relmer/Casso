@@ -50,6 +50,7 @@ public:
 
     VideoPosition       GetVideoPosition  () const override;
     uint64_t            GetCycleCount     () const override;
+    Byte                GetLastPenalties  () const override;
     DebugCpuKind        GetCpuKind        () const override;
     const Microcode   * GetInstructionSet () const override;
     DebugMachineInfo    GetMachineInfo    () const override;

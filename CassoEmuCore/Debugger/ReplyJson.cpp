@@ -648,25 +648,34 @@ JsonValue ReplyJson::MakeDataBlocks (const DataBlockListData & data)
 JsonValue ReplyJson::MakeProfile (const ProfileData & data)
 {
     std::vector<JsonValue>  opcodes;
-    std::vector<JsonValue>  modes;
+    std::vector<JsonValue>  addresses;
 
 
 
     for (const ProfileEntry & entry : data.opcodes)
     {
-        opcodes.push_back (JsonValue (Members { { "name", MakeString (entry.name) }, { "count", MakeNumber ((int64_t) entry.count) } }));
+        opcodes.push_back (JsonValue (Members { { "mnemonic", MakeString (entry.mnemonic) },
+                                                { "mode",     MakeString (entry.mode) },
+                                                { "count",    MakeNumber ((int64_t) entry.count) },
+                                                { "cycles",   MakeNumber ((int64_t) entry.cycles) } }));
     }
 
-    for (const ProfileEntry & entry : data.modes)
+    for (const ProfileAddressEntry & entry : data.addresses)
     {
-        modes.push_back (JsonValue (Members { { "name", MakeString (entry.name) }, { "count", MakeNumber ((int64_t) entry.count) } }));
+        addresses.push_back (JsonValue (Members { { "address", MakeNumber ((int64_t) entry.address) },
+                                                  { "symbol",  entry.symbol.empty() ? JsonValue (nullptr) : MakeString (entry.symbol) },
+                                                  { "cycles",  MakeNumber ((int64_t) entry.cycles) } }));
     }
 
     return JsonValue (Members { { "kind",         MakeString ("profile") },
+                                { "on",           JsonValue (data.isOn) },
                                 { "instructions", MakeNumber ((int64_t) data.instructions) },
                                 { "cycles",       MakeNumber ((int64_t) data.cycles) },
                                 { "opcodes",      JsonValue (std::move (opcodes)) },
-                                { "modes",        JsonValue (std::move (modes)) } });
+                                { "penalties",    JsonValue (Members { { "pageCross",   MakeNumber ((int64_t) data.pageCross) },
+                                                                       { "branchTaken", MakeNumber ((int64_t) data.branchTaken) },
+                                                                       { "branchCross", MakeNumber ((int64_t) data.branchCross) } }) },
+                                { "addresses",    JsonValue (std::move (addresses)) } });
 }
 
 

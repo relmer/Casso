@@ -152,10 +152,12 @@ void CpuOperations::ChargeBranchCycles (Cpu & cpu, Word target)
 
 
     cpu.m_lastCycles++;
+    cpu.m_lastPenalties |= Cpu::kPenaltyBranchTaken;
 
     if ((cpu.PC & kPageMask) != (target & kPageMask))
     {
         cpu.m_lastCycles++;
+        cpu.m_lastPenalties |= Cpu::kPenaltyBranchCross;
     }
 }
 

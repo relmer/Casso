@@ -195,10 +195,11 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (PROFILE_CountsDebuggerRunsOnly_ResetAndSave)
+        TEST_METHOD (PROFILE_CountsWhileOnDuringDebuggerRuns_ResetAndSave)
         {
             MachineRig                rig;
             std::vector<std::string>  lines;
+            std::string               saved;
 
 
 
@@ -209,25 +210,80 @@ namespace DebuggerTests
             rig.session.GetBreakpoints().AddAddress (0x0305, 0x0305);
             rig.session.OnStopConditionsChanged();
 
+            rig.RunOk ("G");
+            Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"nothing is counted while profiling is off");
+
+            Assert::AreEqual (std::string ("Profiling on."), rig.RunOk ("PROFILE ON").text.at (0));
             rig.machine.RunCycles (20);
             Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"a machine running on its own is not profiled");
 
             rig.RunOk ("= 300");
             rig.RunOk ("G");
             lines = rig.RunOk ("PROFILE LIST").text;
-            Assert::AreEqual (std::string ("Instructions: 4, cycles: 8"), lines.at (0), L"three INX and one LDA");
-            Assert::AreEqual (std::string ("INX               3   75.0%"), lines.at (2));
-            Assert::AreEqual (std::string ("LDA               1   25.0%"), lines.at (3));
-            Assert::AreEqual (std::string ("[No Operand]          3   75.0%"), lines.at (5), L"a name wider than its column pushes the rest right");
+            Assert::AreEqual (std::string ("Instructions: 4, cycles: 8"),                                  lines.at (0), L"three INX and one LDA");
+            Assert::AreEqual (std::string ("INX    [No Operand]                  3          6   75.0%"), lines.at (2));
+            Assert::AreEqual (std::string ("LDA    #Immediate                    1          2   25.0%"), lines.at (3));
 
             Assert::AreEqual (std::string ("Saved the profile to Profile.txt."), rig.RunOk ("PROFILE SAVE").text.at (0));
-            Assert::IsTrue   (rig.files.PeekContent (L"C:\\Work\\Profile.txt").find ("INX\t3\n") != std::string::npos);
+            saved = rig.files.PeekContent (L"C:\\Work\\Profile.txt");
+            Assert::IsTrue   (saved.find (lines.at (2) + "\n") != std::string::npos, L"the saved file holds the listed rows");
+            Assert::IsTrue   (saved.find ("Address Symbol") != std::string::npos,   L"and the per-address rows");
+            Assert::AreEqual (std::string ("Saved the profile to hot.txt."), rig.RunOk ("PROFILE SAVE hot.txt").text.at (0));
+            Assert::AreEqual (saved, rig.files.PeekContent (L"C:\\Work\\hot.txt"));
 
             Assert::AreEqual (std::string ("Profile reset."), rig.RunOk ("PROFILE RESET").text.at (0));
             Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0));
+            Assert::AreEqual (std::string ("Profiling off."), rig.RunOk ("PROFILE OFF").text.at (0));
             Assert::IsTrue   (rig.Run ("PROFILE SIDEWAYS").status == CommandStatus::Error);
+            Assert::IsTrue   (rig.Run ("PROFILE LIST SIDEWAYS").status == CommandStatus::Error);
         }
 
+
+
+        TEST_METHOD (PROFILE_SeparatesPenaltiesFromBaseCycles)
+        {
+            MachineRig                rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.session.GetSymbols().Add (SymbolTableId::User, "LOOP", 0x0302);
+
+            // $0300: LDX #$00 / LOOP: LDA $10FF,X / INX / CPX #$04 / BNE LOOP / NOP
+            rig.Load (0x0300, { 0xA2, 0x00, 0xBD, 0xFF, 0x10, 0xE8, 0xE0, 0x04, 0xD0, 0xF8, 0xEA }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x030A, 0x030A);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("PROFILE ON");
+            rig.RunOk ("G");
+            lines = rig.RunOk ("PROFILE LIST").text;
+            Assert::AreEqual (std::string ("Instructions: 17, cycles: 48"),                                lines.at (0));
+            Assert::AreEqual (std::string ("LDA    Absolute, X                   4         16   33.3%"), lines.at (2), L"the base cycles only");
+            Assert::AreEqual (std::string ("BNE    Relative                      4          8   16.7%"), lines.at (3));
+            Assert::AreEqual (std::string ("Page crossing                                   3    6.2%"), lines.at (8));
+            Assert::AreEqual (std::string ("Taken branches                                  3    6.2%"), lines.at (9));
+            Assert::AreEqual (std::string ("Branches crossing a page                        0    0.0%"), lines.at (10));
+
+            lines = rig.RunOk ("PROFILE LIST ADDR").text;
+            Assert::AreEqual (std::string ("$0302   LOOP                         19   39.6%"), lines.at (2), L"the hottest address, with its symbol");
+            Assert::AreEqual (std::string ("$0308                                11   22.9%"), lines.at (3));
+        }
+
+
+
+        TEST_METHOD (PROFILE_InstallsNoHook)
+        {
+            Rig  rig;
+            int  changes = rig.target.hookChanges;
+
+
+
+            rig.RunOk ("PROFILE ON");
+            rig.RunOk ("PROFILE OFF");
+            Assert::AreEqual (changes, rig.target.hookChanges, L"profiling rides the debugger's own runs");
+            Assert::IsFalse  (rig.target.hookInstalled);
+        }
 
 
         TEST_METHOD (TF_WritesOneLinePerInstruction)

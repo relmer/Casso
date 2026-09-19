@@ -442,13 +442,15 @@ void Cpu::StepOne()
         // a specific illegal-opcode fault.
         // ASSERT (false);
 
-        m_lastCycles = 2;
+        m_lastCycles    = 2;
+        m_lastPenalties = 0;
         ++PC;
 
         return;
     }
 
-    m_lastCycles = microcode.baseCycles;
+    m_lastCycles    = microcode.baseCycles;
+    m_lastPenalties = 0;
 
     FetchOperand (microcode, operandInfo);
     ++PC;
@@ -495,6 +497,7 @@ void Cpu::StepOne()
             if ((baseAddr & 0xFF00) != (operandInfo.effectiveAddress & 0xFF00))
             {
                 m_lastCycles++;
+                m_lastPenalties |= kPenaltyPageCross;
             }
         }
     }

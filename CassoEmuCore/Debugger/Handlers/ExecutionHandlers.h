@@ -2,6 +2,7 @@
 
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/IInstructionObserver.h"
+#include "Debugger/ProfileTable.h"
 
 class IDebugTarget;
 
@@ -18,7 +19,7 @@ class IDebugTarget;
 //  GG, T, TL, P, RTS) are the session's own.
 //
 //  The family is also the session's instruction observer: the branch record,
-//  the profile counters, the trace file and the key queue are fed from each
+//  the profile counters (while PROFILE ON), the trace file and the key queue are fed from each
 //  instruction a debugger-driven run executes, and never from a machine
 //  running freely.
 //
@@ -49,6 +50,8 @@ private:
     static constexpr Word          kStackPage      = 0x0100;
     static constexpr const char  * kDefaultTrace   = "Trace.txt";
     static constexpr const char  * kDefaultProfile = "Profile.txt";
+    static constexpr size_t    kHotAddresses    = 20;
+    static constexpr uint64_t  kMaxBilledCycles = 0xFF;
 
     struct TraceState
     {
@@ -59,13 +62,13 @@ private:
         std::string   lines;
     };
 
-    struct ProfileState
+    // The instruction the hook last let through. Its cost is known only once
+    // it has run, at the next instruction or at the stop.
+    struct PendingInstruction
     {
-        std::map<std::string, uint64_t>  opcodes;
-        std::map<std::string, uint64_t>  modes;
-        uint64_t                         instructions = 0;
-        uint64_t                         startCycles  = 0;
-        bool                             hasStart     = false;
+        Word      pc          = 0;
+        Byte      opcode      = 0;
+        uint64_t  startCycles = 0;
     };
 
     static void  SetProgramCounter (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -83,18 +86,22 @@ private:
 
     void         RecordBranch      (DebugSession & session, Word pc);
     void         RecordProfile     (DebugSession & session, Word pc);
+    void         BillProfile       (DebugSession & session);
+    void         BuildProfile      (DebugSession & session, bool isByAddress, ProfileData & data) const;
+    void         SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
     void         RecordTrace       (DebugSession & session, Word pc);
     void         FlushTrace        (DebugSession & session);
     void         FeedKeys          (DebugSession & session);
     static bool  IsControlTransfer (Byte opcode, bool isCmos);
     static Byte  Peek              (IDebugTarget & target, Word address);
 
-    std::optional<Word>  m_lastBranch;
-    std::optional<Word>  m_previousPc;
-    Byte                 m_previousOpcode = 0;
-    TraceState           m_trace;
-    ProfileState         m_profile;
-    std::deque<Byte>     m_keys;
-    uint64_t             m_cycleMarker    = 0;
-    uint64_t             m_lastRunCycles  = 0;
+    std::optional<Word>                m_lastBranch;
+    std::optional<Word>                m_previousPc;
+    Byte                               m_previousOpcode = 0;
+    TraceState                         m_trace;
+    ProfileTable                       m_profile;
+    std::optional<PendingInstruction>  m_profilePending;
+    std::deque<Byte>                   m_keys;
+    uint64_t                           m_cycleMarker    = 0;
+    uint64_t                           m_lastRunCycles  = 0;
 };

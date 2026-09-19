@@ -541,4 +541,67 @@ public:
         Assert::IsTrue (hasGreen,
             L"STA $0400 followed by Render(GetMemory()) must produce green pixels");
     }
-};
+
+    TEST_METHOD (Penalties_RecordPageCrossingAndBranches)
+    {
+        static constexpr size_t  kFarBranch = 0x00EE;
+
+        MemoryBus          bus;
+        RamDevice          ram (0x0000, 0xBFFF);
+        std::vector<Byte>  romData (0x3000, 0xEA);
+        const Byte         program[] =
+        {
+            0xA2, 0x01,         // LDX #$01
+            0xD0, 0x00,         // BNE +0: taken, same page
+            0xF0, 0x00,         // BEQ +0: not taken
+            0xBD, 0xFF, 0x10,   // LDA $10FF,X: crosses into $1100
+            0xBD, 0x00, 0x10,   // LDA $1000,X: stays on the page
+            0x9D, 0xFF, 0x10,   // STA $10FF,X: a store always pays, so no penalty
+            0x4C, 0xEE, 0xD0,   // JMP $D0EE
+        };
+        const Byte         farBranch[] =
+        {
+            0xA2, 0x01,         // LDX #$01
+            0xD0, 0x20,         // BNE $D112: taken, crosses a page
+        };
+        const Byte         expected[][2] =
+        {
+            { 2, 0 },
+            { 3, Cpu::kPenaltyBranchTaken },
+            { 2, 0 },
+            { 5, Cpu::kPenaltyPageCross },
+            { 4, 0 },
+            { 5, 0 },
+            { 3, 0 },
+            { 2, 0 },
+            { 4, Cpu::kPenaltyBranchTaken | Cpu::kPenaltyBranchCross },
+        };
+
+
+
+        bus.AddDevice (&ram);
+
+        std::copy (std::begin (program),   std::end (program),   romData.begin());
+        std::copy (std::begin (farBranch), std::end (farBranch), romData.begin() + kFarBranch);
+        romData[0x2FFC] = 0x00;
+        romData[0x2FFD] = 0xD0;
+
+        auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF, romData.data(), romData.size());
+        bus.AddDevice (rom.get());
+
+        EmuCpu cpu (bus);
+
+        for (size_t i = 0; i < romData.size(); i++)
+        {
+            cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
+        }
+
+        cpu.InitForEmulation (m_prng);
+
+        for (const auto & step : expected)
+        {
+            cpu.StepOne();
+            Assert::AreEqual (step[0], cpu.GetLastInstructionCycles());
+            Assert::AreEqual (step[1], cpu.GetLastPenalties());
+        }
+    }};

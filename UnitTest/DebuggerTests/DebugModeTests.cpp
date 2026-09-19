@@ -350,6 +350,40 @@ namespace DebugModeTests
             rig.AssertOutputIs ("assemble.txt");
         }
 
+        //  Quickstart Story 11: a loop of LDA $10FF,X with X crossing the page
+        //  three times in four, profiled. The crossing cycles and the taken
+        //  branches are billed apart from the base cycles, the hottest address
+        //  carries its symbol, and SAVE writes the same rows to a file.
+        TEST_METHOD (ProfileScript_SeparatesPenalties)
+        {
+            BatchRig     rig;
+            std::string  saved;
+
+
+
+            Assert::AreEqual (0, rig.Run (rig.Script ("profile.txt")));
+            Assert::IsTrue   (rig.result.diagnostics.empty(), rig.Widen (rig.result.diagnostics).c_str());
+            rig.AssertOutputIs ("profile.txt");
+
+            Assert::AreEqual (S_OK, rig.files.ReadAllText (L"profile.txt", saved));
+            Assert::IsTrue   (rig.result.output.find (saved.substr (0, saved.find ('\n'))) != std::string::npos, L"the saved file starts with the listed summary");
+            Assert::IsTrue   (saved.find ("$0302   LOOP") != std::string::npos, L"and holds the per-address rows");
+        }
+
+
+
+        TEST_METHOD (ProfileScript_AsJsonLines)
+        {
+            BatchRig  rig;
+
+
+
+            rig.options.json = true;
+
+            Assert::AreEqual (0, rig.Run (rig.Script ("profile.txt")));
+            rig.AssertOutputIs ("profile.jsonl");
+        }
+
         //  BSAVE, BLOAD and TF reach the injected file system and nothing else.
         TEST_METHOD (HostFiles_GoThroughTheFileSystemSeam)
         {
