@@ -161,6 +161,7 @@
     <ClCompile Include="DiagnosticFormatter.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
     <ClCompile Include="Debugger\LineAssembler.cpp" />
+    <ClCompile Include="Debugger\ConditionContext.cpp" />
     <ClCompile Include="Debugger\DebugExpressionEvaluator.cpp" />
     <ClCompile Include="Debugger\AppleWinCommandTable.cpp" />
     <ClCompile Include="Debugger\AppleWinParser.cpp" />
@@ -229,6 +230,7 @@
     <ClInclude Include="DiagnosticFormatter.h" />
     <ClInclude Include="InstructionSetProvider.h" />
     <ClInclude Include="Debugger\LineAssembler.h" />
+    <ClInclude Include="Debugger\ConditionContext.h" />
     <ClInclude Include="Debugger\DebugExpressionEvaluator.h" />
     <ClInclude Include="Debugger\IDebugExpressionContext.h" />
     <ClInclude Include="Debugger\DebugCommand.h" />

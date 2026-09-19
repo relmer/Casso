@@ -30,7 +30,7 @@ namespace DebuggerTests
             "A",
             "=", "G", "GG", "IN", "KEY", "JSR", "NOP", "OUT", "LBR", "PROFILE", "R", "POP", "PPOP", "PUSH", "P", "RTS", "T", "TF", "TL", "U",
             "BM", "BMA", "BMC", "BML", "BMG", "BMSAVE",
-            "BRK", "BRKOP", "BRKINT", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
+            "BRK", "BRKOP", "BRKINT", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
             "BENCHMARK", "DISASM", "LOAD", "SAVE", "PWD", "CD",
             "CYCLES", "RCC",
             "Z", "X", "B", "DB", "DB2", "DB4", "DB8", "DW", "DW2", "DW4", "ASC", "DF", "DA",

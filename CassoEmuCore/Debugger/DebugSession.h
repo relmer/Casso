@@ -212,6 +212,7 @@ private:
     bool   TryMatchBeforeWatchpoint (Word pc);
     bool   IsVideoBreakHit       () const;
     void   ClearTemporary        (const StopEvent & stop);
+    void   AttachCondition       (StopEvent & event) const;
 
     static bool         TryGetRunKind  (DebugVerb verb, RunKind & kind);
     static void         SetError       (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);

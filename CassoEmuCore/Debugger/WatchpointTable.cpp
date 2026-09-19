@@ -2,6 +2,9 @@
 
 #include "Debugger/WatchpointTable.h"
 
+#include "Debugger/BreakpointTable.h"
+#include "Debugger/ConditionContext.h"
+
 
 
 
@@ -62,21 +65,38 @@ void WatchpointTable::SetAccessPc (Word pc)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchpointTable::SetValueBreakpoints
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::SetValueBreakpoints (BreakpointTable * breakpoints)
+{
+    m_valueBreakpoints = breakpoints;
+    Publish();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchpointTable::Add
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int WatchpointTable::Add (WatchAccess access, Word first, Word last, WatchMode mode)
+int WatchpointTable::Add (WatchAccess access, Word first, Word last, WatchMode mode, const Expression & condition)
 {
     Watchpoint  entry;
 
 
 
-    entry.id     = m_nextId++;
-    entry.access = access;
-    entry.first  = first;
-    entry.last   = last;
-    entry.mode   = mode;
+    entry.id        = m_nextId++;
+    entry.access    = access;
+    entry.first     = first;
+    entry.last      = last;
+    entry.mode      = mode;
+    entry.condition = condition;
 
     m_entries.push_back (entry);
     Publish();
@@ -283,11 +303,17 @@ bool WatchpointTable::TryMatchBefore (Word pc, const AccessPrediction & predicti
     {
         for (Watchpoint & entry : m_entries)
         {
-            bool  isInRange = touch.address >= entry.first && touch.address <= entry.last;
+            bool                    isInRange = touch.address >= entry.first && touch.address <= entry.last;
+            std::optional<int32_t>  conditionValue;
 
 
 
             if (!entry.enabled || entry.mode != WatchMode::Before || !isInRange || !IsTouchMatch (entry.access, touch.access))
+            {
+                continue;
+            }
+
+            if (!IsConditionMet (entry.condition, touch.address, std::nullopt, conditionValue))
             {
                 continue;
             }
@@ -299,15 +325,16 @@ bool WatchpointTable::TryMatchBefore (Word pc, const AccessPrediction & predicti
                 continue;
             }
 
-            hit.id       = entry.id;
-            hit.address  = touch.address;
-            hit.value    = 0;
+            hit.id             = entry.id;
+            hit.address        = touch.address;
+            hit.value          = 0;
             hit.previous.reset();
-            hit.access   = (entry.access == WatchAccess::ReadWrite)
-                         ? (touch.access == PredictedAccess::Read ? WatchAccess::Read : WatchAccess::Write)
-                         : entry.access;
-            hit.accessPc = pc;
-            hit.mode     = WatchMode::Before;
+            hit.access         = (entry.access == WatchAccess::ReadWrite)
+                               ? (touch.access == PredictedAccess::Read ? WatchAccess::Read : WatchAccess::Write)
+                               : entry.access;
+            hit.accessPc       = pc;
+            hit.mode           = WatchMode::Before;
+            hit.conditionValue = conditionValue;
             return true;
         }
     }
@@ -374,7 +401,8 @@ bool WatchpointTable::IsTouchMatch (WatchAccess watched, PredictedAccess predict
 //
 //  WatchpointTable::GetWatchedPages
 //
-//  Every page an enabled after-mode watchpoint's range touches, and no other.
+//  Every page an enabled after-mode watchpoint's range touches, and the page
+//  of every enabled value breakpoint, and no other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,6 +425,19 @@ WatchedPages WatchpointTable::GetWatchedPages() const
         }
     }
 
+    if (m_valueBreakpoints == nullptr)
+    {
+        return pages;
+    }
+
+    for (const Breakpoint & entry : m_valueBreakpoints->GetAll())
+    {
+        if (entry.enabled && entry.kind == BreakpointKind::MemoryValue)
+        {
+            pages[entry.first >> kPageShift] = true;
+        }
+    }
+
     return pages;
 }
 
@@ -409,12 +450,21 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 //  WatchpointTable::OnWatchedAccess
 //
 //  The first matching hit since the last ClearPending is kept, except that a
-//  write to the pending hit's address replaces it (see ShouldReplace).
+//  write to the pending hit's address replaces it (see ShouldReplace). The
+//  first watchpoint that matches takes the access; a write is then offered
+//  to the value breakpoints, which stop as a watchpoint does, after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess access, std::optional<Byte> previous)
 {
+    WatchAccess             watched        = (access == BusAccess::Read) ? WatchAccess::Read : WatchAccess::Write;
+    std::optional<Byte>     replaced       = (access == BusAccess::Write) ? previous : std::nullopt;
+    std::optional<int32_t>  conditionValue;
+    int                     hitId          = 0;
+
+
+
     if (IsSuppressed (address))
     {
         return;
@@ -427,26 +477,77 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
             continue;
         }
 
+        if (!IsConditionMet (entry.condition, address, value, conditionValue))
+        {
+            continue;
+        }
+
         ++entry.hits;
 
-        if (!entry.stops)
+        if (entry.stops)
         {
-            return;
+            RecordHit (WatchHit { entry.id, address, value, replaced, watched, m_accessPc, WatchMode::After, conditionValue }, access);
         }
 
-        if (!m_pendingHit.has_value() || ShouldReplace (address, access))
-        {
-            m_pendingHit = WatchHit { entry.id,
-                                      address,
-                                      value,
-                                      access == BusAccess::Write ? previous : std::nullopt,
-                                      access == BusAccess::Read ? WatchAccess::Read : WatchAccess::Write,
-                                      m_accessPc,
-                                      WatchMode::After };
-        }
+        break;
+    }
 
+    if (access != BusAccess::Write || m_valueBreakpoints == nullptr || m_context == nullptr)
+    {
         return;
     }
+
+    if (m_valueBreakpoints->TryMatchWrite (address, value, *m_context, hitId, conditionValue))
+    {
+        RecordHit (WatchHit { hitId, address, value, replaced, watched, m_accessPc, WatchMode::After, conditionValue }, access);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::RecordHit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::RecordHit (const WatchHit & hit, BusAccess access)
+{
+    if (!m_pendingHit.has_value() || ShouldReplace (hit.address, access))
+    {
+        m_pendingHit = hit;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::IsConditionMet
+//
+//  A watchpoint with no IF expression always meets it. One with an
+//  expression and no context to evaluate it in never does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::IsConditionMet (
+    const Expression        & condition,
+    Word                      address,
+    std::optional<Byte>       value,
+    std::optional<int32_t>  & conditionValue) const
+{
+    conditionValue.reset();
+
+    if (condition.postfix.empty())
+    {
+        return true;
+    }
+
+    return m_context != nullptr && ConditionContext::IsMet (condition, *m_context, address, value, conditionValue);
 }
 
 

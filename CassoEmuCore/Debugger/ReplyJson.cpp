@@ -123,6 +123,16 @@ std::string ReplyJson::WriteStopped (const StopEvent & stop, std::optional<int64
         members.emplace_back ("watch", JsonValue (std::move (watch)));
     }
 
+    if (!stop.condition.empty())
+    {
+        members.emplace_back ("condition", MakeString (stop.condition));
+    }
+
+    if (stop.conditionValue.has_value())
+    {
+        members.emplace_back ("conditionValue", MakeNumber (*stop.conditionValue));
+    }
+
     if (stop.sourceLine > 0)
     {
         Members  source;
@@ -267,7 +277,7 @@ const char * ReplyJson::GetRegionName (MemoryRegion region)
 
 const char * ReplyJson::GetBreakpointKindName (BreakpointKind kind)
 {
-    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "io", "brk", "interrupt" };
+    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "io", "brk", "interrupt", "memoryValue" };
 
 
 
@@ -798,7 +808,8 @@ JsonValue ReplyJson::MakeDisassembly (const DisassemblyData & data)
 JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
 {
     Members  members;
-    bool     hasRange = breakpoint.kind == BreakpointKind::Address || breakpoint.kind == BreakpointKind::Memory || breakpoint.kind == BreakpointKind::Io;
+    bool     hasRange = breakpoint.kind == BreakpointKind::Address || breakpoint.kind == BreakpointKind::Memory ||
+                        breakpoint.kind == BreakpointKind::Io      || breakpoint.kind == BreakpointKind::MemoryValue;
 
 
 
@@ -816,7 +827,12 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
         members.emplace_back ("opcode", MakeNumber (breakpoint.opcode));
     }
 
-    if (breakpoint.kind == BreakpointKind::Register)
+    if (breakpoint.value.has_value())
+    {
+        members.emplace_back ("value", MakeNumber (*breakpoint.value));
+    }
+
+    if (!breakpoint.condition.empty())
     {
         members.emplace_back ("condition", MakeString (breakpoint.condition));
     }

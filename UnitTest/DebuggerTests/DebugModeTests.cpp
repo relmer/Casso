@@ -315,6 +315,37 @@ namespace DebugModeTests
 
 
 
+        //  Quickstart Story 10: an IF breakpoint on a loop that counts A up
+        //  stops once, with A at $41; a value breakpoint stops after the
+        //  write that makes $06 hold 7; an IF expression that reads an I/O
+        //  address is an error, which sets the exit status, and creates
+        //  nothing.
+        TEST_METHOD (ConditionsScript_ProducesTheExpectedText)
+        {
+            BatchRig  rig;
+
+
+
+            Assert::AreEqual (1, rig.Run (rig.Script ("conditions.txt")));
+            rig.AssertOutputIs ("conditions.txt");
+        }
+
+
+
+        TEST_METHOD (ConditionsScript_ProducesTheExpectedJsonLines)
+        {
+            BatchRig  rig;
+
+
+
+            rig.options.json = true;
+
+            Assert::AreEqual (1, rig.Run (rig.Script ("conditions.txt")));
+            rig.AssertOutputIs ("conditions.jsonl");
+        }
+
+
+
         TEST_METHOD (MonitorOption_StartsInMonitorMode)
         {
             BatchRig  rig;

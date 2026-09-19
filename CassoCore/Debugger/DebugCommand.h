@@ -67,6 +67,7 @@ enum class DebugVerb
     SetMemoryWatchpoint,
     SetReadWatchpoint,
     SetWriteWatchpoint,
+    SetValueBreakpoint,
     BreakOnBrk,
     BreakOnOpcode,
     BreakOnInterrupt,

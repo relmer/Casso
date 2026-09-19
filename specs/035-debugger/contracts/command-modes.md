@@ -66,6 +66,29 @@ nor does GSSquared's.
   - `BPM C030` stops after the access and reports the value, the value a write
     replaced where it is known, and the instruction that made the access.
   - The keyword is a Casso addition; AppleWin has only the after-stop form.
+- **`IF <expression>`** (FR-061), a Casso addition: `BP`, `BPX`, `BPM`,
+  `BPMR`, `BPMW`, `BPMV` and `BP file:line` take a trailing `IF` and an
+  expression over registers, symbols and memory (`*addr` reads a byte), such
+  as `BP Loop IF X == 3 & *PTR != 0` or `BPMW 400 BEFORE IF Y = 2`.
+  - The expression is evaluated only when the address or the access hits. A
+    false one neither stops the machine nor counts a hit; a true one stops,
+    and the stop reports the expression and its value
+    (`Breakpoint #0 at $0300, IF A=41 is $1`; JSON `condition` and
+    `conditionValue`).
+  - It is evaluated once as it is set. An unknown symbol, or a read of an I/O
+    address ($C000-$C0FF), is an `invalid condition` error and creates
+    nothing. At a hit, an I/O read makes the expression false.
+  - On a watchpoint or `BPMV` hit the pseudo-symbols `ACCESS` and `VALUE` give
+    the accessed address and the byte read or written; a `BEFORE` watchpoint
+    has `ACCESS` only. Elsewhere they are unknown symbols.
+- **`BPMV addr value [IF expr]`** (FR-062), a Casso addition: a value
+  breakpoint (kind `memoryValue`) that stops after a write leaves `addr`
+  holding the byte `value`, and on no other write. The stop is reported as a
+  watchpoint stop under the breakpoint's id, with the value and the byte it
+  replaced.
+- **`BPR`** takes its register, comparison and value with or without spaces
+  (FR-015a): `BPR A=0`, `BPR A = 0` and `BPR A 0` set the same breakpoint;
+  `BPR A=` is still an error.
 - **Argument forms** follow AppleWin's own behavior, recorded in research
   R-014: `M dest range`, `F range value` (also `F start end value`), the
   `S`/`SH` item syntax with `?` wildcards and `@n` results, `PRINT` and

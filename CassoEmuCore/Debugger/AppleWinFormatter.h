@@ -54,6 +54,7 @@ private:
     static double  GetShare             (uint64_t part, uint64_t total);
 
     static std::string  DescribeBreakpoint (const BreakpointInfo & breakpoint);
+    static std::string  FormatCondition    (const StopEvent & stop);
 
     static constexpr int   kBytesPerRow  = 8;
     static constexpr int   kDetailIndent = 7;

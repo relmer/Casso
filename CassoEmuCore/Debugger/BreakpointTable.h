@@ -14,22 +14,26 @@ class IDebugExpressionContext;
 //  Breakpoint
 //
 //  One entry in the breakpoint table. first/last is the address range for
-//  Address and Io kinds; opcode is used by Opcode; condition by Register.
+//  Address and Io kinds, and the address for MemoryValue; opcode is used by
+//  Opcode; value by MemoryValue. condition is the whole predicate for
+//  Register, and an optional IF expression for Address and MemoryValue,
+//  evaluated only when the address or the write hits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct Breakpoint
 {
-    int             id        = 0;
-    BreakpointKind  kind      = BreakpointKind::Address;
-    Word            first     = 0;
-    Word            last      = 0;
-    Byte            opcode    = 0;
-    Expression      condition;
-    bool            enabled   = true;
-    bool            temporary = false;            // cleared once it fires
-    bool            stops     = true;             // false: counts hits only
-    uint32_t        hits      = 0;
+    int                  id        = 0;
+    BreakpointKind       kind      = BreakpointKind::Address;
+    Word                 first     = 0;
+    Word                 last      = 0;
+    Byte                 opcode    = 0;
+    std::optional<Byte>  value;
+    Expression           condition;
+    bool                 enabled   = true;
+    bool                 temporary = false;       // cleared once it fires
+    bool                 stops     = true;        // false: counts hits only
+    uint32_t             hits      = 0;
 };
 
 
@@ -54,7 +58,8 @@ class BreakpointTable
 public:
     explicit BreakpointTable (int & nextId);
 
-    int   AddAddress       (Word first, Word last);
+    int   AddAddress       (Word first, Word last, const Expression & condition = {});
+    int   AddMemoryValue   (Word address, Byte value, const Expression & condition = {});
     int   AddOpcode        (Byte opcode);
     int   AddCondition     (const Expression & condition);
     int   AddIo            (Word first, Word last);
@@ -89,15 +94,30 @@ public:
                                      const IDebugExpressionContext & context,
                                      int                           & hitId);
 
+    //  True when an enabled MemoryValue entry at address stops on a write
+    //  of value, its IF expression, if any, being true. Counts hits as
+    //  TryMatchBeforeInstruction does; conditionValue receives the
+    //  expression's value.
+    bool  TryMatchWrite    (Word                            address,
+                            Byte                            value,
+                            const IDebugExpressionContext & context,
+                            int                           & hitId,
+                            std::optional<int32_t>        & conditionValue);
+
+    //  The IF expression's value from the last stop TryMatchBeforeInstruction
+    //  reported, when the entry had one.
+    const std::optional<int32_t> &  GetLastConditionValue () const { return m_lastConditionValue; }
+
 private:
     static constexpr size_t  kAddressCount = 0x10000;
     static constexpr Byte    kBrkOpcode    = 0x00;
 
     int   Add              (Breakpoint entry);
     void  RebuildAddressBits ();
-    bool  TryMatchEntry    (Breakpoint & entry, Word pc, Byte opcode, const IDebugExpressionContext & context) const;
+    bool  TryMatchEntry    (const Breakpoint & entry, Word pc, Byte opcode, const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;
 
     int                     & m_nextId;
     std::vector<Breakpoint>   m_entries;
     std::vector<bool>         m_addressBits = std::vector<bool> (kAddressCount, false);
+    std::optional<int32_t>    m_lastConditionValue;
 };
