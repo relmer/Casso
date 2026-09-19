@@ -4,6 +4,7 @@
 
 class DebugHook;
 class IDiagnosticsProvider;
+class IOpcodeWatcher;
 class IRunObserver;
 class IWatchSink;
 class Microcode;
@@ -80,6 +81,11 @@ public:
     virtual void                SetHookInstalled  (bool installed) = 0;
     virtual void                SetStopConditions (DebugHook * conditions) = 0;
     virtual void                SetWatchedPages   (const WatchedPages & pages) = 0;
+
+    // The opcodes, a 256-entry table read in place, whose fetches the CPU
+    // tells the watcher of (see IOpcodeWatcher); null for none. A target with
+    // no CPU of its own tells nobody.
+    virtual void                SetOpcodeWatch    (const bool *, IOpcodeWatcher *) {}
 
     // Where an access to a watched page is reported.
     virtual void                SetWatchSink      (IWatchSink * sink) = 0;

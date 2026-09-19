@@ -45,6 +45,7 @@ public:
     HRESULT             StartRun          (const RunRequest & request) override;
     void                RequestPause      () override;
     void                SetHookInstalled  (bool installed) override;
+    void                SetOpcodeWatch    (const bool * opcodes, IOpcodeWatcher * watcher) override;
     void                SetStopConditions (DebugHook * conditions) override;
     void                SetWatchedPages   (const WatchedPages & pages) override;
     void                SetWatchSink      (IWatchSink * sink) override;

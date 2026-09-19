@@ -41,6 +41,8 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_sink   (sink),
     m_state  (initialState)
 {
+    SetFilter (&m_hookFilter);
+
     m_target.SetStopConditions        (this);
     m_target.SetRunObserver           (this);
     m_target.SetWatchSink             (&m_watchpoints);
@@ -48,6 +50,8 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetValueBreakpoints (&m_breakpoints);
     m_watchpoints.SetTarget           (&m_target);
     m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
+    CallStackRecorder::MarkOpcodes    (m_callOpcodes.data());
+    RefreshHookFilter();
     LoadRomSymbols();
 }
 
@@ -169,6 +173,7 @@ DebugSession::~DebugSession()
     m_target.SetStopConditions (nullptr);
     m_target.SetRunObserver    (nullptr);
     m_target.SetHookInstalled  (false);
+    m_target.SetOpcodeWatch    (nullptr, nullptr);
 }
 
 
@@ -804,15 +809,29 @@ void DebugSession::OnInstruction (Word pc)
 
     m_watchpoints.SetAccessPc (pc);
 
-    if (m_callRecorder.IsActive())
-    {
-        m_callRecorder.OnInstruction (pc, m_target.GetRegisters().sp, PeekByte (pc));
-    }
-
     if (isDebuggerRun && m_instructionObserver != nullptr)
     {
         m_instructionObserver->OnInstruction (*this, pc);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::OnWatchedFetch
+//
+//  The CPU reports only the opcodes that can change the call record, the
+//  instruction after each and every interrupt; any other instruction leaves
+//  the record as it was, so the record is what it would be shown them all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
+{
+    m_callRecorder.OnInstruction (pc, sp, opcode);
 }
 
 
@@ -975,7 +994,7 @@ bool DebugSession::ShouldStopBefore (Word pc)
         return true;
     }
 
-    return TryMatchBeforeWatchpoint (pc);
+    return m_watchpoints.HasEnabledBefore() && TryMatchBeforeWatchpoint (pc);
 }
 
 
@@ -1601,6 +1620,7 @@ void DebugSession::PushMonitorReturn()
 
     m_target.SetRegisters (registers);
     m_monitorReturn = kMonitorReentry;
+    RefreshHookFilter();
 }
 
 
@@ -1627,13 +1647,13 @@ void DebugSession::SetCallRecording (bool isOn)
     if (isOn)
     {
         m_callRecorder.Begin (pc, PeekByte (pc));
+        m_target.SetOpcodeWatch (m_callOpcodes.data(), this);
     }
     else
     {
+        m_target.SetOpcodeWatch (nullptr, nullptr);
         m_callRecorder.End();
     }
-
-    UpdateHookInstalled();
 }
 
 
@@ -1751,22 +1771,94 @@ Byte DebugSession::PeekByte (Word address) const
 //
 //  DebugSession::UpdateHookInstalled
 //
-//  The hook is installed while any enabled stop condition exists, a run is
-//  active or the call stack is being recorded, and removed otherwise, so a
-//  machine with no debugger interest pays only the null test.
+//  The hook is installed while any enabled stop condition exists or a run is
+//  active, and removed otherwise, so a machine with no debugger interest pays
+//  only the null test. The call record does not need it: the CPU reports the
+//  instructions it needs (OnWatchedFetch).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::UpdateHookInstalled()
 {
-    bool  shouldInstall = HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping || m_callRecorder.IsActive();
+    bool  shouldInstall = HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping;
 
 
+
+    RefreshHookFilter();
 
     if (shouldInstall != m_hookInstalled)
     {
         m_hookInstalled = shouldInstall;
         m_target.SetHookInstalled (shouldInstall);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::RefreshHookFilter
+//
+//  The instructions the session needs to see. Every one during a run the
+//  debugger started, and while a watchpoint, a value breakpoint, a video
+//  break or a breakpoint on anything but an address or an opcode is armed:
+//  those are tested before or during any instruction, and a watchpoint hit
+//  reports the address of the instruction that made it. Otherwise only the
+//  pages holding an address breakpoint or the Monitor's return, and the
+//  opcodes a breakpoint names.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::RefreshHookFilter()
+{
+    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value();
+
+
+
+    m_hookFilter       = DebugHookFilter();
+    m_hookFilter.pages = {};
+
+    for (const Breakpoint & entry : m_breakpoints.GetAll())
+    {
+        if (!entry.enabled)
+        {
+            continue;
+        }
+
+        switch (entry.kind)
+        {
+        case BreakpointKind::Address:
+            for (int page = entry.first >> 8; page <= (entry.last >> 8); ++page)
+            {
+                m_hookFilter.pages[page] = true;
+            }
+
+            break;
+
+        case BreakpointKind::Opcode:
+        case BreakpointKind::Brk:
+            m_hookFilter.opcodes[entry.opcode] = true;
+            m_hookFilter.opcodesStop           = true;
+            break;
+
+        default:
+            isEvery = true;
+            break;
+        }
+    }
+
+    if (m_monitorReturn.has_value())
+    {
+        m_hookFilter.pages[*m_monitorReturn >> 8] = true;
+    }
+
+    m_hookFilter.everyInstruction = isEvery;
+
+    if (isEvery || m_hookFilter.opcodesStop)
+    {
+        m_hookFilter.pages = DebugHookFilter::s_kAllMarked;
     }
 }
 

@@ -62,6 +62,11 @@ MachineHost::~MachineHost()
 void MachineHost::SetCpu (std::unique_ptr<EmuCpu> cpu)
 {
     m_cpu = std::move (cpu);
+
+    if (m_cpu != nullptr)
+    {
+        m_cpu->GetCpu6502()->SetOpcodeWatch (m_watchOpcodes, m_watcher);
+    }
 }
 
 
@@ -185,18 +190,14 @@ std::filesystem::path MachineHost::GetPendingPrintDir() const
 
 Byte MachineHost::StepOne()
 {
-    Byte  cycles = 0;
-
-
-
     if (m_cpu == nullptr)
     {
         return (0);
     }
 
-    if (m_debugHook != nullptr && m_debugHook->ShouldStopBefore (m_cpu->GetPC()))
+    if (m_debugHook != nullptr)
     {
-        return (0);
+        return StepOneWithHook();
     }
 
     // StepOne polls the interrupt lines itself and dispatches a pending
@@ -205,7 +206,115 @@ Byte MachineHost::StepOne()
     // step, and a separate interrupt poll would be a second, redundant one.
     m_cpu->StepOne();
 
-    cycles = m_cpu->GetLastInstructionCycles();
+    return FinishStep();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::StepOneWithHook
+//
+//  StepOne while a debug hook is installed. The hook is asked before the
+//  instructions on the pages its filter marks (StepOneAsked); the rest run
+//  without it. This runs once per instruction, so the test is one load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte MachineHost::StepOneWithHook()
+{
+    const DebugHookFilter  & filter = m_debugHook->GetFilter();
+    Word                     pc     = m_cpu->GetPC();
+
+
+
+    if (filter.pages[pc >> 8])
+    {
+        return StepOneAsked (filter, pc);
+    }
+
+    m_cpu->StepOne();
+    return FinishStep();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::StepOneAsked
+//
+//  An instruction on a page the filter marks, which the hook may stop before.
+//  While only an opcode can stop the machine, only an instruction with that
+//  opcode, or with one that cannot be read without side effects, is asked
+//  about. The opcode is read from the shadow read page, which is what the CPU
+//  is about to fetch; I/O and a device's ROM have none there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+__declspec (noinline) Byte MachineHost::StepOneAsked (const DebugHookFilter & filter, Word pc)
+{
+    static constexpr Word  kPageMask = 0xFF;
+    const Byte           * page      = m_memoryBus->GetShadowReadPage (pc);
+    bool                   isAsked   = !filter.opcodesStop || filter.everyInstruction || page == nullptr || filter.opcodes[page[pc & kPageMask]];
+
+
+
+    if (isAsked && m_debugHook->ShouldStopBefore (pc))
+    {
+        return (0);
+    }
+
+    m_cpu->StepOne();
+    return FinishStep();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetOpcodeWatch
+//
+//  Kept here as well as in the CPU, so a CPU the machine is rebuilt with
+//  watches the same opcodes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher)
+{
+    m_watchOpcodes = opcodes;
+    m_watcher      = watcher;
+
+    if (m_cpu != nullptr)
+    {
+        m_cpu->GetCpu6502()->SetOpcodeWatch (opcodes, watcher);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::FinishStep
+//
+//  What the instruction or interrupt just executed cost, added to the clock
+//  and to the devices that count cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte MachineHost::FinishStep()
+{
+    Byte  cycles = m_cpu->GetLastInstructionCycles();
+
+
+
     m_cpu->AddCycles (cycles);
 
     if (m_refs.diskController != nullptr)
@@ -250,7 +359,7 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 
         // A hook stop returns a short slice: StepOne declined to execute, or
         // the instruction it just ran raised a stop for the next boundary.
-        if (m_debugHook != nullptr && (cycles == 0 || m_debugHook->HasPendingStop()))
+        if (m_debugHook != nullptr && (cycles == 0 || (m_debugHook->GetFilter().everyInstruction && m_debugHook->HasPendingStop())))
         {
             break;
         }
