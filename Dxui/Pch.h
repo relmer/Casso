@@ -40,6 +40,7 @@
 #include <cmath>
 #include <cstdint>
 #include <deque>
+#include <format>
 #include <functional>
 #include <future>
 #include <iterator>
