@@ -109,6 +109,17 @@ public:
         RECT                       rect = {};
     };
 
+    //  A split laid out: its place in the tree (0 for first, 1 for second,
+    //  from the root, one digit a level), its axis, the area it divides and
+    //  where the division falls along that axis.
+    struct SplitRect
+    {
+        std::wstring  path;
+        bool          horizontal = true;
+        RECT          area       = {};
+        long          position   = 0;
+    };
+
     using ShownFn   = std::function<bool (const std::wstring & pane)>;
     using MinSizeFn = std::function<SIZE (const std::wstring & pane)>;
 
@@ -157,6 +168,13 @@ public:
     //  rest; a side whose panes are all hidden gives its area to the other.
     std::vector<GroupRect>  Arrange (const RECT & areaDip, const ShownFn & shown, const MinSizeFn & minSize) const;
 
+    //  Every split whose two sides are both shown, where Arrange divided it.
+    std::vector<SplitRect>  ArrangeSplits (const RECT & areaDip, const ShownFn & shown, const MinSizeFn & minSize) const;
+
+    //  A new ratio for the split at the given path, clamped to 0.05..0.95; false when
+    //  there is no split there.
+    bool  SetRatio (const std::wstring & path, float ratio);
+
     //  Load-time repairs: panes the application does not know are dropped;
     //  floating panes on a monitor that is absent move to the primary's work
     //  area at their saved size.
@@ -179,6 +197,11 @@ private:
     static SIZE                   GetMinimum   (const Node * node, const ShownFn & shown, const MinSizeFn & minSize);
     static void                   ArrangeNode  (const Node * node, const RECT & area, const ShownFn & shown,
                                                 const MinSizeFn & minSize, std::vector<GroupRect> & out);
+    static void                   ArrangeSplitsIn (const Node * node, const RECT & area, const ShownFn & shown,
+                                                   const MinSizeFn & minSize, const std::wstring & path,
+                                                   std::vector<SplitRect> & out);
+    static long                   GetSplitPosition (const Node * node, const RECT & area, const ShownFn & shown,
+                                                    const MinSizeFn & minSize);
     static void                   DropUnknownIn (std::unique_ptr<Node> & slot,
                                                  const std::function<bool (const std::wstring & pane)> & isKnown);
     static void                   WriteNode    (const Node * node, std::wstring & out);

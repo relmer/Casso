@@ -901,9 +901,6 @@ void DxuiPaneLayout::ArrangeNode (const Node * node, const RECT & area, const Sh
     GroupRect  group;
     bool       firstShown  = false;
     bool       secondShown = false;
-    long       total       = 0;
-    long       needA       = 0;
-    long       needB       = 0;
     long       split       = 0;
     RECT       a           = area;
     RECT       b           = area;
@@ -946,19 +943,7 @@ void DxuiPaneLayout::ArrangeNode (const Node * node, const RECT & area, const Sh
         return;
     }
 
-    total = node->horizontal ? (area.right - area.left) : (area.bottom - area.top);
-    needA = node->horizontal ? GetMinimum (node->first.get(),  shown, minSize).cx : GetMinimum (node->first.get(),  shown, minSize).cy;
-    needB = node->horizontal ? GetMinimum (node->second.get(), shown, minSize).cx : GetMinimum (node->second.get(), shown, minSize).cy;
-    split = (long) std::lround (total * node->ratio);
-
-    if (needA + needB <= total)
-    {
-        split = std::clamp (split, needA, total - needB);
-    }
-    else if (needA + needB > 0)
-    {
-        split = total * needA / (needA + needB);
-    }
+    split = GetSplitPosition (node, area, shown, minSize);
 
     if (node->horizontal)
     {
@@ -975,6 +960,161 @@ void DxuiPaneLayout::ArrangeNode (const Node * node, const RECT & area, const Sh
     ArrangeNode (node->second.get(), b, shown, minSize, out);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::GetSplitPosition
+//
+//  How far along its axis a split divides its area. The ratio places the
+//  division, then it moves as little as it must for each side to get its
+//  minimum; when the area cannot hold both minimums, they share it in
+//  proportion to what each needs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+long DxuiPaneLayout::GetSplitPosition (const Node * node, const RECT & area, const ShownFn & shown, const MinSizeFn & minSize)
+{
+    long  total = node->horizontal ? (area.right - area.left) : (area.bottom - area.top);
+    SIZE  a     = GetMinimum (node->first.get(),  shown, minSize);
+    SIZE  b     = GetMinimum (node->second.get(), shown, minSize);
+    long  needA = node->horizontal ? a.cx : a.cy;
+    long  needB = node->horizontal ? b.cx : b.cy;
+    long  split = (long) std::lround (total * node->ratio);
+
+
+
+    if (needA + needB <= total)
+    {
+        split = std::clamp (split, needA, total - needB);
+    }
+    else if (needA + needB > 0)
+    {
+        split = total * needA / (needA + needB);
+    }
+
+    return split;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::ArrangeSplits
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPaneLayout::SplitRect> DxuiPaneLayout::ArrangeSplits (const RECT & areaDip, const ShownFn & shown,
+                                                                      const MinSizeFn & minSize) const
+{
+    std::vector<SplitRect>  splits;
+
+
+
+    ArrangeSplitsIn (m_root.get(), areaDip, shown, minSize, std::wstring(), splits);
+    return splits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::ArrangeSplitsIn
+//
+//  The same walk as ArrangeNode, recording each split both of whose sides are
+//  shown. A split with one side hidden gives its whole area to the other and
+//  has nothing to drag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPaneLayout::ArrangeSplitsIn (const Node * node, const RECT & area, const ShownFn & shown,
+                                      const MinSizeFn & minSize, const std::wstring & path,
+                                      std::vector<SplitRect> & out)
+{
+    SplitRect  split;
+    bool       firstShown  = false;
+    bool       secondShown = false;
+    RECT       a           = area;
+    RECT       b           = area;
+
+
+
+    if (node == nullptr || node->kind != Node::Kind::Split || !HasShown (node, shown))
+    {
+        return;
+    }
+
+    firstShown  = HasShown (node->first.get(),  shown);
+    secondShown = HasShown (node->second.get(), shown);
+
+    if (!firstShown || !secondShown)
+    {
+        ArrangeSplitsIn (firstShown ? node->first.get() : node->second.get(), area, shown, minSize,
+                         path + (firstShown ? L"0" : L"1"), out);
+        return;
+    }
+
+    split.path       = path;
+    split.horizontal = node->horizontal;
+    split.area       = area;
+    split.position   = (node->horizontal ? area.left : area.top) + GetSplitPosition (node, area, shown, minSize);
+    out.push_back (split);
+
+    if (node->horizontal)
+    {
+        a.right = split.position;
+        b.left  = split.position;
+    }
+    else
+    {
+        a.bottom = split.position;
+        b.top    = split.position;
+    }
+
+    ArrangeSplitsIn (node->first.get(),  a, shown, minSize, path + L"0", out);
+    ArrangeSplitsIn (node->second.get(), b, shown, minSize, path + L"1", out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::SetRatio
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPaneLayout::SetRatio (const std::wstring & path, float ratio)
+{
+    Node  * node = m_root.get();
+
+
+
+    for (wchar_t step : path)
+    {
+        if (node == nullptr || node->kind != Node::Kind::Split)
+        {
+            return false;
+        }
+
+        node = (step == L'0') ? node->first.get() : node->second.get();
+    }
+
+    if (node == nullptr || node->kind != Node::Kind::Split)
+    {
+        return false;
+    }
+
+    node->ratio = std::clamp (ratio, 0.05f, 0.95f);
+    return true;
+}
 
 
 

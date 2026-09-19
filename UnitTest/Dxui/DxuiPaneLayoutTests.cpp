@@ -228,6 +228,49 @@ namespace DxuiPaneLayoutTests
         }
 
 
+        TEST_METHOD (SplitsAreWhereArrangeDividesTheArea)
+        {
+            DxuiPaneLayout                            layout = MakeSample();
+            std::vector<DxuiPaneLayout::SplitRect>    splits = layout.ArrangeSplits (s_kArea, nullptr, nullptr);
+            std::vector<DxuiPaneLayout::GroupRect>    groups = layout.Arrange (s_kArea, nullptr, nullptr);
+
+
+
+            Assert::AreEqual ((size_t) 2, splits.size());
+            Assert::IsTrue   (splits[0].horizontal, L"the root: code and console | regs");
+            Assert::AreEqual (std::wstring (L""), splits[0].path);
+            Assert::AreEqual (FindRect (groups, L"regs").rect.left, splits[0].position);
+            Assert::AreEqual (std::wstring (L"0"), splits[1].path, L"the root's first side");
+            Assert::AreEqual (FindRect (groups, L"console").rect.top, splits[1].position);
+        }
+
+
+        TEST_METHOD (ASplitWithAHiddenSideHasNothingToDrag)
+        {
+            DxuiPaneLayout  layout = MakeSample();
+            auto            shown  = [] (const std::wstring & pane) { return pane != L"console"; };
+
+
+
+            Assert::AreEqual ((size_t) 1, layout.ArrangeSplits (s_kArea, shown, nullptr).size());
+        }
+
+
+        TEST_METHOD (SetRatioMovesTheSplitWithinLimits)
+        {
+            DxuiPaneLayout  layout = MakeSample();
+
+
+
+            Assert::IsTrue   (layout.SetRatio (L"", 0.8f));
+            Assert::AreEqual ((long) 800, layout.ArrangeSplits (s_kArea, nullptr, nullptr)[0].position);
+            Assert::IsTrue   (layout.SetRatio (L"", 2.0f));
+            Assert::AreEqual ((long) 950, layout.ArrangeSplits (s_kArea, nullptr, nullptr)[0].position, L"clamped");
+            Assert::IsFalse  (layout.SetRatio (L"00", 0.5f), L"a group, not a split");
+            Assert::IsFalse  (layout.SetRatio (L"011", 0.5f));
+        }
+
+
         TEST_METHOD (AHiddenActiveTabShowsTheNextOne)
         {
             DxuiPaneLayout  layout = MakeSample();
