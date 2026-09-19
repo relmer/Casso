@@ -207,6 +207,7 @@
     <ClCompile Include="DebuggerTests\ChannelProtocolTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugChannelServerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\InstanceDirectoryTests.cpp" />

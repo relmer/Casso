@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DebuggerLayout.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -184,6 +185,7 @@ void DebuggerWindow::OnCreate()
             [this] (const std::string & line)        { AppendConsole ({ line }); });
 
         view->SetVisible (id == 1);
+        m_memoryOpen[(size_t) (id - 1)] = (id == 1);
     }
 
     //  Shown only while a debug file is loaded.
@@ -201,7 +203,11 @@ void DebuggerWindow::OnCreate()
     m_sourceView->SetVisible   (false);
     m_sourceBanner->SetVisible (false);
 
+    //  Last, so its strips and the drop overlay paint over the panes.
+    m_dockSite = CreateChild<DxuiDockSite>();
+
     ConfigureWidgets();
+    ConfigureDockSite();
 }
 
 
@@ -471,7 +477,7 @@ std::vector<MemoryPane *> DebuggerWindow::GetOpenMemoryPanes() const
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
-        if (pane != nullptr && pane->GetView()->IsVisible())
+        if (pane != nullptr && m_memoryOpen[(size_t) (pane->GetId() - 1)])
         {
             open.push_back (pane.get());
         }
@@ -568,12 +574,16 @@ void DebuggerWindow::ApplyMemoryWindows()
 
     for (size_t i = 0; i < m_memoryPanes.size(); i++)
     {
-        DxuiHexView  * view = m_memoryPanes[i]->GetView();
-
-        if (view->IsVisible() != open[i])
+        //  A window opened comes to the front of its tab group.
+        if (m_memoryOpen[i] != open[i])
         {
-            view->SetVisible (open[i]);
-            changed = true;
+            m_memoryOpen[i] = open[i];
+            changed         = true;
+
+            if (open[i])
+            {
+                (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetMemoryPaneId ((int) i + 1));
+            }
         }
 
         if (!open[i] && m_activePane == m_memoryPanes[i].get())
@@ -584,7 +594,7 @@ void DebuggerWindow::ApplyMemoryWindows()
 
     if (changed)
     {
-        LayoutWidgets();
+        m_dockSite->Relayout();
     }
 }
 
@@ -608,7 +618,7 @@ void DebuggerWindow::AddMemoryWindow()
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
-        if (!pane->GetView()->IsVisible() && m_host != nullptr)
+        if (!m_memoryOpen[(size_t) (pane->GetId() - 1)] && m_host != nullptr)
         {
             m_host->SetDebuggerMemoryWindow (pane->GetId(), at);
             return;
@@ -634,7 +644,7 @@ void DebuggerWindow::RemoveMemoryWindow()
     {
         MemoryPane  * pane = m_memoryPanes[i - 1].get();
 
-        if (pane->GetView()->IsVisible() && m_host != nullptr)
+        if (m_memoryOpen[(size_t) (pane->GetId() - 1)] && m_host != nullptr)
         {
             m_host->SetDebuggerMemoryWindow (pane->GetId(), std::nullopt);
             return;
@@ -670,15 +680,18 @@ void DebuggerWindow::ApplySource()
     shown       = m_sourcePane->IsActive();
     bannerShown = shown && m_sourcePane->HasBanner();
 
-    m_sourceView->SetVisible   (shown);
-    m_sourceBanner->SetVisible (bannerShown);
-
-    if (shown != m_sourceShown || bannerShown != m_sourceBannerShown || bannerKey != m_sourceBannerKey)
+    if (shown != m_sourceShown)
     {
         m_sourceShown       = shown;
         m_sourceBannerShown = bannerShown;
         m_sourceBannerKey   = bannerKey;
-        LayoutWidgets();
+        m_dockSite->Relayout();
+    }
+    else if (bannerShown != m_sourceBannerShown || bannerKey != m_sourceBannerKey)
+    {
+        m_sourceBannerShown = bannerShown;
+        m_sourceBannerKey   = bannerKey;
+        m_sourceFrame->Relayout();
     }
 }
 
@@ -709,7 +722,8 @@ bool DebuggerWindow::RouteSourceMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (!m_sourceShown)
+    //  A source pane behind another tab takes no input.
+    if (!m_sourceShown || !m_sourceView->IsVisible())
     {
         return false;
     }
@@ -851,7 +865,7 @@ bool DebuggerWindow::RouteMemoryMouse (const DxuiMouseEvent & ev)
     {
         DxuiHexView  * view   = pane->GetView();
         RECT           bounds = view->GetBounds();
-        bool           inside = at.x >= bounds.left && at.x < bounds.right && at.y >= bounds.top && at.y < bounds.bottom;
+        bool           inside = view->IsVisible() && at.x >= bounds.left && at.x < bounds.right && at.y >= bounds.top && at.y < bounds.bottom;
 
         if (view->IsDragging() && ev.kind != DxuiMouseEventKind::Down)
         {
@@ -1150,43 +1164,28 @@ void DebuggerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 //
 //  DebuggerWindow::LayoutWidgets
 //
-//  Controls across the top; code and the console on the left, the small panes
-//  down the right; memory across the bottom with its two boxes.
+//  Controls across the top and the memory bar across the bottom stay where
+//  they are; the dock site between them arranges every pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::LayoutWidgets()
 {
     auto  px       = [this] (int dip) { return m_scaler.ToPx (dip); };
-    auto  paneH    = [px] (int rows) { return px (kPaneHeaderDip + rows * kPaneRowDip + kPaneEdgeDip); };
-    int                        pad       = px (8);
-    int                        buttonH   = px (30);
-    int                        boxH      = px (30);
-    int                        width     = m_widthDip;
-    int                        height    = m_heightDip;
-    int                        captionH  = GetCaptionHeightPx();
-    int                        rowY      = captionH + pad;
-    int                        top       = rowY + buttonH + pad;
-    int                        rightW    = px (300);
-    int                        rightX    = std::max (pad, width - pad - rightW);
-    int                        leftW     = std::max (px (100), rightX - 2 * pad);
-    int                        bottomH   = paneH (kPaneRows);
-    int                        bottomY   = std::max (top + px (120), height - pad - boxH - pad - bottomH);
-    int                        middleH   = std::max (px (120), bottomY - pad - top);
-    int                        codeH     = std::min (paneH (DebuggerViewState::kCodeLines), middleH - pad - boxH - pad - paneH (2));
-    int                        consoleY  = top + codeH + pad;
-    int                        consoleH  = std::max (px (40), middleH - codeH - pad - boxH - pad);
-    int                        regH      = paneH (kRegisterRows);
-    int                        restH     = std::max (px (60), std::min (paneH (kPaneRows), (middleH - regH - 2 * pad) / 2));
-    int                        paneY     = top;
-    int                        x         = pad;
-    std::vector<MemoryPane *>  openPanes = GetOpenMemoryPanes();
-    int                        paneW     = (leftW - ((int) std::max<size_t> (openPanes.size(), 1) - 1) * pad) /
-                                           (int) std::max<size_t> (openPanes.size(), 1);
+    int   pad      = px (8);
+    int   buttonH  = px (30);
+    int   boxH     = px (30);
+    int   width    = m_widthDip;
+    int   height   = m_heightDip;
+    int   captionH = GetCaptionHeightPx();
+    int   rowY     = captionH + pad;
+    int   top      = rowY + buttonH + pad;
+    int   barY     = std::max (top + px (120), height - pad - boxH);
+    int   x        = pad;
 
 
 
-    if (m_codeList == nullptr)
+    if (m_codeList == nullptr || m_dockSite == nullptr)
     {
         return;
     }
@@ -1201,50 +1200,179 @@ void DebuggerWindow::LayoutWidgets()
 
     m_flagsLabel->Layout (RECT { x + pad, rowY, width - pad, rowY + buttonH }, m_scaler);
 
-    //  With a debug file loaded, the source pane takes the left of the code
-    //  row and the disassembly the right, with the pane's banner above it.
-    if (m_sourceShown)
-    {
-        int  sourceW = (leftW - pad) * 3 / 5;
-        int  bannerH = m_sourceBannerShown ? (int) m_sourceBanner->GetPreferredHeightPx ((float) sourceW, m_scaler) : 0;
-
-        m_sourceBanner->Layout (RECT { pad, top, pad + sourceW, top + bannerH }, m_scaler);
-        m_sourceView->Layout   (RECT { pad, top + bannerH + (bannerH > 0 ? pad : 0), pad + sourceW, top + codeH }, m_scaler);
-        m_codeList->Layout     (RECT { pad + sourceW + pad, top, pad + leftW, top + codeH }, m_scaler);
-    }
-    else
-    {
-        m_codeList->Layout (RECT { pad, top, pad + leftW, top + codeH }, m_scaler);
-    }
-
-    m_consoleList->Layout (RECT { pad, consoleY, pad + leftW, consoleY + consoleH }, m_scaler);
-    m_commandBox->Layout  (RECT { pad, consoleY + consoleH + pad, pad + leftW, consoleY + consoleH + pad + boxH }, m_scaler);
-
-    m_registerList->Layout   (RECT { rightX, paneY, width - pad, paneY + regH  }, m_scaler);  paneY += regH  + pad;
-    m_breakpointList->Layout (RECT { rightX, paneY, width - pad, paneY + restH }, m_scaler);  paneY += restH + pad;
-    m_watchList->Layout      (RECT { rightX, paneY, width - pad, top + middleH }, m_scaler);
-
-    //  Memory and the stack share the bottom row, so each gets the eight rows
-    //  a pane is owed without the right column having to hold four panes.
-    //  The open memory windows share the bottom row's left part side by side.
-    x = pad;
-
-    for (MemoryPane * pane : openPanes)
-    {
-        pane->GetView()->Layout (RECT { x, bottomY, x + paneW, bottomY + bottomH }, m_scaler);
-        x += paneW + pad;
-    }
-
-    m_stackList->Layout  (RECT { rightX, bottomY, width - pad, bottomY + bottomH }, m_scaler);
+    m_dockSite->Layout (RECT { pad, top, width - pad, barY - pad }, m_scaler);
 
     x = pad;
-    m_memoryBox->Layout  (RECT { x, bottomY + bottomH + pad, x + px (170), bottomY + bottomH + pad + boxH }, m_scaler);  x += px (170) + pad;
-    m_pokeBox->Layout    (RECT { x, bottomY + bottomH + pad, x + px (230), bottomY + bottomH + pad + boxH }, m_scaler);  x += px (230) + pad;
+    m_memoryBox->Layout  (RECT { x, barY, x + px (170), barY + boxH }, m_scaler);  x += px (170) + pad;
+    m_pokeBox->Layout    (RECT { x, barY, x + px (230), barY + boxH }, m_scaler);  x += px (230) + pad;
 
     for (DxuiButton * button : GetMemoryButtons())
     {
-        button->Layout (RECT { x, bottomY + bottomH + pad, x + px (90), bottomY + bottomH + pad + boxH }, m_scaler);
+        button->Layout (RECT { x, barY, x + px (90), barY + boxH }, m_scaler);
         x += px (90) + pad;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ConfigureDockSite
+//
+//  Every pane goes to the site under its layout id. The source pane and the
+//  console are frames over several controls; the rest are one control each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ConfigureDockSite()
+{
+    auto  boxHeight = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
+
+
+
+    m_sourceFrame = std::make_unique<DebuggerPaneFrame> (L"Source");
+    m_sourceFrame->AddPart (m_sourceBanner,
+                            [this] (int width, const DxuiDpiScaler & scaler) { return (int) m_sourceBanner->GetPreferredHeightPx ((float) width, scaler); },
+                            [this] { return m_sourceBannerShown; });
+    m_sourceFrame->AddPart (m_sourceView);
+
+    m_consoleFrame = std::make_unique<DebuggerPaneFrame> (L"Console");
+    m_consoleFrame->AddPart (m_consoleList);
+    m_consoleFrame->AddPart (m_commandBox, boxHeight);
+
+    m_dockSite->AddPane (DebuggerLayout::kCode,        L"Disassembly", m_codeList);
+    m_dockSite->AddPane (DebuggerLayout::kSource,      L"Source",      m_sourceFrame.get());
+    m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
+    m_dockSite->AddPane (DebuggerLayout::kRegisters,   L"Registers",   m_registerList);
+    m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointList);
+    m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_watchList);
+    m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_stackList);
+
+    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+    {
+        m_dockSite->AddPane (DebuggerLayout::GetMemoryPaneId (pane->GetId()),
+                             std::format (L"Memory {}", pane->GetId()), pane->GetView());
+    }
+
+    m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
+    m_dockSite->SetPaneLayout (DebuggerLayout::MakeDefault());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsPaneShown
+//
+//  The source pane shows while a debug file is loaded and a memory window
+//  while it is open; the rest always show.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
+{
+    if (pane == DebuggerLayout::kSource)
+    {
+        return m_sourceShown;
+    }
+
+    for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
+    {
+        if (pane == DebuggerLayout::GetMemoryPaneId (memory->GetId()))
+        {
+            return m_memoryOpen[(size_t) (memory->GetId() - 1)];
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPaneOfFocus
+//
+//  The pane holding the focused control, including the parts of a frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetPaneOfFocus() const
+{
+    IDxuiControl  * focused = m_focusMgr.GetFocusedControl();
+
+
+
+    if (focused == nullptr)
+    {
+        return L"";
+    }
+
+    if (focused == m_consoleList || focused == m_commandBox)
+    {
+        return DebuggerLayout::kConsole;
+    }
+
+    if (focused == m_sourceView)
+    {
+        return DebuggerLayout::kSource;
+    }
+
+    return m_dockSite->GetPaneOf (focused);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowDockToMenu
+//
+//  The Dock To choices for a pane as a context menu (FR-042); the one chosen
+//  runs through the site like a drop would.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
+{
+    std::vector<DxuiDockSite::MenuItem>  items  = m_dockSite->GetDockToMenu (pane);
+    HMENU                                menu   = nullptr;
+    POINT                                screen = clientPx;
+    int                                  chosen = 0;
+
+
+
+    if (items.empty())
+    {
+        return;
+    }
+
+    menu = CreatePopupMenu();
+
+    if (menu == nullptr)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < items.size(); i++)
+    {
+        AppendMenuW (menu, MF_STRING, (UINT_PTR) (i + 1), items[i].label.c_str());
+    }
+
+    ClientToScreen (GetHwnd(), &screen);
+    chosen = (int) TrackPopupMenu (menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, screen.x, screen.y, 0, GetHwnd(), nullptr);
+    DestroyMenu (menu);
+
+    if (chosen >= 1 && chosen <= (int) items.size())
+    {
+        (void) items[(size_t) (chosen - 1)].action();
     }
 }
 
@@ -1590,12 +1718,32 @@ void DebuggerWindow::OfferPress (IDxuiControl * control, const DxuiMouseEvent & 
 
 bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 {
-    int   x       = ev.positionDip.x;
-    int   y       = ev.positionDip.y;
-    bool  lbDown  = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
-    bool  handled = false;
+    int           x       = ev.positionDip.x;
+    int           y       = ev.positionDip.y;
+    bool          lbDown  = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool          handled = false;
+    std::wstring  pane;
 
 
+
+    //  The site first: its strips, its sashes and a drag in progress lie over
+    //  the panes.
+    if (m_dockSite->OnMouse (ev))
+    {
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
+    {
+        pane = m_dockSite->GetPaneAt (ev.positionDip);
+
+        if (!pane.empty())
+        {
+            ShowDockToMenu (pane, ev.positionDip);
+        }
+
+        return true;
+    }
 
     if (RouteMemoryMouse (ev) || RouteSourceMouse (ev))
     {
@@ -1646,7 +1794,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         {
             RECT  bounds = list->GetBounds();
 
-            if (!handled && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
+            if (!handled && list->IsVisible() && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
             {
                 handled = ForwardToList (list, ev);
                 m_focusMgr.SetFocused (list);
@@ -1679,7 +1827,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         {
             RECT  bounds = list->GetBounds();
 
-            if (x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
+            if (list->IsVisible() && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
             {
                 ForwardToList (list, ev);
             }
@@ -1690,6 +1838,58 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     default:
         return false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteDockKey
+//
+//  Docking from the keyboard (FR-042): Shift+F10 or the menu key opens Dock To
+//  for the focused pane, and Alt+Shift with an arrow moves it into the group
+//  that way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteDockKey (const DxuiKeyEvent & ev)
+{
+    std::wstring  pane   = GetPaneOfFocus();
+    RECT          bounds = {};
+    DxuiDockSide  side   = DxuiDockSide::Left;
+
+
+
+    if (pane.empty())
+    {
+        return false;
+    }
+
+    if (ev.vk == VK_APPS || (ev.vk == VK_F10 && ev.shift && !ev.ctrl && !ev.alt))
+    {
+        bounds = m_focusMgr.GetFocusedControl()->GetBounds();
+        ShowDockToMenu (pane, POINT { bounds.left, bounds.top });
+        return true;
+    }
+
+    if (!ev.alt || !ev.shift || ev.ctrl)
+    {
+        return false;
+    }
+
+    switch (ev.vk)
+    {
+    case VK_LEFT:  side = DxuiDockSide::Left;   break;
+    case VK_RIGHT: side = DxuiDockSide::Right;  break;
+    case VK_UP:    side = DxuiDockSide::Top;    break;
+    case VK_DOWN:  side = DxuiDockSide::Bottom; break;
+    default:       return false;
+    }
+
+    (void) m_dockSite->MovePaneByArrow (pane, side);
+    return true;
 }
 
 
@@ -1715,6 +1915,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (RouteBoxKey (ev, handled))
     {
         return handled;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down && RouteDockKey (ev))
+    {
+        return true;
     }
 
     if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN)
@@ -1767,8 +1972,22 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
 
 LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
 {
+    LPCWSTR  sash = (m_dockSite != nullptr) ? m_dockSite->GetCursorForPoint (clientPx) : nullptr;
+
+
+
+    if (sash != nullptr)
+    {
+        return sash;
+    }
+
     for (DxuiListView * list : GetLists())
     {
+        if (!list->IsVisible())
+        {
+            continue;
+        }
+
         RECT     bounds = list->GetBounds();
         POINT    local  = { clientPx.x - bounds.left, clientPx.y - bounds.top };
         LPCWSTR  cursor = list->GetCursorForPoint (local);

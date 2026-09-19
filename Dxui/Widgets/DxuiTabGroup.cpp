@@ -225,7 +225,7 @@ int DxuiTabGroup::GetTabWidthDip (int index) const
 
 
 
-    return 2 * kTabPadDip + (int) tab.title.size() * kCharDip + (tab.indicator ? kIndicatorDip : 0);
+    return m_scaler.ToPx (2 * kTabPadDip + (int) tab.title.size() * kCharDip + (tab.indicator ? kIndicatorDip : 0));
 }
 
 
@@ -254,7 +254,7 @@ RECT DxuiTabGroup::GetTabRect (int index) const
         x += GetTabWidthDip (i);
     }
 
-    return RECT { x, m_boundsDip.top, x + GetTabWidthDip (index), m_boundsDip.top + kStripDip };
+    return RECT { x, m_boundsDip.top, x + GetTabWidthDip (index), m_boundsDip.top + m_scaler.ToPx (kStripDip) };
 }
 
 
@@ -269,7 +269,7 @@ RECT DxuiTabGroup::GetTabRect (int index) const
 
 RECT DxuiTabGroup::GetBodyRect() const
 {
-    return RECT { m_boundsDip.left, std::min (m_boundsDip.bottom, m_boundsDip.top + (long) kStripDip),
+    return RECT { m_boundsDip.left, std::min (m_boundsDip.bottom, m_boundsDip.top + (long) m_scaler.ToPx (kStripDip)),
                   m_boundsDip.right, m_boundsDip.bottom };
 }
 
@@ -362,13 +362,16 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 {
     DxuiFontHandle  font  = theme.BodyFont();
     float           strip = m_scaler.ToPxf ((float) kStripDip);
+    float           pad   = m_scaler.ToPxf ((float) kTabPadDip);
     float           line  = (float) std::max (1L, std::lround (m_scaler.ToPxf (1.0f)));
+    float           left  = (float) m_boundsDip.left;
+    float           top   = (float) m_boundsDip.top;
+    float           width = (float) (m_boundsDip.right - m_boundsDip.left);
     HRESULT         hr    = S_OK;
 
 
 
-    painter.FillRect (m_scaler.ToPxf ((float) m_boundsDip.left), m_scaler.ToPxf ((float) m_boundsDip.top),
-                      m_scaler.ToPxf ((float) (m_boundsDip.right - m_boundsDip.left)), strip, theme.Background());
+    painter.FillRect (left, top, width, strip, theme.Background());
 
     for (int i = 0; i < (int) m_tabs.size(); i++)
     {
@@ -385,31 +388,27 @@ void DxuiTabGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
         if (active)
         {
-            painter.FillRect (m_scaler.ToPxf ((float) tab.left), m_scaler.ToPxf ((float) tab.top),
-                              m_scaler.ToPxf ((float) (tab.right - tab.left)), strip, theme.ContentBackground());
-            painter.FillRect (m_scaler.ToPxf ((float) tab.left), m_scaler.ToPxf ((float) tab.top),
-                              m_scaler.ToPxf ((float) (tab.right - tab.left)), line * 2, theme.Accent());
+            painter.FillRect ((float) tab.left, (float) tab.top, (float) (tab.right - tab.left), strip, theme.ContentBackground());
+            painter.FillRect ((float) tab.left, (float) tab.top, (float) (tab.right - tab.left), line * 2, theme.Accent());
         }
 
         hr = text.DrawString (m_tabs[(size_t) i].title.c_str(),
-                              (float) (tab.left + kTabPadDip), (float) tab.top,
-                              (float) (tab.right - tab.left - kTabPadDip), (float) kStripDip,
-                              color, font.sizeDip, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
+                              (float) tab.left + pad, (float) tab.top,
+                              (float) (tab.right - tab.left) - pad, strip,
+                              color, m_scaler.ToPxf (font.sizeDip), font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
                               DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (m_tabs[(size_t) i].indicator)
         {
-            painter.FillCircleApprox (m_scaler.ToPxf ((float) (tab.right - kTabPadDip - kIndicatorDip / 2 + 2)),
-                                      m_scaler.ToPxf ((float) (tab.top + kStripDip / 2)),
+            painter.FillCircleApprox ((float) tab.right - pad - m_scaler.ToPxf ((float) kIndicatorDip / 2 - 2),
+                                      (float) tab.top + strip / 2,
                                       m_scaler.ToPxf (3.0f), theme.Accent());
         }
     }
 
-    painter.FillRect (m_scaler.ToPxf ((float) m_boundsDip.left), m_scaler.ToPxf ((float) m_boundsDip.top) + strip - line,
-                      m_scaler.ToPxf ((float) (m_boundsDip.right - m_boundsDip.left)), line, theme.Divider());
+    painter.FillRect (left, top + strip - line, width, line, theme.Divider());
 }
-
 
 
 
@@ -449,7 +448,7 @@ bool DxuiTabGroup::OnMouse (const DxuiMouseEvent & ev)
             return m_pressedTab >= 0;
         }
 
-        if (std::abs (ev.positionDip.x - m_pressedAt.x) > kDragDip || std::abs (ev.positionDip.y - m_pressedAt.y) > kDragDip)
+        if (std::abs (ev.positionDip.x - m_pressedAt.x) > m_scaler.ToPx (kDragDip) || std::abs (ev.positionDip.y - m_pressedAt.y) > m_scaler.ToPx (kDragDip))
         {
             m_dragging = true;
 

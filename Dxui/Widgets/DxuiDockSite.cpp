@@ -524,7 +524,7 @@ const DxuiDockDropZone * DxuiDockSite::GetHoveredZone() const
 
 RECT DxuiDockSite::GetSashRect (const DxuiPaneLayout::SplitRect & split) const
 {
-    long  half = kSashDip / 2;
+    long  half = m_scaler.ToPx (kSashDip) / 2;
 
 
 
@@ -650,7 +650,7 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         {
             RECT  strip = group->GetBounds();
 
-            strip.bottom = std::min (strip.bottom, strip.top + (long) DxuiTabGroup::kStripDip);
+            strip.bottom = std::min (strip.bottom, strip.top + (long) m_scaler.ToPx (DxuiTabGroup::kStripDip));
 
             if (Contains (strip, ev.positionDip))
             {
@@ -685,9 +685,7 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
 
 LPCWSTR DxuiDockSite::GetCursorForPoint (POINT clientPx) const
 {
-    UINT   dpi   = std::max (1U, m_scaler.GetDpi());
-    POINT  dip   = { MulDiv (clientPx.x, 96, (int) dpi), MulDiv (clientPx.y, 96, (int) dpi) };
-    int    sash  = (m_sashDrag >= 0) ? m_sashDrag : HitTestSash (dip);
+    int  sash = (m_sashDrag >= 0) ? m_sashDrag : HitTestSash (clientPx);
 
 
 
@@ -718,8 +716,8 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     const DxuiDockDropZone   * hover  = GetHoveredZone();
     auto                       fill   = [&] (const RECT & r, uint32_t argb)
     {
-        painter.FillRect (m_scaler.ToPxf ((float) r.left), m_scaler.ToPxf ((float) r.top),
-                          m_scaler.ToPxf ((float) (r.right - r.left)), m_scaler.ToPxf ((float) (r.bottom - r.top)), argb);
+        painter.FillRect ((float) r.left, (float) r.top,
+                          (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
     };
 
 
@@ -733,13 +731,13 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     {
         if (split.horizontal)
         {
-            painter.FillRect (m_scaler.ToPxf ((float) split.position) - line / 2, m_scaler.ToPxf ((float) split.area.top),
-                              line, m_scaler.ToPxf ((float) (split.area.bottom - split.area.top)), theme.Divider());
+            painter.FillRect ((float) split.position - line / 2, (float) split.area.top,
+                              line, (float) (split.area.bottom - split.area.top), theme.Divider());
         }
         else
         {
-            painter.FillRect (m_scaler.ToPxf ((float) split.area.left), m_scaler.ToPxf ((float) split.position) - line / 2,
-                              m_scaler.ToPxf ((float) (split.area.right - split.area.left)), line, theme.Divider());
+            painter.FillRect ((float) split.area.left, (float) split.position - line / 2,
+                              (float) (split.area.right - split.area.left), line, theme.Divider());
         }
     }
 
@@ -756,9 +754,9 @@ void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     for (const DxuiDockDropZone & zone : m_zones)
     {
         fill (zone.target, theme.ControlBackground());
-        painter.OutlineRect (m_scaler.ToPxf ((float) zone.target.left), m_scaler.ToPxf ((float) zone.target.top),
-                             m_scaler.ToPxf ((float) (zone.target.right - zone.target.left)),
-                             m_scaler.ToPxf ((float) (zone.target.bottom - zone.target.top)),
+        painter.OutlineRect ((float) zone.target.left, (float) zone.target.top,
+                             (float) (zone.target.right - zone.target.left),
+                             (float) (zone.target.bottom - zone.target.top),
                              line, (&zone == hover) ? theme.Accent() : theme.Border());
     }
 }

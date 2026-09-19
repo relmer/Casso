@@ -3,12 +3,14 @@
 #include "Window/DxuiWindow.h"
 #include "Core/DxuiFocusManager.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiDockSite.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 
@@ -139,6 +141,11 @@ private:
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     void     CycleKeyScheme   ();
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
+    void     ConfigureDockSite  ();
+    bool     IsPaneShown        (const std::wstring & pane) const;
+    std::wstring  GetPaneOfFocus () const;
+    void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
+    bool     RouteDockKey       (const DxuiKeyEvent & ev);
     void     ApplyMemoryWindows ();
     void     AddMemoryWindow    ();
     void     RemoveMemoryWindow ();
@@ -170,6 +177,10 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
     std::vector<std::string>                        m_console;
 
+    DxuiDockSite                                                                   * m_dockSite           = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_sourceFrame;
+    std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
+    std::array<bool, DebuggerViewState::kMaxMemoryWindows>                           m_memoryOpen         = {};
     DxuiButton                                                                     * m_stepButton         = nullptr;
     DxuiButton                                                                     * m_stepOverButton     = nullptr;
     DxuiButton                                                                     * m_stepOutButton      = nullptr;
