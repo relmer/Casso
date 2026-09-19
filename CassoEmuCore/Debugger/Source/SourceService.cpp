@@ -143,7 +143,11 @@ bool SourceService::TryFolder (const DebugSourceFile & record, const std::wstrin
 
         path = Combine (folder, entry.name);
 
-        if (entry.sizeBytes != record.size)
+        //  The size only settles a record with no hash. With one, the hash
+        //  decides: it is taken over the text with its line endings made
+        //  alike, so a file checked out with CRLF matches a record written
+        //  from LF text, whose size differs.
+        if (record.sha1.empty() && entry.sizeBytes != record.size)
         {
             nameOnly = nameOnly.empty() ? path : nameOnly;
             continue;

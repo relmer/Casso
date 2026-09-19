@@ -97,7 +97,7 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (ASizeMismatchIsNotHashed)
+        TEST_METHOD (ADifferentFileInTheRecordedFolderIsPassedOver)
         {
             Rig           rig;
             SourceLookup  found;
@@ -111,7 +111,27 @@ namespace DebuggerTests
             found = rig.service.Find (Record ("main.a65", s_kSource), L"C:\\Work\\main.dbg", s_kProgram);
 
             Assert::IsTrue   (found.match == SourceMatch::Exact);
-            Assert::AreEqual (std::wstring (L"C:\\Found\\main.a65"), found.path, L"the recorded folder's file is the wrong size");
+            Assert::AreEqual (std::wstring (L"C:\\Found\\main.a65"), found.path, L"the recorded folder's file is another text");
+        }
+
+
+        //  A record written from LF text, as the assembler writes it, finds
+        //  the same text checked out with CRLF: the sizes differ, the hashes
+        //  over the text do not.
+        TEST_METHOD (ACrlfCheckoutMatchesARecordOfLfText)
+        {
+            Rig           rig;
+            SourceLookup  found;
+            std::string   lf = Sha1::NormalizeLineEndings (s_kSource);
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\main.a65", s_kSource);
+
+            found = rig.service.Find (Record ("main.a65", lf), L"C:\\Work\\main.dbg", s_kProgram);
+
+            Assert::IsTrue   (found.match == SourceMatch::Exact);
+            Assert::AreEqual (std::wstring (L"C:\\Work\\main.a65"), found.path);
         }
 
 
