@@ -1033,7 +1033,9 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         }
 
         command.verb = DebugVerb::SetMode;
-        command.mode = (mode == "MONITOR") ? CommandMode::Monitor : CommandMode::AppleWin;
+        command.mode = (mode == "MONITOR") ? CommandMode::Monitor
+                     : (mode == "WINDBG")  ? CommandMode::WinDbg
+                     :                       CommandMode::AppleWin;
         return true;
     }
 

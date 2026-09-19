@@ -5,6 +5,7 @@
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/MonitorFormatter.h"
 #include "Debugger/ReplyJson.h"
+#include "Debugger/WinDbgFormatter.h"
 
 
 
@@ -38,7 +39,7 @@ std::string DebugBatchSink::TakePending()
 
 void DebugBatchSink::OnStopped (const StopEvent & stop)
 {
-    bool  isMonitor = m_session != nullptr && m_session->GetMode() == CommandMode::Monitor;
+    CommandMode  mode = (m_session != nullptr) ? m_session->GetMode() : CommandMode::AppleWin;
 
 
 
@@ -55,7 +56,9 @@ void DebugBatchSink::OnStopped (const StopEvent & stop)
     }
     else
     {
-        m_pending += isMonitor ? MonitorFormatter::FormatStop (stop) : AppleWinFormatter::FormatStop (stop);
+        m_pending += (mode == CommandMode::Monitor) ? MonitorFormatter::FormatStop (stop)
+                   : (mode == CommandMode::WinDbg)  ? WinDbgFormatter::FormatStop  (stop)
+                   :                                  AppleWinFormatter::FormatStop (stop);
     }
 
     m_pending += "\n";

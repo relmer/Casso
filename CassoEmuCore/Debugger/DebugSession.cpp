@@ -13,6 +13,8 @@
 #include "Debugger/LineAssembler.h"
 #include "Debugger/MonitorFormatter.h"
 #include "Debugger/MonitorParser.h"
+#include "Debugger/WinDbgFormatter.h"
+#include "Debugger/WinDbgParser.h"
 #include "Debugger/RomSymbols.h"
 
 
@@ -233,6 +235,23 @@ void DebugSession::AddHandler (IDebugCommandHandler * handler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::GetPrompt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * DebugSession::GetPrompt (CommandMode mode)
+{
+    return mode == CommandMode::Monitor ? "*"
+         : mode == CommandMode::WinDbg  ? "0:000> "
+         :                                ">";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::ExecuteLine
 //
 //  The line goes to the parser for the session's mode. A line while the
@@ -272,7 +291,9 @@ Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
         return reply;
     }
 
-    reply         = (mode == CommandMode::Monitor) ? ExecuteMonitorLine (text) : ExecuteAppleWinLine (text);
+    reply         = (mode == CommandMode::Monitor) ? ExecuteMonitorLine (text)
+                  : (mode == CommandMode::WinDbg)  ? ExecuteWinDbgLine  (text)
+                  :                                  ExecuteAppleWinLine (text);
     reply.command = line;
     return reply;
 }
@@ -307,6 +328,52 @@ Reply DebugSession::ExecuteAppleWinLine (const std::string & text)
     case ParseStatus::NotAvailable:
     case ParseStatus::WindowOnly:
         SetError (reply, CommandStatus::NotAvailable, "command not available", parsed.error);
+        break;
+
+    case ParseStatus::Invalid:
+        SetError (reply, CommandStatus::Error, "invalid arguments", parsed.error);
+        break;
+
+    default:
+        break;
+    }
+
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteWinDbgLine
+//
+//  A WinDbg command outside this machine's world is an error of its own:
+//  it has no meaning here, which is not the same as being unavailable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteWinDbgLine (const std::string & text)
+{
+    WinDbgParseResult  parsed = WinDbgParser::Parse (text, *this);
+    Reply              reply;
+
+
+
+    switch (parsed.status)
+    {
+    case ParseStatus::Ok:
+        reply = Execute (parsed.command);
+        break;
+
+    case ParseStatus::Unknown:
+        SetError (reply, CommandStatus::Unknown, "unknown command", parsed.error);
+        break;
+
+    case ParseStatus::NotAvailable:
+    case ParseStatus::WindowOnly:
+        SetError (reply, CommandStatus::NotAvailable, parsed.label.empty() ? "command not available" : parsed.label, parsed.error);
         break;
 
     case ParseStatus::Invalid:
@@ -416,6 +483,12 @@ void DebugSession::FormatReply (Reply & reply, CommandMode mode) const
     if (mode == CommandMode::Monitor)
     {
         MonitorFormatter::Format (reply);
+        return;
+    }
+
+    if (mode == CommandMode::WinDbg)
+    {
+        WinDbgFormatter::Format (reply);
         return;
     }
 

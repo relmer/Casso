@@ -105,7 +105,7 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
 
         if (!TryGetMode (mode, chosen))
         {
-            SetError (error, "unknown mode", std::format ("{} is not a mode; the modes are applewin and monitor.", mode));
+            SetError (error, "unknown mode", std::format ("{} is not a mode; the modes are applewin, monitor and windbg.", mode));
             return false;
         }
 
@@ -281,6 +281,12 @@ bool ChannelProtocol::TryGetMode (const std::string & name, CommandMode & mode)
     if (name == "monitor")
     {
         mode = CommandMode::Monitor;
+        return true;
+    }
+
+    if (name == "windbg")
+    {
+        mode = CommandMode::WinDbg;
         return true;
     }
 

@@ -626,6 +626,12 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
 
 
 
+    //  WinDbg mode has no window-only commands of its own.
+    if (mode == CommandMode::WinDbg)
+    {
+        return ExecuteLine (session, line, mode);
+    }
+
     //  In Monitor mode only a `/` line is an AppleWin line.
     if (mode == CommandMode::Monitor)
     {

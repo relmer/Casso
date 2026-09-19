@@ -16,6 +16,7 @@ enum class CommandMode
 {
     AppleWin,
     Monitor,
+    WinDbg,
 };
 
 

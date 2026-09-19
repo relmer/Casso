@@ -414,7 +414,7 @@ struct CommandLineOptions
         std::string               disk2;                         // --disk2 <image>
         std::string               scriptPath;                    // --script <path>, or - for standard input
         std::vector<std::string>  commands;                      // --command <line>, repeatable
-        std::string               mode          = "applewin";    // --mode applewin|monitor
+        std::string               mode          = "applewin";    // --mode applewin|monitor|windbg
         bool                      json          = false;         // --json
         uint64_t                  maxCycles     = kDefaultMaxCycles;
         uint64_t                  seed          = kDefaultSeed;

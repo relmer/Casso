@@ -60,6 +60,12 @@ void SymbolHandlers::Lookup (DebugSession & session, const DebugCommand & comman
 
 
 
+    if (text.find_first_of ("*?") != std::string::npos)
+    {
+        LookupPattern (session, command, text, reply);
+        return;
+    }
+
     if (TryParseHex (text, symbol.address))
     {
         isFound      = hasTable ? symbols.TryFindNameIn (table, symbol.address, symbol.name) : symbols.TryFindName (symbol.address, symbol.name, symbol.table);
@@ -79,6 +85,116 @@ void SymbolHandlers::Lookup (DebugSession & session, const DebugCommand & comman
 
     data.symbols.push_back (symbol);
     reply.data = data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::LookupPattern
+//
+//  Every symbol whose name the pattern matches, table by table in lookup
+//  order: the enabled tables through SYM, the one table through SYM<table>.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolHandlers::LookupPattern (DebugSession & session, const DebugCommand & command, const std::string & pattern, Reply & reply)
+{
+    const SymbolTable        & symbols  = session.GetSymbols();
+    SymbolTableId              table    = SymbolTableId::Main;
+    bool                       hasTable = TryGetTable (command, table);
+    SymbolData                 data;
+    std::vector<SymbolInfo>    all;
+
+
+
+    for (int i = 0; i < SymbolTable::kTableCount; i++)
+    {
+        SymbolTableId  id = (SymbolTableId) i;
+
+
+
+        if (hasTable ? id != table : !symbols.IsEnabled (id))
+        {
+            continue;
+        }
+
+        all.clear();
+        symbols.GetAll (id, all);
+
+        for (SymbolInfo & symbol : all)
+        {
+            if (IsPatternMatch (pattern, symbol.name))
+            {
+                symbol.table = id;
+                data.symbols.push_back (symbol);
+            }
+        }
+    }
+
+    if (data.symbols.empty())
+    {
+        reply.SetError (CommandStatus::Error, "symbol not found",
+                        std::format ("No symbol matches {}.", pattern));
+        return;
+    }
+
+    reply.data = data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::IsPatternMatch
+//
+//  `*` matches any run of characters and `?` any one, without regard to
+//  case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolHandlers::IsPatternMatch (const std::string & pattern, const std::string & name)
+{
+    size_t  p         = 0;
+    size_t  n         = 0;
+    size_t  starAt    = std::string::npos;
+    size_t  resumeAt  = 0;
+
+
+
+    while (n < name.size())
+    {
+        if (p < pattern.size() && (pattern[p] == '?' || toupper ((unsigned char) pattern[p]) == toupper ((unsigned char) name[n])))
+        {
+            p++;
+            n++;
+        }
+        else if (p < pattern.size() && pattern[p] == '*')
+        {
+            starAt   = p++;
+            resumeAt = n;
+        }
+        else if (starAt != std::string::npos)
+        {
+            p = starAt + 1;
+            n = ++resumeAt;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    while (p < pattern.size() && pattern[p] == '*')
+    {
+        p++;
+    }
+
+    return p == pattern.size();
 }
 
 

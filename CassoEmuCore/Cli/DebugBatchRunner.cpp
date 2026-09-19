@@ -128,11 +128,11 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     budget.count      = (uint32_t) std::min<uint64_t> (options.maxCycles, UINT32_MAX);
     session.Execute (budget);
 
-    if (options.mode == "monitor")
+    if (options.mode == "monitor" || options.mode == "windbg")
     {
         mode.verb       = DebugVerb::SetMode;
         mode.sourceName = "MODE";
-        mode.mode       = CommandMode::Monitor;
+        mode.mode       = (options.mode == "windbg") ? CommandMode::WinDbg : CommandMode::Monitor;
         session.Execute (mode);
         m_sink.TakePending();
     }
@@ -327,7 +327,7 @@ void DebugBatchRunner::RunLines (
 
         if (!options.json)
         {
-            result.output += (session.GetMode() == CommandMode::Monitor ? "*" : ">") + line + "\n";
+            result.output += DebugSession::GetPrompt (session.GetMode()) + line + "\n";
         }
 
         reply = session.ExecuteLine (line);

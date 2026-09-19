@@ -4107,10 +4107,10 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
                 ch = (char) tolower ((unsigned char) ch);
             }
 
-            if (debug.mode != "applewin" && debug.mode != "monitor")
+            if (debug.mode != "applewin" && debug.mode != "monitor" && debug.mode != "windbg")
             {
                 Refusal (options) << "Error: unknown value for " << FormatLongOption ("--mode", options.flagPrefix) << "\n"
-                                  << "       expected: applewin or monitor\n";
+                                  << "       expected: applewin, monitor or windbg\n";
                 options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
             }
         }

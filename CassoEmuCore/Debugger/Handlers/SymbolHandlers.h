@@ -17,7 +17,8 @@ class DebugSession;
 //  ~ name; SYMINFO and SYMLIST.
 //
 //  SYM alone reports each table's count. A lookup through SYM searches the
-//  enabled tables; through SYM<table> it searches that table only. SYM adds
+//  enabled tables; through SYM<table> it searches that table only. A name
+//  with `*` or `?` in it lists every symbol it matches. SYM adds
 //  and removes in the User table; SYM<table> in its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +30,8 @@ public:
 
 private:
     static void  Lookup   (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  LookupPattern (DebugSession & session, const DebugCommand & command, const std::string & pattern, Reply & reply);
+    static bool  IsPatternMatch (const std::string & pattern, const std::string & name);
     static void  Info     (DebugSession & session, Reply & reply);
     static void  List     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Load     (DebugSession & session, const DebugCommand & command, Reply & reply);
