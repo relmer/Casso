@@ -247,6 +247,98 @@ STACK
 `CassoCli debug --attach <pid>` runs the same kind of script against a running
 Casso; see [DebugChannel.md](DebugChannel.md#from-the-command-line).
 
+## Conditional and value breakpoints
+
+`BP`, `BPX`, `BPM`, `BPMR`, `BPMW`, `BPMV` and `BP file:line` take a trailing
+`IF` and an expression over registers, symbols and memory, where `*addr` reads
+a byte:
+
+```text
+BP Loop IF X == 3 & *PTR != 0
+BPMW 400 BEFORE IF Y = 2
+```
+
+The expression is evaluated only when the address or the access hits. A false
+one neither stops the machine nor counts a hit; a true one stops, and the stop
+line shows the expression and its value. On a watchpoint, `ACCESS` and `VALUE`
+are the address and byte of the access. An expression is checked as it is set,
+so an unknown symbol or a read of an I/O address is an error then, not at the
+first hit.
+
+`BPMV addr value` stops after a write leaves `addr` holding `value`, and on no
+other write.
+
+## Source-level debugging
+
+A debug file maps addresses to source lines. Casso reads cc65's debug format
+(`ca65 -g`, `ld65 --dbgfile`), writes it from its own assembler
+(`CassoCli as65 -g`), and reads a Merlin 8/16 listing, which becomes its own
+source view.
+
+- `SYM LOAD file.dbg` loads the symbols and the line table. The window opens a
+  source pane beside the disassembly and follows the PC.
+- The source files are looked for beside the debug file, then in the folders
+  where sources were found before. When one is not found, the pane says so;
+  drag the file onto the debugger and it is matched by its hash, and its
+  folder remembered. A file whose hash differs from the one recorded opens
+  with a warning.
+- `SRC` shows the current file and line. `SRC ON` makes every step command,
+  in every mode, step by source line; `SRC OFF` steps by instruction. In the
+  window, the pane with the focus decides: the source pane steps by line, the
+  disassembly by instruction.
+- `BP file:line` sets a breakpoint on the first instruction of a line, at
+  each place a macro body line was expanded.
+
+## The call stack
+
+`CALLS` shows the chain of calls to the PC, innermost first. Each frame has
+its call site, the routine it entered, and how it was found:
+
+- **Recorded** frames come from watching `JSR`, `BRK` and interrupts go by
+  while the debugger is open, and `RTS` and `RTI` end them.
+- **Guessed** frames come from walking the stack page for return addresses
+  whose `JSR` is two bytes below; with a debug file loaded, only calls to
+  known routines count.
+
+`CALLS MODE RECORDED|WALK|HYBRID` chooses the mechanism. Hybrid, the default,
+uses the recorded frames and extends below them with the walk.
+
+A program that manages its own stack breaks the chain, and the call stack
+says where rather than guessing past it: a `TXS`, a pull into a return
+address, a frame left by a jump, a return to somewhere other than its call
+site, the stack wrapping, a reset, and the point where recording began. A
+routine that returns a few bytes past its call site, over inline parameters
+the way ProDOS's MLI does, is noted and not treated as a break.
+
+## The step filter
+
+`SKIP name`, `SKIP addr` or `SKIP first.last` adds a routine to the step
+filter: a step into its `JSR` runs the call and stops after it, so stepping
+never lands inside `COUT` and its like. `SKIP` lists the filter, `SKIP - name`
+removes an entry and `SKIP CLEAR` empties it.
+
+## The instruction trace
+
+`HISTORY ON` records every instruction the machine runs, keeping the newest
+100,000: the cycle count, the registers before it, and the memory access it
+made, with symbols. `HISTORY OFF` stops recording and keeps what it has.
+
+```text
+HISTORY               the newest 20 entries
+HISTORY 5000 40       40 entries from entry 5000 (decimal)
+HISTORY SAVE run.txt  every retained entry
+```
+
+The trace costs nothing while it is off.
+
+## Profiling
+
+`PROFILE ON` counts every instruction a debugger-driven run executes, and
+`PROFILE OFF` stops. `PROFILE LIST` shows the count, cycles and share for each
+mnemonic and addressing mode, and the penalty cycles apart: page crossings on
+indexed reads, taken branches, and branches that cross a page. `PROFILE LIST
+ADDR` shows the twenty hottest addresses; `PROFILE SAVE file` writes both
+tables; `PROFILE RESET` clears them.
 ## The debugger window
 
 **Debug > Debugger...** opens the window beside the emulator; `--debugger` opens
@@ -272,3 +364,36 @@ views (`TEXT`, `HGR` and their forms) and the appearance commands (`BW`,
 `COLOR`, `FONT`) are not available; the emulator window shows the screen.
 
 Closing the window closes the debug channel. Reopening it keeps the breakpoints.
+
+### Panes and docking
+
+Every pane can be moved. Drag a tab onto the drop zones that appear to dock it
+beside another pane, against an edge of the window, or as a tab of another
+group; drag a divider to resize. A tab dragged out of the window floats in a
+window of its own; closing that window docks it back. Right-click a pane, or
+press Shift+F10, for **Dock To**, which offers each edge, each group, Float and
+Auto Hide; Alt+Shift with an arrow key moves the focused pane. An auto-hidden
+pane is a tab on the window's edge that slides the pane out on a hover or a
+click, and back when you click elsewhere; a tab marks new output it has not
+shown. The arrangement, including floating windows and the monitor each is
+on, is kept between sessions.
+
+The panes are the disassembly, the source, the console, registers,
+breakpoints, watches, the stack, the call stack, the trace, up to four memory
+windows, and one panel for each device the machine has.
+
+### Memory windows
+
+**+ Memory** opens another memory window, up to four; **- Memory** closes the
+last. Type over the hex or the text to edit memory, in RAM or in ROM; Ctrl+Z
+undoes the last edit in that window. **Bytes** cycles the grouping through
+bytes, words and longs.
+
+### Device panels
+
+**Panels** lists the machine's devices: the Disk II controller, the //e MMU
+and its memory map, the video switches, the keyboard, the Mockingboard, the
+printer card and the clock. Each opens as a pane showing its registers and
+state, with the disk head position, the memory map, or level meters where the
+device has them. `PANEL LIST`, `PANEL name` and `PANEL CLOSE name` do the same
+from the command box.
